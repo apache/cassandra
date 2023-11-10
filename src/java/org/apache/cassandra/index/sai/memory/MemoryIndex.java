@@ -22,9 +22,10 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
@@ -40,11 +41,11 @@ import java.util.function.Function;
 
 public abstract class MemoryIndex implements MemtableOrdering
 {
-    protected final IndexContext indexContext;
+    protected final StorageAttachedIndex index;
 
-    protected MemoryIndex(IndexContext indexContext)
+    protected MemoryIndex(StorageAttachedIndex index)
     {
-        this.indexContext = indexContext;
+        this.index = index;
     }
 
     public abstract long add(DecoratedKey key, Clustering<?> clustering, ByteBuffer value);
@@ -65,6 +66,6 @@ public abstract class MemoryIndex implements MemtableOrdering
     public abstract Iterator<Pair<ByteComparable, PrimaryKeys>> iterator();
 
     public abstract SegmentMetadata.ComponentMetadataMap writeDirect(IndexDescriptor indexDescriptor,
-                                                                     IndexContext indexContext,
+                                                                     IndexIdentifier indexIdentifier,
                                                                      Function<PrimaryKey, Integer> postingTransformer) throws IOException;
 }

@@ -26,8 +26,6 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.disk.v1.bbtree.BlockBalancedTreeRamBuffer;
@@ -35,9 +33,10 @@ import org.apache.cassandra.index.sai.disk.v1.bbtree.NumericIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.trie.LiteralIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.vector.OnHeapGraph;
 import org.apache.cassandra.index.sai.memory.RAMStringIndexer;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.lucene.util.BytesRefBuilder;
 
@@ -74,7 +73,7 @@ public abstract class SegmentBuilder
     private ByteBuffer minTerm;
     private ByteBuffer maxTerm;
 
-    final AbstractType<?> termComparator;
+    final IndexTermType indexTermType;
     long totalBytesAllocated;
     int rowCount = 0;
     int maxSegmentRowId = -1;
@@ -84,12 +83,12 @@ public abstract class SegmentBuilder
         private final byte[] scratch;
         private final BlockBalancedTreeRamBuffer trieBuffer;
 
-        public BlockBalancedTreeSegmentBuilder(AbstractType<?> termComparator, NamedMemoryLimiter limiter)
+        public BlockBalancedTreeSegmentBuilder(IndexTermType indexTermType, NamedMemoryLimiter limiter)
         {
-            super(termComparator, limiter);
+            super(indexTermType, limiter);
 
-            scratch = new byte[TypeUtil.fixedSizeOf(termComparator)];
-            trieBuffer = new BlockBalancedTreeRamBuffer(TypeUtil.fixedSizeOf(termComparator));
+            scratch = new byte[indexTermType.fixedSizeOf()];
+            trieBuffer = new BlockBalancedTreeRamBuffer(indexTermType.fixedSizeOf());
             totalBytesAllocated = this.trieBuffer.memoryUsed();
         }
 
@@ -102,16 +101,16 @@ public abstract class SegmentBuilder
         @Override
         protected long addInternal(ByteBuffer term, int segmentRowId)
         {
-            TypeUtil.toComparableBytes(term, termComparator, scratch);
+            indexTermType.toComparableBytes(term, scratch);
             return trieBuffer.add(segmentRowId, scratch);
         }
 
         @Override
-        protected SegmentMetadata.ComponentMetadataMap flushInternal(IndexDescriptor indexDescriptor, IndexContext indexContext) throws IOException
+        protected SegmentMetadata.ComponentMetadataMap flushInternal(IndexDescriptor indexDescriptor, IndexIdentifier indexIdentifier) throws IOException
         {
             NumericIndexWriter writer = new NumericIndexWriter(indexDescriptor,
-                                                               indexContext,
-                                                               TypeUtil.fixedSizeOf(termComparator),
+                                                               indexIdentifier,
+                                                               indexTermType.fixedSizeOf(),
                                                                maxSegmentRowId);
             return writer.writeCompleteSegment(trieBuffer.iterator());
         }
@@ -123,9 +122,9 @@ public abstract class SegmentBuilder
 
         final BytesRefBuilder stringBuffer = new BytesRefBuilder();
 
-        public RAMStringSegmentBuilder(AbstractType<?> termComparator, NamedMemoryLimiter limiter)
+        public RAMStringSegmentBuilder(IndexTermType indexTermType, NamedMemoryLimiter limiter)
         {
-            super(termComparator, limiter);
+            super(indexTermType, limiter);
 
             ramIndexer = new RAMStringIndexer();
             totalBytesAllocated = ramIndexer.estimatedBytesUsed();
@@ -145,9 +144,9 @@ public abstract class SegmentBuilder
         }
 
         @Override
-        protected SegmentMetadata.ComponentMetadataMap flushInternal(IndexDescriptor indexDescriptor, IndexContext indexContext) throws IOException
+        protected SegmentMetadata.ComponentMetadataMap flushInternal(IndexDescriptor indexDescriptor, IndexIdentifier indexIdentifier) throws IOException
         {
-            try (LiteralIndexWriter writer = new LiteralIndexWriter(indexDescriptor, indexContext))
+            try (LiteralIndexWriter writer = new LiteralIndexWriter(indexDescriptor, indexIdentifier))
             {
                 return writer.writeCompleteSegment(ramIndexer.getTermsWithPostings());
             }
@@ -167,10 +166,10 @@ public abstract class SegmentBuilder
     {
         private final OnHeapGraph<Integer> graphIndex;
 
-        public VectorSegmentBuilder(AbstractType<?> termComparator, NamedMemoryLimiter limiter, IndexWriterConfig indexWriterConfig)
+        public VectorSegmentBuilder(IndexTermType indexTermType, NamedMemoryLimiter limiter, IndexWriterConfig indexWriterConfig)
         {
-            super(termComparator, limiter);
-            graphIndex = new OnHeapGraph<>(termComparator, indexWriterConfig, false);
+            super(indexTermType, limiter);
+            graphIndex = new OnHeapGraph<>(indexTermType.indexType(), indexWriterConfig, false);
         }
 
         @Override
@@ -186,9 +185,9 @@ public abstract class SegmentBuilder
         }
 
         @Override
-        protected SegmentMetadata.ComponentMetadataMap flushInternal(IndexDescriptor indexDescriptor, IndexContext indexContext) throws IOException
+        protected SegmentMetadata.ComponentMetadataMap flushInternal(IndexDescriptor indexDescriptor, IndexIdentifier indexIdentifier) throws IOException
         {
-            return graphIndex.writeData(indexDescriptor, indexContext, p -> p);
+            return graphIndex.writeData(indexDescriptor, indexIdentifier, p -> p);
         }
     }
 
@@ -197,27 +196,27 @@ public abstract class SegmentBuilder
         return ACTIVE_BUILDER_COUNT.get();
     }
 
-    private SegmentBuilder(AbstractType<?> termComparator, NamedMemoryLimiter limiter)
+    private SegmentBuilder(IndexTermType indexTermType, NamedMemoryLimiter limiter)
     {
-        this.termComparator = termComparator;
+        this.indexTermType = indexTermType;
         this.limiter = limiter;
         lastValidSegmentRowID = testLastValidSegmentRowId >= 0 ? testLastValidSegmentRowId : LAST_VALID_SEGMENT_ROW_ID;
 
         minimumFlushBytes = limiter.limitBytes() / ACTIVE_BUILDER_COUNT.incrementAndGet();
     }
 
-    public SegmentMetadata flush(IndexDescriptor indexDescriptor, IndexContext indexContext) throws IOException
+    public SegmentMetadata flush(IndexDescriptor indexDescriptor, IndexIdentifier indexIdentifier) throws IOException
     {
         assert !flushed : "Cannot flush an already flushed segment";
         flushed = true;
 
         if (getRowCount() == 0)
         {
-            logger.warn(indexContext.logMessage("No rows to index during flush of SSTable {}."), indexDescriptor.sstableDescriptor);
+            logger.warn(indexIdentifier.logMessage("No rows to index during flush of SSTable {}."), indexDescriptor.sstableDescriptor);
             return null;
         }
 
-        SegmentMetadata.ComponentMetadataMap indexMetas = flushInternal(indexDescriptor, indexContext);
+        SegmentMetadata.ComponentMetadataMap indexMetas = flushInternal(indexDescriptor, indexIdentifier);
 
         return new SegmentMetadata(segmentRowIdOffset, rowCount, minSSTableRowId, maxSSTableRowId, minKey, maxKey, minTerm, maxTerm, indexMetas);
     }
@@ -234,8 +233,8 @@ public abstract class SegmentBuilder
             minKey = key;
         maxKey = key;
 
-        minTerm = TypeUtil.min(term, minTerm, termComparator);
-        maxTerm = TypeUtil.max(term, maxTerm, termComparator);
+        minTerm = indexTermType.min(term, minTerm);
+        maxTerm = indexTermType.max(term, maxTerm);
 
         if (rowCount == 0)
         {
@@ -282,11 +281,11 @@ public abstract class SegmentBuilder
      * 2. It releases the builder's memory against its limiter.
      * 3. It defensively marks the builder inactive to make sure nothing bad happens if we try to close it twice.
      *
-     * @param indexContext an {@link IndexContext} used for creating logging messages
+     * @param indexIdentifier an {@link IndexIdentifier} used for creating logging messages
      *
      * @return the number of bytes used by the memory limiter after releasing this builder
      */
-    public long release(IndexContext indexContext)
+    public long release(IndexIdentifier indexIdentifier)
     {
         if (active)
         {
@@ -296,7 +295,7 @@ public abstract class SegmentBuilder
             return used;
         }
 
-        logger.warn(indexContext.logMessage("Attempted to release storage-attached index segment builder memory after builder marked inactive."));
+        logger.warn(indexIdentifier.logMessage("Attempted to release storage-attached index segment builder memory after builder marked inactive."));
         return limiter.currentBytesUsed();
     }
 
@@ -304,7 +303,7 @@ public abstract class SegmentBuilder
 
     protected abstract long addInternal(ByteBuffer term, int segmentRowId);
 
-    protected abstract SegmentMetadata.ComponentMetadataMap flushInternal(IndexDescriptor indexDescriptor, IndexContext indexContext) throws IOException;
+    protected abstract SegmentMetadata.ComponentMetadataMap flushInternal(IndexDescriptor indexDescriptor, IndexIdentifier indexIdentifier) throws IOException;
 
     public int getRowCount()
     {

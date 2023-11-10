@@ -25,14 +25,14 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.commons.lang3.mutable.MutableLong;
 
-import org.apache.cassandra.index.sai.IndexContext;
-import org.apache.cassandra.index.sai.postings.PostingList;
-import org.apache.cassandra.index.sai.utils.TermsIterator;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
-import org.apache.cassandra.index.sai.disk.v1.postings.PostingsWriter;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
+import org.apache.cassandra.index.sai.disk.v1.postings.PostingsWriter;
+import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
+import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.index.sai.utils.TermsIterator;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 /**
@@ -45,10 +45,10 @@ public class LiteralIndexWriter implements Closeable
     private final PostingsWriter postingsWriter;
     private long postingsAdded;
 
-    public LiteralIndexWriter(IndexDescriptor indexDescriptor, IndexContext indexContext) throws IOException
+    public LiteralIndexWriter(IndexDescriptor indexDescriptor, IndexIdentifier indexIdentifier) throws IOException
     {
-        this.termsDictionaryWriter = new TrieTermsDictionaryWriter(indexDescriptor, indexContext);
-        this.postingsWriter = new PostingsWriter(indexDescriptor, indexContext);
+        this.termsDictionaryWriter = new TrieTermsDictionaryWriter(indexDescriptor, indexIdentifier);
+        this.postingsWriter = new PostingsWriter(indexDescriptor, indexIdentifier);
     }
 
     /**

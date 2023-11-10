@@ -29,7 +29,6 @@ import java.util.PriorityQueue;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.base.Stopwatch;
@@ -41,7 +40,7 @@ import org.slf4j.LoggerFactory;
 
 import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.disk.v1.postings.MergePostingList;
 import org.apache.cassandra.index.sai.disk.v1.postings.PackedLongsPostingList;
@@ -127,7 +126,7 @@ public class BlockBalancedTreePostingsWriter implements BlockBalancedTreeWalker.
      * After writing out the postings, it writes a map of node ID -> postings file pointer for all
      * nodes with an attached postings list. It then returns the file pointer to this map.
      */
-    public long finish(IndexOutputWriter out, List<PackedLongValues> leafPostings, IndexContext indexContext) throws IOException
+    public long finish(IndexOutputWriter out, List<PackedLongValues> leafPostings, IndexIdentifier indexIdentifier) throws IOException
     {
         checkState(leafPostings.size() == leafOffsetToNodeID.size(),
                    "Expected equal number of postings lists (%s) and leaf offsets (%s).",
@@ -150,7 +149,7 @@ public class BlockBalancedTreePostingsWriter implements BlockBalancedTreeWalker.
 
             Collection<Integer> leafNodeIDs = leafOffsetToNodeID.values();
 
-            logger.debug(indexContext.logMessage("Writing posting lists for {} internal and {} leaf balanced tree nodes. Leaf postings memory usage: {}."),
+            logger.debug(indexIdentifier.logMessage("Writing posting lists for {} internal and {} leaf balanced tree nodes. Leaf postings memory usage: {}."),
                          internalNodeIDs.size(), leafNodeIDs.size(), FBUtilities.prettyPrintMemory(postingsRamBytesUsed));
 
             long startFP = out.getFilePointer();
@@ -185,7 +184,7 @@ public class BlockBalancedTreePostingsWriter implements BlockBalancedTreeWalker.
                 postingLists.clear();
             }
             flushTime.stop();
-            logger.debug(indexContext.logMessage("Flushed {} of posting lists for balanced tree nodes in {} ms."),
+            logger.debug(indexIdentifier.logMessage("Flushed {} of posting lists for balanced tree nodes in {} ms."),
                          FBUtilities.prettyPrintMemory(out.getFilePointer() - startFP),
                          flushTime.elapsed(TimeUnit.MILLISECONDS));
 

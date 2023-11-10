@@ -40,7 +40,7 @@ public class BlockBalancedTreeQueriesTest extends SAIRandomizedTester
     @Test
     public void testMatchesAll()
     {
-        Expression expression = new Expression(SAITester.createIndexContext("meh", Int32Type.instance));
+        Expression expression = Expression.create(SAITester.createMockIndex("meh", Int32Type.instance));
         BlockBalancedTreeReader.IntersectVisitor query = BlockBalancedTreeQueries.balancedTreeQueryFrom(expression, 4);
 
         for (int visit = 0; visit < between(100, 1000); visit++)
@@ -213,7 +213,7 @@ public class BlockBalancedTreeQueriesTest extends SAIRandomizedTester
 
     private Expression buildExpression(Operator op, int value)
     {
-        Expression expression = new Expression(SAITester.createIndexContext("meh", Int32Type.instance));
+        Expression expression = Expression.create(SAITester.createMockIndex("meh", Int32Type.instance));
         expression.add(op, Int32Type.instance.decompose(value));
         return expression;
     }

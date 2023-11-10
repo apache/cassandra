@@ -37,7 +37,6 @@ import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.SSTableComponentsWriter;
 import org.apache.cassandra.index.sai.disk.v1.WidePrimaryKeyMap;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
@@ -173,7 +172,7 @@ public class KeyLookupBench
     private static DecoratedKey makeKey(TableMetadata table, Object...partitionKeys)
     {
         ByteBuffer key;
-        if (TypeUtil.isComposite(table.partitionKeyType))
+        if (table.partitionKeyType instanceof CompositeType)
             key = ((CompositeType)table.partitionKeyType).decompose(partitionKeys);
         else
             key = table.partitionKeyType.fromString((String)partitionKeys[0]);

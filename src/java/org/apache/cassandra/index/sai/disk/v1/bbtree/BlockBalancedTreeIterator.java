@@ -21,10 +21,9 @@ package org.apache.cassandra.index.sai.disk.v1.bbtree;
 import java.util.Iterator;
 import java.util.Map;
 
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.index.sai.utils.TermsIterator;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
@@ -36,11 +35,11 @@ import org.apache.lucene.util.packed.PackedLongValues;
  */
 public interface BlockBalancedTreeIterator extends Iterator<Pair<byte[], PostingList>>
 {
-    static BlockBalancedTreeIterator fromTermsIterator(final TermsIterator termsIterator, AbstractType<?> termsComparator)
+    static BlockBalancedTreeIterator fromTermsIterator(final TermsIterator termsIterator, IndexTermType indexTermType)
     {
         return new BlockBalancedTreeIterator()
         {
-            final byte[] scratch = new byte[TypeUtil.fixedSizeOf(termsComparator)];
+            final byte[] scratch = new byte[indexTermType.fixedSizeOf()];
 
             @Override
             public boolean hasNext()

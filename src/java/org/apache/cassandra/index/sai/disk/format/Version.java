@@ -25,8 +25,8 @@ import java.util.stream.Collectors;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.v1.V1OnDiskFormat;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 
@@ -115,9 +115,9 @@ public class Version implements Comparable<Version>
         return indexComponent.type.createComponent(fileNameFormatter.format(indexComponent, null));
     }
 
-    public Component makePerIndexComponent(IndexComponent indexComponent, IndexContext indexContext)
+    public Component makePerIndexComponent(IndexComponent indexComponent, IndexIdentifier indexIdentifier)
     {
-        return indexComponent.type.createComponent(fileNameFormatter.format(indexComponent, indexContext));
+        return indexComponent.type.createComponent(fileNameFormatter.format(indexComponent, indexIdentifier));
     }
 
     public FileNameFormatter fileNameFormatter()
@@ -127,24 +127,24 @@ public class Version implements Comparable<Version>
 
     public interface FileNameFormatter
     {
-        String format(IndexComponent indexComponent, IndexContext indexContext);
+        String format(IndexComponent indexComponent, IndexIdentifier indexIdentifier);
     }
 
     /**
      * SAI default filename formatter. This is the current SAI on-disk filename format
-     *
+     * <p>
      * Format: {@code <sstable descriptor>-SAI+<version>(+<index name>)+<component name>.db}
      * Note: The index name is excluded for per-SSTable index files that are shared
      * across all the per-column indexes for the SSTable.
      */
-    private static String defaultFileNameFormat(IndexComponent indexComponent, IndexContext indexContext, String version)
+    private static String defaultFileNameFormat(IndexComponent indexComponent, IndexIdentifier indexIdentifier, String version)
     {
         StringBuilder stringBuilder = new StringBuilder();
 
         stringBuilder.append(SAI_DESCRIPTOR);
         stringBuilder.append(SAI_SEPARATOR).append(version);
-        if (indexContext != null)
-            stringBuilder.append(SAI_SEPARATOR).append(indexContext.getIndexName());
+        if (indexIdentifier != null)
+            stringBuilder.append(SAI_SEPARATOR).append(indexIdentifier);
         stringBuilder.append(SAI_SEPARATOR).append(indexComponent.name);
         stringBuilder.append(Descriptor.EXTENSION);
 

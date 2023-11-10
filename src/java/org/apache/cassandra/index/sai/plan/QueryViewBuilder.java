@@ -102,7 +102,7 @@ public class QueryViewBuilder
         {
             // Non-index column query should only act as FILTER BY for satisfiedBy(Row) method
             // because otherwise it likely to go through the whole index.
-            if (expression.context.isNotIndexed())
+            if (expression.isNotIndexed())
                 continue;
 
             // If we didn't get a most selective expression then none of the
@@ -126,7 +126,7 @@ public class QueryViewBuilder
             // Finally, we select all the sstable indexes for this expression that
             // have overlapping keys with the sstable indexes of the most selective
             // and have a term range that is satisfied by the expression.
-            View view = expression.context.getView();
+            View view = expression.getIndex().view();
             Set<SSTableIndex> indexes = new TreeSet<>(SSTableIndex.COMPARATOR);
             indexes.addAll(view.match(expression)
                                .stream()
@@ -157,10 +157,10 @@ public class QueryViewBuilder
 
         for (Expression expression : expressions)
         {
-            if (expression.context.isNotIndexed())
+            if (expression.isNotIndexed())
                 continue;
 
-            View view = expression.context.getView();
+            View view = expression.getIndex().view();
 
             NavigableSet<SSTableIndex> indexes = new TreeSet<>(SSTableIndex.COMPARATOR);
             indexes.addAll(selectIndexesInRange(view.match(expression)));

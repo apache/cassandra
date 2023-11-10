@@ -104,9 +104,9 @@ public class SSTableContext extends SharedCloseableImpl
     /**
      * Returns a new {@link SSTableIndex} for a per-column index
      */
-    public SSTableIndex newSSTableIndex(IndexContext indexContext)
+    public SSTableIndex newSSTableIndex(StorageAttachedIndex index)
     {
-        return indexDescriptor.newSSTableIndex(this, indexContext);
+        return indexDescriptor.newSSTableIndex(this, index);
     }
 
     /**

@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
@@ -68,7 +69,7 @@ public class NonTokenizingAnalyzerTest
 
     private String getAnalyzedString(String input, NonTokenizingOptions options) throws Exception
     {
-        NonTokenizingAnalyzer analyzer = new NonTokenizingAnalyzer(UTF8Type.instance, options);
+        NonTokenizingAnalyzer analyzer = new NonTokenizingAnalyzer(SAITester.createIndexTermType(UTF8Type.instance), options);
         analyzer.reset(ByteBuffer.wrap(input.getBytes()));
         return analyzer.hasNext() ? ByteBufferUtil.string(analyzer.next) : null;
     }
