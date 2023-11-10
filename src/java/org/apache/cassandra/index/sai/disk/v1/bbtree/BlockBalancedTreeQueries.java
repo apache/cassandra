@@ -19,9 +19,8 @@ package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sai.plan.Expression;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.lucene.index.PointValues.Relation;
 
@@ -44,33 +43,33 @@ public class BlockBalancedTreeQueries
 
     public static BlockBalancedTreeReader.IntersectVisitor balancedTreeQueryFrom(Expression expression, int bytesPerValue)
     {
-        if (expression.lower == null && expression.upper == null)
+        if (expression.lower() == null && expression.upper() == null)
         {
             return MATCH_ALL;
         }
 
         Bound lower = null ;
-        if (expression.lower != null)
+        if (expression.lower() != null)
         {
-            final byte[] lowerBound = toComparableBytes(bytesPerValue, expression.lower.value.encoded, expression.validator);
-            lower = new Bound(lowerBound, !expression.lower.inclusive);
+            final byte[] lowerBound = toComparableBytes(bytesPerValue, expression.lower().value.encoded, expression.getIndexTermType());
+            lower = new Bound(lowerBound, !expression.lower().inclusive);
         }
 
         Bound upper = null;
-        if (expression.upper != null)
+        if (expression.upper() != null)
         {
-            final byte[] upperBound = toComparableBytes(bytesPerValue, expression.upper.value.encoded, expression.validator);
-            upper = new Bound(upperBound, !expression.upper.inclusive);
+            final byte[] upperBound = toComparableBytes(bytesPerValue, expression.upper().value.encoded, expression.getIndexTermType());
+            upper = new Bound(upperBound, !expression.upper().inclusive);
         }
 
         return new RangeQueryVisitor(lower, upper);
     }
 
-    private static byte[] toComparableBytes(int bytesPerDim, ByteBuffer value, AbstractType<?> type)
+    private static byte[] toComparableBytes(int bytesPerDim, ByteBuffer value, IndexTermType indexTermType)
     {
-        byte[] buffer = new byte[TypeUtil.fixedSizeOf(type)];
+        byte[] buffer = new byte[indexTermType.fixedSizeOf()];
         assert buffer.length == bytesPerDim;
-        TypeUtil.toComparableBytes(value, type, buffer);
+        indexTermType.toComparableBytes(value, buffer);
         return buffer;
     }
 

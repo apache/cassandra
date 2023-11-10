@@ -27,13 +27,13 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SSTableContext;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
-import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
+import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.FileUtils;
 
@@ -54,7 +54,7 @@ public class Segment implements SegmentOrdering, Closeable
 
     private final IndexSegmentSearcher index;
 
-    public Segment(IndexContext indexContext, SSTableContext sstableContext, PerColumnIndexFiles indexFiles, SegmentMetadata metadata) throws IOException
+    public Segment(StorageAttachedIndex index, SSTableContext sstableContext, PerColumnIndexFiles indexFiles, SegmentMetadata metadata) throws IOException
     {
         this.minKeyBound = metadata.minKey.token().minKeyBound();
         this.maxKeyBound = metadata.maxKey.token().maxKeyBound();
@@ -62,7 +62,7 @@ public class Segment implements SegmentOrdering, Closeable
         this.primaryKeyMapFactory = sstableContext.primaryKeyMapFactory;
         this.metadata = metadata;
 
-        this.index = IndexSegmentSearcher.open(primaryKeyMapFactory, indexFiles, metadata, indexContext);
+        this.index = IndexSegmentSearcher.open(primaryKeyMapFactory, indexFiles, metadata, index);
     }
 
     @VisibleForTesting

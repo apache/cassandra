@@ -31,11 +31,15 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.ListMultimap;
 
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.filter.RowFilter;
-import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.schema.ColumnMetadata;
 
 public class Operation
@@ -58,8 +62,7 @@ public class Operation
     }
 
     @VisibleForTesting
-    protected static ListMultimap<ColumnMetadata, Expression> buildIndexExpressions(QueryController controller,
-                                                                                    BooleanOperator booleanOperator,
+    protected static ListMultimap<ColumnMetadata, Expression> buildIndexExpressions(QueryController queryController,
                                                                                     List<RowFilter.Expression> expressions)
     {
         ListMultimap<ColumnMetadata, Expression> analyzed = ArrayListMultimap.create();
@@ -72,79 +75,132 @@ public class Operation
             return cmp == 0 ? -Integer.compare(getPriority(a.operator()), getPriority(b.operator())) : cmp;
         });
 
-        for (final RowFilter.Expression e : expressions)
+        for (final RowFilter.Expression expression : expressions)
         {
-            IndexContext indexContext = controller.getContext(e);
-            List<Expression> perColumn = analyzed.get(e.column());
-
-            AbstractAnalyzer analyzer = indexContext.getAnalyzerFactory().create();
-            try
+            if (Expression.supportsOperator(expression.operator()))
             {
-                analyzer.reset(e.getIndexValue().duplicate());
+                StorageAttachedIndex index = queryController.indexFor(expression);
 
-                // EQ can have multiple expressions e.g. text = "Hello World",
-                // becomes text = "Hello" OR text = "World" because "space" is always interpreted as a split point (by analyzer),
-                // CONTAINS/CONTAINS_KEY are always treated as multiple expressions since they currently only targetting
-                // collections.
-                boolean isMultiExpression = false;
-                switch (e.operator())
-                {
-                    case EQ:
-                        // EQ operator will always be a multiple expression because it is being used by
-                        // map entries
-                        isMultiExpression = indexContext.isNonFrozenCollection();
-                        break;
+                List<Expression> perColumn = analyzed.get(expression.column());
 
-                    case CONTAINS:
-                    case CONTAINS_KEY:
-                        isMultiExpression = true;
-                        break;
-                }
-                if (isMultiExpression)
-                {
-                    while (analyzer.hasNext())
-                    {
-                        final ByteBuffer token = analyzer.next();
-                        perColumn.add(new Expression(indexContext).add(e.operator(), token.duplicate()));
-                    }
-                }
+                if (index == null)
+                    buildUnindexedExpression(queryController, expression, perColumn);
                 else
-                // "range" or not-equals operator, combines both bounds together into the single expression,
-                // if operation of the group is AND, otherwise we are forced to create separate expressions,
-                // not-equals is combined with the range iff operator is AND.
-                {
-                    Expression range;
-                    if (perColumn.size() == 0 || booleanOperator != BooleanOperator.AND)
-                    {
-                        range = new Expression(indexContext);
-                        perColumn.add(range);
-                    }
-                    else
-                    {
-                        range = Iterables.getLast(perColumn);
-                    }
-
-                    if (!TypeUtil.isLiteral(indexContext.getValidator()))
-                    {
-                        range.add(e.operator(), e.getIndexValue().duplicate());
-                    }
-                    else
-                    {
-                        while (analyzer.hasNext())
-                        {
-                            ByteBuffer term = analyzer.next();
-                            range.add(e.operator(), term.duplicate());
-                        }
-                    }
-                }
-            }
-            finally
-            {
-                analyzer.end();
+                    buildIndexedExpression(index, expression, perColumn);
             }
         }
 
         return analyzed;
+    }
+
+    private static void buildUnindexedExpression(QueryController queryController,
+                                                 RowFilter.Expression expression,
+                                                 List<Expression> perColumn)
+    {
+        IndexTermType indexTermType = IndexTermType.create(expression.column(),
+                                                           queryController.metadata().partitionKeyColumns(),
+                                                           determineIndexTargetType(expression));
+        if (indexTermType.isMultiExpression(expression))
+        {
+            perColumn.add(Expression.create(indexTermType).add(expression.operator(), expression.getIndexValue().duplicate()));
+        }
+        else
+        {
+            Expression range;
+            if (perColumn.size() == 0)
+            {
+                range = Expression.create(indexTermType);
+                perColumn.add(range);
+            }
+            else
+            {
+                range = Iterables.getLast(perColumn);
+            }
+            range.add(expression.operator(), expression.getIndexValue().duplicate());
+        }
+    }
+
+    private static void buildIndexedExpression(StorageAttachedIndex index, RowFilter.Expression expression, List<Expression> perColumn)
+    {
+        AbstractAnalyzer analyzer = index.analyzer();
+        try
+        {
+            analyzer.reset(expression.getIndexValue().duplicate());
+
+            if (index.indexTermType().isMultiExpression(expression))
+            {
+                while (analyzer.hasNext())
+                {
+                    final ByteBuffer token = analyzer.next();
+                    perColumn.add(Expression.create(index).add(expression.operator(), token.duplicate()));
+                }
+            }
+            else
+            // "range" or not-equals operator, combines both bounds together into the single expression,
+            // if operation of the group is AND, otherwise we are forced to create separate expressions,
+            // not-equals is combined with the range iff operator is AND.
+            {
+                Expression range;
+                if (perColumn.size() == 0)
+                {
+                    range = Expression.create(index);
+                    perColumn.add(range);
+                }
+                else
+                {
+                    range = Iterables.getLast(perColumn);
+                }
+
+                if (index.indexTermType().isLiteral())
+                {
+                    while (analyzer.hasNext())
+                    {
+                        ByteBuffer term = analyzer.next();
+                        range.add(expression.operator(), term.duplicate());
+                    }
+                }
+                else
+                {
+                    range.add(expression.operator(), expression.getIndexValue().duplicate());
+                }
+            }
+        }
+        finally
+        {
+            analyzer.end();
+        }
+    }
+
+    /**
+     * Determines the {@link IndexTarget.Type} for the expression. In this case we are only interested in map types and
+     * the operator being used in the expression.
+     */
+    private static IndexTarget.Type determineIndexTargetType(RowFilter.Expression expression)
+    {
+        AbstractType<?> type  = expression.column().type;
+        IndexTarget.Type indexTargetType = IndexTarget.Type.SIMPLE;
+        if (type.isCollection() && type.isMultiCell())
+        {
+            CollectionType<?> collection = ((CollectionType<?>) type);
+            if (collection.kind == CollectionType.Kind.MAP)
+            {
+                switch (expression.operator())
+                {
+                    case EQ:
+                        indexTargetType = IndexTarget.Type.KEYS_AND_VALUES;
+                        break;
+                    case CONTAINS:
+                        indexTargetType = IndexTarget.Type.VALUES;
+                        break;
+                    case CONTAINS_KEY:
+                        indexTargetType = IndexTarget.Type.KEYS;
+                        break;
+                    default:
+                        throw new InvalidRequestException("Invalid operator");
+                }
+            }
+        }
+        return indexTargetType;
     }
 
     private static int getPriority(Operator op)
@@ -300,7 +356,7 @@ public class Operation
         @Override
         public void analyze(List<RowFilter.Expression> expressionList, QueryController controller)
         {
-            expressionMap = buildIndexExpressions(controller, BooleanOperator.AND, expressionList);
+            expressionMap = buildIndexExpressions(controller, expressionList);
         }
 
         @Override
@@ -330,7 +386,7 @@ public class Operation
         @Override
         public void analyze(List<RowFilter.Expression> expressionList, QueryController controller)
         {
-            expressionMap = buildIndexExpressions(controller, BooleanOperator.AND, expressionList);
+            expressionMap = buildIndexExpressions(controller, expressionList);
         }
 
         @Override

@@ -26,8 +26,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.exceptions.QueryCancelledException;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.io.IndexFileUtils;
 import org.apache.cassandra.index.sai.disk.v1.postings.PostingsReader;
 import org.apache.cassandra.index.sai.disk.v1.trie.TrieTermsDictionaryReader;
@@ -57,18 +57,18 @@ public class LiteralIndexSegmentTermsReader implements Closeable
 {
     private static final Logger logger = LoggerFactory.getLogger(LiteralIndexSegmentTermsReader.class);
 
-    private final IndexContext indexContext;
+    private final IndexIdentifier indexIdentifier;
     private final FileHandle termDictionaryFile;
     private final FileHandle postingsFile;
     private final long termDictionaryRoot;
 
-    public LiteralIndexSegmentTermsReader(IndexContext indexContext,
+    public LiteralIndexSegmentTermsReader(IndexIdentifier indexIdentifier,
                                           FileHandle termsData,
                                           FileHandle postingLists,
                                           long root,
                                           long termsFooterPointer) throws IOException
     {
-        this.indexContext = indexContext;
+        this.indexIdentifier = indexIdentifier;
         termDictionaryFile = termsData;
         postingsFile = postingLists;
         termDictionaryRoot = root;
@@ -137,7 +137,7 @@ public class LiteralIndexSegmentTermsReader implements Closeable
             catch (Throwable e)
             {
                 if (!(e instanceof QueryCancelledException))
-                    logger.error(indexContext.logMessage("Failed to execute term query"), e);
+                    logger.error(indexIdentifier.logMessage("Failed to execute term query"), e);
 
                 closeOnException();
                 throw Throwables.cleaned(e);

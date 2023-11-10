@@ -25,6 +25,8 @@ import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.utils.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,7 +35,6 @@ import com.codahale.metrics.Gauge;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.PerColumnIndexWriter;
@@ -136,9 +137,9 @@ public class V1OnDiskFormat implements OnDiskFormat
     }
 
     @Override
-    public SSTableIndex newSSTableIndex(SSTableContext sstableContext, IndexContext indexContext)
+    public SSTableIndex newSSTableIndex(SSTableContext sstableContext, StorageAttachedIndex index)
     {
-        return new V1SSTableIndex(sstableContext, indexContext);
+        return new V1SSTableIndex(sstableContext, index);
     }
 
     @Override
@@ -157,15 +158,17 @@ public class V1OnDiskFormat implements OnDiskFormat
         if (tracker.opType() != OperationType.FLUSH || !index.isInitBuildStarted())
         {
             NamedMemoryLimiter limiter = SEGMENT_BUILD_MEMORY_LIMITER;
-            logger.info(index.getIndexContext().logMessage("Starting a compaction index build. Global segment memory usage: {}"),
+            logger.info(index.indexIdentifier().logMessage("Starting a compaction index build. Global segment memory usage: {}"),
                         prettyPrintMemory(limiter.currentBytesUsed()));
 
-            return new SSTableIndexWriter(indexDescriptor, index.getIndexContext(), limiter, index.isIndexValid());
+            return new SSTableIndexWriter(indexDescriptor, index, limiter, index.isIndexValid());
         }
 
-        return new MemtableIndexWriter(index.getIndexContext().getMemtableIndexManager().getPendingMemtableIndex(tracker),
+        return new MemtableIndexWriter(index.memtableIndexManager().getPendingMemtableIndex(tracker),
                                        indexDescriptor,
-                                       index.getIndexContext(),
+                                       index.indexTermType(),
+                                       index.indexIdentifier(),
+                                       index.indexMetrics(),
                                        rowMapping);
     }
 
@@ -176,10 +179,10 @@ public class V1OnDiskFormat implements OnDiskFormat
     }
 
     @Override
-    public boolean isPerColumnIndexBuildComplete(IndexDescriptor indexDescriptor, IndexContext indexContext)
+    public boolean isPerColumnIndexBuildComplete(IndexDescriptor indexDescriptor, IndexIdentifier indexIdentifier)
     {
         return indexDescriptor.hasComponent(IndexComponent.GROUP_COMPLETION_MARKER) &&
-               indexDescriptor.hasComponent(IndexComponent.COLUMN_COMPLETION_MARKER, indexContext);
+               indexDescriptor.hasComponent(IndexComponent.COLUMN_COMPLETION_MARKER, indexIdentifier);
     }
 
     @Override
@@ -195,19 +198,19 @@ public class V1OnDiskFormat implements OnDiskFormat
     }
 
     @Override
-    public void validatePerColumnIndexComponents(IndexDescriptor indexDescriptor, IndexContext indexContext, boolean checksum)
+    public void validatePerColumnIndexComponents(IndexDescriptor indexDescriptor, IndexTermType indexTermType, IndexIdentifier indexIdentifier, boolean checksum)
     {
         // determine if the index is empty, which would be encoded in the column completion marker
         boolean isEmptyIndex = false;
-        if (indexDescriptor.hasComponent(IndexComponent.COLUMN_COMPLETION_MARKER, indexContext))
+        if (indexDescriptor.hasComponent(IndexComponent.COLUMN_COMPLETION_MARKER, indexIdentifier))
         {
             // first validate the file...
-            validateIndexComponent(indexDescriptor, indexContext, IndexComponent.COLUMN_COMPLETION_MARKER, checksum);
+            validateIndexComponent(indexDescriptor, indexIdentifier, IndexComponent.COLUMN_COMPLETION_MARKER, checksum);
 
             // ...then read to check if the index is empty
             try
             {
-                isEmptyIndex = ColumnCompletionMarkerUtil.isEmptyIndex(indexDescriptor, indexContext);
+                isEmptyIndex = ColumnCompletionMarkerUtil.isEmptyIndex(indexDescriptor, indexIdentifier);
             }
             catch (IOException e)
             {
@@ -215,17 +218,17 @@ public class V1OnDiskFormat implements OnDiskFormat
             }
         }
 
-        for (IndexComponent indexComponent : perColumnIndexComponents(indexContext))
+        for (IndexComponent indexComponent : perColumnIndexComponents(indexIdentifier))
         {
             if (!isEmptyIndex && isNotBuildCompletionMarker(indexComponent))
             {
-                validateIndexComponent(indexDescriptor, indexContext, indexComponent, checksum);
+                validateIndexComponent(indexDescriptor, indexIdentifier, indexComponent, checksum);
             }
         }
     }
 
     private static void validateIndexComponent(IndexDescriptor indexDescriptor,
-                                               IndexContext indexContext,
+                                               IndexIdentifier indexContext,
                                                IndexComponent indexComponent,
                                                boolean checksum)
     {
@@ -264,9 +267,9 @@ public class V1OnDiskFormat implements OnDiskFormat
     }
 
     @Override
-    public Set<IndexComponent> perColumnIndexComponents(IndexContext indexContext)
+    public Set<IndexComponent> perColumnIndexComponents(IndexTermType indexTermType)
     {
-        return indexContext.isVector() ? VECTOR_COMPONENTS : indexContext.isLiteral() ? LITERAL_COMPONENTS : NUMERIC_COMPONENTS;
+        return indexTermType.isVector() ? VECTOR_COMPONENTS : indexTermType.isLiteral() ? LITERAL_COMPONENTS : NUMERIC_COMPONENTS;
     }
 
     @Override
@@ -281,7 +284,7 @@ public class V1OnDiskFormat implements OnDiskFormat
     }
 
     @Override
-    public int openFilesPerColumnIndex(IndexContext indexContext)
+    public int openFilesPerColumnIndex()
     {
         // For the V1 format there are always 2 open files per index - index (balanced tree or terms) + auxiliary postings
         // for the balanced tree and postings for the literal terms

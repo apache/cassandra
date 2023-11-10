@@ -35,14 +35,15 @@ import org.junit.runners.Parameterized;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.index.SecondaryIndexManager;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndexBuilder;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.disk.v1.SSTableIndexWriter;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.inject.Injection;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.inject.InvokePointBuilder;
@@ -115,7 +116,8 @@ public class NodeStartupTest extends SAITester
 
     private static Throwable error = null;
 
-    private IndexContext indexContext = null;
+    private IndexIdentifier indexIdentifier = null;
+    private IndexTermType indexTermType = null;
 
     enum Populator
     {
@@ -181,8 +183,8 @@ public class NodeStartupTest extends SAITester
     public void setup() throws Throwable
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, v1 text)");
-        String indexName = createIndex(String.format("CREATE CUSTOM INDEX ON %%s(v1) USING '%s'", StorageAttachedIndex.class.getName()));
-        indexContext = createIndexContext(indexName, Int32Type.instance);
+        indexIdentifier = createIndexIdentifier(createIndex(String.format("CREATE CUSTOM INDEX ON %%s(v1) USING '%s'", StorageAttachedIndex.class.getName())));
+        indexTermType = createIndexTermType(Int32Type.instance);
         Injections.inject(ObjectArrays.concat(barriers, counters, Injection.class));
         Stream.of(barriers).forEach(Injections.Barrier::reset);
         Stream.of(barriers).forEach(Injections.Barrier::disable);
@@ -238,7 +240,7 @@ public class NodeStartupTest extends SAITester
     }
 
     @Test
-    public void startupOrderingTest() throws Throwable
+    public void startupOrderingTest()
     {
         populator.populate(this);
 
@@ -326,7 +328,7 @@ public class NodeStartupTest extends SAITester
     private boolean isColumnIndexComplete()
     {
         ColumnFamilyStore cfs = Objects.requireNonNull(Schema.instance.getKeyspaceInstance(KEYSPACE)).getColumnFamilyStore(currentTable());
-        return cfs.getLiveSSTables().stream().allMatch(sstable -> IndexDescriptor.create(sstable).isPerColumnIndexBuildComplete(indexContext));
+        return cfs.getLiveSSTables().stream().allMatch(sstable -> IndexDescriptor.create(sstable).isPerColumnIndexBuildComplete(indexIdentifier));
     }
 
     private void setState(IndexStateOnRestart state)
@@ -337,19 +339,19 @@ public class NodeStartupTest extends SAITester
                 break;
             case ALL_EMPTY:
                 Version.LATEST.onDiskFormat().perSSTableIndexComponents(false).forEach(this::remove);
-                Version.LATEST.onDiskFormat().perColumnIndexComponents(indexContext).forEach(c -> remove(c, indexContext));
+                Version.LATEST.onDiskFormat().perColumnIndexComponents(indexTermType).forEach(c -> remove(c, indexIdentifier));
                 break;
             case PER_SSTABLE_INCOMPLETE:
                 remove(IndexComponent.GROUP_COMPLETION_MARKER);
                 break;
             case PER_COLUMN_INCOMPLETE:
-                remove(IndexComponent.COLUMN_COMPLETION_MARKER, indexContext);
+                remove(IndexComponent.COLUMN_COMPLETION_MARKER, indexIdentifier);
                 break;
             case PER_SSTABLE_CORRUPT:
                 corrupt();
                 break;
             case PER_COLUMN_CORRUPT:
-                corrupt(indexContext);
+                corrupt(indexIdentifier);
                 break;
         }
     }
@@ -367,11 +369,11 @@ public class NodeStartupTest extends SAITester
         }
     }
 
-    private void remove(IndexComponent component, IndexContext indexContext)
+    private void remove(IndexComponent component, IndexIdentifier indexIdentifier)
     {
         try
         {
-            corruptIndexComponent(component, indexContext, CorruptionType.REMOVED);
+            corruptIndexComponent(component, indexIdentifier, CorruptionType.REMOVED);
         }
         catch (Exception e)
         {
@@ -393,11 +395,11 @@ public class NodeStartupTest extends SAITester
         }
     }
 
-    private void corrupt(IndexContext indexContext)
+    private void corrupt(IndexIdentifier indexIdentifier)
     {
         try
         {
-            corruptIndexComponent(IndexComponent.META, indexContext, CorruptionType.TRUNCATED_HEADER);
+            corruptIndexComponent(IndexComponent.META, indexIdentifier, CorruptionType.TRUNCATED_HEADER);
         }
         catch (Exception e)
         {
