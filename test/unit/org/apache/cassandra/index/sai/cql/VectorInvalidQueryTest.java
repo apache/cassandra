@@ -18,16 +18,37 @@
 
 package org.apache.cassandra.index.sai.cql;
 
+import java.util.Collections;
+
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
+import org.apache.cassandra.cql3.statements.SelectStatement;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.messages.ResultMessage;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 public class VectorInvalidQueryTest extends SAITester
 {
+    @BeforeClass
+    public static void setupClass()
+    {
+        requireNetwork();
+    }
+
     @Test
     public void cannotCreateEmptyVectorColumn()
     {
@@ -201,5 +222,71 @@ public class VectorInvalidQueryTest extends SAITester
         createIndex("CREATE CUSTOM INDEX ON %s(num) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
         assertRows(execute("SELECT num FROM %s WHERE pk=3 AND num > 3 ORDER BY v ANN OF [1,1] LIMIT 1"), row(4));
+    }
+
+    @Test
+    public void canOnlyExecuteWithCorrectConsistencyLevel()
+    {
+        createTable("CREATE TABLE %s (k int, c int, v vector<float, 1>, PRIMARY KEY(k, c))");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'euclidean'}");
+
+        execute("INSERT INTO %s (k, c, v) VALUES (1, 1, [1])");
+        execute("INSERT INTO %s (k, c, v) VALUES (1, 2, [2])");
+        execute("INSERT INTO %s (k, c, v) VALUES (1, 3, [3])");
+
+        ClientWarn.instance.captureWarnings();
+        execute("SELECT * FROM %s ORDER BY v ANN OF [2] LIMIT 3");
+        ResultSet result = execute("SELECT * FROM %s ORDER BY v ANN OF [2] LIMIT 3", ConsistencyLevel.ONE);
+        assertEquals(3, result.size());
+        assertNull(ClientWarn.instance.getWarnings());
+
+        result = execute("SELECT * FROM %s ORDER BY v ANN OF [2] LIMIT 3", ConsistencyLevel.LOCAL_ONE);
+        assertEquals(3, result.size());
+        assertNull(ClientWarn.instance.getWarnings());
+
+        result = execute("SELECT * FROM %s ORDER BY v ANN OF [2] LIMIT 3", ConsistencyLevel.QUORUM);
+        assertEquals(3, result.size());
+        assertEquals(1, ClientWarn.instance.getWarnings().size());
+        assertEquals(String.format(SelectStatement.TOPK_CONSISTENCY_LEVEL_WARNING, ConsistencyLevel.QUORUM, ConsistencyLevel.ONE),
+                     ClientWarn.instance.getWarnings().get(0));
+
+        ClientWarn.instance.captureWarnings();
+        result = execute("SELECT * FROM %s ORDER BY v ANN OF [2] LIMIT 3", ConsistencyLevel.LOCAL_QUORUM);
+        assertEquals(3, result.size());
+        assertEquals(1, ClientWarn.instance.getWarnings().size());
+        assertEquals(String.format(SelectStatement.TOPK_CONSISTENCY_LEVEL_WARNING, ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.LOCAL_ONE),
+                     ClientWarn.instance.getWarnings().get(0));
+
+        assertThatThrownBy(() -> execute("SELECT * FROM %s ORDER BY v ANN OF [2] LIMIT 3", ConsistencyLevel.SERIAL))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage(String.format(SelectStatement.TOPK_CONSISTENCY_LEVEL_ERROR, ConsistencyLevel.SERIAL));
+
+        assertThatThrownBy(() -> execute("SELECT * FROM %s ORDER BY v ANN OF [2] LIMIT 3", ConsistencyLevel.LOCAL_SERIAL))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage(String.format(SelectStatement.TOPK_CONSISTENCY_LEVEL_ERROR, ConsistencyLevel.LOCAL_SERIAL));
+    }
+
+    protected ResultSet execute(String query, ConsistencyLevel consistencyLevel)
+    {
+        return execute(query, consistencyLevel, -1);
+    }
+
+    protected ResultSet execute(String query, int pageSize)
+    {
+        return execute(query, ConsistencyLevel.ONE, pageSize);
+    }
+
+    protected ResultSet execute(String query, ConsistencyLevel consistencyLevel, int pageSize)
+    {
+        ClientState state = ClientState.forInternalCalls();
+        QueryState queryState = new QueryState(state);
+
+        CQLStatement statement = QueryProcessor.parseStatement(formatQuery(query), queryState.getClientState());
+        statement.validate(queryState);
+
+        QueryOptions options = QueryOptions.forInternalCalls(Collections.emptyList());
+        options.updateConsistency(consistencyLevel);
+
+        return ((ResultMessage.Rows)statement.execute(queryState, options, System.nanoTime())).result;
     }
 }

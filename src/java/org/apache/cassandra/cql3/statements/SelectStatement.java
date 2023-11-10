@@ -105,6 +105,10 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 {
     private static final Logger logger = LoggerFactory.getLogger(SelectStatement.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(SelectStatement.logger, 1, TimeUnit.MINUTES);
+    public static final String TOPK_CONSISTENCY_LEVEL_ERROR = "Top-K queries can only be run with consistency level ONE/LOCAL_ONE. Consistency level %s was used.";
+    public static final String TOPK_CONSISTENCY_LEVEL_WARNING = "Top-K queries can only be run with consistency level ONE " +
+                                                                "/ LOCAL_ONE / NODE_LOCAL. Consistency level %s was requested. " +
+                                                                "Downgrading the consistency level to %s.";
 
     private final String rawCQLStatement;
     public final VariableSpecifications bindVariables;
@@ -332,6 +336,24 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
         Selectors selectors = selection.newSelectors(options);
         ReadQuery query = getQuery(queryState, options, selectors.getColumnFilter(), nowInSec, userLimit, userPerPartitionLimit, pageSize);
+
+        // Handle additional validation for topK queries
+        if (query.isTopK()) {
+                // We aren't going to allow SERIAL at all, so we can error out on those.
+                checkFalse(options.getConsistency() == ConsistencyLevel.LOCAL_SERIAL ||
+                           options.getConsistency() == ConsistencyLevel.SERIAL,
+                           String.format(TOPK_CONSISTENCY_LEVEL_ERROR, options.getConsistency()));
+
+                if (options.getConsistency() != ConsistencyLevel.ONE &&
+                    options.getConsistency() != ConsistencyLevel.LOCAL_ONE &&
+                    options.getConsistency() != ConsistencyLevel.NODE_LOCAL)
+                {
+                    ConsistencyLevel supplied = options.getConsistency();
+                    ConsistencyLevel downgrade = supplied.isDatacenterLocal() ? ConsistencyLevel.LOCAL_ONE : ConsistencyLevel.ONE;
+                    options.updateConsistency(downgrade);
+                    ClientWarn.instance.warn(String.format(TOPK_CONSISTENCY_LEVEL_WARNING, supplied, downgrade));
+                }
+        }
 
         if (query.limits().isGroupByLimit() && pageSize != null && pageSize.isDefined() && pageSize.getUnit() == PageSize.PageUnit.BYTES)
             throw new InvalidRequestException("Paging in bytes cannot be specified for aggregation queries");
