@@ -176,6 +176,10 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
 
     private final RateLimiter compactionRateLimiter = RateLimiter.create(Double.MAX_VALUE);
 
+    public boolean isExecutorCompleted() {
+        return executor.getActiveTaskCount() !=0 || executor.getPendingTaskCount() != 0;
+    }
+
     public CompactionMetrics getMetrics()
     {
         return metrics;

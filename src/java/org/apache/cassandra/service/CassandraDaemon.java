@@ -53,6 +53,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SizeEstimatesRecorder;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.SystemKeyspaceMigrator41;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.virtual.SystemViewsKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
@@ -311,6 +312,19 @@ public class CassandraDaemon
                     store.disableAutoCompaction();
                 }
             }
+        }
+
+        // wait for all tasks in compaction executor and nonPeriodicTasks
+        while (CompactionManager.instance.isExecutorCompleted()) {
+            try {
+                Thread.sleep(1000);
+            } catch (Exception ignored) { }
+        }
+        while (ScheduledExecutors.nonPeriodicTasks.getActiveTaskCount() != 0 ||
+                ScheduledExecutors.nonPeriodicTasks.getPendingTaskCount() != 0) {
+            try {
+                Thread.sleep(1000);
+            } catch (Exception ignored) { }
         }
 
         try
