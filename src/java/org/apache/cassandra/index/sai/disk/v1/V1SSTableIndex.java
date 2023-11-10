@@ -30,9 +30,9 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.virtual.SimpleDataSet;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SSTableContext;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.disk.v1.segment.Segment;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
@@ -40,7 +40,6 @@ import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeUnionIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Throwables;
@@ -72,23 +71,23 @@ public class V1SSTableIndex extends SSTableIndex
 
     private PerColumnIndexFiles indexFiles;
 
-    public V1SSTableIndex(SSTableContext sstableContext, IndexContext indexContext)
+    public V1SSTableIndex(SSTableContext sstableContext, StorageAttachedIndex index)
     {
-        super(sstableContext, indexContext);
+        super(sstableContext, index);
 
         try
         {
-            this.indexFiles = new PerColumnIndexFiles(sstableContext.indexDescriptor, indexContext);
+            this.indexFiles = new PerColumnIndexFiles(sstableContext.indexDescriptor, indexTermType, indexIdentifier);
 
             ImmutableList.Builder<Segment> segmentsBuilder = ImmutableList.builder();
 
-            final MetadataSource source = MetadataSource.loadColumnMetadata(sstableContext.indexDescriptor, indexContext);
+            final MetadataSource source = MetadataSource.loadColumnMetadata(sstableContext.indexDescriptor, indexIdentifier);
 
             metadatas = SegmentMetadata.load(source, sstableContext.indexDescriptor.primaryKeyFactory);
 
             for (SegmentMetadata metadata : metadatas)
             {
-                segmentsBuilder.add(new Segment(indexContext, sstableContext, indexFiles, metadata));
+                segmentsBuilder.add(new Segment(index, sstableContext, indexFiles, metadata));
             }
 
             segments = segmentsBuilder.build();
@@ -99,8 +98,8 @@ public class V1SSTableIndex extends SSTableIndex
 
             this.bounds = AbstractBounds.bounds(minKey, true, maxKey, true);
 
-            this.minTerm = metadatas.stream().map(m -> m.minTerm).min(TypeUtil.comparator(indexContext.getValidator())).orElse(null);
-            this.maxTerm = metadatas.stream().map(m -> m.maxTerm).max(TypeUtil.comparator(indexContext.getValidator())).orElse(null);
+            this.minTerm = metadatas.stream().map(m -> m.minTerm).min(indexTermType.comparator()).orElse(null);
+            this.maxTerm = metadatas.stream().map(m -> m.maxTerm).max(indexTermType.comparator()).orElse(null);
 
             this.numRows = metadatas.stream().mapToLong(m -> m.numRows).sum();
 
@@ -193,16 +192,16 @@ public class V1SSTableIndex extends SSTableIndex
 
         for (SegmentMetadata metadata : metadatas)
         {
-            dataset.row(sstable.metadata().keyspace, indexContext.getIndexName(), sstable.getFilename(), metadata.rowIdOffset)
+            dataset.row(sstable.metadata().keyspace, indexIdentifier.indexName, sstable.getFilename(), metadata.rowIdOffset)
                    .column(TABLE_NAME, sstable.descriptor.cfname)
-                   .column(COLUMN_NAME, indexContext.getColumnName())
+                   .column(COLUMN_NAME, indexTermType.columnName())
                    .column(CELL_COUNT, metadata.numRows)
                    .column(MIN_SSTABLE_ROW_ID, metadata.minSSTableRowId)
                    .column(MAX_SSTABLE_ROW_ID, metadata.maxSSTableRowId)
                    .column(START_TOKEN, tokenFactory.toString(metadata.minKey.token()))
                    .column(END_TOKEN, tokenFactory.toString(metadata.maxKey.token()))
-                   .column(MIN_TERM, indexContext.getValidator().getSerializer().deserialize(metadata.minTerm).toString())
-                   .column(MAX_TERM, indexContext.getValidator().getSerializer().deserialize(metadata.maxTerm).toString())
+                   .column(MIN_TERM, indexTermType.indexType().getSerializer().deserialize(metadata.minTerm).toString())
+                   .column(MAX_TERM, indexTermType.indexType().getSerializer().deserialize(metadata.maxTerm).toString())
                    .column(COMPONENT_METADATA, metadata.componentMetadatas.asMap());
         }
     }

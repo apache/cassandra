@@ -29,26 +29,27 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
+import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
-import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 public class MemtableIndex implements MemtableOrdering
 {
-    private final MemoryIndex index;
+    private final MemoryIndex memoryIndex;
     private final LongAdder writeCount = new LongAdder();
     private final LongAdder estimatedMemoryUsed = new LongAdder();
 
-    public MemtableIndex(IndexContext indexContext)
+    public MemtableIndex(StorageAttachedIndex index)
     {
-        this.index = indexContext.isVector() ? new VectorMemoryIndex(indexContext) : new TrieMemoryIndex(indexContext);
+        this.memoryIndex = index.termType().isVector() ? new VectorMemoryIndex(index) : new TrieMemoryIndex(index);
     }
 
     public long writeCount()
@@ -63,17 +64,17 @@ public class MemtableIndex implements MemtableOrdering
 
     public boolean isEmpty()
     {
-        return index.isEmpty();
+        return memoryIndex.isEmpty();
     }
 
     public ByteBuffer getMinTerm()
     {
-        return index.getMinTerm();
+        return memoryIndex.getMinTerm();
     }
 
     public ByteBuffer getMaxTerm()
     {
-        return index.getMaxTerm();
+        return memoryIndex.getMaxTerm();
     }
 
     public long index(DecoratedKey key, Clustering<?> clustering, ByteBuffer value)
@@ -81,7 +82,7 @@ public class MemtableIndex implements MemtableOrdering
         if (value == null || value.remaining() == 0)
             return 0;
 
-        long ram = index.add(key, clustering, value);
+        long ram = memoryIndex.add(key, clustering, value);
         writeCount.increment();
         estimatedMemoryUsed.add(ram);
         return ram;
@@ -89,29 +90,29 @@ public class MemtableIndex implements MemtableOrdering
 
     public long update(DecoratedKey key, Clustering<?> clustering, ByteBuffer oldValue, ByteBuffer newValue)
     {
-        return index.update(key, clustering, oldValue, newValue);
+        return memoryIndex.update(key, clustering, oldValue, newValue);
     }
 
     public KeyRangeIterator search(QueryContext queryContext, Expression expression, AbstractBounds<PartitionPosition> keyRange)
     {
-        return index.search(queryContext, expression, keyRange);
+        return memoryIndex.search(queryContext, expression, keyRange);
     }
 
     public Iterator<Pair<ByteComparable, PrimaryKeys>> iterator()
     {
-        return index.iterator();
+        return memoryIndex.iterator();
     }
 
     public SegmentMetadata.ComponentMetadataMap writeDirect(IndexDescriptor indexDescriptor,
-                                                            IndexContext indexContext,
+                                                            IndexIdentifier indexIdentifier,
                                                             Function<PrimaryKey, Integer> postingTransformer) throws IOException
     {
-        return index.writeDirect(indexDescriptor, indexContext, postingTransformer);
+        return memoryIndex.writeDirect(indexDescriptor, indexIdentifier, postingTransformer);
     }
 
     @Override
     public KeyRangeIterator limitToTopResults(List<PrimaryKey> primaryKeys, Expression expression, int limit)
     {
-        return index.limitToTopResults(primaryKeys, expression, limit);
+        return memoryIndex.limitToTopResults(primaryKeys, expression, limit);
     }
 }

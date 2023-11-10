@@ -36,8 +36,8 @@ import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeUnionIterator;
@@ -47,12 +47,12 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class MemtableIndexManager
 {
-    private final IndexContext indexContext;
+    private final StorageAttachedIndex index;
     private final ConcurrentMap<Memtable, MemtableIndex> liveMemtableIndexMap;
 
-    public MemtableIndexManager(IndexContext indexContext)
+    public MemtableIndexManager(StorageAttachedIndex index)
     {
-        this.indexContext = indexContext;
+        this.index = index;
         this.liveMemtableIndexMap = new ConcurrentHashMap<>();
     }
 
@@ -64,15 +64,15 @@ public class MemtableIndexManager
         // call to computeIfAbsent() if it's not. (see https://bugs.openjdk.java.net/browse/JDK-8161372)
         MemtableIndex target = (current != null)
                                ? current
-                               : liveMemtableIndexMap.computeIfAbsent(mt, memtable -> new MemtableIndex(indexContext));
+                               : liveMemtableIndexMap.computeIfAbsent(mt, memtable -> new MemtableIndex(index));
 
         long start = Clock.Global.nanoTime();
 
         long bytes = 0;
 
-        if (indexContext.isNonFrozenCollection())
+        if (index.termType().isNonFrozenCollection())
         {
-            Iterator<ByteBuffer> bufferIterator = indexContext.getValuesOf(row, FBUtilities.nowInSeconds());
+            Iterator<ByteBuffer> bufferIterator = index.termType().valuesOf(row, FBUtilities.nowInSeconds());
             if (bufferIterator != null)
             {
                 while (bufferIterator.hasNext())
@@ -84,16 +84,16 @@ public class MemtableIndexManager
         }
         else
         {
-            ByteBuffer value = indexContext.getValueOf(key, row, FBUtilities.nowInSeconds());
+            ByteBuffer value = index.termType().valueOf(key, row, FBUtilities.nowInSeconds());
             bytes += target.index(key, row.clustering(), value);
         }
-        indexContext.getIndexMetrics().memtableIndexWriteLatency.update(Clock.Global.nanoTime() - start, TimeUnit.NANOSECONDS);
+        index.indexMetrics().memtableIndexWriteLatency.update(Clock.Global.nanoTime() - start, TimeUnit.NANOSECONDS);
         return bytes;
     }
 
     public long update(DecoratedKey key, Row oldRow, Row newRow, Memtable memtable)
     {
-        if (!indexContext.isVector())
+        if (!index.termType().isVector())
         {
             return index(key, newRow, memtable);
         }
@@ -102,8 +102,8 @@ public class MemtableIndexManager
         if (target == null)
             return 0;
 
-        ByteBuffer oldValue = indexContext.getValueOf(key, oldRow, FBUtilities.nowInSeconds());
-        ByteBuffer newValue = indexContext.getValueOf(key, newRow, FBUtilities.nowInSeconds());
+        ByteBuffer oldValue = index.termType().valueOf(key, oldRow, FBUtilities.nowInSeconds());
+        ByteBuffer newValue = index.termType().valueOf(key, newRow, FBUtilities.nowInSeconds());
         return target.update(key, oldRow.clustering(), oldValue, newValue);
     }
 

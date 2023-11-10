@@ -28,7 +28,6 @@ import com.google.common.collect.ListMultimap;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.ColumnMetadata.Kind;
 import org.apache.cassandra.utils.FBUtilities;
@@ -37,7 +36,7 @@ import static org.apache.cassandra.index.sai.plan.Operation.BooleanOperator;
 
 /**
  * Tree-like structure to filter base table data using indexed expressions and non-user-defined filters.
- *
+ * <p>
  * This is needed because:
  * 1. SAI doesn't index tombstones, base data may have been shadowed.
  * 2. Replica filter protecting may fetch data that doesn't match index expressions.
@@ -48,8 +47,7 @@ public class FilterTree
     protected final ListMultimap<ColumnMetadata, Expression> expressions;
     protected final List<FilterTree> children = new ArrayList<>();
 
-    FilterTree(BooleanOperator operation,
-               ListMultimap<ColumnMetadata, Expression> expressions)
+    FilterTree(BooleanOperator operation, ListMultimap<ColumnMetadata, Expression> expressions)
     {
         this.op = operation;
         this.expressions = expressions;
@@ -95,14 +93,14 @@ public class FilterTree
             {
                 Expression filter = filterIterator.previous();
 
-                if (TypeUtil.isNonFrozenCollection(column.type))
+                if (filter.getIndexTermType().isNonFrozenCollection())
                 {
-                    Iterator<ByteBuffer> valueIterator = filter.context.getValuesOf(row, now);
+                    Iterator<ByteBuffer> valueIterator = filter.getIndexTermType().valuesOf(row, now);
                     result = op.apply(result, collectionMatch(valueIterator, filter));
                 }
                 else
                 {
-                    ByteBuffer value = filter.context.getValueOf(key, row, now);
+                    ByteBuffer value = filter.getIndexTermType().valueOf(key, row, now);
                     result = op.apply(result, singletonMatch(value, filter));
                 }
 

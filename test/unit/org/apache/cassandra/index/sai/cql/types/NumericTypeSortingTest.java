@@ -27,8 +27,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.DecimalType;
 import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
 
 import static org.junit.Assert.assertTrue;
 
@@ -48,6 +48,8 @@ public class NumericTypeSortingTest extends SAIRandomizedTester
             data[i] = randomNumber;
         }
 
+        IndexTermType indexTermType = createIndexTermType(DecimalType.instance);
+
         Arrays.sort(data, BigDecimal::compareTo);
 
         for (int i = 1; i < data.length; i++)
@@ -56,11 +58,11 @@ public class NumericTypeSortingTest extends SAIRandomizedTester
             BigDecimal i1 = data[i];
             assertTrue(i0 + " <= " + i1, i0.compareTo(i1) <= 0);
 
-            ByteBuffer b0 = TypeUtil.asIndexBytes(DecimalType.instance.decompose(i0), DecimalType.instance);
+            ByteBuffer b0 = indexTermType.asIndexBytes(DecimalType.instance.decompose(i0));
 
-            ByteBuffer b1 = TypeUtil.asIndexBytes(DecimalType.instance.decompose(i1), DecimalType.instance);
+            ByteBuffer b1 = indexTermType.asIndexBytes(DecimalType.instance.decompose(i1));
 
-            assertTrue(i0 + " <= " + i1, TypeUtil.compare(b0, b1, DecimalType.instance) <= 0);
+            assertTrue(i0 + " <= " + i1, indexTermType.compare(b0, b1) <= 0);
         }
     }
 
@@ -80,17 +82,19 @@ public class NumericTypeSortingTest extends SAIRandomizedTester
 
         Arrays.sort(data, BigInteger::compareTo);
 
+        IndexTermType indexTermType = createIndexTermType(IntegerType.instance);
+
         for (int i = 1; i < data.length; i++)
         {
             BigInteger i0 = data[i - 1];
             BigInteger i1 = data[i];
             assertTrue(i0 + " <= " + i1, i0.compareTo(i1) <= 0);
 
-            ByteBuffer b0 = TypeUtil.asIndexBytes(IntegerType.instance.decompose(i0), IntegerType.instance);
+            ByteBuffer b0 = indexTermType.asIndexBytes(IntegerType.instance.decompose(i0));
 
-            ByteBuffer b1 = TypeUtil.asIndexBytes(IntegerType.instance.decompose(i1), IntegerType.instance);
+            ByteBuffer b1 = indexTermType.asIndexBytes(IntegerType.instance.decompose(i1));
 
-            assertTrue(i0 + " <= " + i1, TypeUtil.compare(b0, b1, IntegerType.instance) <= 0);
+            assertTrue(i0 + " <= " + i1, indexTermType.compare(b0, b1) <= 0);
         }
     }
 }

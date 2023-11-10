@@ -27,8 +27,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
@@ -51,9 +51,11 @@ public class BlockBalancedTreeRamBufferTest extends SAIRandomizedTester
 
         BlockBalancedTreeRamBuffer buffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
 
+        IndexTermType indexTermType = createIndexTermType(Int32Type.instance);
+
         byte[] scratch = new byte[Integer.BYTES];
         values.forEach(v -> {
-            TypeUtil.toComparableBytes(Int32Type.instance.decompose(v), Int32Type.instance, scratch);
+            indexTermType.toComparableBytes(Int32Type.instance.decompose(v), scratch);
             buffer.add(0, scratch);
         });
 

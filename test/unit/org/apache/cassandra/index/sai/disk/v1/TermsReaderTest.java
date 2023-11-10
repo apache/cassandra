@@ -23,20 +23,18 @@ import java.util.List;
 import org.junit.Test;
 
 import com.carrotsearch.hppc.LongArrayList;
-import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
-import org.apache.cassandra.index.sai.SAITester;
-import org.apache.cassandra.index.sai.memory.MemtableTermsIterator;
-import org.apache.cassandra.index.sai.postings.PostingList;
-import org.apache.cassandra.index.sai.utils.TermsIterator;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.v1.segment.LiteralIndexSegmentTermsReader;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v1.trie.LiteralIndexWriter;
+import org.apache.cassandra.index.sai.memory.MemtableTermsIterator;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
+import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
+import org.apache.cassandra.index.sai.utils.TermsIterator;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
@@ -72,18 +70,17 @@ public class TermsReaderTest extends SAIRandomizedTester
     {
         final int terms = 70, postings = 2;
         final IndexDescriptor indexDescriptor = newIndexDescriptor();
-        final String index = newIndex();
-        final IndexContext indexContext = SAITester.createIndexContext(index, UTF8Type.instance);
+        final IndexIdentifier indexIdentifier = createIndexIdentifier("test", "test", newIndex());
         final List<Pair<ByteComparable, LongArrayList>> termsEnum = buildTermsEnum(terms, postings);
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
-        try (LiteralIndexWriter writer = new LiteralIndexWriter(indexDescriptor, indexContext))
+        try (LiteralIndexWriter writer = new LiteralIndexWriter(indexDescriptor, indexIdentifier))
         {
             indexMetas = writer.writeCompleteSegment(new MemtableTermsIterator(null, null, termsEnum.iterator()));
         }
 
-        FileHandle termsData = indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexContext, null);
-        FileHandle postingLists = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, null);
+        FileHandle termsData = indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexIdentifier, null);
+        FileHandle postingLists = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexIdentifier, null);
 
         try (TermsIterator iterator = new TermsScanner(termsData, postingLists, indexMetas.get(IndexComponent.TERMS_DATA).root))
         {
@@ -99,22 +96,21 @@ public class TermsReaderTest extends SAIRandomizedTester
     private void testTermQueries(int numTerms, int numPostings) throws IOException
     {
         final IndexDescriptor indexDescriptor = newIndexDescriptor();
-        final String index = newIndex();
-        final IndexContext indexContext = SAITester.createIndexContext(index, UTF8Type.instance);
+        final IndexIdentifier indexIdentifier = createIndexIdentifier("test", "test", newIndex());
         final List<Pair<ByteComparable, LongArrayList>> termsEnum = buildTermsEnum(numTerms, numPostings);
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
-        try (LiteralIndexWriter writer = new LiteralIndexWriter(indexDescriptor, indexContext))
+        try (LiteralIndexWriter writer = new LiteralIndexWriter(indexDescriptor, indexIdentifier))
         {
             indexMetas = writer.writeCompleteSegment(new MemtableTermsIterator(null, null, termsEnum.iterator()));
         }
 
-        FileHandle termsData = indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexContext, null);
-        FileHandle postingLists = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, null);
+        FileHandle termsData = indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexIdentifier, null);
+        FileHandle postingLists = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexIdentifier, null);
 
         long termsFooterPointer = Long.parseLong(indexMetas.get(IndexComponent.TERMS_DATA).attributes.get(SAICodecUtils.FOOTER_POINTER));
 
-        try (LiteralIndexSegmentTermsReader reader = new LiteralIndexSegmentTermsReader(indexContext,
+        try (LiteralIndexSegmentTermsReader reader = new LiteralIndexSegmentTermsReader(indexIdentifier,
                                                                                         termsData,
                                                                                         postingLists,
                                                                                         indexMetas.get(IndexComponent.TERMS_DATA).root,

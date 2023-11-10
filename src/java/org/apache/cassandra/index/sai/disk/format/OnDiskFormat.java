@@ -23,7 +23,6 @@ import java.io.UncheckedIOException;
 import java.util.Set;
 
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.PerColumnIndexWriter;
@@ -31,6 +30,8 @@ import org.apache.cassandra.index.sai.disk.PerSSTableIndexWriter;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.RowMapping;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 /**
@@ -42,12 +43,10 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
  * <ul>
  *     <li>Methods taking no parameters. These methods return static information about the
  *     format. This can include static information about the per-sstable components</li>
- *     <li>Methods taking just an {@link IndexContext}. These methods return static information
- *     specific to the index. This can be information relating to the type of index being used</li>
  *     <li>Methods taking an {@link IndexDescriptor}. These methods interact with the on-disk components, or
  *     return objects that will interact with the on-disk components, or return information about the on-disk
- *     components. If they take an {@link IndexContext} as well they will be interacting with per-column index files;
- *     otherwise they will be interacting with per-sstable index files</li>
+ *     components. If they take an {@link IndexTermType} and/or a {@link IndexIdentifier} as well they will be
+ *     interacting with per-column index files; otherwise they will be interacting with per-sstable index files</li>
  *     <li>Methods taking an {@link IndexComponent}. These methods only interact with a single index component or
  *     set of index components</li>
  *
@@ -67,10 +66,10 @@ public interface OnDiskFormat
      * Create a new {@link SSTableIndex} for an on-disk index.
      *
      * @param sstableContext The {@link SSTableContext} holding the per-SSTable information for the index
-     * @param indexContext The {@link IndexContext} holding the per-index information for the index
+     * @param index The {@link StorageAttachedIndex}
      * @return the new {@link SSTableIndex} for the on-disk index
      */
-    SSTableIndex newSSTableIndex(SSTableContext sstableContext, IndexContext indexContext);
+    SSTableIndex newSSTableIndex(SSTableContext sstableContext, StorageAttachedIndex index);
 
     /**
      * Create a new {@link PerSSTableIndexWriter} to write the per-SSTable on-disk components of an index.
@@ -107,9 +106,9 @@ public interface OnDiskFormat
      * Returns true if the per-column index components have been built and are valid.
      *
      * @param indexDescriptor The {@link IndexDescriptor} for the SSTable SAI index
-     * @param indexContext The {@link IndexContext} for the index
+     * @param indexIdentifier The {@link IndexIdentifier} for the index
      */
-    boolean isPerColumnIndexBuildComplete(IndexDescriptor indexDescriptor, IndexContext indexContext);
+    boolean isPerColumnIndexBuildComplete(IndexDescriptor indexDescriptor, IndexIdentifier indexIdentifier);
 
     /**
      * Validate all the per-SSTable on-disk components and throw if a component is not valid
@@ -125,12 +124,13 @@ public interface OnDiskFormat
      * Validate all the per-column on-disk components and throw if a component is not valid
      *
      * @param indexDescriptor The {@link IndexDescriptor} for the SSTable SAI index
-     * @param indexContext The {@link IndexContext} holding the per-index information for the index
+     * @param indexTermType The {@link IndexTermType} of the index
+     * @param indexIdentifier The {@link IndexIdentifier} for the index
      * @param checksum {@code true} if the checksum should be tested as part of the validation
      *
      * @throws UncheckedIOException if there is a problem validating any on-disk component
      */
-    void validatePerColumnIndexComponents(IndexDescriptor indexDescriptor, IndexContext indexContext, boolean checksum);
+    void validatePerColumnIndexComponents(IndexDescriptor indexDescriptor, IndexTermType indexTermType, IndexIdentifier indexIdentifier, boolean checksum);
 
     /**
      * Returns the set of {@link IndexComponent} for the per-SSTable part of an index.
@@ -146,9 +146,9 @@ public interface OnDiskFormat
      * This is a complete set of components that could exist on-disk. It does not imply that the
      * components currently exist on-disk.
      *
-     * @param indexContext The {@link IndexContext} for the index
+     * @param indexTermType the {@link IndexTermType} of the index
      */
-    Set<IndexComponent> perColumnIndexComponents(IndexContext indexContext);
+    Set<IndexComponent> perColumnIndexComponents(IndexTermType indexTermType);
 
     /**
      * Return the number of open per-SSTable files that can be open during a query.
@@ -163,8 +163,6 @@ public interface OnDiskFormat
      * Return the number of open per-column index files that can be open during a query.
      * This is a static indication of the files that can be help open by an index
      * for queries. It is not a dynamic calculation.
-     *
-     * @param indexContext The {@link IndexContext} for the index
      */
-    int openFilesPerColumnIndex(IndexContext indexContext);
+    int openFilesPerColumnIndex();
 }

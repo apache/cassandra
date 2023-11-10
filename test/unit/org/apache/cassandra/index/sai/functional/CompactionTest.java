@@ -39,9 +39,10 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.v1.SSTableIndexWriter;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.inject.ActionBuilder;
 import org.apache.cassandra.inject.Expression;
 import org.apache.cassandra.inject.Injection;
@@ -72,7 +73,8 @@ public class CompactionTest extends SAITester
     public void testAntiCompaction() throws Throwable
     {
         createTable(CREATE_TABLE_TEMPLATE);
-        IndexContext numericIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), Int32Type.instance);
+        IndexIdentifier numericIndexIdentifier = createIndexIdentifier(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")));
+        IndexTermType numericIndexTermType = createIndexTermType(Int32Type.instance);
         verifyNoIndexFiles();
 
         // create 100 rows in 1 sstable
@@ -83,8 +85,8 @@ public class CompactionTest extends SAITester
 
         // verify 1 sstable index
         assertNumRows(num, "SELECT * FROM %%s WHERE v1 >= 0");
-        verifyIndexFiles(numericIndexContext, null, 1, 0);
-        verifySSTableIndexes(numericIndexContext.getIndexName(), 1);
+        verifyIndexFiles(numericIndexTermType, numericIndexIdentifier, 1);
+        verifySSTableIndexes(numericIndexIdentifier, 1);
 
         // split sstable into repaired and unrepaired
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable());
@@ -110,8 +112,8 @@ public class CompactionTest extends SAITester
 
         // verify 2 sstable indexes
         assertNumRows(num, "SELECT * FROM %%s WHERE v1 >= 0");
-        waitForAssert(() -> verifyIndexFiles(numericIndexContext, null, 2, 0));
-        verifySSTableIndexes(numericIndexContext.getIndexName(), 2);
+        waitForAssert(() -> verifyIndexFiles(numericIndexTermType, numericIndexIdentifier, 2));
+        verifySSTableIndexes(numericIndexIdentifier, 2);
 
         // index components are included after anti-compaction
         verifyIndexComponentsIncludedInSSTable();
@@ -121,8 +123,8 @@ public class CompactionTest extends SAITester
     public void testConcurrentQueryWithCompaction()
     {
         createTable(CREATE_TABLE_TEMPLATE);
-        String v1IndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
-        String v2IndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2"));
+        IndexIdentifier numericIndexIdentifier = createIndexIdentifier(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")));
+        IndexIdentifier literalIndexIdentifier = createIndexIdentifier(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2")));
         waitForTableIndexesQueryable();
 
         int num = 10;
@@ -149,16 +151,16 @@ public class CompactionTest extends SAITester
 
         compactionTest.start();
 
-        verifySSTableIndexes(v1IndexName, num);
-        verifySSTableIndexes(v2IndexName, num);
+        verifySSTableIndexes(numericIndexIdentifier, num);
+        verifySSTableIndexes(literalIndexIdentifier, num);
     }
 
     @Test
     public void testAbortCompactionWithEarlyOpenSSTables() throws Throwable
     {
         createTable(CREATE_TABLE_TEMPLATE);
-        String v1IndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
-        String v2IndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2"));
+        IndexIdentifier numericIndexIdentifier = createIndexIdentifier(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")));
+        IndexIdentifier literalIndexIdentifier = createIndexIdentifier(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2")));
 
         int sstables = 2;
         int num = 10;
@@ -207,8 +209,8 @@ public class CompactionTest extends SAITester
         // verify indexes are working
         assertNumRows(num, "SELECT id1 FROM %%s WHERE v1=0");
         assertNumRows(num, "SELECT id1 FROM %%s WHERE v2='0'");
-        verifySSTableIndexes(v1IndexName, sstables);
-        verifySSTableIndexes(v2IndexName, sstables);
+        verifySSTableIndexes(numericIndexIdentifier, sstables);
+        verifySSTableIndexes(literalIndexIdentifier, sstables);
     }
 
     @Test
@@ -277,8 +279,8 @@ public class CompactionTest extends SAITester
 
         assertNumRows(num, "SELECT id1 FROM %%s WHERE v1>=0");
         assertNumRows(num, "SELECT id1 FROM %%s WHERE v2='0'");
-        verifySSTableIndexes(IndexMetadata.generateDefaultIndexName(currentTable(), V1_COLUMN_IDENTIFIER), sstables);
-        verifySSTableIndexes(IndexMetadata.generateDefaultIndexName(currentTable(), V2_COLUMN_IDENTIFIER), sstables);
+        verifySSTableIndexes(createIndexIdentifier(IndexMetadata.generateDefaultIndexName(currentTable(), V1_COLUMN_IDENTIFIER)), sstables);
+        verifySSTableIndexes(createIndexIdentifier(IndexMetadata.generateDefaultIndexName(currentTable(), V2_COLUMN_IDENTIFIER)), sstables);
     }
 
     @Test
