@@ -258,6 +258,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACEMEN
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS_FIRST_BOOT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_TRANSFERED_RANGES;
 import static org.apache.cassandra.config.CassandraRelevantProperties.START_GOSSIP;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_WRITE_SURVEY;
 import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
@@ -1253,6 +1254,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 else
                     logger.info("Using saved tokens {}", bootstrapTokens);
             }
+        }
+
+        if (RESET_TRANSFERED_RANGES.getBoolean())
+        {
+            SystemKeyspace.resetTransferedRanges();
         }
 
         setUpDistributedSystemKeyspaces();

@@ -421,6 +421,7 @@ public enum CassandraRelevantProperties
      * Whether we reset any found data from previously run bootstraps.
      */
     RESET_BOOTSTRAP_PROGRESS("cassandra.reset_bootstrap_progress"),
+    RESET_TRANSFERED_RANGES("cassandra.reset_transfered_ranges", "true"),
     RING_DELAY("cassandra.ring_delay_ms"),
 
     // SAI specific properties
