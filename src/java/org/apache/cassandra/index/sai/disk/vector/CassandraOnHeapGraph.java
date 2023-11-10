@@ -122,7 +122,7 @@ public class CassandraOnHeapGraph<T>
                                           indexWriterConfig.getMaximumNodeConnections(),
                                           indexWriterConfig.getConstructionBeamWidth(),
                                           1.2f,
-                                          1.4f);
+                                          1.2f);
     }
 
     public int size()
