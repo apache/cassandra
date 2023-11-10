@@ -24,6 +24,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiPredicate;
+import java.util.function.Predicate;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -36,6 +37,7 @@ import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.HeartBeatState;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class StartupClusterConnectivityCheckerTest
@@ -44,6 +46,8 @@ public class StartupClusterConnectivityCheckerTest
     private StartupClusterConnectivityChecker globalQuorumConnectivityChecker;
     private StartupClusterConnectivityChecker noopChecker;
     private StartupClusterConnectivityChecker zeroWaitChecker;
+    private StartupClusterConnectivityChecker containsCassandra3NodesChecker;
+    private Predicate<CassandraVersion> defaultMockIsUpgradingFromVersionLowerThan;
 
     private static final long TIMEOUT_NANOS = 100;
     private static final int NUM_PER_DC = 6;
@@ -64,6 +68,20 @@ public class StartupClusterConnectivityCheckerTest
         return null;
     }
 
+    private static class MockIsUpgradingFromVersionLowerThan implements Predicate<CassandraVersion>
+    {
+        CassandraVersion clusterVersion;
+        MockIsUpgradingFromVersionLowerThan(CassandraVersion clusterVersion)
+        {
+            this.clusterVersion = clusterVersion;
+        }
+        @Override
+        public boolean test(CassandraVersion other)
+        {
+            return clusterVersion.compareTo(other) < 0;
+        }
+    }
+
     @BeforeClass
     public static void before()
     {
@@ -77,7 +95,8 @@ public class StartupClusterConnectivityCheckerTest
         globalQuorumConnectivityChecker = new StartupClusterConnectivityChecker(TIMEOUT_NANOS, true);
         noopChecker = new StartupClusterConnectivityChecker(-1, false);
         zeroWaitChecker = new StartupClusterConnectivityChecker(0, false);
-
+        containsCassandra3NodesChecker = new StartupClusterConnectivityChecker(TIMEOUT_NANOS, false);
+        defaultMockIsUpgradingFromVersionLowerThan = new MockIsUpgradingFromVersionLowerThan(CassandraVersion.CASSANDRA_4_0);
         peersA = new HashSet<>();
         peersAMinusLocal = new HashSet<>();
         peersA.add(FBUtilities.getBroadcastAddressAndPort());
@@ -114,7 +133,7 @@ public class StartupClusterConnectivityCheckerTest
     {
         Sink sink = new Sink(true, true, peers);
         MessagingService.instance().outboundSink.add(sink);
-        Assert.assertTrue(localQuorumConnectivityChecker.execute(peers, this::getDatacenter));
+        Assert.assertTrue(localQuorumConnectivityChecker.execute(peers, this::getDatacenter, defaultMockIsUpgradingFromVersionLowerThan));
     }
 
     @Test
@@ -122,7 +141,7 @@ public class StartupClusterConnectivityCheckerTest
     {
         Sink sink = new Sink(false, true, peers);
         MessagingService.instance().outboundSink.add(sink);
-        Assert.assertFalse(localQuorumConnectivityChecker.execute(peers, this::getDatacenter));
+        Assert.assertFalse(localQuorumConnectivityChecker.execute(peers, this::getDatacenter, defaultMockIsUpgradingFromVersionLowerThan));
     }
 
     @Test
@@ -130,7 +149,7 @@ public class StartupClusterConnectivityCheckerTest
     {
         Sink sink = new Sink(true, false, peers);
         MessagingService.instance().outboundSink.add(sink);
-        Assert.assertFalse(localQuorumConnectivityChecker.execute(peers, this::getDatacenter));
+        Assert.assertFalse(localQuorumConnectivityChecker.execute(peers, this::getDatacenter, defaultMockIsUpgradingFromVersionLowerThan));
     }
 
     @Test
@@ -183,8 +202,18 @@ public class StartupClusterConnectivityCheckerTest
     {
         Sink sink = new Sink(true, true, new HashSet<>());
         MessagingService.instance().outboundSink.add(sink);
-        Assert.assertFalse(zeroWaitChecker.execute(peers, this::getDatacenter));
+        Assert.assertFalse(zeroWaitChecker.execute(peers, this::getDatacenter, defaultMockIsUpgradingFromVersionLowerThan));
         MessagingService.instance().outboundSink.clear();
+    }
+
+    @Test
+    public void execute_HasCassandra3NodesSkipsExecution()
+    {
+        Sink sink = new Sink(true, true, peers);
+        MessagingService.instance().outboundSink.add(sink);
+        Predicate<CassandraVersion> isUpgradingFromVersionLowerThan = new MockIsUpgradingFromVersionLowerThan(new CassandraVersion("3.11.0"));
+        Assert.assertTrue(containsCassandra3NodesChecker.execute(peers, this::getDatacenter, isUpgradingFromVersionLowerThan));
+        Assert.assertEquals(0, sink.seenConnectionRequests.size());
     }
 
     private void checkAvailable(StartupClusterConnectivityChecker checker, Set<InetAddressAndPort> available,
@@ -192,7 +221,7 @@ public class StartupClusterConnectivityCheckerTest
     {
         Sink sink = new Sink(true, true, available);
         MessagingService.instance().outboundSink.add(sink);
-        Assert.assertEquals(shouldPass, checker.execute(peers, this::getDatacenter));
+        Assert.assertEquals(shouldPass, checker.execute(peers, this::getDatacenter, defaultMockIsUpgradingFromVersionLowerThan));
         MessagingService.instance().outboundSink.clear();
     }
 
