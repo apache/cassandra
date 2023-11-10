@@ -1,0 +1,52 @@
+= DROP TABLE
+:description: Immediate, irreversible removal of a table, including all data contained in the table.
+
+{description}
+
+*Restriction:* xref:reference:cql-commands/drop-materialized-view.adoc[Drop all materialized views] associated with the table before dropping the table.
+An error message lists any materialized views that are based on the table: `+InvalidRequest: Error from server: code=2200 [Invalid query] message="Cannot drop table when materialized views still depend on it (cycling.{cyclist_by_age})"+`
+
+*See also:* xref:cassandra:reference/cql-commands/create-table.adoc[CREATE TABLE],
+xref:cassandra:reference/cql-commands/alter-table.adoc[ALTER TABLE],
+xref:cassandra:reference/cql-commands/create-custom-index.adoc[CREATE CUSTOM INDEX] for Storage-Attached Indexes (SAI), xref:cassandra:reference/cql-commands/create-index.adoc[CREATE INDEX] for secondary indexes (2i)
+
+== Syntax
+
+BNF definition:
+
+[source,bnf]
+----
+include::cassandra:example$BNF/drop_table.bnf[]
+----
+
+// tag::syntax[]
+----
+DROP TABLE [ IF EXISTS ] [<keyspace_name>.]<table_name> ;
+----
+// end::syntax[]
+
+.Syntax legend
+[%collapsible]
+====
+include::cassandra:partial$cql-syntax-legend.adoc[]
+====
+
+== Required parameters
+
+*table_name*::
+Name of the table to drop.
+
+== Optional parameters
+
+*keyspace_name*::
+Name of the keyspace that contains the table to drop.
+If no name is specified, the current keyspace is used.
+
+== Examples
+
+Drop the `cyclist_name` table:
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_name-table.cql[tag=droptble]
+----

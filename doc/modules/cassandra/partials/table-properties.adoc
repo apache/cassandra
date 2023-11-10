@@ -1,0 +1,146 @@
+[[table_options]]
+== table_options
+:description: CQL table properties and descriptions of the syntax.
+
+Tunes data handling, including I/O operations, compression, and compaction.
+Table property options use the following syntax:
+
+* Single values: `<option_name> = '<value>'`
+* Multiple values: `+<option_name> = { '<subproperty>' : '<value>' [, ...] } [AND ...]+`
++
+Simple JSON format, key-value pairs in a comma-separated list enclosed by curly brackets.
+
+[NOTE]
+====
+When no value is specified, the default is used.
+====
+
+In a CREATE TABLE (or ALTER TABLE) CQL statement, use a `WITH` clause to define table property options.
+Separate multiple values with `AND`.
+
+[source,language-cql]
+----
+CREATE TABLE [<keyspace_name>.]<table_name>
+WITH option_name = '<value>'
+AND option_name = {<option_map>};
+----
+
+*bloom_filter_fp_chance = <N>* ::
+False-positive probability for SSTable https://en.wikipedia.org/wiki/Bloom_filter[bloom filter].
+When a client requests data, the bloom filter checks if the row exists before executing disk I/O.
+Values range from 0 to 1.0, where: `0` is the minimum value use to enable the largest possible bloom filter (uses the most memory) and `1.0` is the maximum value disabling the bloom filter.
+
+[TIP]
+====
+Recommended setting: `0.1`.
+A higher value yields diminishing returns.
+====
+
+*Default*: `bloom_filter_fp_chance = '0.01'`
+
+*caching = { 'keys' : 'value', 'rows_per_partition' : 'value'}* ::
+Optimizes the use of cache memory without manual tuning.
+Weighs the cached data by size and access frequency.
+Coordinate this setting with the global caching properties in the cassandra.yaml file.
+Valid values:
+
+* `ALL`-- all primary keys or rows
+* `NONE`-- no primary keys or rows
+* `<N>`: (rows per partition only) -- specify a whole number *Default*: `{ 'keys': 'ALL', 'rows_per_partition': 'NONE' }`
+
+*cdc* ::
+Creates a Change Data Capture (CDC) log on the table.
++
+Valid values:
+
+* `TRUE`- create CDC log
+* `FALSE`- do not create CDC log
+*comments = 'some text that describes the table'* ::
+Provide documentation on the table.
+
+[TIP]
+====
+Enter a description of the types of queries the table was designed to satisfy.
+====
+
+[[DefaultTTL]]*default_time_to_live* ::
+TTL (Time To Live) in seconds, where zero is disabled.
+The maximum configurable value is `630720000` (20 years).
+Beginning in 2018, the expiration timestamp can exceed the maximum value supported by the storage engine;
+see the warning below.
+If the value is greater than zero, TTL is enabled for the entire table and an expiration timestamp is added to each column.
+A new TTL timestamp is calculated each time the data is updated and the row is removed after all the data expires.
++
+Default value: `0` (disabled).
++
+[WARNING]
+====
+The database storage engine can only encode TTL timestamps through `January 19 2038 03:14:07 UTC` due to the https://en.wikipedia.org/wiki/Year_2038_problem[Year 2038 problem].
+The TTL date overflow policy determines whether requests with expiration timestamps later than the maximum date are rejected or inserted.
+====
+
+[[gc_grace_seconds]]*gc_grace_seconds* ::
+Seconds after data is marked with a tombstone (deletion marker) before it is eligible for garbage-collection.
+Default value: 864000 (10 days).
+The default value allows time for the database to maximize consistency prior to deletion.
++
+[NOTE]
+====
+Tombstoned records within the grace period are excluded from xref:managing/operating/hints.adoc[hints] or xref:developing/cql/ddl.adoc#batch_statement[batched mutations].
+====
++
+In a single-node cluster, this property can safely be set to zero.
+You can also reduce this value for tables whose data is not explicitly deleted -- for example, tables containing only data with https://cassandra.apache.org/_/glossary.html#gloss_ttl[TTL] set, or tables with `default_time_to_live` set.
+However, if you lower the `gc_grace_seconds` value, consider its interaction with these operations:
++
+
+* *hint replays*: When a node goes down and then comes back up, other nodes replay the write operations (called xref:managing/operating/hints.adoc[hints]) that are queued for that node while it was unresponsive.
+The database does not replay hints older than gc_grace_seconds after creation.
+The xref:managing/configuration/configuration/cass_yaml_file.adoc#max_hint_window[max_hint_window] setting in the
+xref:managing/configuration/configuration/cass_yaml_file.adoc[cassandra.yaml] file sets the time limit (3 hours by default) for collecting hints for the unresponsive node.
+
+* *batch replays*: Like hint queues, xref:developing/cql/ddl.adoc#batch_statement[batch operations] store database mutations that are replayed in sequence.
+As with hints, the database does not replay a batched mutation older than gc_grace_seconds after creation.
+If your application uses batch operations, consider the possibility that decreasing gc_grace_seconds increases the chance that a batched write operation may restore deleted data.
+The configuration/cass_yaml_file.html#batchlog_replay_throttle[batchlog_replay_throttle] property in the cassandra.yaml file give some control of the batch replay process.
+The most important factors, however, are the size and scope of the batches you use.
+
+*memtable_flush_period_in_ms* ::
+Milliseconds before `memtables` associated with the table are flushed.
+When memtable_flush_period_in_ms=0, the memtable will flush when:
+
+* the flush threshold is met
+* on shutdown
+* on nodetool flush
+* when commitlogs get full *Default*: `0`
+
+*min_index_interval* ::
+Minimum gap between index entries in the index summary.
+A lower min_index_interval means the index summary contains more entries from the index, which allows the database to search fewer index entries to execute a read.
+A larger index summary may also use more memory.
+The value for min_index_interval is the densest possible sampling of the index.
+
+*max_index_interval* ::
+If the total memory usage of all index summaries reaches this value,
+{product} decreases the index summaries for the coldest SSTables to the maximum set by max_index_interval.
+The max_index_interval is the sparsest possible sampling in relation to memory pressure.
+
+*speculative_retry* ::
+Configures https://www.datastax.com/dev/blog/rapid-read-protection-in-cassandra-2-0-2[rapid read protection].
+Normal read requests are sent to just enough replica nodes to satisfy the https://cassandra.apache.org/_/glossary.html#gloss_consistency_level[consistency level].
+In rapid read protection, extra read requests are sent to other replicas, even after the consistency level has been met.
+The speculative retry property specifies the trigger for these extra read requests.
++
+
+* ALWAYS: The coordinator node sends extra read requests to all other replicas after every read of that table.
+* <X>percentile: Track each table's typical read latency (in milliseconds).
+Coordinator node retrieves the typical latency time of the table being read and calculates X percent of that figure.
+The coordinator sends redundant read requests if the number of milliseconds it waits without responses exceeds that calculated figure.
++
+For example, if the speculative_retry property for Table_A is set to `80percentile`, and that table's typical latency is 60 milliseconds, the coordinator node handling a read of Table_A would send a normal read request first, and send out redundant read requests if it received no responses within 48ms, which is 80% of 60ms.
++
+* <N>ms: The coordinator node sends extra read requests to all other replicas if the coordinator node has not received any responses within `N` milliseconds.
+* NONE: The coordinator node does not send extra read requests after any read of that table.
+
+include::partial$compaction-strategies.adoc[]
+

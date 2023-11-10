@@ -1,0 +1,98 @@
+= Examples
+:description: CREATE TABLE CQL examples.
+
+== Create a table with UUID as the primary key
+
+Create the `cyclist_name` table with UUID as the primary key:
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_name-table.cql[tag=simple]
+----
+
+== Create a compound primary key
+
+Create the `cyclist_category` table and store the data in reverse order:
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_category-table.cql[tag=cpartitionkey]
+----
+
+== Create a composite partition key
+
+Create a table that is optimized for query by cyclist rank by year:
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/rank_by_year_and_name-table.cql[tag=compositepk]
+----
+
+== Create a table with a vector column
+
+Create a table with a vector column
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/vector-search/vector-search-cycling.cql[tag=create-vs-table]
+----
+
+== Create a table with a frozen UDT
+
+Create the `race_winners` table that has a frozen user-defined type (UDT):
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/race_winners-table.cql[tag=usetype]
+----
+
+See xref:developing/user-defined-type-create.adoc[Create a user-defined type] for information on Create UDTs.
+UDTs can be created unfrozen if only non-collection fields are used in the user-defined type creation.
+If the table is created with an unfrozen UDT, then xref:developing/inserting/insert-user-defined-type.adoc[individual field values can be updated and deleted].
+
+== Create a table with a CDC log
+
+Create a change data capture log for the `cyclist_id` table:
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_id-table.cql[tag=comp_pk]
+----
+
+CDC logging must be enabled in cassandra.yaml.
+
+[CAUTION]
+====
+Before enabling CDC logging, have a plan for moving and consuming the log information.
+After the disk space limit is reached, writes to CDC-enabled tables are rejected until more space is freed.
+See https://docs.datastax.com/en/dse/6.8/dse-admin/datastax_enterprise/config/configCassandra_yaml.html#configCassandra_yaml__cdcSpaceSection[Change-data-capture (CDC) space settings] for information about available CDC settings.
+====
+
+== Storing data in descending order
+
+The following example shows a table definition that stores the categories with the highest points first.
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_category-table.cql[tag=cpartitionkey]
+----
+
+[[restore-commit-log]]
+== Restoring from the table ID for commit log replay
+
+Recreate a table with its original ID to facilitate restoring table data by replaying commit logs:
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_emails-table.cql[tag=ID]
+----
+
+To retrieve a table's ID, query the `id` column of `system_schema.tables`.
+For example:
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_emails-table.cql[tag=select_id_from_system_schema]
+----
+
+To perform a restoration of the table, see xref:managing/operating/backups.adoc[Backups] for more information.
