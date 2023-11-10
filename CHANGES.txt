@@ -1,4 +1,5 @@
 4.0.12
+ * Make StartupConnectivityChecker only run a connectivity check if there are no nodes which are running a version prior to Cassandra 4 (CASSANDRA-18968)
  * Retrieve keyspaces metadata and schema version concistently in DescribeStatement (CASSANDRA-18921)
  * Gossip NPE due to shutdown event corrupting empty statuses (CASSANDRA-18913)
  * Synchronize CQLSSTableWriter#build on the Schema.instance object (CASSANDRA-18317)
