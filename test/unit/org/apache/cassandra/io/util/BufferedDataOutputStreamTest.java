@@ -104,14 +104,12 @@ public class BufferedDataOutputStreamTest
 
     BufferedDataOutputStreamPlus fakeStream = new BufferedDataOutputStreamPlus(adapter, 8);
 
-    @SuppressWarnings("resource")
     @Test(expected = NullPointerException.class)
     public void testNullChannel()
     {
         new BufferedDataOutputStreamPlus((WritableByteChannel)null, 8);
     }
 
-    @SuppressWarnings("resource")
     @Test(expected = IllegalArgumentException.class)
     public void testTooSmallBuffer()
     {

@@ -98,7 +98,7 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
         }
 
         @Override
-        @SuppressWarnings({"resource", "RedundantSuppression"})
+        @SuppressWarnings({"resource", "RedundantSuppression"}) // rowIdToToken, rowIdToPartitionId and cursor are closed by the SkinnyPrimaryKeyMap#close method
         public PrimaryKeyMap newPerSSTablePrimaryKeyMap() throws IOException
         {
             LongArray rowIdToToken = new LongArray.DeferredLongArray(tokenReaderFactory::open);

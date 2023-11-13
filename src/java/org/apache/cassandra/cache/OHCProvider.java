@@ -188,12 +188,10 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
             }
         }
 
-        @SuppressWarnings("resource")
         public IRowCacheEntry deserialize(ByteBuffer buf)
         {
-            try
+            try (RebufferingInputStream in = new DataInputBuffer(buf, false))
             {
-                RebufferingInputStream in = new DataInputBuffer(buf, false);
                 boolean isSentinel = in.readBoolean();
                 if (isSentinel)
                     return new RowCacheSentinel(in.readLong());

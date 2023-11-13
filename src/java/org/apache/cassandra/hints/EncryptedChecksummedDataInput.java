@@ -132,7 +132,6 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
         }
     }
 
-    @SuppressWarnings("resource")
     public static ChecksummedDataInput upgradeInput(ChecksummedDataInput input, Cipher cipher, ICompressor compressor)
     {
         long position = input.getPosition();

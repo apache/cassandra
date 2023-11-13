@@ -102,7 +102,6 @@ public class CassandraStreamReader implements IStreamReader
      * @return SSTable transferred
      * @throws IOException if reading the remote sstable fails. Will throw an RTE if local write fails.
      */
-    @SuppressWarnings("resource") // input needs to remain open, streams on top of it can't be closed
     @Override
     public SSTableMultiWriter read(DataInputPlus inputPlus) throws Throwable
     {
@@ -154,7 +153,6 @@ public class CassandraStreamReader implements IStreamReader
     {
         return header != null? header.toHeader(metadata) : null; //pre-3.0 sstable have no SerializationHeader
     }
-    @SuppressWarnings("resource")
     protected SSTableMultiWriter createWriter(ColumnFamilyStore cfs, long totalSize, long repairedAt, TimeUUID pendingRepair, SSTableFormat<?, ?> format) throws IOException
     {
         Directories.DataDirectory localDir = cfs.getDirectories().getWriteableLocation(totalSize);

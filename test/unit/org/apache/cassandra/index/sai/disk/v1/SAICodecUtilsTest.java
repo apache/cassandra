@@ -343,7 +343,6 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
     }
 
     @Test
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     public void writeCRCFailsWithInvalidCRC() throws Exception
     {
         IndexOutput indexOutput = Mockito.mock(IndexOutput.class);

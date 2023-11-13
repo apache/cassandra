@@ -31,7 +31,6 @@ public class CassandraTableWriteHandler implements TableWriteHandler
     }
 
     @Override
-    @SuppressWarnings("resource")
     public void write(PartitionUpdate update, WriteContext context, boolean updateIndexes)
     {
         CassandraWriteContext ctx = CassandraWriteContext.fromContext(context);
