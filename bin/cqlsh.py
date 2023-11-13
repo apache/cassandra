@@ -156,6 +156,10 @@ from cqlshlib.tracing import print_trace, print_trace_session
 from cqlshlib.util import get_file_encoding_bomsize
 from cqlshlib.util import is_file_secure
 from cqlshlib.serverversion import version as build_version
+try:
+    from cqlshlib.serverversion import version as build_version
+except ImportError:
+    build_version = "UNKNOWN"
 
 
 DEFAULT_HOST = '127.0.0.1'
