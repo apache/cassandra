@@ -5,6 +5,8 @@
  * Add metrics and logging to repair retries (CASSANDRA-18952)
  * Remove deprecated code in Cassandra 1.x and 2.x (CASSANDRA-18959)
  * ClientRequestSize metrics should not treat CONTAINS restrictions as being equality-based (CASSANDRA-18896)
+Merged from 4.0:
+ * Remove completed coordinator sessions (CASSANDRA-18903)
 
 
 5.0-alpha2
