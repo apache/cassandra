@@ -2689,11 +2689,6 @@ public class DatabaseDescriptor
         return conf.commitlog_disk_access_mode;
     }
 
-    public static boolean isCommitLogUsingDirectIO()
-    {
-        return getCommitLogDiskAccessMode() == Config.DiskAccessMode.direct;
-    }
-
     public static void setCommitLogDiskAccessMode(Config.DiskAccessMode new_mode)
     {
         conf.commitlog_disk_access_mode = new_mode;
