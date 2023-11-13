@@ -33,6 +33,7 @@ public class MetadataKeys
     public static final MetadataKey ACCORD_KEYSPACES        = make(CORE_NS, "ownership", "accord_keyspaces");
     public static final MetadataKey LOCKED_RANGES           = make(CORE_NS, "sequences", "locked_ranges");
     public static final MetadataKey IN_PROGRESS_SEQUENCES   = make(CORE_NS, "sequences", "in_progress");
+    public static final MetadataKey CONSENSUS_MIGRATION_STATE = make(CORE_NS, "consensus", "migration_state");
 
     public static final ImmutableSet<MetadataKey> CORE_METADATA = ImmutableSet.of(SCHEMA,
                                                                                   NODE_DIRECTORY,
@@ -40,7 +41,8 @@ public class MetadataKeys
                                                                                   DATA_PLACEMENTS,
                                                                                   ACCORD_KEYSPACES,
                                                                                   LOCKED_RANGES,
-                                                                                  IN_PROGRESS_SEQUENCES);
+                                                                                  IN_PROGRESS_SEQUENCES,
+                                                                                  CONSENSUS_MIGRATION_STATE);
 
     public static MetadataKey make(String...parts)
     {

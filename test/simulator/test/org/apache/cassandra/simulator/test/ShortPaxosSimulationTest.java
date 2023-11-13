@@ -98,7 +98,21 @@ public class ShortPaxosSimulationTest
     @Test
     public void simulationTest() throws IOException
     {
-        PaxosSimulationRunner.main(new String[] { "run", "-n", "3..6", "-t", "1000", "-c", "2", "--cluster-action-limit", "2", "-s", "30" });
+        PaxosSimulationRunner.main(new String[] { "run", "--variant", "v2", "-n", "3..6", "-t", "1000", "-c", "2", "--cluster-action-limit", "2", "-s", "30" });
+    }
+
+    @Test
+    public void casOnAccordSimulationTest() throws IOException
+    {
+        PaxosSimulationRunner.main(new String[] { "run",
+                                                  "--lwt-strategy", "migration",
+                                                  "-n", "3...6",
+                                                  "-t", "1000",
+                                                  "--cluster-action-limit", "0",
+                                                  "--consensus-action-limit", "-1",
+                                                  "--consensus-actions", "ACCORD_MIGRATE",
+                                                  "-c", "10",
+                                                  "-s", "30"});
     }
 
     @Test

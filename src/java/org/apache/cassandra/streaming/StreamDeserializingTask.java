@@ -22,6 +22,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.messages.KeepAliveMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
@@ -56,7 +57,7 @@ public class StreamDeserializingTask implements Runnable
         try
         {
             StreamMessage message;
-            while (null != (message = StreamMessage.deserialize(input, messagingVersion)))
+            while (null != (message = StreamMessage.deserialize(input, IPartitioner.global(), messagingVersion)))
             {
                 // keep-alives don't necessarily need to be tied to a session (they could be arrive before or after
                 // wrt session lifecycle, due to races), just log that we received the message and carry on

@@ -84,11 +84,11 @@ public class CoordinatorState extends AbstractState<CoordinatorState.State, Time
         return columnFamilies;
     }
 
-    public String[] getColumnFamilyNames()
+    public List<String> getColumnFamilyNames()
     {
         if (columnFamilies == null)
             return null;
-        return columnFamilies.stream().map(ColumnFamilyStore::getTableName).toArray(String[]::new);
+        return columnFamilies.stream().map(ColumnFamilyStore::getTableName).collect(Collectors.toList());
     }
 
     public RepairCoordinator.NeighborsAndRanges getNeighborsAndRanges()

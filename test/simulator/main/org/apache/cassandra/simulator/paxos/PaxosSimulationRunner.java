@@ -19,8 +19,12 @@
 package org.apache.cassandra.simulator.paxos;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.airlift.airline.Cli;
 import io.airlift.airline.Command;
@@ -28,9 +32,13 @@ import io.airlift.airline.Option;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.simulator.SimulationRunner;
+import org.apache.cassandra.simulator.utils.IntRange;
+import org.apache.cassandra.simulator.SimulatorUtils;
 
 public class PaxosSimulationRunner extends SimulationRunner
 {
+    private static Logger logger = LoggerFactory.getLogger(PaxosSimulationRunner.class);
+
     @Command(name = "run")
     public static class Run extends SimulationRunner.Run<PaxosClusterSimulation.Builder>
     {
@@ -56,6 +64,18 @@ public class PaxosSimulationRunner extends SimulationRunner
         {
             super.propagate(builder);
             propagateTo(consistency, withStateCache, withoutStateCache, variant, toVariant, builder);
+        }
+
+        @Override
+        protected void run( long seed, PaxosClusterSimulation.Builder builder) throws IOException
+        {
+            if (Objects.equals(builder.lwtStrategy(), "accord"))
+            {
+                // Apply handicaps
+                builder.dcs(new IntRange(1, 1));
+                builder.nodes(new IntRange(3, 3));
+            }
+            super.run(seed, builder);
         }
     }
 
@@ -88,7 +108,8 @@ public class PaxosSimulationRunner extends SimulationRunner
     }
 
     @Command(name = "reconcile")
-    public static class Reconcile extends SimulationRunner.Reconcile<PaxosClusterSimulation.Builder>
+    public static class
+    Reconcile extends SimulationRunner.Reconcile<PaxosClusterSimulation.Builder>
     {
         @Option(name = "--consistency")
         String consistency;
@@ -134,6 +155,7 @@ public class PaxosSimulationRunner extends SimulationRunner
      */
     public static void main(String[] args) throws IOException
     {
+        SimulatorUtils.verifyAndlogSimulatorArgs(logger, args);
         PaxosClusterSimulation.Builder builder = new PaxosClusterSimulation.Builder();
         builder.unique(uniqueNum.getAndIncrement());
 

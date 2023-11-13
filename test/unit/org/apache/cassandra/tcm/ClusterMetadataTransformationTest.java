@@ -53,6 +53,7 @@ import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.mockito.Mockito;
 
 import static org.apache.cassandra.tcm.MetadataKeys.ACCORD_KEYSPACES;
+import static org.apache.cassandra.tcm.MetadataKeys.CONSENSUS_MIGRATION_STATE;
 import static org.apache.cassandra.tcm.MetadataKeys.DATA_PLACEMENTS;
 import static org.apache.cassandra.tcm.MetadataKeys.IN_PROGRESS_SEQUENCES;
 import static org.apache.cassandra.tcm.MetadataKeys.LOCKED_RANGES;
@@ -313,6 +314,8 @@ public class ClusterMetadataTransformationTest
             return metadata.inProgressSequences;
         else if (key == ACCORD_KEYSPACES)
             return metadata.accordKeyspaces;
+        else if (key == CONSENSUS_MIGRATION_STATE)
+            return metadata.consensusMigrationState;
 
         throw new IllegalArgumentException("Unknown metadata key " + key);
     }

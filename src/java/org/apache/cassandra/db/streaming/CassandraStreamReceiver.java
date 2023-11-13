@@ -41,18 +41,24 @@ import org.apache.cassandra.db.rows.ThrottledUnfilteredIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.streaming.IncomingStream;
 import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Refs;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPAIR_MUTATION_REPAIR_ROWS_PER_BATCH;
 
 public class CassandraStreamReceiver implements StreamReceiver
@@ -74,14 +80,17 @@ public class CassandraStreamReceiver implements StreamReceiver
 
     private final boolean requiresWritePath;
 
+    private final List<Range<Token>> ranges;
 
-    public CassandraStreamReceiver(ColumnFamilyStore cfs, StreamSession session, int totalFiles)
+
+    public CassandraStreamReceiver(ColumnFamilyStore cfs, StreamSession session, List<Range<Token>> ranges, int totalFiles)
     {
         this.cfs = cfs;
         this.session = session;
         // this is an "offline" transaction, as we currently manually expose the sstables once done;
         // this should be revisited at a later date, so that LifecycleTransaction manages all sstable state changes
         this.txn = LifecycleTransaction.offline(OperationType.STREAM);
+        this.ranges = ranges;
         this.sstables = new ArrayList<>(totalFiles);
         this.requiresWritePath = requiresWritePath(cfs);
     }
@@ -234,6 +243,14 @@ public class CassandraStreamReceiver implements StreamReceiver
     @Override
     public void finished()
     {
+        CassandraVersion minVersion = ClusterMetadata.current().directory.clusterMinVersion.cassandraVersion;
+        checkNotNull(minVersion, "Unable to determine minimum cluster version");
+        IAccordService accordService = AccordService.instance();
+        if (session.streamOperation().requiresBarrierTransaction()
+            && accordService.isAccordManagedKeyspace(cfs.keyspace.getName())
+            && CassandraVersion.CASSANDRA_5_0.compareTo(minVersion) >= 0)
+            accordService.postStreamReceivingBarrier(cfs, ranges);
+
         boolean requiresWritePath = requiresWritePath(cfs);
         Collection<SSTableReader> readers = sstables;
 
