@@ -206,6 +206,12 @@ public abstract class ConsistentSession
         this.participants = ImmutableSet.copyOf(builder.participants);
     }
 
+    public boolean isCompleted()
+    {
+        State s = getState();
+        return s == State.FINALIZED || s == State.FAILED;
+    }
+
     public State getState()
     {
         return state;

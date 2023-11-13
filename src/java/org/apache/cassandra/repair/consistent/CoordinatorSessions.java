@@ -24,6 +24,9 @@ import java.util.Set;
 
 import com.google.common.base.Preconditions;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.messages.FailSession;
 import org.apache.cassandra.repair.messages.FinalizePromise;
@@ -37,6 +40,7 @@ import org.apache.cassandra.utils.TimeUUID;
  */
 public class CoordinatorSessions
 {
+    private static final Logger logger = LoggerFactory.getLogger(CoordinatorSessions.class);
     private final Map<TimeUUID, CoordinatorSession> sessions = new HashMap<>();
 
     protected CoordinatorSession buildSession(CoordinatorSession.Builder builder)
@@ -62,6 +66,7 @@ public class CoordinatorSessions
         builder.withRepairedAt(prs.repairedAt);
         builder.withRanges(prs.getRanges());
         builder.withParticipants(participants);
+        builder.withListener(this::onSessionStateUpdate);
         CoordinatorSession session = buildSession(builder);
         sessions.put(session.sessionID, session);
         return session;
@@ -70,6 +75,15 @@ public class CoordinatorSessions
     public synchronized CoordinatorSession getSession(TimeUUID sessionId)
     {
         return sessions.get(sessionId);
+    }
+
+    public synchronized void onSessionStateUpdate(CoordinatorSession session)
+    {
+        if (session.isCompleted())
+        {
+            logger.info("Removing completed session {} with state {}", session.sessionID, session.getState());
+            sessions.remove(session.sessionID);
+        }
     }
 
     public void handlePrepareResponse(PrepareConsistentResponse msg)
