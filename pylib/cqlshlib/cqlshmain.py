@@ -51,7 +51,10 @@ from cqlshlib.formatting import (DEFAULT_DATE_FORMAT, DEFAULT_NANOTIME_FORMAT,
                                  format_by_type)
 from cqlshlib.tracing import print_trace, print_trace_session
 from cqlshlib.util import get_file_encoding_bomsize, is_file_secure
-from cqlshlib.serverversion import version as build_version
+try:
+    from cqlshlib.serverversion import version as build_version
+except ImportError:
+    build_version = 'UNKNOWN'
 
 
 UTF8 = 'utf-8'
