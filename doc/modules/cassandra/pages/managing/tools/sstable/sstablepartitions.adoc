@@ -46,9 +46,9 @@ Use the path to the SSTable file as the only argument.
 Example:
 
 ....
-sstablepartitions data/data/k/t-d7be5e90e90111ed8b54efe3c39cb0bb/nc-8-big-Data.db
+sstablepartitions data/data/k/t-d7be5e90e90111ed8b54efe3c39cb0bb/oa-8-big-Data.db
 
-Processing k.t-d7be5e90e90111ed8b54efe3c39cb0bb #8 (big-nc) (1.368 GiB uncompressed, 534.979 MiB on disk)
+Processing k.t-d7be5e90e90111ed8b54efe3c39cb0bb #8 (big-oa) (1.368 GiB uncompressed, 534.979 MiB on disk)
                Partition size            Row count           Cell count      Tombstone count
   ~p50            767.519 KiB                  770                 1916                    0
   ~p75              2.238 MiB                 2299                 5722                    0
@@ -70,7 +70,7 @@ Example:
 ....
 sstablepartitions data/data/k/t-d7be5e90e90111ed8b54efe3c39cb0bb
 
-Processing k.t-d7be5e90e90111ed8b54efe3c39cb0bb #8 (big-nc) (1.368 GiB uncompressed, 534.979 MiB on disk)
+Processing k.t-d7be5e90e90111ed8b54efe3c39cb0bb #8 (big-oa) (1.368 GiB uncompressed, 534.979 MiB on disk)
                Partition size            Row count           Cell count      Tombstone count
   ~p50            767.519 KiB                  770                 1916                    0
   ~p75              2.238 MiB                 2299                 5722                    0
@@ -82,7 +82,7 @@ Processing k.t-d7be5e90e90111ed8b54efe3c39cb0bb #8 (big-nc) (1.368 GiB uncompres
   max             356.067 MiB               310706               932118                 2450
   count                   210
 
-Processing k.t-d7be5e90e90111ed8b54efe3c39cb0bb #9 (big-nc) (457.540 MiB uncompressed, 174.880 MiB on disk)
+Processing k.t-d7be5e90e90111ed8b54efe3c39cb0bb #9 (big-oa) (457.540 MiB uncompressed, 174.880 MiB on disk)
                Partition size            Row count           Cell count      Tombstone count
   ~p50              1.865 MiB                 1597                 4768                    0
   ~p75             13.858 MiB                14237                42510                    0
@@ -102,15 +102,15 @@ Use the `--min-size` option to specify the minimum size a partition must have to
 Example:
 
 ....
-sstablepartitions data/data/k/t-d7be5e90e90111ed8b54efe3c39cb0bb/nc-8-big-Data.db --min-size 100MiB
+sstablepartitions data/data/k/t-d7be5e90e90111ed8b54efe3c39cb0bb/oa-8-big-Data.db --min-size 100MiB
 
-Processing k.t-d7be5e90e90111ed8b54efe3c39cb0bb #8 (big-nc) (1.368 GiB uncompressed, 534.979 MiB on disk)
+Processing k.t-d7be5e90e90111ed8b54efe3c39cb0bb #8 (big-oa) (1.368 GiB uncompressed, 534.979 MiB on disk)
   Partition: '13' (0000000d) live, size: 105.056 MiB, rows: 91490, cells: 274470, tombstones: 50 (row:50, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)
   Partition: '1' (00000001) live, size: 127.241 MiB, rows: 111065, cells: 333195, tombstones: 50 (row:50, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)
   Partition: '8' (00000008) live, size: 356.067 MiB, rows: 310706, cells: 932118, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)
   Partition: '2' (00000002) live, size: 213.341 MiB, rows: 186582, cells: 559125, tombstones: 978 (row:978, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)
-Summary of k.t-d7be5e90e90111ed8b54efe3c39cb0bb #8 (big-nc):
-  File: /Users/adelapena/src/cassandra/trunk/data/data/k/t-d7be5e90e90111ed8b54efe3c39cb0bb/nc-8-big-Data.db
+Summary of k.t-d7be5e90e90111ed8b54efe3c39cb0bb #8 (big-oa):
+  File: /Users/adelapena/src/cassandra/trunk/data/data/k/t-d7be5e90e90111ed8b54efe3c39cb0bb/oa-8-big-Data.db
   4 partitions match
   Keys: 13 1 8 2
                Partition size            Row count           Cell count      Tombstone count
@@ -132,15 +132,15 @@ Use the `--min-tombstones` option to specify the minimum number of tombstones a 
 Example:
 
 ....
-sstablepartitions data/data/k/t-d7be5e90e90111ed8b54efe3c39cb0bb/nc-8-big-Data.db --min-tombstones 1000
+sstablepartitions data/data/k/t-d7be5e90e90111ed8b54efe3c39cb0bb/oa-8-big-Data.db --min-tombstones 1000
 
-Processing k.t-d7be5e90e90111ed8b54efe3c39cb0bb #8 (big-nc) (1.368 GiB uncompressed, 534.979 MiB on disk)
+Processing k.t-d7be5e90e90111ed8b54efe3c39cb0bb #8 (big-oa) (1.368 GiB uncompressed, 534.979 MiB on disk)
   Partition: '55' (00000037) live, size: 1.290 MiB, rows: 2317, cells: 3474, tombstones: 1159 (row:1159, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)
   Partition: '28' (0000001c) live, size: 1.198 MiB, rows: 2099, cells: 3147, tombstones: 1050 (row:1050, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)
   Partition: '89' (00000059) live, size: 1.346 MiB, rows: 2226, cells: 3339, tombstones: 1113 (row:1113, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)
   Partition: '21' (00000015) live, size: 3.853 MiB, rows: 4900, cells: 9927, tombstones: 2450 (row:2450, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)
-Summary of k.t-d7be5e90e90111ed8b54efe3c39cb0bb #8 (big-nc):
-  File: /Users/adelapena/src/cassandra/trunk/data/data/k/t-d7be5e90e90111ed8b54efe3c39cb0bb/nc-8-big-Data.db
+Summary of k.t-d7be5e90e90111ed8b54efe3c39cb0bb #8 (big-oa):
+  File: /Users/adelapena/src/cassandra/trunk/data/data/k/t-d7be5e90e90111ed8b54efe3c39cb0bb/oa-8-big-Data.db
   4 partitions match
   Keys: 55 28 89 21
                Partition size            Row count           Cell count      Tombstone count
@@ -162,10 +162,10 @@ Use the `--csv` option to output a CSV machine-readable output, combined with an
 Example:
 
 ....
-sstablepartitions data/data/k/t-d7be5e90e90111ed8b54efe3c39cb0bb/nc-8-big-Data.db --min-size 100MiB --csv
+sstablepartitions data/data/k/t-d7be5e90e90111ed8b54efe3c39cb0bb/oa-8-big-Data.db --min-size 100MiB --csv
 key,keyBinary,live,offset,size,rowCount,cellCount,tombstoneCount,rowTombstoneCount,rangeTombstoneCount,complexTombstoneCount,cellTombstoneCount,rowTtlExpired,cellTtlExpired,directory,keyspace,table,index,snapshot,backup,generation,format,version
-"13",0000000d,true,186403543,110158965,91490,274470,50,50,0,0,0,0,0,/Users/adelapena/src/cassandra/trunk/data/data/k/t-d7be5e90e90111ed8b54efe3c39cb0bb/nc-8-big-Data.db,k,t,,,,8,big,nc
-"1",00000001,true,325141542,133422183,111065,333195,50,50,0,0,0,0,0,/Users/adelapena/src/cassandra/trunk/data/data/k/t-d7be5e90e90111ed8b54efe3c39cb0bb/nc-8-big-Data.db,k,t,,,,8,big,nc
-"8",00000008,true,477133752,373362819,310706,932118,0,0,0,0,0,0,0,/Users/adelapena/src/cassandra/trunk/data/data/k/t-d7be5e90e90111ed8b54efe3c39cb0bb/nc-8-big-Data.db,k,t,,,,8,big,nc
-"2",00000002,true,851841363,223704192,186582,559125,978,978,0,0,0,0,0,/Users/adelapena/src/cassandra/trunk/data/data/k/t-d7be5e90e90111ed8b54efe3c39cb0bb/nc-8-big-Data.db,k,t,,,,8,big,nc
+"13",0000000d,true,186403543,110158965,91490,274470,50,50,0,0,0,0,0,/Users/adelapena/src/cassandra/trunk/data/data/k/t-d7be5e90e90111ed8b54efe3c39cb0bb/oa-8-big-Data.db,k,t,,,,8,big,oa
+"1",00000001,true,325141542,133422183,111065,333195,50,50,0,0,0,0,0,/Users/adelapena/src/cassandra/trunk/data/data/k/t-d7be5e90e90111ed8b54efe3c39cb0bb/oa-8-big-Data.db,k,t,,,,8,big,oa
+"8",00000008,true,477133752,373362819,310706,932118,0,0,0,0,0,0,0,/Users/adelapena/src/cassandra/trunk/data/data/k/t-d7be5e90e90111ed8b54efe3c39cb0bb/oa-8-big-Data.db,k,t,,,,8,big,oa
+"2",00000002,true,851841363,223704192,186582,559125,978,978,0,0,0,0,0,/Users/adelapena/src/cassandra/trunk/data/data/k/t-d7be5e90e90111ed8b54efe3c39cb0bb/oa-8-big-Data.db,k,t,,,,8,big,oa
 ....

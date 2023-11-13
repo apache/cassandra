@@ -101,7 +101,7 @@ public class LegacySSTableTest
     // Get all versions up to the current one. Useful for testing in compatibility mode C18301
     private static String[] getValidLegacyVersions()
     {
-        String[] versions = {"oa", "da", "nc", "nb", "na", "me", "md", "mc", "mb", "ma"};
+        String[] versions = {"oa", "da", "nb", "na", "me", "md", "mc", "mb", "ma"};
         return Arrays.stream(versions).filter((v) -> v.compareTo(BigFormat.getInstance().getLatestVersion().toString()) <= 0).toArray(String[]::new);
     }
 
