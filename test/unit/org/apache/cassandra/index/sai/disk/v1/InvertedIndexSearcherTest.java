@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.carrotsearch.hppc.LongArrayList;
@@ -33,18 +32,17 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SAITester;
-import org.apache.cassandra.index.sai.memory.MemtableTermsIterator;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.segment.IndexSegmentSearcher;
 import org.apache.cassandra.index.sai.disk.v1.segment.LiteralIndexSegmentSearcher;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v1.trie.LiteralIndexWriter;
-import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
+import org.apache.cassandra.index.sai.memory.MemtableTermsIterator;
+import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
@@ -77,13 +75,6 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
         }
     };
     public static final PrimaryKeyMap.Factory TEST_PRIMARY_KEY_MAP_FACTORY = () -> TEST_PRIMARY_KEY_MAP;
-
-    @BeforeClass
-    public static void setupCQLTester()
-    {
-        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
-    }
 
     @Test
     public void testEqQueriesAgainstStringIndex() throws Exception
