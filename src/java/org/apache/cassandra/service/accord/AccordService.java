@@ -24,14 +24,17 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.BarrierType;
 import accord.api.Result;
 import accord.config.LocalConfig;
+import accord.coordinate.CoordinationFailed;
 import accord.coordinate.Preempted;
 import accord.coordinate.Timeout;
 import accord.impl.AbstractConfigurationService;
@@ -39,12 +42,16 @@ import accord.impl.SimpleProgressLog;
 import accord.impl.SizeOfIntersectionSorter;
 import accord.local.DurableBefore;
 import accord.local.Node;
+import accord.local.Node.Id;
 import accord.local.NodeTimeService;
 import accord.local.RedundantBefore;
 import accord.local.ShardDistributor.EvenSplit;
 import accord.messages.LocalMessage;
 import accord.messages.Request;
+import accord.primitives.Seekables;
+import accord.primitives.Timestamp;
 import accord.primitives.Txn;
+import accord.primitives.Txn.Kind;
 import accord.primitives.TxnId;
 import accord.topology.TopologyManager;
 import accord.utils.DefaultRandom;
@@ -59,7 +66,9 @@ import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.journal.AsyncWriteCallback;
 import org.apache.cassandra.metrics.AccordClientRequestMetrics;
@@ -75,29 +84,37 @@ import org.apache.cassandra.service.accord.api.AccordTopologySorter;
 import org.apache.cassandra.service.accord.api.CompositeTopologySorter;
 import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
 import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
-import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.interop.AccordInteropApply;
+import org.apache.cassandra.service.accord.interop.AccordInteropExecution;
+import org.apache.cassandra.service.accord.interop.AccordInteropPersist;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.transformations.AddAccordKeyspace;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ExecutorUtils;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static accord.messages.SimpleReply.Ok;
+import static accord.utils.Invariants.checkState;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
+import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadMetrics;
+import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteMetrics;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class AccordService implements IAccordService, Shutdownable
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordService.class);
 
-    public static final AccordClientRequestMetrics readMetrics = new AccordClientRequestMetrics("AccordRead");
-    public static final AccordClientRequestMetrics writeMetrics = new AccordClientRequestMetrics("AccordWrite");
     private static final Future<Void> BOOTSTRAP_SUCCESS = ImmediateFuture.success(null);
 
     private final Node node;
@@ -119,7 +136,13 @@ public class AccordService implements IAccordService, Shutdownable
         }
 
         @Override
-        public TxnData coordinate(Txn txn, ConsistencyLevel consistencyLevel)
+        public long barrier(@Nonnull Seekables keysOrRanges, long minEpoch, long queryStartNanos, long timeoutNanos, BarrierType barrierType, boolean isForWrite)
+        {
+            throw new UnsupportedOperationException("No accord barriers should be executed when accord_transactions_enabled = false in cassandra.yaml");
+        }
+
+        @Override
+        public @Nonnull TxnResult coordinate(@Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull long queryStartNanos)
         {
             throw new UnsupportedOperationException("No accord transaction should be executed when accord.enabled = false in cassandra.yaml");
         }
@@ -181,6 +204,9 @@ public class AccordService implements IAccordService, Shutdownable
         {
             return Pair.create(new Int2ObjectHashMap<>(), DurableBefore.EMPTY);
         }
+
+        @Override
+        public void ensureKeyspaceIsAccordManaged(String keyspace) {}
     };
 
     private static volatile Node.Id localId = null;
@@ -257,6 +283,9 @@ public class AccordService implements IAccordService, Shutdownable
                                                             new AccordTopologySorter.Supplier(configService, DatabaseDescriptor.getEndpointSnitch())),
                              SimpleProgressLog::new,
                              AccordCommandStores.factory(journal),
+                             new AccordInteropExecution.Factory(agent, configService),
+                             AccordInteropPersist.FACTORY,
+                             AccordInteropApply.FACTORY,
                              configuration);
         this.nodeShutdown = toShutdownable(node);
         this.verbHandler = new AccordVerbHandler<>(node, configService, journal);
@@ -277,34 +306,21 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
-    public long currentEpoch()
+    public long barrier(@Nonnull Seekables keysOrRanges, long epoch, long queryStartNanos, long timeoutNanos, BarrierType barrierType, boolean isForWrite)
     {
-        return configService.currentEpoch();
-    }
-    
-    @Override
-    public TopologyManager topology()
-    {
-        return node.topology();
-    }
-    
-    /**
-     * Consistency level is just echoed back in timeouts, in the future it may be used for interoperability
-     * with non-Accord operations.
-     */
-    @Override
-    public TxnData coordinate(Txn txn, ConsistencyLevel consistencyLevel)
-    {
-        AccordClientRequestMetrics metrics = txn.isWrite() ? writeMetrics : readMetrics;
+        AccordClientRequestMetrics metrics = isForWrite ? accordWriteMetrics : accordReadMetrics;
         TxnId txnId = null;
-        final long startNanos = nanoTime();
         try
         {
-            metrics.keySize.update(txn.keys().size());
-            txnId = node.nextTxnId(txn.kind(), txn.keys().domain());
-            AsyncResult<Result> asyncResult = node.coordinate(txnId, txn);
-            Result result = AsyncChains.getBlocking(asyncResult, DatabaseDescriptor.getTransactionTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
-            return (TxnData) result;
+            logger.debug("Starting barrier key: {} epoch: {} barrierType: {} isForWrite {}", keysOrRanges, epoch, barrierType, isForWrite);
+            txnId = node.nextTxnId(Kind.SyncPoint, keysOrRanges.domain());
+            AsyncResult<Timestamp> asyncResult = node.barrier(keysOrRanges, epoch, barrierType);
+            long deadlineNanos = queryStartNanos + timeoutNanos;
+            Timestamp barrierExecuteAt = AsyncChains.getBlocking(asyncResult, deadlineNanos - nanoTime(), NANOSECONDS);
+            logger.debug("Completed in {}ms barrier key: {} epoch: {} barrierType: {} isForWrite {}",
+                         NANOSECONDS.toMillis(nanoTime() - queryStartNanos),
+                         keysOrRanges, epoch, barrierType, isForWrite);
+            return barrierExecuteAt.epoch();
         }
         catch (ExecutionException e)
         {
@@ -312,14 +328,14 @@ public class AccordService implements IAccordService, Shutdownable
             if (cause instanceof Timeout)
             {
                 metrics.timeouts.mark();
-                throw throwTimeout(txnId, txn, consistencyLevel);
+                throw newBarrierTimeout(txnId, barrierType.global);
             }
             if (cause instanceof Preempted)
             {
                 //TODO need to improve
                 // Coordinator "could" query the accord state to see whats going on but that doesn't exist yet.
                 // Protocol also doesn't have a way to denote "unknown" outcome, so using a timeout as the closest match
-                throw throwPreempted(txnId, txn, consistencyLevel);
+                throw newBarrierPreempted(txnId, barrierType.global);
             }
             metrics.failures.mark();
             throw new RuntimeException(cause);
@@ -332,11 +348,125 @@ public class AccordService implements IAccordService, Shutdownable
         catch (TimeoutException e)
         {
             metrics.timeouts.mark();
-            throw throwTimeout(txnId, txn, consistencyLevel);
+            throw newBarrierTimeout(txnId, barrierType.global);
         }
         finally
         {
-            metrics.addNano(nanoTime() - startNanos);
+            // TODO Should barriers have a dedicated latency metric? Should it be a read/write metric?
+            // What about counts for timeouts/failures/preempts?
+            metrics.addNano(nanoTime() - queryStartNanos);
+        }
+    }
+
+    private static ReadTimeoutException newBarrierTimeout(TxnId txnId, boolean global)
+    {
+        return new ReadTimeoutException(global ? ConsistencyLevel.ANY : ConsistencyLevel.QUORUM, 0, 0, false, txnId.toString());
+    }
+
+    private static ReadTimeoutException newBarrierPreempted(TxnId txnId, boolean global)
+    {
+        return new ReadPreemptedException(global ? ConsistencyLevel.ANY : ConsistencyLevel.QUORUM, 0, 0, false, txnId.toString());
+    }
+
+    @Override
+    public long barrierWithRetries(Seekables keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite) throws InterruptedException
+    {
+        // Since we could end up having the barrier transaction or the transaction it listens to invalidated
+        CoordinationFailed existingFailures = null;
+        Long success = null;
+        long backoffMillis = 0;
+        for (int attempt = 0; attempt < DatabaseDescriptor.getAccordBarrierRetryAttempts(); attempt++)
+        {
+            try
+            {
+                Thread.sleep(backoffMillis);
+            }
+            catch (InterruptedException e)
+            {
+                if (existingFailures != null)
+                    e.addSuppressed(existingFailures);
+                throw e;
+            }
+            backoffMillis = backoffMillis == 0 ? DatabaseDescriptor.getAccordBarrierRetryInitialBackoffMillis() : Math.min(backoffMillis * 2, DatabaseDescriptor.getAccordBarrierRetryMaxBackoffMillis());
+            try
+            {
+                success = AccordService.instance().barrier(keysOrRanges, minEpoch, Clock.Global.nanoTime(), DatabaseDescriptor.getAccordRangeBarrierTimeoutNanos(), barrierType, isForWrite);
+                break;
+            }
+            catch (CoordinationFailed newFailures)
+            {
+                existingFailures = Throwables.merge(existingFailures, newFailures);
+            }
+        }
+        if (success == null)
+        {
+            checkState(existingFailures != null, "Didn't have success, but also didn't have failures");
+            throw existingFailures;
+        }
+        return success;
+    }
+
+    @Override
+    public long currentEpoch()
+    {
+        return configService.currentEpoch();
+    }
+
+    @Override
+    public TopologyManager topology()
+    {
+        return node.topology();
+    }
+
+    /**
+     * Consistency level is just echoed back in timeouts, in the future it may be used for interoperability
+     * with non-Accord operations.
+     */
+    @Override
+    public @Nonnull TxnResult coordinate(@Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, long queryStartNanos)
+    {
+        AccordClientRequestMetrics metrics = txn.isWrite() ? accordWriteMetrics : accordReadMetrics;
+        TxnId txnId = null;
+        try
+        {
+            metrics.keySize.update(txn.keys().size());
+            txnId = node.nextTxnId(txn.kind(), txn.keys().domain());
+            long deadlineNanos = queryStartNanos + DatabaseDescriptor.getTransactionTimeout(NANOSECONDS);
+            AsyncResult<Result> asyncResult = node.coordinate(txnId, txn);
+            Result result = AsyncChains.getBlocking(asyncResult, deadlineNanos - nanoTime(), NANOSECONDS);
+            return (TxnResult) result;
+        }
+        catch (ExecutionException e)
+        {
+            Throwable cause = e.getCause();
+            if (cause instanceof Timeout)
+            {
+                metrics.timeouts.mark();
+                throw newTimeout(txnId, txn, consistencyLevel);
+            }
+            if (cause instanceof Preempted)
+            {
+                //TODO need to improve
+                // Coordinator "could" query the accord state to see whats going on but that doesn't exist yet.
+                // Protocol also doesn't have a way to denote "unknown" outcome, so using a timeout as the closest match
+                throw newPreempted(txnId, txn, consistencyLevel);
+            }
+            metrics.failures.mark();
+            throw new RuntimeException(cause);
+        }
+        catch (InterruptedException e)
+        {
+            metrics.failures.mark();
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (TimeoutException e)
+        {
+            metrics.timeouts.mark();
+            throw newTimeout(txnId, txn, consistencyLevel);
+        }
+        finally
+        {
+            metrics.addNano(nanoTime() - queryStartNanos);
         }
     }
 
@@ -371,13 +501,13 @@ public class AccordService implements IAccordService, Shutdownable
         });
     }
 
-    private static RuntimeException throwTimeout(TxnId txnId, Txn txn, ConsistencyLevel consistencyLevel)
+    private static RequestTimeoutException newTimeout(TxnId txnId, Txn txn, ConsistencyLevel consistencyLevel)
     {
         throw txn.isWrite() ? new WriteTimeoutException(WriteType.CAS, consistencyLevel, 0, 0, txnId.toString())
                             : new ReadTimeoutException(consistencyLevel, 0, 0, false, txnId.toString());
     }
 
-    private static RuntimeException throwPreempted(TxnId txnId, Txn txn, ConsistencyLevel consistencyLevel)
+    private static RuntimeException newPreempted(TxnId txnId, Txn txn, ConsistencyLevel consistencyLevel)
     {
         throw txn.isWrite() ? new WritePreemptedException(WriteType.CAS, consistencyLevel, 0, 0, txnId.toString())
                             : new ReadPreemptedException(consistencyLevel, 0, 0, false, txnId.toString());
@@ -436,6 +566,11 @@ public class AccordService implements IAccordService, Shutdownable
     public AccordScheduler scheduler()
     {
         return scheduler;
+    }
+
+    public Id nodeId()
+    {
+        return node.id();
     }
 
     @VisibleForTesting
@@ -521,6 +656,22 @@ public class AccordService implements IAccordService, Shutdownable
     public boolean isAccordManagedKeyspace(String keyspace)
     {
         return ClusterMetadata.current().accordKeyspaces.contains(keyspace);
+    }
+
+    @Override
+    public void ensureKeyspaceIsAccordManaged(String keyspace)
+    {
+        if (isAccordManagedKeyspace(keyspace))
+            return;
+        ClusterMetadataService.instance().commit(new AddAccordKeyspace(keyspace),
+                                                 metadata -> null,
+                                                 (metadata, code, message) -> {
+                                                     Invariants.checkState(code == ExceptionCode.ALREADY_EXISTS,
+                                                                           "Expected %s, got %s", ExceptionCode.ALREADY_EXISTS, code);
+                                                     return null;
+                                                 });
+        // we need to avoid creating a txnId in an epoch when no one has any ranges
+        FBUtilities.waitOnFuture(AccordService.instance().epochReady(ClusterMetadata.current().epoch));
     }
 
     @Override

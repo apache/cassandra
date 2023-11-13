@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.streaming;
 
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -25,7 +26,10 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
@@ -56,12 +60,16 @@ public class StreamReceiveTask extends StreamTask
     private int remoteStreamsReceived = 0;
     private long bytesReceived = 0;
 
-    public StreamReceiveTask(StreamSession session, TableId tableId, int totalStreams, long totalSize)
+    private List<Range<Token>> ranges;
+
+    public StreamReceiveTask(StreamSession session, TableId tableId, List<Range<Token>> ranges, int totalStreams, long totalSize)
     {
         super(session, tableId);
-        this.receiver = ColumnFamilyStore.getIfExists(tableId).getStreamManager().createStreamReceiver(session, totalStreams);
+        Range.assertNormalized(ranges);
+        this.receiver = ColumnFamilyStore.getIfExists(tableId).getStreamManager().createStreamReceiver(session, ranges, totalStreams);
         this.totalStreams = totalStreams;
         this.totalSize = totalSize;
+        this.ranges = ranges;
     }
 
     /**
@@ -162,6 +170,12 @@ public class StreamReceiveTask extends StreamTask
 
         done = true;
         receiver.abort();
+    }
+
+    @Override
+    protected List<Range<Token>> ranges()
+    {
+        return ranges;
     }
 
     @VisibleForTesting

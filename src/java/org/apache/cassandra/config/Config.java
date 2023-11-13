@@ -42,6 +42,7 @@ import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.service.StartupChecks.StartupCheckType;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
+import org.apache.cassandra.service.accord.IAccordService;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.*;
 
@@ -183,6 +184,7 @@ public class Config
 
     public int concurrent_reads = 32;
     public int concurrent_writes = 32;
+    public int concurrent_accord_operations = 32;
     public int concurrent_counter_writes = 32;
     public int concurrent_materialized_view_writes = 32;
     public OptionaldPositiveInt available_processors = new OptionaldPositiveInt(CASSANDRA_AVAILABLE_PROCESSORS.getInt(OptionaldPositiveInt.UNDEFINED_VALUE));
@@ -483,6 +485,8 @@ public class Config
     public volatile int counter_cache_keys_to_save = Integer.MAX_VALUE;
 
     public DataStorageSpec.LongMebibytesBound paxos_cache_size = null;
+
+    public DataStorageSpec.LongMebibytesBound consensus_migration_cache_size = null;
 
     @Replaces(oldName = "cache_load_timeout_seconds", converter = Converters.NEGATIVE_SECONDS_DURATION, deprecated = true)
     public DurationSpec.IntSecondsBound cache_load_timeout = new DurationSpec.IntSecondsBound("30s");
@@ -1108,7 +1112,23 @@ public class Config
 
     public volatile boolean client_request_size_metrics_enabled = true;
 
-    public LegacyPaxosStrategy legacy_paxos_strategy = LegacyPaxosStrategy.migration;
+    public LWTStrategy lwt_strategy = LWTStrategy.migration;
+    public NonSerialWriteStrategy non_serial_write_strategy = NonSerialWriteStrategy.normal;
+
+    /**
+     * When a barrier transaction is requested how many times to repeat attempting the barrier before giving up
+     */
+    public int accord_barrier_retry_attempts = 5;
+
+    /**
+     * When a barrier transaction fails how long the initial backoff should be before being increased
+     * as part of exponential backoff on each attempt
+     */
+    public DurationSpec.IntMillisecondsBound accord_barrier_retry_inital_backoff_millis = new DurationSpec.IntMillisecondsBound("1s");
+
+    public DurationSpec.IntMillisecondsBound accord_barrier_max_backoff = new DurationSpec.IntMillisecondsBound("10m");
+
+    public DurationSpec.IntMillisecondsBound accord_range_barrier_timeout = new DurationSpec.IntMillisecondsBound("2m");
 
     public volatile int max_top_size_partition_count = 10;
     public volatile int max_top_tombstone_partition_count = 10;
@@ -1219,7 +1239,7 @@ public class Config
      * and serial read operations. Transaction statements
      * will always run on Accord. Legacy in this context includes PaxosV2.
      */
-    public enum LegacyPaxosStrategy
+    public enum LWTStrategy
     {
         /*
          * Allow both Accord and PaxosV1/V2 to run on the same cluster
@@ -1235,6 +1255,95 @@ public class Config
          * requiring migration to Accord.
          */
         accord
+    }
+
+    /*
+     * Configure how non-serial writes should be executed. For Accord transactions to function correctly
+     * when mixed with non-SERIAL writes it's necessary for the writes to occur through Accord.
+     *
+     * Accord will also use this configuration to determine what consistency level to perform its reads
+     * at since it will need to be able to read data written at non-SERIAL consistency levels.
+     *
+     * BlockingReadRepair will also use this configuration to determine how BRR mutations are applied. For migration
+     * and accord the BRR mutations will be applied as Accord transactions so that BRR doesn't expose Accord to
+     * uncommitted Accord data that is being RRed. This can occur when Accord has applied a transaction at some, but not
+     * all replica since Accord defaults to asynchronous commit.
+     *
+     * By routing repairs through Accord it is guaranteed that the Accord derived contents of the repair have already been applied at any
+     * replica where Accord applies the transaction. This also prevents BRR from breaking atomicity of Accord writes.
+     *
+     * If they are not written through Accord then reads through Accord will be required to occur at
+     * consistency level compatible with the non-serial writes preventing single replica reads from being performed
+     * by Accord. It will also require Accord to perform read repair of non-serial writes.
+     *
+     * Even then there is the potential for Accord to inconsistently execute transactions at different replicas
+     * because different coordinators for an Accord transaction may encounter different non-SERIAL write state and
+     * race to commit different outcomes for the transaction.
+     *
+     * This is different from Paxos because Paxos performs consensus on the actual values to be applied so recovery
+     * coordinators will always produce a consistent state when applying a transaction. Accord performs consensus on
+     * the execution order of transaction and different coordinators witnessing different states not managed by Accord
+     * can produce multiple outcomes for a transaction.
+     *
+     * // TODO (maybe): To safely migrate you would have to route all writes through Accord with the current implementation
+     * // We could do it by range instead in the migration version, but then we need to know when all in flight writes
+     * // are done before marking a range as migrated. Would waiting out the timeout be enough (timeout bugs!)?
+     */
+    public enum NonSerialWriteStrategy
+    {
+        /*
+         * Execute writes through Cassandra via StorageProxy's normal write path. This can lead Accord to compute
+         * multiple outcomes for a transaction that depends on data written by non-SERIAL writes.
+         */
+        normal(false, false, false),
+        /*
+         * Allow mixing of non-SERIAL writes and Accord, but still force BRR through Accord
+         */
+        mixed(false, false, true),
+        /*
+         * Execute writes through Accord skipping StorageProxy's normal write path, but commit
+         * writes at the provided consistency level so they can be read via non-SERIAL consistency levels.
+         */
+        migration(false, true, true),
+        /*
+         * Execute writes through Accord skipping StorageProxy's normal write path. Ignores the provided consistency level
+         * which makes Accord commit writes at ANY similar to Paxos with commit consistency level ANY.
+         */
+        accord(true, true, true);
+
+        public final boolean ignoresSuppliedConsistencyLevel;
+        public final boolean writesThroughAccord;
+
+        public final boolean blockingReadRepairThroughAccord;
+
+        NonSerialWriteStrategy(boolean ignoresSuppliedConsistencyLevel, boolean writesThroughAccord, boolean blockingReadRepairThroughAccord)
+        {
+            this.ignoresSuppliedConsistencyLevel = ignoresSuppliedConsistencyLevel;
+            this.writesThroughAccord = writesThroughAccord;
+            this.blockingReadRepairThroughAccord = blockingReadRepairThroughAccord;
+        }
+
+        public ConsistencyLevel commitCLForStrategy(ConsistencyLevel consistencyLevel)
+        {
+            if (ignoresSuppliedConsistencyLevel)
+                return null;
+
+            if (!IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(consistencyLevel))
+                throw new UnsupportedOperationException("Consistency level " + consistencyLevel + " is unsupported with Accord for write/commit, supported are ANY, ONE, QUORUM, and ALL");
+
+            return consistencyLevel;
+        }
+
+        public ConsistencyLevel readCLForStrategy(ConsistencyLevel consistencyLevel)
+        {
+            if (ignoresSuppliedConsistencyLevel)
+                return null;
+
+            if (!IAccordService.SUPPORTED_READ_CONSISTENCY_LEVELS.contains(consistencyLevel))
+                throw new UnsupportedOperationException("Consistency level " + consistencyLevel + " is unsupported with Accord for read, supported are ONE, QUORUM, and SERIAL");
+
+            return consistencyLevel;
+        }
     }
 
     private static final Set<String> SENSITIVE_KEYS = new HashSet<String>() {{

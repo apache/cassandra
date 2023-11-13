@@ -87,6 +87,11 @@ public class Epoch implements Comparable<Epoch>, Serializable
         return l.compareTo(r) > 0 ? l : r;
     }
 
+    public static Epoch min(Epoch l, Epoch r)
+    {
+        return l.compareTo(r) < 0 ? l : r;
+    }
+
     public boolean isDirectlyBefore(Epoch epoch)
     {
         if (epoch.equals(Epoch.FIRST))

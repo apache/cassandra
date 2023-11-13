@@ -64,10 +64,10 @@ public class RepairSessionTest
         Range<Token> repairRange = new Range<>(p.getToken(ByteBufferUtil.bytes(0)), p.getToken(ByteBufferUtil.bytes(100)));
         Set<InetAddressAndPort> endpoints = Sets.newHashSet(remote);
         RepairSession session = new RepairSession(SharedContext.Global.instance, parentSessionId,
-                                                  new CommonRange(endpoints, Collections.emptySet(), Arrays.asList(repairRange)),
+                                                  new CommonRange(endpoints, Collections.emptySet(), Arrays.asList(repairRange)), false,
                                                   "Keyspace1", RepairParallelism.SEQUENTIAL,
                                                   false, false,
-                                                  PreviewKind.NONE, false, false, false, "Standard1");
+                                                  PreviewKind.NONE, false, false, false, false, "Standard1");
 
         // perform convict
         session.convict(remote, Double.MAX_VALUE);

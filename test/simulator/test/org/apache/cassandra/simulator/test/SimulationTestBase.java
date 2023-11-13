@@ -229,7 +229,7 @@ public class SimulationTestBase
         InstanceClassLoader classLoader = new InstanceClassLoader(1, 1, AbstractCluster.CURRENT_VERSION.classpath,
                                                                   Thread.currentThread().getContextClassLoader(),
                                                                   sharedClassPredicate,
-                                                                  new InterceptClasses(() -> 1.0f, () -> 1.0f, NemesisFieldSelectors.get(), ClassLoader.getSystemClassLoader(), sharedClassPredicate.negate())::apply);
+                                                                  new InterceptClasses((x) -> () -> 1.0f, (x) -> () -> 1.0f, NemesisFieldSelectors.get(), ClassLoader.getSystemClassLoader(), sharedClassPredicate.negate())::apply);
 
         ThreadGroup tg = new ThreadGroup("test");
         InterceptorOfGlobalMethods interceptorOfGlobalMethods = new InterceptingGlobalMethods(NONE, null, failures, random);

@@ -43,9 +43,9 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
-import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.utils.CastingSerializer;
 import org.apache.cassandra.utils.NullableSerializer;
@@ -181,7 +181,7 @@ public class CommandSerializers
 
     private static final IVersionedSerializer<Read> read = new CastingSerializer<>(TxnRead.class, TxnRead.serializer);
     private static final IVersionedSerializer<Query> query = new CastingSerializer<>(TxnQuery.class, TxnQuery.serializer);
-    private static final IVersionedSerializer<Update> update = new CastingSerializer<>(TxnUpdate.class, TxnUpdate.serializer);
+    private static final IVersionedSerializer<Update> update = new CastingSerializer<>(AccordUpdate.class, AccordUpdate.serializer);
 
     public static final IVersionedSerializer<PartialTxn> partialTxn = new PartialTxnSerializer(read, query, update);
     public static final IVersionedSerializer<PartialTxn> nullablePartialTxn = NullableSerializer.wrap(partialTxn);

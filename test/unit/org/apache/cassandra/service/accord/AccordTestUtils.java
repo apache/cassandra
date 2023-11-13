@@ -214,7 +214,7 @@ public class AccordTestUtils
         Data readData = read.keys().stream().map(key -> {
                                 try
                                 {
-                                    return AsyncChains.getBlocking(read.read(key, txn.kind(), safeStore, executeAt, null));
+                                    return AsyncChains.getBlocking(read.read(key, safeStore, executeAt, null));
                                 }
                                 catch (InterruptedException e)
                                 {
@@ -227,7 +227,7 @@ public class AccordTestUtils
                             })
                             .reduce(null, TxnData::merge);
         return Pair.create(txn.execute(txnId, executeAt, readData),
-                           txn.query().compute(txnId, executeAt, readData, txn.read(), txn.update()));
+                           txn.query().compute(txnId, executeAt, txn.keys(), readData, txn.read(), txn.update()));
 
     }
 

@@ -29,15 +29,19 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import accord.api.Update;
 import accord.primitives.Txn;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.cql3.conditions.ColumnCondition;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.Columns;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
@@ -53,7 +57,6 @@ import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.schema.TableMetadata;
@@ -65,6 +68,7 @@ import org.apache.cassandra.service.accord.txn.TxnDataName;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnReference;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.service.paxos.Ballot;
@@ -72,13 +76,21 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static com.google.common.base.Preconditions.checkState;
-import static org.apache.cassandra.service.accord.txn.TxnDataName.Kind.USER;
+import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult;
+import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.RETRY_NEW_PROTOCOL;
+import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.casResult;
+import static org.apache.cassandra.service.accord.txn.TxnDataName.Kind.CAS_READ;
+import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
+
 
 /**
  * Processed CAS conditions and update on potentially multiple rows of the same partition.
  */
 public class CQL3CasRequest implements CASRequest
 {
+    @SuppressWarnings("unused")
+    private static final Logger logger = LoggerFactory.getLogger(CQL3CasRequest.class);
+
     public final TableMetadata metadata;
     public final DecoratedKey key;
     private final RegularAndStaticColumns conditionColumns;
@@ -393,7 +405,7 @@ public class CQL3CasRequest implements CASRequest
         @Override
         public TxnCondition asTxnCondition()
         {
-            TxnDataName txnDataName = new TxnDataName(USER, clustering, TxnRead.SERIAL_READ_NAME);
+            TxnDataName txnDataName = new TxnDataName(CAS_READ, clustering, TxnRead.CAS_READ_NAME);
             TxnReference txnReference = new TxnReference(txnDataName, null);
             return new TxnCondition.Exists(txnReference, TxnCondition.Kind.IS_NULL);
         }
@@ -414,7 +426,7 @@ public class CQL3CasRequest implements CASRequest
         @Override
         public TxnCondition asTxnCondition()
         {
-            TxnDataName txnDataName = new TxnDataName(USER, clustering, TxnRead.SERIAL_READ_NAME);
+            TxnDataName txnDataName = new TxnDataName(CAS_READ, clustering, TxnRead.CAS_READ_NAME);
             TxnReference txnReference = new TxnReference(txnDataName, null);
             return new TxnCondition.Exists(txnReference, TxnCondition.Kind.IS_NOT_NULL);
         }
@@ -463,20 +475,26 @@ public class CQL3CasRequest implements CASRequest
     }
 
     @Override
-    public Txn toAccordTxn(ClientState clientState, long nowInSecs)
+    public Txn toAccordTxn(ConsistencyLevel consistencyLevel, ConsistencyLevel commitConsistencyLevel, ClientState clientState, long nowInSecs)
     {
         SinglePartitionReadCommand readCommand = readCommand(nowInSecs);
-        Update update = createUpdate(clientState);
-        // In a CAS request only one key is supported and writes
+        Update update = createUpdate(clientState, commitConsistencyLevel);
+        // If the write strategy is sending all writes through Accord there is no need to use the supplied consistency
+        // level since Accord will manage reading safely
+        consistencyLevel = DatabaseDescriptor.getNonSerialWriteStrategy().readCLForStrategy(consistencyLevel);
+        TxnRead read = TxnRead.createCasRead(readCommand, consistencyLevel);
+        // In a CAS requesting only one key is supported and writes
         // can't be dependent on any data that is read (only conditions)
         // so the only relevant keys are the read key
-        TxnRead read = TxnRead.createSerialRead(readCommand);
         return new Txn.InMemory(read.keys(), read, TxnQuery.CONDITION, update);
     }
 
-    private Update createUpdate(ClientState clientState)
+    private Update createUpdate(ClientState clientState, ConsistencyLevel commitConsistencyLevel)
     {
-        return new TxnUpdate(createWriteFragments(clientState), createCondition());
+        // Potentially ignore commit consistency level if non-SERIAL write strategy is Accord
+        // since it is safe to match what non-SERIAL writes do
+        commitConsistencyLevel = DatabaseDescriptor.getNonSerialWriteStrategy().commitCLForStrategy(commitConsistencyLevel);
+        return new TxnUpdate(createWriteFragments(clientState), createCondition(), commitConsistencyLevel);
     }
 
     private TxnCondition createCondition()
@@ -507,13 +525,23 @@ public class CQL3CasRequest implements CASRequest
             TxnWrite.Fragment fragment = modification.getTxnWriteFragment(idx++, state, options);
             fragments.add(fragment);
         }
+        for (RangeDeletion rangeDeletion : rangeDeletions)
+        {
+            ModificationStatement modification = rangeDeletion.stmt;
+            QueryOptions options = rangeDeletion.options;
+            TxnWrite.Fragment fragment = modification.getTxnWriteFragment(idx++, state, options);
+            fragments.add(fragment);
+        }
         return fragments;
     }
 
     @Override
-    public RowIterator toCasResult(TxnData txnData)
+    public ConsensusAttemptResult toCasResult(TxnResult txnResult)
     {
-        FilteredPartition partition = txnData.get(TxnRead.SERIAL_READ);
-        return partition != null ? partition.rowIterator() : null;
+        if (txnResult.kind() == retry_new_protocol)
+            return RETRY_NEW_PROTOCOL;
+        TxnData txnData = (TxnData)txnResult;
+        FilteredPartition partition = txnData.get(TxnRead.CAS_READ);
+        return casResult(partition != null ? partition.rowIterator(false) : null);
     }
 }

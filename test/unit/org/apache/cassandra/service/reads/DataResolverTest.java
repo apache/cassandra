@@ -25,17 +25,18 @@ import java.util.function.Function;
 
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
-
 import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringBound;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DeletionInfo;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.EmptyIterators;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.MutableDeletionInfo;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RangeTombstone;
@@ -54,8 +55,6 @@ import org.apache.cassandra.db.rows.RangeTombstoneBoundMarker;
 import org.apache.cassandra.db.rows.RangeTombstoneBoundaryMarker;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.EndpointsForRange;
@@ -66,7 +65,7 @@ import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.net.*;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.service.reads.repair.RepairedDataTracker;
 import org.apache.cassandra.service.reads.repair.RepairedDataVerifier;
@@ -137,7 +136,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     public void testResolveNewerSingleRow()
     {
         EndpointsForRange replicas = makeReplicas(2);
-        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(ReadCoordinator.DEFAULT, command, plan(replicas, ALL), readRepair, nanoTime());
         InetAddressAndPort peer1 = replicas.get(0).endpoint();
         resolver.preprocess(response(command, peer1, iter(new RowUpdateBuilder(cfm, nowInSec, 0L, dk).clustering("1")
                                                                                                      .add("c1", "v1")
@@ -169,7 +168,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     public void testResolveDisjointSingleRow()
     {
         EndpointsForRange replicas = makeReplicas(2);
-        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(ReadCoordinator.DEFAULT, command, plan(replicas, ALL), readRepair, nanoTime());
         InetAddressAndPort peer1 = replicas.get(0).endpoint();
         resolver.preprocess(response(command, peer1, iter(new RowUpdateBuilder(cfm, nowInSec, 0L, dk).clustering("1")
                                                                                                      .add("c1", "v1")
@@ -206,7 +205,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     public void testResolveDisjointMultipleRows() throws UnknownHostException
     {
         EndpointsForRange replicas = makeReplicas(2);
-        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(ReadCoordinator.DEFAULT, command, plan(replicas, ALL), readRepair, nanoTime());
         InetAddressAndPort peer1 = replicas.get(0).endpoint();
         resolver.preprocess(response(command, peer1, iter(new RowUpdateBuilder(cfm, nowInSec, 0L, dk).clustering("1")
                                                                                                      .add("c1", "v1")
@@ -253,7 +252,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     public void testResolveDisjointMultipleRowsWithRangeTombstones()
     {
         EndpointsForRange replicas = makeReplicas(4);
-        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(ReadCoordinator.DEFAULT, command, plan(replicas, ALL), readRepair, nanoTime());
 
         RangeTombstone tombstone1 = tombstone("1", "11", 1, nowInSec);
         RangeTombstone tombstone2 = tombstone("3", "31", 1, nowInSec);
@@ -334,7 +333,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     public void testResolveWithOneEmpty()
     {
         EndpointsForRange replicas = makeReplicas(2);
-        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(ReadCoordinator.DEFAULT, command, plan(replicas, ALL), readRepair, nanoTime());
         InetAddressAndPort peer1 = replicas.get(0).endpoint();
         resolver.preprocess(response(command, peer1, iter(new RowUpdateBuilder(cfm, nowInSec, 1L, dk).clustering("1")
                                                                                                      .add("c2", "v2")
@@ -365,7 +364,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     {
         EndpointsForRange replicas = makeReplicas(2);
         TestableReadRepair readRepair = new TestableReadRepair(command);
-        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(ReadCoordinator.DEFAULT, command, plan(replicas, ALL), readRepair, nanoTime());
         resolver.preprocess(response(command, replicas.get(0).endpoint(), EmptyIterators.unfilteredPartition(cfm)));
         resolver.preprocess(response(command, replicas.get(1).endpoint(), EmptyIterators.unfilteredPartition(cfm)));
 
@@ -381,7 +380,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     public void testResolveDeleted()
     {
         EndpointsForRange replicas = makeReplicas(2);
-        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(ReadCoordinator.DEFAULT, command, plan(replicas, ALL), readRepair, nanoTime());
         // one response with columns timestamped before a delete in another response
         InetAddressAndPort peer1 = replicas.get(0).endpoint();
         resolver.preprocess(response(command, peer1, iter(new RowUpdateBuilder(cfm, nowInSec, 0L, dk).clustering("1")
@@ -407,7 +406,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     public void testResolveMultipleDeleted()
     {
         EndpointsForRange replicas = makeReplicas(4);
-        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(ReadCoordinator.DEFAULT, command, plan(replicas, ALL), readRepair, nanoTime());
         // deletes and columns with interleaved timestamp, with out of order return sequence
         InetAddressAndPort peer1 = replicas.get(0).endpoint();
         resolver.preprocess(response(command, peer1, fullPartitionDelete(cfm, dk, 0, nowInSec)));
@@ -492,7 +491,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     private void resolveRangeTombstonesOnBoundary(long timestamp1, long timestamp2)
     {
         EndpointsForRange replicas = makeReplicas(2);
-        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(ReadCoordinator.DEFAULT, command, plan(replicas, ALL), readRepair, nanoTime());
         InetAddressAndPort peer1 = replicas.get(0).endpoint();
         InetAddressAndPort peer2 = replicas.get(1).endpoint();
 
@@ -566,7 +565,7 @@ public class DataResolverTest extends AbstractReadResponseTest
      */
     private void testRepairRangeTombstoneBoundary(EndpointsForRange replicas, int timestamp1, int timestamp2, int timestamp3) throws UnknownHostException
     {
-        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(ReadCoordinator.DEFAULT, command, plan(replicas, ALL), readRepair, nanoTime());
         InetAddressAndPort peer1 = replicas.get(0).endpoint();
         InetAddressAndPort peer2 = replicas.get(1).endpoint();
 
@@ -619,7 +618,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     {
         EndpointsForRange replicas = makeReplicas(2);
 
-        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(ReadCoordinator.DEFAULT, command, plan(replicas, ALL), readRepair, nanoTime());
         InetAddressAndPort peer1 = replicas.get(0).endpoint();
         InetAddressAndPort peer2 = replicas.get(1).endpoint();
 
@@ -658,7 +657,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     public void testRepairRangeTombstoneWithPartitionDeletion2()
     {
         EndpointsForRange replicas = makeReplicas(2);
-        DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(ReadCoordinator.DEFAULT, command, plan(replicas, ALL), readRepair, nanoTime());
         InetAddressAndPort peer1 = replicas.get(0).endpoint();
         InetAddressAndPort peer2 = replicas.get(1).endpoint();
 
@@ -742,7 +741,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         EndpointsForRange replicas = makeReplicas(2);
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
         TestableReadRepair readRepair = new TestableReadRepair(cmd);
-        DataResolver resolver = new DataResolver(cmd, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(ReadCoordinator.DEFAULT, cmd, plan(replicas, ALL), readRepair, nanoTime());
 
         long[] ts = {100, 200};
 
@@ -794,7 +793,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         EndpointsForRange replicas = makeReplicas(2);
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
         TestableReadRepair readRepair = new TestableReadRepair(cmd);
-        DataResolver resolver = new DataResolver(cmd, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(ReadCoordinator.DEFAULT, cmd, plan(replicas, ALL), readRepair, nanoTime());
 
         long[] ts = {100, 200};
 
@@ -838,7 +837,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         EndpointsForRange replicas = makeReplicas(2);
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
         TestableReadRepair readRepair = new TestableReadRepair(cmd);
-        DataResolver resolver = new DataResolver(cmd, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(ReadCoordinator.DEFAULT, cmd, plan(replicas, ALL), readRepair, nanoTime());
 
         long[] ts = {100, 200};
 
@@ -888,7 +887,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         EndpointsForRange replicas = makeReplicas(2);
         ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
         TestableReadRepair readRepair = new TestableReadRepair(cmd);
-        DataResolver resolver = new DataResolver(cmd, plan(replicas, ALL), readRepair, nanoTime());
+        DataResolver resolver = new DataResolver(ReadCoordinator.DEFAULT, cmd, plan(replicas, ALL), readRepair, nanoTime());
 
         long[] ts = {100, 200};
 
@@ -1260,7 +1259,7 @@ public class DataResolverTest extends AbstractReadResponseTest
 
             public TestableDataResolver(ReadCommand command, ReplicaPlan.SharedForRangeRead plan, ReadRepair readRepair, long queryStartNanoTime)
             {
-                super(command, plan, readRepair, queryStartNanoTime, true);
+                super(ReadCoordinator.DEFAULT, command, plan, readRepair, queryStartNanoTime, true);
             }
 
             protected RepairedDataVerifier getRepairedDataVerifier(ReadCommand command)
@@ -1326,7 +1325,7 @@ public class DataResolverTest extends AbstractReadResponseTest
 
     private ReplicaPlan.SharedForRangeRead plan(EndpointsForRange replicas, ConsistencyLevel consistencyLevel)
     {
-        Function<Token, ReplicaPlan.ForReadRepair> repairPlan = (t) -> ReplicaPlans.forReadRepair(ClusterMetadata.current(), ks, consistencyLevel, t, (i) -> true);
+        Function<Token, ReplicaPlan.ForReadRepair> repairPlan = (t) -> ReplicaPlans.forReadRepair(ClusterMetadata.current(), ks, consistencyLevel, t, (i) -> true, ReadCoordinator.DEFAULT);
         return ReplicaPlan.shared(new ReplicaPlan.ForRangeRead(ks,
                                                                ks.getReplicationStrategy(),
                                                                consistencyLevel,

@@ -41,6 +41,7 @@ import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.simulator.Debug.Info;
 import org.apache.cassandra.simulator.Debug.Levels;
+import org.apache.cassandra.simulator.cluster.ClusterActions.ConsensusChange;
 import org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange;
 import org.apache.cassandra.simulator.debug.SelfReconcile;
 import org.apache.cassandra.simulator.logging.SeedDefiner;
@@ -62,9 +63,10 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_GLOB
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_APPROX;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_PRECISE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONSISTENT_DIRECTORY_LISTINGS;
-import static org.apache.cassandra.config.CassandraRelevantProperties.DETERMINISM_UNSAFE_UUID_NODE;
-import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_SSTABLE_ACTIVITY_TRACKING;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DETERMINISM_SSTABLE_COMPRESSION_DEFAULT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DETERMINISM_UNSAFE_UUID_NODE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_GOSSIP_ENDPOINT_REMOVAL;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_SSTABLE_ACTIVITY_TRACKING;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DTEST_API_LOG_TOPOLOGY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIPER_SKIP_WAITING_TO_SETTLE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_MISSING_NATIVE_FILE_HINTS;
@@ -76,7 +78,6 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.RING_DELAY
 import static org.apache.cassandra.config.CassandraRelevantProperties.SHUTDOWN_ANNOUNCE_DELAY_IN_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_AUTH_DEFAULT_RF;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_IGNORE_SIGAR;
-import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_GOSSIP_ENDPOINT_REMOVAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_JVM_DTEST_DISABLE_SSL;
 import static org.apache.cassandra.simulator.debug.Reconcile.reconcileWith;
 import static org.apache.cassandra.simulator.debug.Record.record;
@@ -181,8 +182,15 @@ public class SimulationRunner
         protected String topologyChanges = stream(TopologyChange.values()).map(Object::toString).collect(Collectors.joining(","));
         @Option(name = { "--cluster-action-interval" }, title = "int...int(s|ms|us|ns)", description = "The period of time between two cluster actions (default 5..15s)")
         protected String topologyChangeInterval = "5..15s";
-        @Option(name = { "--cluster-action-limit" }, title = "int", description = "The maximum number of topology change events to perform (default 0)")
+        @Option(name = { "--cluster-action-limit" }, title = "int", description = "The maximum number of topology change events to perform (default 0 disabled, -1 unlimited)")
         protected String topologyChangeLimit = "0";
+
+        @Option(name = { "--consensus-actions" }, title = "ACCORD_MIGRATE", description = "Consensus migration actions to select from, comma delimited (ACCORD_MIGRATE)")
+        protected String consensusChanges = stream(ConsensusChange.values()).map(Object::toString).collect(Collectors.joining(","));
+        @Option(name = { "--consensus-action-interval" }, title = "int...int(s|ms|us|ns)", description = "The period of time between two consensus actions (default 5..15s)")
+        protected String consensusChangeInterval = "1..5s";
+        @Option(name = { "--consensus-action-limit" }, title = "int", description = "The maximum number of consensus change events to perform (default 0 disabled, -1 unlimited)")
+        protected String consensusChangeLimit = "0";
 
         @Option(name = { "-s", "--run-time" }, title = "int", description = "Length of simulated time to run in seconds (default -1)")
         protected int secondsToSimulate = -1;
@@ -259,6 +267,9 @@ public class SimulationRunner
         @Option(name = { "--capture" }, title = "wait,wake,now", description = "Capture thread stack traces alongside events, choose from (wait,wake,now)")
         protected String capture;
 
+        @Option(name = { "--lwt-strategy" }, title = "migration|accord]", description = "What execution strategy to use for CAS and serial read")
+        protected String lwtStrategy;
+
         protected void propagate(B builder)
         {
             builder.threadCount(threadCount);
@@ -297,13 +308,14 @@ public class SimulationRunner
             });
             parseNanosRange(Optional.ofNullable(topologyChangeInterval)).ifPresent(builder::topologyChangeIntervalNanos);
             builder.topologyChangeLimit(Integer.parseInt(topologyChangeLimit));
-            Optional.ofNullable(priority).ifPresent(kinds -> {
-                builder.scheduler(stream(kinds.split(","))
-                                  .filter(v -> !v.isEmpty())
-                                  .map(v -> RunnableActionScheduler.Kind.valueOf(v.toUpperCase()))
-                                  .toArray(RunnableActionScheduler.Kind[]::new));
+            Optional.ofNullable(consensusChanges).ifPresent(consensusChanges -> {
+                builder.consensusChanges(stream(consensusChanges.split(","))
+                                        .filter(v -> !v.isEmpty())
+                                        .map(v -> ConsensusChange.valueOf(v.toUpperCase()))
+                                        .toArray(ConsensusChange[]::new));
             });
-
+            parseNanosRange(Optional.ofNullable(consensusChangeInterval)).ifPresent(builder::consensusChangeIntervalNanos);
+            builder.consensusChangeLimit(Integer.parseInt(consensusChangeLimit));
             Optional.ofNullable(this.capture)
                     .map(s -> s.split(","))
                     .map(s -> new Capture(
@@ -327,6 +339,8 @@ public class SimulationRunner
                                                  .orElse(new int[0]);
                 builder.debug(debugLevels, debugPrimaryKeys);
             }
+
+            Optional.ofNullable(lwtStrategy).ifPresent(builder::lwtStrategy);
         }
 
         public void run(B builder) throws IOException

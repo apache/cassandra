@@ -30,8 +30,8 @@ import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.locator.Endpoints;
-import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
@@ -44,9 +44,9 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
 {
     private volatile Message<ReadResponse> dataResponse;
 
-    public DigestResolver(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
+    public DigestResolver(ReadCoordinator coordinator, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
     {
-        super(command, replicaPlan, queryStartNanoTime);
+        super(coordinator, command, replicaPlan, queryStartNanoTime);
         Preconditions.checkArgument(command instanceof SinglePartitionReadCommand,
                                     "DigestResolver can only be used with SinglePartitionReadCommand commands");
     }
@@ -86,7 +86,7 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
             // This path can be triggered only if we've got responses from full replicas and they match, but
             // transient replica response still contains data, which needs to be reconciled.
             DataResolver<E, P> dataResolver
-                    = new DataResolver<>(command, replicaPlan, NoopReadRepair.instance, queryStartNanoTime);
+                    = new DataResolver<>(coordinator, command, replicaPlan, NoopReadRepair.instance, queryStartNanoTime);
 
             dataResolver.preprocess(dataResponse);
             // Reconcile with transient replicas

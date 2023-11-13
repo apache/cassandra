@@ -19,7 +19,10 @@
 package org.apache.cassandra.streaming;
 
 import java.util.Collection;
+import java.util.List;
 
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.utils.TimeUUID;
@@ -36,7 +39,7 @@ public interface TableStreamManager
     /**
      * Creates a {@link StreamReceiver} for the given session, expecting the given number of streams
      */
-    StreamReceiver createStreamReceiver(StreamSession session, int totalStreams);
+    StreamReceiver createStreamReceiver(StreamSession session, List<Range<Token>> ranges, int totalStreams);
 
     /**
      * Creates an {@link IncomingStream} for the given header

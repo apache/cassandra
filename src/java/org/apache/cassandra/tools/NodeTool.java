@@ -17,20 +17,7 @@
  */
 package org.apache.cassandra.tools;
 
-import static com.google.common.base.Throwables.getStackTraceAsString;
-import static com.google.common.collect.Iterables.toArray;
-import static com.google.common.collect.Lists.newArrayList;
-import static java.lang.Integer.parseInt;
-import static java.lang.String.format;
-import static org.apache.cassandra.io.util.File.WriteMode.APPEND;
-import static org.apache.commons.lang3.ArrayUtils.EMPTY_STRING_ARRAY;
-import static org.apache.commons.lang3.StringUtils.EMPTY;
-import static org.apache.commons.lang3.StringUtils.isEmpty;
-import static org.apache.commons.lang3.StringUtils.isNotEmpty;
-
 import java.io.Console;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileWriter;
 import java.io.FileNotFoundException;
 import java.io.IOError;
 import java.io.IOException;
@@ -44,16 +31,10 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Scanner;
 import java.util.SortedMap;
-
 import javax.management.InstanceNotFoundException;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Throwables;
-
-import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
-import org.apache.cassandra.tools.nodetool.*;
-import org.apache.cassandra.utils.FBUtilities;
-
 import com.google.common.collect.Maps;
 
 import io.airlift.airline.Cli;
@@ -67,6 +48,22 @@ import io.airlift.airline.ParseCommandUnrecognizedException;
 import io.airlift.airline.ParseOptionConversionException;
 import io.airlift.airline.ParseOptionMissingException;
 import io.airlift.airline.ParseOptionMissingValueException;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileWriter;
+import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
+import org.apache.cassandra.tools.nodetool.*;
+import org.apache.cassandra.utils.FBUtilities;
+
+import static com.google.common.base.Throwables.getStackTraceAsString;
+import static com.google.common.collect.Iterables.toArray;
+import static com.google.common.collect.Lists.newArrayList;
+import static java.lang.Integer.parseInt;
+import static java.lang.String.format;
+import static org.apache.cassandra.io.util.File.WriteMode.APPEND;
+import static org.apache.commons.lang3.ArrayUtils.EMPTY_STRING_ARRAY;
+import static org.apache.commons.lang3.StringUtils.EMPTY;
+import static org.apache.commons.lang3.StringUtils.isEmpty;
+import static org.apache.commons.lang3.StringUtils.isNotEmpty;
 
 public class NodeTool
 {
@@ -263,6 +260,15 @@ public class NodeTool
                .withCommand(RepairAdmin.CleanupDataCmd.class)
                .withCommand(RepairAdmin.SummarizePendingCmd.class)
                .withCommand(RepairAdmin.SummarizeRepairedCmd.class);
+
+        builder.withGroup("consensus_admin")
+            .withDescription("List and mark ranges as migrating between consensus protocols")
+            .withDefaultCommand(CassHelp.class)
+            .withCommand(ConsensusMigrationAdmin.BeginMigration.class)
+            .withCommands(ConsensusMigrationAdmin.SetTargetProtocol.class)
+            .withCommands(ConsensusMigrationAdmin.ListCmd.class)
+            .withCommands(ConsensusMigrationAdmin.FinishMigration.class);
+
 
         Cli<NodeToolCmdRunnable> parser = builder.build();
 
@@ -463,7 +469,7 @@ public class NodeTool
 
         protected enum KeyspaceSet
         {
-            ALL, NON_SYSTEM, NON_LOCAL_STRATEGY
+            ALL, NON_SYSTEM, NON_LOCAL_STRATEGY, ACCORD_MANAGED
         }
 
         protected List<String> parseOptionalKeyspace(List<String> cmdArgs, NodeProbe nodeProbe)
@@ -482,6 +488,8 @@ public class NodeTool
                     keyspaces.addAll(keyspaces = nodeProbe.getNonLocalStrategyKeyspaces());
                 else if (defaultKeyspaceSet == KeyspaceSet.NON_SYSTEM)
                     keyspaces.addAll(keyspaces = nodeProbe.getNonSystemKeyspaces());
+                else if (defaultKeyspaceSet == KeyspaceSet.ACCORD_MANAGED)
+                    keyspaces.addAll(nodeProbe.getAccordManagedKeyspace());
                 else
                     keyspaces.addAll(nodeProbe.getKeyspaces());
             }

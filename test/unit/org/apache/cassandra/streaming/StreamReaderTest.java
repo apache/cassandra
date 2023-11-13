@@ -70,6 +70,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static java.util.Collections.emptyList;
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.*;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.beginJoin;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.beginMove;
@@ -366,7 +367,7 @@ public class StreamReaderTest
         StreamResultFuture future = StreamResultFuture.createInitiator(nextTimeUUID(), StreamOperation.REPAIR, Collections.<StreamEventHandler>emptyList(), streamCoordinator);
 
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
-        streamCoordinator.addSessionInfo(new SessionInfo(peer, 0, peer, Collections.emptyList(), Collections.emptyList(), StreamSession.State.INITIALIZED, ""));
+        streamCoordinator.addSessionInfo(new SessionInfo(peer, 0, peer, emptyList(), emptyList(), StreamSession.State.INITIALIZED, ""));
 
         StreamSession session = streamCoordinator.getOrCreateOutboundSession(peer);
         session.init(future);
@@ -380,7 +381,7 @@ public class StreamReaderTest
         CassandraStreamHeader streamHeader = streamMessageHeader(tokens);
         long startMetricCount = StorageMetrics.totalOpsForInvalidToken.getCount();
         IStreamReader reader = streamReader(header, streamHeader, session);
-        StreamSummary streamSummary = new StreamSummary(streamHeader.tableId, 1, 0);
+        StreamSummary streamSummary = new StreamSummary(streamHeader.tableId, emptyList(), 1, 0);
         session.prepareReceiving(streamSummary);
         reader.read(incomingStream(tokens));
         assertEquals(StorageMetrics.totalOpsForInvalidToken.getCount(), startMetricCount);
@@ -392,7 +393,7 @@ public class StreamReaderTest
         StreamMessageHeader header = streamHeader();
         CassandraStreamHeader streamHeader = streamMessageHeader(tokens);
         long startMetricCount = StorageMetrics.totalOpsForInvalidToken.getCount();
-        StreamSummary streamSummary = new StreamSummary(streamHeader.tableId, 1, 0);
+        StreamSummary streamSummary = new StreamSummary(streamHeader.tableId, emptyList(), 1, 0);
         session.prepareReceiving(streamSummary);
         try
         {

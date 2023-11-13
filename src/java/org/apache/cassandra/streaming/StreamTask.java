@@ -17,6 +17,10 @@
  */
 package org.apache.cassandra.streaming;
 
+import java.util.List;
+
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.TableId;
 
 /**
@@ -51,11 +55,13 @@ public abstract class StreamTask
      */
     public abstract void abort();
 
+    protected abstract List<Range<Token>> ranges();
+
     /**
      * @return StreamSummary that describes this task
      */
     public StreamSummary getSummary()
     {
-        return new StreamSummary(tableId, getTotalNumberOfFiles(), getTotalSize());
+        return new StreamSummary(tableId, ranges(), getTotalNumberOfFiles(), getTotalSize());
     }
 }

@@ -46,25 +46,25 @@ public class SplitterTest
     @Test
     public void randomSplitTestNoVNodesRandomPartitioner()
     {
-        randomSplitTestNoVNodes(new RandomPartitioner());
+        randomSplitTestNoVNodes(RandomPartitioner.instance);
     }
 
     @Test
     public void randomSplitTestNoVNodesMurmur3Partitioner()
     {
-        randomSplitTestNoVNodes(new Murmur3Partitioner());
+        randomSplitTestNoVNodes(Murmur3Partitioner.instance);
     }
 
     @Test
     public void randomSplitTestVNodesRandomPartitioner()
     {
-        randomSplitTestVNodes(new RandomPartitioner());
+        randomSplitTestVNodes(RandomPartitioner.instance);
     }
 
     @Test
     public void randomSplitTestVNodesMurmur3Partitioner()
     {
-        randomSplitTestVNodes(new Murmur3Partitioner());
+        randomSplitTestVNodes(Murmur3Partitioner.instance);
     }
 
     // CASSANDRA-18013
@@ -235,13 +235,13 @@ public class SplitterTest
     @Test
     public void testSplitMurmur3Partitioner()
     {
-        testSplit(new Murmur3Partitioner());
+        testSplit(Murmur3Partitioner.instance);
     }
 
     @Test
     public void testSplitRandomPartitioner()
     {
-        testSplit(new RandomPartitioner());
+        testSplit(RandomPartitioner.instance);
     }
 
     @SuppressWarnings("unchecked")
@@ -359,13 +359,13 @@ public class SplitterTest
     @Test
     public void testTokensInRangeRandomPartitioner()
     {
-        testTokensInRange(new RandomPartitioner());
+        testTokensInRange(RandomPartitioner.instance);
     }
 
     @Test
     public void testTokensInRangeMurmur3Partitioner()
     {
-        testTokensInRange(new Murmur3Partitioner());
+        testTokensInRange(Murmur3Partitioner.instance);
     }
 
     private static void testTokensInRange(IPartitioner partitioner)
@@ -391,13 +391,13 @@ public class SplitterTest
     @Test
     public void testElapsedTokensRandomPartitioner()
     {
-        testElapsedMultiRange(new RandomPartitioner());
+        testElapsedMultiRange(RandomPartitioner.instance);
     }
 
     @Test
     public void testElapsedTokensMurmur3Partitioner()
     {
-        testElapsedMultiRange(new Murmur3Partitioner());
+        testElapsedMultiRange(Murmur3Partitioner.instance);
     }
 
     private static void testElapsedMultiRange(IPartitioner partitioner)
@@ -457,13 +457,13 @@ public class SplitterTest
     @Test
     public void testPositionInRangeRandomPartitioner()
     {
-        testPositionInRangeMultiRange(new RandomPartitioner());
+        testPositionInRangeMultiRange(RandomPartitioner.instance);
     }
 
     @Test
     public void testPositionInRangeMurmur3Partitioner()
     {
-        testPositionInRangeMultiRange(new Murmur3Partitioner());
+        testPositionInRangeMultiRange(Murmur3Partitioner.instance);
     }
 
     private static void testPositionInRangeMultiRange(IPartitioner partitioner)

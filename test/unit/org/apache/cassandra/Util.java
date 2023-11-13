@@ -149,7 +149,9 @@ import org.apache.cassandra.utils.Throwables;
 import org.awaitility.Awaitility;
 import org.mockito.Mockito;
 import org.mockito.internal.stubbing.defaultanswers.ForwardsInvocations;
+import org.awaitility.core.ThrowingRunnable;
 
+import static com.google.common.base.Preconditions.checkState;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
@@ -224,7 +226,7 @@ public class Util
             private AtomicBoolean exhausted = new AtomicBoolean();
             public Iterator<T> iterator()
             {
-                Preconditions.checkState(!exhausted.getAndSet(true));
+                checkState(!exhausted.getAndSet(true));
                 return source;
             }
         };
@@ -687,19 +689,21 @@ public class Util
 
     public static class PartitionerSwitcher implements AutoCloseable
     {
-        final IPartitioner oldP;
         final IPartitioner newP;
+
+        boolean closed;
 
         public PartitionerSwitcher(IPartitioner partitioner)
         {
             newP = partitioner;
-            oldP = StorageService.instance.setPartitionerUnsafe(partitioner);
+            StorageService.instance.setPartitionerUnsafe(partitioner);
         }
 
         public void close()
         {
-            IPartitioner p = StorageService.instance.setPartitionerUnsafe(oldP);
-            assert p == newP;
+            checkState(!closed, "Already reset");
+            closed = true;
+            StorageService.instance.resetPartitionerUnsafe();
         }
     }
 
@@ -729,6 +733,21 @@ public class Util
                   .pollDelay(0, TimeUnit.MILLISECONDS)
                   .atMost(timeout, timeUnit)
                   .untilAsserted(() -> assertThat(message, call.call(), equalTo(expected)));
+    }
+
+    public static void spinUntilSuccess(ThrowingRunnable runnable)
+    {
+        spinUntilSuccess(runnable, 10);
+    }
+
+    public static void spinUntilSuccess(ThrowingRunnable runnable, int timeoutInSeconds)
+    {
+        Awaitility.await()
+                  .pollInterval(Duration.ofMillis(100))
+                  .pollDelay(0, TimeUnit.MILLISECONDS)
+                  .atMost(timeoutInSeconds, TimeUnit.SECONDS)
+                  .ignoreExceptions()
+                  .untilAsserted(runnable);
     }
 
     public static void joinThread(Thread thread) throws InterruptedException
