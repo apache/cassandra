@@ -134,7 +134,9 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
             }
 
             writeSegmentsMetadata();
-            indexDescriptor.createComponentOnDisk(IndexComponent.COLUMN_COMPLETION_MARKER, indexContext);
+
+            // write column index completion marker, indicating whether the index is empty
+            ColumnCompletionMarkerUtil.create(indexDescriptor, indexContext, segments.isEmpty());
         }
         finally
         {
