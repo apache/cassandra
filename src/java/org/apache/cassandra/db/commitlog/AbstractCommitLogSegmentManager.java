@@ -117,8 +117,9 @@ public abstract class AbstractCommitLogSegmentManager
                                     ? BufferType.ON_HEAP
                                     : commitLog.configuration.getCompressor().preferredBufferType();
 
-        // Identify minimum block size used for Direct-I/O. allocateDirect does not return from aligned space.
-        // To avoid write errors additional block size is requested and next aligned it minimum block size.
+        // The direct buffer must be aligned with the file system block size. We cannot enforce that during
+        // allocation, but we can get an aligned slice from the allocated buffer. The buffer must be oversized by the
+        // alignment unit to make it possible.
         int minimumAllowedAlign = !commitLog.configuration.isDirectIOEnabled()
                                   ? 0 : CommitLogSegment.getDirectIOMinimumAlignement(storageDirectory, "CommitLog-DirectIO-Test.log");
 
