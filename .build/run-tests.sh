@@ -150,7 +150,7 @@ _main() {
   # check split_chunk is compatible with target (if not a regexp)
   if [[ "${_split_chunk}" =~ ^\d+/\d+$ ]] && [[ "1/1" != "${split_chunk}" ]] ; then
     case ${target} in
-      "stress-test" | "fqltool-test" | "microbench" | "cqlsh-test")
+      "stress-test" | "fqltool-test" | "microbench" | "cqlsh-test" | "simulator-dtest")
           echo "Target ${target} does not suport splits."
           exit 1
           ;;
@@ -226,7 +226,11 @@ _main() {
     "long-test")
       _run_testlist "long" "testclasslist" "${split_chunk}" "$(_timeout_for 'test.long.timeout')"
       ;;
-    "jvm-dtest")
+    "simulator-dtest")
+      ant test-simulator-dtest ${ANT_TEST_OPTS} || echo "failed ${target}"
+      ;;
+    "jvm-dtest" | "jvm-dtest-novnode")
+      [ "jvm-dtest-novnode" == "${target}" ] || ANT_TEST_OPTS="${ANT_TEST_OPTS} -Dcassandra.dtest.num_tokens=16"
       testlist=$( _list_tests "distributed" | grep -v "upgrade" | _split_tests "${split_chunk}")
       if [[ -z "$testlist" ]]; then
           [[ "${split_chunk}" =~ ^[0-9]+/[0-9]+$ ]] || { echo "No tests match ${split_chunk}"; exit 1; }
@@ -236,8 +240,9 @@ _main() {
       fi
       ant testclasslist -Dtest.classlistprefix=distributed -Dtest.timeout=$(_timeout_for "test.distributed.timeout") -Dtest.classlistfile=<(echo "${testlist}") ${ANT_TEST_OPTS} || echo "failed ${target} ${split_chunk}"
       ;;
-    "jvm-dtest-upgrade")
+    "jvm-dtest-upgrade" | "jvm-dtest-upgrade-novnode")
       _build_all_dtest_jars
+      [ "jvm-dtest-upgrade-novnode" == "${target}" ] || ANT_TEST_OPTS="${ANT_TEST_OPTS} -Dcassandra.dtest.num_tokens=16"
       testlist=$( _list_tests "distributed"  | grep "upgrade" | _split_tests "${split_chunk}")
       if [[ -z "${testlist}" ]]; then
           [[ "${split_chunk}" =~ ^[0-9]+/[0-9]+$ ]] || { echo "No tests match ${split_chunk}"; exit 1; }
