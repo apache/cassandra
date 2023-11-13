@@ -47,7 +47,6 @@ import org.apache.cassandra.repair.asymmetric.DifferenceHolder;
 import org.apache.cassandra.repair.asymmetric.HostDifferences;
 import org.apache.cassandra.repair.asymmetric.PreferedNodeFilter;
 import org.apache.cassandra.repair.asymmetric.ReduceHelper;
-import org.apache.cassandra.repair.state.JobState;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableMetadata;
@@ -76,7 +75,6 @@ public class CassandraRepairJob extends AbstractRepairJob
     private static final Logger logger = LoggerFactory.getLogger(CassandraRepairJob.class);
 
     private final SharedContext ctx;
-    public final JobState state;
     private final RepairJobDesc desc;
     private final RepairSession session;
     private final RepairParallelism parallelismDegree;
@@ -101,7 +99,6 @@ public class CassandraRepairJob extends AbstractRepairJob
         this.taskExecutor = session.taskExecutor;
         this.parallelismDegree = session.parallelismDegree;
         this.desc = new RepairJobDesc(session.state.parentRepairSession, session.getId(), session.state.keyspace, columnFamily, session.state.commonRange.ranges);
-        this.state = new JobState(ctx.clock(), desc, session.state.commonRange.endpoints);
     }
 
     public long getNowInSeconds()
