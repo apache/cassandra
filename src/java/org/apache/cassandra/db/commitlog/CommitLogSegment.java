@@ -206,12 +206,6 @@ public abstract class CommitLogSegment
         lastSyncedOffset = lastMarkerOffset = buffer.position();
         allocatePosition.set(lastSyncedOffset + SYNC_MARKER_SIZE);
         headerWritten = true;
-
-        // Testing shows writing initial bytes takes some time for Direct I/O. During peak load,
-        // it is better to make "COMMIT-LOG-ALLOCATOR" thread to write these few bytes of each
-        // file and this helps syncer thread to speedup the flush activity.
-        if (CommitLog.instance.configuration.isDirectIOEnabled())
-            flush(0, lastSyncedOffset);
     }
 
     /**
@@ -737,7 +731,7 @@ public abstract class CommitLogSegment
         if (minimumDirectIOAlignement != 0)
             return minimumDirectIOAlignement;
 
-        File testFile = new File(storageDirectory, "directio_test_blocksize.log");
+        File testFile = new File(storageDirectory, fileName);
         try
         {
             FileChannel channel = FileChannel.open(testFile.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE, ExtendedOpenOption.DIRECT);
