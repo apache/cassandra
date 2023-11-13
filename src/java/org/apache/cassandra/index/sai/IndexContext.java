@@ -31,6 +31,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
@@ -56,6 +57,7 @@ import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.disk.format.IndexFeatureSet;
 import org.apache.cassandra.index.sai.disk.format.Version;
@@ -74,6 +76,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
@@ -83,6 +86,21 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 public class IndexContext
 {
     private static final Logger logger = LoggerFactory.getLogger(IndexContext.class);
+    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
+
+    public static final int MAX_STRING_TERM_SIZE = Integer.getInteger("cassandra.sai.max_string_term_size_kb", 1) * 1024;
+    public static final int MAX_FROZEN_TERM_SIZE = Integer.getInteger("cassandra.sai.max_frozen_term_size_kb", 5) * 1024;
+    public static final int MAX_VECTOR_TERM_SIZE = Integer.getInteger("cassandra.sai.max_vector_term_size_kb", 16) * 1024;
+    public static final int MAX_ANALYZED_SIZE = Integer.getInteger("cassandra.sai.max_analyzed_size_kb", 5) * 1024;
+    private static final String TERM_OVERSIZE_LOG_MESSAGE =
+    "Can't add term of column {} to index for key: {}, term size {} max allowed size {}.";
+    private static final String TERM_OVERSIZE_ERROR_MESSAGE =
+    "Term of column %s exceeds the byte limit for index. Term size %s. Max allowed size %s.";
+
+    private static final String ANALYZED_TERM_OVERSIZE_LOG_MESSAGE =
+    "Term's analyzed size for column {} exceeds the cumulative limit for index. Max allowed size {}.";
+    private static final String ANALYZED_TERM_OVERSIZE_ERROR_MESSAGE =
+    "Term's analyzed size for column %s exceeds the cumulative limit for index. Max allowed size %s.";
 
     private static final Set<AbstractType<?>> EQ_ONLY_TYPES =
             ImmutableSet.of(UTF8Type.instance, AsciiType.instance, BooleanType.instance, UUIDType.instance);
@@ -113,6 +131,8 @@ public class IndexContext
     private final AbstractAnalyzer.AnalyzerFactory analyzerFactory;
     private final AbstractAnalyzer.AnalyzerFactory queryAnalyzerFactory;
     private final PrimaryKey.Factory primaryKeyFactory;
+
+    private final int maxTermSize;
 
     public IndexContext(@Nonnull String keyspace,
                         @Nonnull String table,
@@ -159,6 +179,11 @@ public class IndexContext
             this.queryAnalyzerFactory = this.analyzerFactory;
             this.hasEuclideanSimilarityFunc = false;
         }
+
+        this.maxTermSize = isVector() ? MAX_VECTOR_TERM_SIZE
+                                      : isAnalyzed ? MAX_ANALYZED_SIZE
+                                                   : isFrozen() ? MAX_FROZEN_TERM_SIZE : MAX_STRING_TERM_SIZE;
+
 
         logger.debug(logMessage("Initialized index context with index writer config: {}"), indexWriterConfig);
     }
@@ -234,6 +259,109 @@ public class IndexContext
             target.index(key, row.clustering(), value, memtable, opGroup);
         }
         indexMetrics.memtableIndexWriteLatency.update(System.nanoTime() - start, TimeUnit.NANOSECONDS);
+    }
+
+    /**
+     * Validate maximum term size for given row. Throw an exception when invalid.
+     */
+    public void validateMaxTermSizeForRow(DecoratedKey key, Row row)
+    {
+        AbstractAnalyzer analyzer = getAnalyzerFactory().create();
+        if (isNonFrozenCollection())
+        {
+            Iterator<ByteBuffer> bufferIterator = getValuesOf(row, FBUtilities.nowInSeconds());
+            while (bufferIterator != null && bufferIterator.hasNext())
+                validateMaxTermSizeForCell(analyzer, key, bufferIterator.next());
+        }
+        else
+        {
+            ByteBuffer value = getValueOf(key, row, FBUtilities.nowInSeconds());
+            validateMaxTermSizeForCell(analyzer, key, value);
+        }
+    }
+
+    private void validateMaxTermSizeForCell(AbstractAnalyzer analyzer, DecoratedKey key, @Nullable ByteBuffer cellBuffer)
+    {
+        if (cellBuffer == null || cellBuffer.remaining() == 0)
+            return;
+
+        analyzer.reset(cellBuffer);
+        try
+        {
+            if (analyzer.transformValue())
+            {
+                if (!validateCumulativeAnalyzedTermLimit(key, analyzer))
+                {
+                    var error = String.format(ANALYZED_TERM_OVERSIZE_ERROR_MESSAGE,
+                                              column.name, FBUtilities.prettyPrintMemory(maxTermSize));
+                    throw new InvalidRequestException(error);
+                }
+            }
+            else
+            {
+                while (analyzer.hasNext())
+                {
+                    var size = analyzer.next().remaining();
+                    if (!validateMaxTermSize(key, size))
+                    {
+                        var error = String.format(TERM_OVERSIZE_ERROR_MESSAGE,
+                                                  column.name,
+                                                  FBUtilities.prettyPrintMemory(size),
+                                                  FBUtilities.prettyPrintMemory(maxTermSize));
+                        throw new InvalidRequestException(error);
+                    }
+                }
+            }
+        }
+        finally
+        {
+            analyzer.end();
+        }
+    }
+
+
+    /**
+     * Validate maximum term size for given term
+     * @return true if given term is valid; otherwise false.
+     */
+    public boolean validateMaxTermSize(DecoratedKey key, ByteBuffer term)
+    {
+        return validateMaxTermSize(key, term.remaining());
+    }
+
+    private boolean validateMaxTermSize(DecoratedKey key, int termSize)
+    {
+        if (termSize > maxTermSize)
+        {
+            noSpamLogger.warn(logMessage(TERM_OVERSIZE_LOG_MESSAGE),
+                              getColumnName(),
+                              keyValidator().getString(key.getKey()),
+                              FBUtilities.prettyPrintMemory(termSize),
+                              FBUtilities.prettyPrintMemory(maxTermSize));
+            return false;
+        }
+
+        return true;
+    }
+
+    private boolean validateCumulativeAnalyzedTermLimit(DecoratedKey key, AbstractAnalyzer analyzer)
+    {
+        int bytesCount = 0;
+        // VSTODO anayzer.hasNext copies the byteBuffer, but we don't need that here.
+        while (analyzer.hasNext())
+        {
+            final ByteBuffer token = analyzer.next();
+            bytesCount += token.remaining();
+            if (bytesCount >= maxTermSize)
+            {
+                noSpamLogger.warn(logMessage(ANALYZED_TERM_OVERSIZE_LOG_MESSAGE),
+                                  getColumnName(),
+                                  keyValidator().getString(key.getKey()),
+                                  FBUtilities.prettyPrintMemory(maxTermSize));
+                return false;
+            }
+        }
+        return true;
     }
 
     public void update(DecoratedKey key, Row oldRow, Row newRow, Memtable memtable, OpOrder.Group opGroup)

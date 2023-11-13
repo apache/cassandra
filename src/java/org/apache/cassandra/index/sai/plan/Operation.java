@@ -90,7 +90,7 @@ public class Operation
             AbstractAnalyzer analyzer = analyzerFactory.create();
             try
             {
-                analyzer.reset(e.getIndexValue().duplicate());
+                analyzer.reset(e.getIndexValue());
 
                 // EQ/LIKE_*/NOT_EQ can have multiple expressions e.g. text = "Hello World",
                 // becomes text = "Hello" OR text = "World" because "space" is always interpreted as a split point (by analyzer),

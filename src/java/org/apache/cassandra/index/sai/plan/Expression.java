@@ -305,7 +305,7 @@ public class Expression
     private boolean validateStringValue(ByteBuffer columnValue, ByteBuffer requestedValue)
     {
         AbstractAnalyzer analyzer = analyzerFactory.create();
-        analyzer.reset(columnValue.duplicate());
+        analyzer.reset(columnValue);
         try
         {
             while (analyzer.hasNext())

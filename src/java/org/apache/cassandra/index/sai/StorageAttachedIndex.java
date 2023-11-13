@@ -105,11 +105,14 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_VALIDATE_TERMS_AT_COORDINATOR;
 import static org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig.MAX_TOP_K;
 
 public class StorageAttachedIndex implements Index
 {
     private static final Logger logger = LoggerFactory.getLogger(StorageAttachedIndex.class);
+
+    private static final boolean VALIDATE_TERMS_AT_COORDINATOR = SAI_VALIDATE_TERMS_AT_COORDINATOR.getBoolean();
 
     private static class StorageAttachedIndexBuildingSupport implements IndexBuildingSupport
     {
@@ -645,8 +648,14 @@ public class StorageAttachedIndex implements Index
 
     @Override
     public void validate(PartitionUpdate update) throws InvalidRequestException
-    {}
+    {
+        if (!VALIDATE_TERMS_AT_COORDINATOR)
+            return;
 
+        DecoratedKey key = update.partitionKey();
+        for (Row row : update)
+            indexContext.validateMaxTermSizeForRow(key, row);
+    }
     /**
      * This method is called by the startup tasks to find SSTables that don't have indexes. The method is
      * synchronized so that the view is unchanged between validation and the selection of non-indexed SSTables.

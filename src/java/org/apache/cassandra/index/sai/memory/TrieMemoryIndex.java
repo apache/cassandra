@@ -93,7 +93,7 @@ public class TrieMemoryIndex extends MemoryIndex
         try
         {
             value = TypeUtil.encode(value, indexContext.getValidator());
-            analyzer.reset(value.duplicate());
+            analyzer.reset(value);
             final PrimaryKey primaryKey = indexContext.keyFactory().create(key, clustering);
             final long initialSizeOnHeap = data.sizeOnHeap();
             final long initialSizeOffHeap = data.sizeOffHeap();

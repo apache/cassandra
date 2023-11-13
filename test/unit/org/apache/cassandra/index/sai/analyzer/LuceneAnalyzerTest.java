@@ -80,6 +80,21 @@ public class LuceneAnalyzerTest
         assertArrayEquals(expected, list.toArray(new String[0]));
     }
 
+    // We override the defaults for ngram. This test ensures that our defaults are used and not lucene's
+    @Test
+    public void testNgramTokenizerDefaults() throws Exception
+    {
+        String json = "{\n" +
+                      "\"tokenizer\":{\"name\":\"ngram\"},\n" +
+                      "\"filters\":[{\"name\":\"lowercase\"}]\n" +
+                      "}";
+        String testString = "DoGs";
+        // Default minGramSize is 3
+        String[] expected = new String[]{ "dog", "dogs", "ogs" };
+        List<String> list = tokenize(testString, json);
+        assertArrayEquals(expected, list.toArray(new String[0]));
+    }
+
     @Test
     public void testPorterStem1() throws Exception
     {

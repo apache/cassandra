@@ -573,4 +573,20 @@ public class LuceneAnalyzerTest extends SAITester
         assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE some_num : 1"))
         .isInstanceOf(InvalidRequestException.class);
     }
+
+    @Test
+    public void testAnalyzerThatProducesTooManyBytesIsRejectedAtWriteTime() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id int PRIMARY KEY, val text)");
+
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {'index_analyzer':'{" +
+                    "\"tokenizer\":{\"name\":\"ngram\", \"args\":{\"minGramSize\":\"1\", \"maxGramSize\":\"26\"}},\n" +
+                    "\"filters\":[{\"name\":\"lowercase\"}]}'}");
+
+        waitForIndexQueryable();
+
+        assertThatThrownBy(() -> execute("INSERT INTO %s (id, val) VALUES (0, 'abcdedfghijklmnopqrstuvwxyz abcdedfghijklmnopqrstuvwxyz')"))
+        .hasMessage("Term's analyzed size for column val exceeds the cumulative limit for index. Max allowed size 5.000KiB.")
+        .isInstanceOf(InvalidRequestException.class);
+    }
 }
