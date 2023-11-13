@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -71,9 +72,12 @@ public class CoordinatorSession extends ConsistentSession
     private volatile long repairStart = Long.MIN_VALUE;
     private volatile long finalizeStart = Long.MIN_VALUE;
 
+    private final Consumer<CoordinatorSession> listener;
+
     public CoordinatorSession(Builder builder)
     {
         super(builder);
+        this.listener = builder.listener;
         for (InetAddressAndPort participant : participants)
         {
             participantStates.put(participant, State.PREPARING);
@@ -82,6 +86,13 @@ public class CoordinatorSession extends ConsistentSession
 
     public static class Builder extends AbstractBuilder
     {
+        Consumer<CoordinatorSession> listener;
+
+        public void withListener(Consumer<CoordinatorSession> listener)
+        {
+            this.listener = listener;
+        }
+
         public CoordinatorSession build()
         {
             validate();
@@ -98,6 +109,8 @@ public class CoordinatorSession extends ConsistentSession
     {
         logger.trace("Setting coordinator state to {} for repair {}", state, sessionID);
         super.setState(state);
+        if (listener != null)
+            listener.accept(this);
     }
 
     @VisibleForTesting
