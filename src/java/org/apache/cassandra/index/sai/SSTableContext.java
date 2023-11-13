@@ -63,7 +63,6 @@ public class SSTableContext extends SharedCloseableImpl
         this.primaryKeyMapFactory = copy.primaryKeyMapFactory;
     }
 
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     public static SSTableContext create(SSTableReader sstable)
     {
         Ref<? extends SSTableReader> sstableRef = null;

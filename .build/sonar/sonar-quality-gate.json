@@ -1,0 +1,22 @@
+{
+  "name": "cassandra",
+  "conditions": [
+    {
+      "id": "AYuvOs-pRzmON3lNOtmB",
+      "metric": "blocker_violations",
+      "op": "GT",
+      "error": "0"
+    }
+  ],
+  "isBuiltIn": false,
+  "actions": {
+    "rename": true,
+    "setAsDefault": true,
+    "copy": true,
+    "associateProjects": true,
+    "delete": true,
+    "manageConditions": true,
+    "delegate": true
+  },
+  "caycStatus": "compliant"
+}

@@ -96,7 +96,6 @@ public class SSTableLoader implements StreamEventHandler
         this.connectionsPerHost = connectionsPerHost;
     }
 
-    @SuppressWarnings("resource")
     private Multimap<InetAddressAndPort, CassandraOutgoingFile> openSSTables(final Map<InetAddressAndPort, Collection<Range<Token>>> ranges)
     {
         outputHandler.output("Opening sstables and calculating sections to stream");

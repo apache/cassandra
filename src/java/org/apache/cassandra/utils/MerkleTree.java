@@ -464,31 +464,40 @@ public class MerkleTree
     EstimatedHistogram histogramOfRowSizePerLeaf()
     {
         HistogramBuilder histbuild = new HistogramBuilder();
-        for (TreeRange range : new TreeRangeIterator(this))
+        try (TreeRangeIterator trIter = new TreeRangeIterator(this))
         {
-            histbuild.add(range.node.sizeOfRange());
+            for (TreeRange range : trIter)
+            {
+                histbuild.add(range.node.sizeOfRange());
+            }
+            return histbuild.buildWithStdevRangesAroundMean();
         }
-        return histbuild.buildWithStdevRangesAroundMean();
     }
 
     EstimatedHistogram histogramOfRowCountPerLeaf()
     {
         HistogramBuilder histbuild = new HistogramBuilder();
-        for (TreeRange range : new TreeRangeIterator(this))
+        try (TreeRangeIterator trIter = new TreeRangeIterator(this))
         {
-            histbuild.add(range.node.partitionsInRange());
+            for (TreeRange range : trIter)
+            {
+                histbuild.add(range.node.partitionsInRange());
+            }
+            return histbuild.buildWithStdevRangesAroundMean();
         }
-        return histbuild.buildWithStdevRangesAroundMean();
     }
 
     public long rowCount()
     {
         long count = 0;
-        for (TreeRange range : new TreeRangeIterator(this))
+        try (TreeRangeIterator trIter = new TreeRangeIterator(this))
         {
-            count += range.node.partitionsInRange();
+            for (TreeRange range : trIter)
+            {
+                count += range.node.partitionsInRange();
+            }
+            return count;
         }
-        return count;
     }
 
     @Override

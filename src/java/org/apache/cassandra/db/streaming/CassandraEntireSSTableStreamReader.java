@@ -82,7 +82,6 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
      * @return SSTable transferred
      * @throws IOException if reading the remote sstable fails. Will throw an RTE if local write fails.
      */
-    @SuppressWarnings("resource") // input needs to remain open, streams on top of it can't be closed
     @Override
     public SSTableMultiWriter read(DataInputPlus in) throws IOException
     {
@@ -168,7 +167,6 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
         return dir;
     }
 
-    @SuppressWarnings("resource")
     protected SSTableZeroCopyWriter createWriter(ColumnFamilyStore cfs, long totalSize, Collection<Component> components) throws IOException
     {
         File dataDir = getDataDir(cfs, totalSize);

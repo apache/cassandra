@@ -213,7 +213,6 @@ public class ColumnMaskTest extends ColumnMaskTester
     }
 
     @Test
-    @SuppressWarnings("resource")
     public void testPreparedStatement() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v text MASKED WITH DEFAULT)");
@@ -251,7 +250,6 @@ public class ColumnMaskTest extends ColumnMaskTester
     }
 
     @Test
-    @SuppressWarnings("resource")
     public void testPreparedStatementOnView() throws Throwable
     {
         createTable("CREATE TABLE %s (k int, c int, v text MASKED WITH DEFAULT, PRIMARY KEY (k, c))");

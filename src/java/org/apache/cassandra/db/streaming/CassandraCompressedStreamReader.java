@@ -53,7 +53,6 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
      * @throws java.io.IOException if reading the remote sstable fails. Will throw an RTE if local write fails.
      */
     @Override
-    @SuppressWarnings("resource") // input needs to remain open, streams on top of it can't be closed
     public SSTableMultiWriter read(DataInputPlus inputPlus) throws Throwable
     {
         long totalSize = totalSize();

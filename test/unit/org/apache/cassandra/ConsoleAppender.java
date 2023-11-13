@@ -49,7 +49,6 @@ public class ConsoleAppender<E> extends OutputStreamAppender<E>
     @Override
     public void start()
     {
-        @SuppressWarnings("resource")
         final PrintStream targetStream = target.equals("System.out") ? LogbackStatusListener.originalOut : LogbackStatusListener.originalErr;
         setOutputStream(new OutputStream() {
             @Override

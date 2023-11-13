@@ -116,7 +116,6 @@ public class SizeEstimatesRecorder implements SchemaChangeListener, Runnable
         }
     }
 
-    @SuppressWarnings("resource")
     private static Map<Range<Token>, Pair<Long, Long>> computeSizeEstimates(ColumnFamilyStore table, Collection<Range<Token>> ranges)
     {
         // for each local primary range, estimate (crudely) mean partition size and partitions count.

@@ -1029,9 +1029,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     private static class CapturingOutput implements Closeable
     {
-        @SuppressWarnings("resource")
         private final ByteArrayOutputStream outBase = new ByteArrayOutputStream();
-        @SuppressWarnings("resource")
         private final ByteArrayOutputStream errBase = new ByteArrayOutputStream();
 
         public final PrintStream out;

@@ -72,7 +72,6 @@ public class PerColumnIndexFiles implements Closeable
         return getFile(IndexComponent.COMPRESSED_VECTORS);
     }
 
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     private FileHandle getFile(IndexComponent indexComponent)
     {
         FileHandle file = files.get(indexComponent);

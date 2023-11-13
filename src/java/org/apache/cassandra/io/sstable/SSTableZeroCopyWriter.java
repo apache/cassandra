@@ -199,7 +199,6 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
 
     public void writeComponent(Component component, DataInputPlus in, long size) throws ClosedChannelException
     {
-        @SuppressWarnings({"resource", "RedundantSuppression"})  // all writers are closed in close()
         SequentialWriter writer = componentWriters.get(component.name);
         logger.info("Writing component {} to {} length {}", component, writer.getPath(), prettyPrintMemory(size));
 

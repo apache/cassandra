@@ -255,7 +255,6 @@ final class HintsWriteExecutor
         }
     }
 
-    @SuppressWarnings("resource")   // writer not closed here
     private void flushInternal(Iterator<ByteBuffer> iterator, HintsStore store)
     {
         long maxHintsFileSize = DatabaseDescriptor.getMaxHintsFileSize();

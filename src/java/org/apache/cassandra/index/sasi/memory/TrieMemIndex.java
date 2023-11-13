@@ -137,7 +137,6 @@ public class TrieMemIndex extends MemIndex
             return overhead;
         }
 
-        @SuppressWarnings("resource")
         public RangeIterator<Long, Token> search(Expression expression)
         {
             ByteBuffer prefix = expression.lower == null ? null : expression.lower.value;

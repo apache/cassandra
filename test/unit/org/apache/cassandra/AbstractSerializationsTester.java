@@ -66,13 +66,11 @@ public class AbstractSerializationsTester
         return new FileInputStreamPlus(f);
     }
 
-    @SuppressWarnings("resource")
     protected static DataOutputStreamPlus getOutput(String name) throws IOException
     {
         return getOutput(CUR_VER, name);
     }
 
-    @SuppressWarnings("resource")
     protected static DataOutputStreamPlus getOutput(String version, String name) throws IOException
     {
         File f = new File("test/data/serialization/" + version + '/' + name);

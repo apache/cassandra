@@ -48,7 +48,6 @@ public class SSTableComponentsWriter implements PerSSTableIndexWriter
 
     private long partitionId = -1;
 
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     public SSTableComponentsWriter(IndexDescriptor indexDescriptor) throws IOException
     {
         this.indexDescriptor = indexDescriptor;

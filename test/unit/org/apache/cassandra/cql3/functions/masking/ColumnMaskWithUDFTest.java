@@ -34,7 +34,6 @@ import static org.junit.Assert.assertNull;
 public class ColumnMaskWithUDFTest extends ColumnMaskTester
 {
     @Test
-    @SuppressWarnings("resource")
     public void testUDF() throws Throwable
     {
         // create a table masked with a UDF and with a materialized view

@@ -45,6 +45,7 @@
                  <exclude name="**/cassandra*.yaml"/>
                  <exclude NAME="doc/antora.yml"/>
                  <exclude name="ide/**/*"/>
+                 <exclude name="**/*.json"/>
                  <exclude name="pylib/cqlshlib/test/config/sslhandling*.config"/>
                  <exclude NAME="src/resources/org/apache/cassandra/cql3/reserved_keywords.txt"/>
                  <exclude NAME="src/resources/org/apache/cassandra/index/sasi/analyzer/filter/*.txt"/>
@@ -59,7 +60,6 @@
                  <exclude name="pylib/cqlshlib/test/test_authproviderhandling_config/*"/>
                  <exclude name="test/**/cassandra*.conf"/>
                  <exclude name="test/**/*.csv"/>
-                 <exclude name="test/**/*.json"/>
                  <exclude name="test/**/*.txt"/>
                  <exclude name="test/data/**/*.adler32"/>
                  <exclude name="test/data/**/*.crc32"/>

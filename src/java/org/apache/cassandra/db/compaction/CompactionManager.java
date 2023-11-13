@@ -419,7 +419,6 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
      * @param jobs the number of threads to use - 0 means use all available. It never uses more than concurrent_compactors threads
      * @return status of the operation
      */
-    @SuppressWarnings("resource")
     private AllSSTableOpStatus parallelAllSSTableOperation(final ColumnFamilyStore cfs,
                                                            final OneSSTableOperation operation,
                                                            int jobs,
@@ -981,13 +980,11 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         FBUtilities.waitOnFutures(submitMaximal(cfStore, getDefaultGcBefore(cfStore, FBUtilities.nowInSeconds()), splitOutput));
     }
 
-    @SuppressWarnings("resource") // the tasks are executed in parallel on the executor, making sure that they get closed
     public List<Future<?>> submitMaximal(final ColumnFamilyStore cfStore, final long gcBefore, boolean splitOutput)
     {
             return submitMaximal(cfStore, gcBefore, splitOutput, OperationType.MAJOR_COMPACTION);
     }
 
-    @SuppressWarnings("resource")
     public List<Future<?>> submitMaximal(final ColumnFamilyStore cfStore, final long gcBefore, boolean splitOutput, OperationType operationType)
     {
         // here we compute the task off the compaction executor, so having that present doesn't

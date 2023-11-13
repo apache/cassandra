@@ -88,7 +88,6 @@ public class CassandraEntireSSTableStreamWriter
                          component,
                          prettyPrintMemory(length));
 
-            @SuppressWarnings("resource") // this is closed after the file is transferred by AsyncChannelOutputPlus
             FileChannel channel = context.channel(sstable.descriptor, component, length);
             long bytesWritten = out.writeFileToChannel(channel, limiter);
             progress += bytesWritten;

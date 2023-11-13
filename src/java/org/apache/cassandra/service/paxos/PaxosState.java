@@ -812,7 +812,6 @@ public class PaxosState implements PaxosOperationLock
         ballotTracker().truncate();
     }
 
-    @SuppressWarnings("resource")
     public static Snapshot unsafeGetIfPresent(DecoratedKey partitionKey, TableMetadata metadata)
     {
         Key key = new Key(partitionKey, metadata);

@@ -28,7 +28,6 @@ public class ReceivedMessage extends StreamMessage
 {
     public static Serializer<ReceivedMessage> serializer = new Serializer<ReceivedMessage>()
     {
-        @SuppressWarnings("resource") // Not closing constructed DataInputPlus's as the channel needs to remain open.
         public ReceivedMessage deserialize(DataInputPlus input, int version) throws IOException
         {
             return new ReceivedMessage(TableId.deserialize(input), input.readInt());

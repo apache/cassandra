@@ -51,7 +51,6 @@ public class TermsScanner implements TermsIterator
     }
 
     @Override
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     public PostingList postings()
     {
         assert entry != null;

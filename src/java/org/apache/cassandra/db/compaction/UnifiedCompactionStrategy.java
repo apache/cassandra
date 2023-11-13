@@ -157,7 +157,6 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         List<Set<SSTableReader>> nonOverlapping = splitInNonOverlappingSets(filterSuspectSSTables(getSSTables()));
         for (Set<SSTableReader> set : nonOverlapping)
         {
-            @SuppressWarnings("resource")   // closed by the returned task
             LifecycleTransaction txn = cfs.getTracker().tryModify(set, OperationType.COMPACTION);
             if (txn != null)
                 tasks.add(createCompactionTask(txn, gcBefore));
@@ -194,7 +193,6 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     }
 
     @Override
-    @SuppressWarnings("resource")   // transaction closed by the returned task
     public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, final long gcBefore)
     {
         assert !sstables.isEmpty(); // checked for by CM.submitUserDefined
@@ -231,7 +229,6 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         }
     }
 
-    @SuppressWarnings("resource")   // transaction closed by the returned task
     private UnifiedCompactionTask createCompactionTask(CompactionPick pick, long gcBefore)
     {
         Preconditions.checkNotNull(pick);

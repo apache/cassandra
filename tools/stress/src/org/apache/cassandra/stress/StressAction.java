@@ -102,7 +102,6 @@ public class StressAction implements Runnable
     }
 
     // type provided separately to support recursive call for mixed command with each command type it is performing
-    @SuppressWarnings("resource") // warmupOutput doesn't need closing
     private void warmup(OpDistributionFactory operations)
     {
         // do 25% of iterations as warmup but no more than 50k (by default hotspot compiles methods after 10k invocations)

@@ -133,7 +133,6 @@ public class SegmentMetadata
         return Math.toIntExact(sstableRowId - rowIdOffset);
     }
 
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     public static List<SegmentMetadata> load(MetadataSource source, PrimaryKey.Factory primaryKeyFactory) throws IOException
     {
         DataInput input = source.get(NAME);

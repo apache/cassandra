@@ -83,7 +83,6 @@ public class LogReplicaSet implements AutoCloseable
 
         try
         {
-            @SuppressWarnings("resource")  // LogReplicas are closed in LogReplicaSet::close
             final LogReplica replica = LogReplica.create(directory, fileName);
             records.forEach(replica::append);
             replicasByFile.put(directory, replica);

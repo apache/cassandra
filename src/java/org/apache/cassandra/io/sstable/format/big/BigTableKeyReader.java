@@ -66,7 +66,7 @@ public class BigTableKeyReader implements KeyReader
         }
     }
 
-    @SuppressWarnings({ "resource" })
+    @SuppressWarnings({ "resource", "RedundantSuppression" }) // iFile and reader are closed in the BigTableKeyReader#close method
     public static BigTableKeyReader create(FileHandle indexFile, IndexSerializer serializer) throws IOException
     {
         FileHandle iFile = null;

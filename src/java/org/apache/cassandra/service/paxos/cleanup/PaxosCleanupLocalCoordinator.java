@@ -91,14 +91,12 @@ public class PaxosCleanupLocalCoordinator extends AsyncFuture<PaxosCleanupRespon
         scheduleKeyRepairsOrFinish();
     }
 
-    @SuppressWarnings("resource")
     public static PaxosCleanupLocalCoordinator create(PaxosCleanupRequest request)
     {
         CloseableIterator<UncommittedPaxosKey> iterator = PaxosState.uncommittedTracker().uncommittedKeyIterator(request.tableId, request.ranges);
         return new PaxosCleanupLocalCoordinator(request.session, request.tableId, request.ranges, iterator);
     }
 
-    @SuppressWarnings("resource")
     public static PaxosCleanupLocalCoordinator createForAutoRepair(TableId tableId, Collection<Range<Token>> ranges)
     {
         CloseableIterator<UncommittedPaxosKey> iterator = PaxosState.uncommittedTracker().uncommittedKeyIterator(tableId, ranges);

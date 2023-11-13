@@ -601,11 +601,8 @@ public class ToolRunner
 
     private static final class ForkedObservableTool implements ObservableTool
     {
-        @SuppressWarnings("resource")
         private final ByteArrayOutputStream err = new ByteArrayOutputStream();
-        @SuppressWarnings("resource")
         private final ByteArrayOutputStream out = new ByteArrayOutputStream();
-        @SuppressWarnings("resource")
         private final InputStream stdin;
         private final Process process;
         private final Thread[] ioWatchers;

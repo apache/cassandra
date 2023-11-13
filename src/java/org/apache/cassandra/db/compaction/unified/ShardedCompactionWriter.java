@@ -82,7 +82,6 @@ public class ShardedCompactionWriter extends CompactionAwareWriter
     }
 
     @Override
-    @SuppressWarnings("resource")
     protected SSTableWriter sstableWriter(Directories.DataDirectory directory, DecoratedKey nextKey)
     {
         if (nextKey != null)
