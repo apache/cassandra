@@ -51,7 +51,7 @@ public class IncRepairCoordinatorErrorTest extends TestBaseImpl
             cluster.get(3).runOnInstance(() -> {
                 ActiveRepairService.instance.failSession(result.toString(), true);
             });
-            assertThat(cluster.get(1).logs().watchFor("Can't transition endpoints .* to FAILED").getResult()).isNotEmpty();
+            assertThat(cluster.get(1).logs().watchFor("Removing completed session .* with state FINALIZED").getResult()).isNotEmpty();
         }
     }
 }

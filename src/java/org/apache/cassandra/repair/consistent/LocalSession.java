@@ -37,12 +37,6 @@ public class LocalSession extends ConsistentSession
         this.lastUpdate = builder.lastUpdate;
     }
 
-    public boolean isCompleted()
-    {
-        State s = getState();
-        return s == State.FINALIZED || s == State.FAILED;
-    }
-
     public int getStartedAt()
     {
         return startedAt;
