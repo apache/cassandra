@@ -18,7 +18,12 @@
 package org.apache.cassandra.db.commitlog;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -32,11 +37,11 @@ import com.codahale.metrics.Timer.Context;
 import net.nicoulaj.compilecommand.annotations.DontInline;
 import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.concurrent.Interruptible.TerminateException;
+import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SimpleCachedBufferPool;
@@ -44,7 +49,11 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.concurrent.*;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon.NON_DAEMON;
@@ -99,34 +108,44 @@ public abstract class AbstractCommitLogSegmentManager
     private final BooleanSupplier managerThreadWaitCondition = () -> (availableSegment == null && !atSegmentBufferLimit());
     private final WaitQueue managerThreadWaitQueue = newWaitQueue();
 
+    protected final CommitLogSegment.Builder<?> segmentBuilder;
+
     private volatile SimpleCachedBufferPool bufferPool;
 
     AbstractCommitLogSegmentManager(final CommitLog commitLog, String storageDirectory)
     {
         this.commitLog = commitLog;
         this.storageDirectory = storageDirectory;
+
+        CommitLog.Configuration config = commitLog.configuration;
+
+        if (config.useEncryption())
+        {
+            assert config.diskAccessMode == DiskAccessMode.standard;
+            this.segmentBuilder = new EncryptedSegment.EncryptedSegmentBuilder(this);
+        }
+        else if (config.useCompression())
+        {
+            assert config.diskAccessMode == DiskAccessMode.standard;
+            this.segmentBuilder = new CompressedSegment.CompressedSegmentBuilder(this);
+        }
+        else if (config.diskAccessMode == DiskAccessMode.direct)
+        {
+            this.segmentBuilder = new DirectIOSegment.DirectIOSegmentBuilder(this);
+        }
+        else if (config.diskAccessMode == DiskAccessMode.mmap)
+        {
+            this.segmentBuilder = new MemoryMappedSegment.MemoryMappedSegmentBuilder(this);
+        }
+        else
+        {
+            throw new AssertionError("Unsupported disk access mode");
+        }
     }
 
     void start()
     {
-        // For encrypted segments we want to keep the compression buffers on-heap as we need those bytes for encryption,
-        // and we want to avoid copying from off-heap (compression buffer) to on-heap encryption APIs
-        BufferType bufferType = commitLog.configuration.isDirectIOEnabled()
-                                ? BufferType.OFF_HEAP
-                                  : commitLog.configuration.useEncryption() || !commitLog.configuration.useCompression()
-                                    ? BufferType.ON_HEAP
-                                    : commitLog.configuration.getCompressor().preferredBufferType();
-
-        // The direct buffer must be aligned with the file system block size. We cannot enforce that during
-        // allocation, but we can get an aligned slice from the allocated buffer. The buffer must be oversized by the
-        // alignment unit to make it possible.
-        int minimumAllowedAlign = !commitLog.configuration.isDirectIOEnabled()
-                                  ? 0 : CommitLogSegment.getDirectIOMinimumAlignement(storageDirectory, "CommitLog-DirectIO-Test.log");
-
-        this.bufferPool = new SimpleCachedBufferPool(DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool(),
-                                                     DatabaseDescriptor.getCommitLogSegmentSize() + minimumAllowedAlign,
-                                                     bufferType);
-
+        this.bufferPool = segmentBuilder.createBufferPool();
 
         AllocatorRunnable allocator = new AllocatorRunnable();
         executor = executorFactory().infiniteLoop("COMMIT-LOG-ALLOCATOR", allocator, SAFE, NON_DAEMON, SYNCHRONIZED);

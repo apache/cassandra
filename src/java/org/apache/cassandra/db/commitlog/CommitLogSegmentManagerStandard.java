@@ -62,6 +62,8 @@ public class CommitLogSegmentManagerStandard extends AbstractCommitLogSegmentMan
     @Override
     public CommitLogSegment createSegment()
     {
-        return CommitLogSegment.createSegment(commitLog, this);
+        CommitLogSegment segment = segmentBuilder.build();
+        segment.writeLogHeader();
+        return segment;
     }
 }
