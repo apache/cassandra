@@ -193,9 +193,9 @@
 
 # Defines how to handle INSERT requests with TTL exceeding the maximum supported expiration date:
 # * REJECT: this is the default policy and will reject any requests with expiration date timestamp 
-#   after 2106-02-07T06:28:13+00:00 or 2038-01-19T03:14:06+00:00 depending on compatibility mode (<="nc" sstable formats)
+#   after 2106-02-07T06:28:13+00:00 or 2038-01-19T03:14:06+00:00 depending on compatibility mode (<="oa" sstable formats)
 # * CAP: any insert with TTL expiring after 2106-02-07T06:28:13+00:00 or 2038-01-19T03:14:06+00:00, 
-#   depending on compatibility mode (<="nc" sstable formats), will expire on 2106-02-07T06:28:13+00:00 
+#   depending on compatibility mode (<="oa" sstable formats), will expire on 2106-02-07T06:28:13+00:00
 #   or 2038-01-19T03:14:06+00:00 and the client will receive a warning.
 # * CAP_NOWARN: same as previous, except that the client warning will not be emitted.
 #

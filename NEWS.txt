@@ -4,7 +4,7 @@ PLEASE READ: MAXIMUM TTL EXPIRATION DATE NOTICE (CASSANDRA-14092 & CASSANDRA-142
 
 The maximum expiration timestamp that can be represented by the storage engine has been
 raised to 2106-02-07T06:28:13+00:00 (2038-01-19T03:14:06+00:00 if in compatibility mode 
-with Cassandra <5.0, sstable version <=nc), which means that inserts with TTL that expire after
+with Cassandra <5.0, sstable version <=oa), which means that inserts with TTL that expire after
 this date are not currently supported. By default, INSERTS with TTL exceeding the
 maximum supported date are rejected, but it's possible to choose a different 
 expiration overflow policy. See CASSANDRA-14092.txt for more details.
@@ -180,7 +180,7 @@ New features
     - On virtual tables, it is not strictly necessary to specify `ALLOW FILTERING` for select statements which would
       normally require it, except `system_views.system_logs`.
     - More accurate skipping of sstables in read path due to better handling of min/max clustering and lower bound;
-      SSTable format has been bumped to 'nc' because there are new fields in stats metadata\
+      SSTable format has been bumped to 'oa' because there are new fields in stats metadata\
     - Added MaxSSTableSize and MaxSSTableDuration metrics to TableMetrics. The former returns the size of the biggest 
       SSTable of a table or 0 when there is not any SSTable. The latter returns the maximum duration, computed as 
       `maxTimestamp - minTimestamp`, effectively non-zero for SSTables produced by TimeWindowCompactionStrategy.

@@ -40,7 +40,7 @@ public class VersionSupportedFeaturesTest extends AbstractTestVersionSupportedFe
     @Override
     protected Stream<String> getPartitionLevelDeletionPresenceMarkerSupportedVersions()
     {
-        return range("nc", "zz");
+        return range("oa", "zz");
     }
 
     @Override
@@ -52,13 +52,13 @@ public class VersionSupportedFeaturesTest extends AbstractTestVersionSupportedFe
     @Override
     protected Stream<String> getImprovedMinMaxSupportedVersions()
     {
-        return range("nc", "zz");
+        return range("oa", "zz");
     }
 
     @Override
     protected Stream<String> getKeyRangeSupportedVersions()
     {
-        return range("nc", "zz");
+        return range("oa", "zz");
     }
 
     @Override

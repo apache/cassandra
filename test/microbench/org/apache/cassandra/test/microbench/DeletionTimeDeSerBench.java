@@ -67,9 +67,9 @@ public class DeletionTimeDeSerBench
     final static ArrayList<DeletionTime> TEST_DTS_30PC_LIVE = generateDTs(30);
 
     // Parameters
-    final static String ncSstableParam = "NC";
+    final static String nbSstableParam = "NB";
     final static String oaSstableParam = "OA";
-    @Param({ ncSstableParam, oaSstableParam })
+    @Param({ nbSstableParam, oaSstableParam })
     String sstableParam;
 
     final static String live70PcParam = "70PcLive";
@@ -341,7 +341,7 @@ public class DeletionTimeDeSerBench
     {
         switch (value)
         {
-            case ncSstableParam:
+            case nbSstableParam:
                 return new DeletionTime.LegacySerializer();
 
             case oaSstableParam:
