@@ -145,7 +145,7 @@ public class GossiperTest
 
         assertFalse(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.0")) < 0);
         assertTrue(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.1")) < 0);
-        assertTrue(Gossiper.instance.hasMajorVersion3Nodes());
+        assertTrue(Gossiper.instance.hasMajorVersion3OrUnknownNodes());
 
         Gossiper.instance.endpointStateMap.remove(InetAddressAndPort.getByName("127.0.0.3"));
         Gossiper.instance.liveEndpoints.remove(InetAddressAndPort.getByName("127.0.0.3"));
@@ -153,12 +153,58 @@ public class GossiperTest
         assertFalse(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.0")) < 0);
         assertFalse(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.1")) < 0);
         assertTrue(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.12")) < 0);
-        assertTrue(Gossiper.instance.hasMajorVersion3Nodes());
+        assertTrue(Gossiper.instance.hasMajorVersion3OrUnknownNodes());
 
         Gossiper.instance.endpointStateMap.remove(InetAddressAndPort.getByName("127.0.0.2"));
         Gossiper.instance.liveEndpoints.remove(InetAddressAndPort.getByName("127.0.0.2"));
 
         assertEquals(SystemKeyspace.CURRENT_VERSION, Gossiper.instance.upgradeFromVersionSupplier.get().value());
+    }
+
+    @Test
+    public void testHasVersion3NodesShouldReturnFalseWhenNoVersion3NodesDetectedAndCassandra4UpgradeInProgress() throws Exception
+    {
+        Gossiper.instance.start(0);
+        Gossiper.instance.expireUpgradeFromVersion();
+
+        VersionedValue.VersionedValueFactory factory = new VersionedValue.VersionedValueFactory(null);
+        EndpointState es = new EndpointState((HeartBeatState) null);
+        es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion(CURRENT_VERSION.toString()));
+        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.1"), es);
+        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.1"));
+
+        es = new EndpointState((HeartBeatState) null);
+        String previousPatchVersion = String.valueOf(CURRENT_VERSION.major) + '.' + (CURRENT_VERSION.minor) + '.' + Math.max(CURRENT_VERSION.patch - 1, 0);
+        es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion(previousPatchVersion));
+        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.2"), es);
+        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.2"));
+        assertFalse(Gossiper.instance.hasMajorVersion3OrUnknownNodes());
+
+        Gossiper.instance.endpointStateMap.remove(InetAddressAndPort.getByName("127.0.0.2"));
+        Gossiper.instance.liveEndpoints.remove(InetAddressAndPort.getByName("127.0.0.2"));
+    }
+
+    @Test
+    public void testHasVersion3NodesShouldReturnTrueWhenNoVersion3NodesDetectedButNotAllVersionsKnown() throws Exception
+    {
+        Gossiper.instance.start(0);
+        Gossiper.instance.expireUpgradeFromVersion();
+
+        VersionedValue.VersionedValueFactory factory = new VersionedValue.VersionedValueFactory(null);
+        EndpointState es = new EndpointState((HeartBeatState) null);
+        es.addApplicationState(ApplicationState.RELEASE_VERSION, null);
+        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.3"), es);
+        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.3"));
+
+        es = new EndpointState((HeartBeatState) null);
+        String previousPatchVersion = String.valueOf(CURRENT_VERSION.major) + '.' + (CURRENT_VERSION.minor) + '.' + Math.max(CURRENT_VERSION.patch - 1, 0);
+        es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion(previousPatchVersion));
+        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.2"), es);
+        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.2"));
+        assertTrue(Gossiper.instance.hasMajorVersion3OrUnknownNodes());
+
+        Gossiper.instance.endpointStateMap.remove(InetAddressAndPort.getByName("127.0.0.2"));
+        Gossiper.instance.liveEndpoints.remove(InetAddressAndPort.getByName("127.0.0.2"));
     }
 
     @Test
