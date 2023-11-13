@@ -45,6 +45,7 @@ import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
@@ -62,6 +63,7 @@ import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.disk.format.IndexFeatureSet;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
+import org.apache.cassandra.index.sai.disk.vector.CassandraOnHeapGraph;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
 import org.apache.cassandra.index.sai.metrics.ColumnQueryMetrics;
 import org.apache.cassandra.index.sai.metrics.IndexMetrics;
@@ -119,6 +121,7 @@ public class IndexContext
 
     // Config can be null if the column context is "fake" (i.e. created for a filtering expression).
     private final IndexMetadata config;
+    private final VectorSimilarityFunction vectorSimilarityFunction;
 
     private final ConcurrentMap<Memtable, MemtableIndex> liveMemtables = new ConcurrentHashMap<>();
 
@@ -169,7 +172,8 @@ public class IndexContext
             this.queryAnalyzerFactory = AbstractAnalyzer.hasQueryAnalyzer(config.options)
                                         ? AbstractAnalyzer.fromOptionsQueryAnalyzer(getValidator(), config.options)
                                         : this.analyzerFactory;
-            this.hasEuclideanSimilarityFunc = VectorSimilarityFunction.EUCLIDEAN.name().equalsIgnoreCase(config.options.get(IndexWriterConfig.SIMILARITY_FUNCTION));
+            this.vectorSimilarityFunction = indexWriterConfig.getSimilarityFunction();
+            this.hasEuclideanSimilarityFunc = vectorSimilarityFunction == VectorSimilarityFunction.EUCLIDEAN;
         }
         else
         {
@@ -177,6 +181,7 @@ public class IndexContext
             this.isAnalyzed = AbstractAnalyzer.isAnalyzed(Collections.EMPTY_MAP);
             this.analyzerFactory = AbstractAnalyzer.fromOptions(getValidator(), Collections.EMPTY_MAP);
             this.queryAnalyzerFactory = this.analyzerFactory;
+            this.vectorSimilarityFunction = null;
             this.hasEuclideanSimilarityFunc = false;
         }
 
@@ -666,6 +671,37 @@ public class IndexContext
         //VSTODO probably move this down to TypeUtils eventually
         return getValidator().isVector();
     }
+
+    public void validate(DecoratedKey key, Row row)
+    {
+        // Validate the size of the inserted term.
+        validateMaxTermSizeForRow(key, row);
+
+        // Verify vector is valid.
+        if (isVector())
+        {
+            float[] value = TypeUtil.decomposeVector(getValidator(), getValueOf(key, row, FBUtilities.nowInSeconds()));
+            if (value != null)
+                CassandraOnHeapGraph.validateIndexable(value, vectorSimilarityFunction);
+        }
+    }
+
+    public void validate(RowFilter rowFilter)
+    {
+        // Only vector indexes have requirements to validate right now.
+        if (!isVector())
+            return;
+        // Only iterate over the top level expressions because that is where the ANN expression is located.
+        for (RowFilter.Expression expression : rowFilter.root().expressions())
+            if (expression.operator() == Operator.ANN && expression.column().equals(column))
+            {
+                float[] value = TypeUtil.decomposeVector(getValidator(), expression.getIndexValue());
+                CassandraOnHeapGraph.validateIndexable(value, vectorSimilarityFunction);
+                // There is only one ANN expression per query.
+                return;
+            }
+    }
+
 
     public boolean equals(Object obj)
     {

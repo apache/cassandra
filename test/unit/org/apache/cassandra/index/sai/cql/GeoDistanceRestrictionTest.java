@@ -69,6 +69,27 @@ public class GeoDistanceRestrictionTest extends VectorTester
     }
 
     @Test
+    public void testGeoDistanceTopKQuery() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, point vector<float, 2>, v vector<float, 3>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(point) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'euclidean'}");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        // Distances computed using https://www.nhc.noaa.gov/gccalc.shtml
+        execute("INSERT INTO %s (pk, point, v) VALUES (0, [1, 2], [1, 2, 1])"); // distance is 555 km from [5,5]
+        execute("INSERT INTO %s (pk, point, v) VALUES (1, [4, 4], [4, 4, 1])"); // distance is 157 km from [5,5]
+        execute("INSERT INTO %s (pk, point, v) VALUES (2, [5, 5], [5, 5, 1])"); // distance is 0 km from [5,5]
+        execute("INSERT INTO %s (pk, point, v) VALUES (3, [6, 6], [6, 6, 1])"); // distance is 157 km from [5,5]
+        execute("INSERT INTO %s (pk, point, v) VALUES (4, [8, 9], [8, 9, 1])"); // distance is 553 from [5,5]
+        execute("INSERT INTO %s (pk, point, v) VALUES (5, [10, 10], [10, 10, 1])"); // distance is 782 km from [5,5]
+
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT pk FROM %s WHERE GEO_DISTANCE(point, [0,0]) < 400000 ORDER BY v ANN OF [0, 1, 2] LIMIT 1"), row(0));
+        });
+    }
+
+    @Test
     public void testPreparedIntersectedPredicateWithGeoDistanceQuery() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, num int, v vector<float, 2>, PRIMARY KEY(pk))");
