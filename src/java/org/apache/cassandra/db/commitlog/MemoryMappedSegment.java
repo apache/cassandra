@@ -24,7 +24,9 @@ import java.nio.channels.FileChannel;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.SimpleCachedBufferPool;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.SyncUtil;
 
@@ -37,12 +39,10 @@ public class MemoryMappedSegment extends CommitLogSegment
 {
     /**
      * Constructs a new segment file.
-     *
-     * @param commitLog the commit log it will be used with.
      */
-    MemoryMappedSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager)
+    MemoryMappedSegment(AbstractCommitLogSegmentManager manager)
     {
-        super(commitLog, manager);
+        super(manager);
         // mark the initial sync marker as uninitialised
         int firstSync = buffer.position();
         buffer.putInt(firstSync + 0, 0);
@@ -104,5 +104,27 @@ public class MemoryMappedSegment extends CommitLogSegment
     {
         FileUtils.clean(buffer);
         super.internalClose();
+    }
+
+    protected static class MemoryMappedSegmentBuilder extends CommitLogSegment.Builder<MemoryMappedSegment>
+    {
+        public MemoryMappedSegmentBuilder(AbstractCommitLogSegmentManager segmentManager)
+        {
+            super(segmentManager);
+        }
+
+        @Override
+        public MemoryMappedSegment build()
+        {
+            return new MemoryMappedSegment(segmentManager);
+        }
+
+        @Override
+        public SimpleCachedBufferPool createBufferPool()
+        {
+            return new SimpleCachedBufferPool(DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool(),
+                                              DatabaseDescriptor.getCommitLogSegmentSize(),
+                                              BufferType.ON_HEAP);
+        }
     }
 }

@@ -23,6 +23,10 @@ import java.nio.LongBuffer;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.compress.BufferType;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.SimpleCachedBufferPool;
 
 /*
  * Direct-IO segment. Allocates ByteBuffer using ByteBuffer.allocateDirect and align
@@ -31,6 +35,10 @@ import org.apache.cassandra.io.FSWriteError;
  */
 public class DirectIOSegment extends CommitLogSegment
 {
+    private final int fsBlockSize;
+    private final int fsBlockQuotientMask;
+    private final int fsBlockRemainderMask;
+
     private ByteBuffer original;
 
     // Needed to track number of bytes written to disk in multiple of page size.
@@ -38,25 +46,29 @@ public class DirectIOSegment extends CommitLogSegment
 
     /**
      * Constructs a new segment file.
-     *
-     * @param commitLog the commit log it will be used with.
      */
-    DirectIOSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager)
+    DirectIOSegment(AbstractCommitLogSegmentManager manager, int fsBlockSize)
     {
-        super(commitLog, manager);
+        super(manager);
+
+        assert Integer.highestOneBit(fsBlockSize) == fsBlockSize : "fsBlockSize must be a power of 2";
 
         // mark the initial sync marker as uninitialised
         int firstSync = buffer.position();
         buffer.putInt(firstSync + 0, 0);
         buffer.putInt(firstSync + 4, 0);
+
+        this.fsBlockSize = fsBlockSize;
+        this.fsBlockRemainderMask = fsBlockSize - 1;
+        this.fsBlockQuotientMask = ~fsBlockRemainderMask;
     }
 
     ByteBuffer createBuffer(CommitLog commitLog)
     {
         int segmentSize = DatabaseDescriptor.getCommitLogSegmentSize();
 
+        assert original == null : "Buffer has been already created";
         original =  manager.getBufferPool().createBuffer();
-        assert original != null : String.format("Direct ByteBuffer allocation failed for DirectIOSegment");
 
         // May get previously used buffer and zero it out to now. Direct I/O writes additional bytes during flush
         // operation.
@@ -64,11 +76,11 @@ public class DirectIOSegment extends CommitLogSegment
         for(int i = 0 ; i < arrayBuffer.limit() ; i++)
             arrayBuffer.put(i, 0);
 
-        ByteBuffer alignedBuffer = original.alignedSlice(minimumDirectIOAlignement);
+        ByteBuffer alignedBuffer = original.alignedSlice(fsBlockSize);
         assert alignedBuffer.limit() >= segmentSize : String.format("Bytebuffer slicing failed to get required buffer size (required=%d,current size=%d", segmentSize, alignedBuffer.limit());
 
-        assert alignedBuffer.alignmentOffset(0, minimumDirectIOAlignement) == 0 : String.format("Index 0 should be aligned to %d page size.", minimumDirectIOAlignement);
-        assert alignedBuffer.alignmentOffset(alignedBuffer.limit(), minimumDirectIOAlignement) == 0 : String.format("Limit should be aligned to %d page size", minimumDirectIOAlignement);
+        assert alignedBuffer.alignmentOffset(0, fsBlockSize) == 0 : String.format("Index 0 should be aligned to %d page size.", fsBlockSize);
+        assert alignedBuffer.alignmentOffset(alignedBuffer.limit(), fsBlockSize) == 0 : String.format("Limit should be aligned to %d page size", fsBlockSize);
 
         return alignedBuffer;
     }
@@ -109,10 +121,10 @@ public class DirectIOSegment extends CommitLogSegment
             int flushPosition = lastSyncedOffset;
             ByteBuffer duplicate = buffer.duplicate();
 
-            // Aligned file position if not aligned to start of 4K page.
-            if (flushPosition % minimumDirectIOAlignement != 0)
+            // Aligned file position if not aligned to start of a block.
+            if ((flushPosition & fsBlockRemainderMask) != 0)
             {
-                flushPosition = flushPosition & ~(minimumDirectIOAlignement -1);
+                flushPosition = flushPosition & fsBlockQuotientMask;
                 channel.position(flushPosition);
             }
             duplicate.position(flushPosition);
@@ -120,8 +132,8 @@ public class DirectIOSegment extends CommitLogSegment
             int flushLimit = nextMarker;
 
             // Align last byte to end of block.
-            if (flushLimit % minimumDirectIOAlignement != 0)
-                flushLimit = (flushLimit + minimumDirectIOAlignement) & ~(minimumDirectIOAlignement -1);
+            if ((flushLimit & fsBlockRemainderMask) != 0)
+                flushLimit = (flushLimit + fsBlockSize) & fsBlockQuotientMask;
 
             duplicate.limit(flushLimit);
 
@@ -159,6 +171,34 @@ public class DirectIOSegment extends CommitLogSegment
         finally
         {
             manager.notifyBufferFreed();
+        }
+    }
+
+    protected static class DirectIOSegmentBuilder extends CommitLogSegment.Builder<DirectIOSegment>
+    {
+        public final int fsBlockSize;
+
+        public DirectIOSegmentBuilder(AbstractCommitLogSegmentManager segmentManager)
+        {
+            super(segmentManager);
+            this.fsBlockSize = FileUtils.getBlockSize(new File(segmentManager.storageDirectory));
+        }
+
+        @Override
+        public DirectIOSegment build()
+        {
+            return new DirectIOSegment(segmentManager, fsBlockSize);
+        }
+
+        @Override
+        public SimpleCachedBufferPool createBufferPool()
+        {
+            // The direct buffer must be aligned with the file system block size. We cannot enforce that during
+            // allocation, but we can get an aligned slice from the allocated buffer. The buffer must be oversized by the
+            // alignment unit to make it possible.
+            return new SimpleCachedBufferPool(DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool(),
+                                              DatabaseDescriptor.getCommitLogSegmentSize() + fsBlockSize,
+                                              BufferType.OFF_HEAP);
         }
     }
 }

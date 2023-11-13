@@ -19,8 +19,10 @@ package org.apache.cassandra.db.commitlog;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.ICompressor;
+import org.apache.cassandra.io.util.SimpleCachedBufferPool;
 
 /**
  * Compressed commit log segment. Provides an in-memory buffer for the mutation threads. On sync compresses the written
@@ -41,10 +43,10 @@ public class CompressedSegment extends FileDirectSegment
     /**
      * Constructs a new segment file.
      */
-    CompressedSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager)
+    CompressedSegment(AbstractCommitLogSegmentManager manager)
     {
-        super(commitLog, manager);
-        this.compressor = commitLog.configuration.getCompressor();
+        super(manager);
+        this.compressor = manager.commitLog.configuration.getCompressor();
     }
 
     ByteBuffer createBuffer(CommitLog commitLog)
@@ -91,5 +93,27 @@ public class CompressedSegment extends FileDirectSegment
     public long onDiskSize()
     {
         return lastWrittenPos;
+    }
+
+    protected static class CompressedSegmentBuilder extends CommitLogSegment.Builder<CompressedSegment>
+    {
+        public CompressedSegmentBuilder(AbstractCommitLogSegmentManager segmentManager)
+        {
+            super(segmentManager);
+        }
+
+        @Override
+        public CompressedSegment build()
+        {
+            return new CompressedSegment(segmentManager);
+        }
+
+        @Override
+        public SimpleCachedBufferPool createBufferPool()
+        {
+            return new SimpleCachedBufferPool(DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool(),
+                                              DatabaseDescriptor.getCommitLogSegmentSize(),
+                                              segmentManager.commitLog.configuration.getCompressor().preferredBufferType());
+        }
     }
 }

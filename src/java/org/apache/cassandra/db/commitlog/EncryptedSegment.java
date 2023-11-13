@@ -27,9 +27,11 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.compress.ICompressor;
-import org.apache.cassandra.security.EncryptionUtils;
+import org.apache.cassandra.io.util.SimpleCachedBufferPool;
 import org.apache.cassandra.security.EncryptionContext;
+import org.apache.cassandra.security.EncryptionUtils;
 import org.apache.cassandra.utils.Hex;
 
 import static org.apache.cassandra.security.EncryptionUtils.ENCRYPTED_BLOCK_HEADER_SIZE;
@@ -63,10 +65,10 @@ public class EncryptedSegment extends FileDirectSegment
     private final EncryptionContext encryptionContext;
     private final Cipher cipher;
 
-    public EncryptedSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager)
+    public EncryptedSegment(AbstractCommitLogSegmentManager manager)
     {
-        super(commitLog, manager);
-        this.encryptionContext = commitLog.configuration.getEncryptionContext();
+        super(manager);
+        this.encryptionContext = manager.commitLog.configuration.getEncryptionContext();
 
         try
         {
@@ -149,5 +151,28 @@ public class EncryptedSegment extends FileDirectSegment
     public long onDiskSize()
     {
         return lastWrittenPos;
+    }
+
+    protected static class EncryptedSegmentBuilder extends CommitLogSegment.Builder<EncryptedSegment>
+    {
+
+        public EncryptedSegmentBuilder(AbstractCommitLogSegmentManager segmentManager)
+        {
+            super(segmentManager);
+        }
+
+        @Override
+        public EncryptedSegment build()
+        {
+            return new EncryptedSegment(segmentManager);
+        }
+
+        @Override
+        public SimpleCachedBufferPool createBufferPool()
+        {
+            return new SimpleCachedBufferPool(DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool(),
+                                              DatabaseDescriptor.getCommitLogSegmentSize(),
+                                              BufferType.ON_HEAP);
+        }
     }
 }

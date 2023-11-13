@@ -106,7 +106,7 @@ public class CommitLog implements CommitLogMBean
     {
         this.configuration = new Configuration(DatabaseDescriptor.getCommitLogCompression(),
                                                DatabaseDescriptor.getEncryptionContext(),
-                                               DatabaseDescriptor.getCommitLogDiskAccessMode());
+                                               DatabaseDescriptor.getCommitLogWriteDiskAccessMode());
         DatabaseDescriptor.createAllDirectories();
 
         this.archiver = archiver;
@@ -524,7 +524,7 @@ public class CommitLog implements CommitLogMBean
     {
         configuration = new Configuration(DatabaseDescriptor.getCommitLogCompression(),
                                           DatabaseDescriptor.getEncryptionContext(),
-                                          DatabaseDescriptor.getCommitLogDiskAccessMode());
+                                          DatabaseDescriptor.getCommitLogWriteDiskAccessMode());
     }
 
     /**
@@ -615,7 +615,7 @@ public class CommitLog implements CommitLogMBean
         /**
          * Flag used to shows user configured Direct-IO status.
          */
-        private final Config.DiskAccessMode diskAccessMode;
+        public final Config.DiskAccessMode diskAccessMode;
 
         /**
          * The compressor class.
@@ -630,7 +630,7 @@ public class CommitLog implements CommitLogMBean
         /**
          * The encryption context used to encrypt the segments.
          */
-        private EncryptionContext encryptionContext;
+        private final EncryptionContext encryptionContext;
 
         public Configuration(ParameterizedClass compressorClass, EncryptionContext encryptionContext,
                              Config.DiskAccessMode diskAccessMode)

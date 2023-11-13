@@ -28,19 +28,7 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.file.FileStore;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.OptionalDouble;
-import java.util.ServiceLoader;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -57,6 +45,7 @@ import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
+import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -176,7 +165,7 @@ public class DatabaseDescriptor
     private static IPartitioner partitioner;
     private static String paritionerName;
 
-    private static Config.DiskAccessMode indexAccessMode;
+    private static DiskAccessMode indexAccessMode;
 
     private static AbstractCryptoProvider cryptoProvider;
     private static IAuthenticator authenticator;
@@ -511,57 +500,25 @@ public class DatabaseDescriptor
             logger.debug("Syncing log with a period of {}", conf.commitlog_sync_period.toString());
         }
 
-        // Only mmap & Direct-I/O access modes are supported. Standard access mode is preassumed if Compressed or Encrypted segment is used.
-        // This ensures default behavior is unchanged.
-        if  (conf.commitlog_disk_access_mode != Config.DiskAccessMode.auto
-             && conf.commitlog_disk_access_mode != Config.DiskAccessMode.legacy
-             && conf.commitlog_disk_access_mode != Config.DiskAccessMode.direct)
-        {
-            throw new ConfigurationException(String.format("Commitlog access mode '%s' is not supported. Supported modes are '%s', '%s' and '%s'",
-                                                            conf.commitlog_disk_access_mode, Config.DiskAccessMode.auto,
-                                                            Config.DiskAccessMode.legacy, Config.DiskAccessMode.direct));
-        }
-        else
-        {
-            Config.DiskAccessMode current_disk_access_mode = conf.commitlog_disk_access_mode;
-
-            if (current_disk_access_mode == Config.DiskAccessMode.auto)
-            {
-                current_disk_access_mode = conf.disk_optimization_strategy == Config.DiskOptimizationStrategy.ssd ? Config.DiskAccessMode.direct
-                                                                                                                    : Config.DiskAccessMode.legacy;
-                // This is necessary for other functions to get the new mode determined through auto.
-                conf.commitlog_disk_access_mode = current_disk_access_mode;
-                logger.info("DiskAccessMode 'auto' determined to be '{}' for Commitlog disk", current_disk_access_mode);
-            }
-
-            if (getCommitLogCompression() != null || (getEncryptionContext() != null && getEncryptionContext().isEnabled()))
-            {
-                if (current_disk_access_mode == Config.DiskAccessMode.direct)
-                {
-                    // Compressed and Encrypted segments are not yet supported with Direct-I/O feature.
-                    throw new ConfigurationException("Direct I/O does not support Compressed or Encrypted segment yet.");
-                }
-            }
-
-            logger.info("Commitlog disk using '{}' access mode for write and '{}' mode for replay.", current_disk_access_mode, Config.DiskAccessMode.standard);
-        }
+        if (setCommitLogWriteDiskAccessMode(conf.commitlog_write_disk_access_mode))
+            logger.info("commitlog_write_disk_access_mode resolved to: {}", getCommitLogWriteDiskAccessMode());
 
         /* evaluate the DiskAccessMode Config directive, which also affects indexAccessMode selection */
-        if (conf.disk_access_mode == Config.DiskAccessMode.auto)
+        if (conf.disk_access_mode == DiskAccessMode.auto)
         {
-            conf.disk_access_mode = hasLargeAddressSpace() ? Config.DiskAccessMode.mmap : Config.DiskAccessMode.standard;
+            conf.disk_access_mode = hasLargeAddressSpace() ? DiskAccessMode.mmap : DiskAccessMode.standard;
             indexAccessMode = conf.disk_access_mode;
             logger.info("DiskAccessMode 'auto' determined to be {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
         }
-        else if (conf.disk_access_mode == Config.DiskAccessMode.mmap_index_only)
+        else if (conf.disk_access_mode == DiskAccessMode.mmap_index_only)
         {
-            conf.disk_access_mode = Config.DiskAccessMode.standard;
-            indexAccessMode = Config.DiskAccessMode.mmap;
+            conf.disk_access_mode = DiskAccessMode.standard;
+            indexAccessMode = DiskAccessMode.mmap;
             logger.info("DiskAccessMode is {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
         }
-        else if (conf.disk_access_mode == Config.DiskAccessMode.direct || conf.disk_access_mode == Config.DiskAccessMode.legacy)
+        else if (conf.disk_access_mode == DiskAccessMode.direct || conf.disk_access_mode == DiskAccessMode.legacy)
         {
-            throw new ConfigurationException(String.format("DiskAccessMode '%s' and '%s' are not supported", Config.DiskAccessMode.direct, Config.DiskAccessMode.legacy));
+            throw new ConfigurationException(String.format("DiskAccessMode '%s' and '%s' are not supported", DiskAccessMode.direct, DiskAccessMode.legacy));
         }
         else
         {
@@ -1452,6 +1409,41 @@ public class DatabaseDescriptor
         }
 
         paritionerName = partitioner.getClass().getCanonicalName();
+    }
+
+    private static DiskAccessMode resolveCommitLogWriteDiskAccessMode(DiskAccessMode providedDiskAccessMode)
+    {
+        boolean compressOrEncrypt = getCommitLogCompression() != null || (getEncryptionContext() != null && getEncryptionContext().isEnabled());
+
+        if (providedDiskAccessMode == DiskAccessMode.auto)
+        {
+            if (compressOrEncrypt)
+                providedDiskAccessMode = DiskAccessMode.legacy;
+            else
+                providedDiskAccessMode = conf.disk_optimization_strategy == Config.DiskOptimizationStrategy.ssd ? DiskAccessMode.direct
+                                                                                                             : DiskAccessMode.legacy;
+        }
+
+        if (providedDiskAccessMode == DiskAccessMode.legacy)
+        {
+            providedDiskAccessMode = compressOrEncrypt ? DiskAccessMode.standard : DiskAccessMode.mmap;
+        }
+
+        return providedDiskAccessMode;
+    }
+
+    private static void validateCommitLogWriteDiskAccessMode(DiskAccessMode diskAccessMode) throws ConfigurationException
+    {
+        boolean compressOrEncrypt = getCommitLogCompression() != null || (getEncryptionContext() != null && getEncryptionContext().isEnabled());
+
+        if (compressOrEncrypt && diskAccessMode != DiskAccessMode.standard)
+        {
+            throw new ConfigurationException("commitlog_write_disk_access_mode = " + diskAccessMode + " is not supported with compression or encryption. Please use 'auto' when unsure.", false);
+        }
+        else if (!compressOrEncrypt && diskAccessMode != DiskAccessMode.mmap && diskAccessMode != DiskAccessMode.direct)
+        {
+            throw new ConfigurationException("commitlog_write_disk_access_mode = " + diskAccessMode + " is not supported. Please use 'auto' when unsure.", false);
+        }
     }
 
     private static void validateSSTableFormatFactories(Iterable<SSTableFormat.Factory> factories)
@@ -2684,14 +2676,21 @@ public class DatabaseDescriptor
     /**
      * Return commitlog disk access mode.
      */
-    public static Config.DiskAccessMode getCommitLogDiskAccessMode()
+    public static DiskAccessMode getCommitLogWriteDiskAccessMode()
     {
-        return conf.commitlog_disk_access_mode;
+        return conf.commitlog_write_disk_access_mode;
     }
 
-    public static void setCommitLogDiskAccessMode(Config.DiskAccessMode new_mode)
+    /**
+     * Resolves, validates and sets the commit log write disk access mode. Returns true if the resolved mode is different
+     * from the requested mode (i.e. the requested mode is auto or legacy).
+     */
+    public static boolean setCommitLogWriteDiskAccessMode(DiskAccessMode new_mode)
     {
-        conf.commitlog_disk_access_mode = new_mode;
+        DiskAccessMode commitLogWriteDiskAccessMode = resolveCommitLogWriteDiskAccessMode(new_mode);
+        validateCommitLogWriteDiskAccessMode(commitLogWriteDiskAccessMode);
+        conf.commitlog_write_disk_access_mode = commitLogWriteDiskAccessMode;
+        return new_mode != commitLogWriteDiskAccessMode;
     }
 
     public static String getSavedCachesLocation()
@@ -3193,26 +3192,26 @@ public class DatabaseDescriptor
         conf.commitlog_sync = sync;
     }
 
-    public static Config.DiskAccessMode getDiskAccessMode()
+    public static DiskAccessMode getDiskAccessMode()
     {
         return conf.disk_access_mode;
     }
 
     // Do not use outside unit tests.
     @VisibleForTesting
-    public static void setDiskAccessMode(Config.DiskAccessMode mode)
+    public static void setDiskAccessMode(DiskAccessMode mode)
     {
         conf.disk_access_mode = mode;
     }
 
-    public static Config.DiskAccessMode getIndexAccessMode()
+    public static DiskAccessMode getIndexAccessMode()
     {
         return indexAccessMode;
     }
 
     // Do not use outside unit tests.
     @VisibleForTesting
-    public static void setIndexAccessMode(Config.DiskAccessMode mode)
+    public static void setIndexAccessMode(DiskAccessMode mode)
     {
         indexAccessMode = mode;
     }

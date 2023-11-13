@@ -100,7 +100,7 @@ public abstract class CommitLogStressTest
         DatabaseDescriptor.setCommitLogCompression(commitLogCompression);
         DatabaseDescriptor.setEncryptionContext(encryptionContext);
         DatabaseDescriptor.setCommitLogSegmentSize(32);
-        DatabaseDescriptor.setCommitLogDiskAccessMode(accessMode);
+        DatabaseDescriptor.setCommitLogWriteDiskAccessMode(accessMode);
     }
 
     @BeforeClass
@@ -196,7 +196,7 @@ public abstract class CommitLogStressTest
     private void testLog(CommitLog commitLog) throws IOException, InterruptedException {
         System.out.format("\nTesting commit log size %.0fmb, disk mode: %s, compressor: %s, encryption enabled: %b, direct I/O enabled: %b, sync %s%s%s\n",
                            mb(DatabaseDescriptor.getCommitLogSegmentSize()),
-                           DatabaseDescriptor.getCommitLogDiskAccessMode(),
+                           DatabaseDescriptor.getCommitLogWriteDiskAccessMode(),
                            commitLog.configuration.getCompressorName(),
                            commitLog.configuration.useEncryption(),
                            commitLog.configuration.isDirectIOEnabled(),
@@ -265,7 +265,7 @@ public abstract class CommitLogStressTest
 
         if (hash == reader.hash && cells == reader.cells)
             System.out.format("Test success. disk mode = %s, compressor = %s, encryption enabled = %b, direct I/O = %b; discarded = %d, skipped = %d; IO speed(total bytes=%.2fmb, rate=%.2fmb/sec)\n",
-                              DatabaseDescriptor.getCommitLogDiskAccessMode(),
+                              DatabaseDescriptor.getCommitLogWriteDiskAccessMode(),
                               commitLog.configuration.getCompressorName(),
                               commitLog.configuration.useEncryption(),
                               commitLog.configuration.isDirectIOEnabled(),
@@ -274,7 +274,7 @@ public abstract class CommitLogStressTest
         else
         {
             System.out.format("Test failed (disk mode = %s, compressor = %s, encryption enabled = %b, direct I/O = %b). Cells %d, expected %d, diff %d; discarded = %d, skipped = %d -  hash %d expected %d.\n",
-                              DatabaseDescriptor.getCommitLogDiskAccessMode(),
+                              DatabaseDescriptor.getCommitLogWriteDiskAccessMode(),
                               commitLog.configuration.getCompressorName(),
                               commitLog.configuration.useEncryption(),
                               commitLog.configuration.isDirectIOEnabled(),

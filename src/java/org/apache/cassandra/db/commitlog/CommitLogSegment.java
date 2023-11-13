@@ -20,10 +20,14 @@ package org.apache.cassandra.db.commitlog;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
-import com.sun.nio.file.ExtendedOpenOption;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -31,22 +35,24 @@ import java.util.concurrent.locks.LockSupport;
 import java.util.zip.CRC32;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileWriter;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import com.codahale.metrics.Timer;
-import org.apache.cassandra.config.*;
+import com.sun.nio.file.ExtendedOpenOption;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.commitlog.CommitLog.Configuration;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.FileWriter;
+import org.apache.cassandra.io.util.SimpleCachedBufferPool;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.IntegerInterval;
+import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
@@ -84,9 +90,6 @@ public abstract class CommitLogSegment
         }
         replayLimitId = idBase = Math.max(currentTimeMillis(), maxId + 1);
     }
-
-    // Minimum alignement and block size required by direct I/O feature.
-    public static int minimumDirectIOAlignement = 0;
 
     // The commit log entry overhead in bytes (int: length + int: head checksum + int: tail checksum)
     public static final int ENTRY_OVERHEAD_SIZE = 4 + 4 + 4;
@@ -138,17 +141,6 @@ public abstract class CommitLogSegment
 
     public final CommitLogDescriptor descriptor;
 
-    static CommitLogSegment createSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager)
-    {
-        Configuration config = commitLog.configuration;
-        CommitLogSegment segment = config.useEncryption() ? new EncryptedSegment(commitLog, manager)
-                                                          : config.useCompression() ? new CompressedSegment(commitLog, manager)
-                                                                                    : config.isDirectIOEnabled() ? new DirectIOSegment(commitLog, manager)
-                                                                                                                 : new MemoryMappedSegment(commitLog, manager);
-        segment.writeLogHeader();
-        return segment;
-    }
-
     /**
      * Checks if the segments use a buffer pool.
      *
@@ -169,9 +161,10 @@ public abstract class CommitLogSegment
     /**
      * Constructs a new segment file.
      */
-    CommitLogSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager)
+    CommitLogSegment(AbstractCommitLogSegmentManager manager)
     {
         this.manager = manager;
+        CommitLog commitLog = manager.commitLog;
 
         id = getNextId();
         descriptor = new CommitLogDescriptor(id,
@@ -723,29 +716,6 @@ public abstract class CommitLogSegment
     }
 
     /**
-     * Direct requires minimum alignement and block size to be used for read and writes. Identify it now.
-     */
-    static public int getDirectIOMinimumAlignement(String storageDirectory, String fileName)
-    {
-        if (minimumDirectIOAlignement != 0)
-            return minimumDirectIOAlignement;
-
-        File testFile = new File(storageDirectory, fileName);
-        try
-        {
-            FileChannel channel = FileChannel.open(testFile.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE, ExtendedOpenOption.DIRECT);
-            minimumDirectIOAlignement = (int)Files.getFileStore(testFile.toPath()).getBlockSize();
-            channel.close();
-        }
-        catch (IOException e)
-        {
-            throw new FSWriteError(e, testFile);
-        }
-        FileUtils.deleteWithConfirm(testFile);
-        return minimumDirectIOAlignement;
-    }
-
-    /**
      * A simple class for tracking information about the portion of a segment that has been allocated to a log write.
      */
     protected static class Allocation
@@ -795,5 +765,19 @@ public abstract class CommitLogSegment
         {
             return new CommitLogPosition(segment.id, buffer.limit());
         }
+    }
+
+    protected abstract static class Builder<S extends CommitLogSegment>
+    {
+        protected final AbstractCommitLogSegmentManager segmentManager;
+
+        public Builder(AbstractCommitLogSegmentManager segmentManager)
+        {
+            this.segmentManager = segmentManager;
+        }
+
+        public abstract S build();
+
+        public abstract SimpleCachedBufferPool createBufferPool();
     }
 }

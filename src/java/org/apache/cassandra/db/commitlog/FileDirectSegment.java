@@ -31,9 +31,9 @@ public abstract class FileDirectSegment extends CommitLogSegment
 {
     volatile long lastWrittenPos = 0;
 
-    FileDirectSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager)
+    FileDirectSegment(AbstractCommitLogSegmentManager manager)
     {
-        super(commitLog, manager);
+        super(manager);
     }
 
     @Override
