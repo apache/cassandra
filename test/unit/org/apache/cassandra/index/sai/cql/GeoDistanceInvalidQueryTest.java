@@ -141,4 +141,33 @@ public class GeoDistanceInvalidQueryTest extends VectorTester
         assertThatThrownBy(() -> execute("UPDATE %s SET x = 100 WHERE pk = 1 IF GEO_DISTANCE(v, [1, 1]) < 1000"))
         .isInstanceOf(SyntaxException.class);
     }
+
+    @Test
+    public void geoDistanceWithANNRequiresAllSearchColumnsIndexed()
+    {
+        createTable("CREATE TABLE %s (pk int, x int, v vector<float, 2>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'euclidean'}");
+        waitForIndexQueryable();
+
+        // All of these queries fail with and without filtering
+        assertThatThrownBy(() -> execute("select pk from %s WHERE pk > 4 AND geo_distance(v,[5,5]) <= 1000000 ORDER BY v ANN of [5,5] limit 3"))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage(StatementRestrictions.ANN_REQUIRES_ALL_RESTRICTED_NON_PARTITION_KEY_COLUMNS_INDEXED_MESSAGE);
+
+        assertThatThrownBy(() -> execute("select pk from %s WHERE pk > 4 AND geo_distance(v,[5,5]) <= 1000000 ORDER BY v ANN of [5,5] limit 3 ALLOW FILTERING"))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage(StatementRestrictions.ANN_REQUIRES_ALL_RESTRICTED_NON_PARTITION_KEY_COLUMNS_INDEXED_MESSAGE);
+
+        assertThatThrownBy(() -> execute("select pk from %s WHERE x > 4 AND geo_distance(v,[5,5]) <= 1000000 ORDER BY v ANN of [5,5] limit 3"))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage(StatementRestrictions.ANN_REQUIRES_ALL_RESTRICTED_NON_PARTITION_KEY_COLUMNS_INDEXED_MESSAGE);
+
+        assertThatThrownBy(() -> execute("select pk from %s WHERE x > 4 AND geo_distance(v,[5,5]) <= 1000000 ORDER BY v ANN of [5,5] limit 3 ALLOW FILTERING"))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage(StatementRestrictions.ANN_REQUIRES_ALL_RESTRICTED_NON_PARTITION_KEY_COLUMNS_INDEXED_MESSAGE);
+
+        assertThatThrownBy(() -> execute("select pk from %s WHERE geo_distance(v,[5,5]) <= 1000000 AND v = [5,5] ORDER BY v ANN of [5,5] limit 3"))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessageContaining("v cannot be restricted by both BOUNDED_ANN and EQ");
+    }
 }

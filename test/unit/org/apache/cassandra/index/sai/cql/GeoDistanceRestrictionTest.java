@@ -195,4 +195,35 @@ public class GeoDistanceRestrictionTest extends VectorTester
         assertRowsIgnoringOrder(execute("SELECT city FROM %s WHERE GEO_DISTANCE(coordinates, [40.793018,-73.957565]) < 95"),
                                 row("Baseball Field 6"), row("Baseball Field 7"), row("Baseball Field 5"));
     }
+
+    @Test
+    public void testGeoAndANNOnSameColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, v vector<float, 2>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'euclidean'}");
+        waitForIndexQueryable();
+
+        // Distances computed using https://www.nhc.noaa.gov/gccalc.shtml
+        execute("INSERT INTO %s (pk, v) VALUES (0, [1, 2])"); // distance is 555 km from [5,5]
+        execute("INSERT INTO %s (pk, v) VALUES (1, [4, 4])"); // distance is 157 km from [5,5]
+        execute("INSERT INTO %s (pk, v) VALUES (2, [5, 5])"); // distance is 0 km from [5,5]
+        execute("INSERT INTO %s (pk, v) VALUES (3, [6, 6])"); // distance is 157 km from [5,5]
+        execute("INSERT INTO %s (pk, v) VALUES (4, [8, 9])"); // distance is 553 from [5,5]
+        execute("INSERT INTO %s (pk, v) VALUES (5, [10, 10])"); // distance is 782 km from [5,5]
+
+        beforeAndAfterFlush(() -> {
+            // GEO_DISTANCE gets all rows and then the limit gets the top 3
+            assertRows(execute("select pk from %s WHERE geo_distance(v,[5,5]) <= 1000000 ORDER BY v ANN of [5,5] limit 3"),
+                                    row(2), row(1), row(3));
+        });
+
+        // Delete a row
+        execute("DELETE FROM %s WHERE pk = 2");
+
+        beforeAndAfterFlush(() -> {
+            // GEO_DISTANCE gets all rows and then the limit gets the top 3
+            assertRows(execute("select pk from %s WHERE geo_distance(v,[5,5]) <= 1000000 ORDER BY v ANN of [5,5] limit 3"),
+                       row(1), row(3), row(4));
+        });
+    }
 }
