@@ -386,7 +386,7 @@ public class Config
     public ParameterizedClass commitlog_compression;
     public FlushCompression flush_compression = FlushCompression.fast;
     public int commitlog_max_compression_buffers_in_pool = 3;
-    public DiskAccessMode commitlog_write_disk_access_mode = DiskAccessMode.legacy;
+    public DiskAccessMode commitlog_disk_access_mode = DiskAccessMode.legacy;
     @Replaces(oldName = "periodic_commitlog_sync_lag_block_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
     public DurationSpec.IntMillisecondsBound periodic_commitlog_sync_lag_block;
     public TransparentDataEncryptionOptions transparent_data_encryption_options = new TransparentDataEncryptionOptions();

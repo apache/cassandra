@@ -21,7 +21,10 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 
+import net.openhft.chronicle.core.util.ThrowingFunction;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.BufferType;
@@ -37,19 +40,24 @@ import org.apache.cassandra.utils.SyncUtil;
  */
 public class MemoryMappedSegment extends CommitLogSegment
 {
+    private final int fd;
+
     /**
      * Constructs a new segment file.
      */
-    MemoryMappedSegment(AbstractCommitLogSegmentManager manager)
+    MemoryMappedSegment(AbstractCommitLogSegmentManager manager, ThrowingFunction<Path, FileChannel, IOException> channelFactory)
     {
-        super(manager);
+        super(manager, channelFactory);
         // mark the initial sync marker as uninitialised
         int firstSync = buffer.position();
         buffer.putInt(firstSync + 0, 0);
         buffer.putInt(firstSync + 4, 0);
+
+        fd = NativeLibrary.getfd(channel);
     }
 
-    ByteBuffer createBuffer(CommitLog commitLog)
+    @Override
+    protected ByteBuffer createBuffer()
     {
         try
         {
@@ -116,7 +124,8 @@ public class MemoryMappedSegment extends CommitLogSegment
         @Override
         public MemoryMappedSegment build()
         {
-            return new MemoryMappedSegment(segmentManager);
+            return new MemoryMappedSegment(segmentManager,
+                                           path ->  FileChannel.open(path, StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE));
         }
 
         @Override

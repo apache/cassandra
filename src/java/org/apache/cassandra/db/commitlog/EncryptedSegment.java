@@ -19,12 +19,16 @@ package org.apache.cassandra.db.commitlog;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Map;
 import javax.crypto.Cipher;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import net.openhft.chronicle.core.util.ThrowingFunction;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.BufferType;
@@ -65,9 +69,9 @@ public class EncryptedSegment extends FileDirectSegment
     private final EncryptionContext encryptionContext;
     private final Cipher cipher;
 
-    public EncryptedSegment(AbstractCommitLogSegmentManager manager)
+    public EncryptedSegment(AbstractCommitLogSegmentManager manager, ThrowingFunction<Path, FileChannel, IOException> channelFactory)
     {
-        super(manager);
+        super(manager, channelFactory);
         this.encryptionContext = manager.commitLog.configuration.getEncryptionContext();
 
         try
@@ -86,13 +90,6 @@ public class EncryptedSegment extends FileDirectSegment
         Map<String, String> map = encryptionContext.toHeaderParameters();
         map.put(EncryptionContext.ENCRYPTION_IV, Hex.bytesToHex(cipher.getIV()));
         return map;
-    }
-
-    ByteBuffer createBuffer(CommitLog commitLog)
-    {
-        // Note: we want to keep the compression buffers on-heap as we need those bytes for encryption,
-        // and we want to avoid copying from off-heap (compression buffer) to on-heap encryption APIs
-        return manager.getBufferPool().createBuffer();
     }
 
     void write(int startMarker, int nextMarker)
@@ -164,7 +161,8 @@ public class EncryptedSegment extends FileDirectSegment
         @Override
         public EncryptedSegment build()
         {
-            return new EncryptedSegment(segmentManager);
+            return new EncryptedSegment(segmentManager,
+                                        path ->  FileChannel.open(path, StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE));
         }
 
         @Override

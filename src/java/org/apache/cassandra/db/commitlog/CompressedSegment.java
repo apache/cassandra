@@ -17,8 +17,13 @@
  */
 package org.apache.cassandra.db.commitlog;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 
+import net.openhft.chronicle.core.util.ThrowingFunction;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.ICompressor;
@@ -43,15 +48,10 @@ public class CompressedSegment extends FileDirectSegment
     /**
      * Constructs a new segment file.
      */
-    CompressedSegment(AbstractCommitLogSegmentManager manager)
+    CompressedSegment(AbstractCommitLogSegmentManager manager, ThrowingFunction<Path, FileChannel, IOException> channelFactory)
     {
-        super(manager);
+        super(manager, channelFactory);
         this.compressor = manager.commitLog.configuration.getCompressor();
-    }
-
-    ByteBuffer createBuffer(CommitLog commitLog)
-    {
-        return manager.getBufferPool().createBuffer();
     }
 
     @Override
@@ -105,7 +105,8 @@ public class CompressedSegment extends FileDirectSegment
         @Override
         public CompressedSegment build()
         {
-            return new CompressedSegment(segmentManager);
+            return new CompressedSegment(segmentManager,
+                                         path -> FileChannel.open(path, StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE));
         }
 
         @Override

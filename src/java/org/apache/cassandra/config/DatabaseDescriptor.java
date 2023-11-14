@@ -28,7 +28,19 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.file.FileStore;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.OptionalDouble;
+import java.util.ServiceLoader;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -45,7 +57,6 @@ import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
-import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -62,6 +73,7 @@ import org.apache.cassandra.auth.IInternodeAuthenticator;
 import org.apache.cassandra.auth.INetworkAuthorizer;
 import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.Config.CommitLogSync;
+import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.Config.PaxosOnLinearizabilityViolation;
 import org.apache.cassandra.config.Config.PaxosStatePurging;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -500,8 +512,8 @@ public class DatabaseDescriptor
             logger.debug("Syncing log with a period of {}", conf.commitlog_sync_period.toString());
         }
 
-        if (setCommitLogWriteDiskAccessMode(conf.commitlog_write_disk_access_mode))
-            logger.info("commitlog_write_disk_access_mode resolved to: {}", getCommitLogWriteDiskAccessMode());
+        if (setCommitLogWriteDiskAccessMode(conf.commitlog_disk_access_mode))
+            logger.info("commitlog_disk_access_mode resolved to: {}", getCommitLogWriteDiskAccessMode());
 
         /* evaluate the DiskAccessMode Config directive, which also affects indexAccessMode selection */
         if (conf.disk_access_mode == DiskAccessMode.auto)
@@ -1438,11 +1450,11 @@ public class DatabaseDescriptor
 
         if (compressOrEncrypt && diskAccessMode != DiskAccessMode.standard)
         {
-            throw new ConfigurationException("commitlog_write_disk_access_mode = " + diskAccessMode + " is not supported with compression or encryption. Please use 'auto' when unsure.", false);
+            throw new ConfigurationException("commitlog_disk_access_mode = " + diskAccessMode + " is not supported with compression or encryption. Please use 'auto' when unsure.", false);
         }
         else if (!compressOrEncrypt && diskAccessMode != DiskAccessMode.mmap && diskAccessMode != DiskAccessMode.direct)
         {
-            throw new ConfigurationException("commitlog_write_disk_access_mode = " + diskAccessMode + " is not supported. Please use 'auto' when unsure.", false);
+            throw new ConfigurationException("commitlog_disk_access_mode = " + diskAccessMode + " is not supported. Please use 'auto' when unsure.", false);
         }
     }
 
@@ -2678,7 +2690,7 @@ public class DatabaseDescriptor
      */
     public static DiskAccessMode getCommitLogWriteDiskAccessMode()
     {
-        return conf.commitlog_write_disk_access_mode;
+        return conf.commitlog_disk_access_mode;
     }
 
     /**
@@ -2689,7 +2701,7 @@ public class DatabaseDescriptor
     {
         DiskAccessMode commitLogWriteDiskAccessMode = resolveCommitLogWriteDiskAccessMode(new_mode);
         validateCommitLogWriteDiskAccessMode(commitLogWriteDiskAccessMode);
-        conf.commitlog_write_disk_access_mode = commitLogWriteDiskAccessMode;
+        conf.commitlog_disk_access_mode = commitLogWriteDiskAccessMode;
         return new_mode != commitLogWriteDiskAccessMode;
     }
 
