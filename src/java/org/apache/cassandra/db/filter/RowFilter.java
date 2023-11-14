@@ -1143,8 +1143,6 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             this.distanceOperator = operator;
             this.distance = distance;
             searchRadiusMeters = FloatType.instance.compose(distance);
-            if (searchRadiusMeters <= 0)
-                throw new InvalidRequestException("GEO_DISTANCE radius must be non-negative, got " + searchRadiusMeters);
             searchRadiusDegreesSquared = GeoUtil.maximumSquareDistanceForCorrectLatLongSimilarity(searchRadiusMeters);
             var pointVector = TypeUtil.decomposeVector(column.type, point);
             // This is validated earlier in the parser because the column requires size 2, so only assert on it
@@ -1169,6 +1167,14 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         {
             checkBindValueSet(distance, "Unsupported unset distance for column %s", column.name);
             checkBindValueSet(value, "Unsupported unset vector value for column %s", column.name);
+
+            if (searchRadiusMeters <= 0)
+                throw new InvalidRequestException("GEO_DISTANCE radius must be non-negative, got " + searchRadiusMeters);
+
+            if (searchLat < -90 || searchLat > 90)
+                throw new InvalidRequestException("GEO_DISTANCE latitude must be between -90 and 90 degrees, got " + searchLat);
+            if (searchLon < -180 || searchLon > 180)
+                throw new InvalidRequestException("GEO_DISTANCE longitude must be between -180 and 180 degrees, got " + searchLon);
         }
 
         @Override

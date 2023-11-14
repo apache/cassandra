@@ -87,6 +87,30 @@ public class GeoDistanceInvalidQueryTest extends VectorTester
     }
 
     @Test
+    public void geoDistanceRequiresValidLatLonPositions() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, v vector<float, 2>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'euclidean'}");
+        waitForIndexQueryable();
+
+        assertThatThrownBy(() -> execute("SELECT pk FROM %s WHERE GEO_DISTANCE(v, [-90.1, 1]) < 100"))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage("GEO_DISTANCE latitude must be between -90 and 90 degrees, got -90.1");
+
+        assertThatThrownBy(() -> execute("SELECT pk FROM %s WHERE GEO_DISTANCE(v, [90.1, 0]) < 100"))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage("GEO_DISTANCE latitude must be between -90 and 90 degrees, got 90.1");
+
+        assertThatThrownBy(() -> execute("SELECT pk FROM %s WHERE GEO_DISTANCE(v, [0, 180.1]) < 100"))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage("GEO_DISTANCE longitude must be between -180 and 180 degrees, got 180.1");
+
+        assertThatThrownBy(() -> execute("SELECT pk FROM %s WHERE GEO_DISTANCE(v, [0, -180.1]) < 100"))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage("GEO_DISTANCE longitude must be between -180 and 180 degrees, got -180.1");
+    }
+
+    @Test
     public void geoDistanceMissingOrIncorrectlyConfiguredIndex() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, x int, v vector<float, 2>, PRIMARY KEY(pk))");
