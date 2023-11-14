@@ -476,7 +476,7 @@ public class LegacySSTableTest
     {
         // Only perform test if format uses cache.
         SSTableReader sstable = Iterables.getFirst(Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion)).getLiveSSTables(), null);
-        if (!(sstable instanceof KeyCacheSupport))
+        if (!(sstable instanceof KeyCacheSupport) || DatabaseDescriptor.getKeyCacheSizeInMiB() == 0)
             return;
 
         //For https://issues.apache.org/jira/browse/CASSANDRA-10778

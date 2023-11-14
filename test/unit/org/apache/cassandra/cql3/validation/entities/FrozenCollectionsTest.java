@@ -27,6 +27,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.db.marshal.*;
@@ -831,6 +832,7 @@ public class FrozenCollectionsTest extends CQLTester
     @Test
     public void testSecondaryIndex() throws Throwable
     {
+        Util.assumeLegacySecondaryIndex();
         createTable("CREATE TABLE %s (a frozen<map<int, text>> PRIMARY KEY, b frozen<map<int, text>>)");
 
         // for now, we don't support indexing values or keys of collections in the primary key
@@ -996,6 +998,7 @@ public class FrozenCollectionsTest extends CQLTester
     @Test
     public void testClusteringColumnFiltering() throws Throwable
     {
+        Util.assumeLegacySecondaryIndex();
         createTable("CREATE TABLE %s (a int, b frozen<map<int, int>>, c int, d int, PRIMARY KEY (a, b, c))");
         createIndex("CREATE INDEX c_index ON %s (c)");
         createIndex("CREATE INDEX d_index ON %s (d)");

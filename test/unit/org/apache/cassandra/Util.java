@@ -55,6 +55,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import org.apache.commons.lang3.StringUtils;
+import org.junit.Assume;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -110,6 +111,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.SSTableLoader;
@@ -657,6 +659,12 @@ public class Util
     public static PartitionerSwitcher switchPartitioner(IPartitioner p)
     {
         return new PartitionerSwitcher(p);
+    }
+
+    public static void assumeLegacySecondaryIndex()
+    {
+        Assume.assumeTrue("Test only valid for legacy secondary index",
+                          DatabaseDescriptor.getDefaultSecondaryIndex().equals(CassandraIndex.NAME));
     }
 
     public static class PartitionerSwitcher implements AutoCloseable

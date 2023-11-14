@@ -268,9 +268,10 @@ public class Controller
         if (minSSTableSize > 0)
         {
             double count = localDensity / minSSTableSize;
-            // Minimum size only applies if it is smaller than the base count.
+            // Minimum size only applies if the base count would result in smaller sstables.
+            // We also want to use the min size if we don't yet know the flush size (density is NaN).
             // Note: the minimum size cannot be larger than the target size's minimum.
-            if (count < baseShardCount)
+            if (!(count >= baseShardCount)) // also true for count == NaN
             {
                 // Make it a power of two, rounding down so that sstables are greater in size than the min.
                 // Setting the bottom bit to 1 ensures the result is at least 1.

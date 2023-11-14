@@ -217,8 +217,8 @@ _main() {
     "test-system-keyspace-directory")
       _run_testlist "unit" "testclasslist-system-keyspace-directory" "${split_chunk}" "$(_timeout_for 'test.timeout')"
       ;;
-    "test-trie")
-      _run_testlist "unit" "testclasslist-trie" "${split_chunk}" "$(_timeout_for 'test.timeout')"
+    "test-latest")
+      _run_testlist "unit" "testclasslist-latest" "${split_chunk}" "$(_timeout_for 'test.timeout')"
       ;;
     "test-burn")
       _run_testlist "burn" "testclasslist" "${split_chunk}" "$(_timeout_for 'test.burn.timeout')"

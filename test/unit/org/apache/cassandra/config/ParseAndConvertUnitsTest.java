@@ -104,7 +104,8 @@ public class ParseAndConvertUnitsTest
         assertNull(config.file_cache_size);
         assertNull(config.index_summary_capacity);
         assertEquals(new DataStorageSpec.LongMebibytesBound(1), config.prepared_statements_cache_size);
-        assertNull(config.key_cache_size);
+        if (config.key_cache_size != null)  // null in default test config, 0 in latest test config (CASSANDRA-18753)
+            assertEquals(new DataStorageSpec.IntMebibytesBound(0), config.key_cache_size);
         assertEquals(new DataStorageSpec.LongMebibytesBound(16), config.row_cache_size);
         assertNull(config.native_transport_max_request_data_in_flight);
         assertNull(config.native_transport_max_request_data_in_flight_per_ip);

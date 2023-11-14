@@ -34,6 +34,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.CompactionParams;
@@ -447,12 +448,12 @@ public class DescribeStatementTest extends CQLTester
         {
             assertRowsNet(executeDescribeNet(describeKeyword + " CLUSTER"),
                           row("Test Cluster",
-                              "ByteOrderedPartitioner",
+                              trimIfPresent(DatabaseDescriptor.getPartitionerName(), "org.apache.cassandra.dht."),
                               DatabaseDescriptor.getEndpointSnitch().getClass().getName()));
 
             assertRowsNet(executeDescribeNet("system_virtual_schema", describeKeyword + " CLUSTER"),
                           row("Test Cluster",
-                              "ByteOrderedPartitioner",
+                              trimIfPresent(DatabaseDescriptor.getPartitionerName(), "org.apache.cassandra.dht."),
                               DatabaseDescriptor.getEndpointSnitch().getClass().getName()));
         }
 
@@ -462,9 +463,16 @@ public class DescribeStatementTest extends CQLTester
 
         assertRowsNet(executeDescribeNet(KEYSPACE_PER_TEST, "DESCRIBE CLUSTER"),
                       row("Test Cluster",
-                          "ByteOrderedPartitioner",
+                          trimIfPresent(DatabaseDescriptor.getPartitionerName(), "org.apache.cassandra.dht."),
                           DatabaseDescriptor.getEndpointSnitch().getClass().getName(),
                           ImmutableMap.of(token.toString(), ImmutableList.of(addressAndPort.toString()))));
+    }
+
+    private String trimIfPresent(String src, String begin)
+    {
+        if (src.startsWith(begin))
+            return src.substring(begin.length());
+        return src;
     }
 
     @Test
@@ -1005,7 +1013,11 @@ public class DescribeStatementTest extends CQLTester
 
     private static String indexOutput(String index, String table, String col)
     {
-        return format("CREATE INDEX %s ON %s.%s (%s);", index, "test", table, col);
+        if (DatabaseDescriptor.getDefaultSecondaryIndex() == CassandraIndex.NAME)
+            return format("CREATE INDEX %s ON %s.%s (%s);", index, "test", table, col);
+        else
+            return format("CREATE CUSTOM INDEX %s ON %s.%s (%s) USING '%s';",
+                          index, "test", table, col, DatabaseDescriptor.getDefaultSecondaryIndex());
     }
 
     private static String usersMvTableOutput()
