@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import io.github.jbellis.jvector.util.Bits;
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
@@ -128,7 +129,10 @@ public class CassandraOnDiskHnsw extends JVectorLuceneOnDiskGraph
     @Override
     public VectorPostingList search(float[] queryVector, int topK, float threshold, int limit, Bits bits, QueryContext context)
     {
-        throw new UnsupportedOperationException();
+        if (threshold > 0)
+            throw new InvalidRequestException("Geo queries are not supported for legacy SAI indexes -- drop the index and recreate it to enable these");
+
+        return search(queryVector, topK, limit, bits, context);
     }
 
     private class RowIdIterator implements PrimitiveIterator.OfInt, AutoCloseable
