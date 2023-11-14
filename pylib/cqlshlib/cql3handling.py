@@ -104,6 +104,19 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         'timestamp_resolution'
     )
 
+    unified_compaction_strategy_options = (
+        'scaling_parameters',
+        'min_sstable_size',
+        'flush_size_override',
+        'base_shard_count',
+        'target_sstable_size',
+        'sstable_growth',
+        'max_sstables_to_compact',
+        'expired_sstable_check_frequency_seconds',
+        'unsafe_aggressive_sstable_expiration',
+        'overlap_inclusion_method'
+    )
+
     @classmethod
     def escape_value(cls, value):
         if value is None:
@@ -552,6 +565,8 @@ def cf_prop_val_mapkey_completer(ctxt, cass):
             opts = opts.union(set(CqlRuleSet.leveled_compaction_strategy_options))
         elif csc == 'TimeWindowCompactionStrategy':
             opts = opts.union(set(CqlRuleSet.time_window_compaction_strategy_options))
+        elif csc == 'UnifiedCompactionStrategy':
+            opts = opts.union(set(CqlRuleSet.unified_compaction_strategy_options))
 
         return list(map(escape_value, opts))
     return ()
