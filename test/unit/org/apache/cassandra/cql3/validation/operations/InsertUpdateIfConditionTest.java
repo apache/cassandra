@@ -459,7 +459,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
     @Test
     public void testDropCreateIndexIfNotExists()
     {
-        String tableName = createTable("CREATE TABLE %s (id text PRIMARY KEY, value1 blob, value2 blob)with comment = 'foo'");
+        String tableName = createTable("CREATE TABLE %s (id text PRIMARY KEY, value1 text, value2 blob)with comment = 'foo'");
 
         // try dropping when doesn't exist
         schemaChange(format("DROP INDEX IF EXISTS %s.myindex", KEYSPACE));

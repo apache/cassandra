@@ -31,6 +31,7 @@ import com.google.common.base.StandardSystemProperty;
 import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.InvalidQueryException;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.tools.ToolRunner;
@@ -145,6 +146,7 @@ public class InsertInvalidateSizedRecordsTest extends CQLTester
     @Test
     public void singleValueIndex()
     {
+        Util.assumeLegacySecondaryIndex();
         createTable(KEYSPACE, "CREATE TABLE %s (a blob, b blob, PRIMARY KEY (a))");
         String table = KEYSPACE + "." + currentTable();
         execute("CREATE INDEX single_value_index ON %s (b)");
