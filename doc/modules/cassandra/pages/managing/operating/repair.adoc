@@ -62,13 +62,9 @@ Or even on specific tables:
 nodetool repair [options] <keyspace_name> <table1> <table2>
 ----
 
-The repair command only repairs token ranges on the node being repaired,
-it doesn't repair the whole cluster. By default, repair will operate on
-all token ranges replicated by the node you're running repair on, which
-will cause duplicate work if you run it on every node. The `-pr` flag
-will only repair the "primary" ranges on a node, so you can repair your
-entire cluster by running `nodetool repair -pr` on each node in a single
-datacenter.
+The repair command repairs token ranges only on the node being repaired;
+it does not repair the whole cluster. By default, repair operates on
+all token ranges replicated by the node on which repair is run, causing duplicate work when running it on every node. Avoid duplicate work by using the `-pr` flag to repair only the "primary" ranges on a node. Do a full cluster repair by running the `nodetool repair -pr` command on each node in each datacenter in the cluster, until all of the nodes and datacenters are repaired. 
 
 The specific frequency of repair that's right for your cluster, of
 course, depends on several factors. However, if you're just starting out
