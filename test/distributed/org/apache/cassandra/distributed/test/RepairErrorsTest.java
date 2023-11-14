@@ -92,8 +92,7 @@ public class RepairErrorsTest extends TestBaseImpl
         try (Cluster cluster = init(Cluster.build(3)
                                            .withConfig(config -> config.with(GOSSIP)
                                                                        .with(NETWORK)
-                                                                       .set("disk_failure_policy", "stop")
-                                                                       .set("disk_access_mode", "mmap_index_only"))
+                                                                       .set("disk_failure_policy", "stop"))
                                            .withInstanceInitializer(ByteBuddyHelper::installStreamPlanExecutionFailure).start()))
         {
             cluster.schemaChange("create table " + KEYSPACE + ".tbl (id int primary key, x int)");
@@ -141,8 +140,7 @@ public class RepairErrorsTest extends TestBaseImpl
     {
         try (Cluster cluster = init(Cluster.build(3)
                                            .withConfig(config -> config.with(GOSSIP, NETWORK)
-                                                                       .set("disk_failure_policy", "stop")
-                                                                       .set("disk_access_mode", "mmap_index_only"))
+                                                                       .set("disk_failure_policy", "stop"))
                                            .withInstanceInitializer(ByteBuddyHelperStreamFailure::installStreamHandlingFailure).start()))
         {
             // Make sure we don't auto-compact the peers table. We'll need to try it manually later.
