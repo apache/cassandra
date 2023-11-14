@@ -478,6 +478,61 @@ public class VectorUpdateDeleteTest extends VectorTester
     }
 
     @Test
+    public void shadowedPrimaryKeyWithSharedVector()
+    {
+        // FIXME this fails due to shadowed key logic not accounting for multiple rows with the same vector
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, str_val text, val vector<float, 3>)");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+        disableCompaction(KEYSPACE);
+
+        // flush a sstable with one vector that is shared by two rows
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [1.0, 2.0, 3.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'B', [1.0, 2.0, 3.0])");
+        flush();
+
+        // flush another sstable to shadow the vector row
+        execute("DELETE FROM %s where pk = 0");
+        flush();
+
+        // flush another sstable with one new vector row
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', [2.0, 3.0, 4.0])");
+        flush();
+
+        // the shadow vector has the highest score
+        var result = execute("SELECT * FROM %s ORDER BY val ann of [1.0, 2.0, 3.0] LIMIT 2");
+        assertThat(result).hasSize(2);
+    }
+
+    @Test
+    public void shadowedPrimaryKeyWithSharedVectorAndOtherPredicates() throws Throwable
+    {
+        setMaxBruteForceRows(0);
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, str_val text, val vector<float, 3>)");
+        createIndex("CREATE CUSTOM INDEX ON %s(str_val) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+        disableCompaction(KEYSPACE);
+
+        // flush a sstable with one vector that is shared by two rows
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [1.0, 2.0, 3.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'A', [1.0, 2.0, 3.0])");
+        flush();
+
+        // flush another sstable to shadow the vector row
+        execute("DELETE FROM %s where pk = 0");
+        flush();
+
+        // flush another sstable with one new vector row
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'A', [2.0, 3.0, 4.0])");
+        flush();
+
+        // the shadow vector has the highest score
+        var result = execute("SELECT * FROM %s WHERE str_val = 'A' ORDER BY val ann of [1.0, 2.0, 3.0] LIMIT 2");
+        assertThat(result).hasSize(2);
+    }
+
+    @Test
     public void testVectorRowWhereUpdateMakesRowMatchNonOrderingPredicates()
     {
         createTable(KEYSPACE, "CREATE TABLE %s (pk int, val text, vec vector<float, 2>, PRIMARY KEY(pk))");

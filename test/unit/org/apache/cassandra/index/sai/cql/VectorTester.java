@@ -51,6 +51,11 @@ public class VectorTester extends SAITester
         // override maxBruteForceRows to a random number between 0 and 4 so that we make sure
         // the non-brute-force path gets called during tests (which mostly involve small numbers of rows)
         var n = getRandom().nextIntBetween(0, 4);
+        setMaxBruteForceRows(n);
+    }
+
+    static void setMaxBruteForceRows(int n) throws Throwable
+    {
         var limitToTopResults = InvokePointBuilder.newInvokePoint()
                                                   .onClass("org.apache.cassandra.index.sai.disk.v2.V2VectorIndexSearcher")
                                                   .onMethod("limitToTopResults")
