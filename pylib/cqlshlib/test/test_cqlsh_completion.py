@@ -702,7 +702,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             + "{'class': '",
                             choices=['SizeTieredCompactionStrategy',
                                      'LeveledCompactionStrategy',
-                                     'TimeWindowCompactionStrategy'])
+                                     'TimeWindowCompactionStrategy',
+                                     'UnifiedCompactionStrategy'])
         self.trycompletions(prefix + " new_table (col_a int PRIMARY KEY) WITH compaction = "
                             + "{'class': 'S",
                             immediate="izeTieredCompactionStrategy'")
@@ -747,6 +748,16 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'tombstone_compaction_interval', 'tombstone_threshold',
                                      'enabled', 'unchecked_tombstone_compaction',
                                      'only_purge_repaired_tombstones', 'provide_overlapping_tombstones'])
+        self.trycompletions(prefix + " new_table (col_a int PRIMARY KEY) WITH compaction = "
+                            + "{'class': 'UnifiedCompactionStrategy', '",
+                            choices=['scaling_parameters', 'min_sstable_size',
+                                     'flush_size_override', 'base_shard_count', 'class', 'target_sstable_size',
+                                     'sstable_growth', 'max_sstables_to_compact',
+                                     'enabled', 'expired_sstable_check_frequency_seconds',
+                                     'unsafe_aggressive_sstable_expiration', 'overlap_inclusion_method',
+                                     'tombstone_threshold', 'tombstone_compaction_interval',
+                                     'unchecked_tombstone_compaction', 'provide_overlapping_tombstones',
+                                     'max_threshold', 'only_purge_repaired_tombstones'])
 
     def test_complete_in_create_columnfamily(self):
         self.trycompletions('CREATE C', choices=['COLUMNFAMILY', 'CUSTOM'])
