@@ -169,7 +169,7 @@ Running other types of tests with docker:
     .build/docker/run-tests.sh test-compression
     .build/docker/run-tests.sh test-oa
     .build/docker/run-tests.sh test-system-keyspace-directory
-    .build/docker/run-tests.sh test-tries
+    .build/docker/run-tests.sh test-latest
     .build/docker/run-tests.sh test-burn
     .build/docker/run-tests.sh long-test
     .build/docker/run-tests.sh cqlsh-test

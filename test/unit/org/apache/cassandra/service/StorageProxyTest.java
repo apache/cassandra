@@ -56,6 +56,7 @@ public class StorageProxyTest
     @Test
     public void testSetGetPaxosVariant()
     {
+        StorageProxy.instance.setPaxosVariant("v1"); // test-latest uses v2 as default, ensure we are starting with a known state
         Assert.assertEquals(Config.PaxosVariant.v1, DatabaseDescriptor.getPaxosVariant());
         Assert.assertEquals("v1", StorageProxy.instance.getPaxosVariant());
         StorageProxy.instance.setPaxosVariant("v2");

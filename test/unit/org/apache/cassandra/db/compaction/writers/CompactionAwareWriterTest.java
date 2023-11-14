@@ -67,7 +67,8 @@ public class CompactionAwareWriterTest extends CQLTester
     {
         // Disabling durable write since we don't care
         schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'} AND durable_writes=false");
-        schemaChange(String.format("CREATE TABLE %s.%s (k int, t int, v blob, PRIMARY KEY (k, t))", KEYSPACE, TABLE));
+        schemaChange(String.format("CREATE TABLE %s.%s (k int, t int, v blob, PRIMARY KEY (k, t)) WITH compaction = {'class': 'SizeTieredCompactionStrategy'}", KEYSPACE, TABLE));
+        // The compaction specification above is to avoid failures caused by UCS splitting large files.
     }
 
     @AfterClass

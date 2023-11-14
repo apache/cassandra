@@ -21,6 +21,7 @@ import org.junit.Test;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -785,6 +786,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     @Test
     public void testMultipleClusteringWithIndex() throws Throwable
     {
+        Util.assumeLegacySecondaryIndex();
         createTable("CREATE TABLE %s (a int, b int, c int, d int, e int, PRIMARY KEY (a, b, c, d))");
         createIndex("CREATE INDEX ON %s (b)");
         createIndex("CREATE INDEX ON %s (e)");
@@ -864,6 +866,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     @Test
     public void testMultipleClusteringWithIndexAndValueOver64K() throws Throwable
     {
+        Util.assumeLegacySecondaryIndex();
         createTable("CREATE TABLE %s (a int, b blob, c int, d int, PRIMARY KEY (a, b, c))");
         createIndex("CREATE INDEX ON %s (b)");
 
@@ -904,6 +907,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     @Test
     public void testMultiplePartitionKeyAndMultiClusteringWithIndex() throws Throwable
     {
+        Util.assumeLegacySecondaryIndex();
         createTable("CREATE TABLE %s (a int, b int, c int, d int, e int, f int, PRIMARY KEY ((a, b), c, d, e))");
         createIndex("CREATE INDEX ON %s (c)");
         createIndex("CREATE INDEX ON %s (f)");
