@@ -14,11 +14,11 @@ The examples in this quickstart topic show SAI indexes with non-partition key co
 
 == Create a keyspace
 
-In `cqlsh`, define the `cycling` xref:reference/cql-commands/create-keyspace.adoc[keyspace] to try the commands in a test environment:
+In `cqlsh`, define the `cycling` keyspace to try the commands in a test environment:
 
 [source,language-cql]
 ----
-include::cassandra:example$CQL/0_create_keyspace.cql[tag=cyclingks]
+include::cassandra:example$CQL/vector-search/vector-search-cycling.cql[tag=create-vs-keyspace-cycling]
 ----
 
 == Create a database table
@@ -27,7 +27,7 @@ Using `cqlsh` or the CQL Console, create a `cyclist_semi_pro` database xref:refe
 
 [source,language-cql]
 ----
-include::cassandra:example$CQL/cyclist_semi_pro-table.cql[tag=createCyclistSemiProTable]
+include::cassandra:example$CQL/sai/cyclist_semi_pro-table.cql[tag=createCyclistSemiProTable]
 ----
 
 == Create SAI indexes on the database table
@@ -37,7 +37,7 @@ Use xref:reference:cql-commands/create-custom-index.adoc[CREATE CUSTOM INDEX] co
 
 [source,language-cql]
 ----
-include::cassandra:example$CQL/cyclist_semi_pro_sai_indices.cql[tag=createQuickStartIndices]
+include::cassandra:example$CQL/sai/cyclist_semi_pro_sai_indices.cql[tag=createQuickStartIndices]
 ----
 
 Let's take a look at the description of the table and its indexes:
@@ -57,7 +57,7 @@ Result::
 --
 [source,language-cql]
 ----
-include::cassandra:example$CQL/cyclist_semi_pro_describe.results[tag=cyclistSemiProDescribeResults]
+include::cassandra:example$RESULTS/sai/cyclist_semi_pro_describe.result[tag=cyclistSemiProDescribeResults]
 ----
 --
 ====
@@ -68,7 +68,7 @@ Use CQLSH `INSERT` commands to add some data to the `cyclist_semi_pro` database 
 
 [source,language-cql]
 ----
-include::cassandra:example$CQL/cyclist_semi_pro_inserts.cql[tag=createQuickStartIndices]
+include::cassandra:example$CQL/sai/cyclist_semi_pro_inserts.cql[tag=createQuickStartIndices]
 ----
 
 Adding data in this quickstart topic shows simple `INSERT` commands.
@@ -94,7 +94,7 @@ Query::
 --
 [source,language-cql]
 ----
-include::cassandra:example$CQL/cyclist_semi_pro_select_specific_rider.cql[tag=cyclistSelectSpecificRider]
+include::cassandra:example$CQL/sai/cyclist_semi_pro_select_specific_rider.cql[tag=cyclistSelectSpecificRider]
 ----
 --
 
@@ -103,7 +103,7 @@ Result::
 --
 [source, console]
 ----
-include::cassandra:example$CQL/cyclist_semi_pro_select_specific_rider.results[tag=cyclistSelectSpecificRiderResults]
+include::cassandra:example$RESULTS/sai/cyclist_semi_pro_select_specific_rider.result[tag=cyclistSelectSpecificRiderResults]
 ----
 --
 ====
@@ -117,7 +117,7 @@ Query::
 --
 [source,language-cql]
 ----
-include::cassandra:example$CQL/cyclist_semi_pro_select_age.cql[tag=cyclistSelectAge]
+include::cassandra:example$CQL/sai/cyclist_semi_pro_select_age.cql[tag=cyclistSelectAge]
 ----
 --
 
@@ -126,7 +126,7 @@ Result::
 --
 [source,console]
 ----
-include::cassandra:example$CQL/cyclist_semi_pro_select_age.results[tag=cyclistSelectAgeResults]
+include::cassandra:example$RESULTS/sai/cyclist_semi_pro_select_age.result[tag=cyclistSelectAgeResults]
 ----
 --
 ====
@@ -140,7 +140,7 @@ Query::
 --
 [source,language-cql]
 ----
-include::cassandra:example$CQL/cyclist_semi_pro_select_country.cql[tag=cyclistSelectCountry]
+include::cassandra:example$CQL/sai/cyclist_semi_pro_select_country.cql[tag=cyclistSelectCountry]
 ----
 --
 
@@ -149,7 +149,7 @@ Result::
 --
 [source,console]
 ----
-include::cassandra:example$CQL/cyclist_semi_pro_select_country.results[tag=cyclistSelectCountryResults]
+include::cassandra:example$RESULTS/sai/cyclist_semi_pro_select_country.result[tag=cyclistSelectCountryResults]
 ----
 --
 ====
@@ -163,7 +163,7 @@ Query::
 --
 [source,language-cql]
 ----
-include::cassandra:example$CQL/cyclist_semi_pro_select_date_range.cql[tag=cyclistSelectDateRange]
+include::cassandra:example$CQL/sai/cyclist_semi_pro_select_date_range.cql[tag=cyclistSelectDateRange]
 ----
 --
 
@@ -172,14 +172,14 @@ Result::
 --
 [source,results]
 ----
-include::cassandra:example$CQL/cyclist_semi_pro_select_date_range.results[tag=cyclistSelectDateRangeResults]
+include::cassandra:example$RESULTS/sai/cyclist_semi_pro_select_date_range.result[tag=cyclistSelectDateRangeResults]
 ----
 --
 ====
 
 [TIP]
 ====
-For query examples with `CONTAINS` clauses that take advantage of SAI collection maps, lists, and sets, be sure to see xref:developing/cql/indexing/sai/collections.adoc#saiUsingCollectionsMapExamples[SAI collection map examples with keys, values, and entries] and xref:developing/cql/indexing/sai/collections.adoc#saiUsingCollectionsListAndSetExamples[SAI collection examples with list and set types].
+For query examples with `CONTAINS` clauses that take advantage of SAI collection maps, lists, and sets, be sure to see xref:developing/cql/indexing/sai/_collections.adoc#saiUsingCollections[SAI collection map examples with keys, values, and entries].
 ====
 
 == Removing an SAI index
@@ -195,4 +195,4 @@ DROP INDEX IF EXISTS cycling.age_sai_idx;
 
 == What's next?
 
-xref:developing/cql/indexing/sai/sai-query.adoc[Using SAI] examines column index and query rules, plus collection maps.
+xref:developing/cql/indexing/sai/_sai-query.adoc[Using SAI] examines column index and query rules, plus collection maps.
