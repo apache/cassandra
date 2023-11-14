@@ -42,7 +42,7 @@ export TMPDIR="$(mktemp -d /tmp/run-python-dtest.XXXXXX)"
 java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print $1}')
 version=$(grep 'property\s*name=\"base.version\"' ${CASSANDRA_DIR}/build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')
 
-python_version="3.6"
+python_version="3.7"
 command -v python3 >/dev/null 2>&1 && python_version="$(python3 -V | awk '{print $2}' | awk -F'.' '{print $1"."$2}')"
 
 export TESTSUITE_NAME="cqlshlib.python${python_version}.jdk${java_version}"
