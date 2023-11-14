@@ -19,14 +19,20 @@ package org.apache.cassandra.db.commitlog;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.LongBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 
+import com.sun.nio.file.ExtendedOpenOption;
+import net.openhft.chronicle.core.util.ThrowingFunction;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SimpleCachedBufferPool;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import sun.nio.ch.DirectBuffer;
 
 /*
  * Direct-IO segment. Allocates ByteBuffer using ByteBuffer.allocateDirect and align
@@ -39,17 +45,15 @@ public class DirectIOSegment extends CommitLogSegment
     private final int fsBlockQuotientMask;
     private final int fsBlockRemainderMask;
 
-    private ByteBuffer original;
-
     // Needed to track number of bytes written to disk in multiple of page size.
     long lastWritten = 0;
 
     /**
      * Constructs a new segment file.
      */
-    DirectIOSegment(AbstractCommitLogSegmentManager manager, int fsBlockSize)
+    DirectIOSegment(AbstractCommitLogSegmentManager manager, ThrowingFunction<Path, FileChannel, IOException> channelFactory, int fsBlockSize)
     {
-        super(manager);
+        super(manager, channelFactory);
 
         assert Integer.highestOneBit(fsBlockSize) == fsBlockSize : "fsBlockSize must be a power of 2";
 
@@ -61,28 +65,6 @@ public class DirectIOSegment extends CommitLogSegment
         this.fsBlockSize = fsBlockSize;
         this.fsBlockRemainderMask = fsBlockSize - 1;
         this.fsBlockQuotientMask = ~fsBlockRemainderMask;
-    }
-
-    ByteBuffer createBuffer(CommitLog commitLog)
-    {
-        int segmentSize = DatabaseDescriptor.getCommitLogSegmentSize();
-
-        assert original == null : "Buffer has been already created";
-        original =  manager.getBufferPool().createBuffer();
-
-        // May get previously used buffer and zero it out to now. Direct I/O writes additional bytes during flush
-        // operation.
-        LongBuffer arrayBuffer = original.asLongBuffer();
-        for(int i = 0 ; i < arrayBuffer.limit() ; i++)
-            arrayBuffer.put(i, 0);
-
-        ByteBuffer alignedBuffer = original.alignedSlice(fsBlockSize);
-        assert alignedBuffer.limit() >= segmentSize : String.format("Bytebuffer slicing failed to get required buffer size (required=%d,current size=%d", segmentSize, alignedBuffer.limit());
-
-        assert alignedBuffer.alignmentOffset(0, fsBlockSize) == 0 : String.format("Index 0 should be aligned to %d page size.", fsBlockSize);
-        assert alignedBuffer.alignmentOffset(alignedBuffer.limit(), fsBlockSize) == 0 : String.format("Limit should be aligned to %d page size", fsBlockSize);
-
-        return alignedBuffer;
     }
 
     @Override
@@ -165,7 +147,7 @@ public class DirectIOSegment extends CommitLogSegment
     {
         try
         {
-            manager.getBufferPool().releaseBuffer(original);
+            manager.getBufferPool().releaseBuffer(buffer);
             super.internalClose();
         }
         finally
@@ -187,7 +169,9 @@ public class DirectIOSegment extends CommitLogSegment
         @Override
         public DirectIOSegment build()
         {
-            return new DirectIOSegment(segmentManager, fsBlockSize);
+            return new DirectIOSegment(segmentManager,
+                                       path -> FileChannel.open(path, StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE, ExtendedOpenOption.DIRECT),
+                                       fsBlockSize);
         }
 
         @Override
@@ -198,7 +182,35 @@ public class DirectIOSegment extends CommitLogSegment
             // alignment unit to make it possible.
             return new SimpleCachedBufferPool(DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool(),
                                               DatabaseDescriptor.getCommitLogSegmentSize() + fsBlockSize,
-                                              BufferType.OFF_HEAP);
+                                              BufferType.OFF_HEAP) {
+                @Override
+                public ByteBuffer createBuffer()
+                {
+                    int segmentSize = DatabaseDescriptor.getCommitLogSegmentSize();
+
+                    ByteBuffer original =  super.createBuffer();
+
+                    // May get previously used buffer and zero it out to now. Direct I/O writes additional bytes during
+                    // flush operation
+                    ByteBufferUtil.writeZeroes(original.duplicate(), original.limit());
+
+                    ByteBuffer alignedBuffer = original.alignedSlice(fsBlockSize);
+                    assert alignedBuffer.limit() >= segmentSize : String.format("Bytebuffer slicing failed to get required buffer size (required=%d,current size=%d", segmentSize, alignedBuffer.limit());
+
+                    assert alignedBuffer.alignmentOffset(0, fsBlockSize) == 0 : String.format("Index 0 should be aligned to %d page size.", fsBlockSize);
+                    assert alignedBuffer.alignmentOffset(alignedBuffer.limit(), fsBlockSize) == 0 : String.format("Limit should be aligned to %d page size", fsBlockSize);
+
+                    return alignedBuffer;
+                }
+
+                @Override
+                public void releaseBuffer(ByteBuffer buffer)
+                {
+                    ByteBuffer original = (ByteBuffer) ((DirectBuffer) buffer).attachment();
+                    assert original != null;
+                    super.releaseBuffer(original);
+                }
+            };
         }
     }
 }

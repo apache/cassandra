@@ -522,8 +522,8 @@ public class DatabaseDescriptor
             logger.debug("Syncing log with a period of {}", conf.commitlog_sync_period.toString());
         }
 
-        if (setCommitLogWriteDiskAccessMode(conf.commitlog_write_disk_access_mode))
-            logger.info("commitlog_write_disk_access_mode resolved to: {}", getCommitLogWriteDiskAccessMode());
+        if (setCommitLogWriteDiskAccessMode(conf.commitlog_disk_access_mode))
+            logger.info("commitlog_disk_access_mode resolved to: {}", getCommitLogWriteDiskAccessMode());
 
         /* evaluate the DiskAccessMode Config directive, which also affects indexAccessMode selection */
         if (conf.disk_access_mode == DiskAccessMode.auto)
@@ -1474,11 +1474,11 @@ public class DatabaseDescriptor
 
         if (compressOrEncrypt && diskAccessMode != DiskAccessMode.standard)
         {
-            throw new ConfigurationException("commitlog_write_disk_access_mode = " + diskAccessMode + " is not supported with compression or encryption. Please use 'auto' when unsure.", false);
+            throw new ConfigurationException("commitlog_disk_access_mode = " + diskAccessMode + " is not supported with compression or encryption. Please use 'auto' when unsure.", false);
         }
         else if (!compressOrEncrypt && diskAccessMode != DiskAccessMode.mmap && diskAccessMode != DiskAccessMode.direct)
         {
-            throw new ConfigurationException("commitlog_write_disk_access_mode = " + diskAccessMode + " is not supported. Please use 'auto' when unsure.", false);
+            throw new ConfigurationException("commitlog_disk_access_mode = " + diskAccessMode + " is not supported. Please use 'auto' when unsure.", false);
         }
     }
 
@@ -2727,7 +2727,7 @@ public class DatabaseDescriptor
      */
     public static DiskAccessMode getCommitLogWriteDiskAccessMode()
     {
-        return conf.commitlog_write_disk_access_mode;
+        return conf.commitlog_disk_access_mode;
     }
 
     /**
@@ -2738,7 +2738,7 @@ public class DatabaseDescriptor
     {
         DiskAccessMode commitLogWriteDiskAccessMode = resolveCommitLogWriteDiskAccessMode(new_mode);
         validateCommitLogWriteDiskAccessMode(commitLogWriteDiskAccessMode);
-        conf.commitlog_write_disk_access_mode = commitLogWriteDiskAccessMode;
+        conf.commitlog_disk_access_mode = commitLogWriteDiskAccessMode;
         return new_mode != commitLogWriteDiskAccessMode;
     }
 

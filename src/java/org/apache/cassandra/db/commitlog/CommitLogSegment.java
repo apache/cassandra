@@ -20,7 +20,7 @@ package org.apache.cassandra.db.commitlog;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.file.StandardOpenOption;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -38,7 +38,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import com.codahale.metrics.Timer;
-import com.sun.nio.file.ExtendedOpenOption;
+import net.openhft.chronicle.core.util.ThrowingFunction;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.commitlog.CommitLog.Configuration;
@@ -52,7 +52,6 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.IntegerInterval;
-import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
@@ -132,7 +131,6 @@ public abstract class CommitLogSegment
 
     final File logFile;
     final FileChannel channel;
-    final int fd;
 
     protected final AbstractCommitLogSegmentManager manager;
 
@@ -161,7 +159,7 @@ public abstract class CommitLogSegment
     /**
      * Constructs a new segment file.
      */
-    CommitLogSegment(AbstractCommitLogSegmentManager manager)
+    CommitLogSegment(AbstractCommitLogSegmentManager manager, ThrowingFunction<Path, FileChannel, IOException> channelFactory)
     {
         this.manager = manager;
         CommitLog commitLog = manager.commitLog;
@@ -174,18 +172,14 @@ public abstract class CommitLogSegment
 
         try
         {
-            if (commitLog.configuration.isDirectIOEnabled())
-                channel = FileChannel.open(logFile.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE, ExtendedOpenOption.DIRECT);
-            else
-                channel = FileChannel.open(logFile.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE);
-            fd = NativeLibrary.getfd(channel);
+            channel = channelFactory.apply(logFile.toPath());
         }
         catch (IOException e)
         {
             throw new FSWriteError(e, logFile);
         }
 
-        buffer = createBuffer(commitLog);
+        this.buffer = createBuffer();
     }
 
     /**
@@ -209,7 +203,10 @@ public abstract class CommitLogSegment
         return Collections.<String, String>emptyMap();
     }
 
-    abstract ByteBuffer createBuffer(CommitLog commitLog);
+    protected ByteBuffer createBuffer()
+    {
+        return manager.getBufferPool().createBuffer();
+    }
 
     /**
      * Allocate space in this buffer for the provided mutation, and return the allocated Allocation object.

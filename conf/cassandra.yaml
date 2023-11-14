@@ -608,7 +608,8 @@ commitlog_segment_size: 32MiB
 
 # Set the disk access mode for writing commitlog segments. The allowed values are:
 # - auto: version dependent optimal setting
-# - legacy: the default mode as used in Cassandra 4.x and earlier
+# - legacy: the default mode as used in Cassandra 4.x and earlier (standard I/O when the commitlog is either
+#   compressed or encrypted or mmap otherwise)
 # - mmap: use memory mapped I/O - available only when the commitlog is neither compressed nor encrypted
 # - direct: use direct I/O - available only when the commitlog is neither compressed nor encrypted
 # - standard: use standard I/O - available only when the commitlog is compressed or encrypted
