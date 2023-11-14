@@ -1218,23 +1218,15 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         }
     }
 
-    private static void serializeRejection(DataOutputPlus out, Ballot supersededBy, ConsensusMigratedAt maybeConsenusMigratedAt, int version) throws IOException
-    {
-        out.writeByte(0);
-        supersededBy.serialize(out);
-        if (version >= MessagingService.VERSION_51)
-            ConsensusMigratedAt.serializer.serialize(maybeConsenusMigratedAt, out, version);
-    }
-
     public static class ResponseSerializer implements IVersionedSerializer<Response>
     {
         public void serialize(Response response, DataOutputPlus out, int version) throws IOException
         {
             if (response.isRejected())
             {
-                out.writeByte(0);
                 Rejected rejected = (Rejected) response;
-                serializeRejection(out, rejected.supersededBy, rejected.maybeConsenusMigratedAt, version);
+                out.writeByte(0);
+                rejected.supersededBy.serialize(out);
             }
             else
             {
@@ -1254,9 +1246,9 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 serializeMap(promised.gossipInfo, out, version, inetAddressAndPortSerializer, EndpointState.nullableSerializer);
                 if (promised.outcome == PERMIT_READ)
                     promised.supersededBy.serialize(out);
-                if (version >= MessagingService.VERSION_51)
-                    ConsensusMigratedAt.serializer.serialize(response.maybeConsenusMigratedAt, out, version);
             }
+            if (version >= MessagingService.VERSION_51)
+                ConsensusMigratedAt.serializer.serialize(response.maybeConsenusMigratedAt, out, version);
         }
 
         public Response deserialize(DataInputPlus in, int version) throws IOException
@@ -1291,17 +1283,15 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
         public long serializedSize(Response response, int version)
         {
-            long size;
+            long size = 1; //flags
             if (response.isRejected())
             {
-                size = 1 + Ballot.sizeInBytes();
-
+                size += Ballot.sizeInBytes();
             }
             else
             {
                 Permitted permitted = (Permitted) response;
-                return 1
-                        + VIntCoding.computeUnsignedVIntSize(permitted.lowBound)
+                size += VIntCoding.computeUnsignedVIntSize(permitted.lowBound)
                         + (permitted.latestAcceptedButNotCommitted == null ? 0 : Accepted.serializer.serializedSize(permitted.latestAcceptedButNotCommitted, version))
                         + Committed.serializer.serializedSize(permitted.latestCommitted, version)
                         + (permitted.readResponse == null ? 0 : ReadResponse.serializer.serializedSize(permitted.readResponse, version))
