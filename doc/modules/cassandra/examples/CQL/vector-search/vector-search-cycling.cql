@@ -31,9 +31,9 @@ CREATE INDEX IF NOT EXISTS ann_index
 // end::create-vs-index[]
 
 // tag::create-vs-index-with-option[]
-CREATE INDEX IF NOT EXISTS ann_index 
-  ON cycling.comments_vs(comment_vector) USING 'sai'
-  WITH OPTIONS = { 'similarity_function': 'DOT_PRODUCT' };
+CREATE INDEX IF NOT EXISTS ann_index
+    ON vsearch.com(item_vector) USING 'sai'
+WITH OPTIONS = { 'similarity_function': 'DOT_PRODUCT' };
 // end::create-vs-index-with-option[]
 
 // tag::insert-vector-data-cycling[]
