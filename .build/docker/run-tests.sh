@@ -134,7 +134,7 @@ case ${target} in
         # check that ${cassandra_dtest_dir} is valid
         [ -f "${cassandra_dtest_dir}/dtest.py" ] || { echo >&2 "${cassandra_dtest_dir}/dtest.py not found. please specify 'cassandra_dtest_dir' to point to the local cassandra-dtest source"; exit 1; }
     ;;
-    "test"| "test-cdc" | "test-compression" | "test-oa" | "test-system-keyspace-directory" | "test-tries" | "jvm-dtest" | "jvm-dtest-upgrade")
+    "test"| "test-cdc" | "test-compression" | "test-oa" | "test-system-keyspace-directory" | "test-tries" | "jvm-dtest" | "jvm-dtest-upgrade" | "jvm-dtest-novnode" | "jvm-dtest-upgrade-novnode" | "simulator-dtest")
         [[ ${mem} -gt $((5 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { echo >&2 "tests require minimum docker memory 6g (per jenkins executor (${jenkins_executors})), found ${mem}"; exit 1; }
         max_docker_runs_by_cores=$( echo "sqrt( ${cores} / ${jenkins_executors} )" | bc )
         max_docker_runs_by_mem=$(( ${mem} / ( 5 * 1024 * 1024 * 1024 * ${jenkins_executors} ) ))
@@ -164,9 +164,23 @@ mkdir -p ${build_dir}/test/logs || true
 mkdir -p ${build_dir}/test/output || true
 chmod -R ag+rwx ${build_dir}
 
+# define testtag.extra so tests can be aggregated together. (jdk is already appended in build.xml)
+case ${target} in
+    "cqlsh-test" | "dtest" | "dtest-novnode" | "dtest-offheap" | "dtest-large" | "dtest-large-novnode" | "dtest-upgrade" | "dtest-upgrade-large" | "dtest-upgrade-novnode" | "dtest-upgrade-novnode-large" )
+        ANT_OPTS="-Dtesttag.extra=_$(arch)_python${python_version/./-}"
+    ;;
+    "jvm-dtest-novnode" | "jvm-dtest-upgrade-novnode" )
+        ANT_OPTS="-Dtesttag.extra=_$(arch)_novnode"
+    ;;
+    *)
+        ANT_OPTS="-Dtesttag.extra=_$(arch)"
+    ;;
+esac
+
 # cython can be used for cqlsh-test
 if [ "$cython" == "yes" ]; then
     [ "${target}" == "cqlsh-test" ] || { echo "cython is only supported for cqlsh-test"; exit 1; }
+    ANT_OPTS="${ANT_OPTS}_cython"
 else
     cython="no"
 fi
@@ -178,7 +192,7 @@ TEST_SCRIPT=${test_script}
 JAVA_VERSION=${java_version}
 PYTHON_VERSION=${python_version}
 cython=${cython}
-ANT_OPTS="-Dtesttag.extra=.arch=$(arch).python${python_version}"
+ANT_OPTS="${ANT_OPTS}"
 EOF
 
 split_str="0_0"
