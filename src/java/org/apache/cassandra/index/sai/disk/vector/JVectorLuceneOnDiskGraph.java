@@ -22,6 +22,7 @@ import java.io.IOException;
 
 import org.slf4j.Logger;
 
+import io.github.jbellis.jvector.pq.CompressedVectors;
 import io.github.jbellis.jvector.util.Bits;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
@@ -50,6 +51,9 @@ public abstract class JVectorLuceneOnDiskGraph implements AutoCloseable
     public abstract int size();
 
     public abstract OrdinalsView getOrdinalsView() throws IOException;
+
+    /** returns null if no compression was performed */
+    public abstract CompressedVectors getCompressedVectors();
 
     /**
      * See CassandraDiskANN::search
