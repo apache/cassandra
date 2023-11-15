@@ -614,7 +614,7 @@ commitlog_segment_size: 32MiB
 # - direct: use direct I/O - available only when the commitlog is neither compressed nor encrypted
 # - standard: use standard I/O - available only when the commitlog is compressed or encrypted
 # The default setting is legacy when the storage compatibility is set to 4 or auto otherwise.
-#commitlog_write_disk_access_mode:
+#commitlog_disk_access_mode:
 
 # Compression to apply to SSTables as they flush for compressed tables.
 # Note that tables without compression enabled do not respect this flag.
