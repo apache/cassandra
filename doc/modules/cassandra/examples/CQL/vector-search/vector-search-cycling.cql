@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS cycling.comments_vs (
   id uuid,
   commenter text,
   comment text,
-  comment_vector VECTOR <FLOAT, 5>;
+  comment_vector VECTOR <FLOAT, 5>,
   created_at timestamp,
   PRIMARY KEY (id, created_at)
 )
@@ -32,12 +32,12 @@ CREATE INDEX IF NOT EXISTS ann_index
 
 // tag::create-vs-index-with-option[]
 CREATE INDEX IF NOT EXISTS ann_index 
-  ON vsearch.com(item_vector) USING 'sai'
+  ON cycling.comments_vs(comment_vector) USING 'sai'
   WITH OPTIONS = { 'similarity_function': 'DOT_PRODUCT' };
 // end::create-vs-index-with-option[]
 
 // tag::insert-vector-data-cycling[]
-INSERT INTO cycling.comments_vs (record_id, id, commenter, comment, created_at, comment_vector)  
+INSERT INTO cycling.comments_vs (record_id, id, created_at, comment, commenter, comment_vector)
    VALUES (
       now(), 
       e7ae5cf3-d358-4d99-b900-85902fda9bb0, 
@@ -112,8 +112,8 @@ SELECT * FROM cycling.comments_vs
 // end::select-vector-data-cycling[]
 
 // tag::select-vector-data-similarity-cycling[]
-SELECT description, similarity_cosine(item_vector, [0.2, 0.15, 0.3, 0.2, 0.05]) 
-    FROM vsearch.cycling 
+SELECT comment, similarity_cosine(comment_vector, [0.2, 0.15, 0.3, 0.2, 0.05])
+    FROM cycling.comments_vs
     ORDER BY comment_vector ANN OF [0.1, 0.15, 0.3, 0.12, 0.05] 
     LIMIT 1;
 // end::select-vector-data-similarity-cycling[]
