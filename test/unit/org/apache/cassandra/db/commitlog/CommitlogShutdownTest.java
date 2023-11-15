@@ -67,6 +67,7 @@ public class CommitlogShutdownTest
         DatabaseDescriptor.setCommitLogSegmentSize(1);
         DatabaseDescriptor.setCommitLogSync(Config.CommitLogSync.periodic);
         DatabaseDescriptor.setCommitLogSyncPeriod(10 * 1000);
+        DatabaseDescriptor.initializeCommitLogDiskAccessMode();
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),

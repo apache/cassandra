@@ -236,7 +236,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
     @Override
     public CommitLogSegment createSegment()
     {
-        CommitLogSegment segment = segmentBuilder.build();
+        CommitLogSegment segment = super.createSegment();
         segment.writeLogHeader();
         cdcSizeTracker.processNewSegment(segment);
         // After processing, the state of the segment can either be PERMITTED or FORBIDDEN

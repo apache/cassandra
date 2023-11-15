@@ -847,11 +847,16 @@ public class DatabaseDescriptorTest
         EnumSet<Config.DiskAccessMode> disallowedModes = EnumSet.complementOf(allowedModes);
 
         for (Config.DiskAccessMode mode : disallowedModes)
-            assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> DatabaseDescriptor.setCommitLogWriteDiskAccessMode(mode));
+        {
+            DatabaseDescriptor.setCommitLogWriteDiskAccessMode(mode);
+            assertThatExceptionOfType(ConfigurationException.class).isThrownBy(DatabaseDescriptor::initializeCommitLogDiskAccessMode);
+        }
 
         for (Config.DiskAccessMode mode : allowedModes)
         {
-            boolean changed = DatabaseDescriptor.setCommitLogWriteDiskAccessMode(mode);
+            DatabaseDescriptor.setCommitLogWriteDiskAccessMode(mode);
+            DatabaseDescriptor.initializeCommitLogDiskAccessMode();
+            boolean changed = DatabaseDescriptor.getCommitLogWriteDiskAccessMode() != mode;
             assertThat(changed).isEqualTo(mode == Config.DiskAccessMode.legacy || mode == Config.DiskAccessMode.auto);
             if (mode == Config.DiskAccessMode.legacy)
                 assertThat(DatabaseDescriptor.getCommitLogWriteDiskAccessMode()).isEqualTo(expectedLegacy);
