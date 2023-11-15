@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
@@ -44,7 +45,9 @@ import org.apache.cassandra.io.sstable.indexsummary.IndexSummaryRedistribution;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummarySupport;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.utils.ExpMovingAverage;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MovingAverage;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
@@ -109,15 +112,13 @@ public class DiskSpaceMetricsTest extends CQLTester
         for (int i = 0; i < 3; i++)
             insertN(KEYSPACE_PER_TEST, cfs, 1000, 55);
 
-        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
-        int totalSize = 0;
-        final Set<SSTableReader> liveSSTables = cfs.getLiveSSTables();
+        final List<SSTableReader> liveSSTables = cfs.getLiveSSTables().stream()
+                                                    .sorted(SSTableReader.idComparator)
+                                                    .collect(Collectors.toList());
+        MovingAverage expectedMetrics = ExpMovingAverage.decayBy1000();
         for (SSTableReader rdr : liveSSTables)
-        {
-            totalSize += rdr.onDiskLength();
-        }
-        final int avgSize = totalSize / liveSSTables.size();
-        assertEquals(avgSize, cfs.metric.flushSizeOnDisk.get(), 0.05 * avgSize);
+            expectedMetrics.update(rdr.onDiskLength());
+        assertThat(cfs.metric.flushSizeOnDisk.get()).isEqualTo(expectedMetrics.get());
     }
 
     private void insert(ColumnFamilyStore cfs, long value) throws Throwable
