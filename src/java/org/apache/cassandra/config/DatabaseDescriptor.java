@@ -516,7 +516,7 @@ public class DatabaseDescriptor
             logger.info("commitlog_disk_access_mode resolved to: {}", getCommitLogWriteDiskAccessMode());
 
         /* evaluate the DiskAccessMode Config directive, which also affects indexAccessMode selection */
-        if (conf.disk_access_mode == DiskAccessMode.auto)
+        if (conf.disk_access_mode == DiskAccessMode.auto || conf.disk_access_mode == DiskAccessMode.legacy)
         {
             conf.disk_access_mode = hasLargeAddressSpace() ? DiskAccessMode.mmap : DiskAccessMode.standard;
             indexAccessMode = conf.disk_access_mode;
@@ -528,9 +528,9 @@ public class DatabaseDescriptor
             indexAccessMode = DiskAccessMode.mmap;
             logger.info("DiskAccessMode is {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
         }
-        else if (conf.disk_access_mode == DiskAccessMode.direct || conf.disk_access_mode == DiskAccessMode.legacy)
+        else if (conf.disk_access_mode == DiskAccessMode.direct)
         {
-            throw new ConfigurationException(String.format("DiskAccessMode '%s' and '%s' are not supported", DiskAccessMode.direct, DiskAccessMode.legacy));
+            throw new ConfigurationException(String.format("DiskAccessMode '%s' is not supported", DiskAccessMode.direct));
         }
         else
         {
