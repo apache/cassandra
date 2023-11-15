@@ -108,7 +108,7 @@ public abstract class AbstractCommitLogSegmentManager
     private final BooleanSupplier managerThreadWaitCondition = () -> (availableSegment == null && !atSegmentBufferLimit());
     private final WaitQueue managerThreadWaitQueue = newWaitQueue();
 
-    protected final CommitLogSegment.Builder<?> segmentBuilder;
+    private volatile CommitLogSegment.Builder<?> segmentBuilder;
 
     private volatile SimpleCachedBufferPool bufferPool;
 
@@ -116,35 +116,37 @@ public abstract class AbstractCommitLogSegmentManager
     {
         this.commitLog = commitLog;
         this.storageDirectory = storageDirectory;
+    }
 
-        CommitLog.Configuration config = commitLog.configuration;
-
+    private CommitLogSegment.Builder<?> createSegmentBuilder(CommitLog.Configuration config)
+    {
         if (config.useEncryption())
         {
             assert config.diskAccessMode == DiskAccessMode.standard;
-            this.segmentBuilder = new EncryptedSegment.EncryptedSegmentBuilder(this);
+            return new EncryptedSegment.EncryptedSegmentBuilder(this);
         }
         else if (config.useCompression())
         {
             assert config.diskAccessMode == DiskAccessMode.standard;
-            this.segmentBuilder = new CompressedSegment.CompressedSegmentBuilder(this);
+            return new CompressedSegment.CompressedSegmentBuilder(this);
         }
         else if (config.diskAccessMode == DiskAccessMode.direct)
         {
-            this.segmentBuilder = new DirectIOSegment.DirectIOSegmentBuilder(this);
+            return new DirectIOSegment.DirectIOSegmentBuilder(this);
         }
         else if (config.diskAccessMode == DiskAccessMode.mmap)
         {
-            this.segmentBuilder = new MemoryMappedSegment.MemoryMappedSegmentBuilder(this);
+            return new MemoryMappedSegment.MemoryMappedSegmentBuilder(this);
         }
-        else
-        {
-            throw new AssertionError("Unsupported disk access mode");
-        }
+
+        throw new AssertionError("Unsupported disk access mode");
     }
 
     void start()
     {
+        assert this.segmentBuilder == null;
+        assert this.bufferPool == null;
+        this.segmentBuilder = createSegmentBuilder(commitLog.configuration);
         this.bufferPool = segmentBuilder.createBufferPool();
 
         AllocatorRunnable allocator = new AllocatorRunnable();
@@ -265,7 +267,10 @@ public abstract class AbstractCommitLogSegmentManager
      * Hook to allow segment managers to track state surrounding creation of new segments. Onl perform as task submit
      * to segment manager so it's performed on segment management thread.
      */
-    abstract CommitLogSegment createSegment();
+    protected CommitLogSegment createSegment()
+    {
+        return this.segmentBuilder.build();
+    }
 
     /**
      * Indicates that a segment file has been flushed and is no longer needed. Only perform as task submit to segment
@@ -583,6 +588,9 @@ public abstract class AbstractCommitLogSegmentManager
 
         if (bufferPool != null)
             bufferPool.emptyBufferPool();
+
+        this.segmentBuilder = null;
+        this.bufferPool = null;
 
         return res;
     }

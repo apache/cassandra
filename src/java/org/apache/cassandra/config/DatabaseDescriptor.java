@@ -189,6 +189,8 @@ public class DatabaseDescriptor
 
     private static DiskAccessMode indexAccessMode;
 
+    private static DiskAccessMode commitLogWriteDiskAccessMode;
+
     private static AbstractCryptoProvider cryptoProvider;
     private static IAuthenticator authenticator;
     private static IAuthorizer authorizer;
@@ -522,8 +524,9 @@ public class DatabaseDescriptor
             logger.debug("Syncing log with a period of {}", conf.commitlog_sync_period.toString());
         }
 
-        if (setCommitLogWriteDiskAccessMode(conf.commitlog_disk_access_mode))
-            logger.info("commitlog_disk_access_mode resolved to: {}", getCommitLogWriteDiskAccessMode());
+        initializeCommitLogDiskAccessMode();
+        if (commitLogWriteDiskAccessMode != conf.commitlog_disk_access_mode)
+            logger.info("commitlog_disk_access_mode resolved to: {}", commitLogWriteDiskAccessMode);
 
         /* evaluate the DiskAccessMode Config directive, which also affects indexAccessMode selection */
         if (conf.disk_access_mode == DiskAccessMode.auto || conf.disk_access_mode == DiskAccessMode.legacy)
@@ -2626,6 +2629,7 @@ public class DatabaseDescriptor
         return conf.commitlog_compression;
     }
 
+    @VisibleForTesting
     public static void setCommitLogCompression(ParameterizedClass compressor)
     {
         conf.commitlog_compression = compressor;
@@ -2727,19 +2731,21 @@ public class DatabaseDescriptor
      */
     public static DiskAccessMode getCommitLogWriteDiskAccessMode()
     {
-        return conf.commitlog_disk_access_mode;
+        return commitLogWriteDiskAccessMode;
     }
 
-    /**
-     * Resolves, validates and sets the commit log write disk access mode. Returns true if the resolved mode is different
-     * from the requested mode (i.e. the requested mode is auto or legacy).
-     */
-    public static boolean setCommitLogWriteDiskAccessMode(DiskAccessMode new_mode)
+    @VisibleForTesting
+    public static void setCommitLogWriteDiskAccessMode(DiskAccessMode diskAccessMode)
     {
-        DiskAccessMode commitLogWriteDiskAccessMode = resolveCommitLogWriteDiskAccessMode(new_mode);
-        validateCommitLogWriteDiskAccessMode(commitLogWriteDiskAccessMode);
-        conf.commitlog_disk_access_mode = commitLogWriteDiskAccessMode;
-        return new_mode != commitLogWriteDiskAccessMode;
+        conf.commitlog_disk_access_mode = diskAccessMode;
+    }
+
+    @VisibleForTesting
+    public static void initializeCommitLogDiskAccessMode()
+    {
+        DiskAccessMode resolved = resolveCommitLogWriteDiskAccessMode(conf.commitlog_disk_access_mode);
+        validateCommitLogWriteDiskAccessMode(resolved);
+        commitLogWriteDiskAccessMode = resolved;
     }
 
     public static String getSavedCachesLocation()
