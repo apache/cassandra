@@ -369,6 +369,23 @@ cdc_enabled: false
 # $CASSANDRA_HOME/data/cdc_raw.
 # cdc_raw_directory: /var/lib/cassandra/cdc_raw
 
+# Policy for accessing disk:
+#
+# auto
+#   Enable mmap on both data and index files on a 64-bit JVM.
+#
+# standard
+#   Disable mmap entirely.
+#
+# mmap
+#   Map index and data files. mmap can cause excessive paging if all actively read SSTables do not fit into RAM.
+#
+# mmap_index_only
+#   Similar to mmap but maps only index files. Using this setting might also help if you observe high number of page
+#   faults or steals along with increased latencies. This setting is default.
+#
+# disk_access_mode: mmap_index_only
+
 # Policy for data disk failures:
 #
 # die
