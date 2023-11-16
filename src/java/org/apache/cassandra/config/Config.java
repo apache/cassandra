@@ -117,7 +117,7 @@ public class Config
     public volatile boolean force_new_prepared_statement_behaviour = false;
 
     public ParameterizedClass seed_provider;
-    public DiskAccessMode disk_access_mode = DiskAccessMode.auto;
+    public DiskAccessMode disk_access_mode = DiskAccessMode.mmap_index_only;
 
     public DiskFailurePolicy disk_failure_policy = DiskFailurePolicy.ignore;
     public CommitFailurePolicy commit_failure_policy = CommitFailurePolicy.stop;

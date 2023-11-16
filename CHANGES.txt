@@ -3,6 +3,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Set default disk_access_mode to mmap_index_only (CASSANDRA-19021)
  * Exclude net.java.dev.jna:jna dependency from dependencies of org.caffinitas.ohc:ohc-core (CASSANDRA-18992)
  * Add UCS sstable_growth and min_sstable_size options (CASSANDRA-18945)
  * Make cqlsh's min required Python version 3.7+ instead of 3.6+ (CASSANDRA-18960)
