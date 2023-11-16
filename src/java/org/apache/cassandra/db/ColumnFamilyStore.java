@@ -78,6 +78,7 @@ import org.apache.cassandra.cache.RowCacheKey;
 import org.apache.cassandra.cache.RowCacheSentinel;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.FutureTask;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -1466,7 +1467,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             throw new RuntimeException(message, e);
         }
     }
-    
+
     private UpdateTransaction newUpdateTransaction(PartitionUpdate update, CassandraWriteContext context, boolean updateIndexes, Memtable memtable)
     {
         return updateIndexes
@@ -2773,7 +2774,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public void unloadCf()
     {
-        if (keyspace.getMetadata().params.durableWrites && !memtableWritesAreDurable())  // need to clear dirty regions
+        if (keyspace.getMetadata().params.durableWrites && !memtableWritesAreDurable() && !CassandraRelevantProperties.SKIP_FORCE_RECYCLE_COMMITLOG_SEGMENTS_ON_DROP_TABLE.getBoolean())  // need to clear dirty regions
             forceBlockingFlush(ColumnFamilyStore.FlushReason.DROP);
         else
             FBUtilities.waitOnFuture(dumpMemtable());
@@ -3377,7 +3378,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         if (isAutoSnapshotEnabled())
             snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, ColumnFamilyStore.SNAPSHOT_DROP_PREFIX), DatabaseDescriptor.getAutoSnapshotTtl());
 
-        CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
+        if (!CassandraRelevantProperties.SKIP_FORCE_RECYCLE_COMMITLOG_SEGMENTS_ON_DROP_TABLE.getBoolean())
+            CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
 
         compactionStrategyManager.shutdown();
 

@@ -25,13 +25,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.junit.Before;
-
-import org.apache.cassandra.io.util.File;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.assertj.core.api.Assertions;
 
@@ -51,6 +50,13 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
         setupTestSstables();
         tearDownClass();
         SSTableReader.resetTidying();
+    }
+
+    @Override
+    public void afterTest()
+    {
+        // no-op
+        // this test stops the server before each case, so we shouldn't try to drop the keyspaces as it would fail
     }
 
     @Test

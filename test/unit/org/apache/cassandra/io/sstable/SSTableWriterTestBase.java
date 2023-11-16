@@ -25,7 +25,6 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.Uninterruptibles;
-import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -85,7 +84,6 @@ public class SSTableWriterTestBase extends SchemaLoader
         DatabaseDescriptor.setIndexAccessMode(indexMode);
     }
 
-    @After
     public void truncateCF()
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);

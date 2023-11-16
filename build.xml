@@ -133,8 +133,8 @@
     <!-- The number of active processors seen by JVM -->
     <property name="cassandra.test.processorCount" value="2"/>
 
-    <!-- skip flushing schema tables during tests -->
-    <property name="cassandra.test.flush_local_schema_changes" value="false" />
+    <!-- skip flushing view info system tables after each change -->
+    <property name="cassandra.unsafesystem" value="true"/>
 
     <!-- fast shutdown of messaging service -->
     <property name="cassandra.test.messagingService.nonGracefulShutdown" value="true"/>
@@ -1156,7 +1156,7 @@
         <jvmarg value="-Dcassandra.keepBriefBrief=${cassandra.keepBriefBrief}" />
         <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
         <jvmarg value="-Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true" /> <!-- enable defensive checks -->
-        <jvmarg value="-Dcassandra.test.flush_local_schema_changes=${cassandra.test.flush_local_schema_changes}"/>
+        <jvmarg value="-Dcassandra.unsafesystem=${cassandra.unsafesystem}"/>
         <jvmarg value="-Dcassandra.test.messagingService.nonGracefulShutdown=${cassandra.test.messagingService.nonGracefulShutdown}"/>
         <jvmarg value="-Dcassandra.use_nix_recursive_delete=${cassandra.use_nix_recursive_delete}"/>
         <jvmarg value="-Dio.netty.allocator.useCacheForAllThreads=true"/>

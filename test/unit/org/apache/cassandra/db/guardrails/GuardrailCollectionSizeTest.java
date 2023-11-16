@@ -25,7 +25,6 @@ import java.util.Collections;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import org.junit.After;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DataStorageSpec;
@@ -58,14 +57,6 @@ public class GuardrailCollectionSizeTest extends ThresholdTester
               Guardrails::getCollectionSizeFailThreshold,
               bytes -> new DataStorageSpec.LongBytesBound(bytes, BYTES).toString(),
               size -> new DataStorageSpec.LongBytesBound(size).toBytes());
-    }
-
-    @After
-    public void after()
-    {
-        // immediately drop the created table so its async cleanup doesn't interfere with the next tests
-        if (currentTable() != null)
-            dropTable("DROP TABLE %s");
     }
 
     @Test

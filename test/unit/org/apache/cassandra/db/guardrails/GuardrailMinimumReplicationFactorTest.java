@@ -75,7 +75,7 @@ public class GuardrailMinimumReplicationFactorTest extends ThresholdTester
     @After
     public void cleanupTest() throws Throwable
     {
-        execute("DROP KEYSPACE IF EXISTS ks");
+        unsafeDrop(() -> execute("DROP KEYSPACE IF EXISTS ks"));
     }
 
     @Override

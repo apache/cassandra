@@ -266,9 +266,6 @@ public class ViewFilteringComplexPKTest extends ViewAbstractParameterizedTest
             // delete a partition that matches the filter
             execute("DELETE FROM %s WHERE a = ?", 1);
             assertEmpty(executeView("SELECT a, b, c, d FROM %s"));
-
-            dropView();
-            dropTable("DROP TABLE %s");
         }
     }
 }

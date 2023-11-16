@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.apache.commons.lang3.StringUtils;
+import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -39,6 +40,7 @@ import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.auth.JMXResource;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.auth.RoleResource;
+import org.apache.cassandra.auth.Roles;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -51,10 +53,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class InvalidatePermissionsCacheTest extends CQLTester
 {
+    private static String KEYSPACE = "invalidate_permissions_cache_test";
+
     @BeforeClass
     public static void setup() throws Exception
     {
         CQLTester.setUpClass();
+
+        // this test expects a KEYSPACE to stay created for the entire test class thus we cannot rely on the original
+        // CQLTester.KEYSPACE which is dropped after each test case
+        schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
+
         CQLTester.requireAuthentication();
 
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
@@ -289,6 +298,14 @@ public class InvalidatePermissionsCacheTest extends CQLTester
         // ensure permission is reloaded
         assertThat(role.getPermissions(resource)).isEqualTo(dataPermissions);
         assertThat(originalReadsCount).isLessThan(getRolePermissionsReadCount());
+    }
+
+    @After
+    public void afterTest() throws Throwable
+    {
+        super.afterTest();
+        AuthenticatedUser.permissionsCache.invalidate();
+        Roles.cache.invalidate();
     }
 
     @Test

@@ -25,7 +25,6 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -64,57 +63,68 @@ public abstract class KeywordTestBase extends CQLTester
     {
         String createStatement = String.format("CREATE TABLE %s.%s (c text, %s text, PRIMARY KEY (c, %s))",
                                                KEYSPACE, keyword, keyword, keyword, keyword);
-        logger.info(createStatement);
-        if (isReserved)
+
+        try
         {
-            try
+            logger.info(createStatement);
+            if (isReserved)
             {
+                try
+                {
+                    schemaChange(createStatement);
+                    Assert.fail(String.format("Reserved keyword %s should not have parsed", keyword));
+                }
+                catch (RuntimeException ignore) // SyntaxException is wrapped by CQLTester
+                {
+                    Assert.assertEquals(SyntaxException.class, ignore.getCause().getClass());
+                }
+            }
+            else // not a reserved word
+            {
+                /* Create the table using the keyword as a tablename and column name, then call describe and re-create it
+                 * using the create_statement result.
+                 */
                 schemaChange(createStatement);
-                Assert.fail(String.format("Reserved keyword %s should not have parsed", keyword));
+                String describeStatement = String.format("DESCRIBE TABLE %s.%s", KEYSPACE, keyword);
+                UntypedResultSet rs = execute(describeStatement);
+                UntypedResultSet.Row row = rs.one();
+                String describedCreateStatement = row.getString("create_statement");
+
+                String otherKeyspace = createKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
+                String recreateStatement = describedCreateStatement.replace(KEYSPACE, otherKeyspace);
+                logger.info(recreateStatement);
+                schemaChange(recreateStatement);
+
+                /* Check it is possible to insert and select from the table/column, with the keyword used in the
+                 * where clause
+                 */
+                String insertStatement = String.format("INSERT INTO %s.%s(c,%s) VALUES ('x', '%s')",
+                                                       KEYSPACE, keyword, keyword, keyword);
+                logger.info(insertStatement);
+                execute(insertStatement);
+
+                String selectStatement = String.format("SELECT c, %s FROM %s.%s WHERE c = 'x' AND %s >= ''",
+                                                       keyword, KEYSPACE, keyword, keyword);
+                logger.info(selectStatement);
+                rs = execute(selectStatement);
+                row = rs.one();
+                String value = row.getString(keyword.toLowerCase());
+                Assert.assertEquals(keyword, value);
+
+                /* Make a materialized view using the fields (cannot re-use the name as MV must be in same keyspace).
+                 * Added as CASSANDRA-11803 motivated adding the reserved/unreserved distinction
+                 */
+                String createMV = String.format("CREATE MATERIALIZED VIEW %s.mv_%s AS %s PRIMARY KEY (c, %s)",
+                                                KEYSPACE, keyword, selectStatement, keyword);
+                logger.info(createMV);
+                schemaChange(createMV);
+
+                logger.info("--------------------------------------------------------------------------------");
             }
-            catch (RuntimeException ignore) // SyntaxException is wrapped by CQLTester
-            {
-                Assert.assertEquals(SyntaxException.class, ignore.getCause().getClass());
-            }
-        }
-        else // not a reserved word
+        } catch (Throwable t)
         {
-            /* Create the table using the keyword as a tablename and column name, then call describe and re-create it
-             * using the create_statement result.
-             */
-            schemaChange(createStatement);
-            String describeStatement = String.format("DESCRIBE TABLE %s.%s", KEYSPACE, keyword);
-            UntypedResultSet rs = execute(describeStatement);
-            UntypedResultSet.Row row = rs.one();
-            String describedCreateStatement = row.getString("create_statement");
-
-            String recreateStatement = describedCreateStatement.replace(KEYSPACE, KEYSPACE_PER_TEST);
-            logger.info(recreateStatement);
-            schemaChange(recreateStatement);
-
-            /* Check it is possible to insert and select from the table/column, with the keyword used in the
-             * where clause
-             */
-            String insertStatement = String.format("INSERT INTO %s.%s(c,%s) VALUES ('x', '%s')",
-                                                   KEYSPACE, keyword, keyword, keyword);
-            logger.info(insertStatement);
-            execute(insertStatement);
-
-            String selectStatement = String.format("SELECT c, %s FROM %s.%s WHERE c = 'x' AND %s >= ''",
-                                                   keyword, KEYSPACE, keyword, keyword);
-            logger.info(selectStatement);
-            rs = execute(selectStatement);
-            row = rs.one();
-            String value = row.getString(keyword.toLowerCase());
-            Assert.assertEquals(keyword, value);
-
-            /* Make a materialized view using the fields (cannot re-use the name as MV must be in same keyspace).
-             * Added as CASSANDRA-11803 motivated adding the reserved/unreserved distinction
-            */
-            String createMV = String.format("CREATE MATERIALIZED VIEW %s.mv_%s AS %s PRIMARY KEY (c, %s)",
-                                            KEYSPACE, keyword, selectStatement, keyword);
-            logger.info(createMV);
-            schemaChange(createMV);
+            logger.error("Test failed", new AssertionError(t));
+            throw t;
         }
     }
 }

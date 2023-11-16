@@ -125,9 +125,6 @@ public class ViewFilteringClustering1Test extends ViewAbstractParameterizedTest
             assertRowsIgnoringOrder(executeView("SELECT a, b, c, d FROM %s"),
                                     row(0, 1, 0, 0),
                                     row(0, 1, 1, 0));
-
-            dropView();
-            dropTable("DROP TABLE %s");
         }
     }
 
@@ -221,9 +218,6 @@ public class ViewFilteringClustering1Test extends ViewAbstractParameterizedTest
             assertRowsIgnoringOrder(executeView("SELECT a, b, c, d FROM %s"),
                                     row(0, 1, 0, 0),
                                     row(0, 1, 1, 0));
-
-            dropView();
-            dropTable("DROP TABLE %s");
         }
     }
 
@@ -326,9 +320,6 @@ public class ViewFilteringClustering1Test extends ViewAbstractParameterizedTest
             assertRowsIgnoringOrder(executeView("SELECT a, b, c, d FROM %s"),
                                     row(0, 1, 0, 0),
                                     row(0, 1, 1, 0));
-
-            dropView();
-            dropTable("DROP TABLE %s");
         }
     }
 }

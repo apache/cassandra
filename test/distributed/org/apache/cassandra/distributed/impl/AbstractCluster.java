@@ -191,7 +191,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             // Indicate that we are running in the in-jvm dtest environment
             CassandraRelevantProperties.DTEST_IS_IN_JVM_DTEST.setBoolean(true);
             // those properties may be set for unit-test optimizations; those should not be used when running dtests
-            CassandraRelevantProperties.TEST_FLUSH_LOCAL_SCHEMA_CHANGES.reset();
+            CassandraRelevantProperties.UNSAFE_SYSTEM.reset();
             CassandraRelevantProperties.NON_GRACEFUL_SHUTDOWN.reset();
             CassandraRelevantProperties.IO_NETTY_TRANSPORT_NONATIVE.setBoolean(false);
         }

@@ -263,6 +263,8 @@ public class AlterTest extends CQLTester
     @Test
     public void testCreateAlterKeyspaces() throws Throwable
     {
+        String otherKeyspace = createKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
+
         assertInvalidThrow(SyntaxException.class, "CREATE KEYSPACE ks1");
         assertInvalidThrow(ConfigurationException.class, "CREATE KEYSPACE ks1 WITH replication= { 'replication_factor' : 1 }");
 
@@ -271,7 +273,7 @@ public class AlterTest extends CQLTester
 
         assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes FROM system_schema.keyspaces"),
                    row(KEYSPACE, true),
-                   row(KEYSPACE_PER_TEST, true),
+                   row(otherKeyspace, true),
                    row(ks1, true),
                    row(ks2, false));
 
@@ -280,7 +282,7 @@ public class AlterTest extends CQLTester
 
         assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
                    row(KEYSPACE, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
-                   row(KEYSPACE_PER_TEST, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
+                   row(otherKeyspace, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
                    row(ks1, false, map("class", "org.apache.cassandra.locator.NetworkTopologyStrategy", DATA_CENTER, "1")),
                    row(ks2, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")));
 
@@ -298,6 +300,8 @@ public class AlterTest extends CQLTester
     @Test
     public void testCreateAlterNetworkTopologyWithDefaults() throws Throwable
     {
+        String otherKeyspace = createKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
+
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
         metadata.clearUnsafe();
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
@@ -312,7 +316,7 @@ public class AlterTest extends CQLTester
 
         assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
                                         row(KEYSPACE, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
-                                        row(KEYSPACE_PER_TEST, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
+                                        row(otherKeyspace, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
                                         row(ks1, true, map("class", "org.apache.cassandra.locator.NetworkTopologyStrategy", DATA_CENTER, "1", DATA_CENTER_REMOTE, "3")));
 
         // Should be able to remove data centers
@@ -320,7 +324,7 @@ public class AlterTest extends CQLTester
 
         assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
                                         row(KEYSPACE, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
-                                        row(KEYSPACE_PER_TEST, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
+                                        row(otherKeyspace, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
                                         row(ks1, true, map("class", "org.apache.cassandra.locator.NetworkTopologyStrategy", DATA_CENTER_REMOTE, "3")));
 
         schemaChange("ALTER KEYSPACE " + ks1 + " WITH replication = { 'class' : 'NetworkTopologyStrategy', '" + DATA_CENTER_REMOTE + "': 3 }");
@@ -328,7 +332,7 @@ public class AlterTest extends CQLTester
         // Removal is a two-step process as the "0" filter has been removed from NTS.prepareOptions
         assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
                                         row(KEYSPACE, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
-                                        row(KEYSPACE_PER_TEST, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
+                                        row(otherKeyspace, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
                                         row(ks1, true, map("class", "org.apache.cassandra.locator.NetworkTopologyStrategy", DATA_CENTER_REMOTE, "3")));
 
         // The auto-expansion should not change existing replication counts; do not let the user shoot themselves in the foot
@@ -336,7 +340,7 @@ public class AlterTest extends CQLTester
 
         assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
                                         row(KEYSPACE, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
-                                        row(KEYSPACE_PER_TEST, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
+                                        row(otherKeyspace, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
                                         row(ks1, true, map("class", "org.apache.cassandra.locator.NetworkTopologyStrategy", DATA_CENTER, "1", DATA_CENTER_REMOTE, "3")));
 
         // The keyspace should be fully functional
@@ -356,6 +360,8 @@ public class AlterTest extends CQLTester
     @Test
     public void testCreateSimpleAlterNTSDefaults() throws Throwable
     {
+        String otherKeyspace = createKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
+
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
         metadata.clearUnsafe();
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
@@ -370,7 +376,7 @@ public class AlterTest extends CQLTester
 
         assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
                                         row(KEYSPACE, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
-                                        row(KEYSPACE_PER_TEST, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
+                                        row(otherKeyspace, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
                                         row(ks1, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "2")));
 
         // Now we should be able to ALTER to NetworkTopologyStrategy directly from SimpleStrategy without supplying replication_factor
@@ -378,7 +384,7 @@ public class AlterTest extends CQLTester
 
         assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
                                         row(KEYSPACE, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
-                                        row(KEYSPACE_PER_TEST, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
+                                        row(otherKeyspace, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
                                         row(ks1, true, map("class", "org.apache.cassandra.locator.NetworkTopologyStrategy", DATA_CENTER, "2", DATA_CENTER_REMOTE, "2")));
 
         schemaChange("ALTER KEYSPACE " + ks1 + " WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 3}");
@@ -386,7 +392,7 @@ public class AlterTest extends CQLTester
 
         assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
                                         row(KEYSPACE, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
-                                        row(KEYSPACE_PER_TEST, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
+                                        row(otherKeyspace, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
                                         row(ks1, true, map("class", "org.apache.cassandra.locator.NetworkTopologyStrategy", DATA_CENTER, "2", DATA_CENTER_REMOTE, "2")));
     }
 
@@ -942,7 +948,6 @@ public class AlterTest extends CQLTester
 
         assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
                                         row(KEYSPACE, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
-                                        row(KEYSPACE_PER_TEST, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
                                         row(ks1, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")));
 
         assertInvalidThrow(InvalidRequestException.class, "ALTER KEYSPACE ks1 WITH replication= { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
