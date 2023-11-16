@@ -22,6 +22,7 @@ import java.nio.channels.ClosedChannelException;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -47,7 +48,7 @@ import static org.apache.cassandra.net.OutboundConnectionInitiator.*;
 public class HandshakeTest
 {
     private static final SocketFactory factory = new SocketFactory();
-
+    private static final int SUPPORTED_DSE_VERSION = 4;
     @BeforeClass
     public static void startup()
     {
@@ -63,11 +64,11 @@ public class HandshakeTest
 
     private Result handshake(int req, int outMin, int outMax) throws ExecutionException, InterruptedException
     {
-        return handshake(req, new AcceptVersions(outMin, outMax), null);
+        return handshake(req, new AcceptVersions(outMin, outMax, SUPPORTED_DSE_VERSION), null);
     }
     private Result handshake(int req, int outMin, int outMax, int inMin, int inMax) throws ExecutionException, InterruptedException
     {
-        return handshake(req, new AcceptVersions(outMin, outMax), new AcceptVersions(inMin, inMax));
+        return handshake(req, new AcceptVersions(outMin, outMax, SUPPORTED_DSE_VERSION), new AcceptVersions(inMin, inMax, SUPPORTED_DSE_VERSION));
     }
     private Result handshake(int req, AcceptVersions acceptOutbound, AcceptVersions acceptInbound) throws ExecutionException, InterruptedException
     {
@@ -84,7 +85,11 @@ public class HandshakeTest
                                                     .withAcceptVersions(acceptOutbound)
                                                     .withDefaults(ConnectionCategory.MESSAGING),
                               req, new AsyncPromise<>(eventLoop));
-            return future.get();
+            return future.get(20, TimeUnit.SECONDS);
+        }
+        catch (TimeoutException e)
+        {
+            throw new RuntimeException(e);
         }
         finally
         {
@@ -160,6 +165,15 @@ public class HandshakeTest
         Assert.assertEquals(Result.Outcome.INCOMPATIBLE, result.outcome);
         Assert.assertEquals(-1, result.incompatible().closestSupportedVersion);
         Assert.assertEquals(VERSION_30, result.incompatible().maxMessagingVersion);
+    }
+
+    @Test
+    public void testDSEToCCInitialHandshake() throws InterruptedException, ExecutionException
+    {
+        // This is how DSE 255 (0,4) intiaties the connection to CC (10,100)
+        Result result = handshake(255, 0, 4, 10, 100);
+        Assert.assertEquals(Result.Outcome.SUCCESS, result.outcome);
+        result.success().channel.close();
     }
 
     @Test

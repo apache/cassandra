@@ -127,7 +127,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
     private Future<Result<SuccessType>> initiate(EventLoop eventLoop)
     {
         if (logger.isTraceEnabled())
-            logger.trace("creating outbound bootstrap to {}, requestVersion: {}", settings, requestMessagingVersion);
+                logger.trace("creating outbound bootstrap to {}, requestVersion: {}", settings, requestMessagingVersion);
 
         if (!settings.authenticate())
         {
@@ -147,8 +147,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
                                          {
                                              if (future.isCancelled() && !timedout.get())
                                                  resultPromise.cancel(true);
-                                             else if (future.isCancelled())
-                                                 resultPromise.tryFailure(new IOException("Timeout handshaking with " + settings.connectToId()));
+                                             else if (future.isCancelled()) resultPromise.tryFailure(new IOException("Timeout handshaking with " + settings.connectToId()));
                                              else
                                                  resultPromise.tryFailure(future.cause());
                                          }
@@ -332,7 +331,9 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
 
                     if (result.isSuccess())
                     {
-                        ConfirmOutboundPre40 message = new ConfirmOutboundPre40(settings.acceptVersions.max, settings.from);
+                        // Third handshake message carries PV 10 rather than PV 100.
+                        // Note that CC -> CC handshake doesn't use thrid message at all.
+                        ConfirmOutboundPre40 message = new ConfirmOutboundPre40(settings.acceptVersions.min, settings.from);
                         AsyncChannelPromise.writeAndFlush(ctx, message.encode());
                     }
                 }

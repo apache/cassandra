@@ -202,6 +202,8 @@ public class MessagingService extends MessagingServiceMBeanImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(MessagingService.class);
 
+    private static final int SUPPORTED_DSE_VERSION = Integer.getInteger("cassandra.dse.messaging.version", 4);
+
     // 8 bits version, so don't waste versions
     public static final int VERSION_30 = 10;
     public static final int VERSION_3014 = 11;
@@ -215,7 +217,7 @@ public class MessagingService extends MessagingServiceMBeanImpl
     // DSE 6.8 version for backward compatibility
     public static final int VERSION_DSE_68 = 168;
 
-    static AcceptVersions accept_messaging = new AcceptVersions(minimum_version, current_version);
+    static AcceptVersions accept_messaging = new AcceptVersions(minimum_version, current_version, SUPPORTED_DSE_VERSION);
     static AcceptVersions accept_streaming = new AcceptVersions(current_version, current_version);
     static Map<Integer, Integer> versionOrdinalMap = Arrays.stream(Version.values()).collect(Collectors.toMap(v -> v.value, v -> v.ordinal()));
 

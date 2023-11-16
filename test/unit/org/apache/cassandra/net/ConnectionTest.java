@@ -189,7 +189,8 @@ public class ConnectionTest
             .withRequireClientAuth(false)
             .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA");
 
-    static final AcceptVersions legacy = new AcceptVersions(VERSION_30, VERSION_30);
+    // 30 is used for CNDB compatibility
+    static final AcceptVersions legacy = new AcceptVersions(VERSION_3014, VERSION_3014);
 
     static final List<Function<Settings, Settings>> MODIFIERS = ImmutableList.of(
         settings -> settings.outbound(outbound -> outbound.withAcceptVersions(legacy))
@@ -546,7 +547,7 @@ public class ConnectionTest
     public void testPre40() throws Throwable
     {
         MessagingService.instance().versions.set(FBUtilities.getBroadcastAddressAndPort(),
-                                                 MessagingService.VERSION_30);
+                                                 MessagingService.VERSION_3014);
 
         try
         {

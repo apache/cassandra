@@ -52,11 +52,13 @@ import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.streaming.async.StreamingInboundHandler;
 import org.apache.cassandra.utils.memory.BufferPools;
 
-import static java.lang.Math.*;
+import static java.lang.Math.max;
+import static java.lang.Math.min;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static org.apache.cassandra.net.MessagingService.*;
+import static org.apache.cassandra.net.MessagingService.VERSION_30;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.current_version;
+import static org.apache.cassandra.net.MessagingService.instance;
 import static org.apache.cassandra.net.MessagingService.minimum_version;
 import static org.apache.cassandra.net.SocketFactory.WIRETRACE;
 import static org.apache.cassandra.net.SocketFactory.newSslHandler;
@@ -232,9 +234,13 @@ public class InboundConnectionInitiator
         @Override
         protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception
         {
-            if (initiate == null) initiate(ctx, in);
-            else if (initiate.acceptVersions == null && confirmOutboundPre40 == null) confirmPre40(ctx, in);
-            else throw new IllegalStateException("Should no longer be on pipeline");
+            if (initiate == null)
+                initiate(ctx, in);
+            else if ((initiate.acceptVersions == null || initiate.acceptVersions.max == settings.acceptMessaging.dse)
+                     && confirmOutboundPre40 == null)
+                confirmPre40(ctx, in);
+            else
+                throw new IllegalStateException("Should no longer be on pipeline");
         }
 
         void initiate(ChannelHandlerContext ctx, ByteBuf in) throws IOException
@@ -263,36 +269,62 @@ public class InboundConnectionInitiator
                 else
                     accept = settings.acceptMessaging;
 
-                int useMessagingVersion = max(accept.min, min(accept.max, initiate.acceptVersions.max));
-                ByteBuf flush = new HandshakeProtocol.Accept(useMessagingVersion, accept.max).encode(ctx.alloc());
-
-                AsyncChannelPromise.writeAndFlush(ctx, flush, (ChannelFutureListener) future -> {
-                    if (!future.isSuccess())
-                        exceptionCaught(future.channel(), future.cause());
-                });
-
-                if (initiate.acceptVersions.min > accept.max)
+                boolean failed = false;
+                boolean isDse = false;
+                if (accept.dse > 0 && initiate.acceptVersions.max == accept.dse)
+                {
+                    logger.info("peer {} has DSE messaging versions ({}) ", ctx.channel().remoteAddress(), accept.dse);
+                    isDse = true;
+                }
+                else if (initiate.acceptVersions.min > accept.max)
                 {
                     logger.info("peer {} only supports messaging versions higher ({}) than this node supports ({})", ctx.channel().remoteAddress(), initiate.acceptVersions.min, current_version);
-                    failHandshake(ctx);
+                    failed = true;
                 }
                 else if (initiate.acceptVersions.max < accept.min)
                 {
                     logger.info("peer {} only supports messaging versions lower ({}) than this node supports ({})", ctx.channel().remoteAddress(), initiate.acceptVersions.max, minimum_version);
-                    failHandshake(ctx);
+                    failed = true;
+                }
+                if (isDse)
+                {
+                    assert initiate.type.isMessaging();
+
+                    // Second message to DSE is sent with version 10 (oss 3.0)
+                    ByteBuf response = HandshakeProtocol.Accept.respondPre40(settings.acceptMessaging.min, ctx.alloc());
+                    AsyncChannelPromise.writeAndFlush(ctx, response,
+                                                      (ChannelFutureListener) future -> {
+                                                          if (!future.isSuccess())
+                                                              exceptionCaught(future.channel(), future.cause());
+                                                      });
                 }
                 else
                 {
-                    if (initiate.type.isStreaming())
+                    int useMessagingVersion = max(accept.min, min(accept.max, initiate.acceptVersions.max));
+                    ByteBuf flush = new HandshakeProtocol.Accept(useMessagingVersion, accept.max).encode(ctx.alloc());
+                    AsyncChannelPromise.writeAndFlush(ctx, flush, (ChannelFutureListener) future -> {
+                        if (!future.isSuccess())
+                            exceptionCaught(future.channel(), future.cause());
+                    });
+                    if (failed)
+                    {
+                        failHandshake(ctx);
+                    }
+                    else if (initiate.type.isStreaming())
+                    {
                         setupStreamingPipeline(initiate.from, ctx);
+                    }
                     else
+                    {
                         setupMessagingPipeline(initiate.from, useMessagingVersion, initiate.acceptVersions.max, ctx.pipeline());
+                    }
                 }
             }
             else
             {
                 int version = initiate.requestMessagingVersion;
-                assert version < VERSION_40 && version >= settings.acceptMessaging.min;
+                assert (version < VERSION_40 && version >= settings.acceptMessaging.min) ||
+                       (version == settings.acceptMessaging.min && settings.acceptMessaging.acceptsDse());
                 logger.trace("Connection version {} from {}", version, ctx.channel().remoteAddress());
 
                 if (initiate.type.isStreaming())
@@ -309,7 +341,17 @@ public class InboundConnectionInitiator
                 {
                     // if this version is < the MS version the other node is trying
                     // to connect with, the other node will disconnect
-                    ByteBuf response = HandshakeProtocol.Accept.respondPre40(settings.acceptMessaging.max, ctx.alloc());
+                    ByteBuf response;
+                    if (version == settings.acceptMessaging.min && settings.acceptMessaging.acceptsDse())
+                    {
+                        // Min protocol is used for DSE CNDB compatibility
+                        response = HandshakeProtocol.Accept.respondPre40(version, ctx.alloc());
+                    }
+                    else
+                    {
+                        response = HandshakeProtocol.Accept.respondPre40(settings.acceptMessaging.max, ctx.alloc());
+                    }
+
                     AsyncChannelPromise.writeAndFlush(ctx, response,
                           (ChannelFutureListener) future -> {
                                if (!future.isSuccess())

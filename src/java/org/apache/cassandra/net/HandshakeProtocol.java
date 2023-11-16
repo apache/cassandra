@@ -125,7 +125,8 @@ class HandshakeProtocol
             flags |= ((framing.id & 1) << 2) | ((framing.id & 2) << 3);
             flags |= (requestMessagingVersion << 8);
 
-            if (requestMessagingVersion < VERSION_40 || acceptVersions.max < VERSION_40)
+            if ((requestMessagingVersion < VERSION_40 || acceptVersions.max < VERSION_40) &&
+                !(requestMessagingVersion == 255 && acceptVersions.acceptsDse()))
                 return flags; // for testing, permit serializing as though we are pre40
 
             flags |= (acceptVersions.min << 16);
