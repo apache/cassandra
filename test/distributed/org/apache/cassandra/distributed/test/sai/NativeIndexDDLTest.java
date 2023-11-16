@@ -39,6 +39,7 @@ import org.apache.cassandra.distributed.shared.Byteman;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Throwables;
@@ -91,8 +92,7 @@ public class NativeIndexDDLTest extends TestBaseImpl
     @After
     public void destroyCluster() throws Throwable
     {
-        if (cluster != null)
-            cluster.close();
+        FileUtils.closeQuietly(cluster);
     }
 
     @Test

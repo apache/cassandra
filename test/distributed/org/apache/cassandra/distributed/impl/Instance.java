@@ -879,8 +879,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 .thenRun(() -> {
                                     // when the instance is eventually stopped, we need to release buffer pools manually
                                     // they are assumed to gone along with JVM, but this is not the case in dtests
-                                    BufferPools.forNetworking().unsafeReset();
-                                    BufferPools.forChunkCache().unsafeReset();
+                                    BufferPools.forNetworking().unsafeReset(true);
+                                    BufferPools.forChunkCache().unsafeReset(true);
                                 });
     }
 
