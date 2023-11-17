@@ -43,6 +43,7 @@ public interface LogStorage extends LogReader
         {
             return LogState.EMPTY;
         }
+        public void truncate() {}
         public Replication getReplication(Epoch since)
         {
             return Replication.EMPTY;

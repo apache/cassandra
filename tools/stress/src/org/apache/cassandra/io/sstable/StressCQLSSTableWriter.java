@@ -64,7 +64,6 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JavaDriverUtils;
@@ -620,7 +619,6 @@ public class StressCQLSSTableWriter implements Closeable
          */
         public static ColumnFamilyStore createOfflineTable(CreateTableStatement.Raw schemaStatement, List<CreateTypeStatement.Raw> typeStatements, List<File> directoryList)
         {
-            ClusterMetadata prev = ClusterMetadata.current();
             String keyspace = schemaStatement.keyspace();
 
             KeyspaceMetadata ksm = KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1));
@@ -644,7 +642,6 @@ public class StressCQLSSTableWriter implements Closeable
             Tables tables = Tables.of(tableMetadata);
             KeyspaceMetadata updated = ksm.withSwapped(tables);
             Schema.instance.submit((metadata) ->  metadata.schema.getKeyspaces().withAddedOrUpdated(updated));
-            ClusterMetadata.current().schema.initializeKeyspaceInstances(prev.schema, false);
             Keyspace.setInitialized();
             Directories directories = new Directories(tableMetadata, directoryList.stream().map(f -> new Directories.DataDirectory(new org.apache.cassandra.io.util.File(f.toPath()))).collect(Collectors.toList()));
 

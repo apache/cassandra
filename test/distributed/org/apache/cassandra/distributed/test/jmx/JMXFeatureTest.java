@@ -110,8 +110,7 @@ public class JMXFeatureTest extends TestBaseImpl
             Assert.assertThat(statusResult.getStderr(), is(blankOrNullString()));
             Assert.assertThat(statusResult.getStdout(), containsString("DN  127.0.0.1"));
             testInstance(instances, cluster.get(2));
-            ClusterUtils.start(instanceToStop, props -> {
-            });
+            ClusterUtils.start(instanceToStop, props -> {});
             ClusterUtils.awaitRingState(otherInstance, instanceToStop, "Normal");
             ClusterUtils.awaitRingStatus(otherInstance, instanceToStop, "Up");
             statusResult = cluster.get(1).nodetoolResult("status");

@@ -1,4 +1,5 @@
 5.1
+ * Improve setup and initialisation of LocalLog/LogSpec (CASSANDRA-19271)
  * Refactor structure of caching metrics and expose auth cache metrics via JMX (CASSANDRA-17062)
  * Allow CQL client certificate authentication to work without sending an AUTHENTICATE request (CASSANDRA-18857)
  * Extend nodetool tpstats and system_views.thread_pools with detailed pool parameters (CASSANDRA-19289) 

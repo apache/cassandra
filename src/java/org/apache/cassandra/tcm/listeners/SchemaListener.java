@@ -29,17 +29,23 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 
 public class SchemaListener implements ChangeListener
 {
+    private final boolean loadSSTables;
+
+    public SchemaListener(boolean loadSSTables)
+    {
+        this.loadSSTables = loadSSTables;
+    }
+
     @Override
     public void notifyPreCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
     {
-        notifyInternal(prev, next, fromSnapshot, true);
+        notifyInternal(prev, next, fromSnapshot, loadSSTables);
     }
 
     protected void notifyInternal(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot, boolean loadSSTables)
     {
         if (!fromSnapshot && next.schema.lastModified().equals(prev.schema.lastModified()))
             return;
-
         next.schema.initializeKeyspaceInstances(prev.schema, loadSSTables);
     }
 

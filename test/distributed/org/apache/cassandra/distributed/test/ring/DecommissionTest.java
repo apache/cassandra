@@ -94,16 +94,16 @@ public class DecommissionTest extends TestBaseImpl
     }
 
     @Test
-    public void testDecomDirectoryMinMaxVersions() throws IOException
-    {
-        try (Cluster cluster = builder().withNodes(3)
+    public void testDecomDirectoryMinMaxVersions() throws IOException {
+        try (Cluster cluster = builder()
+                               .withConfig(cfg -> cfg.with(GOSSIP))
+                               .withNodes(3)
                 .start())
         {
             cluster.get(3).nodetoolResult("decommission", "--force").asserts().success();
 
             cluster.get(1).runOnInstance(() -> {
                 ClusterMetadata metadata = ClusterMetadata.current();
-
                 ClusterMetadataService.instance().commit(new Startup(metadata.myNodeId(),
                                                                      metadata.directory.getNodeAddresses(metadata.myNodeId()),
                                                                      new NodeVersion(new CassandraVersion("6.0.0"),
@@ -133,6 +133,7 @@ public class DecommissionTest extends TestBaseImpl
     @Test
     public void testMixedVersionBlockDecom() throws IOException {
         try (Cluster cluster = builder().withNodes(3)
+                                        .withConfig(config -> config.with(GOSSIP))
                                         .start())
         {
             cluster.get(3).nodetoolResult("decommission", "--force").asserts().success();

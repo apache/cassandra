@@ -123,6 +123,10 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
     {
         keyspaceInstances.putAll(prev.keyspaceInstances);
 
+        // If there are keyspaces in schema, but none of them are initialised, we're in first boot. Initialise all.
+        if (!prev.isEmpty() && prev.keyspaceInstances.isEmpty())
+            prev = DistributedSchema.empty();
+
         Keyspaces.KeyspacesDiff ksDiff = Keyspaces.diff(prev.getKeyspaces(), getKeyspaces());
 
         SchemaChangeNotifier schemaChangeNotifier = Schema.instance.schemaChangeNotifier();
@@ -148,8 +152,8 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
                 assert delta.before.name.equals(delta.after.name);
 
                 // drop tables and views
-                delta.views.dropped.forEach(v -> dropView(keyspace, v, true));
-                delta.tables.dropped.forEach(t -> dropTable(keyspace, t, true));
+                delta.views.dropped.forEach(v -> dropView(keyspace, v, loadSSTables));
+                delta.tables.dropped.forEach(t -> dropTable(keyspace, t, loadSSTables));
 
                 // add tables and views
                 delta.tables.created.forEach(t -> createTable(keyspace, t, loadSSTables));
@@ -164,7 +168,6 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
                 keyspace.viewManager.reload(keyspaces.get(keyspace.getName()).get());
             }
 
-            //schemaChangeNotifier.notifyKeyspaceAltered(delta);
             SchemaDiagnostics.keyspaceAltered(Schema.instance, delta);
         });
 

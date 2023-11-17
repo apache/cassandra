@@ -96,9 +96,11 @@ public class CMSTestBase
             this.rf = rf;
             schemaProvider = Mockito.mock(SchemaProvider.class);
             ClusterMetadata initial = new ClusterMetadata(partitioner);
-            LocalLog.LogSpec logSpec = new LocalLog.LogSpec().withInitialState(initial).withDefaultListeners(addListeners);
-            log = LocalLog.sync(logSpec);
-            log.ready();
+            log = LocalLog.logSpec()
+                          .sync()
+                          .withInitialState(initial)
+                          .withDefaultListeners(addListeners)
+                          .createLog();
 
             service = new ClusterMetadataService(new UniformRangePlacement(),
                                                  MetadataSnapshots.NO_OP,
@@ -108,6 +110,7 @@ public class CMSTestBase
                                                  true);
 
             ClusterMetadataService.setInstance(service);
+            log.readyUnchecked();
             log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
             service.commit(new Initialize(ClusterMetadata.current()) {
                 public Result execute(ClusterMetadata prev)
