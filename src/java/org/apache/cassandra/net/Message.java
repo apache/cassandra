@@ -34,7 +34,6 @@ import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.messages.ReplyContext;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
@@ -73,7 +72,7 @@ import static org.apache.cassandra.utils.vint.VIntCoding.skipUnsignedVInt;
  *
  * @param <T> The type of the message payload.
  */
-public class Message<T> implements ReplyContext
+public class Message<T> implements ResponseContext
 {
     private static final Logger logger = LoggerFactory.getLogger(Message.class);
     private static final NoSpamLogger noSpam1m = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
@@ -93,6 +92,7 @@ public class Message<T> implements ReplyContext
     }
 
     /** Sender of the message. */
+    @Override
     public InetAddressAndPort from()
     {
         return header.from;
@@ -108,6 +108,7 @@ public class Message<T> implements ReplyContext
      * id of the request/message. In 4.0+ can be shared between multiple messages of the same logical request,
      * whilst in versions above a new id would be allocated for each message sent.
      */
+    @Override
     public long id()
     {
         return header.id;
@@ -118,6 +119,7 @@ public class Message<T> implements ReplyContext
         return header.epoch;
     }
 
+    @Override
     public Verb verb()
     {
         return header.verb;
@@ -137,6 +139,7 @@ public class Message<T> implements ReplyContext
         return header.createdAtNanos;
     }
 
+    @Override
     public long expiresAtNanos()
     {
         return header.expiresAtNanos;
@@ -342,10 +345,15 @@ public class Message<T> implements ReplyContext
     /** Builds a response Message with provided payload, and all the right fields inferred from request Message */
     public <T> Message<T> responseWith(T payload)
     {
-        Message<T> msg = outWithParam(id(), verb().responseVerb, expiresAtNanos(), payload, null, null);
+        Message<T> msg = responseWith(payload, this);
         if (header.hasFlag(MessageFlag.URGENT))
             msg = msg.withFlag(MessageFlag.URGENT);
         return msg;
+    }
+
+    public static <T> Message<T> responseWith(T payload, ResponseContext respondTo)
+    {
+        return outWithParam(respondTo.id(), respondTo.verb().responseVerb, respondTo.expiresAtNanos(), payload, null, null);
     }
 
     /** Builds a response Message with no payload, and all the right fields inferred from request Message */
@@ -362,7 +370,12 @@ public class Message<T> implements ReplyContext
 
     public Message<RequestFailure> failureResponse(RequestFailureReason reason, @Nullable Throwable failure)
     {
-        return failureResponse(id(), expiresAtNanos(), new RequestFailure(reason, failure));
+        return failureResponse(reason, failure, this);
+    }
+
+    public static Message<RequestFailure> failureResponse(RequestFailureReason reason, @Nullable Throwable failure, ResponseContext respondTo)
+    {
+        return failureResponse(respondTo.id(), respondTo.expiresAtNanos(), new RequestFailure(reason, failure));
     }
 
     static Message<RequestFailure> failureResponse(long id, long expiresAtNanos, RequestFailure reason)

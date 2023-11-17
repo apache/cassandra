@@ -17,123 +17,92 @@
  */
 package org.apache.cassandra.journal;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Maps;
 
 import accord.utils.Invariants;
+import org.agrona.collections.Long2ObjectHashMap;
+import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.Refs;
-
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 
 /**
  * Consistent, immutable view of active + static segments
  * <p/>
- * TODO: an interval/range structure for StaticSegment lookup based on min/max key bounds
+ * TODO (performance, expected): an interval/range structure for StaticSegment lookup based on min/max key bounds
  */
-class Segments<K>
+class Segments<K, V>
 {
-    // active segments, containing unflushed data; the tail of this queue is the one we allocate writes from
-    private final List<ActiveSegment<K>> activeSegments;
+    private final Long2ObjectHashMap<Segment<K, V>> segments;
 
-    // finalised segments, no longer written to
-    private final Map<Descriptor, StaticSegment<K>> staticSegments;
-
-    // cached Iterable of concatenated active and static segments
-    private final Iterable<Segment<K>> allSegments;
-
-    Segments(List<ActiveSegment<K>> activeSegments, Map<Descriptor, StaticSegment<K>> staticSegments)
+    Segments(Long2ObjectHashMap<Segment<K, V>> segments)
     {
-        this.activeSegments = activeSegments;
-        this.staticSegments = staticSegments;
-        this.allSegments = Iterables.concat(onlyActive(), onlyStatic());
+        this.segments = segments;
     }
 
-    static <K> Segments<K> ofStatic(Collection<StaticSegment<K>> segments)
+    static <K, V> Segments<K, V> of(Collection<Segment<K, V>> segments)
     {
-        HashMap<Descriptor, StaticSegment<K>> staticSegments =
-            Maps.newHashMapWithExpectedSize(segments.size());
-        for (StaticSegment<K> segment : segments)
-            staticSegments.put(segment.descriptor, segment);
-        return new Segments<>(new ArrayList<>(), staticSegments);
+        Long2ObjectHashMap<Segment<K, V>> newSegments = newMap(segments.size());
+        for (Segment<K, V> segment : segments)
+            newSegments.put(segment.descriptor.timestamp, segment);
+        return new Segments<>(newSegments);
     }
 
-    static <K> Segments<K> none()
+    static <K, V> Segments<K, V> none()
     {
-        return new Segments<>(Collections.emptyList(), Collections.emptyMap());
+        return new Segments<>(emptyMap());
     }
 
-    Segments<K> withNewActiveSegment(ActiveSegment<K> activeSegment)
+    Segments<K, V> withNewActiveSegment(ActiveSegment<K, V> activeSegment)
     {
-        ArrayList<ActiveSegment<K>> newActiveSegments =
-            new ArrayList<>(activeSegments.size() + 1);
-        newActiveSegments.addAll(activeSegments);
-        newActiveSegments.add(activeSegment);
-        return new Segments<>(newActiveSegments, staticSegments);
+        Long2ObjectHashMap<Segment<K, V>> newSegments = new Long2ObjectHashMap<>(segments);
+        Segment<K, V> oldValue = newSegments.put(activeSegment.descriptor.timestamp, activeSegment);
+        Invariants.checkState(oldValue == null);
+        return new Segments<>(newSegments);
     }
 
-    Segments<K> withCompletedSegment(ActiveSegment<K> activeSegment, StaticSegment<K> staticSegment)
+    Segments<K, V> withCompletedSegment(ActiveSegment<K, V> activeSegment, StaticSegment<K, V> staticSegment)
     {
         Invariants.checkArgument(activeSegment.descriptor.equals(staticSegment.descriptor));
-
-        ArrayList<ActiveSegment<K>> newActiveSegments =
-            new ArrayList<>(activeSegments.size() - 1);
-        for (ActiveSegment<K> segment : activeSegments)
-            if (segment != activeSegment)
-                newActiveSegments.add(segment);
-        Invariants.checkState(newActiveSegments.size() == activeSegments.size() - 1);
-
-        HashMap<Descriptor, StaticSegment<K>> newStaticSegments =
-            Maps.newHashMapWithExpectedSize(staticSegments.size() + 1);
-        newStaticSegments.putAll(staticSegments);
-        if (newStaticSegments.put(staticSegment.descriptor, staticSegment) != null)
-            throw new IllegalStateException();
-
-        return new Segments<>(newActiveSegments, newStaticSegments);
+        Long2ObjectHashMap<Segment<K, V>> newSegments = new Long2ObjectHashMap<>(segments);
+        Segment<K, V> oldValue = newSegments.put(staticSegment.descriptor.timestamp, staticSegment);
+        Invariants.checkState(oldValue == activeSegment);
+        return new Segments<>(newSegments);
     }
 
-    Segments<K> withCompactedSegment(StaticSegment<K> oldSegment, StaticSegment<K> newSegment)
+    Segments<K, V> withCompactedSegment(StaticSegment<K, V> oldSegment, StaticSegment<K, V> newSegment)
     {
         Invariants.checkArgument(oldSegment.descriptor.timestamp == newSegment.descriptor.timestamp);
         Invariants.checkArgument(oldSegment.descriptor.generation < newSegment.descriptor.generation);
+        Long2ObjectHashMap<Segment<K, V>> newSegments = new Long2ObjectHashMap<>(segments);
+        Segment<K, V> oldValue = newSegments.put(newSegment.descriptor.timestamp, newSegment);
+        Invariants.checkState(oldValue == oldSegment);
+        return new Segments<>(newSegments);
+    }
 
-        HashMap<Descriptor, StaticSegment<K>> newStaticSegments = new HashMap<>(staticSegments);
-        if (!newStaticSegments.remove(oldSegment.descriptor, oldSegment))
+    Segments<K, V> withoutInvalidatedSegment(StaticSegment<K, V> staticSegment)
+    {
+        Long2ObjectHashMap<Segment<K, V>> newSegments = new Long2ObjectHashMap<>(segments);
+        if (!newSegments.remove(staticSegment.descriptor.timestamp, staticSegment))
             throw new IllegalStateException();
-        if (null != newStaticSegments.put(newSegment.descriptor, newSegment))
-            throw new IllegalStateException();
-
-        return new Segments<>(activeSegments, newStaticSegments);
+        return new Segments<>(newSegments);
     }
 
-    Segments<K> withoutInvalidatedSegment(StaticSegment<K> staticSegment)
+    Iterable<Segment<K, V>> all()
     {
-        HashMap<Descriptor, StaticSegment<K>> newStaticSegments = new HashMap<>(staticSegments);
-        if (!newStaticSegments.remove(staticSegment.descriptor, staticSegment))
-            throw new IllegalStateException();
-        return new Segments<>(activeSegments, newStaticSegments);
+        return segments.values();
     }
 
-    Iterable<Segment<K>> all()
+    void selectActive(long maxTimestamp, Collection<ActiveSegment<K, V>> into)
     {
-        return allSegments;
+        for (Segment<K, V> segment : segments.values())
+            if (segment.isActive() && segment.descriptor.timestamp <= maxTimestamp)
+                into.add(segment.asActive());
     }
 
-    Collection<ActiveSegment<K>> onlyActive()
+    void selectStatic(Collection<StaticSegment<K, V>> into)
     {
-        return activeSegments;
-    }
-
-    Collection<StaticSegment<K>> onlyStatic()
-    {
-        return staticSegments.values();
+        for (Segment<K, V> segment : segments.values())
+            if (segment.isStatic())
+                into.add(segment.asStatic());
     }
 
     /**
@@ -143,50 +112,39 @@ class Segments<K>
      * @return a subset of segments with references to them, or {@code null} if failed to grab the refs
      */
     @SuppressWarnings("resource")
-    ReferencedSegments<K> selectAndReference(Iterable<K> ids)
+    ReferencedSegments<K, V> selectAndReference(Iterable<K> ids)
     {
-        List<ActiveSegment<K>> selectedActive = null;
-        for (ActiveSegment<K> segment : onlyActive())
-        {
-            if (segment.index.mayContainIds(ids))
-            {
-                if (null == selectedActive)
-                    selectedActive = new ArrayList<>();
-                selectedActive.add(segment);
-            }
-        }
-        if (null == selectedActive) selectedActive = emptyList();
-
-        Map<Descriptor, StaticSegment<K>> selectedStatic = null;
-        for (StaticSegment<K> segment : onlyStatic())
+        Long2ObjectHashMap<Segment<K, V>> selectedSegments = null;
+        for (Segment<K, V> segment : segments.values())
         {
             if (segment.index().mayContainIds(ids))
             {
-                if (null == selectedStatic)
-                    selectedStatic = new HashMap<>();
-                selectedStatic.put(segment.descriptor, segment);
+                if (null == selectedSegments)
+                    selectedSegments = newMap(10);
+                selectedSegments.put(segment.descriptor.timestamp, segment);
             }
         }
-        if (null == selectedStatic) selectedStatic = emptyMap();
 
-        Refs<Segment<K>> refs = null;
-        if (!selectedActive.isEmpty() || !selectedStatic.isEmpty())
+        if (null == selectedSegments)
+            selectedSegments = emptyMap();
+
+        Refs<Segment<K, V>> refs = null;
+        if (!selectedSegments.isEmpty())
         {
-            refs = Refs.tryRef(Iterables.concat(selectedActive, selectedStatic.values()));
+            refs = Refs.tryRef(selectedSegments.values());
             if (null == refs)
                 return null;
         }
-        return new ReferencedSegments<>(selectedActive, selectedStatic, refs);
+        return new ReferencedSegments<>(selectedSegments, refs);
     }
 
-    static class ReferencedSegments<K> extends Segments<K> implements AutoCloseable
+    static class ReferencedSegments<K, V> extends Segments<K, V> implements AutoCloseable
     {
-        public final Refs<Segment<K>> refs;
+        private final Refs<Segment<K, V>> refs;
 
-        ReferencedSegments(
-            List<ActiveSegment<K>> activeSegments, Map<Descriptor, StaticSegment<K>> staticSegments, Refs<Segment<K>> refs)
+        ReferencedSegments(Long2ObjectHashMap<Segment<K, V>> segments, Refs<Segment<K, V>> refs)
         {
-            super(activeSegments, staticSegments);
+            super(segments);
             this.refs = refs;
         }
 
@@ -196,5 +154,53 @@ class Segments<K>
             if (null != refs)
                 refs.release();
         }
+    }
+
+    ReferencedSegment<K, V> selectAndReference(long segmentTimestamp)
+    {
+        Segment<K, V> segment = segments.get(segmentTimestamp);
+        if (null == segment)
+            return new ReferencedSegment<>(null, null);
+        Ref<Segment<K, V>> ref = segment.tryRef();
+        if (null == ref)
+            return null;
+        return new ReferencedSegment<>(segment, ref);
+    }
+
+    static class ReferencedSegment<K, V> implements AutoCloseable
+    {
+        private final Segment<K, V> segment;
+        private final Ref<Segment<K, V>> ref;
+
+        ReferencedSegment(Segment<K, V> segment, Ref<Segment<K, V>> ref)
+        {
+            this.segment = segment;
+            this.ref = ref;
+        }
+
+        Segment<K, V> segment()
+        {
+            return segment;
+        }
+
+        @Override
+        public void close()
+        {
+            if (null != ref)
+                ref.release();
+        }
+    }
+
+    private static final Long2ObjectHashMap<?> EMPTY_MAP = new Long2ObjectHashMap<>();
+
+    @SuppressWarnings("unchecked")
+    private static <K> Long2ObjectHashMap<K> emptyMap()
+    {
+        return (Long2ObjectHashMap<K>) EMPTY_MAP;
+    }
+
+    private static <K> Long2ObjectHashMap<K> newMap(int expectedSize)
+    {
+        return new Long2ObjectHashMap<>(0, 0.65f, false);
     }
 }

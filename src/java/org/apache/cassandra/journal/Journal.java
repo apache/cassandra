@@ -24,7 +24,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -32,8 +31,6 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.zip.CRC32;
-
-import javax.annotation.Nonnull;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,6 +45,7 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.PathUtils;
+import org.apache.cassandra.journal.Segments.ReferencedSegment;
 import org.apache.cassandra.journal.Segments.ReferencedSegments;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Crc;
@@ -86,6 +84,7 @@ public class Journal<K, V> implements Shutdownable
     final String name;
     final File directory;
     final Params params;
+    final AsyncCallbacks<K, V> callbacks;
 
     final KeySupport<K> keySupport;
     final ValueSerializer<K, V> valueSerializer;
@@ -98,12 +97,12 @@ public class Journal<K, V> implements Shutdownable
     volatile long replayLimit;
     final AtomicLong nextSegmentId = new AtomicLong();
 
-    private volatile ActiveSegment<K> currentSegment = null;
+    private volatile ActiveSegment<K, V> currentSegment = null;
 
     // segment that is ready to be used; allocator thread fills this and blocks until consumed
-    private volatile ActiveSegment<K> availableSegment = null;
+    private volatile ActiveSegment<K, V> availableSegment = null;
 
-    private final AtomicReference<Segments<K>> segments = new AtomicReference<>();
+    private final AtomicReference<Segments<K, V>> segments = new AtomicReference<>();
 
     Interruptible allocator;
     private final WaitQueue segmentPrepared = newWaitQueue();
@@ -116,12 +115,14 @@ public class Journal<K, V> implements Shutdownable
     public Journal(String name,
                    File directory,
                    Params params,
+                   AsyncCallbacks<K, V> callbacks,
                    KeySupport<K> keySupport,
                    ValueSerializer<K, V> valueSerializer)
     {
         this.name = name;
         this.directory = directory;
         this.params = params;
+        this.callbacks = callbacks;
 
         this.keySupport = keySupport;
         this.valueSerializer = valueSerializer;
@@ -146,7 +147,7 @@ public class Journal<K, V> implements Shutdownable
                           : descriptors.get(descriptors.size() - 1).timestamp;
         nextSegmentId.set(replayLimit = Math.max(currentTimeMillis(), maxTimestamp + 1));
 
-        segments.set(Segments.ofStatic(StaticSegment.open(descriptors, keySupport)));
+        segments.set(Segments.of(StaticSegment.open(descriptors, keySupport)));
         closer = executorFactory().sequential(name + "-closer");
         allocator = executorFactory().infiniteLoop(name + "-allocator", new AllocateRunnable(), SAFE, NON_DAEMON, SYNCHRONIZED);
         advanceSegment(null);
@@ -195,6 +196,34 @@ public class Journal<K, V> implements Shutdownable
     }
 
     /**
+     * Read an entry by its address (segment timestamp + offest)
+     *
+     * @return deserialized record if present, null otherwise
+     */
+    public V read(long segmentTimestamp, int offset)
+    {
+        try (ReferencedSegment<K, V> referenced = selectAndReference(segmentTimestamp))
+        {
+            Segment<K, V> segment = referenced.segment();
+            if (null == segment)
+                return null;
+
+            EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
+            segment.read(offset, holder);
+
+            try (DataInputBuffer in = new DataInputBuffer(holder.value, false))
+            {
+                return valueSerializer.deserialize(holder.key, in, segment.descriptor.userVersion);
+            }
+            catch (IOException e)
+            {
+                // can only throw if serializer is buggy
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    /**
      * Looks up a record by the provided id.
      * <p/>
      * Looking up an invalidated record may or may not return a record, depending on
@@ -210,9 +239,9 @@ public class Journal<K, V> implements Shutdownable
     {
         EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
 
-        try (ReferencedSegments<K> segments = selectAndReference(id))
+        try (ReferencedSegments<K, V> segments = selectAndReference(id))
         {
-            for (Segment<K> segment : segments.all())
+            for (Segment<K, V> segment : segments.all())
             {
                 if (segment.readFirst(id, holder))
                 {
@@ -248,9 +277,9 @@ public class Journal<K, V> implements Shutdownable
     {
         EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
 
-        try (ReferencedSegments<K> segments = selectAndReference(id))
+        try (ReferencedSegments<K, V> segments = selectAndReference(id))
         {
-            for (Segment<K> segment : segments.all())
+            for (Segment<K, V> segment : segments.all())
             {
                 int[] offsets = segment.index().lookUp(id);
                 for (int offset : offsets)
@@ -291,9 +320,9 @@ public class Journal<K, V> implements Shutdownable
      */
     public boolean readFirst(K id, RecordConsumer<K> consumer)
     {
-        try (ReferencedSegments<K> segments = selectAndReference(id))
+        try (ReferencedSegments<K, V> segments = selectAndReference(id))
         {
-            for (Segment<K> segment : segments.all())
+            for (Segment<K, V> segment : segments.all())
                 if (segment.readFirst(id, consumer))
                     return true;
         }
@@ -308,9 +337,9 @@ public class Journal<K, V> implements Shutdownable
     public Set<K> test(Set<K> test)
     {
         Set<K> present = new ObjectHashSet<>(test.size() + 1, 0.9f);
-        try (ReferencedSegments<K> segments = selectAndReference(test))
+        try (ReferencedSegments<K, V> segments = selectAndReference(test))
         {
-            for (Segment<K> segment : segments.all())
+            for (Segment<K, V> segment : segments.all())
             {
                 for (K id : test)
                 {
@@ -340,7 +369,7 @@ public class Journal<K, V> implements Shutdownable
         try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
         {
             valueSerializer.serialize(id, record, dob, params.userVersion());
-            ActiveSegment<K>.Allocation alloc = allocate(dob.getLength(), hosts);
+            ActiveSegment<K, V>.Allocation alloc = allocate(dob.getLength(), hosts);
             alloc.write(id, dob.unsafeGetBufferAndFlip(), hosts);
             flusher.waitForFlush(alloc);
         }
@@ -360,30 +389,27 @@ public class Journal<K, V> implements Shutdownable
      * @param id user-provided record id, expected to roughly correlate with time and go up
      * @param record the record to store
      * @param hosts hosts expected to invalidate the record
-     * @param executor executor to run the callback on
-     * @param callback the callback to run on
      */
-    public void asyncWrite(K id, V record, Set<Integer> hosts, @Nonnull Executor executor, @Nonnull AsyncWriteCallback callback)
+    public void asyncWrite(K id, V record, Set<Integer> hosts, Object writeContext)
     {
         try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
         {
             valueSerializer.serialize(id, record, dob, params.userVersion());
-            ActiveSegment<K>.Allocation alloc = allocate(dob.getLength(), hosts);
-            alloc.asyncWrite(id, dob.unsafeGetBufferAndFlip(), hosts, executor, callback);
+            ActiveSegment<K, V>.Allocation alloc = allocate(dob.getLength(), hosts);
+            alloc.asyncWrite(id, record, dob.unsafeGetBufferAndFlip(), hosts, writeContext, callbacks);
             flusher.asyncFlush(alloc);
         }
-        catch (IOException e)
+        catch (Throwable e)
         {
-            // exception during record serialization into the scratch buffer
-            executor.execute(() -> callback.onFailure(e));
+            callbacks.onWriteFailed(id, record, writeContext, e);
         }
     }
 
-    private ActiveSegment<K>.Allocation allocate(int entrySize, Set<Integer> hosts)
+    private ActiveSegment<K, V>.Allocation allocate(int entrySize, Set<Integer> hosts)
     {
-        ActiveSegment<K> segment = currentSegment;
+        ActiveSegment<K, V> segment = currentSegment;
 
-        ActiveSegment<K>.Allocation alloc;
+        ActiveSegment<K, V>.Allocation alloc;
         while (null == (alloc = segment.allocate(entrySize, hosts)))
         {
             // failed to allocate; move to a new segment with enough room
@@ -397,7 +423,7 @@ public class Journal<K, V> implements Shutdownable
      * Segment allocation logic.
      */
 
-    private void advanceSegment(ActiveSegment<K> oldSegment)
+    private void advanceSegment(ActiveSegment<K, V> oldSegment)
     {
         while (true)
         {
@@ -431,7 +457,7 @@ public class Journal<K, V> implements Shutdownable
         flusher.requestExtraFlush();
     }
 
-    private void awaitAvailableSegment(ActiveSegment<K> currentActiveSegment)
+    private void awaitAvailableSegment(ActiveSegment<K, V> currentActiveSegment)
     {
         do
         {
@@ -451,7 +477,7 @@ public class Journal<K, V> implements Shutdownable
 
     private void discardAvailableSegment()
     {
-        ActiveSegment<K> next;
+        ActiveSegment<K, V> next;
         synchronized (this)
         {
             next = availableSegment;
@@ -540,7 +566,7 @@ public class Journal<K, V> implements Shutdownable
         }
     }
 
-    private ActiveSegment<K> createSegment()
+    private ActiveSegment<K, V> createSegment()
     {
         Descriptor descriptor = Descriptor.create(directory, nextSegmentId.getAndIncrement(), params.userVersion());
         return ActiveSegment.create(descriptor, params, keySupport);
@@ -548,12 +574,15 @@ public class Journal<K, V> implements Shutdownable
 
     private void closeAllSegments()
     {
-        Segments<K> segments = swapSegments(ignore -> Segments.none());
+        Segments<K, V> segments = swapSegments(ignore -> Segments.none());
 
-        for (ActiveSegment<K> segment : segments.onlyActive())
-            segment.closeAndIfEmptyDiscard();
-        for (StaticSegment<K> segment : segments.onlyStatic())
-            segment.close();
+        for (Segment<K, V> segment : segments.all())
+        {
+            if (segment.isActive())
+                ((ActiveSegment<K, V>) segment).closeAndIfEmptyDiscard();
+            else
+                segment.close();
+        }
     }
 
     /**
@@ -562,29 +591,39 @@ public class Journal<K, V> implements Shutdownable
      *
      * @return a subset of segments with references to them
      */
-    ReferencedSegments<K> selectAndReference(Iterable<K> ids)
+    ReferencedSegments<K, V> selectAndReference(Iterable<K> ids)
     {
         while (true)
         {
-            ReferencedSegments<K> referenced = segments().selectAndReference(ids);
+            ReferencedSegments<K, V> referenced = segments().selectAndReference(ids);
             if (null != referenced)
                 return referenced;
         }
     }
 
-    ReferencedSegments<K> selectAndReference(K id)
+    ReferencedSegments<K, V> selectAndReference(K id)
     {
         return selectAndReference(Collections.singleton(id));
     }
 
-    private Segments<K> segments()
+    ReferencedSegment<K, V> selectAndReference(long segmentTimestamp)
+    {
+        while (true)
+        {
+            ReferencedSegment<K, V> referenced = segments().selectAndReference(segmentTimestamp);
+            if (null != referenced)
+                return referenced;
+        }
+    }
+
+    private Segments<K, V> segments()
     {
         return segments.get();
     }
 
-    private Segments<K> swapSegments(Function<Segments<K>, Segments<K>> transformation)
+    private Segments<K, V> swapSegments(Function<Segments<K, V>, Segments<K, V>> transformation)
     {
-        Segments<K> currentSegments, newSegments;
+        Segments<K, V> currentSegments, newSegments;
         do
         {
             currentSegments = segments();
@@ -594,30 +633,24 @@ public class Journal<K, V> implements Shutdownable
         return currentSegments;
     }
 
-    private void addNewActiveSegment(ActiveSegment<K> activeSegment)
+    private void addNewActiveSegment(ActiveSegment<K, V> activeSegment)
     {
         swapSegments(current -> current.withNewActiveSegment(activeSegment));
     }
 
-    private void replaceCompletedSegment(ActiveSegment<K> activeSegment, StaticSegment<K> staticSegment)
+    private void replaceCompletedSegment(ActiveSegment<K, V> activeSegment, StaticSegment<K, V> staticSegment)
     {
         swapSegments(current -> current.withCompletedSegment(activeSegment, staticSegment));
     }
 
-    private void replaceCompactedSegment(StaticSegment<K> oldSegment, StaticSegment<K> newSegment)
+    private void replaceCompactedSegment(StaticSegment<K, V> oldSegment, StaticSegment<K, V> newSegment)
     {
         swapSegments(current -> current.withCompactedSegment(oldSegment, newSegment));
     }
 
-    void selectSegmentToFlush(Collection<ActiveSegment<K>> into)
+    void selectSegmentToFlush(Collection<ActiveSegment<K, V>> into)
     {
-        ActiveSegment<K> current = currentSegment;
-        for (ActiveSegment<K> segment : segments().onlyActive())
-        {
-            // do not sync segments that became active after flush started
-            if (segment.descriptor.timestamp <= current.descriptor.timestamp)
-                into.add(segment);
-        }
+        segments().selectActive(currentSegment.descriptor.timestamp, into);
     }
 
     /**
@@ -631,9 +664,9 @@ public class Journal<K, V> implements Shutdownable
      */
     private class CloseActiveSegmentRunnable implements Runnable
     {
-        private final ActiveSegment<K> activeSegment;
+        private final ActiveSegment<K, V> activeSegment;
 
-        CloseActiveSegmentRunnable(ActiveSegment<K> activeSegment)
+        CloseActiveSegmentRunnable(ActiveSegment<K, V> activeSegment)
         {
             this.activeSegment = activeSegment;
         }
@@ -649,7 +682,7 @@ public class Journal<K, V> implements Shutdownable
         }
     }
 
-    void closeActiveSegmentAndOpenAsStatic(ActiveSegment<K> activeSegment)
+    void closeActiveSegmentAndOpenAsStatic(ActiveSegment<K, V> activeSegment)
     {
         closer.execute(new CloseActiveSegmentRunnable(activeSegment));
     }
@@ -665,10 +698,10 @@ public class Journal<K, V> implements Shutdownable
      */
     public void replayStaticSegments(RecordConsumer<K> consumer)
     {
-        List<StaticSegment<K>> staticSegments = new ArrayList<>(segments().onlyStatic());
-        staticSegments.sort(comparing(segment -> segment.descriptor));
-
-        for (StaticSegment<K> segment : staticSegments)
+        List<StaticSegment<K, V>> staticSegments = new ArrayList<>();
+        segments().selectStatic(staticSegments);
+        staticSegments.sort(comparing(s -> s.descriptor));
+        for (StaticSegment<K, V> segment : staticSegments)
             segment.forEachRecord(consumer);
     }
 

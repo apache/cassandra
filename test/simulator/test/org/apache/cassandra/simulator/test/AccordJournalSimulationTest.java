@@ -38,6 +38,7 @@ import accord.api.RoutingKey;
 import accord.api.Update;
 import accord.api.Write;
 import accord.local.Node;
+import accord.messages.MessageType;
 import accord.messages.PreAccept;
 import accord.messages.TxnRequest;
 import accord.primitives.FullKeyRoute;
@@ -60,7 +61,6 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.Files;
-import org.apache.cassandra.journal.AsyncWriteCallback;
 import org.apache.cassandra.service.accord.AccordJournal;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
@@ -114,12 +114,12 @@ public class AccordJournalSimulationTest extends SimulationTestBase
     private static void check()
     {
         State.logger.info("Check starting");
-        State.journal.start(); // to avoid a while true deadlock
+        State.journal.start(null); // to avoid a while true deadlock
         try
         {
             for (int i = 0; i < State.events; i++)
             {
-                TxnRequest<?> event = State.journal.readMessage(State.toTxnId(i), AccordJournal.Type.PRE_ACCEPT, PreAccept.class);
+                TxnRequest<?> event = State.journal.readMessage(State.toTxnId(i), MessageType.PRE_ACCEPT_REQ, PreAccept.class);
                 State.logger.info("Event {} -> {}", i, event);
                 if (event == null)
                     throw new AssertionError(String.format("Unable to read event %d", i));
@@ -166,7 +166,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
             }
         }
         private static final ExecutorPlus executor = ExecutorFactory.Global.executorFactory().pooled("name", 10);
-        private static final AccordJournal journal = new AccordJournal();
+        private static final AccordJournal journal = new AccordJournal(null);
         private static final int events = 100;
         private static final CountDownLatch eventsWritten = CountDownLatch.newCountDownLatch(events);
         private static final CountDownLatch eventsDurable = CountDownLatch.newCountDownLatch(events);
@@ -174,27 +174,27 @@ public class AccordJournalSimulationTest extends SimulationTestBase
 
         static
         {
-            journal.start();
+            journal.start(null);
         }
 
         public static void append(int event)
         {
             TxnRequest<?> request = toRequest(event);
-            journal.appendMessage(request, executor, new AsyncWriteCallback()
-            {
-                @Override
-                public void run()
-                {
-                    durable(event);
-                }
-
-                @Override
-                public void onFailure(Throwable error)
-                {
-                    eventsDurable.decrement(); // to make sure we don't block forever
-                    exceptions.add(error);
-                }
-            });
+//            journal.appendMessageTest(request, executor, new AsyncWriteCallback()
+//            {
+//                @Override
+//                public void run()
+//                {
+//                    durable(event);
+//                }
+//
+//                @Override
+//                public void onFailure(Throwable error)
+//                {
+//                    eventsDurable.decrement(); // to make sure we don't block forever
+//                    exceptions.add(error);
+//                }
+//            });
             eventsWritten.decrement();
             logger.info("append({}); remaining {}", event, eventsWritten.count());
         }

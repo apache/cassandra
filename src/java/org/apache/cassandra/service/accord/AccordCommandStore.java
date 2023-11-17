@@ -202,7 +202,6 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                                 CommandsForKeyUpdate::estimatedSizeOnHeap,
                                 keyCoordinator::createUpdatesNode);
 
-//>>>>>>> 701eeff2b4 (deps pruning integration)
         AccordKeyspace.loadCommandStoreMetadata(id, ((rejectBefore, durableBefore, redundantBefore, bootstrapBeganAt, safeToRead) -> {
             executor.submit(() -> {
                 if (rejectBefore != null)
@@ -365,7 +364,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     Runnable saveCommand(Command before, Command after)
     {
         Mutation mutation = AccordKeyspace.getCommandMutation(id, before, after, nextSystemTimestampMicros());
-        return null != mutation ? mutation::apply : null;
+        return null != mutation ? mutation::applyUnsafe : null;
     }
 
     boolean validateCommand(TxnId txnId, Command evicting)
@@ -378,7 +377,6 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     {
         TimestampsForKey reloaded = AccordKeyspace.unsafeLoadTimestampsForKey(this, (PartitionKey) key);
         return Objects.equals(evicting, reloaded);
-
     }
 
     TimestampsForKey loadTimestampsForKey(RoutableKey key)
@@ -423,14 +421,14 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     private Runnable saveTimestampsForKey(TimestampsForKey before, TimestampsForKey after)
     {
         Mutation mutation = AccordKeyspace.getTimestampsForKeyMutation(id, before, after, nextSystemTimestampMicros());
-        return null != mutation ? mutation::apply : null;
+        return null != mutation ? mutation::applyUnsafe : null;
     }
 
     @Nullable
     private Runnable saveCommandsForKeyUpdate(CommandsForKeyUpdate before, CommandsForKeyUpdate after)
     {
         Mutation mutation = AccordKeyspace.getCommandsForKeyMutation(id, after, nextSystemTimestampMicros());
-        return null != mutation ? mutation::apply : null;
+        return null != mutation ? mutation::applyUnsafe : null;
     }
 
     @VisibleForTesting

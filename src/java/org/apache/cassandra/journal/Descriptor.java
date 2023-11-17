@@ -35,7 +35,7 @@ import static java.util.stream.Collectors.toList;
  * log-1637159888484-2-1-1.meta
  * log-1637159888484-2-1-1.sync
  */
-final class Descriptor implements Comparable<Descriptor>
+public final class Descriptor implements Comparable<Descriptor>
 {
     private static final String SEPARATOR = "-";
     private static final String PREFIX = "log" + SEPARATOR;

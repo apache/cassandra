@@ -38,11 +38,11 @@ import org.apache.cassandra.utils.concurrent.Ref;
  * Can be compacted with input from {@code PersistedInvalidations} into a new smaller segment,
  * with invalidated entries removed.
  */
-final class StaticSegment<K> extends Segment<K>
+final class StaticSegment<K, V> extends Segment<K, V>
 {
     final FileChannel channel;
 
-    private final Ref<Segment<K>> selfRef;
+    private final Ref<Segment<K, V>> selfRef;
 
     private final OnDiskIndex<K> index;
 
@@ -69,9 +69,9 @@ final class StaticSegment<K> extends Segment<K>
      * @param descriptors descriptors of the segments to load
      * @return list of the loaded segments
      */
-    static <K> List<StaticSegment<K>> open(Collection<Descriptor> descriptors, KeySupport<K> keySupport)
+    static <K, V> List<Segment<K, V>> open(Collection<Descriptor> descriptors, KeySupport<K> keySupport)
     {
-        List<StaticSegment<K>> segments = new ArrayList<>(descriptors.size());
+        List<Segment<K, V>> segments = new ArrayList<>(descriptors.size());
         for (Descriptor descriptor : descriptors)
             segments.add(open(descriptor, keySupport));
         return segments;
@@ -84,7 +84,7 @@ final class StaticSegment<K> extends Segment<K>
      * @return the loaded segment
      */
     @SuppressWarnings({ "resource", "RedundantSuppression" })
-    static <K> StaticSegment<K> open(Descriptor descriptor, KeySupport<K> keySupport)
+    static <K, V> StaticSegment<K, V> open(Descriptor descriptor, KeySupport<K> keySupport)
     {
         if (!Component.DATA.existsFor(descriptor))
             throw new IllegalArgumentException("Data file for segment " + descriptor + " doesn't exist");
@@ -112,7 +112,7 @@ final class StaticSegment<K> extends Segment<K>
     }
 
     @SuppressWarnings("resource")
-    private static <K> StaticSegment<K> internalOpen(
+    private static <K, V> StaticSegment<K, V> internalOpen(
         Descriptor descriptor, SyncedOffsets syncedOffsets, OnDiskIndex<K> index, Metadata metadata, KeySupport<K> keySupport)
     throws IOException
     {
@@ -129,13 +129,13 @@ final class StaticSegment<K> extends Segment<K>
     }
 
     @Override
-    public Ref<Segment<K>> tryRef()
+    public Ref<Segment<K, V>> tryRef()
     {
         return selfRef.tryRef();
     }
 
     @Override
-    public Ref<Segment<K>> ref()
+    public Ref<Segment<K, V>> ref()
     {
         return selfRef.ref();
     }
@@ -176,6 +176,24 @@ final class StaticSegment<K> extends Segment<K>
         return index;
     }
 
+    @Override
+    boolean isActive()
+    {
+        return false;
+    }
+
+    @Override
+    ActiveSegment<K, V> asActive()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    StaticSegment<K, V> asStatic()
+    {
+        return this;
+    }
+
     /**
      * Read the entry and specified offset into the entry holder.
      * Expects the record to have been written at this offset, but potentially not flushed and lost.
@@ -183,7 +201,7 @@ final class StaticSegment<K> extends Segment<K>
     @Override
     boolean read(int offset, EntrySerializer.EntryHolder<K> into)
     {
-        ByteBuffer duplicate = (ByteBuffer) buffer.duplicate().position(offset);
+        ByteBuffer duplicate = buffer.duplicate().position(offset);
         try (DataInputBuffer in = new DataInputBuffer(duplicate, false))
         {
             return EntrySerializer.tryRead(into, keySupport, duplicate, in, syncedOffsets.syncedOffset(), descriptor.userVersion);

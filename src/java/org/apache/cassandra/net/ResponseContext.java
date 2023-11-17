@@ -15,15 +15,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.journal;
+package org.apache.cassandra.net;
 
-public interface AsyncWriteCallback extends Runnable
+import accord.messages.ReplyContext;
+import org.apache.cassandra.locator.InetAddressAndPort;
+
+public interface ResponseContext extends ReplyContext
 {
-    AsyncWriteCallback NOOP = new AsyncWriteCallback()
-    {
-        @Override public void onFailure(Throwable error) {}
-        @Override public void run() {}
-    };
-
-    void onFailure(Throwable error);
+    long id();
+    InetAddressAndPort from();
+    Verb verb();
+    long expiresAtNanos();
 }

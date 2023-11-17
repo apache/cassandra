@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
@@ -25,9 +24,6 @@ import org.slf4j.LoggerFactory;
 
 import accord.local.Node;
 import accord.messages.Request;
-import accord.utils.MapReduceConsume;
-import org.apache.cassandra.concurrent.ImmediateExecutor;
-import org.apache.cassandra.journal.AsyncWriteCallback;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 
@@ -53,44 +49,24 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
 //        ClusterMetadataService.instance().maybeCatchup(message.epoch());
         logger.debug("Receiving {} from {}", message.payload, message.from());
         T request = message.payload;
-        long knownEpoch = request.knownEpoch();
-        if (!node.topology().hasEpoch(knownEpoch))
-        {
-            node.configService().fetchTopologyForEpoch(knownEpoch);
-            long waitForEpoch = request.waitForEpoch();
-            if (!node.topology().hasEpoch(waitForEpoch))
-            {
-                node.withEpoch(waitForEpoch, () -> request.process(node, endpointMapper.mappedId(message.from()), message));
-                return;
-            }
-        }
 
-        if (!request.type().hasSideEffects())
+        if (request.type().hasSideEffects())
         {
-            request.process(node, endpointMapper.mappedId(message.from()), message);
+            journal.appendRemoteRequest(request, message);
             return;
         }
 
-        journal.appendMessage(request, ImmediateExecutor.INSTANCE, new AsyncWriteCallback()
-        {
-            @Override
-            public void run()
-            {
-                // TODO (performance, expected): do not retain references to messages beyond a certain total
-                //      cache threshold; in case of flush lagging behind, read the messages from journal and
-                //      deserialize instead before processing, to prevent memory pressure buildup from messages
-                //      pending flush to disk.
-                request.process(node, endpointMapper.mappedId(message.from()), message);
-            }
+        /*
+         * TODO (desired): messages without side-effects don't go through the journal,
+         *  and as such are retained on heap until the node catches up to waitForEpoch,
+         *  which can be problematic in absense of proper Accord<->Messaging backpressure
+         */
+        Node.Id fromNodeId = endpointMapper.mappedId(message.from());
+        long waitForEpoch = request.waitForEpoch();
 
-            @Override
-            public void onFailure(Throwable error)
-            {
-                if (request instanceof MapReduceConsume)
-                    ((MapReduceConsume<?,?>) request).accept(null, error);
-                else
-                    node.agent().onUncaughtException(error);
-            }
-        });
+        if (node.topology().hasEpoch(waitForEpoch))
+            request.process(node, fromNodeId, message);
+        else
+            node.withEpoch(waitForEpoch, () -> request.process(node, fromNodeId, message));
     }
 }
