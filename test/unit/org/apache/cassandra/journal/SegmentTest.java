@@ -66,7 +66,7 @@ public class SegmentTest
 
         Descriptor descriptor = Descriptor.create(directory, System.currentTimeMillis(), 1);
 
-        ActiveSegment<TimeUUID> segment = ActiveSegment.create(descriptor, params(), TimeUUIDKeySupport.INSTANCE);
+        ActiveSegment<TimeUUID, ByteBuffer> segment = ActiveSegment.create(descriptor, params(), TimeUUIDKeySupport.INSTANCE);
 
         segment.allocate(record1.remaining(), hosts1).write(id1, record1, hosts1);
         segment.allocate(record2.remaining(), hosts2).write(id2, record2, hosts2);
@@ -129,7 +129,7 @@ public class SegmentTest
 
         Descriptor descriptor = Descriptor.create(directory, System.currentTimeMillis(), 1);
 
-        ActiveSegment<TimeUUID> activeSegment = ActiveSegment.create(descriptor, params(), TimeUUIDKeySupport.INSTANCE);
+        ActiveSegment<TimeUUID, ByteBuffer> activeSegment = ActiveSegment.create(descriptor, params(), TimeUUIDKeySupport.INSTANCE);
 
         activeSegment.allocate(record1.remaining(), hosts1).write(id1, record1, hosts1);
         activeSegment.allocate(record2.remaining(), hosts2).write(id2, record2, hosts2);
@@ -138,7 +138,7 @@ public class SegmentTest
 
         activeSegment.close();
 
-        StaticSegment<TimeUUID> staticSegment = StaticSegment.open(descriptor, TimeUUIDKeySupport.INSTANCE);
+        StaticSegment<TimeUUID, ByteBuffer> staticSegment = StaticSegment.open(descriptor, TimeUUIDKeySupport.INSTANCE);
 
         // read all 4 entries by id and compare with originals
         EntrySerializer.EntryHolder<TimeUUID> holder = new EntrySerializer.EntryHolder<>();
@@ -194,7 +194,7 @@ public class SegmentTest
 
         Descriptor descriptor = Descriptor.create(directory, System.currentTimeMillis(), 1);
 
-        ActiveSegment<TimeUUID> activeSegment = ActiveSegment.create(descriptor, params(), TimeUUIDKeySupport.INSTANCE);
+        ActiveSegment<TimeUUID, ByteBuffer> activeSegment = ActiveSegment.create(descriptor, params(), TimeUUIDKeySupport.INSTANCE);
 
         activeSegment.allocate(record1.remaining(), hosts1).write(id1, record1, hosts1);
         activeSegment.allocate(record2.remaining(), hosts2).write(id2, record2, hosts2);
