@@ -111,6 +111,7 @@ public class AccordCommandStoreTest
         CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(txnId);
         PartialTxn txn = createPartialTxn(0);
         Route<?> route = RoutingKeys.of(key.toUnseekable()).toRoute(key.toUnseekable());
+        attrs.partialTxn(txn);
         attrs.route(route);
         attrs.durability(Majority);
         Ballot promised = ballot(1, clock.incrementAndGet(), 1);
@@ -139,7 +140,7 @@ public class AccordCommandStoreTest
                                               depTxn.keys(),
                                               executeAt,
                                               dependencies,
-                                              null,
+                                              txn,
                                               result.left,
                                               Result.APPLIED);
         commandStore.appendToJournal(apply);
