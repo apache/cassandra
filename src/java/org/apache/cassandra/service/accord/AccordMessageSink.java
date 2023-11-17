@@ -48,6 +48,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.ResponseContext;
 import org.apache.cassandra.net.Verb;
 
 import static accord.messages.MessageType.Kind.REMOTE;
@@ -58,15 +59,14 @@ public class AccordMessageSink implements MessageSink
 
     public static final class AccordMessageType extends MessageType
     {
-        public static final MessageType INTEROP_READ_REQ                = amt(REMOTE, false);
-        public static final MessageType INTEROP_READ_RSP                = amt(REMOTE, false);
-        public static final MessageType INTEROP_READ_REPAIR_REQ         = amt(REMOTE, false);
-        public static final MessageType INTEROP_READ_REPAIR_RSP         = amt(REMOTE, false);
-        public static final MessageType INTEROP_COMMIT_MINIMAL_REQ      = amt(REMOTE, true );
-        public static final MessageType INTEROP_COMMIT_MAXIMAL_REQ      = amt(REMOTE, true );
-        public static final MessageType INTEROP_APPLY_MINIMAL_REQ       = amt(REMOTE, true );
-        public static final MessageType INTEROP_APPLY_MAXIMAL_REQ       = amt(REMOTE, true );
-
+        public static final AccordMessageType INTEROP_READ_REQ           = remote("INTEROP_READ_REQ",           false);
+        public static final AccordMessageType INTEROP_READ_RSP           = remote("INTEROP_READ_RSP",           false);
+        public static final AccordMessageType INTEROP_READ_REPAIR_REQ    = remote("INTEROP_READ_REPAIR_REQ",    false);
+        public static final AccordMessageType INTEROP_READ_REPAIR_RSP    = remote("INTEROP_READ_REPAIR_RSP",    false);
+        public static final AccordMessageType INTEROP_COMMIT_MINIMAL_REQ = remote("INTEROP_COMMIT_MINIMAL_REQ", true );
+        public static final AccordMessageType INTEROP_COMMIT_MAXIMAL_REQ = remote("INTEROP_COMMIT_MAXIMAL_REQ", true );
+        public static final AccordMessageType INTEROP_APPLY_MINIMAL_REQ  = remote("INTEROP_APPLY_MINIMAL_REQ",  true );
+        public static final AccordMessageType INTEROP_APPLY_MAXIMAL_REQ  = remote("INTEROP_APPLY_MAXIMAL_REQ",  true );
 
         public static final List<MessageType> values;
 
@@ -90,14 +90,14 @@ public class AccordMessageSink implements MessageSink
             values = builder.build();
         }
 
-        private static MessageType amt(MessageType.Kind kind, boolean hasSideEffects)
+        protected static AccordMessageType remote(String name, boolean hasSideEffects)
         {
-            return new AccordMessageType(kind, hasSideEffects);
+            return new AccordMessageType(name, REMOTE, hasSideEffects);
         }
 
-        private AccordMessageType(MessageType.Kind kind, boolean hasSideEffects)
+        private AccordMessageType(String name, MessageType.Kind kind, boolean hasSideEffects)
         {
-            super(kind, hasSideEffects);
+            super(name, kind, hasSideEffects);
         }
     }
 
@@ -234,32 +234,32 @@ public class AccordMessageSink implements MessageSink
     @Override
     public void reply(Node.Id replyingToNode, ReplyContext replyContext, Reply reply)
     {
-        Message<?> replyTo = (Message<?>) replyContext;
-        Message<?> replyMsg = replyTo.responseWith(reply);
+        ResponseContext respondTo = (ResponseContext) replyContext;
+        Message<?> responseMsg = Message.responseWith(reply, respondTo);
         if (!reply.isFinal())
-            replyMsg = replyMsg.withFlag(MessageFlag.NOT_FINAL);
-        checkReplyType(reply, replyTo);
+            responseMsg = responseMsg.withFlag(MessageFlag.NOT_FINAL);
+        checkReplyType(reply, respondTo);
         InetAddressAndPort endpoint = endpointMapper.mappedEndpoint(replyingToNode);
-        logger.debug("Replying {} {} to {}", replyMsg.verb(), replyMsg.payload, endpoint);
-        messaging.send(replyMsg, endpoint);
+        logger.debug("Replying {} {} to {}", responseMsg.verb(), responseMsg.payload, endpoint);
+        messaging.send(responseMsg, endpoint);
     }
 
     @Override
     public void replyWithUnknownFailure(Node.Id replyingToNode, ReplyContext replyContext, Throwable failure)
     {
-        Message<?> replyTo = (Message<?>) replyContext;
-        Message<?> replyMsg = replyTo.failureResponse(RequestFailureReason.UNKNOWN, failure);
+        ResponseContext respondTo = (ResponseContext) replyContext;
+        Message<?> responseMsg = Message.failureResponse(RequestFailureReason.UNKNOWN, failure, respondTo);
         InetAddressAndPort endpoint = endpointMapper.mappedEndpoint(replyingToNode);
-        logger.debug("Replying with failure {} {} to {}", replyMsg.verb(), replyMsg.payload, endpoint);
-        messaging.send(replyMsg, endpoint);
+        logger.debug("Replying with failure {} {} to {}", responseMsg.verb(), responseMsg.payload, endpoint);
+        messaging.send(responseMsg, endpoint);
     }
 
-    private static void checkReplyType(Reply reply, Message<?> replyTo)
+    private static void checkReplyType(Reply reply, ResponseContext respondTo)
     {
         Verb verb = getVerb(reply.type());
         Preconditions.checkNotNull(verb, "Verb is null for type %s", reply.type());
-        Set<Verb> allowedVerbs = expectedReplyTypes(replyTo.verb());
-        Preconditions.checkArgument(allowedVerbs.contains(verb), "Expected reply message with verbs %s but got %s; reply type was %s, request verb was %s", allowedVerbs, verb, reply.type(), replyTo.verb());
+        Set<Verb> allowedVerbs = expectedReplyTypes(respondTo.verb());
+        Preconditions.checkArgument(allowedVerbs.contains(verb), "Expected reply message with verbs %s but got %s; reply type was %s, request verb was %s", allowedVerbs, verb, reply.type(), respondTo.verb());
     }
 
     private static Set<Verb> expectedReplyTypes(Verb verb)

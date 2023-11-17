@@ -32,6 +32,7 @@ import org.apache.cassandra.utils.concurrent.Semaphore;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static java.lang.String.format;
+import static java.util.Comparator.comparing;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
@@ -52,6 +53,7 @@ final class Flusher<K, V>
 
     private final Journal<K, V> journal;
     private final Params params;
+    private final AsyncCallbacks<K, V> callbacks;
 
     private volatile Interruptible flushExecutor;
 
@@ -70,13 +72,14 @@ final class Flusher<K, V>
     private final Semaphore haveWork = newSemaphore(1);
     private volatile boolean flushRequested;
 
-    private final FlushMethod<K> syncFlushMethod;
-    private final FlushMethod<K> asyncFlushMethod;
+    private final FlushMethod<K, V> syncFlushMethod;
+    private final FlushMethod<K, V> asyncFlushMethod;
 
     Flusher(Journal<K, V> journal)
     {
         this.journal = journal;
         this.params = journal.params;
+        this.callbacks = journal.callbacks;
         this.syncFlushMethod = syncFlushMethod(params);
         this.asyncFlushMethod = asyncFlushMethod(params);
     }
@@ -97,7 +100,7 @@ final class Flusher<K, V>
         private final MonotonicClock clock;
         private final NoSpamLogger noSpamLogger;
 
-        private final ArrayList<ActiveSegment<K>> segmentsToFlush = new ArrayList<>();
+        private final ArrayList<ActiveSegment<K, V>> segmentsToFlush = new ArrayList<>();
 
         FlushRunnable(MonotonicClock clock)
         {
@@ -155,38 +158,36 @@ final class Flusher<K, V>
         private void doFlush()
         {
             journal.selectSegmentToFlush(segmentsToFlush);
-            // only schedule onSuccess callbacks for a segment if the preceding segments
-            // have been fully flushed, to preserve 1:1 mapping between record's position
-            // in the journal and onSuccess callback scheduling order
-            boolean scheduleOnSuccessCallbacks = true;
+            segmentsToFlush.sort(comparing(s -> s.descriptor));
+
             try
             {
-                for (ActiveSegment<K> segment : segmentsToFlush)
+                long syncedSegment = -1;
+                int syncedOffset = -1;
+
+                for (ActiveSegment<K, V> segment : segmentsToFlush)
                 {
-                    try
-                    {
-                        scheduleOnSuccessCallbacks = doFlush(segment, scheduleOnSuccessCallbacks) && scheduleOnSuccessCallbacks;
-                    }
-                    catch (Throwable t)
-                    {
-                        segmentsToFlush.forEach(s -> s.scheduleOnFailureCallbacks(t));
-                        throw t;
-                    }
+                    syncedSegment = segment.descriptor.timestamp;
+                    syncedOffset = segment.flush();
+
+                    // if an older segment isn't fully complete + flushed yet, don't attempt to flush any younger ones
+                    if (!segment.isCompletedAndFullyFlushed(syncedOffset))
+                        break;
                 }
+
+                // invoke the onFlush() callback once, covering entire flushed range across all flushed segments
+                if (syncedSegment != -1 && syncedOffset != -1)
+                    callbacks.onFlush(syncedSegment, syncedOffset);
+            }
+            catch (Throwable t)
+            {
+                callbacks.onFlushFailed(t);
+                throw t;
             }
             finally
             {
                 segmentsToFlush.clear();
             }
-        }
-
-        // flush the segment, schedule write callbacks if requested, return whether the segment has been flushed fully
-        private boolean doFlush(ActiveSegment<K> segment, boolean scheduleCallbacks)
-        {
-            int syncedOffset = segment.flush();
-            if (scheduleCallbacks)
-                segment.scheduleOnSuccessCallbacks(syncedOffset);
-            return segment.isFullyFlushed(syncedOffset);
         }
 
         private long firstLaggedAt = Long.MIN_VALUE; // first lag ever or since last logged warning
@@ -231,12 +232,12 @@ final class Flusher<K, V>
     }
 
     @FunctionalInterface
-    private interface FlushMethod<K>
+    private interface FlushMethod<K, V>
     {
-        void flush(ActiveSegment<K>.Allocation allocation);
+        void flush(ActiveSegment<K, V>.Allocation allocation);
     }
 
-    private FlushMethod<K> syncFlushMethod(Params params)
+    private FlushMethod<K, V> syncFlushMethod(Params params)
     {
         switch (params.flushMode())
         {
@@ -247,7 +248,7 @@ final class Flusher<K, V>
         }
     }
 
-    private FlushMethod<K> asyncFlushMethod(Params params)
+    private FlushMethod<K, V> asyncFlushMethod(Params params)
     {
         switch (params.flushMode())
         {
@@ -258,17 +259,17 @@ final class Flusher<K, V>
         }
     }
 
-    void waitForFlush(ActiveSegment<K>.Allocation alloc)
+    void waitForFlush(ActiveSegment<K, V>.Allocation alloc)
     {
         syncFlushMethod.flush(alloc);
     }
 
-    void asyncFlush(ActiveSegment<K>.Allocation alloc)
+    void asyncFlush(ActiveSegment<K, V>.Allocation alloc)
     {
         asyncFlushMethod.flush(alloc);
     }
 
-    private void waitForFlushBatch(ActiveSegment<K>.Allocation alloc)
+    private void waitForFlushBatch(ActiveSegment<K, V>.Allocation alloc)
     {
         pending.incrementAndGet();
         requestExtraFlush();
@@ -277,7 +278,7 @@ final class Flusher<K, V>
         written.incrementAndGet();
     }
 
-    private void asyncFlushBatch(ActiveSegment<K>.Allocation alloc)
+    private void asyncFlushBatch(ActiveSegment<K, V>.Allocation alloc)
     {
         pending.incrementAndGet();
         requestExtraFlush();
@@ -286,7 +287,7 @@ final class Flusher<K, V>
         written.incrementAndGet();
     }
 
-    private void waitForFlushGroup(ActiveSegment<K>.Allocation alloc)
+    private void waitForFlushGroup(ActiveSegment<K, V>.Allocation alloc)
     {
         pending.incrementAndGet();
         alloc.awaitFlush(journal.metrics.waitingOnFlush);
@@ -294,7 +295,7 @@ final class Flusher<K, V>
         written.incrementAndGet();
     }
 
-    private void asyncFlushGroup(ActiveSegment<K>.Allocation alloc)
+    private void asyncFlushGroup(ActiveSegment<K, V>.Allocation alloc)
     {
         pending.incrementAndGet();
         // alloc.awaitFlush(journal.metrics.waitingOnFlush); // TODO (expected): collect async flush metrics
@@ -302,7 +303,7 @@ final class Flusher<K, V>
         written.incrementAndGet();
     }
 
-    private void waitForFlushPeriodic(ActiveSegment<K>.Allocation alloc)
+    private void waitForFlushPeriodic(ActiveSegment<K, V>.Allocation alloc)
     {
         long expectedFlushTime = nanoTime() - periodicFlushLagBlockNanos();
         if (lastFlushedAt < expectedFlushTime)
@@ -314,7 +315,7 @@ final class Flusher<K, V>
         written.incrementAndGet();
     }
 
-    private void asyncFlushPeriodic(ActiveSegment<K>.Allocation ignore)
+    private void asyncFlushPeriodic(ActiveSegment<K, V>.Allocation ignore)
     {
         pending.incrementAndGet();
         // awaitFlushAt(expectedFlushTime, journal.metrics.waitingOnFlush.time()); // TODO (expected): collect async flush metrics

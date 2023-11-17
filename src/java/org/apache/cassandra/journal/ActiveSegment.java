@@ -23,20 +23,17 @@ import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
 import java.util.*;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 
 import com.codahale.metrics.Timer;
-import org.apache.cassandra.concurrent.ExecutionFailure;
-import org.apache.cassandra.concurrent.ManyToOneConcurrentLinkedQueue;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
-final class ActiveSegment<K> extends Segment<K>
+final class ActiveSegment<K, V> extends Segment<K, V>
 {
     final FileChannel channel;
 
@@ -61,7 +58,7 @@ final class ActiveSegment<K> extends Segment<K>
     // a signal that writers can wait on to be notified of a completed flush in BATCH and GROUP FlushMode
     private final WaitQueue flushComplete = WaitQueue.newWaitQueue();
 
-    private final Ref<Segment<K>> selfRef;
+    private final Ref<Segment<K, V>> selfRef;
 
     final InMemoryIndex<K> index;
 
@@ -84,7 +81,7 @@ final class ActiveSegment<K> extends Segment<K>
     }
 
     @SuppressWarnings("resource")
-    static <K> ActiveSegment<K> create(Descriptor descriptor, Params params, KeySupport<K> keySupport)
+    static <K, V> ActiveSegment<K, V> create(Descriptor descriptor, Params params, KeySupport<K> keySupport)
     {
         SyncedOffsets syncedOffsets = SyncedOffsets.active(descriptor, true);
         InMemoryIndex<K> index = InMemoryIndex.create(keySupport);
@@ -98,6 +95,24 @@ final class ActiveSegment<K> extends Segment<K>
         return index;
     }
 
+    @Override
+    boolean isActive()
+    {
+        return true;
+    }
+
+    @Override
+    ActiveSegment<K, V> asActive()
+    {
+        return this;
+    }
+
+    @Override
+    StaticSegment<K, V> asStatic()
+    {
+        throw new UnsupportedOperationException();
+    }
+
     /**
      * Read the entry and specified offset into the entry holder.
      * Expects the caller to acquire the ref to the segment and the record to exist.
@@ -105,7 +120,7 @@ final class ActiveSegment<K> extends Segment<K>
     @Override
     boolean read(int offset, EntrySerializer.EntryHolder<K> into)
     {
-        ByteBuffer duplicate = (ByteBuffer) buffer.duplicate().position(offset).limit(buffer.capacity());
+        ByteBuffer duplicate = buffer.duplicate().position(offset).limit(buffer.capacity());
         try
         {
             EntrySerializer.read(into, keySupport, duplicate, descriptor.userVersion);
@@ -180,13 +195,13 @@ final class ActiveSegment<K> extends Segment<K>
     }
 
     @Override
-    public Ref<Segment<K>> tryRef()
+    public Ref<Segment<K, V>> tryRef()
     {
         return selfRef.tryRef();
     }
 
     @Override
-    public Ref<Segment<K>> ref()
+    public Ref<Segment<K, V>> ref()
     {
         return selfRef.ref();
     }
@@ -285,7 +300,7 @@ final class ActiveSegment<K> extends Segment<K>
         }
     }
 
-    boolean isFullyFlushed(int syncedOffset)
+    boolean isCompletedAndFullyFlushed(int syncedOffset)
     {
         return syncedOffset >= endOfBuffer;
     }
@@ -340,7 +355,7 @@ final class ActiveSegment<K> extends Segment<K>
                 opGroup.close();
                 return null;
             }
-            return new Allocation(opGroup, (ByteBuffer) buffer.duplicate().position(position).limit(position + totalSize));
+            return new Allocation(opGroup, buffer.duplicate().position(position).limit(position + totalSize));
         }
         catch (Throwable t)
         {
@@ -378,12 +393,14 @@ final class ActiveSegment<K> extends Segment<K>
         private final OpOrder.Group appendOp;
         private final ByteBuffer buffer;
         private final int position;
+        private final int size;
 
         Allocation(OpOrder.Group appendOp, ByteBuffer buffer)
         {
             this.appendOp = appendOp;
             this.buffer = buffer;
             this.position = buffer.position();
+            this.size = buffer.remaining();
         }
 
         void write(K id, ByteBuffer record, Set<Integer> hosts)
@@ -404,19 +421,14 @@ final class ActiveSegment<K> extends Segment<K>
             }
         }
 
-        void asyncWrite(K id, ByteBuffer record, Set<Integer> hosts, Executor executor, AsyncWriteCallback callback)
+        void asyncWrite(K id, V record, ByteBuffer bytes, Set<Integer> hosts, Object writeContext, AsyncCallbacks<K, V> callbacks) throws IOException
         {
             try (BufferedDataOutputStreamPlus out = new DataOutputBufferFixed(buffer))
             {
-                int entrySize = totalEntrySize(hosts, record.remaining());
-                EntrySerializer.write(id, record, hosts, keySupport, out, descriptor.userVersion);
+                EntrySerializer.write(id, bytes, hosts, keySupport, out, descriptor.userVersion);
                 index.update(id, position);
                 metadata.update(hosts);
-                writeCallbacksExternal.offer(new QueuedWriteCallback(position + entrySize, executor, callback));
-            }
-            catch (Throwable t)
-            {
-                executor.execute(() -> callback.onFailure(t));
+                callbacks.onWrite(descriptor.timestamp, position, size, id, record, writeContext);
             }
             finally
             {
@@ -431,87 +443,5 @@ final class ActiveSegment<K> extends Segment<K>
                 waitForFlush(position);
             }
         }
-    }
-
-    // (external) MPSC queue for async write (flush) callbacks, to be executed in *write position order*
-    private final ManyToOneConcurrentLinkedQueue<QueuedWriteCallback> writeCallbacksExternal =
-        new ManyToOneConcurrentLinkedQueue<>();
-    // (internal) single writer / single reader list of callbacks used to drain the callbacks into for sorting
-    private final ArrayList<QueuedWriteCallback> writeCallbacksInternal =
-        new ArrayList<>();
-
-    static final class QueuedWriteCallback implements Comparable<QueuedWriteCallback>
-    {
-        final long recordLimit;
-        final Executor executor;
-        final AsyncWriteCallback callback;
-
-        QueuedWriteCallback(long recordLimit, Executor executor, AsyncWriteCallback callback)
-        {
-            this.recordLimit = recordLimit;
-            this.executor = executor;
-            this.callback = callback;
-        }
-
-        @Override
-        public int compareTo(QueuedWriteCallback other)
-        {
-            // sort more recent callbacks first to simplify callback execution order later
-            return -Long.compare(this.recordLimit, other.recordLimit);
-        }
-
-        void scheduleOnSuccess()
-        {
-            try
-            {
-                executor.execute(callback);
-            }
-            catch (Throwable t)
-            {
-                ExecutionFailure.handle(t);
-            }
-        }
-
-        void scheduleOnFailure(Throwable error)
-        {
-            try
-            {
-                executor.execute(() -> callback.onFailure(error));
-            }
-            catch (Throwable t)
-            {
-                ExecutionFailure.handle(t);
-            }
-        }
-    }
-
-    void scheduleOnSuccessCallbacks(long syncedOffset)
-    {
-        // sort and execute callbacks in write position order, up until the furtherst synced offset
-        writeCallbacksExternal.drain(writeCallbacksInternal::add);
-        writeCallbacksInternal.sort(null);
-
-        for (int i = writeCallbacksInternal.size() - 1; i >= 0; i--)
-        {
-            QueuedWriteCallback callback = writeCallbacksInternal.get(i);
-            if (callback.recordLimit > syncedOffset)
-                break;
-            callback.scheduleOnSuccess();
-            writeCallbacksInternal.remove(i);
-        }
-    }
-
-    void scheduleOnFailureCallbacks(Throwable t)
-    {
-        writeCallbacksExternal.drain(writeCallbacksInternal::add);
-        writeCallbacksInternal.sort(null);
-
-        for (int i = writeCallbacksInternal.size() - 1; i >= 0; i--)
-        {
-            QueuedWriteCallback callback = writeCallbacksInternal.get(i);
-            callback.scheduleOnFailure(t);
-        }
-
-        writeCallbacksInternal.clear();
     }
 }

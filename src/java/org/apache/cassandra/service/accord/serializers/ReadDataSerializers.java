@@ -69,9 +69,9 @@ public class ReadDataSerializers
         }
     };
 
-    private static final ApplyThenWaitUntilAppliedSerializer applyThenWaitUntilApplied = new ApplyThenWaitUntilAppliedSerializer();
+    public static final ApplyThenWaitUntilAppliedSerializer applyThenWaitUntilApplied = new ApplyThenWaitUntilAppliedSerializer();
 
-    private static class ApplyThenWaitUntilAppliedSerializer implements ReadDataSerializer<ApplyThenWaitUntilApplied>
+    public static class ApplyThenWaitUntilAppliedSerializer implements ReadDataSerializer<ApplyThenWaitUntilApplied>
     {
         @Override
         public void serialize(ApplyThenWaitUntilApplied applyThenWaitUntilApplied, DataOutputPlus out, int version) throws IOException
