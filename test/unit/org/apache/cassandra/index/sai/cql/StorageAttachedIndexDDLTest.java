@@ -21,6 +21,7 @@
 package org.apache.cassandra.index.sai.cql;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -39,6 +40,7 @@ import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.exceptions.InvalidConfigurationInQueryException;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
 import com.datastax.driver.core.exceptions.ReadFailureException;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -76,6 +78,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 import org.assertj.core.api.Assertions;
 import org.mockito.Mockito;
@@ -622,6 +625,50 @@ public class StorageAttachedIndexDDLTest extends SAITester
         waitForCompactions();
 
         assertThatThrownBy(() -> executeNet("SELECT id1 FROM %s WHERE v1>=0")).isInstanceOf(ReadFailureException.class);
+    }
+
+    @Test
+    public void testMaxTermSize() throws Throwable
+    {
+        String largeTerm = UTF8Type.instance.compose(ByteBuffer.allocate(FBUtilities.MAX_UNSIGNED_SHORT / 2 + 1));
+        int maxFloatVectorDimensions = (int) (CassandraRelevantProperties.SAI_MAX_VECTOR_TERM_SIZE.getSizeInBytes() / 4); // 4 bytes per dimension
+        Vector<Float> largeVector = vector(new float[maxFloatVectorDimensions + 1]);
+
+        createTable(KEYSPACE, "CREATE TABLE %s (k int PRIMARY KEY, r text, m map<text, text>, v vector<float, " + largeVector.size() + ">)");
+        createIndex("CREATE CUSTOM INDEX ON %s(r) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(ENTRIES(m)) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'euclidean'}");
+
+        // verify that a write excceding max term size is accepted with client warnings
+        ResultSet resultSet = executeNet("INSERT INTO %s (k, r, m, v) VALUES (0, ?, {'" + largeTerm + "': ''}, " + largeVector + ')', largeTerm);
+        List<String> warnings = resultSet.getExecutionInfo().getWarnings();
+        warnings.sort(String::compareTo);
+        assertEquals(3, warnings.size());
+        assertTrue(warnings.get(0).contains("Can't add term of column m"));
+        assertTrue(warnings.get(1).contains("Can't add term of column r"));
+        assertTrue(warnings.get(2).contains("Can't add term of column v"));
+
+        // verify that the large terms aren't written into the memtable indexes
+        assertRows(execute("SELECT k, r, m, v FROM %s"), row(0, largeTerm, map(largeTerm, ""), largeVector));
+        assertEmpty(execute("SELECT * FROM %s WHERE r = ?", largeTerm));
+        assertEmpty(execute("SELECT * FROM %s WHERE m[?] = ''", largeTerm));
+        assertEmpty(execute("SELECT * FROM %s ORDER BY v ANN OF ? LIMIT 10", largeVector));
+
+        // verify that the large terms aren't written into the sstable indexes after flush
+        flush();
+        assertRows(execute("SELECT k, r, m, v FROM %s"), row(0, largeTerm, map(largeTerm, ""), largeVector));
+        assertEmpty(execute("SELECT * FROM %s WHERE r = ?", largeTerm));
+        assertEmpty(execute("SELECT * FROM %s WHERE m[?] = ''", largeTerm));
+        assertEmpty(execute("SELECT * FROM %s ORDER BY v ANN OF ? LIMIT 10", largeVector));
+
+        // verify that the large terms aren't written into the sstable indexes after compactions
+        executeNet("INSERT INTO %s (k, r, m, v) VALUES (0, ?, {'" + largeTerm + "': ''}, " + largeVector + ')', largeTerm);
+        flush();
+        compact();
+        assertRows(execute("SELECT k, r, m, v FROM %s"), row(0, largeTerm, map(largeTerm, ""), largeVector));
+        assertEmpty(execute("SELECT * FROM %s WHERE r = ?", largeTerm));
+        assertEmpty(execute("SELECT * FROM %s WHERE m[?] = ''", largeTerm));
+        assertEmpty(execute("SELECT * FROM %s ORDER BY v ANN OF ? LIMIT 10", largeVector));
     }
 
     @Test
