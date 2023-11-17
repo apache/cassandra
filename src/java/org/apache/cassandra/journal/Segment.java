@@ -24,7 +24,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.RefCounted;
 
-abstract class Segment<K> implements Closeable, RefCounted<Segment<K>>
+abstract class Segment<K, V> implements Closeable, RefCounted<Segment<K, V>>
 {
     final File file;
     final Descriptor descriptor;
@@ -44,6 +44,12 @@ abstract class Segment<K> implements Closeable, RefCounted<Segment<K>>
     }
 
     abstract Index<K> index();
+
+    abstract boolean isActive();
+    boolean isStatic() { return !isActive(); }
+
+    abstract ActiveSegment<K, V> asActive();
+    abstract StaticSegment<K, V> asStatic();
 
     /*
      * Reading entries (by id, by offset, iterate)
