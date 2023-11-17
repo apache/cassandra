@@ -50,7 +50,7 @@ import accord.local.Node.Id;
 import accord.local.NodeTimeService;
 import accord.local.RedundantBefore;
 import accord.local.ShardDistributor.EvenSplit;
-import accord.messages.LocalMessage;
+import accord.messages.LocalRequest;
 import accord.messages.Request;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
@@ -60,12 +60,10 @@ import accord.primitives.TxnId;
 import accord.topology.TopologyManager;
 import accord.utils.DefaultRandom;
 import accord.utils.Invariants;
-import accord.utils.MapReduceConsume;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import org.agrona.collections.Int2ObjectHashMap;
-import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -74,7 +72,6 @@ import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
-import org.apache.cassandra.journal.AsyncWriteCallback;
 import org.apache.cassandra.metrics.AccordClientRequestMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -284,11 +281,11 @@ public class AccordService implements IAccordService, Shutdownable
         this.messageSink = new AccordMessageSink(agent, configService);
         this.scheduler = new AccordScheduler();
         this.dataStore = new AccordDataStore();
-        this.journal = new AccordJournal();
         this.configuration = new AccordConfiguration(DatabaseDescriptor.getRawConfig());
+        this.journal = new AccordJournal(configService);
         this.node = new Node(localId,
                              messageSink,
-                             this::handleLocalMessage,
+                             this::handleLocalRequest,
                              configService,
                              AccordService::uniqueNow,
                              NodeTimeService.unixWrapper(TimeUnit.MICROSECONDS, AccordService::uniqueNow),
@@ -312,7 +309,7 @@ public class AccordService implements IAccordService, Shutdownable
     @Override
     public void startup()
     {
-        journal.start();
+        journal.start(node);
         configService.start();
         ClusterMetadataService.instance().log().addListener(configService);
         fastPathCoordinator.start();
@@ -494,35 +491,11 @@ public class AccordService implements IAccordService, Shutdownable
         }
     }
 
-    private void handleLocalMessage(LocalMessage message, Node node)
+    private void handleLocalRequest(LocalRequest<?> request, Node node)
     {
-        if (!message.type().hasSideEffects())
-        {
-            message.process(node);
-            return;
-        }
-
-        journal.appendMessage(message, ImmediateExecutor.INSTANCE, new AsyncWriteCallback()
-        {
-            @Override
-            public void run()
-            {
-                // TODO (performance, expected): do not retain references to messages beyond a certain total
-                //      cache threshold; in case of flush lagging behind, read the messages from journal and
-                //      deserialize instead before processing, to prevent memory pressure buildup from messages
-                //      pending flush to disk.
-                message.process(node);
-            }
-
-            @Override
-            public void onFailure(Throwable error)
-            {
-                if (message instanceof MapReduceConsume)
-                    ((MapReduceConsume<?,?>) message).accept(null, error);
-                else
-                    node.agent().onUncaughtException(error);
-            }
-        });
+        // currently, we only create LocalRequests that have side effects and need to be persisted
+        Invariants.checkState(request.type().hasSideEffects());
+        journal.appendLocalRequest(request);
     }
 
     private static RequestTimeoutException newTimeout(TxnId txnId, Txn txn, ConsistencyLevel consistencyLevel)
