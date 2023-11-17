@@ -2586,6 +2586,12 @@ public abstract class CQLTester
         {
             return values.length;
         }
+
+        @Override
+        public String toString()
+        {
+            return Arrays.toString(values);
+        }
     }
 
     // Attempt to find an AbstracType from a value (for serialization/printing sake).
