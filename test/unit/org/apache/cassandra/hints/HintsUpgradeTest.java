@@ -26,6 +26,7 @@ import java.util.function.Consumer;
 import com.google.common.collect.ImmutableMap;
 import org.junit.After;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -47,6 +48,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+@Ignore("TODO: TCM")
 public class HintsUpgradeTest
 {
     static

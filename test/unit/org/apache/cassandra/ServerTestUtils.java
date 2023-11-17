@@ -24,8 +24,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,21 +33,20 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummarySupport;
-import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.AbstractEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
@@ -59,6 +58,7 @@ import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.Processor;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogStorage;
+import org.apache.cassandra.tcm.log.SystemKeyspaceStorage;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
@@ -265,7 +265,7 @@ public final class ServerTestUtils
 
     public static void initCMS()
     {
-        // Effectively disable automatic snapshots using AtomicLongBackedProcessopr and LocaLLog.Sync interacts
+        // Effectively disable automatic snapshots using AtomicLongBackedProcessor and LocaLLog.Sync interacts
         // badly with submitting SealPeriod transformations from the log listener. In this configuration, SealPeriod
         // commits performed on NonPeriodicTasks threads end up actually performing the transformations as well as
         // calling the pre and post commit listeners, which is not threadsafe. In a non-test setup the processing of
@@ -276,9 +276,14 @@ public final class ServerTestUtils
         IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
         boolean addListeners = true;
         ClusterMetadata initial = new ClusterMetadata(partitioner);
-        LocalLog.LogSpec logSpec = new LocalLog.LogSpec().withInitialState(initial)
-                                                         .withDefaultListeners(addListeners);
-        LocalLog log = LocalLog.async(logSpec);
+        if (!Keyspace.isInitialized())
+            Keyspace.setInitialized();
+
+        LocalLog log = LocalLog.logSpec()
+                               .withInitialState(initial)
+                               .withDefaultListeners(addListeners)
+                               .createLog();
+
         ResettableClusterMetadataService service = new ResettableClusterMetadataService(new UniformRangePlacement(),
                                                                                         MetadataSnapshots.NO_OP,
                                                                                         log,
@@ -287,10 +292,7 @@ public final class ServerTestUtils
                                                                                         true);
 
         ClusterMetadataService.setInstance(service);
-        initial.schema.initializeKeyspaceInstances(DistributedSchema.empty());
-        if (!Keyspace.isInitialized())
-            Keyspace.setInitialized();
-        log.ready();
+        log.readyUnchecked();
         log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
         service.commit(new Initialize(ClusterMetadata.current()));
         QueryProcessor.registerStatementInvalidatingListener();
@@ -309,12 +311,13 @@ public final class ServerTestUtils
         // |-- StorageService.instance.setPartitionerUnsafe(M3P)  # test wants to use LongToken
         // |-- ServerTestUtils.recreateCMS                        # recreates the CMS using the updated partitioner
         ClusterMetadata initial = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
-        initial.schema.initializeKeyspaceInstances(DistributedSchema.empty());
-        LocalLog.LogSpec logSpec = new LocalLog.LogSpec().withInitialState(initial)
-                                                         .withStorage(LogStorage.SystemKeyspace)
-                                                         .withDefaultListeners();
-        LocalLog log = LocalLog.async(logSpec);
-        log.ready();
+        LogStorage storage = LogStorage.SystemKeyspace;
+        LocalLog.LogSpec logSpec = LocalLog.logSpec()
+                                           .withInitialState(initial)
+                                           .withStorage(storage)
+                                           .withDefaultListeners();
+        LocalLog log = logSpec.createLog();
+
         ResettableClusterMetadataService cms = new ResettableClusterMetadataService(new UniformRangePlacement(),
                                                                                     MetadataSnapshots.NO_OP,
                                                                                     log,
@@ -323,6 +326,8 @@ public final class ServerTestUtils
                                                                                     true);
         ClusterMetadataService.unsetInstance();
         ClusterMetadataService.setInstance(cms);
+        ((SystemKeyspaceStorage)LogStorage.SystemKeyspace).truncate();
+        log.readyUnchecked();
         log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
         cms.mark();
     }
