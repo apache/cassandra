@@ -193,14 +193,12 @@ public class NIODataInputStreamTest
         assertFalse(fakeStream.markSupported());
     }
 
-    @SuppressWarnings("resource")
     @Test(expected = NullPointerException.class)
     public void testNullRBC() throws Exception
     {
         new NIODataInputStream(null, 9);
     }
 
-    @SuppressWarnings("resource")
     @Test
     public void testAvailable() throws Exception
     {
@@ -261,7 +259,6 @@ public class NIODataInputStreamTest
         };
     }
 
-    @SuppressWarnings("resource")
     @Test
     public void testReadUTF() throws Exception
     {
@@ -287,7 +284,6 @@ public class NIODataInputStreamTest
         assertEquals(BufferedDataOutputStreamTest.fourByte, is.readUTF());
     }
 
-    @SuppressWarnings("resource")
     @Test
     public void testReadVInt() throws Exception {
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -323,7 +319,6 @@ public class NIODataInputStreamTest
         assertTrue(threw);
     }
 
-    @SuppressWarnings("resource")
     @Test
     public void testReadUnsignedVInt() throws Exception {
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -385,7 +380,7 @@ public class NIODataInputStreamTest
 
     DataInputStream dis;
 
-    @SuppressWarnings({ "resource", "unused" })
+    @SuppressWarnings("unused")
     void fuzzOnce() throws Exception
     {
         init();
@@ -755,7 +750,6 @@ public class NIODataInputStreamTest
 
 
     @Test
-    @SuppressWarnings({ "resource"})
     public void testVIntRemainingBytes() throws Exception
     {
         for(int ii = 0; ii < 10; ii++)
@@ -784,7 +778,6 @@ public class NIODataInputStreamTest
     }
 
     @Test
-    @SuppressWarnings({ "resource"})
     public void testVIntSmallBuffer() throws Exception
     {
         for(int ii = 0; ii < 10; ii++)
@@ -817,7 +810,6 @@ public class NIODataInputStreamTest
     }
 
     @Test
-    @SuppressWarnings({ "resource"})
     public void testVIntTruncationEOF() throws Exception
     {
         for(int ii = 0; ii < 10; ii++)

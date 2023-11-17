@@ -1,24 +1,24 @@
 = Query vector data with CQL
 
-To query data using Vector Search, use a `SELECT` query: 
+To query data using Vector Search, use a `SELECT` query:
 
 [source,cql]
 ----
 include::example$CQL/vector-search/vector-search-cycling.cql[tag=select-vector-data-cycling]
 ----
 
-To obtain the distance calculation of the best scoring node closest to the query data as part of the results, use a `SELECT` query: 
+To obtain the similarity calculation of the best scoring node closest to the query data as part of the results, use a `SELECT` query:
 
 [source,cql]
 ----
 include::example$CQL/vector-search/vector-search-cycling.cql[tag=select-vector-data-similarity-cycling]
 ----
 
-The supported functions for this type of query are: 
+The supported functions for this type of query are:
 
 * similarity_dot_product
 * similarity_cosine
-* similarity_euclidean 
+* similarity_euclidean
 
 with the parameters of (<vector_column>, <embedding_value>).
 Both parameters represent vectors.

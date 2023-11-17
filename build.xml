@@ -29,6 +29,7 @@
     <property environment="env"/>
     <property file="build.properties" />
     <property file="build.properties.default" />
+    <property file="${user.home}/.ant/build.properties"/>
     <property name="debuglevel" value="source,lines,vars"/>
 
     <!-- default version and SCM information -->
@@ -534,6 +535,7 @@
 
     <!-- Stress build file -->
     <property name="stress.build.src" value="${basedir}/tools/stress/src" />
+    <property name="stress.build.resources" value="${basedir}/tools/stress/resources" />
     <property name="stress.test.src" value="${basedir}/tools/stress/test/unit" />
     <property name="stress.build.classes" value="${build.classes}/stress" />
     <property name="stress.test.classes" value="${build.dir}/test/stress-classes" />
@@ -560,13 +562,13 @@
         <javac compiler="modern" debug="true" debuglevel="${debuglevel}"
                source="${ant.java.version}" target="${ant.java.version}"
                encoding="utf-8" destdir="${stress.build.classes}" includeantruntime="true">
-            <src path="${stress.build.src}" />
+            <src path="${stress.build.src}"/>
             <classpath>
                 <path refid="cassandra.classpath" />
             </classpath>
         </javac>
         <copy todir="${stress.build.classes}">
-            <fileset dir="${stress.build.src}/resources" />
+            <fileset dir="${stress.build.resources}" />
         </copy>
     </target>
 
@@ -1150,7 +1152,7 @@
         <jvmarg value="-Dcassandra.test.sstableformatdevelopment=true"/>
         <!-- The first time SecureRandom initializes can be slow if it blocks on /dev/random -->
         <jvmarg value="-Djava.security.egd=file:/dev/urandom" />
-        <jvmarg value="-Dcassandra.testtag=@{testtag}.jdk${ant.java.version}${testtag.extra}"/>
+        <jvmarg value="-Dcassandra.testtag=@{testtag}_jdk${ant.java.version}${testtag.extra}"/>
         <jvmarg value="-Dcassandra.keepBriefBrief=${cassandra.keepBriefBrief}" />
         <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
         <jvmarg value="-Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true" /> <!-- enable defensive checks -->
@@ -2068,4 +2070,5 @@
   <import file="${build.helpers.dir}/build-checkstyle.xml"/>
   <import file="${build.helpers.dir}/build-cqlsh.xml"/>
   <import file="${build.helpers.dir}/build-bench.xml"/>
+  <import file="${build.helpers.dir}/build-sonar.xml"/>
 </project>

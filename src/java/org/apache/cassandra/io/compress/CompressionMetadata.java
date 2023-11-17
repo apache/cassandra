@@ -67,7 +67,6 @@ public class CompressionMetadata extends WrappedSharedCloseable
     public final CompressionParams parameters;
 
     @VisibleForTesting
-    @SuppressWarnings("resource")
     public static CompressionMetadata open(File chunksIndexFile, long compressedLength, boolean hasMaxCompressedSize)
     {
         CompressionParams parameters;
@@ -200,7 +199,6 @@ public class CompressionMetadata extends WrappedSharedCloseable
             throw new FSReadError(e, input.file);
         }
 
-        @SuppressWarnings("resource")
         Memory offsets = Memory.allocate(chunkCount * 8L);
         int i = 0;
         try
@@ -441,7 +439,6 @@ public class CompressionMetadata extends WrappedSharedCloseable
             }
         }
 
-        @SuppressWarnings("resource")
         public CompressionMetadata open(long dataLength, long compressedLength)
         {
             SafeMemory tOffsets = this.offsets.sharedCopy();

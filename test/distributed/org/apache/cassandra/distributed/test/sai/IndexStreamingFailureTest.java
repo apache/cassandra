@@ -145,7 +145,6 @@ public class IndexStreamingFailureTest extends TestBaseImpl
         volatile static boolean failFlush = false;
         volatile static boolean failValidation = false;
         
-        @SuppressWarnings("resource")
         static void installErrors(ClassLoader loader, int node)
         {
             if (node == 2)

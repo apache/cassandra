@@ -21,10 +21,10 @@ Create, check, alter, drop, and query Vector Search.
 // xref:cassandra:vector-search/vector-search-operations.adoc[Vector Search operations]::
 // Configuring and monitoring.
 
-xref:cassandra:vector-search/vector-search-query.adoc[Querying with Vector Search]::
-Understand how to run Vector Search queries.
+// xref:cassandra:vector-search/vector-search-query.adoc[Querying with Vector Search]::
+// Understand how to run Vector Search queries.
 
 xref:cassandra:vector-search/data-modeling.adoc[Data modeling with Vector Search]::
 The ins and outs of data modeling with Vector Search.
 
-*Reference:* xref:cassandra:reference/cql-commands/create-table.adoc[CREATE TABLE], xref:cassandra:reference/cql-commands/create-custom-index.adoc[CREATE CUSTOM INDEX]
+*Reference:* xref:cassandra:reference/cql-commands/create-table.adoc[CREATE TABLE], xref:cassandra:reference/cql-commands/create-index.adoc[CREATE INDEX], xref:cassandra:reference/cql-commands/create-custom-index.adoc[CREATE CUSTOM INDEX]

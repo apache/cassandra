@@ -1,0 +1,10 @@
+[NOTE]
+====
+If there are two different tables in the same keyspace and the two tables have the same partition key, this scenario is considered a single partition batch.
+There will be a single mutation for each table.
+This happens because the two tables could have different columns, even though the keyspace and partition are the same.
+Batches allow a caller to bundle multiple operations into a single batch request.
+All the operations are performed by the same coordinator.
+The best use of a batch request is for a single partition in multiple tables in the same keyspace.
+Also, batches provide a guarantee that mutations will be applied in a particular order.
+====

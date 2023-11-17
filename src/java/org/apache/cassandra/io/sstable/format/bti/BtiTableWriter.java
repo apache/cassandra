@@ -81,7 +81,7 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter, 
         return entry;
     }
 
-    @SuppressWarnings({ "resource", "RedundantSuppression" })
+    @SuppressWarnings({ "resource", "RedundantSuppression" }) // dataFile is closed along with the reader
     private BtiTableReader openInternal(OpenReason openReason, boolean isFinal, Supplier<PartitionIndex> partitionIndexSupplier)
     {
         IFilter filter = null;
@@ -145,7 +145,6 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter, 
     }
 
     @Override
-    @SuppressWarnings({ "resource", "RedundantSuppression" })
     protected SSTableReader openFinal(OpenReason openReason)
     {
 
