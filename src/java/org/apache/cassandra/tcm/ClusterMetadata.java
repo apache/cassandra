@@ -26,6 +26,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -816,6 +817,15 @@ public class ClusterMetadata
             return null;
         return service.metadata();
     }
+
+    public static Optional<ClusterMetadata> currentOptional()
+    {
+        ClusterMetadataService service = ClusterMetadataService.instance();
+        if (service == null)
+            return Optional.empty();
+        return Optional.of(service.metadata());
+    }
+
 
     public NodeId myNodeId()
     {

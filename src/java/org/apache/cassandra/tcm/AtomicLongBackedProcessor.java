@@ -112,6 +112,12 @@ public class AtomicLongBackedProcessor extends AbstractLocalProcessor
         }
 
         @Override
+        public void truncate()
+        {
+            entries.clear();
+        }
+
+        @Override
         public synchronized Replication getReplication(Epoch since)
         {
             assert entries != null : "Preserve history is off; can't query log state";

@@ -60,7 +60,7 @@ public class Period
      */
     public static long scanLogForPeriod(TableMetadata logTable, Epoch since)
     {
-        long currentPeriod = ClusterMetadata.current().period;
+        long currentPeriod = ClusterMetadata.currentOptional().map(cm -> cm.period).orElse(Period.EMPTY);
         PeriodFinder visitor = currentPeriod > Period.FIRST
                                ? new ReversePeriodFinder(since, currentPeriod)
                                : new ForwardPeriodFinder(since);

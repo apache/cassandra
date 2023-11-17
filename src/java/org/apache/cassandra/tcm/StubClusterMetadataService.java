@@ -67,12 +67,17 @@ public class StubClusterMetadataService extends ClusterMetadataService
     {
         super(new UniformRangePlacement(),
               MetadataSnapshots.NO_OP,
-              LocalLog.sync(new LocalLog.LogSpec().withInitialState(initial)),
+              LocalLog.logSpec()
+                      .loadSSTables(false)
+                      .syncForTests()
+                      .initializeKeyspaceInstances(false)
+                      .withInitialState(initial)
+                      .createLog(),
               new StubProcessor(),
               Commit.Replicator.NO_OP,
               false);
         this.metadata = initial;
-        this.log().ready();
+        this.log().readyForTests();
     }
 
     @Override

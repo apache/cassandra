@@ -101,6 +101,12 @@ public class SystemKeyspaceStorage implements LogStorage
         return LogState.getLogState(since, snapshots.get(), this);
     }
 
+    @Override
+    public void truncate()
+    {
+        Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(NAME).truncateBlockingWithoutSnapshot();
+    }
+
     /**
      * Uses the supplied period as a starting point to iterate through the log table
      * collating log entries which follow the supplied epoch. It is assumed that the

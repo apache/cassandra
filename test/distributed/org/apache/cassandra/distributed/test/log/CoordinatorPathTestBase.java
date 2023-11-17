@@ -642,9 +642,13 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
             assert executor == null;
             LogStorage logStorage = new AtomicLongBackedProcessor.InMemoryStorage();
             ClusterMetadata initial = new ClusterMetadata(partitioner);
-            LocalLog.LogSpec logSpec = new LocalLog.LogSpec().withInitialState(initial).withStorage(logStorage);
-            LocalLog log = LocalLog.sync(logSpec);
-            log.ready();
+            LocalLog log = LocalLog.logSpec()
+                                   .withInitialState(initial)
+                                   .initializeKeyspaceInstances(false)
+                                   .syncForTests()
+                                   .withStorage(logStorage)
+                                   .createLog();
+
             // Replicator only replicates to the node under test, as there are no other nodes in reality
             Commit.Replicator replicator = (result, source) -> {
                 realCluster.deliverMessage(realCluster.get(1).broadcastAddress(),
@@ -661,7 +665,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                                                         replicator,
                                                                         true);
             ClusterMetadataService.setInstance(service);
-
+            log.readyForTests();
             log.bootstrap(cms.addr());
             service.commit(new Initialize(log.metadata()));
             service.commit(new Register(new NodeAddresses(cms.addr()), new Location(cms.dc(), cms.rack()), NodeVersion.CURRENT));
@@ -720,8 +724,10 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
 
             // We need to create a second node to be able to send and receive messages.
             RealSimulatedNode driver = createNode();
-            LocalLog log = LocalLog.sync(new LocalLog.LogSpec());
-            log.ready();
+            LocalLog log = LocalLog.logSpec()
+                           .syncForTests()
+                           .initializeKeyspaceInstances(false)
+                           .createLog();
 
             ClusterMetadataService metadataService =
             new ClusterMetadataService(new UniformRangePlacement(),
@@ -754,6 +760,8 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                        false);
 
             ClusterMetadataService.setInstance(metadataService);
+            log.readyForTests();
+
             driver.clean(TCM_REPLICATION);
             driver.on(Verb.TCM_REPLICATION, new SimulatedAction<Replication, NoPayload>()
             {

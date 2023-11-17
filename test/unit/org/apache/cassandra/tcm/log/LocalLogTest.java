@@ -63,8 +63,12 @@ public class LocalLogTest
     @Test
     public void appendToFillGapWithConsecutiveBufferedEntries()
     {
-        LocalLog log = LocalLog.sync(new LocalLog.LogSpec().withInitialState(cm()));
-        log.ready();
+        LocalLog log = LocalLog.logSpec()
+                               .syncForTests()
+                               .initializeKeyspaceInstances(false)
+                               .withInitialState(cm())
+                               .createLog();
+        log.readyForTests();
         Epoch start = log.metadata().epoch;
         assertEquals(EMPTY, start);
 
@@ -87,10 +91,14 @@ public class LocalLogTest
     @Test
     public void sealPeriodForceSnapshotCollisionWithGap()
     {
-        LocalLog log = LocalLog.sync(new LocalLog.LogSpec().withInitialState(cm()));
-        log.ready();
+        LocalLog log = LocalLog.logSpec()
+                               .syncForTests()
+                               .initializeKeyspaceInstances(false)
+                               .withInitialState(cm())
+                               .createLog();
+        log.readyForTests();
 
-        List<Entry> entries =new ArrayList<>();
+        List<Entry> entries = new ArrayList<>();
         for (int i = 1; i <= 9; i++)
             entries.add(entry(i));
         entries.add(new Entry(Entry.Id.NONE,
@@ -112,8 +120,12 @@ public class LocalLogTest
     @Test
     public void multipleSnapshotEntries()
     {
-        LocalLog log = LocalLog.sync(new LocalLog.LogSpec().withInitialState(cm()));
-        log.ready();
+        LocalLog log = LocalLog.logSpec()
+                               .syncForTests()
+                               .initializeKeyspaceInstances(false)
+                               .withInitialState(cm())
+                               .createLog();
+        log.readyForTests();
 
         List<Entry> entries =new ArrayList<>();
         for (int i = 1; i <= 9; i++)
@@ -165,7 +177,7 @@ public class LocalLogTest
         CountDownLatch finish = CountDownLatch.newCountDownLatch(threads);
         CountDownLatch finishReaders = CountDownLatch.newCountDownLatch(threads);
         ExecutorPlus executor = executorFactory().configurePooled("APPENDER", threads * 2).build();
-        LocalLog log = LocalLog.asyncForTests(cm());
+        LocalLog log = LocalLog.logSpec().withInitialState(cm()).createLog();
 
         List<Entry> committed = new CopyOnWriteArrayList<>(); // doesn't need to be concurrent, since log is single-threaded
         log.addListener((e, m) -> committed.add(e));

@@ -18,12 +18,16 @@
 
 package org.apache.cassandra.tcm.log;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.tcm.Epoch;
 
 public interface LogStorage extends LogReader
 {
     void append(long period, Entry entry);
     LogState getLogState(Epoch since);
+    @VisibleForTesting
+    void truncate();
 
     /**
      * We are using system keyspace even on CMS nodes (at least for now) since otherwise it is tricky
@@ -43,6 +47,7 @@ public interface LogStorage extends LogReader
         {
             return LogState.EMPTY;
         }
+        public void truncate() {}
         public Replication getReplication(Epoch since)
         {
             return Replication.EMPTY;
