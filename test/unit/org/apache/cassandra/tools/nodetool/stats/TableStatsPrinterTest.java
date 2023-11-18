@@ -43,7 +43,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tSpace used (live): 0\n" +
         "\tSpace used (total): 9001\n" +
         "\tSpace used by snapshots (total): 1111\n" +
-        "\tSSTable Compression Ratio: 0.68000\n" +
+        "\tSSTable Compression Ratio: 0.680\n" +
         "\tNumber of partitions (estimate): 111111\n" +
         "\tMemtable cell count: 111\n" +
         "\tMemtable data size: 0\n" +
@@ -53,23 +53,23 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read latency: 2.000 ms\n" +
         "\tLocal write count: 5\n" +
         "\tLocal write latency: 0.050 ms\n" +
-        "\tLocal read/write ratio: 0.00000\n" +
+        "\tLocal read/write ratio: 0.000\n" +
         "\tPending flushes: 11111\n" +
         "\tPercent repaired: 100.0\n" +
         "\tBytes repaired: 0B\n" +
         "\tBytes unrepaired: 0B\n" +
         "\tBytes pending repair: 0B\n" +
         "\tBloom filter false positives: 30\n" +
-        "\tBloom filter false ratio: 0.40000\n" +
+        "\tBloom filter false ratio: 0.400\n" +
         "\tBloom filter space used: 789\n" +
         "\tCompacted partition minimum bytes: 2\n" +
         "\tCompacted partition maximum bytes: 60\n" +
         "\tCompacted partition mean bytes: 6\n" +
-        "\tAverage live cells per slice (last five minutes): 6.0\n" +
+        "\tAverage live cells per slice (last five minutes): 6.00\n" +
         "\tMaximum live cells per slice (last five minutes): 6\n" +
-        "\tAverage tombstones per slice (last five minutes): 5.0\n" +
+        "\tAverage tombstones per slice (last five minutes): 5.00\n" +
         "\tMaximum tombstones per slice (last five minutes): 1\n" +
-        "\tDroppable tombstone ratio: 0.00000\n" +
+        "\tDroppable tombstone ratio: 0.000\n" +
         "\n";
 
     public static final String expectedDefaultTable2Output =
@@ -81,7 +81,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tSpace used (total): 1024\n" +
         "\tSpace used by snapshots (total): 222\n" +
         "\tOff heap memory used (total): 314159367\n" +
-        "\tSSTable Compression Ratio: 0.68000\n" +
+        "\tSSTable Compression Ratio: 0.680\n" +
         "\tNumber of partitions (estimate): 22222\n" +
         "\tMemtable cell count: 22\n" +
         "\tMemtable data size: 900\n" +
@@ -92,14 +92,14 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read latency: 3.000 ms\n" +
         "\tLocal write count: 4\n" +
         "\tLocal write latency: 0.000 ms\n" +
-        "\tLocal read/write ratio: 0.00000\n" +
+        "\tLocal read/write ratio: 0.000\n" +
         "\tPending flushes: 222222\n" +
         "\tPercent repaired: 99.9\n" +
         "\tBytes repaired: 0B\n" +
         "\tBytes unrepaired: 0B\n" +
         "\tBytes pending repair: 0B\n" +
         "\tBloom filter false positives: 600\n" +
-        "\tBloom filter false ratio: 0.01000\n" +
+        "\tBloom filter false ratio: 0.010\n" +
         "\tBloom filter space used: 161718\n" +
         "\tBloom filter off heap memory used: 98\n" +
         "\tIndex summary off heap memory used: 1\n" +
@@ -109,9 +109,9 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tCompacted partition mean bytes: 4\n" +
         "\tAverage live cells per slice (last five minutes): 4.01\n" +
         "\tMaximum live cells per slice (last five minutes): 5\n" +
-        "\tAverage tombstones per slice (last five minutes): 4.001\n" +
+        "\tAverage tombstones per slice (last five minutes): 4.00\n" +
         "\tMaximum tombstones per slice (last five minutes): 2\n" +
-        "\tDroppable tombstone ratio: 0.22222\n" +
+        "\tDroppable tombstone ratio: 0.222\n" +
         "\n";
 
     public static final String expectedDefaultTable3Output =
@@ -122,7 +122,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tSpace used (live): 0\n" +
         "\tSpace used (total): 512\n" +
         "\tSpace used by snapshots (total): 0\n" +
-        "\tSSTable Compression Ratio: 0.32000\n" +
+        "\tSSTable Compression Ratio: 0.320\n" +
         "\tNumber of partitions (estimate): 3333\n" +
         "\tMemtable cell count: 333333\n" +
         "\tMemtable data size: 1999\n" +
@@ -132,23 +132,23 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read latency: 4.000 ms\n" +
         "\tLocal write count: 3\n" +
         "\tLocal write latency: NaN ms\n" +
-        "\tLocal read/write ratio: 0.00000\n" +
+        "\tLocal read/write ratio: 0.000\n" +
         "\tPending flushes: 333\n" +
         "\tPercent repaired: 99.8\n" +
         "\tBytes repaired: 0B\n" +
         "\tBytes unrepaired: 0B\n" +
         "\tBytes pending repair: 0B\n" +
         "\tBloom filter false positives: 20\n" +
-        "\tBloom filter false ratio: 0.50000\n" +
+        "\tBloom filter false ratio: 0.500\n" +
         "\tBloom filter space used: 456\n" +
         "\tCompacted partition minimum bytes: 2\n" +
         "\tCompacted partition maximum bytes: 50\n" +
         "\tCompacted partition mean bytes: 5\n" +
-        "\tAverage live cells per slice (last five minutes): 0.0\n" +
+        "\tAverage live cells per slice (last five minutes): 0.00\n" +
         "\tMaximum live cells per slice (last five minutes): 5\n" +
         "\tAverage tombstones per slice (last five minutes): NaN\n" +
         "\tMaximum tombstones per slice (last five minutes): 3\n" +
-        "\tDroppable tombstone ratio: 0.33333\n" +
+        "\tDroppable tombstone ratio: 0.333\n" +
         "\n";
 
     public static final String expectedDefaultTable4Output =
@@ -160,7 +160,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tSpace used (total): 256\n" +
         "\tSpace used by snapshots (total): 44\n" +
         "\tOff heap memory used (total): 441213818\n" +
-        "\tSSTable Compression Ratio: 0.95000\n" +
+        "\tSSTable Compression Ratio: 0.950\n" +
         "\tNumber of partitions (estimate): 444\n" +
         "\tMemtable cell count: 4\n" +
         "\tMemtable data size: 3000\n" +
@@ -171,14 +171,14 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read latency: NaN ms\n" +
         "\tLocal write count: 2\n" +
         "\tLocal write latency: 2.000 ms\n" +
-        "\tLocal read/write ratio: 0.00000\n" +
+        "\tLocal read/write ratio: 0.000\n" +
         "\tPending flushes: 4444\n" +
         "\tPercent repaired: 50.0\n" +
         "\tBytes repaired: 0B\n" +
         "\tBytes unrepaired: 0B\n" +
         "\tBytes pending repair: 0B\n" +
         "\tBloom filter false positives: 500\n" +
-        "\tBloom filter false ratio: 0.02000\n" +
+        "\tBloom filter false ratio: 0.020\n" +
         "\tBloom filter space used: 131415\n" +
         "\tBloom filter off heap memory used: 299792458\n" +
         "\tIndex summary off heap memory used: 2\n" +
@@ -188,9 +188,9 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tCompacted partition mean bytes: 4\n" +
         "\tAverage live cells per slice (last five minutes): NaN\n" +
         "\tMaximum live cells per slice (last five minutes): 3\n" +
-        "\tAverage tombstones per slice (last five minutes): 0.0\n" +
+        "\tAverage tombstones per slice (last five minutes): 0.00\n" +
         "\tMaximum tombstones per slice (last five minutes): 3\n" +
-        "\tDroppable tombstone ratio: 0.44444\n" +
+        "\tDroppable tombstone ratio: 0.444\n" +
         "\n";
 
     public static final String expectedDefaultTable5Output =
@@ -201,7 +201,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tSpace used (live): 55555\n" +
         "\tSpace used (total): 64\n" +
         "\tSpace used by snapshots (total): 55555\n" +
-        "\tSSTable Compression Ratio: 0.99000\n" +
+        "\tSSTable Compression Ratio: 0.990\n" +
         "\tNumber of partitions (estimate): 55\n" +
         "\tMemtable cell count: 55555\n" +
         "\tMemtable data size: 20000\n" +
@@ -211,23 +211,23 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read latency: 0.000 ms\n" +
         "\tLocal write count: 1\n" +
         "\tLocal write latency: 1.000 ms\n" +
-        "\tLocal read/write ratio: 0.00000\n" +
+        "\tLocal read/write ratio: 0.000\n" +
         "\tPending flushes: 5\n" +
         "\tPercent repaired: 93.0\n" +
         "\tBytes repaired: 0B\n" +
         "\tBytes unrepaired: 0B\n" +
         "\tBytes pending repair: 0B\n" +
         "\tBloom filter false positives: 10\n" +
-        "\tBloom filter false ratio: 0.60000\n" +
+        "\tBloom filter false ratio: 0.600\n" +
         "\tBloom filter space used: 123\n" +
         "\tCompacted partition minimum bytes: 3\n" +
         "\tCompacted partition maximum bytes: 40\n" +
         "\tCompacted partition mean bytes: 4\n" +
-        "\tAverage live cells per slice (last five minutes): 4.0\n" +
+        "\tAverage live cells per slice (last five minutes): 4.00\n" +
         "\tMaximum live cells per slice (last five minutes): 3\n" +
         "\tAverage tombstones per slice (last five minutes): 4.01\n" +
         "\tMaximum tombstones per slice (last five minutes): 5\n" +
-        "\tDroppable tombstone ratio: 0.55556\n" +
+        "\tDroppable tombstone ratio: 0.556\n" +
         "\n";
 
     public static final String expectedDefaultTable6Output =
@@ -239,7 +239,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tSpace used (total): 0\n" +
         "\tSpace used by snapshots (total): 0\n" +
         "\tOff heap memory used (total): 162470810\n" +
-        "\tSSTable Compression Ratio: 0.68000\n" +
+        "\tSSTable Compression Ratio: 0.680\n" +
         "\tNumber of partitions (estimate): 6\n" +
         "\tMemtable cell count: 6666\n" +
         "\tMemtable data size: 1000000\n" +
@@ -250,14 +250,14 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read latency: 1.000 ms\n" +
         "\tLocal write count: 0\n" +
         "\tLocal write latency: 0.500 ms\n" +
-        "\tLocal read/write ratio: 0.00000\n" +
+        "\tLocal read/write ratio: 0.000\n" +
         "\tPending flushes: 66\n" +
         "\tPercent repaired: 0.0\n" +
         "\tBytes repaired: 0B\n" +
         "\tBytes unrepaired: 0B\n" +
         "\tBytes pending repair: 0B\n" +
         "\tBloom filter false positives: 400\n" +
-        "\tBloom filter false ratio: 0.03000\n" +
+        "\tBloom filter false ratio: 0.030\n" +
         "\tBloom filter space used: 101112\n" +
         "\tBloom filter off heap memory used: 667408\n" +
         "\tIndex summary off heap memory used: 3\n" +
@@ -265,11 +265,11 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tCompacted partition minimum bytes: 6\n" +
         "\tCompacted partition maximum bytes: 20\n" +
         "\tCompacted partition mean bytes: 3\n" +
-        "\tAverage live cells per slice (last five minutes): 5.0\n" +
+        "\tAverage live cells per slice (last five minutes): 5.00\n" +
         "\tMaximum live cells per slice (last five minutes): 2\n" +
-        "\tAverage tombstones per slice (last five minutes): 6.0\n" +
+        "\tAverage tombstones per slice (last five minutes): 6.00\n" +
         "\tMaximum tombstones per slice (last five minutes): 6\n" +
-        "\tDroppable tombstone ratio: 0.66667\n" +
+        "\tDroppable tombstone ratio: 0.667\n" +
         "\n";
 
     /**
@@ -282,9 +282,9 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "----------------\n" +
         "Keyspace: keyspace1\n" +
         "\tRead Count: 3\n" +
-        "\tRead Latency: 0.0 ms\n" +
+        "\tRead Latency: 0.000 ms\n" +
         "\tWrite Count: 12\n" +
-        "\tWrite Latency: 0.0 ms\n" +
+        "\tWrite Latency: 0.000 ms\n" +
         "\tPending Flushes: 233666\n" +
         String.format(duplicateTabs(expectedDefaultTable1Output), "table1") +
         String.format(duplicateTabs(expectedDefaultTable2Output), "table2") +
@@ -292,16 +292,16 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "----------------\n" +
         "Keyspace: keyspace2\n" +
         "\tRead Count: 7\n" +
-        "\tRead Latency: 0.0 ms\n" +
+        "\tRead Latency: 0.000 ms\n" +
         "\tWrite Count: 3\n" +
-        "\tWrite Latency: 0.0 ms\n" +
+        "\tWrite Latency: 0.000 ms\n" +
         "\tPending Flushes: 4449\n" +
         String.format(duplicateTabs(expectedDefaultTable4Output), "table4") +
         String.format(duplicateTabs(expectedDefaultTable5Output), "table5") +
         "----------------\n" +
         "Keyspace: keyspace3\n" +
         "\tRead Count: 5\n" +
-        "\tRead Latency: 0.0 ms\n" +
+        "\tRead Latency: 0.000 ms\n" +
         "\tWrite Count: 0\n" +
         "\tWrite Latency: NaN ms\n" +
         "\tPending Flushes: 66\n" +
