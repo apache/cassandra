@@ -869,12 +869,33 @@ public class FBUtilities
      * Formats a latency value in milliseconds for display, appending an "ms" suffix.
      * The formatted output is rounded to three decimal places.
      * For example, "5000.000 ms", "100.000 ms", "0.050 ms", "0.000 ms", "NaN ms".
-     * Note: This method does not handle negative values or infinite values specially.
      * @param latency   Latency in milliseconds to print.
      */
     public static String prettyPrintLatency(double latency)
     {
         return String.format("%.3f ms", latency);
+    }
+
+    /**
+     * Formats a ratio value for display, rounds it to three decimal places.
+     * For example, "10.000", "1.000", "0.050", "0.001", "0.000", "NaN".
+     * @param ratioObj   Ratio to print.
+     */
+    public static String prettyPrintRatio(Object ratioObj)
+    {
+        if (ratioObj instanceof Number)
+        {
+            if (ratioObj instanceof Float || ratioObj instanceof Double)
+            {
+                double ratio = (Double) ratioObj;
+                return String.format("%.3f", ratio);
+            } else {
+                double ratio = ((Integer) ratioObj).doubleValue();
+                return String.format("%.3f", ratio);
+            }
+        } else {
+            return String.format("NaN");
+        }
     }
 
     /**

@@ -102,7 +102,7 @@ public class TableStatsPrinter<T extends StatsHolder>
 
             if (table.offHeapUsed)
                 out.println(indent + "Off heap memory used (total): " + table.offHeapMemoryUsedTotal);
-            out.printf(indent + "SSTable Compression Ratio: %01.5f%n", table.sstableCompressionRatio);
+            out.println(indent + "SSTable Compression Ratio: " + FBUtilities.prettyPrintRatio(table.sstableCompressionRatio));
             out.println(indent + "Number of partitions (estimate): " + table.numberOfPartitionsEstimate);
             out.println(indent + "Memtable cell count: " + table.memtableCellCount);
             out.println(indent + "Memtable data size: " + table.memtableDataSize);
@@ -116,7 +116,7 @@ public class TableStatsPrinter<T extends StatsHolder>
             out.println(indent + "Local write count: " + table.localWriteCount);
             out.println(indent + "Local write latency: " + FBUtilities.prettyPrintLatency(table.localWriteLatencyMs));
 
-            out.printf(indent + "Local read/write ratio: %01.5f%n", table.localReadWriteRatio);
+            out.println(indent + "Local read/write ratio: " + FBUtilities.prettyPrintRatio(table.localReadWriteRatio));
 
             out.println(indent + "Pending flushes: " + table.pendingFlushes);
             out.println(indent + "Percent repaired: " + table.percentRepaired);
@@ -126,7 +126,7 @@ public class TableStatsPrinter<T extends StatsHolder>
             out.println(indent +"Bytes pending repair: " + FBUtilities.prettyPrintMemory(table.bytesPendingRepair));
 
             out.println(indent + "Bloom filter false positives: " + table.bloomFilterFalsePositives);
-            out.printf(indent + "Bloom filter false ratio: %01.5f%n", table.bloomFilterFalseRatio);
+            out.println(indent + "Bloom filter false ratio: " + FBUtilities.prettyPrintRatio(table.bloomFilterFalseRatio));
             out.println(indent + "Bloom filter space used: " + table.bloomFilterSpaceUsed);
 
             if (table.bloomFilterOffHeapUsed)
@@ -143,7 +143,7 @@ public class TableStatsPrinter<T extends StatsHolder>
             out.println(indent + "Maximum live cells per slice (last five minutes): " + table.maximumLiveCellsPerSliceLastFiveMinutes);
             out.println(indent + "Average tombstones per slice (last five minutes): " + table.averageTombstonesPerSliceLastFiveMinutes);
             out.println(indent + "Maximum tombstones per slice (last five minutes): " + table.maximumTombstonesPerSliceLastFiveMinutes);
-            out.printf(indent + "Droppable tombstone ratio: %01.5f%n", table.droppableTombstoneRatio);
+            out.println(indent + "Droppable tombstone ratio: " + FBUtilities.prettyPrintRatio(table.droppableTombstoneRatio));
             if (table.isInCorrectLocation != null)
                 out.println(indent + "SSTables in correct location: " + table.isInCorrectLocation);
             if (table.topSizePartitions != null && !table.topSizePartitions.isEmpty())

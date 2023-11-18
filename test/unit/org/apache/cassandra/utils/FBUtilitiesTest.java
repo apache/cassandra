@@ -375,4 +375,17 @@ public class FBUtilitiesTest
         Assert.assertEquals("NaN ms", FBUtilities.prettyPrintLatency(Double.NaN));
         Assert.assertEquals("Infinity ms", FBUtilities.prettyPrintLatency(Double.POSITIVE_INFINITY));
     }
+
+    @Test
+    public void testPrettyPrintRatio()
+    {
+        Assert.assertEquals("10.000", FBUtilities.prettyPrintRatio(10));
+        Assert.assertEquals("1.000", FBUtilities.prettyPrintRatio(1));
+        Assert.assertEquals("0.050", FBUtilities.prettyPrintRatio(0.05));
+        Assert.assertEquals("0.001", FBUtilities.prettyPrintRatio(0.0005));
+        Assert.assertEquals("0.000", FBUtilities.prettyPrintRatio(0.0004));
+        Assert.assertEquals("NaN", FBUtilities.prettyPrintRatio(Double.NaN));
+        Assert.assertEquals("NaN", FBUtilities.prettyPrintRatio(null));
+        Assert.assertEquals("Infinity", FBUtilities.prettyPrintRatio(Double.POSITIVE_INFINITY));
+    }
 }
