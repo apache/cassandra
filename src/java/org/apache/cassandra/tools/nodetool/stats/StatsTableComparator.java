@@ -139,8 +139,8 @@ public class StatsTableComparator implements Comparator<StatsTable>
         }
         else if (sortKey.equals("bloom_filter_false_ratio"))
         {
-            result = compareDoubles((Double) stx.bloomFilterFalseRatio,
-                                    (Double) sty.bloomFilterFalseRatio);
+            result = compareDoubles(stx.bloomFilterFalseRatio,
+                                    sty.bloomFilterFalseRatio);
         }
         else if (sortKey.equals("bloom_filter_off_heap_memory_used"))
         {
@@ -326,8 +326,8 @@ public class StatsTableComparator implements Comparator<StatsTable>
         }
         else if (sortKey.equals("sstable_compression_ratio"))
         {
-            result = compareDoubles((Double) stx.sstableCompressionRatio,
-                                    (Double) sty.sstableCompressionRatio);
+            result = compareDoubles(stx.sstableCompressionRatio,
+                                    sty.sstableCompressionRatio);
         }
         else if (sortKey.equals("sstable_count"))
         {

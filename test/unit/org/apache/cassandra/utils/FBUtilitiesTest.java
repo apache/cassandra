@@ -363,4 +363,39 @@ public class FBUtilitiesTest
             Assert.assertEquals(value, FBUtilities.parseHumanReadable(vDec, sep, unit), getDelta(value));
         }
     }
+
+    @Test
+    public void testPrettyPrintLatency()
+    {
+        Assert.assertEquals("5000.000 ms", FBUtilities.prettyPrintLatency(5000));
+        Assert.assertEquals("100.000 ms", FBUtilities.prettyPrintLatency(100));
+        Assert.assertEquals("0.050 ms", FBUtilities.prettyPrintLatency(0.05));
+        Assert.assertEquals("0.001 ms", FBUtilities.prettyPrintLatency(0.0005));
+        Assert.assertEquals("0.000 ms", FBUtilities.prettyPrintLatency(0.0004));
+        Assert.assertEquals("NaN ms", FBUtilities.prettyPrintLatency(Double.NaN));
+        Assert.assertEquals("Infinity ms", FBUtilities.prettyPrintLatency(Double.POSITIVE_INFINITY));
+    }
+
+    @Test
+    public void testPrettyPrintRatio()
+    {
+        Assert.assertEquals("10.000", FBUtilities.prettyPrintRatio(10));
+        Assert.assertEquals("1.000", FBUtilities.prettyPrintRatio(1));
+        Assert.assertEquals("0.050", FBUtilities.prettyPrintRatio(0.05));
+        Assert.assertEquals("0.001", FBUtilities.prettyPrintRatio(0.0005));
+        Assert.assertEquals("0.000", FBUtilities.prettyPrintRatio(0.0004));
+        Assert.assertEquals("NaN", FBUtilities.prettyPrintRatio(Double.NaN));
+        Assert.assertEquals("Infinity", FBUtilities.prettyPrintRatio(Double.POSITIVE_INFINITY));
+    }
+
+    @Test
+    public void testPrettyPrintAverage()
+    {
+        Assert.assertEquals("100500.00", FBUtilities.prettyPrintAverage(100500));
+        Assert.assertEquals("1.50", FBUtilities.prettyPrintAverage(1.5));
+        Assert.assertEquals("0.05", FBUtilities.prettyPrintAverage(0.05));
+        Assert.assertEquals("0.00", FBUtilities.prettyPrintAverage(0.00));
+        Assert.assertEquals("NaN", FBUtilities.prettyPrintAverage(Double.NaN));
+        Assert.assertEquals("Infinity", FBUtilities.prettyPrintAverage(Double.POSITIVE_INFINITY));
+    }
 }
