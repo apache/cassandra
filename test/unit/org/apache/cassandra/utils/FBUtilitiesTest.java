@@ -363,4 +363,16 @@ public class FBUtilitiesTest
             Assert.assertEquals(value, FBUtilities.parseHumanReadable(vDec, sep, unit), getDelta(value));
         }
     }
+
+    @Test
+    public void testPrettyPrintLatency()
+    {
+        Assert.assertEquals("5000.000 ms", FBUtilities.prettyPrintLatency(5000));
+        Assert.assertEquals("100.000 ms", FBUtilities.prettyPrintLatency(100));
+        Assert.assertEquals("0.050 ms", FBUtilities.prettyPrintLatency(0.05));
+        Assert.assertEquals("0.001 ms", FBUtilities.prettyPrintLatency(0.0005));
+        Assert.assertEquals("0.000 ms", FBUtilities.prettyPrintLatency(0.0004));
+        Assert.assertEquals("NaN ms", FBUtilities.prettyPrintLatency(Double.NaN));
+        Assert.assertEquals("Infinity ms", FBUtilities.prettyPrintLatency(Double.POSITIVE_INFINITY));
+    }
 }

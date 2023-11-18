@@ -62,9 +62,9 @@ public class TableStatsPrinter<T extends StatsHolder>
                 // print each keyspace's information
                 out.println("Keyspace: " + keyspace.name);
                 out.println("\tRead Count: " + keyspace.readCount);
-                out.println("\tRead Latency: " + keyspace.readLatency() + " ms");
+                out.println("\tRead Latency: " + FBUtilities.prettyPrintLatency(keyspace.readLatency()));
                 out.println("\tWrite Count: " + keyspace.writeCount);
-                out.println("\tWrite Latency: " + keyspace.writeLatency() + " ms");
+                out.println("\tWrite Latency: " + FBUtilities.prettyPrintLatency(keyspace.writeLatency()));
                 out.println("\tPending Flushes: " + keyspace.pendingFlushes);
 
                 // print each table's information
@@ -112,9 +112,9 @@ public class TableStatsPrinter<T extends StatsHolder>
             out.println(indent + "Memtable switch count: " + table.memtableSwitchCount);
             out.println(indent + "Speculative retries: " + table.speculativeRetries);
             out.println(indent + "Local read count: " + table.localReadCount);
-            out.printf(indent + "Local read latency: %01.3f ms%n", table.localReadLatencyMs);
+            out.println(indent + "Local read latency: " + FBUtilities.prettyPrintLatency(table.localReadLatencyMs));
             out.println(indent + "Local write count: " + table.localWriteCount);
-            out.printf(indent + "Local write latency: %01.3f ms%n", table.localWriteLatencyMs);
+            out.println(indent + "Local write latency: " + FBUtilities.prettyPrintLatency(table.localWriteLatencyMs));
 
             out.printf(indent + "Local read/write ratio: %01.5f%n", table.localReadWriteRatio);
 

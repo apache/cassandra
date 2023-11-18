@@ -866,6 +866,18 @@ public class FBUtilities
     }
 
     /**
+     * Formats a latency value in milliseconds for display, appending an "ms" suffix.
+     * The formatted output is rounded to three decimal places.
+     * For example, "5000.000 ms", "100.000 ms", "0.050 ms", "0.000 ms", "NaN ms".
+     * Note: This method does not handle negative values or infinite values specially.
+     * @param latency   Latency in milliseconds to print.
+     */
+    public static String prettyPrintLatency(double latency)
+    {
+        return String.format("%.3f ms", latency);
+    }
+
+    /**
      * Convert the given size in bytes to a human-readable value using binary (i.e. 2^10-based) modifiers.
      * For example, 1.000KiB, 2.100GiB etc., up to 8.000 EiB.
      * @param size      Number to convert.
