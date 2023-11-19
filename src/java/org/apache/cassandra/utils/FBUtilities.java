@@ -885,16 +885,30 @@ public class FBUtilities
     {
         if (ratioObj instanceof Number)
         {
+            double ratio;
             if (ratioObj instanceof Float || ratioObj instanceof Double)
             {
-                double ratio = (Double) ratioObj;
-                return String.format("%.3f", ratio);
+                ratio = (Double) ratioObj;
             } else {
-                double ratio = ((Integer) ratioObj).doubleValue();
-                return String.format("%.3f", ratio);
+                ratio = ((Integer) ratioObj).doubleValue();
             }
+            return String.format("%.3f", ratio);
         } else {
             return String.format("NaN");
+        }
+    }
+
+    /**
+     * Formats an average value for display, rounds it to one or two decimal places.
+     * For example, "100500.0", "1.5", "0.05", "0.0", "NaN".
+     * @param average   Average value to print.
+     */
+    public static String prettyPrintAverage(double average)
+    {
+        if (average == (long) average || average * 10 == (long) (average * 10)) {
+            return String.format("%.1f", average);
+        } else {
+            return String.format("%.2f", average);
         }
     }
 

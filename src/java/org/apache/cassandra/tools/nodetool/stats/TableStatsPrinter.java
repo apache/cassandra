@@ -139,9 +139,11 @@ public class TableStatsPrinter<T extends StatsHolder>
             out.println(indent + "Compacted partition minimum bytes: " + table.compactedPartitionMinimumBytes);
             out.println(indent + "Compacted partition maximum bytes: " + table.compactedPartitionMaximumBytes);
             out.println(indent + "Compacted partition mean bytes: " + table.compactedPartitionMeanBytes);
-            out.println(indent + "Average live cells per slice (last five minutes): " + table.averageLiveCellsPerSliceLastFiveMinutes);
+            out.println(indent + "Average live cells per slice (last five minutes): " +
+                        FBUtilities.prettyPrintAverage(table.averageLiveCellsPerSliceLastFiveMinutes));
             out.println(indent + "Maximum live cells per slice (last five minutes): " + table.maximumLiveCellsPerSliceLastFiveMinutes);
-            out.println(indent + "Average tombstones per slice (last five minutes): " + table.averageTombstonesPerSliceLastFiveMinutes);
+            out.println(indent + "Average tombstones per slice (last five minutes): " +
+                        FBUtilities.prettyPrintAverage(table.averageTombstonesPerSliceLastFiveMinutes));
             out.println(indent + "Maximum tombstones per slice (last five minutes): " + table.maximumTombstonesPerSliceLastFiveMinutes);
             out.println(indent + "Droppable tombstone ratio: " + FBUtilities.prettyPrintRatio(table.droppableTombstoneRatio));
             if (table.isInCorrectLocation != null)

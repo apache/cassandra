@@ -388,4 +388,15 @@ public class FBUtilitiesTest
         Assert.assertEquals("NaN", FBUtilities.prettyPrintRatio(null));
         Assert.assertEquals("Infinity", FBUtilities.prettyPrintRatio(Double.POSITIVE_INFINITY));
     }
+
+    @Test
+    public void testPrettyPrintAverage()
+    {
+        Assert.assertEquals("100500.0", FBUtilities.prettyPrintAverage(100500));
+        Assert.assertEquals("1.5", FBUtilities.prettyPrintAverage(1.5));
+        Assert.assertEquals("0.05", FBUtilities.prettyPrintAverage(0.05));
+        Assert.assertEquals("0.0", FBUtilities.prettyPrintAverage(0.00));
+        Assert.assertEquals("NaN", FBUtilities.prettyPrintAverage(Double.NaN));
+        Assert.assertEquals("Infinity", FBUtilities.prettyPrintAverage(Double.POSITIVE_INFINITY));
+    }
 }
