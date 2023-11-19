@@ -899,17 +899,13 @@ public class FBUtilities
     }
 
     /**
-     * Formats an average value for display, rounds it to one or two decimal places.
-     * For example, "100500.0", "1.5", "0.05", "0.0", "NaN".
+     * Formats an average value for display, rounds it to two decimal places.
+     * For example, "100500.00", "1.50", "0.05", "0.00", "NaN".
      * @param average   Average value to print.
      */
     public static String prettyPrintAverage(double average)
     {
-        if (average == (long) average || average * 10 == (long) (average * 10)) {
-            return String.format("%.1f", average);
-        } else {
-            return String.format("%.2f", average);
-        }
+        return String.format("%.2f", average);
     }
 
     /**
