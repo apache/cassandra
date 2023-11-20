@@ -42,28 +42,28 @@ public class CollectionIndexingTest extends SAITester
     }
 
     @Test
-    public void indexMap() throws Throwable
+    public void indexMap()
     {
         createPopulatedMap(createIndexDDL("value"));
         assertEquals(2, execute("SELECT * FROM %s WHERE value CONTAINS 'v1'").size());
     }
 
     @Test
-    public void indexMapKeys() throws Throwable
+    public void indexMapKeys()
     {
         createPopulatedMap(createIndexDDL("KEYS(value)"));
         assertEquals(2, execute("SELECT * FROM %s WHERE value CONTAINS KEY 1").size());
     }
 
     @Test
-    public void indexMapValues() throws Throwable
+    public void indexMapValues()
     {
         createPopulatedMap(createIndexDDL("VALUES(value)"));
         assertEquals(2, execute("SELECT * FROM %s WHERE value CONTAINS 'v1'").size());
     }
 
     @Test
-    public void indexMapEntries() throws Throwable
+    public void indexMapEntries()
     {
         createPopulatedMap(createIndexDDL("ENTRIES(value)"));
         assertEquals(2, execute("SELECT * FROM %s WHERE value[1] = 'v1'").size());
@@ -71,7 +71,7 @@ public class CollectionIndexingTest extends SAITester
     }
 
     @Test
-    public void indexFrozenList() throws Throwable
+    public void indexFrozenList()
     {
         createPopulatedFrozenList(createIndexDDL("FULL(value)"));
         assertEquals(2, execute("SELECT * FROM %s WHERE value = ?", Arrays.asList(1, 2, 3)).size());
@@ -176,6 +176,34 @@ public class CollectionIndexingTest extends SAITester
         assertUnsupportedIndexOperator(2, "SELECT * FROM %s WHERE value[1] = 'v1'");
     }
 
+    @Test
+    public void unindexedContainsExpressions()
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int, m map<int, int>)");
+        createIndex("CREATE INDEX ON %s(v) USING 'SAI'"); // just to make sure that SAI is involved
+
+        Object[] row = row(0, 1, map(2, 3));
+        execute("INSERT INTO %s (k, v, m) VALUES (?, ?, ?)", row);
+        execute("INSERT INTO %s (k, v, m) VALUES (?, ?, ?)", 1, 1, map(12, 13));
+
+        // try without any indexes on the map
+        assertRows(execute("SELECT k, v, m FROM %s WHERE v = 1 AND m CONTAINS 3 ALLOW FILTERING"), row);
+        assertRows(execute("SELECT k, v, m FROM %s WHERE v = 1 AND m CONTAINS KEY 2 ALLOW FILTERING"), row);
+        assertRows(execute("SELECT k, v, m FROM %s WHERE v = 1 AND m CONTAINS KEY 2 AND m CONTAINS 3 ALLOW FILTERING"), row);
+
+        // try with index on map values
+        createIndex("CREATE INDEX ON %s(m) USING 'SAI'");
+        assertRows(execute("SELECT k, v, m FROM %s WHERE v = 1 AND m CONTAINS 3"), row);
+        assertRows(execute("SELECT k, v, m FROM %s WHERE v = 1 AND m CONTAINS KEY 2 ALLOW FILTERING"), row);
+        assertRows(execute("SELECT k, v, m FROM %s WHERE v = 1 AND m CONTAINS KEY 2 AND m CONTAINS 3 ALLOW FILTERING"), row);
+
+        // try with index on map keys
+        createIndex("CREATE INDEX ON %s(KEYS(m)) USING 'SAI'");
+        assertRows(execute("SELECT k, v, m FROM %s WHERE v = 1 AND m CONTAINS 3"), row);
+        assertRows(execute("SELECT k, v, m FROM %s WHERE v = 1 AND m CONTAINS KEY 2"), row);
+        assertRows(execute("SELECT k, v, m FROM %s WHERE v = 1 AND m CONTAINS KEY 2 AND m CONTAINS 3"), row);
+    }
+
     private void createPopulatedMap(String createIndex)
     {
         createTable("CREATE TABLE %s (pk int primary key, value map<int, text>)");
@@ -191,7 +219,7 @@ public class CollectionIndexingTest extends SAITester
     }
 
     @SuppressWarnings("SameParameterValue")
-    private void createPopulatedFrozenMap(String createIndex) throws Throwable
+    private void createPopulatedFrozenMap(String createIndex)
     {
         createTable("CREATE TABLE %s (pk int primary key, value frozen<map<int, text>>)");
         createIndex(createIndex);
