@@ -168,7 +168,7 @@ public class Expression
                 break;
         }
 
-        assert operator != null;
+        assert operator != null || context.isNotIndexed() : "Cannot use '" + op + "' operator with indexed " + context.getColumnName() + " column";
 
         return this;
     }
