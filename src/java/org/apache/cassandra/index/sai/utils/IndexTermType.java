@@ -97,13 +97,14 @@ public class IndexTermType
     private static final int IS_VECTOR                = 1 << 2;
     private static final int IS_REVERSED              = 1 << 3;
     private static final int IS_FROZEN                = 1 << 4;
-    private static final int IS_NON_FROZEN_COLLECTION = 1 << 5;
-    private static final int IS_COMPOSITE             = 1 << 6;
-    private static final int IS_INET_ADDRESS          = 1 << 7;
-    private static final int IS_BIG_INTEGER           = 1 << 8;
-    private static final int IS_BIG_DECIMAL           = 1 << 9;
-    private static final int IS_LONG                  = 1 << 10;
-    private static final int IS_COMPOSITE_PARTITION   = 1 << 11;
+    private static final int IS_COLLECTION            = 1 << 5;
+    private static final int IS_NON_FROZEN_COLLECTION = 1 << 6;
+    private static final int IS_COMPOSITE             = 1 << 7;
+    private static final int IS_INET_ADDRESS          = 1 << 8;
+    private static final int IS_BIG_INTEGER           = 1 << 9;
+    private static final int IS_BIG_DECIMAL           = 1 << 10;
+    private static final int IS_LONG                  = 1 << 11;
+    private static final int IS_COMPOSITE_PARTITION   = 1 << 12;
 
     private final ColumnMetadata columnMetadata;
     private final IndexTarget.Type indexTargetType;
@@ -217,7 +218,7 @@ public class IndexTermType
      */
     public boolean isFrozenCollection()
     {
-        return !hasProperty(IS_NON_FROZEN_COLLECTION);
+        return hasProperty(IS_COLLECTION) && hasProperty(IS_FROZEN);
     }
 
     /**
@@ -623,6 +624,9 @@ public class IndexTermType
             bitmap |= IS_REVERSED;
 
         AbstractType<?> baseType = type.unwrap();
+
+        if (baseType.isCollection())
+            bitmap |= IS_COLLECTION;
 
         if (baseType.isCollection() && baseType.isMultiCell())
             bitmap |= IS_NON_FROZEN_COLLECTION;
