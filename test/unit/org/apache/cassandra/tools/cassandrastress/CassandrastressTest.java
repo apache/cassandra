@@ -72,6 +72,12 @@ public class CassandrastressTest extends CQLTester
         invokeAndAssertCleanExit(baseArgs, "-node", hostNameAndPort);
 
         invokeAndAssertCleanExit(baseArgs, "-mode", "simplenative", "prepared");
+
+        invokeAndAssertCleanExit(baseArgs, "-mode", "simplenative", "unprepared");
+
+        invokeAndAssertCleanExit(baseArgs, "-mode", "prepared");
+
+        invokeAndAssertCleanExit(baseArgs, "-mode", "unprepared");
     }
 
     void invokeAndAssertCleanExit(String[] baseArgs, String ... extraArgs)
