@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 
 import com.google.common.base.MoreObjects;
@@ -62,7 +63,14 @@ import org.apache.cassandra.index.sai.view.View;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_MAX_FROZEN_TERM_SIZE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_MAX_STRING_TERM_SIZE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_MAX_VECTOR_TERM_SIZE;
 
 /**
  * Manages metadata for each column index.
@@ -70,6 +78,13 @@ import org.apache.cassandra.utils.Pair;
 public class IndexContext
 {
     private static final Logger logger = LoggerFactory.getLogger(IndexContext.class);
+    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
+
+    public static final long MAX_STRING_TERM_SIZE = SAI_MAX_STRING_TERM_SIZE.getSizeInBytes();
+    public static final long MAX_FROZEN_TERM_SIZE = SAI_MAX_FROZEN_TERM_SIZE.getSizeInBytes();
+    public static final long MAX_VECTOR_TERM_SIZE = SAI_MAX_VECTOR_TERM_SIZE.getSizeInBytes();
+    public static final String TERM_OVERSIZE_MESSAGE = "Can't add term of column %s to index for key: %s, term size %s " +
+                                                       "max allowed size %s, use analyzed = true (if not yet set) for that column.";
 
     private static final Set<AbstractType<?>> EQ_ONLY_TYPES = ImmutableSet.of(UTF8Type.instance,
                                                                               AsciiType.instance,
@@ -97,6 +112,8 @@ public class IndexContext
     private final IndexWriterConfig indexWriterConfig;
     private final AbstractAnalyzer.AnalyzerFactory analyzerFactory;
     private final PrimaryKey.Factory primaryKeyFactory;
+
+    private final long maxTermSize;
 
     public IndexContext(String keyspace,
                         String table,
@@ -128,6 +145,8 @@ public class IndexContext
 
         this.analyzerFactory = indexMetadata == null ? AbstractAnalyzer.fromOptions(getValidator(), Collections.emptyMap())
                                                      : AbstractAnalyzer.fromOptions(getValidator(), indexMetadata.options);
+
+        maxTermSize = isVector() ? MAX_VECTOR_TERM_SIZE : (isFrozen() ? MAX_FROZEN_TERM_SIZE : MAX_STRING_TERM_SIZE);
     }
 
     public boolean hasClustering()
@@ -508,5 +527,62 @@ public class IndexContext
                         .stream()
                         .mapToLong(SSTableIndex::indexFileCacheSize)
                         .sum();
+    }
+
+    /**
+     * Validate maximum term size for given row
+     */
+    public void validateMaxTermSizeForRow(DecoratedKey key, Row row, boolean sendClientWarning)
+    {
+        AbstractAnalyzer analyzer = getAnalyzerFactory().create();
+        if (isNonFrozenCollection())
+        {
+            Iterator<ByteBuffer> bufferIterator = getValuesOf(row, FBUtilities.nowInSeconds());
+            while (bufferIterator != null && bufferIterator.hasNext())
+                validateMaxTermSizeForCell(analyzer, key, bufferIterator.next(), sendClientWarning);
+        }
+        else
+        {
+            ByteBuffer value = getValueOf(key, row, FBUtilities.nowInSeconds());
+            validateMaxTermSizeForCell(analyzer, key, value, sendClientWarning);
+        }
+    }
+
+    private void validateMaxTermSizeForCell(AbstractAnalyzer analyzer, DecoratedKey key, @Nullable ByteBuffer cellBuffer, boolean sendClientWarning)
+    {
+        if (cellBuffer == null || cellBuffer.remaining() == 0)
+            return;
+
+        // analyzer should not return terms that are larger than the origin value.
+        if (cellBuffer.remaining() <= maxTermSize)
+            return;
+
+        analyzer.reset(cellBuffer.duplicate());
+        while (analyzer.hasNext())
+            validateMaxTermSize(key, analyzer.next(), sendClientWarning);
+    }
+
+    /**
+     * Validate maximum term size for given term
+     * @return true if given term is valid; otherwise false.
+     */
+    public boolean validateMaxTermSize(DecoratedKey key, ByteBuffer term, boolean sendClientWarning)
+    {
+        if (term.remaining() > maxTermSize)
+        {
+            String message = logMessage(String.format(TERM_OVERSIZE_MESSAGE,
+                                                      getColumnName(),
+                                                      keyValidator().getString(key.getKey()),
+                                                      FBUtilities.prettyPrintMemory(term.remaining()),
+                                                      FBUtilities.prettyPrintMemory(maxTermSize)));
+
+            if (sendClientWarning)
+                ClientWarn.instance.warn(message);
+
+            noSpamLogger.warn(message);
+            return false;
+        }
+
+        return true;
     }
 }
