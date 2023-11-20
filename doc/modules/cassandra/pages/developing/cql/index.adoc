@@ -14,7 +14,7 @@ For that reason, when used in this document, these terms (tables, rows and colum
 * xref:developing/cql/ddl.adoc[Data definition language]
 * xref:developing/cql/dml.adoc[Data manipulation language]
 * xref:developing/cql/operators.adoc[Operators]
-* xref:cql/indexing/indexing-concepts.adoc[Indexing]
+* xref:developing/cql/indexing/indexing-concepts.adoc[Indexing]
 * xref:developing/cql/mvs.adoc[Materialized views]
 * xref:developing/cql/functions.adoc[Functions]
 * xref:developing/cql/json.adoc[JSON]

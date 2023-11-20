@@ -38,7 +38,7 @@ If this occurs in your environment, increase `memtable_flush_writers`.
 Aside from memory, SAI uses the same tunable parameters for Cassandra, such as compaction throughput and compaction executors.
 This matters for write performance.
 For read performance, again, maximizing use of the Chunk Cache will benefit SAI reads because all on-disk index components are accessed through this mechanism.
-Refer to xref:cassandra:developing/cql/indexing/sai/configuring.adoc[Configure SAI indexes].
+Refer to xref:cassandra:developing/cql/indexing/sai/operations/configuring.adoc[Configure SAI indexes].
 
 == What computing challenges does SAI solve?
 
@@ -94,10 +94,10 @@ USING 'StorageAttachedIndex'+` commands and `DROP INDEX` commands.
 Start in xref:cassandra:getting-started/sai-quickstart.adoc[SAI quickstart].
 
 * Rebuilt and backed up via nodetool.
-See xref:cassandra:managing/tools/nodetool/toolsNodetool.html[nodetool].
+See xref:managing/tools/nodetool/nodetool.adoc[nodetool].
 
 * Monitored via a combination of nodetool, CQL virtual tables, system metrics, and JMX.
-See xref:cassandra:developing/cql/indexing/sai/monitoring.adoc[Monitor SAI indexes].
+See xref:developing/cql/indexing/sai/operations/monitoring.adoc[Monitor SAI indexes].
 
 // LLP: There are currently no limits placed on SAI indexes in Apache C*.
 // [[saiLimitsFaq]]
@@ -129,12 +129,12 @@ include::cassandra:partial$sai/collections-note.adoc[]
 include::cassandra:partial$sai/queryable-paragraph.adoc[]
 --
 
-See xref:cassandra:developing/cql/indexing/sai/monitoring.adoc#saiMonitorVirtualTables[Virtual tables] and xref:reference:system-virtual-tables/virtual-tables-sai-indexes.adoc[Virtual tables for SAI indexes and SSTables].
+See xref:cassandra:developing/cql/indexing/sai/operations/monitoring.adoc#saiMonitorVirtualTables[Virtual tables] and xref:reference/sai-virtual-table-indexes.adoc[Virtual tables for SAI indexes and SSTables].
 
 == What are the write and read paths used by SAI indexes?
 
 SAI indexes Memtables and SSTables as they are written, resolving the differences between those indexes at read time.
-See xref:cassandra:developing/cql/indexing/sai/read-write-paths.adoc[SAI write path and read path].
+See xref:developing/cql/indexing/sai/sai-read-write-paths.adoc[SAI write path and read path].
 
 == What on-disk index formats does SAI support?
 
@@ -171,9 +171,7 @@ The supported types are: `ASCII, BIGINT, DATE, DECIMAL, DOUBLE, FLOAT, INET, INT
 Yes -- SAI supports collections of type `map`, `list`, and `set`.
 See the following topics:
 
-* xref:cassandra:developing/cql/indexing/sai/collections.adoc#saiUsingCollections[Using collections with SAI]
-* xref:cassandra:developing/cql/indexing/sai/collections.adoc#saiUsingCollectionsMapExamples[SAI collection map examples with keys, values, and entries]
-* xref:cassandra:developing/cql/indexing/sai/collections.adoc#saiUsingCollectionsListAndSetExamples[SAI collection examples with list and set types]
+* xref:cassandra:developing/cql/indexing/sai/collections.adoc[Using collections with SAI]
 // * xref:reference:cql-commands/create-custom-index.adoc[CREATE CUSTOM INDEX] 
 
 include::cassandra:partial$sai/collections-note.adoc[]
@@ -202,7 +200,7 @@ SELECT * FROM audit WHERE text_map CONTAINS KEY 'Giovani';
 
 [TIP]
 ====
-For query examples with `CONTAINS` clauses that take advantage of SAI collection maps, lists, and sets, be sure to see xref:cassandra:developing/cql/indexing/sai/collections.adoc#saiUsingCollectionsMapExamples[SAI collection map examples with keys, values, and entries] and xref:cassandra:developing/cql/indexing/sai/collections.adoc#saiUsingCollectionsListAndSetExamples[SAI collection examples with list and set types].
+For query examples with `CONTAINS` clauses that take advantage of SAI collection maps, lists, and sets, be sure to see xref:developing/cql/indexing/sai/collections.adoc[SAI collection map examples with keys, values, and entries].
 ====
 
 == On the `CREATE CUSTOM INDEX` command for SAI, what options are available?
@@ -222,9 +220,9 @@ CREATE CUSTOM INDEX lastname_sai_idx ON cycling.cyclist_semi_pro (lastname)
 SAI has an `ascii` option.
 The default is `false`.
 When set to `true`, SAI converts alphabetic, numeric, and symbolic characters that are not in the Basic Latin Unicode block (the first 127 ASCII characters) to the ASCII equivalent, if one exists.
-For example, this option changes à to a.
+For example, this option changes `à` to `a`.
 
-See xref:reference:cql-commands/create-custom-index.adoc[CREATE CUSTOM INDEX] and examples in the xref:cassandra:getting-started/sai-quickstart.adoc[SAI quickstart] topic.
+See xref:reference/cql-commands/create-custom-index.adoc[CREATE CUSTOM INDEX] and examples in the xref:cassandra:getting-started/sai-quickstart.adoc[SAI quickstart] topic.
 ====
 
 == Does SAI support composite indexing: meaning, a single index on multiple columns?
@@ -240,9 +238,9 @@ The SAI memory footprint is divided between the JVM heap and the Chunk Cache.
 The heap stores memtable indexes, and the chunk cache stores recently accessed on-disk index components as well as other SSTable components.
 SAI provides metrics for both the heap and the chunk cache.
 For each index, SAI also provides metrics for determining the size in bytes of memory used by the on-disk data structure, as well as disk usage.
-Refer to xref:cassandra:developing/cql/indexing/sai/monitoring.adoc#saiIndexGroupMetrics[Index group metrics].
+Refer to xref:developing/cql/indexing/sai/operations/monitoring.adoc#saiIndexGroupMetrics[Index group metrics].
 SAI also provides Table state metrics that give you visibility into the disk usage, the percentage of disk usage of the base table, the index builds in progress, and related metrics.
-See xref:cassandra:developing/cql/indexing/sai/monitoring.adoc#saiTableStateMetrics[Table state metrics].
+See xref:developing/cql/indexing/sai/operations/monitoring.adoc#saiTableStateMetrics[Table state metrics].
 
 
 [[saiAndQueriesFaq]]
@@ -261,7 +259,7 @@ In a query, AND queries will process up to two SAI indexes;
 if more than two SAI indexes are used by the query, this circumstance will result in SAI performing post-filtering on the remaining clauses.
 ====
 
-For related information, see the xref:cassandra:developing/cql/indexing/sai/read-write-paths.adoc#saiMatchStreamingAndPostFiltering[match streaming and post filtering] example.
+For related information, see the xref:cassandra:developing/cql/indexing/sai/sai-read-write-paths.adoc#saiMatchStreamingAndPostFiltering[match streaming and post filtering] example.
 
 [[saiWritesSyncFaq]]
 == Are SAI write operations asynchronous, or does SAI wait before acknowledging the write to the user?
@@ -271,7 +269,7 @@ The indexes live with the data, both in memtables and SSTables.
 When a write is acknowledged to the client, the data is already indexed.
 This is a *synchronous* process.
 When the memtable is flushed, the indexes are flushed as well.
-See xref:cassandra:developing/cql/indexing/sai/read-write-paths.adoc[SAI write path and read path].
+See xref:developing/cql/indexing/sai/sai-read-write-paths.adoc[SAI write path and read path].
 
 The on-disk index components are broken down into per-SSTable index files and per-column index files.
 The column indexes do not store the primary keys or tokens;
@@ -340,7 +338,7 @@ When you create an SAI index based on a string column, set the `normalize` optio
 SAI supports Normalization Form C (NFC) Unicode.
 When set to `true`, SAI normalizes the different versions of a given Unicode character to a single version, retaining all the marks and symbols in the index.
 For example, SAI would change the character Å (U+212B) to Å (U+00C5).
-See xref:reference:cql-commands/create-custom-index.adoc[CREATE CUSTOM INDEX].
+See xref:reference/cql-commands/create-custom-index.adoc[CREATE CUSTOM INDEX].
 
 == Can the index's column name have special characters?
 
@@ -350,4 +348,4 @@ SAI returns `InvalidRequestException` if you try to define an index on a column 
 
 == What partitioner does SAI support?
 
-SAI supports only the xref:cassandra:architecture/dbArch/archPartitioners.adoc[Murmur3Partitioner].
+SAI supports only the `Murmur3Partitioner`.
