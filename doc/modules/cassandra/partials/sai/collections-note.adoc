@@ -5,8 +5,5 @@ are supported with, and specific to:
 
 * SAI *collection maps* with `keys`, `values`, and `entries`
 
-* SAI *collections* with `list` and `set` types 
-
-For examples,
-see xref:cassandra:developing/cql/indexing/sai/sai-query.adoc#saiUsingCollections[Using collections with SAI].
+* SAI *collections* with `list` and `set` types
 ====

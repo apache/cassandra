@@ -13,4 +13,4 @@ include::_sai-alter.adoc[leveloffset=+1]
 
 include::_sai-drop.adoc[leveloffset=+1]
 
-include::_sai-query.adoc[leveloffset=+1]
+include::sai-query.adoc[leveloffset=+1]
