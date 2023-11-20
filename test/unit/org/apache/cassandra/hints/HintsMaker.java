@@ -186,7 +186,7 @@ public class HintsMaker
                 {
                     while (session.position() < maxLength && mutationIterator.hasNext())
                     {
-                        Hint hint = Hint.create(mutationIterator.next(), System.currentTimeMillis());
+                        Hint hint = Hint.create(mutationIterator.next(), System.currentTimeMillis(), Integer.MAX_VALUE);
                         session.append(hint);
                     }
 
