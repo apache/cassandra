@@ -35,4 +35,4 @@ include::_multiple-index-match-with-in.adoc[leveloffset=+1]
 
 include::_user-defined-type-match.adoc[leveloffset=+1]
 
-include::_collections.adoc[leveloffset=+1]
+include::collections.adoc[leveloffset=+1]

@@ -14,7 +14,7 @@ The examples in this quickstart topic show SAI indexes with non-partition key co
 
 == Create a keyspace
 
-In `cqlsh`, define the `cycling` xref:reference/cql-commands/create-keyspace.adoc[keyspace] to try the commands in a test environment:
+In `cqlsh`, define the `cycling` keyspace to try the commands in a test environment:
 
 [source,language-cql]
 ----
@@ -23,7 +23,7 @@ include::cassandra:example$CQL/sai/create-vector-keyspace-cycling.cql[]
 
 == Create a database table
 
-Using `cqlsh` or the CQL Console, create a `cyclist_semi_pro` database xref:reference:cql-commands/create-table.adoc[table] in the `cycling` keyspace or the keyspace name of your choice:
+Using `cqlsh` or the CQL Console, create a `cyclist_semi_pro` database xref:reference/cql-commands/create-table.adoc[table] in the `cycling` keyspace or the keyspace name of your choice:
 
 [source,language-cql]
 ----
@@ -179,7 +179,7 @@ include::cassandra:example$RESULTS/sai/cyclist_semi_pro_select_date_range.result
 
 [TIP]
 ====
-For query examples with `CONTAINS` clauses that take advantage of SAI collection maps, lists, and sets, be sure to see xref:developing/cql/indexing/sai/collections.adoc#saiUsingCollectionsMapExamples[SAI collection map examples with keys, values, and entries] and xref:developing/cql/indexing/sai/collections.adoc#saiUsingCollectionsListAndSetExamples[SAI collection examples with list and set types].
+For query examples with `CONTAINS` clauses that take advantage of SAI collection maps, lists, and sets, be sure to see xref:developing/cql/indexing/sai/collections.adoc[SAI collection map examples with keys, values, and entries].
 ====
 
 == Removing an SAI index
