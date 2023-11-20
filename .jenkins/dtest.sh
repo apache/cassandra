@@ -187,7 +187,7 @@ pip freeze
 cd cassandra-dtest
 set +e # disable immediate exit from this point
 
-py.test --cassandra-dir="${CASSANDRA_DIR}" --test-group-count=$TOTAL_GROUP_NUMBER --test-group=$DTEST_GROUP_ID
+py.test --cassandra-dir="${CASSANDRA_DIR}"  --use-vnodes --num-tokens=16 --test-group-count=$TOTAL_GROUP_NUMBER --test-group=$DTEST_GROUP_ID
 
 RETURN="$?"
 if [ "${RETURN}" -ne "0" ]; then
