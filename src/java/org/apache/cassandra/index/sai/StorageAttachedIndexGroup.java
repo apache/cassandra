@@ -244,7 +244,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
     {
         IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable);
         Set<Component> components = indexDescriptor.getLivePerSSTableComponents();
-        indices.forEach(index -> components.addAll(indexDescriptor.getLivePerIndexComponents(index.indexTermType(), index.indexIdentifier())));
+        indices.forEach(index -> components.addAll(indexDescriptor.getLivePerIndexComponents(index.termType(), index.identifier())));
         return components;
     }
 
@@ -317,7 +317,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
                 // Column indexes are invalid if their SSTable-level components are corrupted so delete
                 // their associated index files and mark them non-queryable.
                 indexes.forEach(index -> {
-                    indexDescriptor.deleteColumnIndex(index.indexTermType(), index.indexIdentifier());
+                    indexDescriptor.deleteColumnIndex(index.termType(), index.identifier());
                     index.makeIndexNonQueryable();
                 });
             });
@@ -334,7 +334,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
             {
                 // Delete the index files and mark the index non-queryable, as its view may be compromised,
                 // and incomplete, for our callers:
-                invalid.forEach(context -> context.indexDescriptor.deleteColumnIndex(index.indexTermType(), index.indexIdentifier()));
+                invalid.forEach(context -> context.indexDescriptor.deleteColumnIndex(index.termType(), index.identifier()));
                 index.makeIndexNonQueryable();
                 incomplete.add(index);
             }
@@ -357,8 +357,8 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
 
                 for (StorageAttachedIndex index : indexes)
                 {
-                    if (indexDescriptor.isPerColumnIndexBuildComplete(index.indexIdentifier()))
-                        indexDescriptor.checksumPerIndexComponents(index.indexTermType(), index.indexIdentifier());
+                    if (indexDescriptor.isPerColumnIndexBuildComplete(index.identifier()))
+                        indexDescriptor.checksumPerIndexComponents(index.termType(), index.identifier());
                     else if (throwOnIncomplete)
                         throw new IllegalStateException(indexDescriptor.logMessage("Incomplete per-column index build"));
                     else

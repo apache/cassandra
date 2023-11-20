@@ -127,7 +127,7 @@ public interface Expression
 
         public IndexedExpression(StorageAttachedIndex index)
         {
-            super(index.indexTermType());
+            super(index.termType());
             this.index = index;
         }
 

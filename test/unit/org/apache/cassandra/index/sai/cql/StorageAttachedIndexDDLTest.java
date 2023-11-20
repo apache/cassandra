@@ -468,7 +468,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
 
         SecondaryIndexManager sim = getCurrentColumnFamilyStore().indexManager;
         StorageAttachedIndex index = (StorageAttachedIndex) sim.getIndexByName(indexNameCk1);
-        IndexTermType indexTermType = index.indexTermType();
+        IndexTermType indexTermType = index.termType();
         assertTrue(indexTermType.isLiteral());
         assertTrue(indexTermType.isReversed());
     }

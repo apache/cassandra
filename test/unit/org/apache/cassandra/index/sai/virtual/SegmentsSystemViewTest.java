@@ -196,12 +196,12 @@ public class SegmentsSystemViewTest extends SAITester
                 SSTableReader sstable = sstableIndex.getSSTable();
 
                 IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable);
-                indexDescriptor.hasComponent(IndexComponent.COLUMN_COMPLETION_MARKER, index.indexIdentifier());
+                indexDescriptor.hasComponent(IndexComponent.COLUMN_COMPLETION_MARKER, index.identifier());
 
                 if (sstableIndex.getIndexTermType().isLiteral())
                 {
-                    addComponentSizeToMap(lengths, IndexComponent.TERMS_DATA, index.indexIdentifier(), indexDescriptor);
-                    addComponentSizeToMap(lengths, IndexComponent.POSTING_LISTS, index.indexIdentifier(), indexDescriptor);
+                    addComponentSizeToMap(lengths, IndexComponent.TERMS_DATA, index.identifier(), indexDescriptor);
+                    addComponentSizeToMap(lengths, IndexComponent.POSTING_LISTS, index.identifier(), indexDescriptor);
                 }
             }
         }

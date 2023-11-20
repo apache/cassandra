@@ -57,6 +57,6 @@ public class IndexIdentifier
     @Override
     public String toString()
     {
-        return indexName;
+        return String.format("%s.%s", keyspaceName, indexName);
     }
 }

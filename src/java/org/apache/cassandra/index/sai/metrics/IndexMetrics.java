@@ -42,7 +42,7 @@ public class IndexMetrics extends AbstractMetrics
 
     public IndexMetrics(StorageAttachedIndex index, MemtableIndexManager memtableIndexManager)
     {
-        super(index.indexIdentifier(), "IndexMetrics");
+        super(index.identifier(), "IndexMetrics");
 
         memtableIndexWriteLatency = Metrics.timer(createMetricName("MemtableIndexWriteLatency"));
         compactionSegmentCellsPerSecond = Metrics.histogram(createMetricName("CompactionSegmentCellsPerSecond"), false);

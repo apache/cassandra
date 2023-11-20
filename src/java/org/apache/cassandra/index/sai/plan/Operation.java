@@ -127,7 +127,7 @@ public class Operation
         {
             analyzer.reset(expression.getIndexValue().duplicate());
 
-            if (index.indexTermType().isMultiExpression(expression))
+            if (index.termType().isMultiExpression(expression))
             {
                 while (analyzer.hasNext())
                 {
@@ -151,7 +151,7 @@ public class Operation
                     range = Iterables.getLast(perColumn);
                 }
 
-                if (index.indexTermType().isLiteral())
+                if (index.termType().isLiteral())
                 {
                     while (analyzer.hasNext())
                     {

@@ -59,12 +59,12 @@ public class NumericIndexSegmentSearcher extends IndexSegmentSearcher
 
         final long treePosition = metadata.getIndexRoot(IndexComponent.BALANCED_TREE);
         if (treePosition < 0)
-            throw new CorruptIndexException(index.indexIdentifier().logMessage("The tree position is less than zero."), IndexComponent.BALANCED_TREE.name);
+            throw new CorruptIndexException(index.identifier().logMessage("The tree position is less than zero."), IndexComponent.BALANCED_TREE.name);
         final long postingsPosition = metadata.getIndexRoot(IndexComponent.POSTING_LISTS);
         if (postingsPosition < 0)
-            throw new CorruptIndexException(index.indexIdentifier().logMessage("The postings position is less than zero."), IndexComponent.BALANCED_TREE.name);
+            throw new CorruptIndexException(index.identifier().logMessage("The postings position is less than zero."), IndexComponent.BALANCED_TREE.name);
 
-        treeReader = new BlockBalancedTreeReader(index.indexIdentifier(),
+        treeReader = new BlockBalancedTreeReader(index.identifier(),
                                                  indexFiles.balancedTree(),
                                                  treePosition,
                                                  indexFiles.postingLists(),
@@ -82,7 +82,7 @@ public class NumericIndexSegmentSearcher extends IndexSegmentSearcher
     public KeyRangeIterator search(Expression exp, AbstractBounds<PartitionPosition> keyRange, QueryContext context) throws IOException
     {
         if (logger.isTraceEnabled())
-            logger.trace(index.indexIdentifier().logMessage("Searching on expression '{}'..."), exp);
+            logger.trace(index.identifier().logMessage("Searching on expression '{}'..."), exp);
 
         if (exp.getIndexOperator().isEqualityOrRange())
         {
@@ -92,7 +92,7 @@ public class NumericIndexSegmentSearcher extends IndexSegmentSearcher
         }
         else
         {
-            throw new IllegalArgumentException(index.indexIdentifier().logMessage("Unsupported expression during index query: " + exp));
+            throw new IllegalArgumentException(index.identifier().logMessage("Unsupported expression during index query: " + exp));
         }
     }
 

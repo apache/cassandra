@@ -49,7 +49,7 @@ public class MemtableIndex implements MemtableOrdering
 
     public MemtableIndex(StorageAttachedIndex memoryIndex)
     {
-        this.memoryIndex = memoryIndex.indexTermType().isVector() ? new VectorMemoryIndex(memoryIndex) : new TrieMemoryIndex(memoryIndex);
+        this.memoryIndex = memoryIndex.termType().isVector() ? new VectorMemoryIndex(memoryIndex) : new TrieMemoryIndex(memoryIndex);
     }
 
     public long writeCount()

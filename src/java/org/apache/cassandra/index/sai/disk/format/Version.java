@@ -144,7 +144,7 @@ public class Version implements Comparable<Version>
         stringBuilder.append(SAI_DESCRIPTOR);
         stringBuilder.append(SAI_SEPARATOR).append(version);
         if (indexIdentifier != null)
-            stringBuilder.append(SAI_SEPARATOR).append(indexIdentifier);
+            stringBuilder.append(SAI_SEPARATOR).append(indexIdentifier.indexName);
         stringBuilder.append(SAI_SEPARATOR).append(indexComponent.name);
         stringBuilder.append(Descriptor.EXTENSION);
 

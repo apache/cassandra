@@ -192,16 +192,16 @@ public class V1SSTableIndex extends SSTableIndex
 
         for (SegmentMetadata metadata : metadatas)
         {
-            dataset.row(sstable.metadata().keyspace, index.indexIdentifier().toString(), sstable.getFilename(), metadata.rowIdOffset)
+            dataset.row(sstable.metadata().keyspace, index.identifier().indexName, sstable.getFilename(), metadata.rowIdOffset)
                    .column(TABLE_NAME, sstable.descriptor.cfname)
-                   .column(COLUMN_NAME, index.indexTermType().columnName())
+                   .column(COLUMN_NAME, index.termType().columnName())
                    .column(CELL_COUNT, metadata.numRows)
                    .column(MIN_SSTABLE_ROW_ID, metadata.minSSTableRowId)
                    .column(MAX_SSTABLE_ROW_ID, metadata.maxSSTableRowId)
                    .column(START_TOKEN, tokenFactory.toString(metadata.minKey.token()))
                    .column(END_TOKEN, tokenFactory.toString(metadata.maxKey.token()))
-                   .column(MIN_TERM, index.indexTermType().indexType().getSerializer().deserialize(metadata.minTerm).toString())
-                   .column(MAX_TERM, index.indexTermType().indexType().getSerializer().deserialize(metadata.maxTerm).toString())
+                   .column(MIN_TERM, index.termType().indexType().getSerializer().deserialize(metadata.minTerm).toString())
+                   .column(MAX_TERM, index.termType().indexType().getSerializer().deserialize(metadata.maxTerm).toString())
                    .column(COMPONENT_METADATA, metadata.componentMetadatas.asMap());
         }
     }

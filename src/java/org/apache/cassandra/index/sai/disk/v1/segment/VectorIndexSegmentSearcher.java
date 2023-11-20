@@ -91,17 +91,17 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
         int limit = context.vectorContext().limit();
 
         if (logger.isTraceEnabled())
-            logger.trace(index.indexIdentifier().logMessage("Searching on expression '{}'..."), exp);
+            logger.trace(index.identifier().logMessage("Searching on expression '{}'..."), exp);
 
         if (exp.getIndexOperator() != Expression.IndexOperator.ANN)
-            throw new IllegalArgumentException(index.indexIdentifier().logMessage("Unsupported expression during ANN index query: " + exp));
+            throw new IllegalArgumentException(index.identifier().logMessage("Unsupported expression during ANN index query: " + exp));
 
         int topK = optimizeFor.topKFor(limit);
         BitsOrPostingList bitsOrPostingList = bitsOrPostingListForKeyRange(context.vectorContext(), keyRange, topK);
         if (bitsOrPostingList.skipANN())
             return toPrimaryKeyIterator(bitsOrPostingList.postingList(), context);
 
-        float[] queryVector = index.indexTermType().decomposeVector(exp.lower().value.raw.duplicate());
+        float[] queryVector = index.termType().decomposeVector(exp.lower().value.raw.duplicate());
         var vectorPostings = graph.search(queryVector, topK, limit, bitsOrPostingList.getBits());
         if (bitsOrPostingList.expectedNodesVisited >= 0)
             updateExpectedNodes(vectorPostings.getVisitedCount(), bitsOrPostingList.expectedNodesVisited);
@@ -257,7 +257,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
                 return toPrimaryKeyIterator(new IntArrayPostingList(rowIds.toIntArray()), context);
 
             // else ask the index to perform a search limited to the bits we created
-            float[] queryVector = index.indexTermType().decomposeVector(expression.lower().value.raw.duplicate());
+            float[] queryVector = index.termType().decomposeVector(expression.lower().value.raw.duplicate());
             var results = graph.search(queryVector, topK, limit, bits);
             updateExpectedNodes(results.getVisitedCount(), expectedNodesVisited(topK, maxSegmentRowId, graph.size()));
             return toPrimaryKeyIterator(results, context);

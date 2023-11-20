@@ -78,7 +78,7 @@ public class VectorTopKProcessor
         Preconditions.checkNotNull(annIndexAndExpression);
 
         this.index = annIndexAndExpression.left;
-        this.indexTermType = annIndexAndExpression.left().indexTermType();
+        this.indexTermType = annIndexAndExpression.left().termType();
         this.queryVector = annIndexAndExpression.right;
         this.limit = command.limits().count();
     }
@@ -173,7 +173,7 @@ public class VectorTopKProcessor
             StorageAttachedIndex sai = findVectorIndexFor(cfs.indexManager, expression);
             if (sai != null)
             {
-                float[] qv = sai.indexTermType().decomposeVector(expression.getIndexValue().duplicate());
+                float[] qv = sai.termType().decomposeVector(expression.getIndexValue().duplicate());
                 return Pair.create(sai, qv);
             }
         }

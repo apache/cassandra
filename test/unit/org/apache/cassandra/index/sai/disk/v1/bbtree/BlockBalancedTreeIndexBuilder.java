@@ -124,10 +124,10 @@ public class BlockBalancedTreeIndexBuilder
         StorageAttachedIndex index = SAITester.createMockIndex("test", type);
 
         NumericIndexWriter writer = new NumericIndexWriter(indexDescriptor,
-                                                           index.indexIdentifier(),
-                                                           index.indexTermType().fixedSizeOf(),
+                                                           index.identifier(),
+                                                           index.termType().fixedSizeOf(),
                                                            maxSegmentRowId);
-        final SegmentMetadata.ComponentMetadataMap indexMetas = writer.writeCompleteSegment(BlockBalancedTreeIterator.fromTermsIterator(termEnum, index.indexTermType()));
+        final SegmentMetadata.ComponentMetadataMap indexMetas = writer.writeCompleteSegment(BlockBalancedTreeIterator.fromTermsIterator(termEnum, index.termType()));
         metadata = new SegmentMetadata(0,
                                        size,
                                        minSegmentRowId,
@@ -139,7 +139,7 @@ public class BlockBalancedTreeIndexBuilder
                                        UTF8Type.instance.fromString("d"),
                                        indexMetas);
 
-        try (PerColumnIndexFiles indexFiles = new PerColumnIndexFiles(indexDescriptor, index.indexTermType(), index.indexIdentifier()))
+        try (PerColumnIndexFiles indexFiles = new PerColumnIndexFiles(indexDescriptor, index.termType(), index.identifier()))
         {
             IndexSegmentSearcher searcher = IndexSegmentSearcher.open(TEST_PRIMARY_KEY_MAP_FACTORY, indexFiles, metadata, index);
             assertThat(searcher, is(instanceOf(NumericIndexSegmentSearcher.class)));

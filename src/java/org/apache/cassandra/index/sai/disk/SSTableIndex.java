@@ -74,8 +74,8 @@ public abstract class SSTableIndex implements SegmentOrdering
     {
         this.sstableContext = sstableContext.sharedCopy(); // this line must not be before any code that may throw
         this.index = index;
-        this.indexTermType = index.indexTermType();
-        this.indexIdentifier = index.indexIdentifier();
+        this.indexTermType = index.termType();
+        this.indexIdentifier = index.identifier();
     }
 
     /**

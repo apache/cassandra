@@ -65,7 +65,7 @@ public class LiteralIndexSegmentSearcher extends IndexSegmentSearcher
         String footerPointerString = map.get(SAICodecUtils.FOOTER_POINTER);
         long footerPointer = footerPointerString == null ? -1 : Long.parseLong(footerPointerString);
 
-        reader = new LiteralIndexSegmentTermsReader(index.indexIdentifier(), indexFiles.termsData(), indexFiles.postingLists(), root, footerPointer);
+        reader = new LiteralIndexSegmentTermsReader(index.identifier(), indexFiles.termsData(), indexFiles.postingLists(), root, footerPointer);
     }
 
     @Override
@@ -79,10 +79,10 @@ public class LiteralIndexSegmentSearcher extends IndexSegmentSearcher
     public KeyRangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext) throws IOException
     {
         if (logger.isTraceEnabled())
-            logger.trace(index.indexIdentifier().logMessage("Searching on expression '{}'..."), expression);
+            logger.trace(index.identifier().logMessage("Searching on expression '{}'..."), expression);
 
         if (!expression.getIndexOperator().isEquality())
-            throw new IllegalArgumentException(index.indexIdentifier().logMessage("Unsupported expression: " + expression));
+            throw new IllegalArgumentException(index.identifier().logMessage("Unsupported expression: " + expression));
 
         final ByteComparable term = ByteComparable.fixedLength(expression.lower().value.encoded);
         QueryEventListener.TrieIndexEventListener listener = MulticastQueryEventListeners.of(queryContext, perColumnEventListener);

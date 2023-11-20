@@ -70,9 +70,9 @@ public class MemtableIndexManager
 
         long bytes = 0;
 
-        if (index.indexTermType().isNonFrozenCollection())
+        if (index.termType().isNonFrozenCollection())
         {
-            Iterator<ByteBuffer> bufferIterator = index.indexTermType().valuesOf(row, FBUtilities.nowInSeconds());
+            Iterator<ByteBuffer> bufferIterator = index.termType().valuesOf(row, FBUtilities.nowInSeconds());
             if (bufferIterator != null)
             {
                 while (bufferIterator.hasNext())
@@ -84,7 +84,7 @@ public class MemtableIndexManager
         }
         else
         {
-            ByteBuffer value = index.indexTermType().valueOf(key, row, FBUtilities.nowInSeconds());
+            ByteBuffer value = index.termType().valueOf(key, row, FBUtilities.nowInSeconds());
             bytes += target.index(key, row.clustering(), value);
         }
         index.indexMetrics().memtableIndexWriteLatency.update(Clock.Global.nanoTime() - start, TimeUnit.NANOSECONDS);
@@ -93,7 +93,7 @@ public class MemtableIndexManager
 
     public long update(DecoratedKey key, Row oldRow, Row newRow, Memtable memtable)
     {
-        if (!index.indexTermType().isVector())
+        if (!index.termType().isVector())
         {
             return index(key, newRow, memtable);
         }
@@ -102,8 +102,8 @@ public class MemtableIndexManager
         if (target == null)
             return 0;
 
-        ByteBuffer oldValue = index.indexTermType().valueOf(key, oldRow, FBUtilities.nowInSeconds());
-        ByteBuffer newValue = index.indexTermType().valueOf(key, newRow, FBUtilities.nowInSeconds());
+        ByteBuffer oldValue = index.termType().valueOf(key, oldRow, FBUtilities.nowInSeconds());
+        ByteBuffer newValue = index.termType().valueOf(key, newRow, FBUtilities.nowInSeconds());
         return target.update(key, oldRow.clustering(), oldValue, newValue);
     }
 

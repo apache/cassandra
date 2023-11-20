@@ -55,7 +55,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
         this.postIndexFilter = postIndexFilter;
         this.filterOperation = filterOperation;
         this.indexes = indexes;
-        this.isTopK = indexes.stream().anyMatch(i -> i instanceof StorageAttachedIndex && ((StorageAttachedIndex) i).indexTermType().isVector());
+        this.isTopK = indexes.stream().anyMatch(i -> i instanceof StorageAttachedIndex && ((StorageAttachedIndex) i).termType().isVector());
     }
 
     @Nullable

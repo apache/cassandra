@@ -72,7 +72,7 @@ public class VectorMemoryIndex extends MemoryIndex
     public VectorMemoryIndex(StorageAttachedIndex index)
     {
         super(index);
-        this.graph = new OnHeapGraph<>(index.indexTermType().indexType(), index.indexWriterConfig());
+        this.graph = new OnHeapGraph<>(index.termType().indexType(), index.indexWriterConfig());
     }
 
     @Override
@@ -156,7 +156,7 @@ public class VectorMemoryIndex extends MemoryIndex
         VectorQueryContext vectorQueryContext = queryContext.vectorContext();
 
         var buffer = expr.lower().value.raw;
-        float[] qv = index.indexTermType().decomposeVector(buffer);
+        float[] qv = index.termType().decomposeVector(buffer);
 
         Bits bits;
         if (!RangeUtil.coversFullRing(keyRange))
@@ -221,7 +221,7 @@ public class VectorMemoryIndex extends MemoryIndex
         }
 
         ByteBuffer buffer = expression.lower().value.raw;
-        float[] qv = index.indexTermType().decomposeVector(buffer);
+        float[] qv = index.termType().decomposeVector(buffer);
         var bits = new KeyFilteringBits(results);
         var keyQueue = graph.search(qv, limit, bits);
         if (keyQueue.isEmpty())

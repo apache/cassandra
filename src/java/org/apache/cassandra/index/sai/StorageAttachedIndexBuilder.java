@@ -152,7 +152,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
             boolean perIndexComponentsOnly = perSSTableFileLock == null;
             // remove existing per column index files instead of overwriting
             IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable);
-            indexes.forEach(index -> indexDescriptor.deleteColumnIndex(index.indexTermType(), index.indexIdentifier()));
+            indexes.forEach(index -> indexDescriptor.deleteColumnIndex(index.termType(), index.identifier()));
 
             indexWriter = StorageAttachedIndexWriter.createBuilderWriter(indexDescriptor, indexes, txn, perIndexComponentsOnly);
 
@@ -342,7 +342,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
 
         if (!dropped.isEmpty())
         {
-            String droppedIndexes = dropped.stream().map(sai -> sai.indexIdentifier().indexName).collect(Collectors.toList()).toString();
+            String droppedIndexes = dropped.stream().map(sai -> sai.identifier().indexName).collect(Collectors.toList()).toString();
             if (isFullRebuild)
                 throw new RuntimeException(logMessage(String.format("%s are dropped, will stop index build.", droppedIndexes)));
             else

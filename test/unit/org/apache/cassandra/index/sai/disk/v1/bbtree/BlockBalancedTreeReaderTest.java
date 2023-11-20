@@ -323,7 +323,7 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
     {
         setBDKPostingsWriterSizing(8, 2);
         final NumericIndexWriter writer = new NumericIndexWriter(indexDescriptor,
-                                                                 index.indexIdentifier(),
+                                                                 index.identifier(),
                                                                  maxPointsPerLeaf,
                                                                  Integer.BYTES,
                                                                  Math.toIntExact(buffer.numRows()));
@@ -334,9 +334,9 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
         final long postingsPosition = metadata.get(IndexComponent.POSTING_LISTS).root;
         assertThat(postingsPosition, is(greaterThan(0L)));
 
-        FileHandle treeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, index.indexIdentifier());
-        FileHandle treePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, index.indexIdentifier());
-        return new BlockBalancedTreeReader(index.indexIdentifier(),
+        FileHandle treeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, index.identifier());
+        FileHandle treePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, index.identifier());
+        return new BlockBalancedTreeReader(index.identifier(),
                                            treeHandle,
                                            treePosition,
                                            treePostingsHandle,

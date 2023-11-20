@@ -77,7 +77,7 @@ public class TrieMemoryIndex extends MemoryIndex
         this.data = new InMemoryTrie<>(TrieMemtable.BUFFER_TYPE);
         this.primaryKeysReducer = new PrimaryKeysReducer();
         // The use of the analyzer is within a synchronized block so can be considered thread-safe
-        this.indexTermType = index.indexTermType();
+        this.indexTermType = index.termType();
         this.isLiteral = indexTermType.isLiteral();
     }
 

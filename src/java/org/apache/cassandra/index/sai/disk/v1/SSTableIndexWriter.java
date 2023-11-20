@@ -73,8 +73,8 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
     {
         this.indexDescriptor = indexDescriptor;
         this.index = index;
-        this.indexTermType = index.indexTermType();
-        this.indexIdentifier = index.indexIdentifier();
+        this.indexTermType = index.termType();
+        this.indexIdentifier = index.identifier();
         this.analyzer = index.analyzer();
         this.limiter = limiter;
         this.isIndexValid = isIndexValid;
@@ -174,7 +174,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
                          indexDescriptor.sstableDescriptor, FBUtilities.prettyPrintMemory(allocated), FBUtilities.prettyPrintMemory(globalBytesUsed));
         }
 
-        indexDescriptor.deleteColumnIndex(index.indexTermType(), indexIdentifier);
+        indexDescriptor.deleteColumnIndex(index.termType(), indexIdentifier);
     }
 
     /**

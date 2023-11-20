@@ -61,9 +61,9 @@ public abstract class IndexSegmentSearcher implements SegmentOrdering, Closeable
                                             SegmentMetadata segmentMetadata,
                                             StorageAttachedIndex index) throws IOException
     {
-        if (index.indexTermType().isVector())
+        if (index.termType().isVector())
             return new VectorIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, index);
-        else if (index.indexTermType().isLiteral())
+        else if (index.termType().isLiteral())
             return new LiteralIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, index);
         else
             return new NumericIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, index);
@@ -95,6 +95,6 @@ public abstract class IndexSegmentSearcher implements SegmentOrdering, Closeable
                                                                                       queryContext,
                                                                                       PeekablePostingList.makePeekable(postingList));
 
-        return new PostingListRangeIterator(index.indexIdentifier(), primaryKeyMapFactory.newPerSSTablePrimaryKeyMap(), searcherContext);
+        return new PostingListRangeIterator(index.identifier(), primaryKeyMapFactory.newPerSSTablePrimaryKeyMap(), searcherContext);
     }
 }

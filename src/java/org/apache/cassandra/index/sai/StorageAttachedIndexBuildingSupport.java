@@ -58,7 +58,7 @@ class StorageAttachedIndexBuildingSupport implements Index.IndexBuildingSupport
                             if (!isFullRebuild)
                             {
                                 ss = sstablesToRebuild.stream()
-                                                      .filter(s -> !IndexDescriptor.create(s).isPerColumnIndexBuildComplete(sai.indexIdentifier()))
+                                                      .filter(s -> !IndexDescriptor.create(s).isPerColumnIndexBuildComplete(sai.identifier()))
                                                       .collect(Collectors.toList());
                             }
 
