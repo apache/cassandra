@@ -36,6 +36,8 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.compaction.unified.Controller;
+import org.apache.cassandra.db.compaction.unified.UnifiedCompactionTask;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -45,6 +47,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Transactional;
+import org.mockito.Mockito;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
@@ -235,5 +238,31 @@ public class CompactionTaskTest
         //major compact without range/pk specified 
         CompactionTasks compactionTasks = cfs.getCompactionStrategyManager().getMaximalTasks(Integer.MAX_VALUE, false, OperationType.MAJOR_COMPACTION);
         Assert.assertTrue(compactionTasks.stream().allMatch(task -> task.compactionType.equals(OperationType.MAJOR_COMPACTION)));
+    }
+
+    @Test
+    public void testUnifiedCompactionTaskIgnoreOverlaps()
+    {
+        QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (1, 1);");
+        QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (2, 2);");
+        Util.flush(cfs);
+        Set<SSTableReader> sstables = cfs.getLiveSSTables();
+        Assert.assertEquals(1, sstables.size());
+
+        UnifiedCompactionStrategy strat = Mockito.mock(UnifiedCompactionStrategy.class);
+        ShardManager shardManager = Mockito.mock(ShardManager.class);
+        Controller controller = Mockito.mock(Controller.class);
+
+        Mockito.when(strat.getController()).thenReturn(controller);
+        try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.COMPACTION))
+        {
+            Mockito.when(controller.getIgnoreOverlapsInExpirationCheck()).thenReturn(false);
+            UnifiedCompactionTask task = new UnifiedCompactionTask(cfs, strat, txn, 0, shardManager);
+            Assert.assertFalse(task.keepOriginals);
+
+            Mockito.when(controller.getIgnoreOverlapsInExpirationCheck()).thenReturn(true);
+            UnifiedCompactionTask task2 = new UnifiedCompactionTask(cfs, strat, txn, 0, shardManager);
+            Assert.assertFalse(task2.keepOriginals);
+        }
     }
 }
