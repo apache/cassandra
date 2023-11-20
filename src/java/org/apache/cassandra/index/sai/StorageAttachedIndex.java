@@ -587,12 +587,12 @@ public class StorageAttachedIndex implements Index
         return viewManager.view();
     }
 
-    public IndexTermType indexTermType()
+    public IndexTermType termType()
     {
         return this.indexTermType;
     }
 
-    public IndexIdentifier indexIdentifier()
+    public IndexIdentifier identifier()
     {
         return indexIdentifier;
     }

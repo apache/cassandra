@@ -187,7 +187,7 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
         final IndexDescriptor indexDescriptor = newIndexDescriptor();
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
-        try (LiteralIndexWriter writer = new LiteralIndexWriter(indexDescriptor, index.indexIdentifier()))
+        try (LiteralIndexWriter writer = new LiteralIndexWriter(indexDescriptor, index.identifier()))
         {
             indexMetas = writer.writeCompleteSegment(new MemtableTermsIterator(null, null, termsEnum.iterator()));
         }
@@ -202,7 +202,7 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
                                                                     wrap(termsEnum.get(terms - 1).left),
                                                                     indexMetas);
 
-        try (PerColumnIndexFiles indexFiles = new PerColumnIndexFiles(indexDescriptor, index.indexTermType(), index.indexIdentifier()))
+        try (PerColumnIndexFiles indexFiles = new PerColumnIndexFiles(indexDescriptor, index.termType(), index.identifier()))
         {
             final IndexSegmentSearcher searcher = IndexSegmentSearcher.open(TEST_PRIMARY_KEY_MAP_FACTORY,
                                                                             indexFiles,

@@ -133,7 +133,7 @@ public class SegmentFlushTest
 
         writer.complete(Stopwatch.createStarted());
 
-        MetadataSource source = MetadataSource.loadColumnMetadata(indexDescriptor, index.indexIdentifier());
+        MetadataSource source = MetadataSource.loadColumnMetadata(indexDescriptor, index.identifier());
 
         List<SegmentMetadata> segmentMetadatas = SegmentMetadata.load(source, indexDescriptor.primaryKeyFactory);
         assertEquals(segments, segmentMetadatas.size());
@@ -149,7 +149,7 @@ public class SegmentFlushTest
         maxTerm = segments == 1 ? term2 : term1;
         numRows = segments == 1 ? 2 : 1;
         verifySegmentMetadata(segmentMetadata);
-        verifyStringIndex(indexDescriptor, index.indexIdentifier(), segmentMetadata);
+        verifyStringIndex(indexDescriptor, index.identifier(), segmentMetadata);
 
         if (segments > 1)
         {
@@ -164,7 +164,7 @@ public class SegmentFlushTest
 
             segmentMetadata = segmentMetadatas.get(1);
             verifySegmentMetadata(segmentMetadata);
-            verifyStringIndex(indexDescriptor, index.indexIdentifier(), segmentMetadata);
+            verifyStringIndex(indexDescriptor, index.identifier(), segmentMetadata);
         }
     }
 

@@ -107,9 +107,9 @@ public class SSTableIndexesSystemView extends AbstractVirtualTable
                             Descriptor descriptor = sstable.descriptor;
                             AbstractBounds<Token> bounds = sstable.getBounds();
 
-                            dataset.row(ks.name, index.indexIdentifier().indexName, sstable.getFilename())
+                            dataset.row(ks.name, index.identifier().indexName, sstable.getFilename())
                                    .column(TABLE_NAME, descriptor.cfname)
-                                   .column(COLUMN_NAME, index.indexTermType().columnName())
+                                   .column(COLUMN_NAME, index.termType().columnName())
                                    .column(FORMAT_VERSION, sstableIndex.getVersion().toString())
                                    .column(CELL_COUNT, sstableIndex.getRowCount())
                                    .column(MIN_ROW_ID, sstableIndex.minSSTableRowId())

@@ -93,14 +93,14 @@ public class ColumnIndexesSystemView extends AbstractVirtualTable
                 {
                     group.getIndexes().forEach(i -> {
                         StorageAttachedIndex index = (StorageAttachedIndex) i;
-                        String indexName = index.indexIdentifier().indexName;
+                        String indexName = index.identifier().indexName;
 
                         dataset.row(ks.name, indexName)
                                .column(TABLE_NAME, cfs.name)
-                               .column(COLUMN_NAME, index.indexTermType().columnName())
+                               .column(COLUMN_NAME, index.termType().columnName())
                                .column(IS_QUERYABLE, manager.isIndexQueryable(index))
                                .column(IS_BUILDING, manager.isIndexBuilding(indexName))
-                               .column(IS_STRING, index.indexTermType().isLiteral())
+                               .column(IS_STRING, index.termType().isLiteral())
                                .column(ANALYZER, index.analyzer().toString());
                     });
                 }

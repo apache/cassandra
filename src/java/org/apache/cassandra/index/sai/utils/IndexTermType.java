@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -92,19 +93,23 @@ public class IndexTermType
     private static final int INET_ADDRESS_SIZE = 16;
     private static final int DEFAULT_FIXED_LENGTH = 16;
 
-    private static final int IS_LITERAL               = 1;
-    private static final int IS_STRING                = 1 << 1;
-    private static final int IS_VECTOR                = 1 << 2;
-    private static final int IS_REVERSED              = 1 << 3;
-    private static final int IS_FROZEN                = 1 << 4;
-    private static final int IS_COLLECTION            = 1 << 5;
-    private static final int IS_NON_FROZEN_COLLECTION = 1 << 6;
-    private static final int IS_COMPOSITE             = 1 << 7;
-    private static final int IS_INET_ADDRESS          = 1 << 8;
-    private static final int IS_BIG_INTEGER           = 1 << 9;
-    private static final int IS_BIG_DECIMAL           = 1 << 10;
-    private static final int IS_LONG                  = 1 << 11;
-    private static final int IS_COMPOSITE_PARTITION   = 1 << 12;
+    private enum Capability
+    {
+        STRING,
+        VECTOR,
+        INET_ADDRESS,
+        BIG_INTEGER,
+        BIG_DECIMAL,
+        LONG,
+        BOOLEAN,
+        LITERAL,
+        REVERSED,
+        FROZEN,
+        COLLECTION,
+        NON_FROZEN_COLLECTION,
+        COMPOSITE,
+        COMPOSITE_PARTITION
+    }
 
     private final ColumnMetadata columnMetadata;
     private final IndexTarget.Type indexTargetType;
@@ -112,7 +117,7 @@ public class IndexTermType
     private final List<IndexTermType> subTypes;
     private final AbstractType<?> vectorElementType;
     private final int vectorDimension;
-    private final int capabilityBitmap;
+    private final EnumSet<Capability> capabilities;
 
     /**
      * Create an {@link IndexTermType} from a {@link ColumnMetadata} and {@link IndexTarget.Type}.
@@ -134,8 +139,8 @@ public class IndexTermType
     {
         this.columnMetadata = columnMetadata;
         this.indexTargetType = indexTargetType;
-        this.capabilityBitmap = calculateIdentityBitmap(columnMetadata, partitionColumns, indexTargetType);
-        this.indexType = calculateIndexType(columnMetadata.type, capabilityBitmap, indexTargetType);
+        this.capabilities = calculateIdentityBitmap(columnMetadata, partitionColumns, indexTargetType);
+        this.indexType = calculateIndexType(columnMetadata.type, capabilities, indexTargetType);
         if (indexType.subTypes().isEmpty())
         {
             this.subTypes = Collections.emptyList();
@@ -166,7 +171,7 @@ public class IndexTermType
      */
     public boolean isLiteral()
     {
-        return hasProperty(IS_LITERAL);
+        return capabilities.contains(Capability.LITERAL);
     }
 
     /**
@@ -175,7 +180,7 @@ public class IndexTermType
      */
     public boolean isString()
     {
-        return hasProperty(IS_STRING);
+        return capabilities.contains(Capability.STRING);
     }
 
     /**
@@ -184,7 +189,7 @@ public class IndexTermType
      */
     public boolean isVector()
     {
-        return hasProperty(IS_VECTOR);
+        return capabilities.contains(Capability.VECTOR);
     }
 
     /**
@@ -193,7 +198,7 @@ public class IndexTermType
      */
     public boolean isReversed()
     {
-        return hasProperty(IS_REVERSED);
+        return capabilities.contains(Capability.REVERSED);
     }
 
     /**
@@ -201,7 +206,7 @@ public class IndexTermType
      */
     public boolean isFrozen()
     {
-        return hasProperty(IS_FROZEN);
+        return capabilities.contains(Capability.FROZEN);
     }
 
     /**
@@ -209,7 +214,7 @@ public class IndexTermType
      */
     public boolean isNonFrozenCollection()
     {
-        return hasProperty(IS_NON_FROZEN_COLLECTION);
+        return capabilities.contains(Capability.NON_FROZEN_COLLECTION);
     }
 
     /**
@@ -218,7 +223,7 @@ public class IndexTermType
      */
     public boolean isFrozenCollection()
     {
-        return hasProperty(IS_COLLECTION) && hasProperty(IS_FROZEN);
+        return capabilities.contains(Capability.COLLECTION) && capabilities.contains(Capability.FROZEN);
     }
 
     /**
@@ -226,7 +231,7 @@ public class IndexTermType
      */
     public boolean isComposite()
     {
-        return hasProperty(IS_COMPOSITE);
+        return capabilities.contains(Capability.COMPOSITE);
     }
 
     /**
@@ -611,68 +616,69 @@ public class IndexTermType
         return Objects.hash(columnMetadata, indexTargetType);
     }
 
-    private int calculateIdentityBitmap(ColumnMetadata columnMetadata, List<ColumnMetadata> partitionKeyColumns, IndexTarget.Type indexTargetType)
+    private EnumSet<Capability> calculateIdentityBitmap(ColumnMetadata columnMetadata, List<ColumnMetadata> partitionKeyColumns, IndexTarget.Type indexTargetType)
     {
-        int bitmap = 0;
+        EnumSet<Capability> capabilities = EnumSet.noneOf(Capability.class);
 
         if (partitionKeyColumns.contains(columnMetadata) && partitionKeyColumns.size() > 1)
-            bitmap |= IS_COMPOSITE_PARTITION;
+            capabilities.add(Capability.COMPOSITE_PARTITION);
 
         AbstractType<?> type = columnMetadata.type;
 
         if (type.isReversed())
-            bitmap |= IS_REVERSED;
+            capabilities.add(Capability.REVERSED);
 
         AbstractType<?> baseType = type.unwrap();
 
         if (baseType.isCollection())
-            bitmap |= IS_COLLECTION;
+            capabilities.add(Capability.COLLECTION);
 
         if (baseType.isCollection() && baseType.isMultiCell())
-            bitmap |= IS_NON_FROZEN_COLLECTION;
+            capabilities.add(Capability.NON_FROZEN_COLLECTION);
 
         if (!baseType.subTypes().isEmpty() && !baseType.isMultiCell())
-            bitmap |= IS_FROZEN;
+            capabilities.add(Capability.FROZEN);
 
-        AbstractType<?> indexType = calculateIndexType(baseType, bitmap, indexTargetType);
+        AbstractType<?> indexType = calculateIndexType(baseType, capabilities, indexTargetType);
 
         if (indexType instanceof CompositeType)
-            bitmap |= IS_COMPOSITE;
+            capabilities.add(Capability.COMPOSITE);
         else if (!indexType.subTypes().isEmpty() && !indexType.isMultiCell())
-            bitmap |= IS_FROZEN;
+            capabilities.add(Capability.FROZEN);
 
         if (indexType instanceof StringType)
-            bitmap |= IS_STRING;
+            capabilities.add(Capability.STRING);
 
-        if ((bitmap & (IS_STRING + IS_FROZEN + IS_COMPOSITE)) != 0 || indexType instanceof BooleanType)
-            bitmap |= IS_LITERAL;
+        if (indexType instanceof BooleanType)
+            capabilities.add(Capability.BOOLEAN);
+
+        if (capabilities.contains(Capability.STRING) ||
+            capabilities.contains(Capability.BOOLEAN) ||
+            capabilities.contains(Capability.FROZEN) ||
+            capabilities.contains(Capability.COMPOSITE))
+            capabilities.add(Capability.LITERAL);
 
         if (indexType instanceof VectorType<?>)
-            bitmap |= IS_VECTOR;
+            capabilities.add(Capability.VECTOR);
 
         if (indexType instanceof InetAddressType)
-            bitmap |= IS_INET_ADDRESS;
+            capabilities.add(Capability.INET_ADDRESS);
 
         if (indexType instanceof IntegerType)
-            bitmap |= IS_BIG_INTEGER;
+            capabilities.add(Capability.BIG_INTEGER);
 
         if (indexType instanceof DecimalType)
-            bitmap |= IS_BIG_DECIMAL;
+            capabilities.add(Capability.BIG_DECIMAL);
 
         if (indexType instanceof LongType)
-            bitmap  |= IS_LONG;
+            capabilities.add(Capability.LONG);
 
-        return bitmap;
+        return capabilities;
     }
 
-    private AbstractType<?> calculateIndexType(AbstractType<?> baseType, int bitmap, IndexTarget.Type indexTargetType)
+    private AbstractType<?> calculateIndexType(AbstractType<?> baseType, EnumSet<Capability> capabilities, IndexTarget.Type indexTargetType)
     {
-        return (bitmap & IS_NON_FROZEN_COLLECTION) != 0 ? collectionCellValueType(baseType, indexTargetType) : baseType;
-    }
-
-    private boolean hasProperty(int property)
-    {
-        return (capabilityBitmap & property) != 0;
+        return capabilities.contains(Capability.NON_FROZEN_COLLECTION) ? collectionCellValueType(baseType, indexTargetType) : baseType;
     }
 
     private Iterator<ByteBuffer> collectionIterator(ComplexColumnData cellData, long nowInSecs)
@@ -741,7 +747,7 @@ public class IndexTermType
 
     private boolean isCompositePartition()
     {
-        return hasProperty(IS_COMPOSITE_PARTITION);
+        return capabilities.contains(Capability.COMPOSITE_PARTITION);
     }
 
     /**
@@ -749,23 +755,7 @@ public class IndexTermType
      */
     private boolean isInetAddress()
     {
-        return hasProperty(IS_INET_ADDRESS);
-    }
-
-    /**
-     * Compares 2 InetAddress terms by ensuring that both addresses are represented as
-     * ipv6 addresses.
-     */
-    private int compareInet(ByteBuffer b1, ByteBuffer b2)
-    {
-        assert isIPv6(b1) && isIPv6(b2);
-
-        return FastByteOperations.compareUnsigned(b1, b2);
-    }
-
-    private boolean isIPv6(ByteBuffer address)
-    {
-        return address.remaining() == INET_ADDRESS_SIZE;
+        return capabilities.contains(Capability.INET_ADDRESS);
     }
 
     /**
@@ -773,7 +763,7 @@ public class IndexTermType
      */
     private boolean isBigInteger()
     {
-        return hasProperty(IS_BIG_INTEGER);
+        return capabilities.contains(Capability.BIG_INTEGER);
     }
 
     /**
@@ -781,12 +771,28 @@ public class IndexTermType
      */
     private boolean isBigDecimal()
     {
-        return hasProperty(IS_BIG_DECIMAL);
+        return capabilities.contains(Capability.BIG_DECIMAL);
     }
 
     private boolean isLong()
     {
-        return hasProperty(IS_LONG);
+        return capabilities.contains(Capability.LONG);
+    }
+
+    /**
+     * Compares 2 InetAddress terms by ensuring that both addresses are represented as
+     * ipv6 addresses.
+     */
+    private static int compareInet(ByteBuffer b1, ByteBuffer b2)
+    {
+        assert isIPv6(b1) && isIPv6(b2);
+
+        return FastByteOperations.compareUnsigned(b1, b2);
+    }
+
+    private static boolean isIPv6(ByteBuffer address)
+    {
+        return address.remaining() == INET_ADDRESS_SIZE;
     }
 
     /**
@@ -796,7 +802,7 @@ public class IndexTermType
      * <p>
      * The encoding is done by converting ipv4 addresses to their ipv6 equivalent.
      */
-    private ByteBuffer encodeInetAddress(ByteBuffer value)
+    private static ByteBuffer encodeInetAddress(ByteBuffer value)
     {
         if (value.remaining() == 4)
         {
@@ -824,7 +830,7 @@ public class IndexTermType
      *  For {@link BigInteger} values whose underlying byte array is less than
      *  16 bytes, the encoded value is sign extended.
      */
-    public ByteBuffer encodeBigInteger(ByteBuffer value)
+    public static ByteBuffer encodeBigInteger(ByteBuffer value)
     {
         int size = value.remaining();
         int position = value.hasArray() ? value.arrayOffset() + value.position() : value.position();
@@ -853,7 +859,7 @@ public class IndexTermType
         return ByteBuffer.wrap(bytes);
     }
 
-    public ByteBuffer encodeDecimal(ByteBuffer value)
+    public static ByteBuffer encodeDecimal(ByteBuffer value)
     {
         ByteSource bs = DecimalType.instance.asComparableBytes(value, ByteComparable.Version.OSS50);
         bs = ByteSource.cutOrRightPad(bs, DECIMAL_APPROXIMATION_BYTES, 0);

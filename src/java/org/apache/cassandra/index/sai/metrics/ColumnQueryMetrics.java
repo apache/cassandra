@@ -29,7 +29,7 @@ public abstract class ColumnQueryMetrics extends AbstractMetrics
 {
     protected ColumnQueryMetrics(StorageAttachedIndex index)
     {
-        super(index.indexIdentifier(), "ColumnQueryMetrics");
+        super(index.identifier(), "ColumnQueryMetrics");
     }
 
     public static class TrieIndexMetrics extends ColumnQueryMetrics implements QueryEventListener.TrieIndexEventListener
