@@ -21,8 +21,8 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.PrimitiveIterator;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import javax.annotation.Nullable;
 
@@ -31,7 +31,6 @@ import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.github.jbellis.jvector.graph.NodeSimilarity;
 import io.github.jbellis.jvector.graph.SearchResult;
 import io.github.jbellis.jvector.pq.BinaryQuantization;
 import io.github.jbellis.jvector.util.Bits;
@@ -218,11 +217,7 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
                 }
                 else
                 {
-                    var cv = graph.getCompressedVectors();
-                    var similarityFunction = indexContext.getIndexWriterConfig().getSimilarityFunction();
-                    var scoreFunction = cv.approximateScoreFunctionFor(queryVector, similarityFunction);
-
-                    postings = findTopApproximatePostings(limit, nRows, segmentRowIdsStream, scoreFunction);
+                    postings = findTopApproximatePostings(queryVector, segmentRowIdsStream.iterator(), limit, nRows);
                 }
                 return new BitsOrPostingList(new ArrayPostingList(postings));
             }
@@ -258,14 +253,16 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
         }
     }
 
-    private int[] findTopApproximatePostings(int limit, int nRows, IntStream segmentRowIdsStream, NodeSimilarity.ApproximateScoreFunction scoreFunction) throws IOException
+    private int[] findTopApproximatePostings(float[] queryVector, PrimitiveIterator.OfInt segmentRowIdIterator, int limit, int maxRows) throws IOException
     {
-        ArrayList<SearchResult.NodeScore> pairs = new ArrayList<>(nRows);
+        var cv = graph.getCompressedVectors();
+        var similarityFunction = indexContext.getIndexWriterConfig().getSimilarityFunction();
+        var scoreFunction = cv.approximateScoreFunctionFor(queryVector, similarityFunction);
+
+        ArrayList<SearchResult.NodeScore> pairs = new ArrayList<>(maxRows);
         try (var ordinalsView = graph.getOrdinalsView())
         {
-            // just because getOrdinalForRowId throw IOException, to avoid wrapping it into RuntimException
-            var segmentRowIdIterator = segmentRowIdsStream.iterator();
-            while(segmentRowIdIterator.hasNext())
+            while (segmentRowIdIterator.hasNext())
             {
                 var segmentRowId = segmentRowIdIterator.nextInt();
                 int ordinal = ordinalsView.getOrdinalForRowId(segmentRowId);
@@ -342,23 +339,28 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
                                            .collect(Collectors.toList());
         if (keysInRange.isEmpty())
             return RangeIterator.empty();
-        int topK = topKFor(limit);
         int numRows = keysInRange.size();
-        var maxBruteForceRows = min(globalBruteForceRows, maxBruteForceRows(topK, numRows, graph.size()));
-        if (numRows <= maxBruteForceRows)
+        if (numRows <= limit)
         {
-            logAndTrace("SAI estimates {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
-                        keysInRange.size(), maxBruteForceRows, graph.size(), limit);
+            logAndTrace("SAI produced {} rows out of limit {}", numRows, limit);
             return new ListRangeIterator(metadata.minKey, metadata.maxKey, keysInRange);
         }
 
+        int topK = topKFor(limit);
+        var maxBruteForceRows = min(globalBruteForceRows, maxBruteForceRows(topK, numRows, graph.size()));
         try (PrimaryKeyMap primaryKeyMap = primaryKeyMapFactory.newPerSSTablePrimaryKeyMap())
         {
-            // the iterator represents keys from the whole table -- we'll only pull of those that
-            // are from our own token range so we can use row ids to order the results by vector similarity.
             var maxSegmentRowId = metadata.toSegmentRowId(metadata.maxSSTableRowId);
-            SparseFixedBitSet bits = bitSetForSearch();
-            var rowIds = new IntArrayList();
+
+            // if we are brute forcing, we want to build a list of segment row ids, but if not,
+            // we want to build a bitset of ordinals corresponding to the rows
+            SparseFixedBitSet bits = null;
+            IntArrayList rowIds = null;
+            if (numRows <= maxBruteForceRows)
+                rowIds = new IntArrayList();
+            else
+                bits = bitSetForSearch();
+
             try (var ordinalsView = graph.getOrdinalsView())
             {
                 for (PrimaryKey primaryKey : keysInRange)
@@ -374,19 +376,27 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
                         break;
 
                     int segmentRowId = metadata.toSegmentRowId(sstableRowId);
-                    rowIds.add(segmentRowId);
-                    // VSTODO now that we know the size of keys evaluated, is it worth doing the brute
-                    // force check eagerly to potentially skip the PK to sstable row id to ordinal lookup?
-                    int ordinal = ordinalsView.getOrdinalForRowId(segmentRowId);
-                    if (ordinal >= 0)
-                        bits.set(ordinal);
+                    if (numRows <= maxBruteForceRows)
+                    {
+                        rowIds.add(segmentRowId);
+                    }
+                    else
+                    {
+                        int ordinal = ordinalsView.getOrdinalForRowId(segmentRowId);
+                        if (ordinal >= 0)
+                            bits.set(ordinal);
+                    }
                 }
             }
 
             logAndTrace("SAI predicates produced {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
-                        keysInRange.size(), maxBruteForceRows, graph.size(), limit);
-            if (rowIds.size() <= maxBruteForceRows)
-                return toPrimaryKeyIterator(new ArrayPostingList(rowIds.toIntArray()), context);
+                        numRows, maxBruteForceRows, graph.size(), limit);
+            if (numRows <= maxBruteForceRows)
+            {
+                var queryVector = exp.lower.value.vector;
+                var postings = findTopApproximatePostings(queryVector, rowIds.intStream().iterator(), limit, numRows);
+                return toPrimaryKeyIterator(new ArrayPostingList(postings), context);
+            }
 
             // else ask the index to perform a search limited to the bits we created
             float[] queryVector = exp.lower.value.vector;
