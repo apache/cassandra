@@ -309,16 +309,24 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
 
     private int expectedNodesVisited(int limit, int nPermittedOrdinals)
     {
-        var observedRatio = actualExpectedRatio.getUpdateCount() >= 10 ? actualExpectedRatio.get() : 1.0;
-        return (int) (observedRatio * getRawExpectedNodes(limit, nPermittedOrdinals));
+        return (int) (getObservedNodesRatio() * getRawExpectedNodes(limit, nPermittedOrdinals));
+    }
+
+    /** the ratio of nodes visited by a graph search, to our estimate */
+    private double getObservedNodesRatio()
+    {
+        return actualExpectedRatio.getUpdateCount() >= 10 ? actualExpectedRatio.get() : 1.0;
     }
 
     private void updateExpectedNodes(int actualNodesVisited, int rawExpectedNodes)
     {
         assert rawExpectedNodes >= 0 : rawExpectedNodes;
         assert actualNodesVisited >= 0 : actualNodesVisited;
-        if (actualNodesVisited >= 1000 && (actualNodesVisited > 2 * rawExpectedNodes || actualNodesVisited < 0.5 * actualNodesVisited))
-            logger.warn("Predicted visiting {} nodes, but actually visited {}", rawExpectedNodes, actualNodesVisited);
+        double ratio = getObservedNodesRatio();
+        var expectedNodes = (int) (ratio * rawExpectedNodes);
+        if (actualNodesVisited >= 1000 && (actualNodesVisited > 2 * expectedNodes || actualNodesVisited < 0.5 * expectedNodes))
+            logger.warn("Predicted visiting {} nodes, but actually visited {} (observed:predicted ratio is {})",
+                        expectedNodes, actualNodesVisited, ratio);
         actualExpectedRatio.updateAndGet(actualNodesVisited, rawExpectedNodes);
     }
 
