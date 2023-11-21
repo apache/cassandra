@@ -21,9 +21,7 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.PrimitiveIterator;
 import java.util.stream.Collectors;
-import java.util.stream.LongStream;
 import javax.annotation.Nullable;
 
 import com.google.common.base.MoreObjects;
@@ -207,18 +205,13 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
             // if we have a small number of results then let TopK processor do exact NN computation
             if (nRows <= maxBruteForceRows)
             {
-                var segmentRowIdsStream = LongStream.range(minSSTableRowId, maxSSTableRowId + 1)
-                                                    .filter(sstableRowId -> context.shouldInclude(sstableRowId, primaryKeyMap))
-                                                    .mapToInt(metadata::toSegmentRowId);
-                final int[] postings;
-                if (graph.getCompressedVectors() == null || nRows <= topK)
+                var segmentRowIds = new IntArrayList(nRows, 0);
+                for (long i = minSSTableRowId; i <= maxSSTableRowId; i++)
                 {
-                    postings = segmentRowIdsStream.toArray();
+                    if (context.shouldInclude(i, primaryKeyMap))
+                        segmentRowIds.add(metadata.toSegmentRowId(i));
                 }
-                else
-                {
-                    postings = findTopApproximatePostings(queryVector, segmentRowIdsStream.iterator(), topK, nRows);
-                }
+                var postings = findTopApproximatePostings(queryVector, segmentRowIds, topK);
                 return new BitsOrPostingList(new ArrayPostingList(postings));
             }
 
@@ -253,18 +246,21 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
         }
     }
 
-    private int[] findTopApproximatePostings(float[] queryVector, PrimitiveIterator.OfInt segmentRowIdIterator, int topK, int maxRows) throws IOException
+    private int[] findTopApproximatePostings(float[] queryVector, IntArrayList segmentRowIds, int topK) throws IOException
     {
         var cv = graph.getCompressedVectors();
+        if (cv == null || segmentRowIds.size() <= topK)
+            return segmentRowIds.toIntArray();
+
         var similarityFunction = indexContext.getIndexWriterConfig().getSimilarityFunction();
         var scoreFunction = cv.approximateScoreFunctionFor(queryVector, similarityFunction);
 
-        ArrayList<SearchResult.NodeScore> pairs = new ArrayList<>(maxRows);
+        ArrayList<SearchResult.NodeScore> pairs = new ArrayList<>(segmentRowIds.size());
         try (var ordinalsView = graph.getOrdinalsView())
         {
-            while (segmentRowIdIterator.hasNext())
+            for (int i = 0; i < segmentRowIds.size(); i++)
             {
-                var segmentRowId = segmentRowIdIterator.nextInt();
+                int segmentRowId = segmentRowIds.getInt(i);
                 int ordinal = ordinalsView.getOrdinalForRowId(segmentRowId);
                 if (ordinal < 0)
                     continue;
@@ -348,11 +344,9 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
         if (keysInRange.isEmpty())
             return RangeIterator.empty();
         int numRows = keysInRange.size();
+        logAndTrace("SAI predicates produced {} rows out of limit {}", numRows, limit);
         if (numRows <= limit)
-        {
-            logAndTrace("SAI produced {} rows out of limit {}", numRows, limit);
             return new ListRangeIterator(metadata.minKey, metadata.maxKey, keysInRange);
-        }
 
         int topK = topKFor(limit);
         var maxBruteForceRows = min(globalBruteForceRows, maxBruteForceRows(topK, numRows));
@@ -397,12 +391,13 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
                 }
             }
 
-            logAndTrace("SAI predicates produced {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
+            numRows = rowIds == null ? bits.cardinality() : rowIds.size();
+            logAndTrace("{} rows relevant to current sstable; max brute force rows is {} for index with {} nodes, LIMIT {}",
                         numRows, maxBruteForceRows, graph.size(), limit);
-            if (numRows <= maxBruteForceRows)
+            if (rowIds != null)
             {
                 var queryVector = exp.lower.value.vector;
-                var postings = findTopApproximatePostings(queryVector, rowIds.intStream().iterator(), topK, numRows);
+                var postings = findTopApproximatePostings(queryVector, rowIds, topK);
                 return toPrimaryKeyIterator(new ArrayPostingList(postings), context);
             }
 
