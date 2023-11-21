@@ -91,6 +91,21 @@ public class SecondaryIndexManagerTest extends CQLTester
     }
 
     @Test
+    public void testIndexStatusPropagationThread() throws Throwable
+    {
+        // create index to submit index status propagation task
+        String tableName = createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
+        String indexName = createIndex("CREATE INDEX ON %s(c)");
+        waitForIndex(KEYSPACE, tableName, indexName);
+
+        Thread statusPropagationThread  = Thread.getAllStackTraces().keySet()
+                                                .stream()
+                                                .filter(t -> t.getName().contains("IndexStatusPropagationExecutor"))
+                                                .findFirst().get();
+        assertTrue(statusPropagationThread.isDaemon());
+    }
+
+    @Test
     public void rebuilOrRecoveringIndexMarksTheIndexAsBuilt() throws Throwable
     {
         String tableName = createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");

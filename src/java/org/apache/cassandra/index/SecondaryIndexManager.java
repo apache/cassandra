@@ -192,8 +192,8 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
     // store per-endpoint index status: the key of inner map is identifier "keyspace.index"
     public static final Map<InetAddressAndPort, Map<String, Index.Status>> peerIndexStatus = new ConcurrentHashMap<>();
-    // executes index status propagation task asynchronously to avoid potential deadlock on SIM
-    private static final ExecutorService statusPropagationExecutor = Executors.newSingleThreadExecutor();
+    // executes index status propagation task asynchronously to avoid potential deadlock on SIM. Used NamedThreadFactory to create daemon thread
+    private static final ExecutorService statusPropagationExecutor = Executors.newSingleThreadExecutor(new NamedThreadFactory("IndexStatusPropagationExecutor"));
 
     /**
      * All registered indexes.
@@ -1939,8 +1939,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         return delta;
     }
 
-    @VisibleForTesting
-    public synchronized static void propagateLocalIndexStatus(String keyspace, String index, Index.Status status)
+    private synchronized static void propagateLocalIndexStatus(String keyspace, String index, Index.Status status)
     {
         try
         {
