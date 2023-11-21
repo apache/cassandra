@@ -203,13 +203,9 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
             // so we will live with the inaccuracy.)
             int nRows = Math.toIntExact(maxSSTableRowId - minSSTableRowId + 1);
             int maxBruteForceRows = min(globalBruteForceRows, maxBruteForceRows(limit, nRows, graph.size()));
-            if (logger.isTraceEnabled())
-                logger.trace("Search range covers {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
-                         nRows, maxBruteForceRows, graph.size(), limit);
-            if (Tracing.isTracing())
-                Tracing.trace("Search range covers {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
-                          nRows, maxBruteForceRows, graph.size(), limit);
-
+            logAndTrace("Search range covers {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
+                        nRows, maxBruteForceRows, graph.size(), limit);
+            // if we have a small number of results then let TopK processor do exact NN computation
             if (nRows <= maxBruteForceRows)
             {
                 var segmentRowIdsStream = LongStream.range(minSSTableRowId, maxSSTableRowId + 1)
@@ -347,8 +343,14 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
         if (keysInRange.isEmpty())
             return RangeIterator.empty();
         int topK = topKFor(limit);
-        if (shouldUseBruteForce(topK, limit, keysInRange.size()))
+        int numRows = keysInRange.size();
+        var maxBruteForceRows = min(globalBruteForceRows, maxBruteForceRows(topK, numRows, graph.size()));
+        if (numRows <= maxBruteForceRows)
+        {
+            logAndTrace("SAI estimates {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
+                        keysInRange.size(), maxBruteForceRows, graph.size(), limit);
             return new ListRangeIterator(metadata.minKey, metadata.maxKey, keysInRange);
+        }
 
         try (PrimaryKeyMap primaryKeyMap = primaryKeyMapFactory.newPerSSTablePrimaryKeyMap())
         {
@@ -381,7 +383,9 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
                 }
             }
 
-            if (shouldUseBruteForce(topK, limit, rowIds.size()))
+            logAndTrace("SAI predicates produced {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
+                        keysInRange.size(), maxBruteForceRows, graph.size(), limit);
+            if (rowIds.size() <= maxBruteForceRows)
                 return toPrimaryKeyIterator(new ArrayPostingList(rowIds.toIntArray()), context);
 
             // else ask the index to perform a search limited to the bits we created
@@ -392,15 +396,10 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
         }
     }
 
-    private boolean shouldUseBruteForce(int topK, int limit, int numRows)
+    private void logAndTrace(String message, Object... args)
     {
-        // if we have a small number of results then let TopK processor do exact NN computation
-        var maxBruteForceRows = min(globalBruteForceRows, maxBruteForceRows(topK, numRows, graph.size()));
-        logger.trace("SAI materialized {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
-                     numRows, maxBruteForceRows, graph.size(), limit);
-        Tracing.trace("SAI materialized {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
-                      numRows, maxBruteForceRows, graph.size(), limit);
-        return numRows <= maxBruteForceRows;
+        logger.trace(message, args);
+        Tracing.trace(message, args);
     }
 
     @Override
