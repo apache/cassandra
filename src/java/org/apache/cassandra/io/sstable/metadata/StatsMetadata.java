@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.ArrayUtils;
@@ -49,6 +50,7 @@ import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.serializers.AbstractTypeSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.UUIDSerializer;
 import org.apache.cassandra.utils.streamhist.TombstoneHistogram;
 
@@ -302,6 +304,7 @@ public class StatsMetadata extends MetadataComponent
     public static class StatsMetadataSerializer implements IMetadataComponentSerializer<StatsMetadata>
     {
         private static final Logger logger = LoggerFactory.getLogger(StatsMetadataSerializer.class);
+        private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.MINUTES);
 
         private final AbstractTypeSerializer typeSerializer = new AbstractTypeSerializer();
 
@@ -602,7 +605,7 @@ public class StatsMetadata extends MetadataComponent
 
             if (version.hasIncrementalNodeSyncMetadata())
             {
-                logger.warn("Ignoring incremental node sync metadata from {} as it is not supported", in);
+                noSpamLogger.warn("Ignoring incremental node sync metadata from {} as it is not supported", in);
                 in.readLong();
             }
 
