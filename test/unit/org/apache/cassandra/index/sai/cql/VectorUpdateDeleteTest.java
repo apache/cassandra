@@ -491,7 +491,7 @@ public class VectorUpdateDeleteTest extends VectorTester
         execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'B', [1.0, 2.0, 3.0])");
         flush();
 
-        // flush another sstable to shadow the vector row
+        // flush another sstable to shadow row 0
         execute("DELETE FROM %s where pk = 0");
         flush();
 
@@ -499,9 +499,9 @@ public class VectorUpdateDeleteTest extends VectorTester
         execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', [2.0, 3.0, 4.0])");
         flush();
 
-        // the shadow vector has the highest score
-        var result = execute("SELECT * FROM %s ORDER BY val ann of [1.0, 2.0, 3.0] LIMIT 2");
-        assertThat(result).hasSize(2);
+        // the shadowed vector has the highest score, but we shouldn't see it
+        var result = execute("SELECT pk FROM %s ORDER BY val ann of [1.0, 2.0, 3.0] LIMIT 2");
+        assertRowsIgnoringOrder(result, row(2), row(1));
     }
 
     @Test
@@ -519,7 +519,7 @@ public class VectorUpdateDeleteTest extends VectorTester
         execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'A', [1.0, 2.0, 3.0])");
         flush();
 
-        // flush another sstable to shadow the vector row
+        // flush another sstable to shadow row 0
         execute("DELETE FROM %s where pk = 0");
         flush();
 
@@ -527,9 +527,9 @@ public class VectorUpdateDeleteTest extends VectorTester
         execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'A', [2.0, 3.0, 4.0])");
         flush();
 
-        // the shadow vector has the highest score
-        var result = execute("SELECT * FROM %s WHERE str_val = 'A' ORDER BY val ann of [1.0, 2.0, 3.0] LIMIT 2");
-        assertThat(result).hasSize(2);
+        // the shadowed vector has the highest score, but we shouldn't see it
+        var result = execute("SELECT pk FROM %s WHERE str_val = 'A' ORDER BY val ann of [1.0, 2.0, 3.0] LIMIT 2");
+        assertRowsIgnoringOrder(result, row(2), row(1));
     }
 
     @Test
