@@ -65,7 +65,7 @@ public abstract class AbstractBlockPackedReader implements LongArray
     }
 
     @Override
-    public long findTokenRowID(long targetValue)
+    public long ceilingRowId(long targetValue)
     {
         // already out of range
         if (lastIndex >= valueCount)

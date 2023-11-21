@@ -100,9 +100,9 @@ public class NumericValuesTest extends SaiRandomizedTest
 
             for (int x = 0; x < array.length; x++)
             {
-                long rowId = reader.findTokenRowID(array[x]);
+                long rowId = reader.ceilingRowId(array[x]);
                 assertEquals("rowID=" + x + " token=" + array[x], x, rowId);
-                assertEquals(rowId, reader.findTokenRowID(array[x]));
+                assertEquals(rowId, reader.ceilingRowId(array[x]));
             }
         }
 
@@ -114,9 +114,9 @@ public class NumericValuesTest extends SaiRandomizedTest
 
             for (int x = 0; x < array.length; x++)
             {
-                long rowId = reader.findTokenRowID(array[x] - 1);
+                long rowId = reader.ceilingRowId(array[x] - 1);
                 assertEquals("rowID=" + x + " matched token=" + array[x] + " target token="+(array[x] - 1), x, rowId);
-                assertEquals(rowId, reader.findTokenRowID(array[x] - 1));
+                assertEquals(rowId, reader.ceilingRowId(array[x] - 1));
             }
         }
     }
@@ -134,7 +134,7 @@ public class NumericValuesTest extends SaiRandomizedTest
         {
             for (int x = 0; x < length; x++)
             {
-                long rowID = reader.findTokenRowID(1000L);
+                long rowID = reader.ceilingRowId(1000L);
 
                 assertEquals(0, rowID);
             }

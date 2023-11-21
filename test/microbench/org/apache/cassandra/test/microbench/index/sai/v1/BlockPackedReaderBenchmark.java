@@ -107,7 +107,7 @@ public class BlockPackedReaderBenchmark extends AbstractOnDiskBenchmark
     {
         for (int i = 0; i < tokenValues.length;)
         {
-            bh.consume(rowIdToToken.findTokenRowID(tokenValues[i]));
+            bh.consume(rowIdToToken.ceilingRowId(tokenValues[i]));
             i++;
         }
     }

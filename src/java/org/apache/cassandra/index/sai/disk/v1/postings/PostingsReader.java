@@ -168,7 +168,7 @@ public class PostingsReader implements OrdinalPostingList
             }
 
             @Override
-            public long findTokenRowID(long value)
+            public long ceilingRowId(long value)
             {
                 throw new UnsupportedOperationException();
             }

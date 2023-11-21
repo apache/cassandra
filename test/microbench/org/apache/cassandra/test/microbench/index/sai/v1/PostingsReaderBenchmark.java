@@ -97,7 +97,7 @@ public class PostingsReaderBenchmark extends AbstractOnDiskBenchmark
         {
             long token = tokenValues[i];
             if (rowId < 0)
-                rowId = (int) rowIdToToken.findTokenRowID(token);
+                rowId = (int) rowIdToToken.ceilingRowId(token);
             bh.consume(reader.advance(rowId));
             rowId = -1;
 

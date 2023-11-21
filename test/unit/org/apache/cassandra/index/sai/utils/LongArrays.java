@@ -63,7 +63,7 @@ public final class LongArrays
         }
 
         @Override
-        public long findTokenRowID(long value)
+        public long ceilingRowId(long value)
         {
             return value;
         }
@@ -91,7 +91,7 @@ public final class LongArrays
         }
 
         @Override
-        public long findTokenRowID(long value)
+        public long ceilingRowId(long value)
         {
             return Arrays.binarySearch(tokens, value);
         }

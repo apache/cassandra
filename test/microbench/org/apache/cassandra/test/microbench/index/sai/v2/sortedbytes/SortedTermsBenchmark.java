@@ -278,7 +278,7 @@ public class SortedTermsBenchmark extends AbstractOnDiskBenchmark
     {
         for (int i = 0; i < NUM_INVOCATIONS; i++)
         {
-            bh.consume(rowIdToToken.findTokenRowID(tokenValues[i * skippingDistance]));
+            bh.consume(rowIdToToken.ceilingRowId(tokenValues[i * skippingDistance]));
         }
     }
 }
