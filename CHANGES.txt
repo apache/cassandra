@@ -176,6 +176,7 @@ Merged from 3.0:
  * Remove unused suppressions (CASSANDRA-18724)
 
 Unreleased
+ * Fix nodetool enable/disablebinary to correctly set rpc readiness in gossip (CASSANDRA-18935)
  * [SO-25995] Cassandra dtest should match the production setup
  * [SO-25542] Fix consistency level in storage proxy metrics
 4.0.6.9

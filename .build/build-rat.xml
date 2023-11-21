@@ -96,7 +96,7 @@
                  <!-- Uber specific -->
                  <exclude NAME=".arcconfig"/>
                  <exclude NAME="METADATA"/>
-                 <exclude NAME="**/**"/>
+                 <exclude NAME=".jenkins/code_coverage/requirements.txt"/>
             </fileset>
         </rat:report>
         <exec executable="grep" outputproperty="rat.failed.files" failifexecutionfails="false">

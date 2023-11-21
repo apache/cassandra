@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.validation.miscellaneous;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -52,6 +53,8 @@ public class BadQueryInSyslogTest extends CQLTester
     private static ProtocolVersion protocolVersion = ProtocolVersion.V4;
     private static BadQueriesInSystemLog bq;
     ColumnFamilyStore cfs;
+    long originalBadQueryWriteMaxPartitionSizeInbytes;
+    long originalBadQueryReadMaxPartitionSizeInbytes;
 
     public BadQueryInSyslogTest()
     {
@@ -96,6 +99,15 @@ public class BadQueryInSyslogTest extends CQLTester
         // clear metric for large parition reads and writes
         cfs.metric.largePartitionReadSize.dec(cfs.metric.largePartitionReadSize.getCount());
         cfs.metric.largePartitionWriteSize.dec(cfs.metric.largePartitionWriteSize.getCount());
+        originalBadQueryWriteMaxPartitionSizeInbytes = MonitoringService.instance.getBadQueryWriteMaxPartitionSizeInbytes();
+        originalBadQueryReadMaxPartitionSizeInbytes = MonitoringService.instance.getBadQueryReadMaxPartitionSizeInbytes();
+    }
+
+    @After
+    public void restoreSetup()
+    {
+        MonitoringService.instance.setBadQueryWriteMaxPartitionSizeInbytes(originalBadQueryWriteMaxPartitionSizeInbytes);
+        MonitoringService.instance.setBadQueryReadMaxPartitionSizeInbytes(originalBadQueryReadMaxPartitionSizeInbytes);
     }
 
     private void executeCQL()
