@@ -170,7 +170,7 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
     private BitsOrPostingList bitsOrPostingListForKeyRange(QueryContext context,
                                                            AbstractBounds<PartitionPosition> keyRange,
                                                            float[] queryVector,
-                                                           int limit) throws IOException
+                                                           int topK) throws IOException
     {
         try (PrimaryKeyMap primaryKeyMap = primaryKeyMapFactory.newPerSSTablePrimaryKeyMap())
         {
@@ -197,13 +197,13 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
             minSSTableRowId = Math.max(minSSTableRowId, metadata.minSSTableRowId);
             maxSSTableRowId = min(maxSSTableRowId, metadata.maxSSTableRowId);
 
-            // If num of matches are not bigger than limit, skip ANN.
+            // If num of matches are not bigger than topK, skip ANN.
             // (nRows should not include shadowed rows, but context doesn't break those out by segment,
             // so we will live with the inaccuracy.)
             int nRows = Math.toIntExact(maxSSTableRowId - minSSTableRowId + 1);
-            int maxBruteForceRows = min(globalBruteForceRows, maxBruteForceRows(limit, nRows, graph.size()));
+            int maxBruteForceRows = min(globalBruteForceRows, maxBruteForceRows(topK, nRows, graph.size()));
             logAndTrace("Search range covers {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
-                        nRows, maxBruteForceRows, graph.size(), limit);
+                        nRows, maxBruteForceRows, graph.size(), topK);
             // if we have a small number of results then let TopK processor do exact NN computation
             if (nRows <= maxBruteForceRows)
             {
@@ -211,13 +211,13 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
                                                     .filter(sstableRowId -> context.shouldInclude(sstableRowId, primaryKeyMap))
                                                     .mapToInt(metadata::toSegmentRowId);
                 final int[] postings;
-                if (graph.getCompressedVectors() == null || nRows <= limit)
+                if (graph.getCompressedVectors() == null || nRows <= topK)
                 {
                     postings = segmentRowIdsStream.toArray();
                 }
                 else
                 {
-                    postings = findTopApproximatePostings(queryVector, segmentRowIdsStream.iterator(), limit, nRows);
+                    postings = findTopApproximatePostings(queryVector, segmentRowIdsStream.iterator(), topK, nRows);
                 }
                 return new BitsOrPostingList(new ArrayPostingList(postings));
             }
@@ -249,11 +249,11 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
             if (!hasMatches)
                 return new BitsOrPostingList(PostingList.EMPTY);
 
-            return new BitsOrPostingList(bits, VectorMemtableIndex.expectedNodesVisited(limit, nRows, graph.size()));
+            return new BitsOrPostingList(bits, VectorMemtableIndex.expectedNodesVisited(topK, nRows, graph.size()));
         }
     }
 
-    private int[] findTopApproximatePostings(float[] queryVector, PrimitiveIterator.OfInt segmentRowIdIterator, int limit, int maxRows) throws IOException
+    private int[] findTopApproximatePostings(float[] queryVector, PrimitiveIterator.OfInt segmentRowIdIterator, int topK, int maxRows) throws IOException
     {
         var cv = graph.getCompressedVectors();
         var similarityFunction = indexContext.getIndexWriterConfig().getSimilarityFunction();
@@ -275,7 +275,7 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
         }
         // sort descending
         pairs.sort((a, b) -> Float.compare(b.score, a.score));
-        int end = Math.min(pairs.size(), limit) - 1;
+        int end = Math.min(pairs.size(), topK) - 1;
         int[] postings = new int[end + 1];
         // top K ascending
         for (int i = end; i >= 0; i--)
@@ -394,7 +394,7 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
             if (numRows <= maxBruteForceRows)
             {
                 var queryVector = exp.lower.value.vector;
-                var postings = findTopApproximatePostings(queryVector, rowIds.intStream().iterator(), limit, numRows);
+                var postings = findTopApproximatePostings(queryVector, rowIds.intStream().iterator(), topK, numRows);
                 return toPrimaryKeyIterator(new ArrayPostingList(postings), context);
             }
 
