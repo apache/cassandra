@@ -166,6 +166,16 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
     @Override
     public long exactRowIdForPrimaryKey(PrimaryKey key)
     {
+        if (clusteringComparator.size() == 0)
+        {
+            // Fast path when there is no clustering, i.e., there is one row per partition.
+            // (The reason we don't just make the Factory return a PartitionAware map for this case
+            // is that it reads partition keys directly from the sstable using the offsets file.
+            // While this worked in BDP, it was not efficient and caused problems because the
+            // sstable reader was using 64k page sizes, and this caused page cache thrashing.
+            return rowIdToToken.exactRowId(key.token().getLongValue());
+        }
+
         return cursor.getExactPointId(v -> key.asComparableBytes(v));
     }
 

@@ -71,6 +71,25 @@ public abstract class AbstractBlockPackedReader implements LongArray
         if (lastIndex >= valueCount)
             return -1;
 
+        long rowId = findBlockRowId(targetValue);
+        lastIndex = rowId >= 0 ? rowId : -rowId - 1;
+        return lastIndex >= valueCount ? -1 : lastIndex;
+    }
+
+    @Override
+    public long exactRowId(long targetValue)
+    {
+        // already out of range
+        if (lastIndex >= valueCount)
+            return -1;
+
+        long rowId = findBlockRowId(targetValue);
+        lastIndex = rowId >= 0 ? rowId : -rowId - 1;
+        return rowId >= valueCount ? -1 : rowId;
+    }
+
+    private long findBlockRowId(long targetValue)
+    {
         // We keep track previous returned value in lastIndex, so searching backward will not return correct result.
         // Also it's logically wrong to search backward during token iteration in PostingListRangeIterator.
         if (targetValue < prevTokenValue)
@@ -99,8 +118,7 @@ public abstract class AbstractBlockPackedReader implements LongArray
         }
 
         // Find the global (not block-specific) index of the target token, which is equivalent to its row ID:
-        lastIndex = findBlockRowID(targetValue, blockIndex, exactMatch);
-        return lastIndex >= valueCount ? -1 : lastIndex;
+        return findBlockRowID(targetValue, blockIndex, exactMatch);
     }
 
     /**
@@ -187,7 +205,7 @@ public abstract class AbstractBlockPackedReader implements LongArray
     /**
      * binary search target value between low and high.
      *
-     * @return index if exact match is found, or *positive* insertion point if no exact match is found.
+     * @return index if exact match is found, or `-(insertion point) - 1` if no exact match is found.
      */
     private long binarySearchBlock(long target, long low, long high)
     {
@@ -224,7 +242,7 @@ public abstract class AbstractBlockPackedReader implements LongArray
         }
 
         // target not found
-        return low;
+        return -(low + 1);
     }
 
     @Override

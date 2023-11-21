@@ -174,6 +174,12 @@ public class PostingsReader implements OrdinalPostingList
             }
 
             @Override
+            public long exactRowId(long targetToken)
+            {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
             public long get(long idx)
             {
                 return reader.get(idx);
