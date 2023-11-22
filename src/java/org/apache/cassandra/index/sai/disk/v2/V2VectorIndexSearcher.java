@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.disk.v2;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -336,13 +337,15 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
     @Override
     public RangeIterator limitToTopResults(QueryContext context, List<PrimaryKey> keys, Expression exp, int limit) throws IOException
     {
-        // VSTODO would it be better to do a binary search to find the boundaries?
-        List<PrimaryKey> keysInRange = keys.stream()
-                                           .dropWhile(k -> k.compareTo(metadata.minKey) < 0)
-                                           .takeWhile(k -> k.compareTo(metadata.maxKey) <= 0)
-                                           .collect(Collectors.toList());
+        // create a sublist of the keys within this segment's bounds
+        int minIndex = Collections.binarySearch(keys, metadata.minKey);
+        minIndex = minIndex < 0 ? -minIndex - 1 : minIndex;
+        int maxIndex = Collections.binarySearch(keys, metadata.maxKey);
+        maxIndex = maxIndex < 0 ? -maxIndex - 1 : maxIndex + 1;
+        List<PrimaryKey> keysInRange = keys.subList(minIndex, maxIndex);
         if (keysInRange.isEmpty())
             return RangeIterator.empty();
+
         int numRows = keysInRange.size();
         logAndTrace("SAI predicates produced {} rows out of limit {}", numRows, limit);
         if (numRows <= limit)
