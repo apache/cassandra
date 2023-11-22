@@ -224,14 +224,98 @@ public class CompactionControllerTest extends SchemaLoader
     condition = "Thread.currentThread().getName().equals(\"compaction1\")",
     action = "org.apache.cassandra.db.compaction.CompactionControllerTest.incrementOverlapRefreshCounter();")
     })
-    public void testIgnoreOverlaps() throws Exception
+    public void testIgnoreOverlapsTrue() throws Exception
     {
+        resetCounters();
         testOverlapIterator(true);
+    }
+
+    @Test
+    @BMRules(rules = {
+    @BMRule(name = "Pause compaction",
+    targetClass = "CompactionTask",
+    targetMethod = "runMayThrow",
+    targetLocation = "INVOKE getCompactionAwareWriter",
+    condition = "Thread.currentThread().getName().equals(\"compaction1\")",
+    action = "org.apache.cassandra.db.compaction.CompactionControllerTest.createCompactionControllerLatch.countDown();" +
+             "com.google.common.util.concurrent.Uninterruptibles.awaitUninterruptibly" +
+             "(org.apache.cassandra.db.compaction.CompactionControllerTest.compaction2FinishLatch);"),
+    @BMRule(name = "Check overlaps",
+    targetClass = "CompactionTask",
+    targetMethod = "runMayThrow",
+    targetLocation = "INVOKE finish",
+    condition = "Thread.currentThread().getName().equals(\"compaction1\")",
+    action = "org.apache.cassandra.db.compaction.CompactionControllerTest.compaction1RefreshLatch.countDown();" +
+             "com.google.common.util.concurrent.Uninterruptibles.awaitUninterruptibly" +
+             "(org.apache.cassandra.db.compaction.CompactionControllerTest.refreshCheckLatch);"),
+    @BMRule(name = "Increment overlap refresh counter",
+    targetClass = "ColumnFamilyStore",
+    targetMethod = "getAndReferenceOverlappingLiveSSTables",
+    condition = "Thread.currentThread().getName().equals(\"compaction1\")",
+    action = "org.apache.cassandra.db.compaction.CompactionControllerTest.incrementOverlapRefreshCounter();")
+    })
+    public void testIgnoreOverlapsFalse() throws Exception
+    {
         resetCounters();
         testOverlapIterator(false);
-        resetCounters();
+    }
 
+    @Test
+    @BMRules(rules = {
+    @BMRule(name = "Pause compaction",
+    targetClass = "CompactionTask",
+    targetMethod = "runMayThrow",
+    targetLocation = "INVOKE getCompactionAwareWriter",
+    condition = "Thread.currentThread().getName().equals(\"compaction1\")",
+    action = "org.apache.cassandra.db.compaction.CompactionControllerTest.createCompactionControllerLatch.countDown();" +
+             "com.google.common.util.concurrent.Uninterruptibles.awaitUninterruptibly" +
+             "(org.apache.cassandra.db.compaction.CompactionControllerTest.compaction2FinishLatch);"),
+    @BMRule(name = "Check overlaps",
+    targetClass = "CompactionTask",
+    targetMethod = "runMayThrow",
+    targetLocation = "INVOKE finish",
+    condition = "Thread.currentThread().getName().equals(\"compaction1\")",
+    action = "org.apache.cassandra.db.compaction.CompactionControllerTest.compaction1RefreshLatch.countDown();" +
+             "com.google.common.util.concurrent.Uninterruptibles.awaitUninterruptibly" +
+             "(org.apache.cassandra.db.compaction.CompactionControllerTest.refreshCheckLatch);"),
+    @BMRule(name = "Increment overlap refresh counter",
+    targetClass = "ColumnFamilyStore",
+    targetMethod = "getAndReferenceOverlappingLiveSSTables",
+    condition = "Thread.currentThread().getName().equals(\"compaction1\")",
+    action = "org.apache.cassandra.db.compaction.CompactionControllerTest.incrementOverlapRefreshCounter();")
+    })
+    public void testIgnoreOverlapsUCSTrue() throws Exception
+    {
+        resetCounters();
         testOverlapIteratorUCS(true);
+    }
+
+    @Test
+    @BMRules(rules = {
+    @BMRule(name = "Pause compaction",
+    targetClass = "CompactionTask",
+    targetMethod = "runMayThrow",
+    targetLocation = "INVOKE getCompactionAwareWriter",
+    condition = "Thread.currentThread().getName().equals(\"compaction1\")",
+    action = "org.apache.cassandra.db.compaction.CompactionControllerTest.createCompactionControllerLatch.countDown();" +
+             "com.google.common.util.concurrent.Uninterruptibles.awaitUninterruptibly" +
+             "(org.apache.cassandra.db.compaction.CompactionControllerTest.compaction2FinishLatch);"),
+    @BMRule(name = "Check overlaps",
+    targetClass = "CompactionTask",
+    targetMethod = "runMayThrow",
+    targetLocation = "INVOKE finish",
+    condition = "Thread.currentThread().getName().equals(\"compaction1\")",
+    action = "org.apache.cassandra.db.compaction.CompactionControllerTest.compaction1RefreshLatch.countDown();" +
+             "com.google.common.util.concurrent.Uninterruptibles.awaitUninterruptibly" +
+             "(org.apache.cassandra.db.compaction.CompactionControllerTest.refreshCheckLatch);"),
+    @BMRule(name = "Increment overlap refresh counter",
+    targetClass = "ColumnFamilyStore",
+    targetMethod = "getAndReferenceOverlappingLiveSSTables",
+    condition = "Thread.currentThread().getName().equals(\"compaction1\")",
+    action = "org.apache.cassandra.db.compaction.CompactionControllerTest.incrementOverlapRefreshCounter();")
+    })
+    public void testIgnoreOverlapsUCSFalse() throws Exception
+    {
         resetCounters();
         testOverlapIteratorUCS(false);
     }
