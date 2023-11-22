@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -97,12 +98,20 @@ public abstract class Controller
     static final String NUM_SHARDS_OPTION = "num_shards";
 
     /**
+     * The default number of shards defined via system property, see {@link #NUM_SHARDS_OPTION}.
+     * The property exists for backward compatibility, and is deprecated. It allows for configuring compactors, writers
+     * and replayers in CNDB without having to change the schema for each tenant.
+     */
+    @Deprecated
+    static final Optional<Integer> DEFAULT_NUM_SHARDS = Optional.ofNullable(System.getProperty(PREFIX + NUM_SHARDS_OPTION)).map(Integer::valueOf);
+
+    /**
      * The minimum sstable size. Sharded writers split sstables over shard only if they are at least as large as the
      * minimum size.
      * <p>
      * This is mainly present to support UCS V1 mode, which relies heavily on minimal SSTable
      * size, and defaults to 0 which provides minimal parallelism on all levels of the hierarchy.
-     * In UCS V1 mode (engaged by using "num_shards" above) the default is 100MiB.
+     * In UCS V1 mode (engaged by using "num_shards" above) the default 'auto'.
      */
     static final String MIN_SSTABLE_SIZE_OPTION = "min_sstable_size";
     @Deprecated
@@ -855,28 +864,35 @@ public abstract class Controller
                                                   ? Reservations.Type.valueOf(options.get(RESERVATIONS_TYPE_OPTION).toUpperCase())
                                                   : DEFAULT_RESERVED_THREADS_TYPE;
 
-        if (options.containsKey(NUM_SHARDS_OPTION))
+        if (options.containsKey(NUM_SHARDS_OPTION) || DEFAULT_NUM_SHARDS.isPresent())
         {
-            // Legacy V1 mode.
-            int numShards = Integer.parseInt(options.get(NUM_SHARDS_OPTION));
-            if (!options.containsKey(MIN_SSTABLE_SIZE_OPTION))
-                minSSTableSize = MIN_SSTABLE_SIZE_AUTO;
-            baseShardCount = numShards;
-            sstableGrowthModifier = 1.0;
-            targetSStableSize = Long.MAX_VALUE; // this no longer plays a part, the result of getNumShards before
-                                                // accounting for minimum size is always baseShardCount
+            // Legacy V1 mode is enabled when the number of shards is defined and has a positive value.
+            // Table property takes precendence over system property.
+            int numShards = options.containsKey(NUM_SHARDS_OPTION)
+                            ? Integer.parseInt(options.get(NUM_SHARDS_OPTION))
+                            : DEFAULT_NUM_SHARDS.get();
 
-            double maxSpaceOverheadLowerBound = 1.0d / numShards;
-            if (maxSpaceOverhead < maxSpaceOverheadLowerBound)
+            if (numShards > 0)
             {
-                logger.warn("{} shards are not enough to maintain the required maximum space overhead of {}!\n" +
-                            "Falling back to {}={} instead. If this limit needs to be satisfied, please increase the number" +
-                            " of shards.",
-                            numShards,
-                            maxSpaceOverhead,
-                            MAX_SPACE_OVERHEAD_OPTION,
-                            String.format("%.3f", maxSpaceOverheadLowerBound));
-                maxSpaceOverhead = maxSpaceOverheadLowerBound;
+                if (!options.containsKey(MIN_SSTABLE_SIZE_OPTION))
+                    minSSTableSize = MIN_SSTABLE_SIZE_AUTO;
+                baseShardCount = numShards;
+                sstableGrowthModifier = 1.0;
+                targetSStableSize = Long.MAX_VALUE; // this no longer plays a part, the result of getNumShards before
+                // accounting for minimum size is always baseShardCount
+
+                double maxSpaceOverheadLowerBound = 1.0d / numShards;
+                if (maxSpaceOverhead < maxSpaceOverheadLowerBound)
+                {
+                    logger.warn("{} shards are not enough to maintain the required maximum space overhead of {}!\n" +
+                                "Falling back to {}={} instead. If this limit needs to be satisfied, please increase the number" +
+                                " of shards.",
+                                numShards,
+                                maxSpaceOverhead,
+                                MAX_SPACE_OVERHEAD_OPTION,
+                                String.format("%.3f", maxSpaceOverheadLowerBound));
+                    maxSpaceOverhead = maxSpaceOverheadLowerBound;
+                }
             }
         }
 
@@ -944,7 +960,33 @@ public abstract class Controller
         long minSSTableSize = -1;
         long targetSSTableSize = DEFAULT_TARGET_SSTABLE_SIZE;
 
-        validateNoneWith(options, NUM_SHARDS_OPTION, TARGET_SSTABLE_SIZE_OPTION, SSTABLE_GROWTH_OPTION, BASE_SHARD_COUNT_OPTION);
+        s = options.remove(NUM_SHARDS_OPTION);
+        if (s != null)
+        {
+            try
+            {
+                int numShards = Integer.parseInt(s);
+                if (numShards <= 0 && numShards != -1)
+                    throw new ConfigurationException(String.format("Invalid configuration, %s should be positive: %d or -1 " +
+                                                                   "if static sharding is explicitly disabled for this table.",
+                                                                   NUM_SHARDS_OPTION,
+                                                                   numShards));
+                if (numShards != -1)
+                {
+                    List<String> incompatibleOptions = List.of(TARGET_SSTABLE_SIZE_OPTION, SSTABLE_GROWTH_OPTION, BASE_SHARD_COUNT_OPTION);
+                    if (incompatibleOptions.stream().anyMatch(options::containsKey))
+                    {
+                        throw new ConfigurationException(String.format("Option %s cannot be used in combination with %s",
+                                                                       NUM_SHARDS_OPTION,
+                                                                       incompatibleOptions.stream().filter(options::containsKey).collect(Collectors.joining(", "))));
+                    }
+                }
+            }
+            catch (NumberFormatException e)
+            {
+                throw new ConfigurationException(String.format(intParseErr, s, NUM_SHARDS_OPTION), e);
+            }
+        }
 
         s = options.remove(ADAPTIVE_OPTION);
         if (s != null)
@@ -960,22 +1002,6 @@ public abstract class Controller
         validateSizeWithAlt(options, FLUSH_SIZE_OVERRIDE_OPTION, FLUSH_SIZE_OVERRIDE_OPTION_MB, 20);
         validateSizeWithAlt(options, DATASET_SIZE_OPTION, DATASET_SIZE_OPTION_GB, 30);
 
-        s = options.remove(NUM_SHARDS_OPTION);
-        if (s != null)
-        {
-            try
-            {
-                int numShards = Integer.parseInt(s);
-                if (numShards <= 0)
-                    throw new ConfigurationException(String.format(nonPositiveErr,
-                                                                   NUM_SHARDS_OPTION,
-                                                                   numShards));
-            }
-            catch (NumberFormatException e)
-            {
-                throw new ConfigurationException(String.format(intParseErr, s, NUM_SHARDS_OPTION), e);
-            }
-        }
         s = options.remove(MAX_SSTABLES_TO_COMPACT_OPTION);
         if (s != null)
         {
@@ -1225,15 +1251,6 @@ public abstract class Controller
                                                            opt,
                                                            s));
         return sizeInBytes;
-    }
-
-    private static void validateNoneWith(Map<String, String> options, String option, String... incompatibleOptions)
-    {
-        if (!options.containsKey(option) || Arrays.stream(incompatibleOptions).noneMatch(options::containsKey))
-            return;
-        throw new ConfigurationException(String.format("Option %s cannot be used in combination with %s",
-                                                       option,
-                                                       Arrays.stream(incompatibleOptions).filter(options::containsKey).collect(Collectors.joining(", "))));
     }
 
     private static void validateOneOf(Map<String, String> options, String option1, String option2)

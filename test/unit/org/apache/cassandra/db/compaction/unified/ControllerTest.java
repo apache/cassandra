@@ -52,6 +52,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -413,6 +414,40 @@ public abstract class ControllerTest
         assertEquals(3, controller.getNumShards(Double.NaN));
 
         assertEquals(Integer.MAX_VALUE, controller.getReservedThreads());
+    }
+
+    @Test
+    public void testGetNumShards_legacy_disabled()
+    {
+        Map<String, String> options = new HashMap<>();
+        options.put(Controller.NUM_SHARDS_OPTION, Integer.toString(-1));
+        mockFlushSize(100);
+        Controller controller = Controller.fromOptions(cfs, options);
+
+        // The number of shards grows with local density, the controller works as if number of shards was not defined
+        assertEquals(4, controller.getNumShards(Math.scalb(200, 20)));
+        assertEquals(8, controller.getNumShards(Math.scalb(200, 25)));
+    }
+
+    @Test
+    public void testGetNumShards_legacy_validation()
+    {
+        Map<String, String> options = new HashMap<>();
+        options.put(Controller.NUM_SHARDS_OPTION, Integer.toString(-1));
+        Map<String, String> validatedOptions = Controller.validateOptions(options);
+        assertTrue("-1 should be a valid option: " + validatedOptions, validatedOptions.isEmpty());
+
+        options = new HashMap<>();
+        options.put(Controller.NUM_SHARDS_OPTION, Integer.toString(-1));
+        options.put(Controller.TARGET_SSTABLE_SIZE_OPTION, "128MB");
+        validatedOptions = Controller.validateOptions(options);
+        assertTrue("-1 num of shards should be acceptable with V2 params: " + validatedOptions, validatedOptions.isEmpty());
+
+        Map<String, String> invalidOptions = new HashMap<>();
+        invalidOptions.put(Controller.NUM_SHARDS_OPTION, Integer.toString(32));
+        invalidOptions.put(Controller.TARGET_SSTABLE_SIZE_OPTION, "128MB");
+        assertThrows("Positive num of shards should not be acceptable with V2 params",
+                     ConfigurationException.class, () -> Controller.validateOptions(invalidOptions));
     }
 
     @Test
