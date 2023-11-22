@@ -22,7 +22,6 @@ import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.base.MoreObjects;
@@ -89,7 +88,7 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
                                     SegmentMetadata segmentMetadata,
                                     IndexDescriptor indexDescriptor,
                                     IndexContext indexContext,
-                                    JVectorLuceneOnDiskGraph graph) throws IOException
+                                    JVectorLuceneOnDiskGraph graph)
     {
         super(primaryKeyMapFactory, perIndexFiles, segmentMetadata, indexDescriptor, indexContext);
         this.graph = graph;
@@ -346,9 +345,8 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
         if (keysInRange.isEmpty())
             return RangeIterator.empty();
 
-        int numRows = keysInRange.size();
-        logAndTrace("SAI predicates produced {} rows out of limit {}", numRows, limit);
-        if (numRows <= limit)
+        logAndTrace("SAI predicates produced {} rows out of limit {}", keysInRange.size(), limit);
+        if (keysInRange.size() <= limit)
             return new ListRangeIterator(metadata.minKey, metadata.maxKey, keysInRange);
 
         int topK = topKFor(limit);
@@ -380,7 +378,7 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
             }
         }
 
-        numRows = rowIds.size();
+        var numRows = rowIds.size();
         var maxBruteForceRows = min(globalBruteForceRows, maxBruteForceRows(topK, numRows));
         logAndTrace("{} rows relevant to current sstable; max brute force rows is {} for index with {} nodes, LIMIT {}",
                     numRows, maxBruteForceRows, graph.size(), limit);
