@@ -101,7 +101,8 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
                 logger.debug(indexContext.logMessage("No indexed rows to flush from SSTable {}."), indexDescriptor.sstableDescriptor);
                 // Write a completion marker even though we haven't written anything to the index,
                 // so we won't try to build the index again for the SSTable
-                indexDescriptor.createComponentOnDisk(IndexComponent.COLUMN_COMPLETION_MARKER, indexContext);
+                ColumnCompletionMarkerUtil.create(indexDescriptor, indexContext, true);
+
                 return;
             }
 
@@ -204,7 +205,8 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
 
     private void completeIndexFlush(long cellCount, long startTime, Stopwatch stopwatch) throws IOException
     {
-        indexDescriptor.createComponentOnDisk(IndexComponent.COLUMN_COMPLETION_MARKER, indexContext);
+        // create a completion marker indicating that the index is complete and not-empty
+        ColumnCompletionMarkerUtil.create(indexDescriptor, indexContext, false);
 
         indexContext.getIndexMetrics().memtableIndexFlushCount.inc();
 
