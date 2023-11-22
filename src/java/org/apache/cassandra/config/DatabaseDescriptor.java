@@ -524,10 +524,6 @@ public class DatabaseDescriptor
             logger.debug("Syncing log with a period of {}", conf.commitlog_sync_period.toString());
         }
 
-        initializeCommitLogDiskAccessMode();
-        if (commitLogWriteDiskAccessMode != conf.commitlog_disk_access_mode)
-            logger.info("commitlog_disk_access_mode resolved to: {}", commitLogWriteDiskAccessMode);
-
         /* evaluate the DiskAccessMode Config directive, which also affects indexAccessMode selection */
         if (conf.disk_access_mode == DiskAccessMode.auto || conf.disk_access_mode == DiskAccessMode.legacy)
         {
@@ -637,6 +633,10 @@ public class DatabaseDescriptor
         {
             conf.commitlog_directory = storagedirFor("commitlog");
         }
+
+        initializeCommitLogDiskAccessMode();
+        if (commitLogWriteDiskAccessMode != conf.commitlog_disk_access_mode)
+            logger.info("commitlog_disk_access_mode resolved to: {}", commitLogWriteDiskAccessMode);
 
         if (conf.hints_directory == null)
         {
@@ -1453,14 +1453,25 @@ public class DatabaseDescriptor
     private static DiskAccessMode resolveCommitLogWriteDiskAccessMode(DiskAccessMode providedDiskAccessMode)
     {
         boolean compressOrEncrypt = getCommitLogCompression() != null || (getEncryptionContext() != null && getEncryptionContext().isEnabled());
+        boolean directIOSupported = false;
+        try
+        {
+            directIOSupported = FileUtils.getBlockSize(new File(getCommitLogLocation())) > 0;
+        }
+        catch (RuntimeException e)
+        {
+            logger.info("Unable to determine block size for commit log directory: {}", e.getMessage());
+        }
 
         if (providedDiskAccessMode == DiskAccessMode.auto)
         {
             if (compressOrEncrypt)
                 providedDiskAccessMode = DiskAccessMode.legacy;
             else
-                providedDiskAccessMode = conf.disk_optimization_strategy == Config.DiskOptimizationStrategy.ssd ? DiskAccessMode.direct
-                                                                                                             : DiskAccessMode.legacy;
+            {
+                providedDiskAccessMode = directIOSupported && conf.disk_optimization_strategy == Config.DiskOptimizationStrategy.ssd ? DiskAccessMode.direct
+                                                                                                                                     : DiskAccessMode.legacy;
+            }
         }
 
         if (providedDiskAccessMode == DiskAccessMode.legacy)
