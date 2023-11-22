@@ -31,7 +31,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
-
 import javax.management.ObjectName;
 import javax.management.StandardMBean;
 import javax.management.remote.JMXConnectorServer;
@@ -50,7 +49,6 @@ import com.codahale.metrics.jvm.BufferPoolMetricSet;
 import com.codahale.metrics.jvm.FileDescriptorRatioGauge;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
-
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -540,9 +538,7 @@ public class CassandraDaemon
                     try (Stream<Path> keyspaceChildren = Files.list(keyspaceDirectory))
                     {
                         Path[] tableDirectories = keyspaceChildren.filter(Files::isDirectory)
-                                                                  .filter(p -> !SystemKeyspace.TABLES_SPLIT_ACROSS_MULTIPLE_DISKS
-                                                                                              .contains(p.getFileName()
-                                                                                                         .toString()))
+                                                                  .filter(p -> SystemKeyspace.TABLES_SPLIT_ACROSS_MULTIPLE_DISKS.stream().noneMatch(t -> p.getFileName().toString().startsWith(t + '-')))
                                                                   .toArray(Path[]::new);
 
                         for (Path tableDirectory : tableDirectories)
