@@ -23,6 +23,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.datastax.driver.core.PreparedStatement;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -101,6 +102,21 @@ public class KeyspaceMetricsTest
         assertEquals(10, junitMetrics.resultsetSize.getCount());
         session.execute("SELECT * FROM junit.resultset WHERE id < 5 ALLOW FILTERING;");
         assertEquals(15, junitMetrics.resultsetSize.getCount());
+
+        // prepared statements should also increase the resultset size count
+        PreparedStatement prepared = session.prepare("SELECT * FROM junit.resultset WHERE id = ?");
+        session.execute(prepared.bind(2));
+        assertEquals(16, junitMetrics.resultsetSize.getCount());
+        session.execute(prepared.bind(11));
+        assertEquals(16, junitMetrics.resultsetSize.getCount());
+
+        // unqualified
+        session.execute("USE junit;");
+        PreparedStatement unqualifedPrepared = session.prepare("SELECT * FROM resultset WHERE id = ?");
+        session.execute(unqualifedPrepared.bind(8));
+        assertEquals(17, junitMetrics.resultsetSize.getCount());
+        session.execute(unqualifedPrepared.bind(11));
+        assertEquals(17, junitMetrics.resultsetSize.getCount());
     }
 
     @AfterClass
