@@ -394,13 +394,17 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
             numRows = rowIds == null ? bits.cardinality() : rowIds.size();
             logAndTrace("{} rows relevant to current sstable; max brute force rows is {} for index with {} nodes, LIMIT {}",
                         numRows, maxBruteForceRows, graph.size(), limit);
+            if (numRows == 0) {
+                return RangeIterator.empty();
+            }
+
             if (rowIds != null)
             {
+                // brute force in-memory
                 var queryVector = exp.lower.value.vector;
                 var postings = findTopApproximatePostings(queryVector, rowIds, topK);
                 return toPrimaryKeyIterator(new ArrayPostingList(postings), context);
             }
-
             // else ask the index to perform a search limited to the bits we created
             float[] queryVector = exp.lower.value.vector;
             var results = graph.search(queryVector, topK, limit, bits, context);
