@@ -52,7 +52,7 @@ from six.moves.queue import Queue
 from cassandra import OperationTimedOut
 from cassandra.cluster import DefaultConnection
 from cassandra.connection import SniEndPoint
-from cassandra.cqltypes import ReversedType, UserType, BytesType, VarcharType
+from cassandra.cqltypes import ReversedType, UserType, BytesType, VarcharType, VectorType
 from cassandra.metadata import protect_name, protect_names, protect_value
 from cassandra.policies import RetryPolicy, WhiteListRoundRobinPolicy, DCAwareRoundRobinPolicy, FallthroughRetryPolicy
 from cassandra.query import BatchStatement, BatchType, SimpleStatement, tuple_factory
@@ -2101,6 +2101,12 @@ class ImportConversion(object):
             return ImmutableDict(frozenset((convert_mandatory(ct.subtypes[0], v[0]), convert(ct.subtypes[1], v[1]))
                                  for v in [split(split_format_str % vv, sep=sep) for vv in split(val)]))
 
+        def convert_vector(val, ct=cql_type):
+            string_coordinates = split(val)
+            if len(string_coordinates) != ct.vector_size:
+                raise ParseError("The length of given vector value '%d' is not equal to the vector size from the type definition '%d'" % (len(string_coordinates), ct.vector_size))
+            return [convert_mandatory(ct.subtype, v) for v in string_coordinates]
+
         def convert_user_type(val, ct=cql_type):
             """
             A user type is a dictionary except that we must convert each key into
@@ -2157,6 +2163,7 @@ class ImportConversion(object):
             'map': convert_map,
             'tuple': convert_tuple,
             'frozen': convert_single_subtype,
+            VectorType.typename: convert_vector,
         }
 
         return converters.get(cql_type.typename, convert_unknown)
