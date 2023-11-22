@@ -349,58 +349,55 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
             return new ListRangeIterator(metadata.minKey, metadata.maxKey, keysInRange);
 
         int topK = topKFor(limit);
-        try (PrimaryKeyMap primaryKeyMap = primaryKeyMapFactory.newPerSSTablePrimaryKeyMap())
+        // if we are brute forcing, we want to build a list of segment row ids, but if not,
+        // we want to build a bitset of ordinals corresponding to the rows.  We won't know which
+        // path to take until we have an accurate key count.
+        SparseFixedBitSet bits = bitSetForSearch();
+        IntArrayList rowIds = new IntArrayList();
+        var maxSegmentRowId = metadata.toSegmentRowId(metadata.maxSSTableRowId);
+        try (var primaryKeyMap = primaryKeyMapFactory.newPerSSTablePrimaryKeyMap();
+             var ordinalsView = graph.getOrdinalsView())
         {
-            var maxSegmentRowId = metadata.toSegmentRowId(metadata.maxSSTableRowId);
-
-            // if we are brute forcing, we want to build a list of segment row ids, but if not,
-            // we want to build a bitset of ordinals corresponding to the rows.  We won't know which
-            // path to take until we have an accurate key count.
-            SparseFixedBitSet bits = bitSetForSearch();
-            IntArrayList rowIds = new IntArrayList();
-            try (var ordinalsView = graph.getOrdinalsView())
+            for (PrimaryKey primaryKey : keysInRange)
             {
-                for (PrimaryKey primaryKey : keysInRange)
-                {
-                    long sstableRowId = primaryKeyMap.exactRowIdForPrimaryKey(primaryKey);
-                    // skip rows that are not in our segment (or more preciesely, have no vectors that were indexed)
-                    // or are not in this segment (exactRowIdForPrimaryKey returns a negative value for not found)
-                    if (sstableRowId < metadata.minSSTableRowId)
-                        continue;
+                long sstableRowId = primaryKeyMap.exactRowIdForPrimaryKey(primaryKey);
+                // skip rows that are not in our segment (or more preciesely, have no vectors that were indexed)
+                // or are not in this segment (exactRowIdForPrimaryKey returns a negative value for not found)
+                if (sstableRowId < metadata.minSSTableRowId)
+                    continue;
 
-                    // if sstable row id has exceeded current ANN segment, stop
-                    if (sstableRowId > metadata.maxSSTableRowId)
-                        break;
+                // if sstable row id has exceeded current ANN segment, stop
+                if (sstableRowId > metadata.maxSSTableRowId)
+                    break;
 
-                    int segmentRowId = metadata.toSegmentRowId(sstableRowId);
-                    rowIds.add(segmentRowId);
-                    int ordinal = ordinalsView.getOrdinalForRowId(segmentRowId);
-                    if (ordinal >= 0)
-                        bits.set(ordinal);
-                }
+                int segmentRowId = metadata.toSegmentRowId(sstableRowId);
+                rowIds.add(segmentRowId);
+                int ordinal = ordinalsView.getOrdinalForRowId(segmentRowId);
+                if (ordinal >= 0)
+                    bits.set(ordinal);
             }
-
-            numRows = rowIds.size();
-            var maxBruteForceRows = min(globalBruteForceRows, maxBruteForceRows(topK, numRows));
-            logAndTrace("{} rows relevant to current sstable; max brute force rows is {} for index with {} nodes, LIMIT {}",
-                        numRows, maxBruteForceRows, graph.size(), limit);
-            if (numRows == 0) {
-                return RangeIterator.empty();
-            }
-
-            if (numRows <= maxBruteForceRows)
-            {
-                // brute force using the in-memory compressed vectors to cut down the number of results returned
-                var queryVector = exp.lower.value.vector;
-                var postings = findTopApproximatePostings(queryVector, rowIds, topK);
-                return toPrimaryKeyIterator(new ArrayPostingList(postings), context);
-            }
-            // else ask the index to perform a search limited to the bits we created
-            float[] queryVector = exp.lower.value.vector;
-            var results = graph.search(queryVector, topK, limit, bits, context);
-            updateExpectedNodes(results.getVisitedCount(), getRawExpectedNodes(topK, maxSegmentRowId));
-            return toPrimaryKeyIterator(results, context);
         }
+
+        numRows = rowIds.size();
+        var maxBruteForceRows = min(globalBruteForceRows, maxBruteForceRows(topK, numRows));
+        logAndTrace("{} rows relevant to current sstable; max brute force rows is {} for index with {} nodes, LIMIT {}",
+                    numRows, maxBruteForceRows, graph.size(), limit);
+        if (numRows == 0) {
+            return RangeIterator.empty();
+        }
+
+        if (numRows <= maxBruteForceRows)
+        {
+            // brute force using the in-memory compressed vectors to cut down the number of results returned
+            var queryVector = exp.lower.value.vector;
+            var postings = findTopApproximatePostings(queryVector, rowIds, topK);
+            return toPrimaryKeyIterator(new ArrayPostingList(postings), context);
+        }
+        // else ask the index to perform a search limited to the bits we created
+        float[] queryVector = exp.lower.value.vector;
+        var results = graph.search(queryVector, topK, limit, bits, context);
+        updateExpectedNodes(results.getVisitedCount(), getRawExpectedNodes(topK, maxSegmentRowId));
+        return toPrimaryKeyIterator(results, context);
     }
 
     private int getRawExpectedNodes(int topK, int maxSegmentRowId)
