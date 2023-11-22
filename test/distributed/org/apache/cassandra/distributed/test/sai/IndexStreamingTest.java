@@ -97,16 +97,10 @@ public class IndexStreamingTest extends TestBaseImpl
 
             int numSSTableComponents = isWide ? V1OnDiskFormat.WIDE_PER_SSTABLE_COMPONENTS.size() : V1OnDiskFormat.SKINNY_PER_SSTABLE_COMPONENTS.size();
             int numIndexComponents = isLiteral ? V1OnDiskFormat.LITERAL_COMPONENTS.size() : V1OnDiskFormat.NUMERIC_COMPONENTS.size();
-            int numComponents = sstableStreamingComponentsCount() + numSSTableComponents + numIndexComponents;
+            int numComponents = sstableStreamingComponentsCount() + numSSTableComponents + numIndexComponents + 1;
 
-            if (isLiteral)
-                cluster.schemaChange(withKeyspace(
-                    "CREATE CUSTOM INDEX ON %s.test(literal) USING 'StorageAttachedIndex';"
-                ));
-            else
-                cluster.schemaChange(withKeyspace(
-                "CREATE CUSTOM INDEX ON %s.test(numeric) USING 'StorageAttachedIndex';"
-                ));
+            cluster.schemaChange(withKeyspace("CREATE INDEX ON %s.test(literal) USING 'sai';"));
+            cluster.schemaChange(withKeyspace("CREATE INDEX ON %s.test(numeric) USING 'sai';"));
 
             cluster.stream().forEach(i ->
                 i.nodetoolResult("disableautocompaction", KEYSPACE).asserts().success()
@@ -115,12 +109,19 @@ public class IndexStreamingTest extends TestBaseImpl
             IInvokableInstance second = cluster.get(2);
             long sstableCount = 10;
             long expectedFiles = isZeroCopyStreaming ? sstableCount * numComponents : sstableCount;
+
             for (int i = 0; i < sstableCount; i++)
             {
                 if (isWide)
-                    first.executeInternal(withKeyspace("insert into %s.test(pk, ck, literal, numeric, b) values (?, ?, ?, ?, ?)"), i, i, "v" + i, i, BLOB);
+                {
+                    String insertTemplate = "INSERT INTO %s.test(pk, ck, " + (isLiteral ? "literal" : "numeric") + ", b) VALUES (?, ?, ?, ?)";
+                    first.executeInternal(withKeyspace(insertTemplate), i, i, isLiteral ? "v" + i : Integer.valueOf(i), BLOB);
+                }
                 else
-                    first.executeInternal(withKeyspace("insert into %s.test(pk, literal, numeric, b) values (?, ?, ?, ?)"), i, "v" + i, i, BLOB);
+                {
+                    String insertTemplate = "INSERT INTO %s.test(pk, " + (isLiteral ? "literal" : "numeric") + ", b) VALUES (?, ?, ?)";
+                    first.executeInternal(withKeyspace(insertTemplate), i, isLiteral ? "v" + i : Integer.valueOf(i), BLOB);
+                }
                 first.flush(KEYSPACE);
             }
 
