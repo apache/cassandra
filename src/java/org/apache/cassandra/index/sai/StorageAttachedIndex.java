@@ -35,6 +35,7 @@ import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture; //checkstyle: permit this import
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
@@ -105,9 +106,14 @@ import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_MAX_FROZEN_TERM_SIZE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_MAX_STRING_TERM_SIZE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_MAX_VECTOR_TERM_SIZE;
 import static org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig.MAX_TOP_K;
 
 public class StorageAttachedIndex implements Index
@@ -134,6 +140,14 @@ public class StorageAttachedIndex implements Index
     public static final String ANN_LIMIT_ERROR = "Use of ANN OF in an ORDER BY clause requires a LIMIT that is not greater than %s. LIMIT was %s";
 
     private static final Logger logger = LoggerFactory.getLogger(StorageAttachedIndex.class);
+
+    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
+
+    public static final long MAX_STRING_TERM_SIZE = SAI_MAX_STRING_TERM_SIZE.getSizeInBytes();
+    public static final long MAX_FROZEN_TERM_SIZE = SAI_MAX_FROZEN_TERM_SIZE.getSizeInBytes();
+    public static final long MAX_VECTOR_TERM_SIZE = SAI_MAX_VECTOR_TERM_SIZE.getSizeInBytes();
+    public static final String TERM_OVERSIZE_MESSAGE = "Can't add term of column %s to index for key: %s, term size %s " +
+                                                       "max allowed size %s, use analyzed = true (if not yet set) for that column.";
 
     // Used to build indexes on newly added SSTables:
     private static final StorageAttachedIndexBuildingSupport INDEX_BUILDER_SUPPORT = new StorageAttachedIndexBuildingSupport();
@@ -169,6 +183,7 @@ public class StorageAttachedIndex implements Index
     private final PrimaryKey.Factory primaryKeyFactory;
     private final MemtableIndexManager memtableIndexManager;
     private final IndexMetrics indexMetrics;
+    private final long maxTermSize;
 
     // Tracks whether we've started the index build on initialization.
     private volatile boolean initBuildStarted = false;
@@ -192,6 +207,8 @@ public class StorageAttachedIndex implements Index
         analyzerFactory = AbstractAnalyzer.fromOptions(indexTermType, indexMetadata.options);
         memtableIndexManager = new MemtableIndexManager(this);
         indexMetrics = new IndexMetrics(this, memtableIndexManager);
+        maxTermSize = indexTermType.isVector() ? MAX_VECTOR_TERM_SIZE
+                                               : (indexTermType.isFrozen() ? MAX_FROZEN_TERM_SIZE : MAX_STRING_TERM_SIZE);
     }
 
     /**
@@ -347,7 +364,8 @@ public class StorageAttachedIndex implements Index
                 sstableIndex.getSSTable().unregisterComponents(toRemove, baseCfs.getTracker());
 
             viewManager.invalidate();
-            analyzerFactory.close();
+            if (analyzerFactory != null)
+                analyzerFactory.close();
             columnQueryMetrics.release();
             memtableIndexManager.invalidate();
             indexMetrics.release();
@@ -479,7 +497,7 @@ public class StorageAttachedIndex implements Index
     {
         DecoratedKey key = update.partitionKey();
         for (Row row : update)
-            indexContext.validateMaxTermSizeForRow(key, row, true);
+            validateMaxTermSizeForRow(key, row, true);
     }
 
     @Override
@@ -703,6 +721,63 @@ public class StorageAttachedIndex implements Index
     {
         baseCfs.indexManager.makeIndexNonQueryable(this, Status.BUILD_FAILED);
         logger.warn(indexIdentifier.logMessage("Storage-attached index is no longer queryable. Please restart this node to repair it."));
+    }
+
+    /**
+     * Validate maximum term size for given row
+     */
+    public void validateMaxTermSizeForRow(DecoratedKey key, Row row, boolean sendClientWarning)
+    {
+        AbstractAnalyzer analyzer = hasAnalyzer() ? analyzer() : null;
+        if (indexTermType.isNonFrozenCollection())
+        {
+            Iterator<ByteBuffer> bufferIterator = indexTermType.valuesOf(row, FBUtilities.nowInSeconds());
+            while (bufferIterator != null && bufferIterator.hasNext())
+                validateMaxTermSizeForCell(analyzer, key, bufferIterator.next(), sendClientWarning);
+        }
+        else
+        {
+            ByteBuffer value = indexTermType.valueOf(key, row, FBUtilities.nowInSeconds());
+            validateMaxTermSizeForCell(analyzer, key, value, sendClientWarning);
+        }
+    }
+
+    private void validateMaxTermSizeForCell(AbstractAnalyzer analyzer, DecoratedKey key, @Nullable ByteBuffer cellBuffer, boolean sendClientWarning)
+    {
+        if (cellBuffer == null || cellBuffer.remaining() == 0)
+            return;
+
+        // analyzer should not return terms that are larger than the origin value.
+        if (cellBuffer.remaining() <= maxTermSize)
+            return;
+
+        analyzer.reset(cellBuffer.duplicate());
+        while (analyzer.hasNext())
+            validateMaxTermSize(key, analyzer.next(), sendClientWarning);
+    }
+
+    /**
+     * Validate maximum term size for given term
+     * @return true if given term is valid; otherwise false.
+     */
+    public boolean validateMaxTermSize(DecoratedKey key, ByteBuffer term, boolean sendClientWarning)
+    {
+        if (term.remaining() > maxTermSize)
+        {
+            String message = indexIdentifier.logMessage(String.format(TERM_OVERSIZE_MESSAGE,
+                                                        indexTermType.columnName(),
+                                                        key,
+                                                        FBUtilities.prettyPrintMemory(term.remaining()),
+                                                        FBUtilities.prettyPrintMemory(maxTermSize)));
+
+            if (sendClientWarning)
+                ClientWarn.instance.warn(message);
+
+            noSpamLogger.warn(message);
+            return false;
+        }
+
+        return true;
     }
 
     @Override

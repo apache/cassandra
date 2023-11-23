@@ -38,9 +38,6 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
-import org.apache.cassandra.index.sai.metrics.IndexMetrics;
-import org.apache.cassandra.index.sai.utils.IndexIdentifier;
-import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.utils.Clock;
@@ -55,10 +52,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
     private static final Logger logger = LoggerFactory.getLogger(SSTableIndexWriter.class);
 
     private final IndexDescriptor indexDescriptor;
-    private final IndexTermType indexTermType;
-    private final IndexMetrics indexMetrics;
-    private final IndexWriterConfig indexWriterConfig;
-    private final IndexIdentifier indexIdentifier;
+    private final StorageAttachedIndex index;
     private final long nowInSec = FBUtilities.nowInSeconds();
     private final AbstractAnalyzer analyzer;
     private final NamedMemoryLimiter limiter;
@@ -74,10 +68,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
                               BooleanSupplier isIndexValid)
     {
         this.indexDescriptor = indexDescriptor;
-        this.indexTermType = index.termType();
-        this.indexIdentifier = index.identifier();
-        this.indexMetrics = index.indexMetrics();
-        this.indexWriterConfig = index.indexWriterConfig();
+        this.index = index;
         this.analyzer = index.hasAnalyzer() ? index.analyzer() : null;
         this.limiter = limiter;
         this.isIndexValid = isIndexValid;
@@ -89,23 +80,23 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
         if (maybeAbort())
             return;
 
-        if (indexTermType.isNonFrozenCollection())
+        if (index.termType().isNonFrozenCollection())
         {
-            Iterator<ByteBuffer> valueIterator = indexTermType.valuesOf(row, nowInSec);
+            Iterator<ByteBuffer> valueIterator = index.termType().valuesOf(row, nowInSec);
             if (valueIterator != null)
             {
                 while (valueIterator.hasNext())
                 {
                     ByteBuffer value = valueIterator.next();
-                    addTerm(indexTermType.asIndexBytes(value.duplicate()), key, sstableRowId);
+                    addTerm(index.termType().asIndexBytes(value.duplicate()), key, sstableRowId);
                 }
             }
         }
         else
         {
-            ByteBuffer value = indexTermType.valueOf(key.partitionKey(), row, nowInSec);
+            ByteBuffer value = index.termType().valueOf(key.partitionKey(), row, nowInSec);
             if (value != null)
-                addTerm(indexTermType.asIndexBytes(value.duplicate()), key, sstableRowId);
+                addTerm(index.termType().asIndexBytes(value.duplicate()), key, sstableRowId);
         }
     }
 
@@ -119,7 +110,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
         long elapsed;
 
         boolean emptySegment = currentBuilder == null || currentBuilder.isEmpty();
-        logger.debug(indexIdentifier.logMessage("Completing index flush with {}buffered data..."), emptySegment ? "no " : "");
+        logger.debug(index.identifier().logMessage("Completing index flush with {}buffered data..."), emptySegment ? "no " : "");
 
         try
         {
@@ -128,7 +119,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
             {
                 flushSegment();
                 elapsed = stopwatch.elapsed(TimeUnit.MILLISECONDS);
-                logger.debug(indexIdentifier.logMessage("Completed flush of final segment for SSTable {}. Duration: {} ms. Total elapsed: {} ms"),
+                logger.debug(index.identifier().logMessage("Completed flush of final segment for SSTable {}. Duration: {} ms. Total elapsed: {} ms"),
                              indexDescriptor.sstableDescriptor,
                              elapsed - start,
                              elapsed);
@@ -138,21 +129,21 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
             if (currentBuilder != null)
             {
                 long bytesAllocated = currentBuilder.totalBytesAllocated();
-                long globalBytesUsed = currentBuilder.release(indexIdentifier);
-                logger.debug(indexIdentifier.logMessage("Flushing final segment for SSTable {} released {}. Global segment memory usage now at {}."),
+                long globalBytesUsed = currentBuilder.release(index.identifier());
+                logger.debug(index.identifier().logMessage("Flushing final segment for SSTable {} released {}. Global segment memory usage now at {}."),
                              indexDescriptor.sstableDescriptor, FBUtilities.prettyPrintMemory(bytesAllocated), FBUtilities.prettyPrintMemory(globalBytesUsed));
             }
 
             writeSegmentsMetadata();
 
             // write column index completion marker, indicating whether the index is empty
-            ColumnCompletionMarkerUtil.create(indexDescriptor, indexIdentifier, segments.isEmpty());
+            ColumnCompletionMarkerUtil.create(indexDescriptor, index.identifier(), segments.isEmpty());
         }
         finally
         {
-            indexMetrics.segmentsPerCompaction.update(segments.size());
+            index.indexMetrics().segmentsPerCompaction.update(segments.size());
             segments.clear();
-            indexMetrics.compactionCount.inc();
+            index.indexMetrics().compactionCount.inc();
         }
     }
 
@@ -161,7 +152,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
     {
         aborted = true;
 
-        logger.warn(indexIdentifier.logMessage("Aborting SSTable index flush for {}..."), indexDescriptor.sstableDescriptor, cause);
+        logger.warn(index.identifier().logMessage("Aborting SSTable index flush for {}..."), indexDescriptor.sstableDescriptor, cause);
 
         // It's possible for the current builder to be unassigned after we flush a final segment.
         if (currentBuilder != null)
@@ -169,12 +160,12 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
             // If an exception is thrown out of any writer operation prior to successful segment
             // flush, we will end up here, and we need to free up builder memory tracked by the limiter:
             long allocated = currentBuilder.totalBytesAllocated();
-            long globalBytesUsed = currentBuilder.release(indexIdentifier);
-            logger.debug(indexIdentifier.logMessage("Aborting index writer for SSTable {} released {}. Global segment memory usage now at {}."),
+            long globalBytesUsed = currentBuilder.release(index.identifier());
+            logger.debug(index.identifier().logMessage("Aborting index writer for SSTable {} released {}. Global segment memory usage now at {}."),
                          indexDescriptor.sstableDescriptor, FBUtilities.prettyPrintMemory(allocated), FBUtilities.prettyPrintMemory(globalBytesUsed));
         }
 
-        indexDescriptor.deleteColumnIndex(indexTermType, indexIdentifier);
+        indexDescriptor.deleteColumnIndex(index.termType(), index.identifier());
     }
 
     /**
@@ -190,13 +181,13 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
         if (isIndexValid.getAsBoolean())
             return false;
 
-        abort(new RuntimeException(String.format("index %s is dropped", indexIdentifier)));
+        abort(new RuntimeException(String.format("index %s is dropped", index.identifier())));
         return true;
     }
 
     private void addTerm(ByteBuffer term, PrimaryKey key, long sstableRowId) throws IOException
     {
-        if (!indexTermType.validateMaxTermSize(key.partitionKey(), term, false))
+        if (!index.validateMaxTermSize(key.partitionKey(), term, false))
             return;
 
         if (currentBuilder == null)
@@ -211,7 +202,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
 
         if (term.remaining() == 0) return;
 
-        if (analyzer == null || !indexTermType.isLiteral())
+        if (analyzer == null || !index.termType().isLiteral())
         {
             limiter.increment(currentBuilder.add(term, key, sstableRowId));
         }
@@ -240,8 +231,8 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
 
         if (reachMemoryLimit)
         {
-            logger.debug(indexIdentifier.logMessage("Global limit of {} and minimum flush size of {} exceeded. " +
-                                                    "Current builder usage is {} for {} cells. Global Usage is {}. Flushing..."),
+            logger.debug(index.identifier().logMessage("Global limit of {} and minimum flush size of {} exceeded. " +
+                                                       "Current builder usage is {} for {} cells. Global Usage is {}. Flushing..."),
                          FBUtilities.prettyPrintMemory(limiter.limitBytes()),
                          FBUtilities.prettyPrintMemory(currentBuilder.getMinimumFlushBytes()),
                          FBUtilities.prettyPrintMemory(currentBuilder.totalBytesAllocated()),
@@ -260,7 +251,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
         {
             long bytesAllocated = currentBuilder.totalBytesAllocated();
 
-            SegmentMetadata segmentMetadata = currentBuilder.flush(indexDescriptor, indexIdentifier);
+            SegmentMetadata segmentMetadata = currentBuilder.flush(indexDescriptor, index.identifier());
 
             long flushMillis = Math.max(1, TimeUnit.NANOSECONDS.toMillis(Clock.Global.nanoTime() - start));
 
@@ -269,12 +260,12 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
                 segments.add(segmentMetadata);
 
                 double rowCount = segmentMetadata.numRows;
-                indexMetrics.compactionSegmentCellsPerSecond.update((long)(rowCount / flushMillis * 1000.0));
+                index.indexMetrics().compactionSegmentCellsPerSecond.update((long)(rowCount / flushMillis * 1000.0));
 
                 double segmentBytes = segmentMetadata.componentMetadatas.indexSize();
-                indexMetrics.compactionSegmentBytesPerSecond.update((long)(segmentBytes / flushMillis * 1000.0));
+                index.indexMetrics().compactionSegmentBytesPerSecond.update((long)(segmentBytes / flushMillis * 1000.0));
 
-                logger.debug(indexIdentifier.logMessage("Flushed segment with {} cells for a total of {} in {} ms."),
+                logger.debug(index.identifier().logMessage("Flushed segment with {} cells for a total of {} in {} ms."),
                              (long) rowCount, FBUtilities.prettyPrintMemory((long) segmentBytes), flushMillis);
             }
 
@@ -282,17 +273,17 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
             // flush. Note that any failure that occurs before this (even in term addition) will
             // actuate this column writer's abort logic from the parent SSTable-level writer, and
             // that abort logic will release the current builder's memory against the limiter.
-            long globalBytesUsed = currentBuilder.release(indexIdentifier);
+            long globalBytesUsed = currentBuilder.release(index.identifier());
             currentBuilder = null;
-            logger.debug(indexIdentifier.logMessage("Flushing index segment for SSTable {} released {}. Global segment memory usage now at {}."),
+            logger.debug(index.identifier().logMessage("Flushing index segment for SSTable {} released {}. Global segment memory usage now at {}."),
                          indexDescriptor.sstableDescriptor, FBUtilities.prettyPrintMemory(bytesAllocated), FBUtilities.prettyPrintMemory(globalBytesUsed));
 
         }
         catch (Throwable t)
         {
-            logger.error(indexIdentifier.logMessage("Failed to build index for SSTable {}."), indexDescriptor.sstableDescriptor, t);
-            indexDescriptor.deleteColumnIndex(indexTermType, indexIdentifier);
-            indexMetrics.segmentFlushErrors.inc();
+            logger.error(index.identifier().logMessage("Failed to build index for SSTable {}."), indexDescriptor.sstableDescriptor, t);
+            indexDescriptor.deleteColumnIndex(index.termType(), index.identifier());
+            index.indexMetrics().segmentFlushErrors.inc();
             throw t;
         }
     }
@@ -302,7 +293,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
         if (segments.isEmpty())
             return;
 
-        try (MetadataWriter writer = new MetadataWriter(indexDescriptor.openPerIndexOutput(IndexComponent.META, indexIdentifier)))
+        try (MetadataWriter writer = new MetadataWriter(indexDescriptor.openPerIndexOutput(IndexComponent.META, index.identifier())))
         {
             SegmentMetadata.write(writer, segments);
         }
@@ -317,15 +308,15 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
     {
         SegmentBuilder builder;
 
-        if (indexTermType.isVector())
-            builder = new SegmentBuilder.VectorSegmentBuilder(indexTermType, limiter, indexWriterConfig);
-        else if (indexTermType.isLiteral())
-            builder = new SegmentBuilder.RAMStringSegmentBuilder(indexTermType, limiter);
+        if (index.termType().isVector())
+            builder = new SegmentBuilder.VectorSegmentBuilder(index.termType(), limiter, index.indexWriterConfig());
+        else if (index.termType().isLiteral())
+            builder = new SegmentBuilder.RAMStringSegmentBuilder(index.termType(), limiter);
         else
-            builder = new SegmentBuilder.BlockBalancedTreeSegmentBuilder(indexTermType, limiter);
+            builder = new SegmentBuilder.BlockBalancedTreeSegmentBuilder(index.termType(), limiter);
 
         long globalBytesUsed = limiter.increment(builder.totalBytesAllocated());
-        logger.debug(indexIdentifier.logMessage("Created new segment builder while flushing SSTable {}. Global segment memory usage now at {}."),
+        logger.debug(index.identifier().logMessage("Created new segment builder while flushing SSTable {}. Global segment memory usage now at {}."),
                      indexDescriptor.sstableDescriptor,
                      FBUtilities.prettyPrintMemory(globalBytesUsed));
 
