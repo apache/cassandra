@@ -21,15 +21,15 @@ import java.util.concurrent.TimeUnit;
 
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
-import org.apache.cassandra.index.sai.StorageAttachedIndex;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 public abstract class ColumnQueryMetrics extends AbstractMetrics
 {
-    protected ColumnQueryMetrics(StorageAttachedIndex index)
+    protected ColumnQueryMetrics(IndexIdentifier indexIdentifier)
     {
-        super(index.identifier(), "ColumnQueryMetrics");
+        super(indexIdentifier, "ColumnQueryMetrics");
     }
 
     public static class TrieIndexMetrics extends ColumnQueryMetrics implements QueryEventListener.TrieIndexEventListener
@@ -43,9 +43,9 @@ public abstract class ColumnQueryMetrics extends AbstractMetrics
 
         private final QueryEventListener.PostingListEventListener postingsListener;
 
-        public TrieIndexMetrics(StorageAttachedIndex index)
+        public TrieIndexMetrics(IndexIdentifier indexIdentifier)
         {
-            super(index);
+            super(indexIdentifier);
 
             termsTraversalTotalTime = Metrics.timer(createMetricName("TermsLookupLatency"));
 
@@ -83,9 +83,9 @@ public abstract class ColumnQueryMetrics extends AbstractMetrics
 
         private final QueryEventListener.PostingListEventListener postingsListener;
 
-        public BalancedTreeIndexMetrics(StorageAttachedIndex index)
+        public BalancedTreeIndexMetrics(IndexIdentifier indexIdentifier)
         {
-            super(index);
+            super(indexIdentifier);
 
             intersectionLatency = Metrics.timer(createMetricName("BalancedTreeIntersectionLatency"));
             intersectionEarlyExits = Metrics.meter(createMetricName("BalancedTreeIntersectionEarlyExits"));

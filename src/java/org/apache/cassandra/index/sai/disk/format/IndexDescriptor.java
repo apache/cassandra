@@ -266,7 +266,7 @@ public class IndexDescriptor
             final File file = fileFor(indexComponent);
 
             if (logger.isTraceEnabled())
-                logger.trace(logMessage("Opening {} file handle for {} ({})"), file, FBUtilities.prettyPrintMemory(file.length()));
+                logger.trace(logMessage("Opening file handle for {} ({})"), file, FBUtilities.prettyPrintMemory(file.length()));
 
             return new FileHandle.Builder(file).mmapped(true).complete();
         }
@@ -369,7 +369,7 @@ public class IndexDescriptor
         if (validation == IndexValidation.NONE)
             return true;
 
-        logger.info(logMessage("Validating per-column index components for " + indexIdentifier + " using mode " + validation));
+        logger.info(logMessage("Validating per-column index components for {} using mode {}"), indexIdentifier, validation);
         boolean checksum = validation == IndexValidation.CHECKSUM;
 
         try

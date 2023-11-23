@@ -38,6 +38,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
+import org.apache.cassandra.index.sai.metrics.IndexMetrics;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
@@ -54,8 +55,9 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
     private static final Logger logger = LoggerFactory.getLogger(SSTableIndexWriter.class);
 
     private final IndexDescriptor indexDescriptor;
-    private final StorageAttachedIndex index;
     private final IndexTermType indexTermType;
+    private final IndexMetrics indexMetrics;
+    private final IndexWriterConfig indexWriterConfig;
     private final IndexIdentifier indexIdentifier;
     private final long nowInSec = FBUtilities.nowInSeconds();
     private final AbstractAnalyzer analyzer;
@@ -72,10 +74,11 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
                               BooleanSupplier isIndexValid)
     {
         this.indexDescriptor = indexDescriptor;
-        this.index = index;
         this.indexTermType = index.termType();
         this.indexIdentifier = index.identifier();
-        this.analyzer = index.analyzer();
+        this.indexMetrics = index.indexMetrics();
+        this.indexWriterConfig = index.indexWriterConfig();
+        this.analyzer = index.hasAnalyzer() ? index.analyzer() : null;
         this.limiter = limiter;
         this.isIndexValid = isIndexValid;
     }
@@ -147,12 +150,9 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
         }
         finally
         {
-            if (index.indexMetrics() != null)
-            {
-                index.indexMetrics().segmentsPerCompaction.update(segments.size());
-                segments.clear();
-                index.indexMetrics().compactionCount.inc();
-            }
+            indexMetrics.segmentsPerCompaction.update(segments.size());
+            segments.clear();
+            indexMetrics.compactionCount.inc();
         }
     }
 
@@ -174,7 +174,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
                          indexDescriptor.sstableDescriptor, FBUtilities.prettyPrintMemory(allocated), FBUtilities.prettyPrintMemory(globalBytesUsed));
         }
 
-        indexDescriptor.deleteColumnIndex(index.termType(), indexIdentifier);
+        indexDescriptor.deleteColumnIndex(indexTermType, indexIdentifier);
     }
 
     /**
@@ -211,7 +211,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
 
         if (term.remaining() == 0) return;
 
-        if (!indexTermType.isLiteral())
+        if (analyzer == null || !indexTermType.isLiteral())
         {
             limiter.increment(currentBuilder.add(term, key, sstableRowId));
         }
@@ -269,12 +269,10 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
                 segments.add(segmentMetadata);
 
                 double rowCount = segmentMetadata.numRows;
-                if (index.indexMetrics() != null)
-                    index.indexMetrics().compactionSegmentCellsPerSecond.update((long)(rowCount / flushMillis * 1000.0));
+                indexMetrics.compactionSegmentCellsPerSecond.update((long)(rowCount / flushMillis * 1000.0));
 
                 double segmentBytes = segmentMetadata.componentMetadatas.indexSize();
-                if (index.indexMetrics() != null)
-                    index.indexMetrics().compactionSegmentBytesPerSecond.update((long)(segmentBytes / flushMillis * 1000.0));
+                indexMetrics.compactionSegmentBytesPerSecond.update((long)(segmentBytes / flushMillis * 1000.0));
 
                 logger.debug(indexIdentifier.logMessage("Flushed segment with {} cells for a total of {} in {} ms."),
                              (long) rowCount, FBUtilities.prettyPrintMemory((long) segmentBytes), flushMillis);
@@ -294,7 +292,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
         {
             logger.error(indexIdentifier.logMessage("Failed to build index for SSTable {}."), indexDescriptor.sstableDescriptor, t);
             indexDescriptor.deleteColumnIndex(indexTermType, indexIdentifier);
-            index.indexMetrics().segmentFlushErrors.inc();
+            indexMetrics.segmentFlushErrors.inc();
             throw t;
         }
     }
@@ -320,7 +318,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
         SegmentBuilder builder;
 
         if (indexTermType.isVector())
-            builder = new SegmentBuilder.VectorSegmentBuilder(indexTermType, limiter, index.indexWriterConfig());
+            builder = new SegmentBuilder.VectorSegmentBuilder(indexTermType, limiter, indexWriterConfig);
         else if (indexTermType.isLiteral())
             builder = new SegmentBuilder.RAMStringSegmentBuilder(indexTermType, limiter);
         else

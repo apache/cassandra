@@ -299,7 +299,7 @@ public abstract class SAITester extends CQLTester
 
     public static IndexTermType createIndexTermType(AbstractType<?> cellType)
     {
-        return IndexTermType.create(ColumnMetadata.regularColumn("sai", "internal", "val", cellType), Collections.EMPTY_LIST, IndexTarget.Type.SIMPLE);
+        return IndexTermType.create(ColumnMetadata.regularColumn("sai", "internal", "val", cellType), Collections.emptyList(), IndexTarget.Type.SIMPLE);
     }
 
     public IndexIdentifier createIndexIdentifier(String indexName)
@@ -315,6 +315,11 @@ public abstract class SAITester extends CQLTester
     protected StorageAttachedIndexGroup getCurrentIndexGroup()
     {
         return StorageAttachedIndexGroup.getIndexGroup(getCurrentColumnFamilyStore());
+    }
+
+    protected void dropIndex(IndexIdentifier indexIdentifier) throws Throwable
+    {
+        dropIndex("DROP INDEX %s." + indexIdentifier.indexName);
     }
 
     protected void simulateNodeRestart()

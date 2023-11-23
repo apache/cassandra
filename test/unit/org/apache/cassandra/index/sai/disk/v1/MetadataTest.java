@@ -29,7 +29,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
@@ -57,7 +56,7 @@ public class MetadataTest extends SAIRandomizedTester
     public void setup() throws Throwable
     {
         indexDescriptor = newIndexDescriptor();
-        indexIdentifier = SAITester.createIndexIdentifier("test", "test", newIndex());
+        indexIdentifier = createIndexIdentifier("test", "test", newIndex());
     }
 
     @Test

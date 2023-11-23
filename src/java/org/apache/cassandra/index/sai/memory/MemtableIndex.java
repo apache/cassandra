@@ -47,9 +47,9 @@ public class MemtableIndex implements MemtableOrdering
     private final LongAdder writeCount = new LongAdder();
     private final LongAdder estimatedMemoryUsed = new LongAdder();
 
-    public MemtableIndex(StorageAttachedIndex memoryIndex)
+    public MemtableIndex(StorageAttachedIndex index)
     {
-        this.memoryIndex = memoryIndex.termType().isVector() ? new VectorMemoryIndex(memoryIndex) : new TrieMemoryIndex(memoryIndex);
+        this.memoryIndex = index.termType().isVector() ? new VectorMemoryIndex(index) : new TrieMemoryIndex(index);
     }
 
     public long writeCount()

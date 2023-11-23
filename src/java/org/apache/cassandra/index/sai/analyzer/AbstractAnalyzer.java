@@ -98,7 +98,7 @@ public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
             }
         }
 
-        return NoOpAnalyzer::new;
+        return null;
     }
 
     private static boolean hasNonTokenizingOptions(Map<String, String> options)

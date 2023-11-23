@@ -22,6 +22,8 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -137,7 +139,9 @@ public class Version implements Comparable<Version>
      * Note: The index name is excluded for per-SSTable index files that are shared
      * across all the per-column indexes for the SSTable.
      */
-    private static String defaultFileNameFormat(IndexComponent indexComponent, IndexIdentifier indexIdentifier, String version)
+    private static String defaultFileNameFormat(IndexComponent indexComponent,
+                                                @Nullable IndexIdentifier indexIdentifier,
+                                                String version)
     {
         StringBuilder stringBuilder = new StringBuilder();
 

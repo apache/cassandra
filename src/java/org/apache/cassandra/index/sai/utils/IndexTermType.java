@@ -139,7 +139,7 @@ public class IndexTermType
     {
         this.columnMetadata = columnMetadata;
         this.indexTargetType = indexTargetType;
-        this.capabilities = calculateIdentityBitmap(columnMetadata, partitionColumns, indexTargetType);
+        this.capabilities = calculateCapabilities(columnMetadata, partitionColumns, indexTargetType);
         this.indexType = calculateIndexType(columnMetadata.type, capabilities, indexTargetType);
         if (indexType.subTypes().isEmpty())
         {
@@ -616,7 +616,7 @@ public class IndexTermType
         return Objects.hash(columnMetadata, indexTargetType);
     }
 
-    private EnumSet<Capability> calculateIdentityBitmap(ColumnMetadata columnMetadata, List<ColumnMetadata> partitionKeyColumns, IndexTarget.Type indexTargetType)
+    private EnumSet<Capability> calculateCapabilities(ColumnMetadata columnMetadata, List<ColumnMetadata> partitionKeyColumns, IndexTarget.Type indexTargetType)
     {
         EnumSet<Capability> capabilities = EnumSet.noneOf(Capability.class);
 

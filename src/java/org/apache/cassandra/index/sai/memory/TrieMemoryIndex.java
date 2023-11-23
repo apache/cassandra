@@ -45,7 +45,6 @@ import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
-import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.utils.Pair;
@@ -65,7 +64,6 @@ public class TrieMemoryIndex extends MemoryIndex
 
     private final InMemoryTrie<PrimaryKeys> data;
     private final PrimaryKeysReducer primaryKeysReducer;
-    private final IndexTermType indexTermType;
     private final boolean isLiteral;
 
     private ByteBuffer minTerm;
@@ -77,8 +75,7 @@ public class TrieMemoryIndex extends MemoryIndex
         this.data = new InMemoryTrie<>(TrieMemtable.BUFFER_TYPE);
         this.primaryKeysReducer = new PrimaryKeysReducer();
         // The use of the analyzer is within a synchronized block so can be considered thread-safe
-        this.indexTermType = index.termType();
-        this.isLiteral = indexTermType.isLiteral();
+        this.isLiteral = index.termType().isLiteral();
     }
 
     /**
@@ -92,53 +89,37 @@ public class TrieMemoryIndex extends MemoryIndex
     @Override
     public synchronized long add(DecoratedKey key, Clustering<?> clustering, ByteBuffer value)
     {
-        AbstractAnalyzer analyzer = index.analyzer();
-        try
+        value = index.termType().asIndexBytes(value);
+        final PrimaryKey primaryKey = index.hasClustering() ? index.keyFactory().create(key, clustering)
+                                                            : index.keyFactory().create(key);
+        final long initialSizeOnHeap = data.sizeOnHeap();
+        final long initialSizeOffHeap = data.sizeOffHeap();
+        final long reducerHeapSize = primaryKeysReducer.heapAllocations();
+
+        if (index.hasAnalyzer())
         {
-            value = indexTermType.asIndexBytes(value);
-            analyzer.reset(value);
-            final PrimaryKey primaryKey = index.hasClustering() ? index.keyFactory().create(key, clustering)
-                                                                : index.keyFactory().create(key);
-            final long initialSizeOnHeap = data.sizeOnHeap();
-            final long initialSizeOffHeap = data.sizeOffHeap();
-            final long reducerHeapSize = primaryKeysReducer.heapAllocations();
-
-            while (analyzer.hasNext())
+            AbstractAnalyzer analyzer = index.analyzer();
+            try
             {
-                final ByteBuffer term = analyzer.next();
-                if (!indexContext.validateMaxTermSize(key, term, false))
-                    continue;
-
-                setMinMaxTerm(term.duplicate());
-
-                final ByteComparable comparableBytes = asComparableBytes(term);
-
-                try
+                analyzer.reset(value);
+                while (analyzer.hasNext())
                 {
-                    if (term.limit() <= MAX_RECURSIVE_KEY_LENGTH)
-                    {
-                        data.putRecursive(comparableBytes, primaryKey, primaryKeysReducer);
-                    }
-                    else
-                    {
-                        data.apply(Trie.singleton(comparableBytes, primaryKey), primaryKeysReducer);
-                    }
-                }
-                catch (InMemoryTrie.SpaceExhaustedException e)
-                {
-                    throw new RuntimeException(e);
+                    addTerm(primaryKey, analyzer.next());
                 }
             }
-
-            long onHeap = data.sizeOnHeap();
-            long offHeap = data.sizeOffHeap();
-            long heapAllocations = primaryKeysReducer.heapAllocations();
-            return (onHeap - initialSizeOnHeap) + (offHeap - initialSizeOffHeap) + (heapAllocations - reducerHeapSize);
+            finally
+            {
+                analyzer.end();
+            }
         }
-        finally
+        else
         {
-            analyzer.end();
+            addTerm(primaryKey, value);
         }
+        long onHeap = data.sizeOnHeap();
+        long offHeap = data.sizeOffHeap();
+        long heapAllocations = primaryKeysReducer.heapAllocations();
+        return (onHeap - initialSizeOnHeap) + (offHeap - initialSizeOffHeap) + (heapAllocations - reducerHeapSize);
     }
 
     @Override
@@ -226,18 +207,44 @@ public class TrieMemoryIndex extends MemoryIndex
         return maxTerm;
     }
 
+    private void addTerm(PrimaryKey primaryKey, ByteBuffer term)
+    {
+        if (index.termType().validateMaxTermSize(key, term, false))
+        {
+            setMinMaxTerm(term.duplicate());
+
+            final ByteComparable comparableBytes = asComparableBytes(term);
+
+            try
+            {
+                if (term.limit() <= MAX_RECURSIVE_KEY_LENGTH)
+                {
+                    data.putRecursive(comparableBytes, primaryKey, primaryKeysReducer);
+                }
+                else
+                {
+                    data.apply(Trie.singleton(comparableBytes, primaryKey), primaryKeysReducer);
+                }
+            }
+            catch (InMemoryTrie.SpaceExhaustedException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
     private void setMinMaxTerm(ByteBuffer term)
     {
         assert term != null;
 
-        minTerm = indexTermType.min(term, minTerm);
-        maxTerm = indexTermType.max(term, maxTerm);
+        minTerm = index.termType().min(term, minTerm);
+        maxTerm = index.termType().max(term, maxTerm);
     }
 
     private ByteComparable asComparableBytes(ByteBuffer input)
     {
         return isLiteral ? version -> terminated(ByteSource.of(input, version))
-                         : version -> indexTermType.asComparableBytes(input, version);
+                         : version -> index.termType().asComparableBytes(input, version);
     }
 
     private ByteComparable decode(ByteComparable term)

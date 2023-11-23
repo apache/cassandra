@@ -47,8 +47,8 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
  *     specific to the index. This can be information relating to the type of index being used</li>
  *     <li>Methods taking an {@link IndexDescriptor}. These methods interact with the on-disk components, or
  *     return objects that will interact with the on-disk components, or return information about the on-disk
- *     components. If they take an {@link StorageAttachedIndex} as well they will be interacting with per-column index files;
- *     otherwise they will be interacting with per-sstable index files</li>
+ *     components. If they take an {@link IndexTermType} and/or a {@link IndexIdentifier} as well they will be
+ *     interacting with per-column index files; otherwise they will be interacting with per-sstable index files</li>
  *     <li>Methods taking an {@link IndexComponent}. These methods only interact with a single index component or
  *     set of index components</li>
  *
