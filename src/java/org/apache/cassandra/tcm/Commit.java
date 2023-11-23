@@ -187,7 +187,8 @@ public class Commit
                 if (message == null)
                     message = "";
                 this.code = code;
-                this.message = message;
+                // TypeSizes#sizeOf encoder only allows strings that are up to Short.MAX_VALUE bytes large
+                this.message =  message.substring(0, Math.min(message.length(), Short.MAX_VALUE));
                 this.rejected = rejected;
             }
 
