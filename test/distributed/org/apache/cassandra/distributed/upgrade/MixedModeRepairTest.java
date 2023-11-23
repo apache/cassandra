@@ -55,7 +55,7 @@ public class MixedModeRepairTest extends UpgradeTestBase
         .nodes(2)
         .nodesToUpgrade(UPGRADED_NODE)
         .upgradesToCurrentFrom(v40)
-        .withConfig(config -> config.with(NETWORK, GOSSIP))
+        .withConfig(config -> config.with(NETWORK, GOSSIP).set("storage_compatibility_mode", "CASSANDRA_4"))
         .setup(cluster -> {
             cluster.schemaChange(CREATE_TABLE);
             cluster.setUncaughtExceptionsFilter(throwable -> throwable instanceof RejectedExecutionException);

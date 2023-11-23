@@ -196,7 +196,7 @@ public class LongCompactionsTest
             // another compaction attempt will be launched in the background by
             // each completing compaction: not much we can do to control them here
             FBUtilities.waitOnFutures(compactions);
-        } while (CompactionManager.instance.getPendingTasks() > 0 || CompactionManager.instance.getActiveCompactions() > 0);
+        } while (CompactionManager.instance.hasOngoingOrPendingTasks());
 
         if (cfs.getLiveSSTables().size() > 1)
         {

@@ -159,6 +159,7 @@ public interface WaitQueue
         return new Standard();
     }
 
+    @Shared(scope = SIMULATION)
     class Standard implements WaitQueue
     {
         private static final int CANCELLED = -1;

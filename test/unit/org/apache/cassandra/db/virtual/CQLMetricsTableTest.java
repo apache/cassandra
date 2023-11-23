@@ -29,7 +29,6 @@ import com.datastax.driver.core.Session;
 import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
-import org.junit.BeforeClass;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -38,12 +37,6 @@ import org.apache.cassandra.metrics.CQLMetrics;
 public class CQLMetricsTableTest extends CQLTester
 {
     private static final String KS_NAME = "vts";
-
-    @BeforeClass
-    public static void setUpClass()
-    {
-        CQLTester.setUpClass();
-    }
 
     private void queryAndValidateMetrics(CQLMetrics expectedMetrics) throws Throwable
     {

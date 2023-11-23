@@ -115,8 +115,8 @@ public final class TableAttributes extends PropertyDefinitions
         if (hasOption(COMPRESSION))
             builder.compression(CompressionParams.fromMap(getMap(COMPRESSION)));
 
-        if (hasOption(MEMTABLE))
-            builder.memtable(MemtableParams.get(getString(MEMTABLE)));
+        if (hasOption(Option.MEMTABLE))
+            builder.memtable(MemtableParams.getWithFallback(getString(Option.MEMTABLE)));
 
         if (hasOption(DEFAULT_TIME_TO_LIVE))
             builder.defaultTimeToLive(getInt(DEFAULT_TIME_TO_LIVE));

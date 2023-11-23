@@ -54,6 +54,7 @@ public class DiskUsageBroadcaster implements IEndpointStateChangeSubscriber
     public DiskUsageBroadcaster(DiskUsageMonitor monitor)
     {
         this.monitor = monitor;
+        // TODO: switch to TCM?
         Gossiper.instance.register(this);
     }
 

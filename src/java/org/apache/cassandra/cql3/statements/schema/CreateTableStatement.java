@@ -34,15 +34,16 @@ import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
@@ -94,8 +95,9 @@ public final class CreateTableStatement extends AlterSchemaStatement
         this.useCompactStorage = useCompactStorage;
     }
 
-    public Keyspaces apply(Keyspaces schema)
+    public Keyspaces apply(ClusterMetadata metadata)
     {
+        Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
         if (null == keyspace)
             throw ire("Keyspace '%s' doesn't exist", keyspaceName);
@@ -108,10 +110,13 @@ public final class CreateTableStatement extends AlterSchemaStatement
             throw new AlreadyExistsException(keyspaceName, tableName);
         }
 
-        TableMetadata table = builder(keyspace.types).build();
+        TableMetadata.Builder builder = builder(keyspace.types).epoch(metadata.nextEpoch());
+        if (!builder.hasId() && !DatabaseDescriptor.useDeterministicTableID())
+            builder.id(TableId.get(metadata));
+        TableMetadata table = builder.build();
         table.validate();
 
-        if (keyspace.createReplicationStrategy().hasTransientReplicas()
+        if (keyspace.replicationStrategy.hasTransientReplicas()
             && table.params.readRepair != ReadRepairStrategy.NONE)
         {
             throw ire("read_repair must be set to 'NONE' for transiently replicated keyspaces");
@@ -128,6 +133,10 @@ public final class CreateTableStatement extends AlterSchemaStatement
     {
         super.validate(state);
 
+        // If a memtable configuration is specified, validate it against config
+        if (attrs.hasOption(TableParams.Option.MEMTABLE))
+            MemtableParams.get(attrs.getString(TableParams.Option.MEMTABLE.toString()));
+
         // Guardrail on table properties
         Guardrails.tableProperties.guard(attrs.updatedProperties(), attrs::removeProperty, state);
 
@@ -139,8 +148,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
         {
             int totalUserTables = Schema.instance.getUserKeyspaces()
                                                  .stream()
-                                                 .map(Keyspace::open)
-                                                 .mapToInt(keyspace -> keyspace.getColumnFamilyStores().size())
+                                                 .mapToInt(ksm -> ksm.tables.size())
                                                  .sum();
             Guardrails.tables.guard(totalUserTables + 1, tableName, false, state);
         }

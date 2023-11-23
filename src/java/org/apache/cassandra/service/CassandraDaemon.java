@@ -25,27 +25,29 @@ import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
-
 import javax.management.ObjectName;
 import javax.management.StandardMBean;
 import javax.management.remote.JMXConnectorServer;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistryListener;
 import com.codahale.metrics.SharedMetricRegistries;
-
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.auth.AuthCacheService;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -59,7 +61,6 @@ import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -68,10 +69,14 @@ import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.net.StartupClusterConnectivityChecker;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
-import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.service.paxos.PaxosState;
+import org.apache.cassandra.streaming.StreamManager;
+import org.apache.cassandra.tcm.CMSOperations;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.MultiStepOperation;
+import org.apache.cassandra.tcm.Startup;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -105,6 +110,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.START_NATI
 public class CassandraDaemon
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=NativeAccess";
+    public static boolean SKIP_GC_INSPECTOR = CassandraRelevantProperties.SKIP_GC_INSPECTOR.getBoolean();
 
     private static final Logger logger;
 
@@ -250,9 +256,29 @@ public class CassandraDaemon
 
         NativeLibrary.tryMlockall();
 
+        DatabaseDescriptor.createAllDirectories();
+        Keyspace.setInitialized();
         CommitLog.instance.start();
-
         runStartupChecks();
+
+
+        try
+        {
+            disableAutoCompaction(Schema.instance.localKeyspaces().names());
+            Startup.initialize(DatabaseDescriptor.getSeeds());
+            disableAutoCompaction(Schema.instance.distributedKeyspaces().names());
+            CMSOperations.initJmx();
+        }
+        catch (InterruptedException | ExecutionException | IOException e)
+        {
+            throw new AssertionError("Can't initialize cluster metadata service");
+        }
+        catch (StartupException e)
+        {
+            exitOrFail(e.returnCode, e.getMessage(), e.getCause());
+        }
+
+        QueryProcessor.registerStatementInvalidatingListener();
 
         try
         {
@@ -270,48 +296,7 @@ public class CassandraDaemon
         Thread.setDefaultUncaughtExceptionHandler(JVMStabilityInspector::uncaughtException);
 
         SystemKeyspaceMigrator41.migrate();
-
-        // Populate token metadata before flushing, for token-aware sstable partitioning (#6696)
-        StorageService.instance.populateTokenMetadata();
-
-        try
-        {
-            // load schema from disk
-            Schema.instance.loadFromDisk();
-        }
-        catch (Exception e)
-        {
-            logger.error("Error while loading schema: ", e);
-            throw e;
-        }
-
         setupVirtualKeyspaces();
-
-        try
-        {
-            scrubDataDirectories();
-        }
-        catch (StartupException e)
-        {
-            exitOrFail(e.returnCode, e.getMessage(), e.getCause());
-        }
-
-        Keyspace.setInitialized();
-
-        // initialize keyspaces
-        for (String keyspaceName : Schema.instance.getKeyspaces())
-        {
-            if (logger.isDebugEnabled())
-                logger.debug("opening keyspace {}", keyspaceName);
-            // disable auto compaction until gossip settles since disk boundaries may be affected by ring layout
-            for (ColumnFamilyStore cfs : Keyspace.open(keyspaceName).getColumnFamilyStores())
-            {
-                for (ColumnFamilyStore store : cfs.concatWithIndexes())
-                {
-                    store.disableAutoCompaction();
-                }
-            }
-        }
 
         try
         {
@@ -323,20 +308,25 @@ public class CassandraDaemon
             logger.warn("Error loading key or row cache", t);
         }
 
-        try
+        if (!SKIP_GC_INSPECTOR)
         {
-            GCInspector.register();
-        }
-        catch (Throwable t)
-        {
-            JVMStabilityInspector.inspectThrowable(t);
-            logger.warn("Unable to start GCInspector (currently only supported on the Sun JVM)");
+            try
+            {
+                GCInspector.register();
+            }
+            catch (Throwable t)
+            {
+                JVMStabilityInspector.inspectThrowable(t);
+                logger.warn("Unable to start GCInspector (currently only supported on the Sun JVM)");
+            }
         }
 
         // Replay any CommitLogSegments found on disk
         PaxosState.initializeTrackers();
 
         // replay the log if necessary
+        // TODO samt - when restarting a previously running instance, this needs to happen after reconstructing schema
+        //  from the cluster metadata log or all mutations will throw IncompatibleSchemaException on deserialisation
         try
         {
             CommitLog.instance.recoverSegmentsOnDisk();
@@ -345,9 +335,6 @@ public class CassandraDaemon
         {
             throw new RuntimeException(e);
         }
-
-        // Re-populate token metadata after commit log recover (new peers might be loaded onto system keyspace #10293)
-        StorageService.instance.populateTokenMetadata();
 
         try
         {
@@ -359,7 +346,7 @@ public class CassandraDaemon
         }
 
         // Clean up system.size_estimates entries left lying around from missed keyspace drops (CASSANDRA-14905)
-        StorageService.instance.cleanupSizeEstimates();
+        SystemKeyspace.clearAllEstimates();
 
         // schedule periodic dumps of table size estimates into SystemKeyspace.SIZE_ESTIMATES_CF
         // set cassandra.size_recorder_interval to 0 to disable
@@ -385,6 +372,9 @@ public class CassandraDaemon
             exitOrFail(1, "Fatal configuration error", e);
         }
 
+        ScheduledExecutors.optionalTasks.execute(() -> ClusterMetadataService.instance().processor().fetchLogAndWait());
+
+        // TODO: (TM/alexp), this can be made time-dependent
         // Because we are writing to the system_distributed keyspace, this should happen after that is created, which
         // happens in StorageService.instance.initServer()
         Runnable viewRebuild = () -> {
@@ -397,33 +387,14 @@ public class CassandraDaemon
 
         ScheduledExecutors.optionalTasks.schedule(viewRebuild, StorageService.RING_DELAY_MILLIS, TimeUnit.MILLISECONDS);
 
-        if (!FBUtilities.getBroadcastAddressAndPort().equals(InetAddressAndPort.getLoopbackAddress()))
-            Gossiper.waitToSettle();
+        // TODO: (TM/alexp), we do not need to wait for gossip settlement anymore
+//        if (!FBUtilities.getBroadcastAddressAndPort().equals(InetAddressAndPort.getLoopbackAddress()))
+//            Gossiper.waitToSettle();
 
-        StorageService.instance.doAuthSetup(false);
+        StorageService.instance.doAuthSetup();
 
-        // re-enable auto-compaction after gossip is settled, so correct disk boundaries are used
-        for (Keyspace keyspace : Keyspace.all())
-        {
-            for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
-            {
-                for (final ColumnFamilyStore store : cfs.concatWithIndexes())
-                {
-                    store.reload(); //reload CFs in case there was a change of disk boundaries
-                    if (store.getCompactionStrategyManager().shouldBeEnabled())
-                    {
-                        if (DatabaseDescriptor.getAutocompactionOnStartupEnabled())
-                        {
-                            store.enableAutoCompaction();
-                        }
-                        else
-                        {
-                            logger.info("Not enabling compaction for {}.{}; autocompaction_on_startup_enabled is set to false", store.getKeyspaceName(), store.name);
-                        }
-                    }
-                }
-            }
-        }
+        // re-enable auto-compaction after replay, so correct disk boundaries are used
+        enableAutoCompaction(Schema.instance.getKeyspaces());
 
         AuditLogManager.instance.initialize();
 
@@ -530,6 +501,49 @@ public class CassandraDaemon
         }
     }
 
+    public static void disableAutoCompaction(Collection<String> keyspaces)
+    {
+        for (String keyspaceName : keyspaces)
+        {
+            if (logger.isDebugEnabled())
+                logger.debug("opening keyspace {}", keyspaceName);
+            // disable auto compaction until gossip settles since disk boundaries may be affected by ring layout
+            for (ColumnFamilyStore cfs : Keyspace.open(keyspaceName).getColumnFamilyStores())
+            {
+                for (ColumnFamilyStore store : cfs.concatWithIndexes())
+                {
+                    store.disableAutoCompaction();
+                }
+            }
+        }
+    }
+
+    public static void enableAutoCompaction(Collection<String> keyspaces)
+    {
+        for (String ksNme : keyspaces)
+        {
+            Keyspace keyspace = Keyspace.open(ksNme);
+            for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
+            {
+                for (final ColumnFamilyStore store : cfs.concatWithIndexes())
+                {
+                    store.reload(store.metadata()); //reload CFs in case there was a change of disk boundaries
+                    if (store.getCompactionStrategyManager().shouldBeEnabled())
+                    {
+                        if (DatabaseDescriptor.getAutocompactionOnStartupEnabled())
+                        {
+                            store.enableAutoCompaction();
+                        }
+                        else
+                        {
+                            logger.info("Not enabling compaction for {}.{}; autocompaction_on_startup_enabled is set to false", store.getKeyspaceName(), store.name);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     public void setupVirtualKeyspaces()
     {
         VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
@@ -540,22 +554,6 @@ public class CassandraDaemon
         LoggingSupportFactory.getLoggingSupport()
                              .getAppender(VirtualTableAppender.class, VirtualTableAppender.APPENDER_NAME)
                              .ifPresent(appender -> ((VirtualTableAppender) appender).flushBuffer());
-    }
-
-    public void scrubDataDirectories() throws StartupException
-    {
-        // clean up debris in the rest of the keyspaces
-        for (String keyspaceName : Schema.instance.getKeyspaces())
-        {
-            // Skip system as we've already cleaned it
-            if (keyspaceName.equals(SchemaConstants.SYSTEM_KEYSPACE_NAME))
-                continue;
-
-            for (TableMetadata cfm : Schema.instance.getTablesAndViews(keyspaceName))
-            {
-                ColumnFamilyStore.scrubDataDirectories(cfm);
-            }
-        }
     }
 
     public synchronized void initializeClientTransports()
@@ -643,7 +641,8 @@ public class CassandraDaemon
     {
         StartupClusterConnectivityChecker connectivityChecker = StartupClusterConnectivityChecker.create(DatabaseDescriptor.getBlockForPeersTimeoutInSeconds(),
                                                                                                          DatabaseDescriptor.getBlockForPeersInRemoteDatacenters());
-        connectivityChecker.execute(Gossiper.instance.getEndpoints(), DatabaseDescriptor.getEndpointSnitch()::getDatacenter);
+        Set<InetAddressAndPort> peers = new HashSet<>(ClusterMetadata.current().directory.allJoinedEndpoints());
+        connectivityChecker.execute(peers, DatabaseDescriptor.getEndpointSnitch()::getDatacenter);
 
         // check to see if transports may start else return without starting.  This is needed when in survey mode or
         // when bootstrap has not completed.
@@ -665,7 +664,10 @@ public class CassandraDaemon
     {
         String nativeFlag = START_NATIVE_TRANSPORT.getString();
         if (START_NATIVE_TRANSPORT.getBoolean() || (nativeFlag == null && DatabaseDescriptor.startNativeTransport()))
+        {
             startNativeTransport();
+            StorageService.instance.setRpcReady(true);
+        }
         else
             logger.info("Not starting native transport as requested. Use JMX (StorageService->startNativeTransport()) or nodetool (enablebinary) to start it");
     }
@@ -714,7 +716,7 @@ public class CassandraDaemon
     /**
      * A convenience method to initialize and start the daemon in one shot.
      */
-    public void activate()
+    public void activate(boolean closeStdOutErr)
     {
         // Do not put any references to DatabaseDescriptor above the forceStaticInitialization call.
         try
@@ -732,7 +734,7 @@ public class CassandraDaemon
                 new File(pidFile).deleteOnExit();
             }
 
-            if (CASSANDRA_FOREGROUND.getString() == null)
+            if (closeStdOutErr)
             {
                 System.out.close();
                 System.err.close();
@@ -781,14 +783,17 @@ public class CassandraDaemon
 
     public void validateTransportsCanStart()
     {
-        // We only start transports if bootstrap has completed and we're not in survey mode, OR if we are in
-        // survey mode and streaming has completed but we're not using auth.
+        ClusterMetadata metadata = ClusterMetadata.current();
+        MultiStepOperation<?> startupSequence = metadata.inProgressSequences.get(metadata.myNodeId());
+
+        // We only start transports if bootstrap has completed, and we're not in survey mode, OR if we are in
+        // survey mode and streaming has completed, but we're not using auth.
         // OR if we have not joined the ring yet.
-        if (StorageService.instance.hasJoined())
+        if (startupSequence != null)
         {
             if (StorageService.instance.isSurveyMode())
             {
-                if (StorageService.instance.isBootstrapMode() || DatabaseDescriptor.getAuthenticator().requireAuthentication())
+                if (!StorageService.instance.readyToFinishJoiningRing() || DatabaseDescriptor.getAuthenticator().requireAuthentication())
                 {
                     throw new IllegalStateException("Not starting client transports in write_survey mode as it's bootstrapping or " +
                                                     "auth is enabled");
@@ -796,11 +801,24 @@ public class CassandraDaemon
             }
             else
             {
-                if (!SystemKeyspace.bootstrapComplete())
-                {
-                    throw new IllegalStateException("Node is not yet bootstrapped completely. Use nodetool to check bootstrap" +
-                                                    " state and resume. For more, see `nodetool help bootstrap`");
-                }
+                throw new IllegalStateException("Node is not yet bootstrapped completely");
+            }
+        }
+        else
+        {
+            // Bootstrap with same address is an edge-case here, since we rely on HIBERNATE to prevent writes
+            // toward the bootstrapping replacement, so there's no startup sequence involved.
+            if (StorageService.instance.isReplacingSameAddress() && StorageService.instance.isSurveyMode())
+                return;
+
+            // This node has not joined the ring (i.e. it was started with -Dcassandra.join_ring=false)
+            if (StorageService.instance.isStarting())
+                return;
+
+            if (!SystemKeyspace.bootstrapComplete())
+            {
+                throw new IllegalStateException("Node is not yet bootstrapped completely. Use nodetool to check bootstrap" +
+                                                " state and resume. For more, see `nodetool help bootstrap`");
             }
         }
     }
@@ -858,7 +876,7 @@ public class CassandraDaemon
 
     public static void main(String[] args)
     {
-        instance.activate();
+        instance.activate(CASSANDRA_FOREGROUND.getString() == null);
     }
 
     public void clearConnectionHistory()

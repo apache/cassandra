@@ -20,7 +20,6 @@ package org.apache.cassandra.simulator.cluster;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.db.Keyspace;
@@ -28,11 +27,12 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.progress.ProgressEventType;
 
@@ -86,9 +86,9 @@ class OnInstanceRepair extends ClusterAction
     private static void invokeRepair(String keyspaceName, boolean repairPaxos, boolean repairOnlyPaxos, boolean primaryRangeOnly, boolean force, Runnable listener)
     {
         Keyspace keyspace = Keyspace.open(keyspaceName);
-        TokenMetadata metadata = StorageService.instance.getTokenMetadata().cloneOnlyTokenMap();
+        ClusterMetadata metadata = ClusterMetadata.current();
         invokeRepair(keyspaceName, repairPaxos, repairOnlyPaxos,
-                     () -> primaryRangeOnly ? Collections.singletonList(metadata.getPrimaryRangesFor(List.of(currentToken())).iterator().next())
+                     () -> primaryRangeOnly ? TokenRingUtils.getPrimaryRangesFor(metadata.tokenMap.tokens(), Collections.singleton(currentToken()))
                                             : keyspace.getReplicationStrategy().getAddressReplicas(metadata).get(getBroadcastAddressAndPort()).asList(Replica::range),
                      primaryRangeOnly, force, listener);
     }

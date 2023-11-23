@@ -47,14 +47,12 @@ public class CredentialsCacheKeysTableTest extends CQLTester
     private CredentialsCacheKeysTable table;
 
     @BeforeClass
-    public static void setUpClass()
+    public static void setUpAuth()
     {
         ServerTestUtils.daemonInitialization();
 
         // high value is used for convenient debugging
         DatabaseDescriptor.setCredentialsValidity(20_000);
-
-        CQLTester.setUpClass();
         CQLTester.requireAuthentication();
         passwordAuthenticator = (AuthTestUtils.LocalPasswordAuthenticator) DatabaseDescriptor.getAuthenticator();
 

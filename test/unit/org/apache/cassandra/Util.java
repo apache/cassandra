@@ -38,7 +38,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -54,6 +53,12 @@ import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
+
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.io.util.File;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -82,6 +87,12 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionTasks;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.ReplicaCollection;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -107,9 +118,6 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.SSTableLoader;
@@ -118,20 +126,18 @@ import org.apache.cassandra.io.sstable.UUIDBasedSSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReaderWithFilter;
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.ReplicaCollection;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamState;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
+import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -154,8 +160,6 @@ import static org.junit.Assert.assertTrue;
 public class Util
 {
     private static final Logger logger = LoggerFactory.getLogger(Util.class);
-
-    private static List<UUID> hostIdPool = new ArrayList<>();
 
     public static IPartitioner testPartitioner()
     {
@@ -272,13 +276,19 @@ public class Util
     /**
      * Creates initial set of nodes and tokens. Nodes are added to StorageService as 'normal'
      */
-    public static void createInitialRing(StorageService ss, IPartitioner partitioner, List<Token> endpointTokens,
-                                         List<Token> keyTokens, List<InetAddressAndPort> hosts, List<UUID> hostIds, int howMany)
-        throws UnknownHostException
+    public static void createInitialRing(List<Token> endpointTokens, List<Token> keyTokens, List<InetAddressAndPort> hosts, List<UUID> hostIds, int howMany) throws UnknownHostException
     {
-        // Expand pool of host IDs as necessary
+        createInitialRing(endpointTokens, keyTokens, hosts, hostIds, howMany, true);
+    }
+
+    public static void createInitialRing(List<Token> endpointTokens, List<Token> keyTokens, List<InetAddressAndPort> hosts, List<UUID> hostIds, int howMany, boolean bootstrap) throws UnknownHostException
+    {
+        // TODO should probably rewrite tests that use this post CEP-21
+        List<UUID> hostIdPool = new ArrayList<>(howMany);
         for (int i = hostIdPool.size(); i < howMany; i++)
-            hostIdPool.add(UUID.randomUUID());
+        {
+            hostIdPool.add(ClusterMetadataTestHelper.register(i + 1).toUUID());
+        }
 
         boolean endpointTokenPrefilled = endpointTokens != null && !endpointTokens.isEmpty();
         for (int i=0; i<howMany; i++)
@@ -291,21 +301,37 @@ public class Util
 
         for (int i=0; i<endpointTokens.size(); i++)
         {
-            InetAddressAndPort ep = InetAddressAndPort.getByName("127.0.0." + String.valueOf(i + 1));
-            Gossiper.instance.initializeNodeUnsafe(ep, hostIds.get(i), MessagingService.current_version, 1);
-            Gossiper.instance.injectApplicationState(ep, ApplicationState.TOKENS, new VersionedValue.VersionedValueFactory(partitioner).tokens(Collections.singleton(endpointTokens.get(i))));
-            ss.onChange(ep,
-                        ApplicationState.STATUS_WITH_PORT,
-                        new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(endpointTokens.get(i))));
-            ss.onChange(ep,
-                        ApplicationState.STATUS,
-                        new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(endpointTokens.get(i))));
+            InetAddressAndPort ep = InetAddressAndPort.getByName("127.0.0." + (i + 1));
+            if (bootstrap)
+                ClusterMetadataTestHelper.join(ep, keyTokens.get(i));
             hosts.add(ep);
         }
 
         // check that all nodes are in token metadata
         for (int i=0; i<endpointTokens.size(); ++i)
-            assertTrue(ss.getTokenMetadata().isMember(hosts.get(i)));
+            assertTrue(!bootstrap || ClusterMetadata.current().directory.allAddresses().contains(hosts.get(i)));
+    }
+
+    public static void initGossipTokens(IPartitioner partitioner,
+                                        List<Token> endpointTokens,
+                                        List<InetAddressAndPort> hosts,
+                                        List<UUID> hostIds,
+                                        int howMany) throws UnknownHostException
+    {
+        for (int i=0; i<howMany; i++)
+        {
+            InetAddressAndPort ep = InetAddressAndPort.getByName("127.0.0." + (i + 1));
+            hosts.add(ep);
+            UUID hostId = new UUID(0L, (long)i+1);
+            hostIds.add(hostId);
+            Token t = partitioner.getRandomToken();
+            endpointTokens.add(t);
+            Collection<Token> tokens = Collections.singleton(partitioner.getRandomToken());
+
+            Gossiper.instance.initializeNodeUnsafe(ep, hostId, MessagingService.current_version, 1);
+            VersionedValue.VersionedValueFactory values = new VersionedValue.VersionedValueFactory(partitioner);
+            Gossiper.instance.injectApplicationState(ep, ApplicationState.TOKENS, values.tokens(tokens));
+        }
     }
 
     public static Future<?> compactAll(ColumnFamilyStore cfs, long gcBefore)
@@ -1080,29 +1106,11 @@ public class Util
             assertEquals(0, ((SSTableReaderWithFilter) reader).getFilterOffHeapSize());
     }
 
-    /**
-     * Setups Gossiper to mimic the upgrade behaviour when {@link Gossiper#isUpgradingFromVersionLowerThan(CassandraVersion)}
-     * or {@link Gossiper#hasMajorVersion3Nodes()} is called.
-     */
     public static void setUpgradeFromVersion(String version)
     {
-        int v = Optional.ofNullable(Gossiper.instance.getEndpointStateForEndpoint(FBUtilities.getBroadcastAddressAndPort()))
-                        .map(ep -> ep.getApplicationState(ApplicationState.RELEASE_VERSION))
-                        .map(rv -> rv.version)
-                        .orElse(0);
-
-        Gossiper.instance.addLocalApplicationState(ApplicationState.RELEASE_VERSION,
-                                                   VersionedValue.unsafeMakeVersionedValue(version, v + 1));
-        try
-        {
-            // add dummy host to avoid returning early in Gossiper.instance.upgradeFromVersionSupplier
-            Gossiper.instance.initializeNodeUnsafe(InetAddressAndPort.getByName("127.0.0.2"), UUID.randomUUID(), 1);
-        }
-        catch (UnknownHostException e)
-        {
-            throw new RuntimeException(e);
-        }
-        Gossiper.instance.expireUpgradeFromVersion();
+        InetAddressAndPort ep = InetAddressAndPort.getByNameUnchecked("127.0.0.10");
+        Register.register(new NodeAddresses(ep),
+                          new NodeVersion(new CassandraVersion(version), Version.OLD));
     }
 
     /**

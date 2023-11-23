@@ -529,11 +529,10 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
                                                                                filter);
 
             ReplicaPlan.ForTokenRead replicaPlan = ReplicaPlans.forSingleReplicaRead(keyspace, key.getToken(), source);
-            ReplicaPlan.SharedForTokenRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
 
             try
             {
-                return executeReadCommand(cmd, source, sharedReplicaPlan);
+                return executeReadCommand(cmd, source, ReplicaPlan.shared(replicaPlan));
             }
             catch (ReadTimeoutException e)
             {

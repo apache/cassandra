@@ -55,6 +55,8 @@ public enum Stage
     INTERNAL_RESPONSE (false, "InternalResponseStage", "internal", FBUtilities::getAvailableProcessors,             null,                                            Stage::multiThreadedStage),
     IMMEDIATE         (false, "ImmediateStage",        "internal", () -> 0,                                         null,                                            Stage::immediateExecutor),
     PAXOS_REPAIR      (false, "PaxosRepairStage",      "internal", FBUtilities::getAvailableProcessors,             null,                                            Stage::multiThreadedStage),
+    INTERNAL_METADATA (false, "InternalMetadataStage", "internal", FBUtilities::getAvailableProcessors,             null,                                            Stage::multiThreadedStage),
+    FETCH_LOG         (false, "MetadataFetchLogStage", "internal", () -> 1,                                         null,                                            Stage::singleThreadedStage)
     ;
 
     public final String jmxName;

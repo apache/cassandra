@@ -34,6 +34,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlan.ForWrite;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -138,6 +139,9 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
             throw new WriteFailureException(replicaPlan.consistencyLevel(), ackCount(), blockFor(), writeType, this.failureReasonByEndpoint);
         }
+
+        if (replicaPlan.stillAppliesTo(ClusterMetadata.current()))
+            return;
     }
 
     private void throwTimeout()

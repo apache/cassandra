@@ -44,8 +44,9 @@ public class JMXGetterCheckTest extends TestBaseImpl
 {
     private static final Set<String> IGNORE_ATTRIBUTES = ImmutableSet.of(
     "org.apache.cassandra.net:type=MessagingService:BackPressurePerHost", // throws unsupported saying the feature was removed... dropped in CASSANDRA-15375
-    "org.apache.cassandra.db:type=DynamicEndpointSnitch:Scores" // when running in multiple-port-one-IP mode, this fails
-
+    "org.apache.cassandra.db:type=DynamicEndpointSnitch:Scores", // when running in multiple-port-one-IP mode, this fails
+    "org.apache.cassandra.db:type=StorageService:OutstandingSchemaVersions", // deprecated (TCM)
+    "org.apache.cassandra.db:type=StorageService:OutstandingSchemaVersionsWithPort" // deprecated (TCM)
     );
     private static final Set<String> IGNORE_OPERATIONS = ImmutableSet.of(
     "org.apache.cassandra.db:type=StorageService:stopDaemon", // halts the instance, which then causes the JVM to exit
@@ -57,7 +58,9 @@ public class JMXGetterCheckTest extends TestBaseImpl
     "org.apache.cassandra.db:type=CIDRGroupsMappingManager:loadCidrGroupsCache", // CIDR cache isn't enabled by default
     "org.apache.cassandra.db:type=StorageService:clearConnectionHistory", // Throws a NullPointerException
     "org.apache.cassandra.db:type=StorageService:startGossiping", // causes multiple loops to fail
-    "org.apache.cassandra.db:type=StorageService:startNativeTransport" // causes multiple loops to fail
+    "org.apache.cassandra.db:type=StorageService:startNativeTransport", // causes multiple loops to fail
+    "org.apache.cassandra.db:type=CIDRGroupsMappingManager:loadCidrGroupsCache", // AllowAllCIDRAuthorizer doesn't support this operation, as feature is disabled by default
+    "org.apache.cassandra.db:type=StorageService:forceRemoveCompletion" // deprecated (TCM)
     );
 
     @Test

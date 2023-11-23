@@ -31,6 +31,8 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
 
 /**
  * Verb handler used both for hint dispatch and streaming.
@@ -77,10 +79,14 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
             return;
         }
 
-        if (!hostId.equals(StorageService.instance.getLocalHostUUID()))
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId localId = metadata.myNodeId();
+        if (!hostId.equals(localId.toUUID()) && !hostId.equals(metadata.directory.hostId(localId)))
         {
-            // the node is not the final destination of the hint (must have gotten it from a decommissioning node),
-            // so just store it locally, to be delivered later.
+            // the hint may have been written prior to upgrading, in which case it would be addressing the old
+            // host id for its target node. If the id in the hint matches neither the pre-upgrade host id nor the
+            // post-upgrade node id for this peer, the node is not the final destination of the hint (must have gotten
+            // it from a decommissioning node), so just store it locally, to be delivered later.
             HintsService.instance.write(hostId, hint);
             respond(message);
         }

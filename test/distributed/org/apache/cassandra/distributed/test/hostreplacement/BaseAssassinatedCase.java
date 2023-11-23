@@ -33,7 +33,6 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_
 import static org.apache.cassandra.distributed.shared.ClusterUtils.assertRingState;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.awaitGossipStatus;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.getBroadcastAddressHostWithPortString;
-import static org.apache.cassandra.distributed.shared.ClusterUtils.getTokens;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.replaceHostAndStart;
 import static org.apache.cassandra.distributed.test.hostreplacement.HostReplacementTest.setupCluster;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -48,11 +47,6 @@ public abstract class BaseAssassinatedCase extends TestBaseImpl
 
     protected void afterNodeStatusIsLeft(Cluster cluster, IInvokableInstance nodeToRemove)
     {
-    }
-
-    protected String expectedMessage(IInvokableInstance nodeToRemove)
-    {
-        return "Cannot replace token " + getTokens(nodeToRemove).get(0) + " which does not exist!";
     }
 
     @Test
@@ -94,7 +88,7 @@ public abstract class BaseAssassinatedCase extends TestBaseImpl
                                    // matter for this test
                                    properties.set(BOOTSTRAP_SCHEMA_DELAY_MS, 10);
                                }))
-            .hasMessage(expectedMessage(nodeToRemove));
+            .hasMessageContaining("Cannot replace node /127.0.0.2:7012 which is not currently joined");
         }
     }
 }

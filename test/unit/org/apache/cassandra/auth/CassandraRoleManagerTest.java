@@ -21,7 +21,6 @@ package org.apache.cassandra.auth;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.collect.Iterables;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -29,9 +28,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.auth.AuthTestUtils.*;
@@ -44,15 +41,11 @@ public class CassandraRoleManagerTest
     public static void setupClass()
     {
         SchemaLoader.prepareServer();
-        // create the system_auth keyspace so the IRoleManager can function as normal
-        SchemaLoader.createKeyspace(SchemaConstants.AUTH_KEYSPACE_NAME,
-                                    KeyspaceParams.simple(1),
-                                    Iterables.toArray(AuthKeyspace.metadata().tables, TableMetadata.class));
         // We start StorageService because confirmFastRoleSetup confirms that CassandraRoleManager will
         // take a faster path once the cluster is already setup, which includes checking MessagingService
         // and issuing queries with QueryProcessor.process, which uses TokenMetadata
         DatabaseDescriptor.daemonInitialization();
-        StorageService.instance.initServer(0);
+        StorageService.instance.initServer();
         AuthCacheService.initializeAndRegisterCaches();
     }
 

@@ -20,8 +20,13 @@ package org.apache.cassandra.distributed.fuzz;
 
 import java.io.File;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import harry.core.Configuration;
+import harry.ddl.ColumnSpec;
+import harry.ddl.SchemaGenerators;
+import harry.ddl.SchemaSpec;
+import harry.generators.Surjections;
 import harry.model.OpSelectors;
 import harry.model.clock.OffsetClock;
 import harry.model.sut.PrintlnSut;
@@ -64,6 +69,50 @@ public class HarryHelper
         return configuration;
     }
 
+    private static AtomicInteger counter = new AtomicInteger();
+
+    public static Surjections.Surjection<SchemaSpec> schemaSpecGen(String keyspace, String prefix)
+    {
+        return new SchemaGenerators.Builder(keyspace, () -> prefix + counter.getAndIncrement())
+               .partitionKeySpec(1, 2,
+                                 ColumnSpec.int8Type,
+                                 ColumnSpec.int16Type,
+                                 ColumnSpec.int32Type,
+                                 ColumnSpec.int64Type,
+                                 ColumnSpec.doubleType,
+                                 ColumnSpec.asciiType,
+                                 ColumnSpec.textType)
+               .clusteringKeySpec(1, 2,
+                                  ColumnSpec.int8Type,
+                                  ColumnSpec.int16Type,
+                                  ColumnSpec.int32Type,
+                                  ColumnSpec.int64Type,
+                                  ColumnSpec.doubleType,
+                                  ColumnSpec.asciiType,
+                                  ColumnSpec.textType,
+                                  ColumnSpec.ReversedType.getInstance(ColumnSpec.int64Type),
+                                  ColumnSpec.ReversedType.getInstance(ColumnSpec.doubleType),
+                                  ColumnSpec.ReversedType.getInstance(ColumnSpec.asciiType),
+                                  ColumnSpec.ReversedType.getInstance(ColumnSpec.textType))
+               .regularColumnSpec(1, 5,
+                                  ColumnSpec.int8Type,
+                                  ColumnSpec.int16Type,
+                                  ColumnSpec.int32Type,
+                                  ColumnSpec.int64Type,
+                                  ColumnSpec.floatType,
+                                  ColumnSpec.doubleType,
+                                  ColumnSpec.asciiType(4, 128))
+               .staticColumnSpec(0, 5,
+                                 ColumnSpec.int8Type,
+                                 ColumnSpec.int16Type,
+                                 ColumnSpec.int32Type,
+                                 ColumnSpec.int64Type,
+                                 ColumnSpec.floatType,
+                                 ColumnSpec.doubleType,
+                                 ColumnSpec.asciiType(4, 128))
+               .surjection();
+    }
+
     public static Configuration.ConfigurationBuilder defaultConfiguration() throws Exception
     {
         return new Configuration.ConfigurationBuilder()
@@ -71,7 +120,7 @@ public class HarryHelper
                .setCreateSchema(true)
                .setTruncateTable(false)
                .setDropSchema(false)
-               .setSchemaProvider(new Configuration.DefaultSchemaProviderConfiguration())
+               .setSchemaProvider((seed, sut) -> schemaSpecGen("harry", "tbl_").inflate(seed))
                .setClock(new Configuration.ApproximateMonotonicClockConfiguration(7300, 1, TimeUnit.SECONDS))
                .setClusteringDescriptorSelector(defaultClusteringDescriptorSelectorConfiguration().build())
                .setPartitionDescriptorSelector(new Configuration.DefaultPDSelectorConfiguration(100, 10))
@@ -86,8 +135,8 @@ public class HarryHelper
     public static Configuration.CDSelectorConfigurationBuilder defaultClusteringDescriptorSelectorConfiguration()
     {
         return new Configuration.CDSelectorConfigurationBuilder()
-               .setNumberOfModificationsDistribution(new Configuration.ConstantDistributionConfig(2))
-               .setRowsPerModificationDistribution(new Configuration.ConstantDistributionConfig(2))
+               .setNumberOfModificationsDistribution(new Configuration.ConstantDistributionConfig(1))
+               .setRowsPerModificationDistribution(new Configuration.ConstantDistributionConfig(1))
                .setMaxPartitionSize(100)
                .setOperationKindWeights(new Configuration.OperationKindSelectorBuilder()
                                         .addWeight(OpSelectors.OperationKind.DELETE_ROW, 1)
@@ -102,4 +151,16 @@ public class HarryHelper
                                         .addWeight(OpSelectors.OperationKind.UPDATE, 20)
                                         .build());
     }
+
+    public static Configuration.CDSelectorConfigurationBuilder singleRowPerModification()
+    {
+        return new Configuration.CDSelectorConfigurationBuilder()
+               .setNumberOfModificationsDistribution(new Configuration.ConstantDistributionConfig(1))
+               .setRowsPerModificationDistribution(new Configuration.ConstantDistributionConfig(1))
+               .setMaxPartitionSize(100)
+               .setOperationKindWeights(new Configuration.OperationKindSelectorBuilder()
+                                        .addWeight(OpSelectors.OperationKind.INSERT_WITH_STATICS, 100)
+                                        .build());
+    }
 }
+

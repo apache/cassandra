@@ -24,6 +24,7 @@ import java.util.*;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -53,6 +54,7 @@ public class SystemKeyspaceTest
     {
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
+        SchemaLoader.prepareServer();
     }
 
     @Test
@@ -61,7 +63,7 @@ public class SystemKeyspaceTest
         // Remove all existing tokens
         Collection<Token> current = SystemKeyspace.loadTokens().asMap().get(FBUtilities.getLocalAddressAndPort());
         if (current != null && !current.isEmpty())
-            SystemKeyspace.updateTokens(current);
+            SystemKeyspace.updateLocalTokens(current);
 
         List<Token> tokens = new ArrayList<Token>()
         {{
@@ -69,7 +71,7 @@ public class SystemKeyspaceTest
                 add(new BytesToken(ByteBufferUtil.bytes(String.format("token%d", i))));
         }};
 
-        SystemKeyspace.updateTokens(tokens);
+        SystemKeyspace.updateLocalTokens(tokens);
         int count = 0;
 
         for (Token tok : SystemKeyspace.getSavedTokens())
@@ -85,14 +87,6 @@ public class SystemKeyspaceTest
         assert SystemKeyspace.loadTokens().get(address).contains(token);
         SystemKeyspace.removeEndpoint(address);
         assert !SystemKeyspace.loadTokens().containsValue(token);
-    }
-
-    @Test
-    public void testLocalHostID()
-    {
-        UUID firstId = SystemKeyspace.getOrInitializeLocalHostId();
-        UUID secondId = SystemKeyspace.getOrInitializeLocalHostId();
-        assert firstId.equals(secondId) : String.format("%s != %s%n", firstId.toString(), secondId.toString());
     }
 
     private void assertDeleted()

@@ -319,7 +319,7 @@ public final class Util
 
         IPartitioner partitioner = FBUtilities.newPartitioner(desc);
 
-        TableMetadata.Builder builder = TableMetadata.builder("keyspace", "table").partitioner(partitioner);
+        TableMetadata.Builder builder = TableMetadata.builder("keyspace", "table").partitioner(partitioner).offline();
         header.getStaticColumns().entrySet().stream()
                 .forEach(entry -> {
                     ColumnIdentifier ident = ColumnIdentifier.getInterned(UTF8Type.instance.getString(entry.getKey()), true);

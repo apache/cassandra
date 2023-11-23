@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.utils.concurrent;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.function.BiFunction;
@@ -198,5 +200,10 @@ public class LoadingMap<K, V>
         {
             return (T) value;
         }
+    }
+
+    public Map<K, Future<V>> copyInternal()
+    {
+        return new HashMap<K, Future<V>>(internalMap);
     }
 }

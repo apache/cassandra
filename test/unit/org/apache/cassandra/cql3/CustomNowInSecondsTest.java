@@ -25,7 +25,6 @@ import com.google.common.collect.ImmutableList;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -48,11 +47,8 @@ import static org.junit.Assert.assertEquals;
 public class CustomNowInSecondsTest extends CQLTester
 {
     @BeforeClass
-    public static void setUpClass()
+    public static void setupNetwork()
     {
-        ServerTestUtils.daemonInitialization();
-
-        prepareServer();
         requireNetwork();
     }
 

@@ -21,6 +21,7 @@ package org.apache.cassandra.tools.nodetool;
 import java.util.Set;
 import javax.security.auth.Subject;
 
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -49,24 +50,26 @@ public class InvalidateJmxPermissionsCacheTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
-        CQLTester.setUpClass();
         CQLTester.requireAuthentication();
-
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOptions());
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOptions());
+        AuthCacheService.initializeAndRegisterCaches();
+        requireNetwork();
+        startJMXServer();
+    }
 
+    @Before
+    public void grantInitialPermissions()
+    {
+        // Because we reset the CMS in CQLTester::afterTest, the per-test keyspaces created in CQLTester::beforeTest
+        // get dropped and re-created for every individual test. This means we need to recreate the perms here (we
+        // could markCMS() after granting the first time and add a flag to avoid re-granting but this is simpler).
         JMXResource rootJmxResource = JMXResource.root();
         Set<Permission> jmxPermissions = rootJmxResource.applicablePermissions();
-
         IAuthorizer authorizer = DatabaseDescriptor.getAuthorizer();
         authorizer.grant(AuthenticatedUser.SYSTEM_USER, jmxPermissions, rootJmxResource, ROLE_A);
         authorizer.grant(AuthenticatedUser.SYSTEM_USER, jmxPermissions, rootJmxResource, ROLE_B);
-
-        AuthCacheService.initializeAndRegisterCaches();
-
-        requireNetwork();
-        startJMXServer();
     }
 
     @Test

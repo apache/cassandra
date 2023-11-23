@@ -320,11 +320,12 @@ public abstract class AbstractCommitLogSegmentManager
     void forceRecycleAll(Collection<TableId> droppedTables)
     {
         List<CommitLogSegment> segmentsToRecycle = new ArrayList<>(activeSegments);
-        CommitLogSegment last = segmentsToRecycle.get(segmentsToRecycle.size() - 1);
+        CommitLogSegment last = segmentsToRecycle.isEmpty() ? null : segmentsToRecycle.get(segmentsToRecycle.size() - 1);
         advanceAllocatingFrom(last);
 
         // wait for the commit log modifications
-        last.waitForModifications();
+        if (last != null)
+            last.waitForModifications();
 
         // make sure the writes have materialized inside of the memtables by waiting for all outstanding writes
         // to complete
@@ -350,7 +351,7 @@ public abstract class AbstractCommitLogSegmentManager
             }
 
             CommitLogSegment first;
-            if ((first = activeSegments.peek()) != null && first.id <= last.id)
+            if ((first = activeSegments.peek()) != null && last != null && first.id <= last.id)
                 logger.error("Failed to force-recycle all segments; at least one segment is still in use with dirty CFs.");
         }
         catch (Throwable t)

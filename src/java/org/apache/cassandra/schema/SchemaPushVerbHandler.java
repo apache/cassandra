@@ -18,9 +18,6 @@
 package org.apache.cassandra.schema;
 
 import java.util.Collection;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,29 +31,17 @@ import org.apache.cassandra.net.Message;
  * Such happens when user makes local schema migration on one of the nodes in the ring
  * (which is going to act as coordinator) and that node sends (pushes) it's updated schema state
  * (in form of mutations) to all the alive nodes in the cluster.
+ * @deprecated See CEP-21
  */
+@Deprecated(since = "CEP-21")
 public final class SchemaPushVerbHandler implements IVerbHandler<Collection<Mutation>>
 {
     public static final SchemaPushVerbHandler instance = new SchemaPushVerbHandler();
 
     private static final Logger logger = LoggerFactory.getLogger(SchemaPushVerbHandler.class);
 
-    private final List<Consumer<Message<Collection<Mutation>>>> handlers = new CopyOnWriteArrayList<>();
-
-    public void register(Consumer<Message<Collection<Mutation>>> handler)
-    {
-        handlers.add(handler);
-    }
-
     public void doVerb(final Message<Collection<Mutation>> message)
     {
-        logger.trace("Received schema push request from {}", message.from());
-        SchemaAnnouncementDiagnostics.schemataMutationsReceived(message.from());
-
-        List<Consumer<Message<Collection<Mutation>>>> handlers = this.handlers;
-        if (handlers.isEmpty())
-            throw new UnsupportedOperationException("There is no handler registered for schema push verb");
-
-        handlers.forEach(h -> h.accept(message));
+        logger.warn("Ignoring schema push request from {}, please upgrade", message.from());
     }
 }

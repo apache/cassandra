@@ -32,6 +32,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
@@ -128,13 +129,13 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
     }
 
     @Override
-    public boolean shouldSwitch(ColumnFamilyStore.FlushReason reason)
+    public boolean shouldSwitch(ColumnFamilyStore.FlushReason reason, TableMetadata latest)
     {
         switch (reason)
         {
         case SCHEMA_CHANGE:
-            return initialComparator != metadata().comparator // If the CF comparator has changed, because our partitions reference the old one
-                   || !initialFactory.equals(metadata().params.memtable.factory()); // If a different type of memtable is requested
+            return initialComparator != latest.comparator // If the CF comparator has changed, because our partitions reference the old one
+                   || !initialFactory.equals(latest.params.memtable.factory()); // If a different type of memtable is requested
         case OWNED_RANGES_CHANGE:
             return false; // by default we don't use the local ranges, thus this has no effect
         default:

@@ -24,6 +24,7 @@ import java.util.List;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
 
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
@@ -40,6 +41,7 @@ public class MixedModeFrom3ReplicationTest extends UpgradeTestBase
         .nodes(3)
         .nodesToUpgrade(1, 2)
         .upgradesToCurrentFrom(v30)
+        .withConfig(c -> c.with(Feature.GOSSIP))
         .setup(cluster -> {
             cluster.schemaChange("CREATE KEYSPACE test_simple WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2};");
             cluster.schemaChange("CREATE TABLE test_simple.names (key int PRIMARY KEY, name text)");

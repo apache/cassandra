@@ -25,14 +25,14 @@ import java.util.UUID;
 
 import javax.annotation.Nullable;
 
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.commons.lang3.ArrayUtils;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
-import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
-
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 /**
  * The unique identifier of a table.
@@ -40,8 +40,9 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * This is essentially a UUID, but we wrap it as it's used quite a bit in the code and having a nicely named class make
  * the code more readable.
  */
-public class TableId
+public class TableId implements Comparable<TableId>
 {
+    public static final long MAGIC = 1956074401491665062L;
     // TODO: should this be a TimeUUID?
     private final UUID id;
 
@@ -66,6 +67,23 @@ public class TableId
         return new TableId(UUID.fromString(idString));
     }
 
+    public static TableId get(ClusterMetadata metadata)
+    {
+        int i = 0;
+        while (true)
+        {
+            TableId tableId = TableId.fromLong(metadata.epoch.getEpoch() + i);
+            if (!tableIdExists(metadata, tableId))
+                return tableId;
+            i++;
+        }
+    }
+
+    private static boolean tableIdExists(ClusterMetadata metadata, TableId tableId)
+    {
+        return metadata.schema.getKeyspaces().stream().anyMatch(ks -> ks.tables.containsTable(tableId));
+    }
+
     @Nullable
     public static Pair<String, TableId> tableNameAndIdFromFilename(String filename)
     {
@@ -85,6 +103,11 @@ public class TableId
         long msb = bytes.getLong(0);
         long lsb = bytes.getLong(8);
         return fromUUID(new UUID(msb, lsb));
+    }
+
+    private static TableId fromLong(long start)
+    {
+        return TableId.fromUUID(new UUID(MAGIC, start));
     }
 
     /**
@@ -148,5 +171,11 @@ public class TableId
     public static TableId deserialize(DataInput in) throws IOException
     {
         return new TableId(new UUID(in.readLong(), in.readLong()));
+    }
+
+    @Override
+    public int compareTo(TableId o)
+    {
+        return id.compareTo(o.id);
     }
 }

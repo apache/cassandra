@@ -139,7 +139,9 @@ public class Actions
     public static Action stream(int concurrency, Supplier<Action> actions) { return stream(new OrderOn.Strict(actions, concurrency), actions); }
     public static Action stream(OrderOn on, Supplier<Action> actions) { return of(OrderOn.NONE, STREAM, NONE, on, () -> ActionList.of(streamNextSupplier(STREAM, STREAM_ITEM, on, 0, on, actions))); }
     public static Action infiniteStream(int concurrency, Supplier<Action> actions) { return infiniteStream(new OrderOn.Strict(actions, concurrency), actions); }
-    public static Action infiniteStream(OrderOn on, Supplier<Action> actions) { return of(OrderOn.NONE, INFINITE_STREAM, NONE, on, () -> ActionList.of(streamNextSupplier(INFINITE_STREAM, INFINITE_STREAM_ITEM, on, 0, on, actions))); }
+    public static Action infiniteStream(OrderOn on, Supplier<Action> actions) { return of(OrderOn.NONE, INFINITE_STREAM, NONE, on, () -> {
+        return ActionList.of(streamNextSupplier(INFINITE_STREAM, INFINITE_STREAM_ITEM, on, 0, on, actions));
+    }); }
     private static ActionList next(Modifiers modifiers, Object description, int sequence, OrderOn on, Supplier<Action> actions)
     {
         Action next = actions.get();
@@ -151,7 +153,7 @@ public class Actions
     private static Action streamNextSupplier(Modifiers modifiers, Modifiers nextModifiers, Object description, int sequence, OrderOn on, Supplier<Action> actions)
     {
         return Actions.of(on, modifiers, NONE,
-                          lazy(() -> description + " " + sequence), () -> next(nextModifiers, description, sequence, on, actions));
+                          lazy(() -> "infinite: " + description + " " + sequence), () -> next(nextModifiers, description, sequence, on, actions));
     }
 
 

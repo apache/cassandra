@@ -73,6 +73,7 @@ import org.apache.cassandra.metrics.ClearableHistogram;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.service.snapshot.SnapshotManifest;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
@@ -789,6 +790,12 @@ public class ColumnFamilyStoreTest
 
             @Override
             public boolean shouldSwitch(FlushReason reason)
+            {
+                return false;
+            }
+
+            @Override
+            public boolean shouldSwitch(FlushReason reason, TableMetadata latest)
             {
                 return false;
             }
