@@ -18,10 +18,12 @@
 
 package org.apache.cassandra.index.sai.utils;
 
+import com.google.common.base.Objects;
+
 /**
- * This is a simple wrapper around the index identity. It's primary purpose is to isolate classes that only need
+ * This is a simple wrapper around the index identity. Its primary purpose is to isolate classes that only need
  * access to the identity from the main index classes. This is useful in testing but also makes it easier to pass
- * the log message wrapper {@link #logMessage(String)} to class that don't need any other information about the index.
+ * the log message wrapper {@link #logMessage(String)} to classes that don't need any other information about the index.
  */
 public class IndexIdentifier
 {
@@ -58,5 +60,22 @@ public class IndexIdentifier
     public String toString()
     {
         return String.format("%s.%s", keyspaceName, indexName);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(keyspaceName, tableName, indexName);
+    }
+
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        IndexIdentifier other = (IndexIdentifier) obj;
+        return Objects.equal(keyspaceName, other.keyspaceName) &&
+               Objects.equal(tableName, other.tableName) &&
+               Objects.equal(indexName, other.indexName);
     }
 }

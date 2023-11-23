@@ -101,7 +101,7 @@ public class ColumnIndexesSystemView extends AbstractVirtualTable
                                .column(IS_QUERYABLE, manager.isIndexQueryable(index))
                                .column(IS_BUILDING, manager.isIndexBuilding(indexName))
                                .column(IS_STRING, index.termType().isLiteral())
-                               .column(ANALYZER, index.analyzer().toString());
+                               .column(ANALYZER, index.hasAnalyzer() ? index.analyzer().toString() : "NoOpAnalyzer");
                     });
                 }
             }

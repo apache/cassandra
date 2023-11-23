@@ -63,7 +63,6 @@ public abstract class SSTableIndex implements SegmentOrdering
                                                                         .thenComparing(s -> s.getSSTable().descriptor.id, SSTableIdFactory.COMPARATOR);
 
     protected final SSTableContext sstableContext;
-    protected final StorageAttachedIndex index;
     protected final IndexTermType indexTermType;
     protected final IndexIdentifier indexIdentifier;
 
@@ -73,7 +72,6 @@ public abstract class SSTableIndex implements SegmentOrdering
     public SSTableIndex(SSTableContext sstableContext, StorageAttachedIndex index)
     {
         this.sstableContext = sstableContext.sharedCopy(); // this line must not be before any code that may throw
-        this.index = index;
         this.indexTermType = index.termType();
         this.indexIdentifier = index.identifier();
     }

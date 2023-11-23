@@ -122,23 +122,63 @@ public class Operation
 
     private static void buildIndexedExpression(StorageAttachedIndex index, RowFilter.Expression expression, List<Expression> perColumn)
     {
-        AbstractAnalyzer analyzer = index.analyzer();
-        try
+        if (index.hasAnalyzer())
         {
-            analyzer.reset(expression.getIndexValue().duplicate());
-
-            if (index.termType().isMultiExpression(expression))
+            AbstractAnalyzer analyzer = index.analyzer();
+            try
             {
-                while (analyzer.hasNext())
+                analyzer.reset(expression.getIndexValue().duplicate());
+
+                if (index.termType().isMultiExpression(expression))
                 {
-                    final ByteBuffer token = analyzer.next();
-                    perColumn.add(Expression.create(index).add(expression.operator(), token.duplicate()));
+                    while (analyzer.hasNext())
+                    {
+                        final ByteBuffer token = analyzer.next();
+                        perColumn.add(Expression.create(index).add(expression.operator(), token.duplicate()));
+                    }
+                }
+                else
+                // "range" or not-equals operator, combines both bounds together into the single expression,
+                // if operation of the group is AND, otherwise we are forced to create separate expressions,
+                // not-equals is combined with the range iff operator is AND.
+                {
+                    Expression range;
+                    if (perColumn.size() == 0)
+                    {
+                        range = Expression.create(index);
+                        perColumn.add(range);
+                    }
+                    else
+                    {
+                        range = Iterables.getLast(perColumn);
+                    }
+
+                    if (index.termType().isLiteral())
+                    {
+                        while (analyzer.hasNext())
+                        {
+                            ByteBuffer term = analyzer.next();
+                            range.add(expression.operator(), term.duplicate());
+                        }
+                    }
+                    else
+                    {
+                        range.add(expression.operator(), expression.getIndexValue().duplicate());
+                    }
                 }
             }
+            finally
+            {
+                analyzer.end();
+            }
+        }
+        else
+        {
+            if (index.termType().isMultiExpression(expression))
+            {
+                perColumn.add(Expression.create(index).add(expression.operator(), expression.getIndexValue().duplicate()));
+            }
             else
-            // "range" or not-equals operator, combines both bounds together into the single expression,
-            // if operation of the group is AND, otherwise we are forced to create separate expressions,
-            // not-equals is combined with the range iff operator is AND.
             {
                 Expression range;
                 if (perColumn.size() == 0)
@@ -150,24 +190,8 @@ public class Operation
                 {
                     range = Iterables.getLast(perColumn);
                 }
-
-                if (index.termType().isLiteral())
-                {
-                    while (analyzer.hasNext())
-                    {
-                        ByteBuffer term = analyzer.next();
-                        range.add(expression.operator(), term.duplicate());
-                    }
-                }
-                else
-                {
-                    range.add(expression.operator(), expression.getIndexValue().duplicate());
-                }
+                range.add(expression.operator(), expression.getIndexValue().duplicate());
             }
-        }
-        finally
-        {
-            analyzer.end();
         }
     }
 

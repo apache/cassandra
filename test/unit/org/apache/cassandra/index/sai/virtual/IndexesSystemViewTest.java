@@ -124,6 +124,6 @@ public class IndexesSystemViewTest extends SAITester
                        isQueryable,
                        isBuilding,
                        isString,
-                       sai.analyzer().toString());
+                       sai.hasAnalyzer() ? sai.analyzer().toString() : "NoOpAnalyzer");
     }
 }

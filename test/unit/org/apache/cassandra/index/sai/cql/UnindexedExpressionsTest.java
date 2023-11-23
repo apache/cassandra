@@ -97,6 +97,7 @@ public class UnindexedExpressionsTest extends SAITester
         execute("INSERT INTO %s (pk, val1, val2) VALUES (4, 4, {4 : '4', 5 : '5', 6 : '6'})");
 
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE, "SELECT pk FROM %s WHERE val1 = 1 AND val2 CONTAINS KEY 1");
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE, "SELECT pk FROM %s WHERE val1 = 1 AND val2 CONTAINS '2'");
 
         assertRows(execute("SELECT pk FROM %s WHERE val1 >= 1 AND val2 CONTAINS KEY 2 ALLOW FILTERING"), row(1), row(2));
         assertRows(execute("SELECT pk FROM %s WHERE val1 >= 1 AND val2 CONTAINS '2' ALLOW FILTERING"), row(1), row(2));

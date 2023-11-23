@@ -24,7 +24,6 @@ import org.junit.Test;
 
 import com.carrotsearch.hppc.LongArrayList;
 import org.apache.cassandra.index.sai.QueryContext;
-import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
@@ -71,7 +70,7 @@ public class TermsReaderTest extends SAIRandomizedTester
     {
         final int terms = 70, postings = 2;
         final IndexDescriptor indexDescriptor = newIndexDescriptor();
-        final IndexIdentifier indexIdentifier = SAITester.createIndexIdentifier("test", "test", newIndex());
+        final IndexIdentifier indexIdentifier = createIndexIdentifier("test", "test", newIndex());
         final List<Pair<ByteComparable, LongArrayList>> termsEnum = buildTermsEnum(terms, postings);
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
@@ -97,7 +96,7 @@ public class TermsReaderTest extends SAIRandomizedTester
     private void testTermQueries(int numTerms, int numPostings) throws IOException
     {
         final IndexDescriptor indexDescriptor = newIndexDescriptor();
-        final IndexIdentifier indexIdentifier = SAITester.createIndexIdentifier("test", "test", newIndex());
+        final IndexIdentifier indexIdentifier = createIndexIdentifier("test", "test", newIndex());
         final List<Pair<ByteComparable, LongArrayList>> termsEnum = buildTermsEnum(numTerms, numPostings);
 
         SegmentMetadata.ComponentMetadataMap indexMetas;

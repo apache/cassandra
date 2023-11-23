@@ -38,6 +38,8 @@ import java.util.concurrent.Future;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
@@ -163,7 +165,7 @@ public class StorageAttachedIndex implements Index
     private final IndexViewManager viewManager;
     private final ColumnQueryMetrics columnQueryMetrics;
     private final IndexWriterConfig indexWriterConfig;
-    private final AbstractAnalyzer.AnalyzerFactory analyzerFactory;
+    @Nullable private final AbstractAnalyzer.AnalyzerFactory analyzerFactory;
     private final PrimaryKey.Factory primaryKeyFactory;
     private final MemtableIndexManager memtableIndexManager;
     private final IndexMetrics indexMetrics;
@@ -184,10 +186,10 @@ public class StorageAttachedIndex implements Index
         indexIdentifier = new IndexIdentifier(baseCfs.getKeyspaceName(), baseCfs.getTableName(), indexMetadata.name);
         primaryKeyFactory = new PrimaryKey.Factory(tableMetadata.partitioner, tableMetadata.comparator);
         indexWriterConfig = IndexWriterConfig.fromOptions(indexMetadata.name, indexTermType, indexMetadata.options);
-        viewManager = new IndexViewManager(this, indexTermType, indexIdentifier);
-        columnQueryMetrics = indexTermType.isLiteral() ? new ColumnQueryMetrics.TrieIndexMetrics(this)
-                                                       : new ColumnQueryMetrics.BalancedTreeIndexMetrics(this);
-        this.analyzerFactory = AbstractAnalyzer.fromOptions(indexTermType, indexMetadata.options);
+        viewManager = new IndexViewManager(this);
+        columnQueryMetrics = indexTermType.isLiteral() ? new ColumnQueryMetrics.TrieIndexMetrics(indexIdentifier)
+                                                       : new ColumnQueryMetrics.BalancedTreeIndexMetrics(indexIdentifier);
+        analyzerFactory = AbstractAnalyzer.fromOptions(indexTermType, indexMetadata.options);
         memtableIndexManager = new MemtableIndexManager(this);
         indexMetrics = new IndexMetrics(this, memtableIndexManager);
     }
@@ -589,7 +591,7 @@ public class StorageAttachedIndex implements Index
 
     public IndexTermType termType()
     {
-        return this.indexTermType;
+        return indexTermType;
     }
 
     public IndexIdentifier identifier()
@@ -613,12 +615,18 @@ public class StorageAttachedIndex implements Index
         return indexWriterConfig;
     }
 
+    public boolean hasAnalyzer()
+    {
+        return analyzerFactory != null;
+    }
+
     /**
      * Returns an {@link AbstractAnalyzer} for use by write and query paths to transform
      * literal values.
      */
     public AbstractAnalyzer analyzer()
     {
+        assert analyzerFactory != null : "Index does not support string analysis";
         return analyzerFactory.create();
     }
 
@@ -700,7 +708,7 @@ public class StorageAttachedIndex implements Index
     @Override
     public String toString()
     {
-        return String.format("%s.%s.%s", baseCfs.getKeyspaceName(), baseCfs.getTableName(), indexMetadata.name);
+        return indexIdentifier.toString();
     }
 
     @Override

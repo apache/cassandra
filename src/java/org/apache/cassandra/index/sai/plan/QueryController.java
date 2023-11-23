@@ -47,8 +47,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.VectorQueryContext;
-import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
-import org.apache.cassandra.index.sai.analyzer.NoOpAnalyzer;
 import org.apache.cassandra.index.sai.disk.IndexSearchResultIterator;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.iterators.KeyRangeConcatIterator;
@@ -139,10 +137,10 @@ public class QueryController
         return indexes.isEmpty() ? null : indexes.iterator().next();
     }
 
-    public AbstractAnalyzer analyzerFor(RowFilter.Expression expression)
+    public boolean hasAnalyzer(RowFilter.Expression expression)
     {
         StorageAttachedIndex index = indexFor(expression);
-        return index == null ? new NoOpAnalyzer() : index.analyzer();
+        return index != null && index.hasAnalyzer();
     }
 
     public UnfilteredRowIterator queryStorage(PrimaryKey key, ReadExecutionController executionController)
@@ -280,7 +278,7 @@ public class QueryController
         // Since the result is shared with multiple streams, we use an unmodifiable list.
         var sourceKeys = rawSourceKeys.stream().filter(vectorQueryContext::shouldInclude).collect(Collectors.toList());
         StorageAttachedIndex index = indexFor(expression);
-        assert index != null;
+        assert index != null : "Cannot do ANN ordering on an unindexed column";
         var planExpression = Expression.create(index);
         planExpression.add(Operator.ANN, expression.getIndexValue().duplicate());
 

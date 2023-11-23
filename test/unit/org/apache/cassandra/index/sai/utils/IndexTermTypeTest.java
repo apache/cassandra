@@ -190,7 +190,7 @@ public class IndexTermTypeTest
 
     private static IndexTermType indexTermType(AbstractType<?> type, IndexTarget.Type indexType)
     {
-        return IndexTermType.create(column(type), Collections.EMPTY_LIST, indexType);
+        return IndexTermType.create(column(type), Collections.emptyList(), indexType);
     }
 
     private static ColumnMetadata column(AbstractType<?> type)

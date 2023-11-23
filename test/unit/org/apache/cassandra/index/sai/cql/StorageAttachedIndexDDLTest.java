@@ -705,7 +705,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
         rows = executeNet("SELECT id1 FROM %s WHERE v2='0'");
         assertEquals(2, rows.all().size());
 
-        dropIndex("DROP INDEX %s." + numericIndexIdentifier.indexName);
+        dropIndex(numericIndexIdentifier);
         verifyIndexFiles(numericIndexTermType, numericIndexIdentifier, 2, 0, 0);
         verifyIndexFiles(literalIndexTermType, literalIndexIdentifier, 2, 2, 2);
         verifySSTableIndexes(numericIndexIdentifier, 2, 0);
@@ -720,7 +720,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
         rows = executeNet("SELECT id1 FROM %s WHERE v2='0'");
         assertEquals(3, rows.all().size());
 
-        dropIndex("DROP INDEX %s." + literalIndexIdentifier.indexName);
+        dropIndex(literalIndexIdentifier);
         verifyIndexFiles(numericIndexTermType, numericIndexIdentifier, 0);
         verifyIndexFiles(literalIndexTermType, literalIndexIdentifier, 0);
         assertNull(getCurrentIndexGroup());
@@ -1258,7 +1258,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
         IndexIdentifier indexIdentifier = createIndexIdentifier(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")));
         waitForAssert(() -> assertEquals(1, delayIndexBuilderCompletion.getCount()));
 
-        dropIndex("DROP INDEX %s." + indexIdentifier.indexName);
+        dropIndex(indexIdentifier);
 
         // let blocked builders to continue
         delayIndexBuilderCompletion.countDown();

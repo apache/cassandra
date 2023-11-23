@@ -48,7 +48,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.QueryContext;
-import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
@@ -84,16 +83,8 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     {
         for (RowFilter.Expression expression : queryController.filterOperation())
         {
-            AbstractAnalyzer analyzer = queryController.analyzerFor(expression);
-            try
-            {
-                if (analyzer.transformValue())
-                    return applyIndexFilter(fullResponse, Operation.buildFilter(queryController), queryContext);
-            }
-            finally
-            {
-                analyzer.end();
-            }
+            if (queryController.hasAnalyzer(expression))
+                return applyIndexFilter(fullResponse, Operation.buildFilter(queryController), queryContext);
         }
 
         // if no analyzer does transformation
