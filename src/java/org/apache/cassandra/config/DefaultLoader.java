@@ -26,6 +26,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.yaml.snakeyaml.error.YAMLException;
@@ -35,8 +36,20 @@ import org.yaml.snakeyaml.introspector.Property;
 
 import static org.apache.cassandra.utils.FBUtilities.camelToSnake;
 
-public class DefaultLoader implements Loader
+public final class DefaultLoader implements Loader
 {
+    private final Function<Field, Property> fieldFactory;
+
+    public DefaultLoader()
+    {
+        this(FieldProperty::new);
+    }
+
+    public DefaultLoader(Function<Field, Property> fieldFactory)
+    {
+        this.fieldFactory = fieldFactory;
+    }
+
     @Override
     public Map<String, Property> getProperties(Class<?> root)
     {
@@ -52,7 +65,7 @@ public class DefaultLoader implements Loader
                     && !Modifier.isTransient(modifiers)
                     && Modifier.isPublic(modifiers)
                     && !properties.containsKey(name))
-                    properties.put(name, new FieldProperty(f));
+                    properties.put(name, fieldFactory.apply(f));
             }
         }
         try

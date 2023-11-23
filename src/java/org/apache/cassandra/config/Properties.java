@@ -137,6 +137,16 @@ public final class Properties
         return new DefaultLoader();
     }
 
+    public static Loader validatedPropertyLoader()
+    {
+        return new ValidatedPropertyLoader();
+    }
+
+    public static Loader withReplacementsLoader(Loader loader)
+    {
+        return new WithReplacementLoader(loader);
+    }
+
     /**
      * @return a new property with an updated name
      */

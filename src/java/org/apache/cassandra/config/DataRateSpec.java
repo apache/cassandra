@@ -32,7 +32,7 @@ import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.BYTES_PER_SE
  * Represents a data rate type used for cassandra configuration. It supports the opportunity for the users to be able to
  * add units to the confiuration parameter value. (CASSANDRA-15234)
  */
-public abstract class DataRateSpec
+public abstract class DataRateSpec<T extends DataRateSpec<T>>
 {
     /**
      * The Regexp used to parse the rate provided as String in cassandra.yaml.
@@ -220,7 +220,7 @@ public abstract class DataRateSpec
      * If the user sets a different unit, we still validate that converted to bytes per second the quantity will not exceed
      * that upper bound. (CASSANDRA-17571)
      */
-    public final static class LongBytesPerSecondBound extends DataRateSpec
+    public static final class LongBytesPerSecondBound extends DataRateSpec<LongBytesPerSecondBound>
     {
         /**
          * Creates a {@code DataRateSpec.LongBytesPerSecondBound} of the specified amount.

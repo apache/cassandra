@@ -55,6 +55,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_PAXOS
  */
 public class Config
 {
+    private static final String DATABASE_DESCRIPTOR_CLASS = "org.apache.cassandra.config.DatabaseDescriptor";
     private static final Logger logger = LoggerFactory.getLogger(Config.class);
 
     public static Set<String> splitCommaDelimited(String src)
@@ -201,6 +202,8 @@ public class Config
     /** @deprecated See  */
     @Deprecated(since = "4.0")
     public volatile Integer repair_session_max_tree_depth = null;
+    @Mutable
+    @ValidatedBy(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateRepairSessionSpace")
     @Replaces(oldName = "repair_session_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public volatile DataStorageSpec.IntMebibytesBound repair_session_space = null;
 
@@ -311,6 +314,8 @@ public class Config
      */
     public String auto_snapshot_ttl;
 
+    @Mutable
+    @ValidatedBy(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateValueIsPositive")
     public volatile long snapshot_links_per_second = 0;
 
     /* if the size of columns or super-columns are more than this, indexing will kick in */
@@ -325,6 +330,8 @@ public class Config
 
     public Integer unlogged_batch_across_partitions_warn_threshold = 10;
     public volatile Integer concurrent_compactors;
+    @Mutable
+    @ValidatedBy(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateThroughputUpperBoundMbytes")
     @Replaces(oldName = "compaction_throughput_mb_per_sec", converter = Converters.MEBIBYTES_PER_SECOND_DATA_RATE, deprecated = true)
     public volatile DataRateSpec.LongBytesPerSecondBound compaction_throughput = new DataRateSpec.LongBytesPerSecondBound("64MiB/s");
     @Replaces(oldName = "min_free_space_per_drive_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
@@ -346,12 +353,19 @@ public class Config
     @Deprecated(since = "4.1")
     public int max_streaming_retries = 3;
 
+    @Mutable
+    @ValidatedBy(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateThroughputUpperBoundMbits")
     @Replaces(oldName = "stream_throughput_outbound_megabits_per_sec", converter = Converters.MEGABITS_TO_BYTES_PER_SECOND_DATA_RATE, deprecated = true)
     public volatile DataRateSpec.LongBytesPerSecondBound stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound("24MiB/s");
+    @Mutable
+    @ValidatedBy(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateThroughputUpperBoundMbits")
     @Replaces(oldName = "inter_dc_stream_throughput_outbound_megabits_per_sec", converter = Converters.MEGABITS_TO_BYTES_PER_SECOND_DATA_RATE, deprecated = true)
     public volatile DataRateSpec.LongBytesPerSecondBound inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound("24MiB/s");
-
+    @Mutable
+    @ValidatedBy(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateThroughputUpperBoundMbytes")
     public volatile DataRateSpec.LongBytesPerSecondBound entire_sstable_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound("24MiB/s");
+    @Mutable
+    @ValidatedBy(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateThroughputUpperBoundMbytes")
     public volatile DataRateSpec.LongBytesPerSecondBound entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound("24MiB/s");
 
     public String[] data_file_directories = new String[0];
@@ -522,6 +536,7 @@ public class Config
 
     @Replaces(oldName = "index_summary_capacity_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_LONG, deprecated = true)
     public volatile DataStorageSpec.LongMebibytesBound index_summary_capacity;
+    @Mutable
     @Nullable
     @Replaces(oldName = "index_summary_resize_interval_in_minutes", converter = Converters.MINUTES_CUSTOM_DURATION, deprecated = true)
     public volatile DurationSpec.IntMinutesBound index_summary_resize_interval = new DurationSpec.IntMinutesBound("60m");
@@ -1244,4 +1259,32 @@ public class Config
     public double severity_during_decommission = 0;
 
     public StorageCompatibilityMode storage_compatibility_mode = StorageCompatibilityMode.CASSANDRA_4;
+
+    /**
+     * This class is used to store the names of the {@link Config}'s fields. It contains non-private non-static
+     * Config's fields marked with the {@link Mutable} annotation that exposes them to public APIs e.g. virtual tables.
+     *
+     * @see Mutable
+     */
+    public static class Names
+    {
+        /** String representation of the {@link Config#compaction_throughput}. */
+        public static final String COMPACTION_THROUGHPUT = "compaction_throughput";
+        /** String representation of the {@link Config#entire_sstable_inter_dc_stream_throughput_outbound}. */
+        public static final String ENTIRE_SSTABLE_INTER_DC_STREAM_THROUGHPUT_OUTBOUND = "entire_sstable_inter_dc_stream_throughput_outbound";
+        /** String representation of the {@link Config#entire_sstable_stream_throughput_outbound}. */
+        public static final String ENTIRE_SSTABLE_STREAM_THROUGHPUT_OUTBOUND = "entire_sstable_stream_throughput_outbound";
+        /** String representation of the {@link Config#index_summary_resize_interval}. */
+        public static final String INDEX_SUMMARY_RESIZE_INTERVAL = "index_summary_resize_interval";
+        /** String representation of the {@link Config#inter_dc_stream_throughput_outbound}. */
+        public static final String INTER_DC_STREAM_THROUGHPUT_OUTBOUND = "inter_dc_stream_throughput_outbound";
+        /** String representation of the {@link Config#repair_session_space}. */
+        public static final String REPAIR_SESSION_SPACE = "repair_session_space";
+        /** String representation of the {@link Config#snapshot_links_per_second}. */
+        public static final String SNAPSHOT_LINKS_PER_SECOND = "snapshot_links_per_second";
+        /** String representation of the {@link Config#stream_throughput_outbound}. */
+        public static final String STREAM_THROUGHPUT_OUTBOUND = "stream_throughput_outbound";
+
+        private Names() {}
+    }
 }

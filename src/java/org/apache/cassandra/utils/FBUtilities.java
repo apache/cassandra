@@ -52,6 +52,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.function.Function;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 import javax.annotation.Nonnull;
@@ -1305,6 +1306,23 @@ public class FBUtilities
                 builder.add(values[i]);
         }
         return builder.build();
+    }
+
+    /**
+     * Wraps the passed in {@link Runnable} that will throw the passed in {@code exceptionFactory}.
+     * @param runnable Runnable to wrap.
+     * @param exceptionFactory Factory to create the exception to throw.
+     */
+    public static void runExceptionally(Runnable runnable, Function<Exception, ? extends RuntimeException> exceptionFactory)
+    {
+        try
+        {
+            runnable.run();
+        }
+        catch (Exception e)
+        {
+            throw exceptionFactory.apply(e);
+        }
     }
 
     public static void closeQuietly(Object o)

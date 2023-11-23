@@ -19,38 +19,38 @@ package org.apache.cassandra.db.virtual;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Function;
+
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Loader;
-import org.apache.cassandra.config.Properties;
-import org.apache.cassandra.config.Replacement;
-import org.apache.cassandra.config.Replacements;
+import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.PropertyNotFoundException;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
-import org.yaml.snakeyaml.introspector.Property;
 
-final class SettingsTable extends AbstractVirtualTable
+import static org.apache.cassandra.config.DatabaseDescriptor.getPropertyType;
+import static org.apache.cassandra.config.DatabaseDescriptor.getPropertyValue;
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+import static org.apache.cassandra.utils.FBUtilities.runExceptionally;
+import static org.apache.commons.lang3.ClassUtils.primitiveToWrapper;
+
+final class SettingsTable extends AbstractMutableVirtualTable
 {
     private static final String NAME = "name";
     private static final String VALUE = "value";
-
-    private static final Map<String, String> BACKWARDS_COMPATABLE_NAMES = ImmutableMap.copyOf(getBackwardsCompatableNames());
-    protected static final Map<String, Property> PROPERTIES = ImmutableMap.copyOf(getProperties());
-
-    private final Config config;
+    private static final String MUTABLE = "is_mutable";
+    static final Map<String, String> BACKWARDS_COMPATABLE_NAMES = ImmutableMap.copyOf(getBackwardsCompatableNames());
 
     SettingsTable(String keyspace)
-    {
-        this(keyspace, DatabaseDescriptor.getRawConfig());
-    }
-
-    SettingsTable(String keyspace, Config config)
     {
         super(TableMetadata.builder(keyspace, "settings")
                            .comment("current settings")
@@ -58,8 +58,32 @@ final class SettingsTable extends AbstractVirtualTable
                            .partitioner(new LocalPartitioner(UTF8Type.instance))
                            .addPartitionKeyColumn(NAME, UTF8Type.instance)
                            .addRegularColumn(VALUE, UTF8Type.instance)
+                           .addRegularColumn(MUTABLE, BooleanType.instance)
                            .build());
-        this.config = config;
+        for (String name : BACKWARDS_COMPATABLE_NAMES.keySet())
+        {
+            if (DatabaseDescriptor.hasProperty(name))
+            {
+                throw new AssertionError(String.format("Name '%s' is present in Config, this adds a conflict as this " +
+                                                       "name had a different meaning in the '%s",
+                                                       name, SettingsTable.class.getSimpleName()));
+            }
+        }
+    }
+
+    @Override
+    protected void applyColumnUpdate(AbstractMutableVirtualTable.ColumnValues partitionKey,
+                                     AbstractMutableVirtualTable.ColumnValues clusteringColumns,
+                                     Optional<AbstractMutableVirtualTable.ColumnValue> columnValue)
+    {
+        String name = partitionKey.value(0);
+        String value = columnValue.map(v -> v.value().toString()).orElse(null);
+        if (value == null)
+            throw new InvalidRequestException(String.format("Setting the value to null is equivalent to the deletion operation. " +
+                                              "Column deletion is not supported by the '%s.%s'", metadata().keyspace, metadata().name));
+        else
+            runExceptionally(() -> setPropertyFromString(getKeyAndWarnIfObsolete(name), value),
+                             t -> invalidRequest("Invalid update request '%s'. Cause: %s", name, t.getMessage()));
     }
 
     @Override
@@ -67,10 +91,15 @@ final class SettingsTable extends AbstractVirtualTable
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
         String name = UTF8Type.instance.compose(partitionKey.getKey());
-        if (BACKWARDS_COMPATABLE_NAMES.containsKey(name))
-            ClientWarn.instance.warn("key '" + name + "' is deprecated; should switch to '" + BACKWARDS_COMPATABLE_NAMES.get(name) + "'");
-        if (PROPERTIES.containsKey(name))
-            result.row(name).column(VALUE, getValue(PROPERTIES.get(name)));
+        try
+        {
+            Object value = getPropertyAsString(getKeyAndWarnIfObsolete(name));
+            result.row(name).column(VALUE, value).column(MUTABLE, DatabaseDescriptor.isMutableProperty(name));
+        }
+        catch (PropertyNotFoundException e)
+        {
+            // ignore
+        }
         return result;
     }
 
@@ -78,44 +107,61 @@ final class SettingsTable extends AbstractVirtualTable
     public DataSet data()
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
-        for (Map.Entry<String, Property> e : PROPERTIES.entrySet())
-            result.row(e.getKey()).column(VALUE, getValue(e.getValue()));
+        for (String key : DatabaseDescriptor.getAllProperties())
+        {
+            if (BACKWARDS_COMPATABLE_NAMES.containsKey(key))
+                continue;
+            runExceptionally(() -> result.row(key)
+                                         .column(VALUE, getPropertyAsString(key))
+                                         .column(MUTABLE, DatabaseDescriptor.isMutableProperty(key)),
+                             t -> new ConfigurationException(t.getMessage(), false));
+        }
+
+        runExceptionally(() -> BACKWARDS_COMPATABLE_NAMES.forEach((oldName, newName) ->
+                                           result.row(oldName)
+                                                 .column(VALUE, getPropertyAsString(newName))
+                                                 .column(MUTABLE, DatabaseDescriptor.isMutableProperty(newName))),
+                         t -> new ConfigurationException(t.getMessage(), false));
         return result;
     }
 
-    private String getValue(Property prop)
+    static String getKeyAndWarnIfObsolete(String name)
     {
-        Object value = prop.get(config);
-        return value == null ? null : value.toString();
+        String key = BACKWARDS_COMPATABLE_NAMES.getOrDefault(name, name);
+        if (BACKWARDS_COMPATABLE_NAMES.containsKey(name))
+            ClientWarn.instance.warn("key '" + name + "' is deprecated; should switch to '" + BACKWARDS_COMPATABLE_NAMES.get(name) + '\'');
+        return key;
     }
 
-    private static Map<String, Property> getProperties()
+    public static String getPropertyAsString(String name)
     {
-        Loader loader = Properties.defaultLoader();
-        Map<String, Property> properties = loader.flatten(Config.class);
-        // only handling top-level replacements for now, previous logic was only top level so not a regression
-        Map<String, Replacement> replacements = Replacements.getNameReplacements(Config.class).get(Config.class);
-        if (replacements != null)
+        return getPropertyType(name).equals(String.class) ?
+               (String) getPropertyValue(name) :
+               propertyToStringConverter().apply(getPropertyValue(name));
+    }
+
+    public static void setPropertyFromString(String name, String value)
+    {
+        if (value == null)
+            DatabaseDescriptor.setProperty(name, null);
+        else
         {
-            for (Replacement r : replacements.values())
-            {
-                Property latest = properties.get(r.newName);
-                assert latest != null : "Unable to find replacement new name: " + r.newName;
-                Property conflict = properties.put(r.oldName, r.toProperty(latest));
-                // some configs kept the same name, but changed the type, if this is detected then rely on the replaced property
-                assert conflict == null || r.oldName.equals(r.newName) : String.format("New property %s attempted to replace %s, but this property already exists", latest.getName(), conflict.getName());
-            }
+            Class<?> fromType = primitiveToWrapper(getPropertyType(name));
+            Object obj = YamlConfigurationLoader.YamlFactory.instance.newYamlInstance(fromType)
+                                                                     .loadAs(value, fromType);
+            DatabaseDescriptor.setProperty(name, obj);
         }
-        for (Map.Entry<String, String> e : BACKWARDS_COMPATABLE_NAMES.entrySet())
-        {
-            String oldName = e.getKey();
-            if (properties.containsKey(oldName))
-                throw new AssertionError("Name " + oldName + " is present in Config, this adds a conflict as this name had a different meaning in " + SettingsTable.class.getSimpleName());
-            String newName = e.getValue();
-            Property prop = Objects.requireNonNull(properties.get(newName), newName + " cant be found for " + oldName);
-            properties.put(oldName, Properties.rename(oldName, prop));
-        }
-        return properties;
+    }
+
+    /**
+     * @return A converter that converts given object to a string.
+     * @param <T> Type to convert from.
+     */
+    public static <T> Function<T, String> propertyToStringConverter()
+    {
+        return obj -> obj == null ? null : YamlConfigurationLoader.YamlFactory.instance.newYamlInstance(Config.class)
+                                                                                       .dump(obj)
+                                                                                       .trim();
     }
 
     /**

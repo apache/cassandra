@@ -1,0 +1,31 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Some configuration options are validated by the methods used in the @ValidatedBy annotation.
+sstable_preemptive_open_interval:
+credentials_update_interval: ~
+
+# Warning! This is for test the backward compatibility of the configuration stream_throughput_outbound.
+stream_throughput_outbound_megabits_per_sec: 200000000
+
+# Null value must be handled by the validation method and the corresponding default value must be set correctly.
+repair_session_space: null
+
+# non-default values are validated by the methods used in the @ValidatedBy annotation and loaded.
+snapshot_links_per_second: 10
+compaction_throughput: 48MiB/s

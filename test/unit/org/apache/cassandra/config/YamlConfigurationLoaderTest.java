@@ -29,11 +29,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
 import org.yaml.snakeyaml.error.YAMLException;
 
@@ -42,6 +44,7 @@ import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBY
 import static org.apache.cassandra.config.YamlConfigurationLoader.SYSTEM_PROPERTY_PREFIX;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -169,6 +172,31 @@ public class YamlConfigurationLoaderTest
         assertThat(c.sstable_preemptive_open_interval).isNull();
         assertThat(c.index_summary_resize_interval).isNull();
         assertThat(c.cache_load_timeout).isEqualTo(new DurationSpec.IntSecondsBound("0s"));
+    }
+
+    @Test
+    public void testValidationWithConfiguredMethodsConfig()
+    {
+        Config c = load("test/conf/cassandra-validatedby-cases.yaml");
+        assertThat(c.snapshot_links_per_second).isEqualTo(10);
+        assertThat(c.compaction_throughput).isEqualTo(new DataRateSpec.LongBytesPerSecondBound("48MiB/s"));
+        assertThat(c.repair_session_space).isNotNull()
+                                          .isEqualTo(new DataStorageSpec.IntMebibytesBound("1022MiB"));
+        assertThat(c.stream_throughput_outbound).isEqualTo(new DataRateSpec.LongBytesPerSecondBound("25000000000000B/s"));
+        assertThat(c.sstable_preemptive_open_interval).isNull();
+        assertThat(c.credentials_update_interval).isNull();
+    }
+
+    @Test
+    public void testValidationIfNullIsSetConfig() throws Exception
+    {
+        assertThat(catchThrowableOfType(() -> load("test/conf/cassandra-validatedby-null-case.yaml"),
+                                        ConfigurationException.class))
+        .extracting(Throwable::getCause)
+        .extracting(Throwable::getCause)
+        .isInstanceOf(ConfigurationException.class)
+        .extracting(Throwable::getMessage)
+        .isEqualTo("Invalid yaml. The property 'entire_sstable_inter_dc_stream_throughput_outbound' can't be null");
     }
 
     @Test
@@ -426,6 +454,20 @@ public class YamlConfigurationLoaderTest
         assertThat(from("compaction_tombstone_warning_threshold", "0").partition_tombstones_warn_threshold).isEqualTo(0);
     }
 
+    /**
+     * This test config is used to test @ValidatedBy annotations on configuration properties. This method
+     * is used to validate the configuration properties at runtime for both cases: before the configuration
+     * is loaded and after the configuration is attempted to be changed through JMX or SettingsTable.
+     */
+    @Test
+    public void testConfigValuesValidatedOnLoad()
+    {
+        Map<String, Object> map = ImmutableMap.of("snapshot_links_per_second", "-1");
+        assertThatThrownBy(() -> YamlConfigurationLoader.fromMap(map, Config.class))
+        .hasRootCauseInstanceOf(ConfigurationException.class)
+        .hasRootCauseMessage("Value must be positive");
+    }
+
     private static Config from(Object... values)
     {
         assert values.length % 2 == 0 : "Map can only be created with an even number of inputs: given " + values.length;
@@ -471,6 +513,11 @@ public class YamlConfigurationLoaderTest
 
     public static Config load(String path)
     {
+        return load(path, Config.class, Config::new);
+    }
+
+    public static <T> T load(String path, Class<T> clazz, Supplier<T> factory)
+    {
         URL url = YamlConfigurationLoaderTest.class.getClassLoader().getResource(path);
         if (url == null)
         {
@@ -483,6 +530,6 @@ public class YamlConfigurationLoaderTest
                 throw new AssertionError(e);
             }
         }
-        return new YamlConfigurationLoader().loadConfig(url);
+        return new YamlConfigurationLoader().loadConfig(url, clazz, factory);
     }
 }
