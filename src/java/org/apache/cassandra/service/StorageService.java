@@ -271,6 +271,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public static final int INDEFINITE = -1;
     public static final int RING_DELAY_MILLIS = getRingDelay(); // delay after which we assume ring has stablized
 
+    {
+        PathUtils.setDeletionListener(path -> {
+            if (isDaemonSetupCompleted())
+                PathUtils.setDeletionListener(ignore -> {});
+            else
+                logger.trace("Deleting file during startup: {}", path);
+        });
+    }
+
     private final JMXProgressSupport progressSupport = new JMXProgressSupport(this);
     private final AtomicReference<BootStrapper> ongoingBootstrap = new AtomicReference<>();
 
