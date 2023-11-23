@@ -18,16 +18,17 @@
 */
 package org.apache.cassandra.config;
 
+import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Enumeration;
 import java.util.function.Consumer;
-
 
 import com.google.common.base.Throwables;
 import org.junit.Assert;
@@ -811,31 +812,76 @@ public class DatabaseDescriptorTest
     }
 
     @Test
-    public void testCommitLogDiskAccessMode()
+    public void testCommitLogDiskAccessMode() throws IOException
     {
-        // no encryption or compression
-        DatabaseDescriptor.setCommitLogCompression(null);
-        DatabaseDescriptor.setEncryptionContext(null);
-        DatabaseDescriptor.getRawConfig().disk_optimization_strategy = Config.DiskOptimizationStrategy.spinning;
-        assertCommitLogDiskAccessModes(Config.DiskAccessMode.mmap, Config.DiskAccessMode.mmap, Config.DiskAccessMode.mmap, Config.DiskAccessMode.direct);
-        DatabaseDescriptor.getRawConfig().disk_optimization_strategy = Config.DiskOptimizationStrategy.ssd;
-        assertCommitLogDiskAccessModes(Config.DiskAccessMode.mmap, Config.DiskAccessMode.direct, Config.DiskAccessMode.mmap, Config.DiskAccessMode.direct);
+        ParameterizedClass savedCompression = DatabaseDescriptor.getCommitLogCompression();
+        EncryptionContext savedEncryptionContexg = DatabaseDescriptor.getEncryptionContext();
+        Config.DiskAccessMode savedCommitLogDOS = DatabaseDescriptor.getCommitLogWriteDiskAccessMode();
+        String savedCommitLogLocation = DatabaseDescriptor.getCommitLogLocation();
 
-        // compression enabled
-        DatabaseDescriptor.setCommitLogCompression(new ParameterizedClass("LZ4Compressor", null));
-        DatabaseDescriptor.setEncryptionContext(null);
-        DatabaseDescriptor.getRawConfig().disk_optimization_strategy = Config.DiskOptimizationStrategy.spinning;
-        assertCommitLogDiskAccessModes(Config.DiskAccessMode.standard, Config.DiskAccessMode.standard, Config.DiskAccessMode.standard);
-        DatabaseDescriptor.getRawConfig().disk_optimization_strategy = Config.DiskOptimizationStrategy.ssd;
-        assertCommitLogDiskAccessModes(Config.DiskAccessMode.standard, Config.DiskAccessMode.standard, Config.DiskAccessMode.standard);
+        try
+        {
+            // block size available
+            DatabaseDescriptor.setCommitLogLocation(Files.createTempDirectory("testCommitLogDiskAccessMode").toString());
 
-        // encryption enabled
-        DatabaseDescriptor.setCommitLogCompression(null);
-        DatabaseDescriptor.setEncryptionContext(new EncryptionContext(EncryptionContextGenerator.createEncryptionOptions()));
-        DatabaseDescriptor.getRawConfig().disk_optimization_strategy = Config.DiskOptimizationStrategy.spinning;
-        assertCommitLogDiskAccessModes(Config.DiskAccessMode.standard, Config.DiskAccessMode.standard, Config.DiskAccessMode.standard);
-        DatabaseDescriptor.getRawConfig().disk_optimization_strategy = Config.DiskOptimizationStrategy.ssd;
-        assertCommitLogDiskAccessModes(Config.DiskAccessMode.standard, Config.DiskAccessMode.standard, Config.DiskAccessMode.standard);
+            // no encryption or compression
+            DatabaseDescriptor.setCommitLogCompression(null);
+            DatabaseDescriptor.setEncryptionContext(null);
+            DatabaseDescriptor.getRawConfig().disk_optimization_strategy = Config.DiskOptimizationStrategy.spinning;
+            assertCommitLogDiskAccessModes(Config.DiskAccessMode.mmap, Config.DiskAccessMode.mmap, Config.DiskAccessMode.mmap, Config.DiskAccessMode.direct);
+            DatabaseDescriptor.getRawConfig().disk_optimization_strategy = Config.DiskOptimizationStrategy.ssd;
+            assertCommitLogDiskAccessModes(Config.DiskAccessMode.mmap, Config.DiskAccessMode.direct, Config.DiskAccessMode.mmap, Config.DiskAccessMode.direct);
+
+            // compression enabled
+            DatabaseDescriptor.setCommitLogCompression(new ParameterizedClass("LZ4Compressor", null));
+            DatabaseDescriptor.setEncryptionContext(null);
+            DatabaseDescriptor.getRawConfig().disk_optimization_strategy = Config.DiskOptimizationStrategy.spinning;
+            assertCommitLogDiskAccessModes(Config.DiskAccessMode.standard, Config.DiskAccessMode.standard, Config.DiskAccessMode.standard);
+            DatabaseDescriptor.getRawConfig().disk_optimization_strategy = Config.DiskOptimizationStrategy.ssd;
+            assertCommitLogDiskAccessModes(Config.DiskAccessMode.standard, Config.DiskAccessMode.standard, Config.DiskAccessMode.standard);
+
+            // encryption enabled
+            DatabaseDescriptor.setCommitLogCompression(null);
+            DatabaseDescriptor.setEncryptionContext(new EncryptionContext(EncryptionContextGenerator.createEncryptionOptions()));
+            DatabaseDescriptor.getRawConfig().disk_optimization_strategy = Config.DiskOptimizationStrategy.spinning;
+            assertCommitLogDiskAccessModes(Config.DiskAccessMode.standard, Config.DiskAccessMode.standard, Config.DiskAccessMode.standard);
+            DatabaseDescriptor.getRawConfig().disk_optimization_strategy = Config.DiskOptimizationStrategy.ssd;
+            assertCommitLogDiskAccessModes(Config.DiskAccessMode.standard, Config.DiskAccessMode.standard, Config.DiskAccessMode.standard);
+
+            // block size not available
+            DatabaseDescriptor.setCommitLogLocation(null);
+
+            // no encryption or compression
+            DatabaseDescriptor.setCommitLogCompression(null);
+            DatabaseDescriptor.setEncryptionContext(null);
+            DatabaseDescriptor.getRawConfig().disk_optimization_strategy = Config.DiskOptimizationStrategy.spinning;
+            assertCommitLogDiskAccessModes(Config.DiskAccessMode.mmap, Config.DiskAccessMode.mmap, Config.DiskAccessMode.mmap, Config.DiskAccessMode.direct);
+            DatabaseDescriptor.getRawConfig().disk_optimization_strategy = Config.DiskOptimizationStrategy.ssd;
+            assertCommitLogDiskAccessModes(Config.DiskAccessMode.mmap, Config.DiskAccessMode.mmap, Config.DiskAccessMode.mmap, Config.DiskAccessMode.direct);
+
+            // compression enabled
+            DatabaseDescriptor.setCommitLogCompression(new ParameterizedClass("LZ4Compressor", null));
+            DatabaseDescriptor.setEncryptionContext(null);
+            DatabaseDescriptor.getRawConfig().disk_optimization_strategy = Config.DiskOptimizationStrategy.spinning;
+            assertCommitLogDiskAccessModes(Config.DiskAccessMode.standard, Config.DiskAccessMode.standard, Config.DiskAccessMode.standard);
+            DatabaseDescriptor.getRawConfig().disk_optimization_strategy = Config.DiskOptimizationStrategy.ssd;
+            assertCommitLogDiskAccessModes(Config.DiskAccessMode.standard, Config.DiskAccessMode.standard, Config.DiskAccessMode.standard);
+
+            // encryption enabled
+            DatabaseDescriptor.setCommitLogCompression(null);
+            DatabaseDescriptor.setEncryptionContext(new EncryptionContext(EncryptionContextGenerator.createEncryptionOptions()));
+            DatabaseDescriptor.getRawConfig().disk_optimization_strategy = Config.DiskOptimizationStrategy.spinning;
+            assertCommitLogDiskAccessModes(Config.DiskAccessMode.standard, Config.DiskAccessMode.standard, Config.DiskAccessMode.standard);
+            DatabaseDescriptor.getRawConfig().disk_optimization_strategy = Config.DiskOptimizationStrategy.ssd;
+            assertCommitLogDiskAccessModes(Config.DiskAccessMode.standard, Config.DiskAccessMode.standard, Config.DiskAccessMode.standard);
+        }
+        finally
+        {
+            DatabaseDescriptor.setCommitLogCompression(savedCompression);
+            DatabaseDescriptor.setEncryptionContext(savedEncryptionContexg);
+            DatabaseDescriptor.setCommitLogWriteDiskAccessMode(savedCommitLogDOS);
+            DatabaseDescriptor.setCommitLogLocation(savedCommitLogLocation);
+        }
     }
 
     private void assertCommitLogDiskAccessModes(Config.DiskAccessMode expectedLegacy, Config.DiskAccessMode expectedAuto, Config.DiskAccessMode... allowedModesArray)
@@ -855,6 +901,7 @@ public class DatabaseDescriptorTest
         for (Config.DiskAccessMode mode : allowedModes)
         {
             DatabaseDescriptor.setCommitLogWriteDiskAccessMode(mode);
+            // logger.info("commit log directory {}", DatabaseDescriptor.getCommitLogLocation());
             DatabaseDescriptor.initializeCommitLogDiskAccessMode();
             boolean changed = DatabaseDescriptor.getCommitLogWriteDiskAccessMode() != mode;
             assertThat(changed).isEqualTo(mode == Config.DiskAccessMode.legacy || mode == Config.DiskAccessMode.auto);
