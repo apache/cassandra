@@ -217,7 +217,7 @@ public class V1OnDiskFormat implements OnDiskFormat
             }
         }
 
-        for (IndexComponent indexComponent : perColumnIndexComponents(indexIdentifier))
+        for (IndexComponent indexComponent : perColumnIndexComponents(indexTermType))
         {
             if (!isEmptyIndex && isNotBuildCompletionMarker(indexComponent))
             {
