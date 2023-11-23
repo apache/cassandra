@@ -1,16 +1,23 @@
 = New Features
+:navtitle: What's new
+
+== New Features in Apache Cassandra 5.1
+
+This section covers the new features in Apache Cassandra 5.1.
+
+* https://cwiki.apache.org/confluence/x/FQRACw[ACID Transactions (Accord)]
+* https://cwiki.apache.org/confluence/x/YyD1D[Transactional Cluster Metadata]
+
 
 == New Features in Apache Cassandra 5.0
 
 This section covers the new features in Apache Cassandra 5.0.
 
-* https://cwiki.apache.org/confluence/x/FQRACw[ACID Transactions (Accord)]
 * https://issues.apache.org/jira/browse/CASSANDRA-16052[Storage Attached Indexes]
 * https://issues.apache.org/jira/browse/CASSANDRA-17240[Trie Memtables]
 * https://issues.apache.org/jira/browse/CASSANDRA-18398[Trie SSTables]
 * https://github.com/apache/cassandra/blob/trunk/NEWS.txt[More Guardrails]
 * https://issues.apache.org/jira/browse/CASSANDRA-8877[TTL and writetime on collections and UDTs]
-* https://cwiki.apache.org/confluence/x/YyD1D[Transactional Cluster Metadata]
 * https://issues.apache.org/jira/browse/CASSANDRA-16895[JDK 17]
 * https://issues.apache.org/jira/browse/CASSANDRA-17221[New Mathematical CQL functions: abs, exp, log, log10 and round]
 * https://issues.apache.org/jira/browse/CASSANDRA-18060[New CQL native scalar functions for collections]

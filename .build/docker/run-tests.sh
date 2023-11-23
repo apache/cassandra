@@ -69,8 +69,11 @@ if [[ ! "${java_version}" =~ $regx_java_version ]]; then
     exit 1
 fi
 
-python_version="3.6"
-command -v python >/dev/null 2>&1 && python_version="$(python -V | awk '{print $2}' | awk -F'.' '{print $1"."$2}')"
+# allow python version override, otherwise default to current python version or 3.7
+if [ "x" == "x${python_version}" ] ; then
+    command -v python >/dev/null 2>&1 && python_version="$(python -V 2>&1 | awk '{print $2}' | awk -F'.' '{print $1"."$2}')"
+    python_version="${python_version:-3.7}"
+fi
 
 # print debug information on versions
 docker --version
@@ -82,6 +85,8 @@ dockerfile="ubuntu2004_test.docker"
 image_tag="$(md5sum docker/${dockerfile} | cut -d' ' -f1)"
 image_name="apache/cassandra-${dockerfile/.docker/}:${image_tag}"
 docker_mounts="-v ${cassandra_dir}:/home/cassandra/cassandra -v "${build_dir}":/home/cassandra/cassandra/build -v ${HOME}/.m2/repository:/home/cassandra/.m2/repository"
+# HACK hardlinks in overlay are buggy, the following mount prevents hardlinks from being used. ref $TMP_DIR in .build/run-tests.sh
+docker_mounts="${docker_mounts} -v "${build_dir}/tmp":/home/cassandra/cassandra/build/tmp"
 
 # Look for existing docker image, otherwise build
 if ! ( [[ "$(docker images -q ${image_name} 2>/dev/null)" != "" ]] ) ; then
@@ -121,7 +126,7 @@ case ${target} in
     "stress-test" | "fqltool-test" | "microbench" | "test-burn" | "long-test" | "cqlsh-test" )
         [[ ${mem} -gt $((5 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { echo >&2 "tests require minimum docker memory 6g (per jenkins executor (${jenkins_executors})), found ${mem}"; exit 1; }
     ;;
-    "dtest" | "dtest-novnode" | "dtest-offheap" | "dtest-large" | "dtest-large-novnode" | "dtest-upgrade" | "dtest-upgrade-large" )
+    "dtest" | "dtest-novnode" | "dtest-offheap" | "dtest-large" | "dtest-large-novnode" | "dtest-upgrade" | "dtest-upgrade-novnode"| "dtest-upgrade-large" | "dtest-upgrade-novnode-large" )
         [ -f "${cassandra_dtest_dir}/dtest.py" ] || { echo >&2 "${cassandra_dtest_dir}/dtest.py must exist"; exit 1; }
         [[ ${mem} -gt $((15 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { echo >&2 "dtests require minimum docker memory 16g (per jenkins executor (${jenkins_executors})), found ${mem}"; exit 1; }
         test_script="run-python-dtests.sh"
@@ -129,7 +134,7 @@ case ${target} in
         # check that ${cassandra_dtest_dir} is valid
         [ -f "${cassandra_dtest_dir}/dtest.py" ] || { echo >&2 "${cassandra_dtest_dir}/dtest.py not found. please specify 'cassandra_dtest_dir' to point to the local cassandra-dtest source"; exit 1; }
     ;;
-    "test"| "test-cdc" | "test-compression" | "test-oa" | "test-system-keyspace-directory" | "test-tries" | "jvm-dtest" | "jvm-dtest-upgrade")
+    "test"| "test-cdc" | "test-compression" | "test-oa" | "test-system-keyspace-directory" | "test-trie" | "jvm-dtest" | "jvm-dtest-upgrade" | "jvm-dtest-novnode" | "jvm-dtest-upgrade-novnode" | "simulator-dtest")
         [[ ${mem} -gt $((5 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { echo >&2 "tests require minimum docker memory 6g (per jenkins executor (${jenkins_executors})), found ${mem}"; exit 1; }
         max_docker_runs_by_cores=$( echo "sqrt( ${cores} / ${jenkins_executors} )" | bc )
         max_docker_runs_by_mem=$(( ${mem} / ( 5 * 1024 * 1024 * 1024 * ${jenkins_executors} ) ))
@@ -150,6 +155,7 @@ elif [[ "${target}" =~ dtest* ]] ; then
 else
     docker_flags="--cpus=${docker_cpus} -m 5g --memory-swap 5g"
 fi
+
 docker_flags="${docker_flags} --env-file build/env.list -d --rm"
 
 # make sure build_dir is good
@@ -158,9 +164,23 @@ mkdir -p ${build_dir}/test/logs || true
 mkdir -p ${build_dir}/test/output || true
 chmod -R ag+rwx ${build_dir}
 
+# define testtag.extra so tests can be aggregated together. (jdk is already appended in build.xml)
+case ${target} in
+    "cqlsh-test" | "dtest" | "dtest-novnode" | "dtest-offheap" | "dtest-large" | "dtest-large-novnode" | "dtest-upgrade" | "dtest-upgrade-large" | "dtest-upgrade-novnode" | "dtest-upgrade-novnode-large" )
+        ANT_OPTS="-Dtesttag.extra=_$(arch)_python${python_version/./-}"
+    ;;
+    "jvm-dtest-novnode" | "jvm-dtest-upgrade-novnode" )
+        ANT_OPTS="-Dtesttag.extra=_$(arch)_novnode"
+    ;;
+    *)
+        ANT_OPTS="-Dtesttag.extra=_$(arch)"
+    ;;
+esac
+
 # cython can be used for cqlsh-test
 if [ "$cython" == "yes" ]; then
     [ "${target}" == "cqlsh-test" ] || { echo "cython is only supported for cqlsh-test"; exit 1; }
+    ANT_OPTS="${ANT_OPTS}_cython"
 else
     cython="no"
 fi
@@ -172,7 +192,7 @@ TEST_SCRIPT=${test_script}
 JAVA_VERSION=${java_version}
 PYTHON_VERSION=${python_version}
 cython=${cython}
-ANT_OPTS="-Dtesttag.extra=.arch=$(arch).python${python_version}"
+ANT_OPTS="${ANT_OPTS}"
 EOF
 
 split_str="0_0"

@@ -109,6 +109,22 @@ public class ColumnMaskTest extends ColumnMaskTester
     }
 
     @Test
+    public void testVectors() throws Throwable
+    {
+        // Create table with mask
+        String table = createTable("CREATE TABLE %s (k int PRIMARY KEY, v vector<int, 3> MASKED WITH DEFAULT)");
+        assertColumnIsMasked(table, "v", "mask_default", emptyList(), emptyList());
+
+        // Alter column mask
+        alterTable("ALTER TABLE %s ALTER v MASKED WITH mask_null()");
+        assertColumnIsMasked(table, "v", "mask_null", emptyList(), emptyList());
+
+        // Drop mask
+        alterTable("ALTER TABLE %s ALTER v DROP MASKED");
+        assertTableColumnsAreNotMasked("v");
+    }
+
+    @Test
     public void testAlterTableAddMaskingToNonExistingColumn() throws Throwable
     {
         String table = createTable("CREATE TABLE %s (k int PRIMARY KEY, v text)");
@@ -197,7 +213,6 @@ public class ColumnMaskTest extends ColumnMaskTester
     }
 
     @Test
-    @SuppressWarnings("resource")
     public void testPreparedStatement() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v text MASKED WITH DEFAULT)");
@@ -235,7 +250,6 @@ public class ColumnMaskTest extends ColumnMaskTester
     }
 
     @Test
-    @SuppressWarnings("resource")
     public void testPreparedStatementOnView() throws Throwable
     {
         createTable("CREATE TABLE %s (k int, c int, v text MASKED WITH DEFAULT, PRIMARY KEY (k, c))");

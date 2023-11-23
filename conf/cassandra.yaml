@@ -369,6 +369,23 @@ cdc_enabled: false
 # $CASSANDRA_HOME/data/cdc_raw.
 # cdc_raw_directory: /var/lib/cassandra/cdc_raw
 
+# Policy for accessing disk:
+#
+# auto
+#   Enable mmap on both data and index files on a 64-bit JVM.
+#
+# standard
+#   Disable mmap entirely.
+#
+# mmap
+#   Map index and data files. mmap can cause excessive paging if all actively read SSTables do not fit into RAM.
+#
+# mmap_index_only
+#   Similar to mmap but maps only index files. Using this setting might also help if you observe high number of page
+#   faults or steals along with increased latencies. This setting is default.
+#
+# disk_access_mode: mmap_index_only
+
 # Policy for data disk failures:
 #
 # die
@@ -722,6 +739,17 @@ memtable_allocation_type: heap_buffers
 #
 # Min unit: MiB
 # repair_session_space:
+
+# repair:
+#   # Configure the retries for each of the repair messages that support it.  As of this moment retries use an exponential algorithm where each attempt sleeps longer based off the base_sleep_time and attempt.
+#   retries:
+#     max_attempts: 10
+#     base_sleep_time: 200ms
+#     max_sleep_time: 1s
+#     # Increase the timeout of validation responses due to them containing the merkle tree
+#     merkle_tree_response:
+#       base_sleep_time: 30s
+#       max_sleep_time: 1m
 
 # Total space to use for commit logs on disk.
 #
@@ -1889,6 +1917,9 @@ drop_compact_storage_enabled: false
 # Guardrail to allow/disallow DROP KEYSPACE statements
 # drop_keyspace_enabled: true
 #
+# Guardrail to allow/disallow bulk load of SSTables
+# bulk_load_enabled: true
+#
 # Guardrail to warn or fail when using a page size greater than threshold.
 # The two thresholds default to -1 to disable.
 # page_size_warn_threshold: -1
@@ -2078,7 +2109,7 @@ drop_compact_storage_enabled: false
 # The chosen storage compatiblity mode will determine the versions of the written sstables, commitlogs, hints,
 # etc. Those storage elements will use the higher minor versions of the major version that corresponds to the
 # Cassandra version we want to stay compatible with. For example, if we want to stay compatible with Cassandra 4.0
-# or 4.1, the value of this property should be 4, and that will make us use 'nc' sstables.
+# or 4.1, the value of this property should be 4, and that will make us use 'oa' sstables.
 #
 # This will also determine if certain features depending on newer formats are available. For example, extended TTLs
 # up to 2106 depend on the sstable, commitlog, hints and messaging versions that were introduced by Cassandra 5.0,

@@ -1,0 +1,7 @@
+= Reference
+
+* xref:reference/cql-commands/commands-toc.adoc[CQL commands]
+* xref:reference/java17.adoc[Java 17]
+* xref:reference/counter-type.adoc[Counter type]
+* xref:reference/static.adoc[Static columns]
+* xref:reference/sai-virtual-table-indexes.adoc[SAI virtual table]

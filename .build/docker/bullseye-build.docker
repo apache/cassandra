@@ -25,9 +25,6 @@ ENV CASSANDRA_DIR=$BUILD_HOME/cassandra
 
 LABEL org.cassandra.buildenv=bullseye
 
-VOLUME ${DIST_DIR}
-VOLUME ${CASSANDRA_DIR}
-
 RUN echo "Building with arguments:" \
     && echo " - DIST_DIR=${DIST_DIR}" \
     && echo " - BUILD_HOME=${BUILD_HOME}" \

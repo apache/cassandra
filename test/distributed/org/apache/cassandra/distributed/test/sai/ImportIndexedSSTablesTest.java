@@ -232,7 +232,6 @@ public class ImportIndexedSSTablesTest extends TestBaseImpl
         static volatile boolean interruptBuild = false;
         static volatile boolean failValidation = false;
 
-        @SuppressWarnings("resource")
         static void installErrors(ClassLoader loader, int node)
         {
             new ByteBuddy().rebase(StorageAttachedIndexBuilder.class)

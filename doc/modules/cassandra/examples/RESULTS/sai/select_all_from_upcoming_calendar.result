@@ -1,0 +1,6 @@
+ year | month | events
+------+-------+---------------------------------------------
+ 2015 |     6 | ['Criterium du Dauphine', 'Tour de Suisse']
+ 2015 |     7 |                          ['Tour de France']
+
+(2 rows)

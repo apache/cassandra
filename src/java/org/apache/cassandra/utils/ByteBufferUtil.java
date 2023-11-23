@@ -510,6 +510,11 @@ public class ByteBufferUtil
         return bytes.getFloat(bytes.position());
     }
 
+    public static float getFloat(ByteBuffer bytes, int offset)
+    {
+        return bytes.getFloat(offset);
+    }
+
     public static double toDouble(ByteBuffer bytes)
     {
         return bytes.getDouble(bytes.position());

@@ -29,7 +29,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multimap;
 
 import org.apache.cassandra.db.Directories;
@@ -94,7 +96,6 @@ public class SSTableLoader implements StreamEventHandler
         this.connectionsPerHost = connectionsPerHost;
     }
 
-    @SuppressWarnings("resource")
     private Multimap<InetAddressAndPort, CassandraOutgoingFile> openSSTables(final Map<InetAddressAndPort, Collection<Range<Token>>> ranges)
     {
         outputHandler.output("Opening sstables and calculating sections to stream");
@@ -227,6 +228,7 @@ public class SSTableLoader implements StreamEventHandler
     {
         releaseReferences();
     }
+
     public void onFailure(Throwable t)
     {
         releaseReferences();
@@ -242,9 +244,14 @@ public class SSTableLoader implements StreamEventHandler
         {
             SSTableReader sstable = it.next();
             sstable.selfRef().release();
-            assert sstable.selfRef().globalCount() == 0 : String.format("for sstable = %s, ref count = %d", sstable, sstable.selfRef().globalCount());
             it.remove();
         }
+    }
+
+    @VisibleForTesting
+    ImmutableList<SSTableReader> getSSTables()
+    {
+        return ImmutableList.copyOf(sstables);
     }
 
     public void handleStreamEvent(StreamEvent event)

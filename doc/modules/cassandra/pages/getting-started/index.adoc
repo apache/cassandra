@@ -1,5 +1,12 @@
 = Getting Started
 
+== Quickstarts
+
+* xref:getting-started/cassandra-quickstart.adoc[Quickstart]: A quick introduction to Cassandra
+* xref:getting-started/sai-quickstart.adoc[SAI Quickstart]: A quick introduction to the Storage Attached Index (SAI) feature
+
+== Additional information
+
 This section covers how to get started using Apache Cassandra and should
 be the first thing to read if you are new to Cassandra.
 

@@ -25,17 +25,18 @@ import com.google.common.base.MoreObjects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
+import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.metrics.MulticastQueryEventListeners;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.plan.Expression;
-import org.apache.cassandra.index.sai.postings.PostingList;
-import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 /**
@@ -78,8 +79,7 @@ public class LiteralIndexSegmentSearcher extends IndexSegmentSearcher
     }
 
     @Override
-    @SuppressWarnings({"resource", "RedundantSuppression"})
-    public KeyRangeIterator search(Expression expression, QueryContext queryContext) throws IOException
+    public KeyRangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext) throws IOException
     {
         if (logger.isTraceEnabled())
             logger.trace(indexContext.logMessage("Searching on expression '{}'..."), expression);
@@ -89,8 +89,7 @@ public class LiteralIndexSegmentSearcher extends IndexSegmentSearcher
 
         final ByteComparable term = ByteComparable.fixedLength(expression.lower.value.encoded);
         QueryEventListener.TrieIndexEventListener listener = MulticastQueryEventListeners.of(queryContext, perColumnEventListener);
-        PostingList postingList = reader.exactMatch(term, listener, queryContext);
-        return toIterator(postingList, queryContext);
+        return toPrimaryKeyIterator(reader.exactMatch(term, listener, queryContext), queryContext);
     }
 
     @Override

@@ -26,6 +26,9 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.repair.AbstractRepairTest;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
@@ -59,21 +62,23 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
         int prepareResponseCalls = 0;
         InetAddressAndPort preparePeer = null;
         boolean prepareSuccess = false;
-        public synchronized void handlePrepareResponse(InetAddressAndPort participant, boolean success)
+        @Override
+        public synchronized void handlePrepareResponse(Message<PrepareConsistentResponse> msg)
         {
             prepareResponseCalls++;
-            preparePeer = participant;
-            prepareSuccess = success;
+            preparePeer = msg.payload.participant;
+            prepareSuccess = msg.payload.success;
         }
 
         int finalizePromiseCalls = 0;
         InetAddressAndPort promisePeer = null;
         boolean promiseSuccess = false;
-        public synchronized void handleFinalizePromise(InetAddressAndPort participant, boolean success)
+        @Override
+        public synchronized void handleFinalizePromise(Message<FinalizePromise> message)
         {
             finalizePromiseCalls++;
-            promisePeer = participant;
-            promiseSuccess = success;
+            promisePeer = message.payload.participant;
+            promiseSuccess = message.payload.promised;
         }
 
         int failCalls = 0;
@@ -85,6 +90,11 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
 
     private static class InstrumentedCoordinatorSessions extends CoordinatorSessions
     {
+        private InstrumentedCoordinatorSessions()
+        {
+            super(SharedContext.Global.instance);
+        }
+
         protected CoordinatorSession buildSession(CoordinatorSession.Builder builder)
         {
             return new InstrumentedCoordinatorSession(builder);
@@ -118,7 +128,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
     @Test
     public void registerSessionTest() throws NoSuchRepairSessionException
     {
-        CoordinatorSessions sessions = new CoordinatorSessions();
+        CoordinatorSessions sessions = new CoordinatorSessions(SharedContext.Global.instance);
         TimeUUID sessionID = registerSession();
         CoordinatorSession session = sessions.registerSession(sessionID, PARTICIPANTS, false);
 
@@ -127,7 +137,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
         Assert.assertEquals(COORDINATOR, session.coordinator);
         Assert.assertEquals(Sets.newHashSet(cfm.id), session.tableIds);
 
-        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
+        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance().getParentRepairSession(sessionID);
         Assert.assertEquals(prs.repairedAt, session.repairedAt);
         Assert.assertEquals(prs.getRanges(), session.ranges);
         Assert.assertEquals(PARTICIPANTS, session.participants);
@@ -144,7 +154,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
         InstrumentedCoordinatorSession session = sessions.registerSession(sessionID, PARTICIPANTS, false);
         Assert.assertEquals(0, session.prepareResponseCalls);
 
-        sessions.handlePrepareResponse(new PrepareConsistentResponse(sessionID, PARTICIPANT1, true));
+        sessions.handlePrepareResponse(Message.builder(Verb.PREPARE_CONSISTENT_RSP, new PrepareConsistentResponse(sessionID, PARTICIPANT1, true)).build());
         Assert.assertEquals(1, session.prepareResponseCalls);
         Assert.assertEquals(PARTICIPANT1, session.preparePeer);
         Assert.assertTrue(session.prepareSuccess);
@@ -156,7 +166,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
         InstrumentedCoordinatorSessions sessions = new InstrumentedCoordinatorSessions();
         TimeUUID fakeID = nextTimeUUID();
 
-        sessions.handlePrepareResponse(new PrepareConsistentResponse(fakeID, PARTICIPANT1, true));
+        sessions.handlePrepareResponse(Message.builder(Verb.PREPARE_CONSISTENT_RSP, new PrepareConsistentResponse(fakeID, PARTICIPANT1, true)).build());
         Assert.assertNull(sessions.getSession(fakeID));
     }
 
@@ -169,7 +179,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
         InstrumentedCoordinatorSession session = sessions.registerSession(sessionID, PARTICIPANTS, false);
         Assert.assertEquals(0, session.finalizePromiseCalls);
 
-        sessions.handleFinalizePromiseMessage(new FinalizePromise(sessionID, PARTICIPANT1, true));
+        sessions.handleFinalizePromiseMessage(Message.builder(Verb.FINALIZE_PROMISE_MSG, new FinalizePromise(sessionID, PARTICIPANT1, true)).build());
         Assert.assertEquals(1, session.finalizePromiseCalls);
         Assert.assertEquals(PARTICIPANT1, session.promisePeer);
         Assert.assertTrue(session.promiseSuccess);
@@ -181,7 +191,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
         InstrumentedCoordinatorSessions sessions = new InstrumentedCoordinatorSessions();
         TimeUUID fakeID = nextTimeUUID();
 
-        sessions.handleFinalizePromiseMessage(new FinalizePromise(fakeID, PARTICIPANT1, true));
+        sessions.handleFinalizePromiseMessage(Message.builder(Verb.FINALIZE_PROMISE_MSG, new FinalizePromise(fakeID, PARTICIPANT1, true)).build());
         Assert.assertNull(sessions.getSession(fakeID));
     }
 

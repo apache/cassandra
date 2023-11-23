@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -49,6 +49,9 @@ git --version
 java -version  2>&1
 javac -version  2>&1
 
+# set the OFFLINE env var (to anything) to allow running jvm-dtest-upgrade offline
+[ "x" != "x${OFFLINE}" ] && echo "WARNING: running in offline mode. jvm-dtest-upgrade results may be stale."
+
 # lists all tests for the specific test type
 _list_tests() {
   local -r classlistprefix="$1"
@@ -84,9 +87,13 @@ _build_all_dtest_jars() {
         cp "${TMP_DIR}/cassandra-dtest-jars/build/dtest-${dtest_jar_version}.jar" ${DIST_DIR}/
     fi
 
-    if [ -d ${TMP_DIR}/cassandra-dtest-jars ] && [ "https://github.com/apache/cassandra.git" == "$(git -C ${TMP_DIR}/cassandra-dtest-jars remote get-url origin)" ] ; then
-        until git -C ${TMP_DIR}/cassandra-dtest-jars fetch --quiet origin ; do echo "git pull failed… trying again… " ; done
+    if [ -d ${TMP_DIR}/cassandra-dtest-jars/.git ] && [ "https://github.com/apache/cassandra.git" == "$(git -C ${TMP_DIR}/cassandra-dtest-jars remote get-url origin)" ] ; then
+      echo "Reusing ${TMP_DIR}/cassandra-dtest-jars for past branch dtest jars"
+      if [ "x" == "x${OFFLINE}" ] ; then
+        until git -C ${TMP_DIR}/cassandra-dtest-jars fetch --quiet origin ; do echo "git -C ${TMP_DIR}/cassandra-dtest-jars fetch failed… trying again… " ; done
+      fi
     else
+        echo "Cloning cassandra to ${TMP_DIR}/cassandra-dtest-jars for past branch dtest jars"
         rm -fR ${TMP_DIR}/cassandra-dtest-jars
         pushd $TMP_DIR >/dev/null
         until git clone --quiet --depth 1 --no-single-branch https://github.com/apache/cassandra.git cassandra-dtest-jars ; do echo "git clone failed… trying again… " ; done
@@ -98,6 +105,7 @@ _build_all_dtest_jars() {
 
     pushd ${TMP_DIR}/cassandra-dtest-jars >/dev/null
     for branch in cassandra-4.0 cassandra-4.1 cassandra-5.0 trunk ; do
+        git clean -qxdff && git reset --hard HEAD  || echo "failed to reset/clean ${TMP_DIR}/cassandra-dtest-jars… continuing…"
         git checkout --quiet $branch
         dtest_jar_version=$(grep 'property\s*name=\"base.version\"' build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')
         if [ -f "${DIST_DIR}/dtest-${dtest_jar_version}.jar" ] ; then
@@ -143,7 +151,7 @@ _main() {
   # check split_chunk is compatible with target (if not a regexp)
   if [[ "${_split_chunk}" =~ ^\d+/\d+$ ]] && [[ "1/1" != "${split_chunk}" ]] ; then
     case ${target} in
-      "stress-test" | "fqltool-test" | "microbench" | "cqlsh-test")
+      "stress-test" | "fqltool-test" | "microbench" | "cqlsh-test" | "simulator-dtest")
           echo "Target ${target} does not suport splits."
           exit 1
           ;;
@@ -172,7 +180,7 @@ _main() {
 
   # ant test setup
   export TMP_DIR="${DIST_DIR}/tmp"
-  mkdir -p "${TMP_DIR}" || true
+  [ -d ${TMP_DIR} ] || mkdir -p "${TMP_DIR}"
   export ANT_TEST_OPTS="-Dno-build-test=true -Dtmp.dir=${TMP_DIR}"
 
   # fresh virtualenv and test logs results everytime
@@ -219,7 +227,11 @@ _main() {
     "long-test")
       _run_testlist "long" "testclasslist" "${split_chunk}" "$(_timeout_for 'test.long.timeout')"
       ;;
-    "jvm-dtest")
+    "simulator-dtest")
+      ant test-simulator-dtest ${ANT_TEST_OPTS} || echo "failed ${target}"
+      ;;
+    "jvm-dtest" | "jvm-dtest-novnode")
+      [ "jvm-dtest-novnode" == "${target}" ] || ANT_TEST_OPTS="${ANT_TEST_OPTS} -Dcassandra.dtest.num_tokens=16"
       testlist=$( _list_tests "distributed" | grep -v "upgrade" | _split_tests "${split_chunk}")
       if [[ -z "$testlist" ]]; then
           [[ "${split_chunk}" =~ ^[0-9]+/[0-9]+$ ]] || { echo "No tests match ${split_chunk}"; exit 1; }
@@ -229,8 +241,9 @@ _main() {
       fi
       ant testclasslist -Dtest.classlistprefix=distributed -Dtest.timeout=$(_timeout_for "test.distributed.timeout") -Dtest.classlistfile=<(echo "${testlist}") ${ANT_TEST_OPTS} || echo "failed ${target} ${split_chunk}"
       ;;
-    "jvm-dtest-upgrade")
+    "jvm-dtest-upgrade" | "jvm-dtest-upgrade-novnode")
       _build_all_dtest_jars
+      [ "jvm-dtest-upgrade-novnode" == "${target}" ] || ANT_TEST_OPTS="${ANT_TEST_OPTS} -Dcassandra.dtest.num_tokens=16"
       testlist=$( _list_tests "distributed"  | grep "upgrade" | _split_tests "${split_chunk}")
       if [[ -z "${testlist}" ]]; then
           [[ "${split_chunk}" =~ ^[0-9]+/[0-9]+$ ]] || { echo "No tests match ${split_chunk}"; exit 1; }

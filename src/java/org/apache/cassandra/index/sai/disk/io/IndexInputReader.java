@@ -58,7 +58,6 @@ public class IndexInputReader extends IndexInput
         return new IndexInputReader(input, doOnClose);
     }
 
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     public static IndexInputReader create(FileHandle handle)
     {
         RandomAccessReader reader = handle.createReader();

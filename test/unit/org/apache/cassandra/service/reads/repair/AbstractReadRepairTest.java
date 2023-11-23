@@ -188,7 +188,6 @@ public abstract  class AbstractReadRepairTest
         return new Mutation(update(cells));
     }
 
-    @SuppressWarnings("resource")
     static Message<ReadResponse> msg(InetAddressAndPort from, Cell<?>... cells)
     {
         UnfilteredPartitionIterator iter = new SingletonUnfilteredPartitionIterator(update(cells).unfilteredIterator());

@@ -80,7 +80,7 @@ public class NoSpamLoggerTest
     @BeforeClass
     public static void setUpClass() throws Exception
     {
-        NoSpamLogger.CLOCK = () -> now;
+        NoSpamLogger.unsafeSetClock(() -> now);
     }
 
     @Before

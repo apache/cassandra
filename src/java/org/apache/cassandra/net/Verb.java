@@ -45,12 +45,13 @@ import org.apache.cassandra.db.TruncateResponse;
 import org.apache.cassandra.db.TruncateVerbHandler;
 import org.apache.cassandra.db.TruncateRequest;
 import org.apache.cassandra.exceptions.RequestFailureReason;
-import org.apache.cassandra.gms.GossipDigestAck;
 import org.apache.cassandra.gms.GossipDigestAck2;
 import org.apache.cassandra.gms.GossipDigestAck2VerbHandler;
+import org.apache.cassandra.gms.GossipDigestAck;
 import org.apache.cassandra.gms.GossipDigestAckVerbHandler;
 import org.apache.cassandra.gms.GossipDigestSyn;
 import org.apache.cassandra.gms.GossipDigestSynVerbHandler;
+import org.apache.cassandra.gms.GossipShutdown;
 import org.apache.cassandra.gms.GossipShutdownVerbHandler;
 import org.apache.cassandra.hints.HintMessage;
 import org.apache.cassandra.hints.HintVerbHandler;
@@ -143,7 +144,7 @@ public enum Verb
     GOSSIP_DIGEST_SYN      (14,  P0, longTimeout,     GOSSIP,            () -> GossipDigestSyn.serializer,           () -> GossipDigestSynVerbHandler.instance                      ),
     GOSSIP_DIGEST_ACK      (15,  P0, longTimeout,     GOSSIP,            () -> GossipDigestAck.serializer,           () -> GossipDigestAckVerbHandler.instance                      ),
     GOSSIP_DIGEST_ACK2     (16,  P0, longTimeout,     GOSSIP,            () -> GossipDigestAck2.serializer,          () -> GossipDigestAck2VerbHandler.instance                     ),
-    GOSSIP_SHUTDOWN        (29,  P0, rpcTimeout,      GOSSIP,            () -> NoPayload.serializer,                 () -> GossipShutdownVerbHandler.instance                       ),
+    GOSSIP_SHUTDOWN        (29,  P0, rpcTimeout,      GOSSIP,            () -> GossipShutdown.serializer,            () -> GossipShutdownVerbHandler.instance                       ),
 
     ECHO_RSP               (91,  P0, rpcTimeout,      GOSSIP,            () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
     ECHO_REQ               (31,  P0, rpcTimeout,      GOSSIP,            () -> NoPayload.serializer,                 () -> EchoVerbHandler.instance,            ECHO_RSP            ),
@@ -159,22 +160,23 @@ public enum Verb
     SCHEMA_VERSION_REQ     (20,  P1, rpcTimeout,      MIGRATION,         () -> NoPayload.serializer,                 () -> SchemaVersionVerbHandler.instance,   SCHEMA_VERSION_RSP  ),
 
     // repair; mostly doesn't use callbacks and sends responses as their own request messages, with matching sessions by uuid; should eventually harmonize and make idiomatic
+    // for the repair messages that implement retry logic, use rpcTimeout so the single request fails faster, then retries can be used to recover
     REPAIR_RSP             (100, P1, repairTimeout,   REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
-    VALIDATION_RSP         (102, P1, longTimeout,     ANTI_ENTROPY,      () -> ValidationResponse.serializer,        () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    VALIDATION_REQ         (101, P1, repairTimeout,   ANTI_ENTROPY,      () -> ValidationRequest.serializer,         () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    SYNC_RSP               (104, P1, repairTimeout,   ANTI_ENTROPY,      () -> SyncResponse.serializer,              () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    SYNC_REQ               (103, P1, repairTimeout,   ANTI_ENTROPY,      () -> SyncRequest.serializer,               () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    PREPARE_MSG            (105, P1, repairTimeout,   ANTI_ENTROPY,      () -> PrepareMessage.serializer,            () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    SNAPSHOT_MSG           (106, P1, repairTimeout,   ANTI_ENTROPY,      () -> SnapshotMessage.serializer,           () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    CLEANUP_MSG            (107, P1, repairTimeout,   ANTI_ENTROPY,      () -> CleanupMessage.serializer,            () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    PREPARE_CONSISTENT_RSP (109, P1, repairTimeout,   ANTI_ENTROPY,      () -> PrepareConsistentResponse.serializer, () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    PREPARE_CONSISTENT_REQ (108, P1, repairTimeout,   ANTI_ENTROPY,      () -> PrepareConsistentRequest.serializer,  () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    FINALIZE_PROPOSE_MSG   (110, P1, repairTimeout,   ANTI_ENTROPY,      () -> FinalizePropose.serializer,           () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    FINALIZE_PROMISE_MSG   (111, P1, repairTimeout,   ANTI_ENTROPY,      () -> FinalizePromise.serializer,           () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    FINALIZE_COMMIT_MSG    (112, P1, repairTimeout,   ANTI_ENTROPY,      () -> FinalizeCommit.serializer,            () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    FAILED_SESSION_MSG     (113, P1, repairTimeout,   ANTI_ENTROPY,      () -> FailSession.serializer,               () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    STATUS_RSP             (115, P1, repairTimeout,   ANTI_ENTROPY,      () -> StatusResponse.serializer,            () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    STATUS_REQ             (114, P1, repairTimeout,   ANTI_ENTROPY,      () -> StatusRequest.serializer,             () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
+    VALIDATION_RSP         (102, P1, repairValidationRspTimeout,    ANTI_ENTROPY,      () -> ValidationResponse.serializer,        () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
+    VALIDATION_REQ         (101, P1, repairWithBackoffTimeout,      ANTI_ENTROPY,      () -> ValidationRequest.serializer,         () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
+    SYNC_RSP               (104, P1, repairWithBackoffTimeout,      ANTI_ENTROPY,      () -> SyncResponse.serializer,              () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
+    SYNC_REQ               (103, P1, repairWithBackoffTimeout,      ANTI_ENTROPY,      () -> SyncRequest.serializer,               () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
+    PREPARE_MSG            (105, P1, repairWithBackoffTimeout,      ANTI_ENTROPY,      () -> PrepareMessage.serializer,            () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
+    SNAPSHOT_MSG           (106, P1, repairWithBackoffTimeout,      ANTI_ENTROPY,      () -> SnapshotMessage.serializer,           () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
+    CLEANUP_MSG            (107, P1, repairWithBackoffTimeout,      ANTI_ENTROPY,      () -> CleanupMessage.serializer,            () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
+    PREPARE_CONSISTENT_RSP (109, P1, repairWithBackoffTimeout,      ANTI_ENTROPY,      () -> PrepareConsistentResponse.serializer, () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
+    PREPARE_CONSISTENT_REQ (108, P1, repairWithBackoffTimeout,      ANTI_ENTROPY,      () -> PrepareConsistentRequest.serializer,  () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
+    FINALIZE_PROPOSE_MSG   (110, P1, repairWithBackoffTimeout,      ANTI_ENTROPY,      () -> FinalizePropose.serializer,           () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
+    FINALIZE_PROMISE_MSG   (111, P1, repairWithBackoffTimeout,      ANTI_ENTROPY,      () -> FinalizePromise.serializer,           () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
+    FINALIZE_COMMIT_MSG    (112, P1, repairWithBackoffTimeout,      ANTI_ENTROPY,      () -> FinalizeCommit.serializer,            () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
+    FAILED_SESSION_MSG     (113, P1, repairWithBackoffTimeout,      ANTI_ENTROPY,      () -> FailSession.serializer,               () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
+    STATUS_RSP             (115, P1, repairTimeout,   ANTI_ENTROPY,      () -> StatusResponse.serializer,            () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
+    STATUS_REQ             (114, P1, repairTimeout,   ANTI_ENTROPY,      () -> StatusRequest.serializer,             () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
 
     REPLICATION_DONE_RSP   (82,  P0, rpcTimeout,      MISC,              () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
     REPLICATION_DONE_REQ   (22,  P0, rpcTimeout,      MISC,              () -> NoPayload.serializer,                 () -> ReplicationDoneVerbHandler.instance, REPLICATION_DONE_RSP),
@@ -212,9 +214,11 @@ public enum Verb
     _TEST_1                (10,  P0, writeTimeout,    IMMEDIATE,         () -> NoPayload.serializer,                 () -> null                                                     ),
     _TEST_2                (11,  P1, rpcTimeout,      IMMEDIATE,         () -> NoPayload.serializer,                 () -> null                                                     ),
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-15066 */
+    @Deprecated(since = "4.0")
     REQUEST_RSP            (4,   P1, rpcTimeout,      REQUEST_RESPONSE,  () -> null,                                 () -> ResponseVerbHandler.instance                             ),
-    @Deprecated
+    /** @deprecated See CASSANDRA-15066 */
+    @Deprecated(since = "4.0")
     INTERNAL_RSP           (23,  P1, rpcTimeout,      INTERNAL_RESPONSE, () -> null,                                 () -> ResponseVerbHandler.instance                             ),
 
     // largest used ID: 116
@@ -475,4 +479,16 @@ class VerbTimeouts
     static final ToLongFunction<TimeUnit> pingTimeout     = DatabaseDescriptor::getPingTimeout;
     static final ToLongFunction<TimeUnit> longTimeout     = units -> Math.max(DatabaseDescriptor.getRpcTimeout(units), units.convert(5L, TimeUnit.MINUTES));
     static final ToLongFunction<TimeUnit> noTimeout       = units -> {  throw new IllegalStateException(); };
+
+    // repair verbs need to have different timeouts based off if retries are enabled or not
+    static final ToLongFunction<TimeUnit> repairWithBackoffTimeout      = units -> {
+        if (!DatabaseDescriptor.getRepairRetrySpec().isEnabled())
+            return repairTimeout.applyAsLong(units);
+        return rpcTimeout.applyAsLong(units);
+    };
+    static final ToLongFunction<TimeUnit> repairValidationRspTimeout    = units -> {
+        if (!DatabaseDescriptor.getRepairRetrySpec().isMerkleTreeRetriesEnabled())
+            return longTimeout.applyAsLong(units);
+        return rpcTimeout.applyAsLong(units);
+    };
 }

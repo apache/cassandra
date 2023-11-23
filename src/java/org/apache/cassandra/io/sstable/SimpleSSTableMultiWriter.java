@@ -106,7 +106,6 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
         writer.close();
     }
 
-    @SuppressWarnings({"resource", "RedundantSuppression"}) // SimpleSSTableMultiWriter closes writer
     public static SSTableMultiWriter create(Descriptor descriptor,
                                             long keyCount,
                                             long repairedAt,
@@ -132,7 +131,7 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
                                             .setMetadataCollector(metadataCollector)
                                             .setSerializationHeader(header)
                                             .addDefaultComponents(indexGroups)
-                                            .addFlushObserversForSecondaryIndexes(indexGroups, lifecycleNewTracker, metadata.get())
+                                            .setSecondaryIndexGroups(indexGroups)
                                             .build(lifecycleNewTracker, owner);
         return new SimpleSSTableMultiWriter(writer, lifecycleNewTracker);
     }

@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.disk.v1.postings;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.PriorityQueue;
 import javax.annotation.concurrent.NotThreadSafe;
@@ -41,6 +42,8 @@ public class MergePostingList implements PostingList
     private final PriorityQueue<PeekablePostingList> postingLists;
     private final List<PeekablePostingList> temp;
     private final Closeable onClose;
+    private final long minimum;
+    private final long maximum;
     private final long size;
     private long lastRowId = -1;
 
@@ -49,11 +52,17 @@ public class MergePostingList implements PostingList
         this.temp = new ArrayList<>(postingLists.size());
         this.onClose = onClose;
         this.postingLists = postingLists;
+        long minimum = 0;
+        long maximum = 0;
         long totalPostings = 0;
         for (PostingList postingList : postingLists)
         {
+            minimum = Math.min(minimum, postingList.minimum());
+            maximum = Math.max(maximum, postingList.maximum());
             totalPostings += postingList.size();
         }
+        this.minimum = minimum;
+        this.maximum = maximum;
         this.size = totalPostings;
     }
 
@@ -68,7 +77,25 @@ public class MergePostingList implements PostingList
         return merge(postings, () -> FileUtils.close(postings));
     }
 
-    @SuppressWarnings({"resource", "RedundantSuppression"})
+    public static PostingList merge(List<PostingList> postings)
+    {
+        PriorityQueue<PeekablePostingList> postingsQueue = new PriorityQueue<>(postings.size(), Comparator.comparingLong(PeekablePostingList::peek));
+        postings.stream().map(PeekablePostingList::makePeekable).forEach(postingsQueue::add);
+        return merge(postingsQueue);
+    }
+
+    @Override
+    public long minimum()
+    {
+        return minimum;
+    }
+
+    @Override
+    public long maximum()
+    {
+        return maximum;
+    }
+
     @Override
     public long nextPosting() throws IOException
     {
@@ -98,7 +125,6 @@ public class MergePostingList implements PostingList
         return PostingList.END_OF_STREAM;
     }
 
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     @Override
     public long advance(long targetRowID) throws IOException
     {

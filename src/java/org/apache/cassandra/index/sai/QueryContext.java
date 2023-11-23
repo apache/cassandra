@@ -58,6 +58,8 @@ public class QueryContext
 
     public boolean queryTimedOut = false;
 
+    private VectorQueryContext vectorContext;
+
     public QueryContext(ReadCommand readCommand, long executionQuotaMs)
     {
         this.readCommand = readCommand;
@@ -77,5 +79,12 @@ public class QueryContext
             queryTimedOut = true;
             throw new QueryCancelledException(readCommand);
         }
+    }
+
+    public VectorQueryContext vectorContext()
+    {
+        if (vectorContext == null)
+            vectorContext = new VectorQueryContext(readCommand);
+        return vectorContext;
     }
 }

@@ -135,7 +135,7 @@ import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
  * a set via Tracker. New scheduling attempts will ignore currently compacting
  * sstables.
  */
-public class CompactionManager implements CompactionManagerMBean
+public class CompactionManager implements CompactionManagerMBean, ICompactionManager
 {
     public static final String MBEAN_OBJECT_NAME = "org.apache.cassandra.db:type=CompactionManager";
     private static final Logger logger = LoggerFactory.getLogger(CompactionManager.class);
@@ -197,9 +197,9 @@ public class CompactionManager implements CompactionManagerMBean
      * Sets the rate for the rate limiter. When compaction_throughput is 0 or node is bootstrapping,
      * this sets the rate to Double.MAX_VALUE bytes per second.
      * @param throughputMbPerSec throughput to set in MiB/s
-     * @deprecated Use setRateInBytes instead
+     * @deprecated Use setRateInBytes instead See CASSANDRA-17225
      */
-    @Deprecated
+    @Deprecated(since = "4.1")
     public void setRate(final double throughputMbPerSec)
     {
         setRateInBytes(throughputMbPerSec * 1024.0 * 1024);
@@ -419,7 +419,6 @@ public class CompactionManager implements CompactionManagerMBean
      * @param jobs the number of threads to use - 0 means use all available. It never uses more than concurrent_compactors threads
      * @return status of the operation
      */
-    @SuppressWarnings("resource")
     private AllSSTableOpStatus parallelAllSSTableOperation(final ColumnFamilyStore cfs,
                                                            final OneSSTableOperation operation,
                                                            int jobs,
@@ -893,7 +892,7 @@ public class CompactionManager implements CompactionManagerMBean
             ActiveRepairService.ParentRepairSession prs;
             try
             {
-                prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
+                prs = ActiveRepairService.instance().getParentRepairSession(sessionID);
             }
             catch (NoSuchRepairSessionException e)
             {
@@ -981,13 +980,11 @@ public class CompactionManager implements CompactionManagerMBean
         FBUtilities.waitOnFutures(submitMaximal(cfStore, getDefaultGcBefore(cfStore, FBUtilities.nowInSeconds()), splitOutput));
     }
 
-    @SuppressWarnings("resource") // the tasks are executed in parallel on the executor, making sure that they get closed
     public List<Future<?>> submitMaximal(final ColumnFamilyStore cfStore, final long gcBefore, boolean splitOutput)
     {
             return submitMaximal(cfStore, gcBefore, splitOutput, OperationType.MAJOR_COMPACTION);
     }
 
-    @SuppressWarnings("resource")
     public List<Future<?>> submitMaximal(final ColumnFamilyStore cfStore, final long gcBefore, boolean splitOutput, OperationType operationType)
     {
         // here we compute the task off the compaction executor, so having that present doesn't
@@ -1294,7 +1291,7 @@ public class CompactionManager implements CompactionManagerMBean
     /* Used in tests. */
     public void disableAutoCompaction()
     {
-        for (String ksname : Schema.instance.getNonSystemKeyspaces().names())
+        for (String ksname : Schema.instance.distributedKeyspaces().names())
         {
             for (ColumnFamilyStore cfs : Keyspace.open(ksname).getColumnFamilyStores())
                 cfs.disableAutoCompaction();
@@ -1624,7 +1621,7 @@ public class CompactionManager implements CompactionManagerMBean
                          .setMetadataCollector(new MetadataCollector(cfs.metadata().comparator).sstableLevel(sstable.getSSTableLevel()))
                          .setSerializationHeader(sstable.header)
                          .addDefaultComponents(cfs.indexManager.listIndexGroups())
-                         .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexGroups(), txn, cfs.metadata.get())
+                         .setSecondaryIndexGroups(cfs.indexManager.listIndexGroups())
                          .build(txn, cfs);
     }
 
@@ -1664,7 +1661,7 @@ public class CompactionManager implements CompactionManagerMBean
                          .setMetadataCollector(new MetadataCollector(sstables, cfs.metadata().comparator).sstableLevel(minLevel))
                          .setSerializationHeader(SerializationHeader.make(cfs.metadata(), sstables))
                          .addDefaultComponents(cfs.indexManager.listIndexGroups())
-                         .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexGroups(), txn, cfs.metadata.get())
+                         .setSecondaryIndexGroups(cfs.indexManager.listIndexGroups())
                          .build(txn, cfs);
     }
 
@@ -2193,6 +2190,7 @@ public class CompactionManager implements CompactionManagerMBean
         return metrics.totalCompactionsCompleted.getCount();
     }
 
+    @Override
     public int getPendingTasks()
     {
         return metrics.pendingTasks.getValue();

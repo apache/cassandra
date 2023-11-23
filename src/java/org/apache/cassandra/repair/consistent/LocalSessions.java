@@ -36,6 +36,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
@@ -58,6 +59,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.KeyspaceRepairManager;
 import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
 import org.apache.cassandra.repair.consistent.admin.PendingStat;
@@ -74,11 +76,9 @@ import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.FailSession;
 import org.apache.cassandra.repair.messages.FinalizeCommit;
 import org.apache.cassandra.repair.messages.FinalizePromise;
@@ -88,16 +88,15 @@ import org.apache.cassandra.repair.messages.PrepareConsistentResponse;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.StatusRequest;
 import org.apache.cassandra.repair.messages.StatusResponse;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
 
-import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPAIR_CLEANUP_INTERVAL_SECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPAIR_DELETE_TIMEOUT_SECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPAIR_FAIL_TIMEOUT_SECONDS;
@@ -108,6 +107,9 @@ import static org.apache.cassandra.net.Verb.PREPARE_CONSISTENT_RSP;
 import static org.apache.cassandra.net.Verb.STATUS_REQ;
 import static org.apache.cassandra.net.Verb.STATUS_RSP;
 import static org.apache.cassandra.repair.consistent.ConsistentSession.State.*;
+import static org.apache.cassandra.repair.messages.RepairMessage.always;
+import static org.apache.cassandra.repair.messages.RepairMessage.sendAck;
+import static org.apache.cassandra.repair.messages.RepairMessage.sendFailureResponse;
 
 /**
  * Manages all consistent repair sessions a node is participating in.
@@ -154,9 +156,15 @@ public class LocalSessions
 
     private final String keyspace = SchemaConstants.SYSTEM_KEYSPACE_NAME;
     private final String table = SystemKeyspace.REPAIRS;
+    private final SharedContext ctx;
     private boolean started = false;
     private volatile ImmutableMap<TimeUUID, LocalSession> sessions = ImmutableMap.of();
     private volatile ImmutableMap<TableId, RepairedState> repairedStates = ImmutableMap.of();
+
+    public LocalSessions(SharedContext ctx)
+    {
+        this.ctx = ctx;
+    }
 
     @VisibleForTesting
     int getNumSessions()
@@ -167,13 +175,13 @@ public class LocalSessions
     @VisibleForTesting
     protected InetAddressAndPort getBroadcastAddressAndPort()
     {
-        return FBUtilities.getBroadcastAddressAndPort();
+        return ctx.broadcastAddressAndPort();
     }
 
     @VisibleForTesting
     protected boolean isAlive(InetAddressAndPort address)
     {
-        return FailureDetector.instance.isAlive(address);
+        return ctx.failureDetector().isAlive(address);
     }
 
     @VisibleForTesting
@@ -332,11 +340,11 @@ public class LocalSessions
                                     sessionID, session.coordinator);
 
         setStateAndSave(session, FAILED);
-        Message<FailSession> message = Message.out(FAILED_SESSION_MSG, new FailSession(sessionID));
+        FailSession payload = new FailSession(sessionID);
         for (InetAddressAndPort participant : session.participants)
         {
             if (!participant.equals(getBroadcastAddressAndPort()))
-                sendMessage(participant, message);
+                sendMessageWithRetries(payload, FAILED_SESSION_MSG, participant);
         }
     }
 
@@ -443,7 +451,7 @@ public class LocalSessions
         {
             synchronized (session)
             {
-                long now = FBUtilities.nowInSeconds();
+                long now = ctx.clock().nowInSeconds();
                 if (shouldFail(session, now))
                 {
                     logger.warn("Auto failing timed out repair session {}", session);
@@ -564,7 +572,7 @@ public class LocalSessions
 
     private LocalSession load(UntypedResultSet.Row row)
     {
-        LocalSession.Builder builder = LocalSession.builder();
+        LocalSession.Builder builder = LocalSession.builder(ctx);
         builder.withState(ConsistentSession.State.valueOf(row.getInt("state")));
         builder.withSessionID(row.getTimeUUID("parent_id"));
         InetAddressAndPort coordinator = InetAddressAndPort.getByAddressOverrideDefaults(
@@ -634,10 +642,13 @@ public class LocalSessions
     }
 
     @VisibleForTesting
-    synchronized void putSessionUnsafe(LocalSession session)
+    synchronized boolean putSessionUnsafe(LocalSession session)
     {
+        if (sessions.containsKey(session.sessionID))
+            return false;
         putSession(session);
         save(session);
+        return true;
     }
 
     private synchronized void putSession(LocalSession session)
@@ -662,7 +673,7 @@ public class LocalSessions
     @VisibleForTesting
     LocalSession createSessionUnsafe(TimeUUID sessionId, ActiveRepairService.ParentRepairSession prs, Set<InetAddressAndPort> peers)
     {
-        LocalSession.Builder builder = LocalSession.builder();
+        LocalSession.Builder builder = LocalSession.builder(ctx);
         builder.withState(ConsistentSession.State.PREPARING);
         builder.withSessionID(sessionId);
         builder.withCoordinator(prs.coordinator);
@@ -672,7 +683,7 @@ public class LocalSessions
         builder.withRanges(prs.getRanges());
         builder.withParticipants(peers);
 
-        long now = FBUtilities.nowInSeconds();
+        long now = ctx.clock().nowInSeconds();
         builder.withStartedAt(now);
         builder.withLastUpdate(now);
 
@@ -681,23 +692,31 @@ public class LocalSessions
 
     protected ActiveRepairService.ParentRepairSession getParentRepairSession(TimeUUID sessionID) throws NoSuchRepairSessionException
     {
-        return ActiveRepairService.instance.getParentRepairSession(sessionID);
+
+        return ctx.repair().getParentRepairSession(sessionID);
     }
 
     protected void sendMessage(InetAddressAndPort destination, Message<? extends RepairMessage> message)
     {
         logger.trace("sending {} to {}", message.payload, destination);
-        MessagingService.instance().send(message, destination);
+        ctx.messaging().send(message, destination);
     }
 
     @VisibleForTesting
     void setStateAndSave(LocalSession session, ConsistentSession.State state)
+    {
+        maybeSetStateAndSave(session, null, state);
+    }
+
+    private boolean maybeSetStateAndSave(LocalSession session, @Nullable ConsistentSession.State expected, ConsistentSession.State state)
     {
         synchronized (session)
         {
             Preconditions.checkArgument(session.getState().canTransitionTo(state),
                                         "Invalid state transition %s -> %s",
                                         session.getState(), state);
+            if (expected != null && session.getState() != expected)
+                return false;
             logger.trace("Changing LocalSession state from {} -> {} for {}", session.getState(), state, session.sessionID);
             boolean wasCompleted = session.isCompleted();
             session.setState(state);
@@ -710,6 +729,7 @@ public class LocalSessions
             }
             for (Listener listener : listeners)
                 listener.onIRStateChange(session);
+            return true;
         }
     }
 
@@ -742,7 +762,7 @@ public class LocalSessions
             }
             if (sendMessage)
             {
-                sendMessage(session.coordinator, Message.out(FAILED_SESSION_MSG, new FailSession(session.sessionID)));
+                sendMessageWithRetries(new FailSession(session.sessionID), FAILED_SESSION_MSG, session.coordinator);
             }
         }
     }
@@ -798,8 +818,10 @@ public class LocalSessions
      * successfully. If the data preparation fails, a failure message is sent to the coordinator,
      * cancelling the session.
      */
-    public void handlePrepareMessage(InetAddressAndPort from, PrepareConsistentRequest request)
+    public void handlePrepareMessage(Message<? extends RepairMessage> message)
     {
+        InetAddressAndPort from = message.from();
+        PrepareConsistentRequest request = (PrepareConsistentRequest) message.payload;
         logger.trace("received {} from {}", request, from);
         TimeUUID sessionID = request.parentSession;
         InetAddressAndPort coordinator = request.coordinator;
@@ -813,15 +835,18 @@ public class LocalSessions
         catch (Throwable e)
         {
             logger.error("Error retrieving ParentRepairSession for session {}, responding with failure", sessionID);
-            sendMessage(coordinator, Message.out(PREPARE_CONSISTENT_RSP, new PrepareConsistentResponse(sessionID, getBroadcastAddressAndPort(), false)));
+            sendFailureResponse(ctx, message);
+            sendMessageWithRetries(always(), new PrepareConsistentResponse(sessionID, getBroadcastAddressAndPort(), false), PREPARE_CONSISTENT_RSP, coordinator);
             return;
         }
 
         LocalSession session = createSessionUnsafe(sessionID, parentSession, peers);
-        putSessionUnsafe(session);
+        sendAck(ctx, message);
+        if (!putSessionUnsafe(session))
+            return;
         logger.info("Beginning local incremental repair session {}", session);
 
-        ExecutorService executor = executorFactory().pooled("Repair-" + sessionID, parentSession.getColumnFamilyStores().size());
+        ExecutorService executor = ctx.executorFactory().pooled("Repair-" + sessionID, parentSession.getColumnFamilyStores().size());
 
         KeyspaceRepairManager repairManager = parentSession.getKeyspace().getRepairManager();
         RangesAtEndpoint tokenRanges = filterLocalRanges(parentSession.getKeyspace().getName(), parentSession.getRanges());
@@ -837,10 +862,7 @@ public class LocalSessions
                     logger.info("Prepare phase for incremental repair session {} completed", sessionID);
                     if (!prepareSessionExceptFailed(session))
                         logger.info("Session {} failed before anticompaction completed", sessionID);
-                    Message<PrepareConsistentResponse> message =
-                        Message.out(PREPARE_CONSISTENT_RSP,
-                                    new PrepareConsistentResponse(sessionID, getBroadcastAddressAndPort(), session.getState() != FAILED));
-                    sendMessage(coordinator, message);
+                    sendMessageWithRetries(always(), new PrepareConsistentResponse(sessionID, getBroadcastAddressAndPort(), session.getState() != FAILED), PREPARE_CONSISTENT_RSP, coordinator);
                 }
                 finally
                 {
@@ -858,9 +880,7 @@ public class LocalSessions
                         logger.warn("No such repair session: {}", sessionID);
                     else
                         logger.error("Prepare phase for incremental repair session {} failed", sessionID, t);
-                    sendMessage(coordinator,
-                                Message.out(PREPARE_CONSISTENT_RSP,
-                                            new PrepareConsistentResponse(sessionID, getBroadcastAddressAndPort(), false)));
+                    sendMessageWithRetries(always(), new PrepareConsistentResponse(sessionID, getBroadcastAddressAndPort(), false), PREPARE_CONSISTENT_RSP, coordinator);
                     failSession(sessionID, false);
                 }
                 finally
@@ -869,6 +889,16 @@ public class LocalSessions
                 }
             }
         });
+    }
+
+    private void sendMessageWithRetries(Supplier<Boolean> allowRetry, RepairMessage request, Verb verb, InetAddressAndPort endpoint)
+    {
+        RepairMessage.sendMessageWithRetries(ctx, allowRetry, request, verb, endpoint);
+    }
+
+    private void sendMessageWithRetries(RepairMessage request, Verb verb, InetAddressAndPort endpoint)
+    {
+        RepairMessage.sendMessageWithRetries(ctx, request, verb, endpoint);
     }
 
     /**
@@ -900,21 +930,26 @@ public class LocalSessions
         }
     }
 
-    public void handleFinalizeProposeMessage(InetAddressAndPort from, FinalizePropose propose)
+    public void handleFinalizeProposeMessage(Message<? extends RepairMessage> message)
     {
+        InetAddressAndPort from = message.from();
+        FinalizePropose propose = (FinalizePropose) message.payload;
         logger.trace("received {} from {}", propose, from);
         TimeUUID sessionID = propose.sessionID;
         LocalSession session = getSession(sessionID);
         if (session == null)
         {
             logger.info("Received FinalizePropose message for unknown repair session {}, responding with failure", sessionID);
-            sendMessage(from, Message.out(FAILED_SESSION_MSG, new FailSession(sessionID)));
+            sendFailureResponse(ctx, message);
+            sendMessageWithRetries(new FailSession(sessionID), FAILED_SESSION_MSG, from);
             return;
         }
 
+        sendAck(ctx, message);
         try
         {
-            setStateAndSave(session, FINALIZE_PROMISED);
+            if (!maybeSetStateAndSave(session, REPAIRING, FINALIZE_PROMISED))
+                return;
 
             /*
              Flushing the repairs table here, *before* responding to the coordinator prevents a scenario where we respond
@@ -925,7 +960,7 @@ public class LocalSessions
              */
             syncTable();
 
-            sendMessage(from, Message.out(FINALIZE_PROMISE_MSG, new FinalizePromise(sessionID, getBroadcastAddressAndPort(), true)));
+            RepairMessage.sendMessageWithRetries(ctx, new FinalizePromise(sessionID, getBroadcastAddressAndPort(), true), FINALIZE_PROMISE_MSG, from);
             logger.info("Received FinalizePropose message for incremental repair session {}, responded with FinalizePromise", sessionID);
         }
         catch (IllegalArgumentException e)
@@ -955,19 +990,23 @@ public class LocalSessions
      * as part of the compaction process, and avoids having to worry about in progress compactions interfering with the
      * promotion.
      */
-    public void handleFinalizeCommitMessage(InetAddressAndPort from, FinalizeCommit commit)
+    public void handleFinalizeCommitMessage(Message<? extends RepairMessage> message)
     {
+        InetAddressAndPort from = message.from();
+        FinalizeCommit commit = (FinalizeCommit) message.payload;
         logger.trace("received {} from {}", commit, from);
         TimeUUID sessionID = commit.sessionID;
         LocalSession session = getSession(sessionID);
         if (session == null)
         {
             logger.warn("Ignoring FinalizeCommit message for unknown repair session {}", sessionID);
+            sendFailureResponse(ctx, message);
             return;
         }
+        sendAck(ctx, message);
 
-        setStateAndSave(session, FINALIZED);
-        logger.info("Finalized local repair session {}", sessionID);
+        if (maybeSetStateAndSave(session, FINALIZE_PROMISED, FINALIZED))
+            logger.info("Finalized local repair session {}", sessionID);
     }
 
     public void handleFailSessionMessage(InetAddressAndPort from, FailSession msg)
@@ -1097,6 +1136,12 @@ public class LocalSessions
     public static void unregisterListener(Listener listener)
     {
         listeners.remove(listener);
+    }
+
+    @VisibleForTesting
+    public static void unsafeClearListeners()
+    {
+        listeners.clear();
     }
 
     public interface Listener

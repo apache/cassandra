@@ -1,0 +1,85 @@
+[[saiUsingCollectionsMapExamples]]
+= Using the map type
+
+This example uses the following table and indexes:
+
+[source,sql]
+----
+include::cassandra:example$CQL/sai/cyclist_teams-table.cql[tag=mapColumn]
+include::cassandra:example$CQL/sai/index-sai-from-map-match.cql[tag=keysidx]
+include::cassandra:example$CQL/sai/index-sai-from-map-match.cql[tag=entriesidx]
+include::cassandra:example$CQL/sai/index-sai-from-map-match.cql[tag=valuesidx]
+----
+
+Indexes created on the map column `teams` in the `cyclist_career_teams` table target the keys, values, and full entries of the column data.
+
+Query with `KEYS` from the map `teams` column:
+
+[tabs]
+====
+CQL::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/index-sai-select-from-map-key.cql[]
+----
+--
+
+Result::
++
+--
+[source,console]
+----
+include::cassandra:example$RESULTS/sai/index-sai-select-from-map-key.result[]
+----
+--
+====
+
+Query a value from the map `teams` column, noting that only the keyword `CONTAINS` is included: 
+
+[tabs]
+====
+CQL::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/index-sai-select-from-map-value.cql[]
+----
+--
+
+Result::
++
+--
+[source,console]
+----
+include::cassandra:example$RESULTS/sai/index-sai-select-from-map-value.result[]
+----
+--
+====
+
+Query entries from the map `teams` column, noting the difference in the `WHERE` clause: 
+
+[tabs]
+====
+CQL::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/index-sai-select-from-map-entries.cql[]
+----
+--
+
+Result::
++
+--
+[source,console]
+----
+include::cassandra:example$RESULTS/sai/index-sai-select-from-map-entries.result[]
+----
+--
+====
+
+This example looks for a row where two entries are present in the map `teams` column.

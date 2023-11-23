@@ -1,4 +1,4 @@
-= Defining Database Schema
+= Defining database schema
 
 Once you have finished evaluating and refining the physical model,
 you're ready to implement the schema in CQL. Here is the schema for the

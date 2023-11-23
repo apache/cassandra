@@ -22,7 +22,7 @@ import locale
 import os
 import re
 from .basecase import BaseTestCase
-from .cassconnect import create_db, remove_db, testrun_cqlsh
+from .cassconnect import create_db, remove_db, cqlsh_testrun
 from .run_cqlsh import TimeoutError
 from cqlshlib.cql3handling import CqlRuleSet
 
@@ -54,7 +54,7 @@ class CqlshCompletionCase(BaseTestCase):
         env['COLUMNS'] = '100000'
         if (locale.getpreferredencoding() != 'UTF-8'):
             env['LC_CTYPE'] = 'en_US.utf8'
-        self.cqlsh_runner = testrun_cqlsh(cqlver=None, env=env)
+        self.cqlsh_runner = cqlsh_testrun(cqlver=None, env=env)
         self.cqlsh = self.cqlsh_runner.__enter__()
 
     def tearDown(self):
@@ -163,7 +163,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('', choices=('?', 'ALTER', 'BEGIN', 'CAPTURE', 'CONSISTENCY',
                                          'COPY', 'CREATE', 'DEBUG', 'DELETE', 'DESC', 'DESCRIBE',
                                          'DROP', 'GRANT', 'HELP', 'INSERT', 'LIST', 'LOGIN', 'PAGING', 'REVOKE',
-                                         'SELECT', 'SHOW', 'SOURCE', 'TRACING', 'EXPAND', 'SERIAL', 'TRUNCATE',
+                                         'SELECT', 'SHOW', 'SOURCE', 'TRACING', 'ELAPSED', 'EXPAND', 'SERIAL', 'TRUNCATE',
                                          'UPDATE', 'USE', 'exit', 'quit', 'CLEAR', 'CLS', 'history'))
 
     def test_complete_command_words(self):
@@ -210,17 +210,17 @@ class TestCqlshCompletion(CqlshCompletionCase):
 
         self.trycompletions(
             'INSERT INTO twenty_rows_composite_table (a, b, c) VALUES (',
-            ['<value for a (text)>'],
+            choices=['<value for a (text)>'],
             split_completed_lines=False)
 
         self.trycompletions(
             "INSERT INTO twenty_rows_composite_table (a, b, c) VALUES ('",
-            ['<value for a (text)>'],
+            choices=['<value for a (text)>'],
             split_completed_lines=False)
 
         self.trycompletions(
             "INSERT INTO twenty_rows_composite_table (a, b, c) VALUES ( 'eggs",
-            ['<value for a (text)>'],
+            choices=['<value for a (text)>'],
             split_completed_lines=False)
 
         self.trycompletions(
@@ -230,7 +230,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions(
             ("INSERT INTO twenty_rows_composite_table (a, b, c) "
              "VALUES ( 'eggs',"),
-            ['<value for b (text)>'],
+            choices=['<value for b (text)>'],
             split_completed_lines=False)
 
         self.trycompletions(
@@ -248,7 +248,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
              "VALUES ( 'eggs', 'sausage', 'spam');"),
             choices=['?', 'ALTER', 'BEGIN', 'CAPTURE', 'CONSISTENCY', 'COPY',
                      'CREATE', 'DEBUG', 'DELETE', 'DESC', 'DESCRIBE', 'DROP',
-                     'EXPAND', 'GRANT', 'HELP', 'INSERT', 'LIST', 'LOGIN', 'PAGING',
+                     'ELAPSED', 'EXPAND', 'GRANT', 'HELP', 'INSERT', 'LIST', 'LOGIN', 'PAGING',
                      'REVOKE', 'SELECT', 'SHOW', 'SOURCE', 'SERIAL', 'TRACING',
                      'TRUNCATE', 'UPDATE', 'USE', 'exit', 'history', 'quit',
                      'CLEAR', 'CLS'])
@@ -322,6 +322,22 @@ class TestCqlshCompletion(CqlshCompletionCase):
             ("INSERT INTO twenty_rows_composite_table (a, b, c) "
              "VALUES ( 'eggs', 'sausage', 'spam') USING TTL 0 AND TIMESTAMP 0 AND "),
             choices=[])
+
+        self.trycompletions(
+            ("INSERT INTO has_all_types (num, setcol) VALUES (0, "),
+            immediate="{ ")
+
+        self.trycompletions(
+            ("INSERT INTO has_all_types (num, mapcol) VALUES (0, "),
+            immediate="{ ")
+
+        self.trycompletions(
+            ("INSERT INTO has_all_types (num, listcol) VALUES (0, "),
+            immediate="[ ")
+
+        self.trycompletions(
+            ("INSERT INTO has_all_types (num, vectorcol) VALUES (0, "),
+            immediate="[ ")
 
     def test_complete_in_update(self):
         self.trycompletions("UPD", immediate="ATE ")
@@ -631,6 +647,18 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions(prefix + ' new_table (col_a int PRIMARY KEY ',
                             choices=[')', ','])
 
+        self.trycompletions(prefix + ' new_table (col_a v',
+                            choices=['varchar', 'varint', 'vector'])
+        self.trycompletions(prefix + ' new_table (col_a ve',
+                            immediate='ctor ')
+        self.trycompletions(prefix + ' new_table (col_a vector<',
+                            choices=['address', 'boolean', 'duration', 'list'],
+                            other_choices_ok=True)
+        self.trycompletions(prefix + ' new_table (col_a vector<float, ',
+                            choices=['<wholenumber>'])
+        self.trycompletions(prefix + ' new_table (col_a vector<float, 2 ',
+                            immediate='>')
+
         self.trycompletions(prefix + ' new_table (col_a int PRIMARY KEY,',
                             choices=['<identifier>', '<quotedName>'])
         self.trycompletions(prefix + ' new_table (col_a int PRIMARY KEY)',
@@ -674,7 +702,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             + "{'class': '",
                             choices=['SizeTieredCompactionStrategy',
                                      'LeveledCompactionStrategy',
-                                     'TimeWindowCompactionStrategy'])
+                                     'TimeWindowCompactionStrategy',
+                                     'UnifiedCompactionStrategy'])
         self.trycompletions(prefix + " new_table (col_a int PRIMARY KEY) WITH compaction = "
                             + "{'class': 'S",
                             immediate="izeTieredCompactionStrategy'")
@@ -719,6 +748,16 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'tombstone_compaction_interval', 'tombstone_threshold',
                                      'enabled', 'unchecked_tombstone_compaction',
                                      'only_purge_repaired_tombstones', 'provide_overlapping_tombstones'])
+        self.trycompletions(prefix + " new_table (col_a int PRIMARY KEY) WITH compaction = "
+                            + "{'class': 'UnifiedCompactionStrategy', '",
+                            choices=['scaling_parameters', 'min_sstable_size',
+                                     'flush_size_override', 'base_shard_count', 'class', 'target_sstable_size',
+                                     'sstable_growth', 'max_sstables_to_compact',
+                                     'enabled', 'expired_sstable_check_frequency_seconds',
+                                     'unsafe_aggressive_sstable_expiration', 'overlap_inclusion_method',
+                                     'tombstone_threshold', 'tombstone_compaction_interval',
+                                     'unchecked_tombstone_compaction', 'provide_overlapping_tombstones',
+                                     'max_threshold', 'only_purge_repaired_tombstones'])
 
     def test_complete_in_create_columnfamily(self):
         self.trycompletions('CREATE C', choices=['COLUMNFAMILY', 'CUSTOM'])

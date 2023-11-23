@@ -118,7 +118,7 @@ public class Config
     public volatile boolean force_new_prepared_statement_behaviour = false;
 
     public ParameterizedClass seed_provider;
-    public DiskAccessMode disk_access_mode = DiskAccessMode.auto;
+    public DiskAccessMode disk_access_mode = DiskAccessMode.mmap_index_only;
 
     public DiskFailurePolicy disk_failure_policy = DiskFailurePolicy.ignore;
     public CommitFailurePolicy commit_failure_policy = CommitFailurePolicy.stop;
@@ -180,9 +180,6 @@ public class Config
     public int concurrent_materialized_view_writes = 32;
     public int available_processors = -1;
 
-    @Deprecated
-    public Integer concurrent_replicates = null;
-
     public int memtable_flush_writers = 0;
     @Replaces(oldName = "memtable_heap_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public DataStorageSpec.IntMebibytesBound memtable_heap_space;
@@ -202,7 +199,8 @@ public class Config
     public MemtableOptions memtable;
 
     // Limit the maximum depth of repair session merkle trees
-    @Deprecated
+    /** @deprecated See  */
+    @Deprecated(since = "4.0")
     public volatile Integer repair_session_max_tree_depth = null;
     @Mutable
     @ValidatedBy(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateRepairSessionSpace")
@@ -298,9 +296,6 @@ public class Config
     @Replaces(oldName = "native_transport_receive_queue_capacity_in_bytes", converter = Converters.BYTES_DATASTORAGE, deprecated = true)
     public DataStorageSpec.IntBytesBound native_transport_receive_queue_capacity = new DataStorageSpec.IntBytesBound("1MiB");
 
-    @Deprecated
-    public Integer native_transport_max_negotiable_protocol_version = null;
-
     /**
      * Max size of values in SSTables, in MebiBytes.
      * Default is the same as the native protocol frame limit: 256MiB.
@@ -354,7 +349,8 @@ public class Config
     /**
      * @deprecated retry support removed on CASSANDRA-10992
      */
-    @Deprecated
+    /** @deprecated See CASSANDRA-17378 */
+    @Deprecated(since = "4.1")
     public int max_streaming_retries = 3;
 
     @Mutable
@@ -424,9 +420,6 @@ public class Config
     public DataStorageSpec.IntMebibytesBound cdc_total_space = new DataStorageSpec.IntMebibytesBound("0MiB");
     @Replaces(oldName = "cdc_free_space_check_interval_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
     public DurationSpec.IntMillisecondsBound cdc_free_space_check_interval = new DurationSpec.IntMillisecondsBound("250ms");
-
-    @Deprecated
-    public int commitlog_periodic_queue_size = -1;
 
     public String endpoint_snitch;
     public boolean dynamic_snitch = true;
@@ -514,7 +507,8 @@ public class Config
      */
     public Boolean file_cache_round_up;
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-15358 */
+    @Deprecated(since = "4.0")
     public boolean buffer_pool_use_heap_if_exhausted;
 
     public DiskOptimizationStrategy disk_optimization_strategy = DiskOptimizationStrategy.ssd;
@@ -564,21 +558,22 @@ public class Config
      */
     public volatile ConsistencyLevel ideal_consistency_level = null;
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17404 */
+    @Deprecated(since = "4.1")
     public int windows_timer_interval = 0;
 
-    @Deprecated
+    @Deprecated(since = "4.0")
     public String otc_coalescing_strategy = "DISABLED";
 
-    @Deprecated
+    @Deprecated(since = "4.0")
     public static final int otc_coalescing_window_us_default = 200;
-    @Deprecated
+    @Deprecated(since = "4.0")
     public int otc_coalescing_window_us = otc_coalescing_window_us_default;
-    @Deprecated
+    @Deprecated(since = "4.0")
     public int otc_coalescing_enough_coalesced_messages = 8;
-    @Deprecated
+    @Deprecated(since = "4.0")
     public static final int otc_backlog_expiration_interval_ms_default = 200;
-    @Deprecated
+    @Deprecated(since = "4.0")
     public volatile int otc_backlog_expiration_interval_ms = otc_backlog_expiration_interval_ms_default;
 
     /**
@@ -591,7 +586,8 @@ public class Config
     @Replaces(oldName = "enable_user_defined_functions", converter = Converters.IDENTITY, deprecated = true)
     public boolean user_defined_functions_enabled = false;
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-18252 */
+    @Deprecated(since = "5.0")
     @Replaces(oldName = "enable_scripted_user_defined_functions", converter = Converters.IDENTITY, deprecated = true)
     public boolean scripted_user_defined_functions_enabled = false;
 
@@ -660,9 +656,11 @@ public class Config
      */
     public UserFunctionTimeoutPolicy user_function_timeout_policy = UserFunctionTimeoutPolicy.die;
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-15375 */
+    @Deprecated(since = "4.0")
     public volatile boolean back_pressure_enabled = false;
-    @Deprecated
+    /** @deprecated See CASSANDRA-15375 */
+    @Deprecated(since = "4.0")
     public volatile ParameterizedClass back_pressure_strategy;
 
     public volatile int concurrent_validations;
@@ -794,9 +792,9 @@ public class Config
     public StorageAttachedIndexOptions sai_options = new StorageAttachedIndexOptions();
 
     /**
-     * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()}
+     * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()} See CASSANDRA-12550
      */
-    @Deprecated
+    @Deprecated(since = "3.10")
     public static boolean isClientMode()
     {
         return isClientMode;
@@ -834,9 +832,9 @@ public class Config
      * Client mode means that the process is a pure client, that uses C* code base but does
      * not read or write local C* database files.
      *
-     * @deprecated migrate to {@link DatabaseDescriptor#clientInitialization(boolean)}
+     * @deprecated migrate to {@link DatabaseDescriptor#clientInitialization(boolean)} See CASSANDRA-12550
      */
-    @Deprecated
+    @Deprecated(since = "3.10")
     public static void setClientMode(boolean clientMode)
     {
         isClientMode = clientMode;
@@ -875,6 +873,7 @@ public class Config
     public volatile boolean user_timestamps_enabled = true;
     public volatile boolean alter_table_enabled = true;
     public volatile boolean group_by_enabled = true;
+    public volatile boolean bulk_load_enabled = true;
     public volatile boolean drop_truncate_table_enabled = true;
     public volatile boolean drop_keyspace_enabled = true;
     public volatile boolean secondary_indexes_enabled = true;
@@ -1119,6 +1118,8 @@ public class Config
     public volatile DataStorageSpec.LongBytesBound min_tracked_partition_size = new DataStorageSpec.LongBytesBound("1MiB");
     public volatile long min_tracked_partition_tombstone_count = 5000;
     public volatile boolean top_partitions_enabled = true;
+
+    public final RepairConfig repair = new RepairConfig();
 
     /**
      * Default compaction configuration, used if a table does not specify any.

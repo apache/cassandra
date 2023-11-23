@@ -35,7 +35,6 @@ public final class Filter extends Transformation
     }
 
     @Override
-    @SuppressWarnings("resource")
     protected RowIterator applyToPartition(BaseRowIterator iterator)
     {
         return iterator instanceof UnfilteredRows

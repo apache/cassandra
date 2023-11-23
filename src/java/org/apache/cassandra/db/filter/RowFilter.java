@@ -340,7 +340,6 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             {
                 DecoratedKey pk;
 
-                @SuppressWarnings("resource")
                 protected BaseRowIterator<?> applyToPartition(BaseRowIterator<?> partition)
                 {
                     pk = partition.partitionKey();
@@ -466,7 +465,8 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             checkBindValueSet(value, "Unsupported unset value for column %s", column.name);
         }
 
-        @Deprecated
+        /** @deprecated See CASSANDRA-6377 */
+        @Deprecated(since = "3.5")
         public void validateForIndexing()
         {
             checkFalse(value.remaining() > FBUtilities.MAX_UNSIGNED_SHORT,
@@ -673,7 +673,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                 case GTE:
                 case GT:
                     {
-                        assert !column.isComplex() : "Only CONTAINS and CONTAINS_KEY are supported for 'complex' types";
+                        assert !column.isComplex() : "Only CONTAINS and CONTAINS_KEY are supported for collection types";
 
                         // In order to support operators on Counter types, their value has to be extracted from internal
                         // representation. See CASSANDRA-11629
@@ -698,8 +698,9 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                 case LIKE_SUFFIX:
                 case LIKE_CONTAINS:
                 case LIKE_MATCHES:
+                case ANN:
                     {
-                        assert !column.isComplex() : "Only CONTAINS and CONTAINS_KEY are supported for 'complex' types";
+                        assert !column.isComplex() : "Only CONTAINS and CONTAINS_KEY are supported for collection types";
                         ByteBuffer foundValue = getValue(metadata, partitionKey, row);
                         // Note that CQL expression are always of the form 'x < 4', i.e. the tested value is on the left.
                         return foundValue != null && operator.isSatisfiedBy(column.type, foundValue, value);

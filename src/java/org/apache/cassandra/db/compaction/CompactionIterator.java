@@ -119,7 +119,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         this(type, scanners, controller, nowInSec, compactionId, ActiveCompactionsTracker.NOOP, null);
     }
 
-    @SuppressWarnings("resource") // We make sure to close mergedIterator in close() and CompactionIterator is itself an AutoCloseable
     public CompactionIterator(OperationType type,
                               List<ISSTableScanner> scanners,
                               AbstractCompactionController controller,
@@ -206,12 +205,23 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     {
         return new UnfilteredPartitionIterators.MergeListener()
         {
+            private boolean rowProcessingNeeded()
+            {
+                return (type == OperationType.COMPACTION || type == OperationType.MAJOR_COMPACTION)
+                       && controller.cfs.indexManager.handles(IndexTransaction.Type.COMPACTION);
+            }
+
+            @Override
+            public boolean preserveOrder()
+            {
+                return rowProcessingNeeded();
+            }
+
             public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
             {
                 int merged = 0;
                 for (int i=0, isize=versions.size(); i<isize; i++)
                 {
-                    @SuppressWarnings("resource")
                     UnfilteredRowIterator iter = versions.get(i);
                     if (iter != null)
                         merged++;
@@ -221,17 +231,13 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
                 CompactionIterator.this.updateCounterFor(merged);
 
-                if ( (type != OperationType.COMPACTION && type != OperationType.MAJOR_COMPACTION) 
-                    || !controller.cfs.indexManager.handles(IndexTransaction.Type.COMPACTION) ) 
-                {
+                if (!rowProcessingNeeded())
                     return null;
-                }
                 
                 Columns statics = Columns.NONE;
                 Columns regulars = Columns.NONE;
                 for (int i=0, isize=versions.size(); i<isize; i++)
                 {
-                    @SuppressWarnings("resource")
                     UnfilteredRowIterator iter = versions.get(i);
                     if (iter != null)
                     {
@@ -661,7 +667,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
 
         @Override
-        @SuppressWarnings("resource")
         protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
         {
             currentToken = partition.partitionKey().getToken();

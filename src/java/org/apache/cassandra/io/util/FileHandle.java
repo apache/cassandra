@@ -19,6 +19,7 @@ package org.apache.cassandra.io.util;
 
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.RateLimiter;
@@ -252,6 +253,7 @@ public class FileHandle extends SharedCloseableImpl
         public final File file;
 
         private CompressionMetadata compressionMetadata;
+        private Supplier<Double> crcCheckChanceSupplier = () -> 1.0;
         private ChunkCache chunkCache;
         private int bufferSize = RandomAccessReader.DEFAULT_BUFFER_SIZE;
         private BufferType bufferType = BufferType.OFF_HEAP;
@@ -288,6 +290,12 @@ public class FileHandle extends SharedCloseableImpl
         public Builder withCompressionMetadata(CompressionMetadata metadata)
         {
             this.compressionMetadata = metadata;
+            return this;
+        }
+
+        public Builder withCrcCheckChance(Supplier<Double> crcCheckChanceSupplier)
+        {
+            this.crcCheckChanceSupplier = crcCheckChanceSupplier;
             return this;
         }
 
@@ -361,7 +369,6 @@ public class FileHandle extends SharedCloseableImpl
         }
 
         @VisibleForTesting
-        @SuppressWarnings("resource")
         public FileHandle complete(Function<File, ChannelProxy> channelProxyFactory)
         {
             ChannelProxy channel = null;
@@ -386,7 +393,7 @@ public class FileHandle extends SharedCloseableImpl
                     {
                         regions = mmappedRegionsCache != null ? mmappedRegionsCache.getOrCreate(channel, compressionMetadata)
                                                               : MmappedRegions.map(channel, compressionMetadata);
-                        rebuffererFactory = maybeCached(new CompressedChunkReader.Mmap(channel, compressionMetadata, regions));
+                        rebuffererFactory = maybeCached(new CompressedChunkReader.Mmap(channel, compressionMetadata, regions, crcCheckChanceSupplier));
                     }
                     else
                     {
@@ -399,7 +406,7 @@ public class FileHandle extends SharedCloseableImpl
                 {
                     if (compressionMetadata != null)
                     {
-                        rebuffererFactory = maybeCached(new CompressedChunkReader.Standard(channel, compressionMetadata));
+                        rebuffererFactory = maybeCached(new CompressedChunkReader.Standard(channel, compressionMetadata, crcCheckChanceSupplier));
                     }
                     else
                     {

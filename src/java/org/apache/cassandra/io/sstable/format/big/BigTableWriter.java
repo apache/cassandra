@@ -24,15 +24,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.index.Index;
@@ -44,7 +43,6 @@ import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.DataComponent;
 import org.apache.cassandra.io.sstable.format.IndexComponent;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.format.SortedTableWriter;
 import org.apache.cassandra.io.sstable.format.big.BigFormat.Components;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummary;
@@ -59,20 +57,19 @@ import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.io.util.FileHandle.Builder.NO_LENGTH_OVERRIDE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
-public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter>
+public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, BigTableWriter.IndexWriter>
 {
     private static final Logger logger = LoggerFactory.getLogger(BigTableWriter.class);
 
-    private final IndexWriter indexWriter;
     private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
     private final Map<DecoratedKey, AbstractRowIndexEntry> cachedKeys = new HashMap<>();
     private final boolean shouldMigrateKeyCache;
@@ -80,28 +77,13 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter>
     public BigTableWriter(Builder builder, LifecycleNewTracker lifecycleNewTracker, SSTable.Owner owner)
     {
         super(builder, lifecycleNewTracker, owner);
-        checkNotNull(builder.getRowIndexEntrySerializer());
-        checkNotNull(builder.getIndexWriter());
 
         this.rowIndexEntrySerializer = builder.getRowIndexEntrySerializer();
-        this.indexWriter = builder.getIndexWriter();
+        checkNotNull(this.rowIndexEntrySerializer);
+
         this.shouldMigrateKeyCache = DatabaseDescriptor.shouldMigrateKeycacheOnCompaction()
                                      && lifecycleNewTracker instanceof ILifecycleTransaction
                                      && !((ILifecycleTransaction) lifecycleNewTracker).isOffline();
-    }
-
-    @Override
-    public void mark()
-    {
-        super.mark();
-        indexWriter.mark();
-    }
-
-    @Override
-    public void resetAndTruncate()
-    {
-        super.resetAndTruncate();
-        indexWriter.resetAndTruncate();
     }
 
     @Override
@@ -145,7 +127,6 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter>
         return entry;
     }
 
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     private BigTableReader openInternal(IndexSummaryBuilder.ReadableBoundary boundary, SSTableReader.OpenReason openReason)
     {
         assert boundary == null || (boundary.indexLength > 0 && boundary.dataLength > 0);
@@ -251,16 +232,10 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter>
         return openInternal(null, openReason);
     }
 
-    @Override
-    protected SSTableWriter.TransactionalProxy txnProxy()
-    {
-        return new SSTableWriter.TransactionalProxy(() -> FBUtilities.immutableListWithFilteredNulls(indexWriter, dataWriter));
-    }
-
     /**
      * Encapsulates writing the index and filter for an SSTable. The state of this object is not valid until it has been closed.
      */
-    static class IndexWriter extends SortedTableWriter.AbstractIndexWriter
+    protected static class IndexWriter extends SortedTableWriter.AbstractIndexWriter
     {
         private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
 
@@ -271,7 +246,7 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter>
         private DecoratedKey first;
         private DecoratedKey last;
 
-        protected IndexWriter(Builder b)
+        protected IndexWriter(Builder b, SequentialWriter dataWriter)
         {
             super(b);
             this.rowIndexEntrySerializer = b.getRowIndexEntrySerializer();
@@ -279,10 +254,8 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter>
             builder = IndexComponent.fileBuilder(Components.PRIMARY_INDEX, b).withMmappedRegionsCache(b.getMmappedRegionsCache());
             summary = new IndexSummaryBuilder(b.getKeyCount(), b.getTableMetadataRef().getLocal().params.minIndexInterval, Downsampling.BASE_SAMPLING_LEVEL);
             // register listeners to be alerted when the data files are flushed
-            writer.setPostFlushListener(() -> summary.markIndexSynced(writer.getLastFlushOffset()));
-            @SuppressWarnings({"resource", "RedundantSuppression"})
-            SequentialWriter dataWriter = b.getDataWriter();
-            dataWriter.setPostFlushListener(() -> summary.markDataSynced(dataWriter.getLastFlushOffset()));
+            writer.setPostFlushListener(summary::markIndexSynced);
+            dataWriter.setPostFlushListener(summary::markDataSynced);
         }
 
         // finds the last (-offset) decorated key that can be guaranteed to occur fully in the flushed portion of the index file
@@ -316,11 +289,13 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter>
             summary.maybeAddEntry(key, indexStart, indexEnd, dataEnd);
         }
 
+        @Override
         public void mark()
         {
             mark = writer.mark();
         }
 
+        @Override
         public void resetAndTruncate()
         {
             // we can't un-set the bloom filter addition, but extra keys in there are harmless.
@@ -372,13 +347,17 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter>
         }
     }
 
-    public static class Builder extends SortedTableWriter.Builder<BigFormatPartitionWriter, BigTableWriter, Builder>
+    public static class Builder extends SortedTableWriter.Builder<BigFormatPartitionWriter, IndexWriter, BigTableWriter, Builder>
     {
         private RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
-        private IndexWriter indexWriter;
-        private SequentialWriter dataWriter;
-        private BigFormatPartitionWriter partitionWriter;
         private MmappedRegionsCache mmappedRegionsCache;
+        private OperationType operationType;
+
+        // Writers are expected to be opened only once during construction of the sstable. The following flags are used
+        // to ensure that.
+        private boolean indexWriterOpened;
+        private boolean dataWriterOpened;
+        private boolean partitionWriterOpened;
 
         public Builder(Descriptor descriptor)
         {
@@ -405,30 +384,51 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter>
         }
 
         @Override
-        public SequentialWriter getDataWriter()
+        protected SequentialWriter openDataWriter()
         {
-            return ensuringInBuildInternalContext(dataWriter);
+            checkState(!dataWriterOpened, "Data writer has been already opened.");
+
+            SequentialWriter dataWriter = DataComponent.buildWriter(descriptor,
+                                                                    getTableMetadataRef().getLocal(),
+                                                                    getIOOptions().writerOptions,
+                                                                    getMetadataCollector(),
+                                                                    ensuringInBuildInternalContext(operationType),
+                                                                    getIOOptions().flushCompression);
+            this.dataWriterOpened = true;
+            return dataWriter;
         }
 
         @Override
-        public BigFormatPartitionWriter getPartitionWriter()
+        protected IndexWriter openIndexWriter(SequentialWriter dataWriter)
         {
-            return ensuringInBuildInternalContext(partitionWriter);
+            checkNotNull(dataWriter);
+            checkState(!indexWriterOpened, "Index writer has been already opened.");
+
+            IndexWriter indexWriter = new IndexWriter(this, dataWriter);
+            this.indexWriterOpened = true;
+            return indexWriter;
         }
 
-        public RowIndexEntry.IndexSerializer getRowIndexEntrySerializer()
+        @Override
+        protected BigFormatPartitionWriter openPartitionWriter(SequentialWriter dataWriter, IndexWriter indexWriter)
+        {
+            checkNotNull(dataWriter);
+            checkNotNull(indexWriter);
+            checkState(!partitionWriterOpened, "Partition writer has been already opened.");
+
+            BigFormatPartitionWriter partitionWriter = new BigFormatPartitionWriter(getSerializationHeader(), dataWriter, descriptor.version, getRowIndexEntrySerializer().indexInfoSerializer());
+            this.partitionWriterOpened = true;
+            return partitionWriter;
+        }
+
+        RowIndexEntry.IndexSerializer getRowIndexEntrySerializer()
         {
             return ensuringInBuildInternalContext(rowIndexEntrySerializer);
         }
 
-        public IndexWriter getIndexWriter()
-        {
-            return ensuringInBuildInternalContext(indexWriter);
-        }
-
         private <T> T ensuringInBuildInternalContext(T value)
         {
-            Preconditions.checkState(value != null, "This getter can be used only during the lifetime of the sstable constructor. Do not use it directly.");
+            checkState(value != null, "The requested resource has not been initialized yet.");
             return value;
         }
 
@@ -437,30 +437,24 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter>
         {
             try
             {
-                mmappedRegionsCache = new MmappedRegionsCache();
-                rowIndexEntrySerializer = new RowIndexEntry.Serializer(descriptor.version, getSerializationHeader(), owner != null ? owner.getMetrics() : null);
-                dataWriter = DataComponent.buildWriter(descriptor,
-                                                       getTableMetadataRef().getLocal(),
-                                                       getIOOptions().writerOptions,
-                                                       getMetadataCollector(),
-                                                       lifecycleNewTracker.opType(),
-                                                       getIOOptions().flushCompression);
-                indexWriter = new IndexWriter(this);
-                partitionWriter = new BigFormatPartitionWriter(getSerializationHeader(), dataWriter, descriptor.version, rowIndexEntrySerializer.indexInfoSerializer());
+                this.operationType = lifecycleNewTracker.opType();
+                this.mmappedRegionsCache = new MmappedRegionsCache();
+                this.rowIndexEntrySerializer = new RowIndexEntry.Serializer(descriptor.version, getSerializationHeader(), owner != null ? owner.getMetrics() : null);
                 return new BigTableWriter(this, lifecycleNewTracker, owner);
             }
             catch (RuntimeException | Error ex)
             {
-                Throwables.closeAndAddSuppressed(ex, partitionWriter, indexWriter, dataWriter, mmappedRegionsCache);
+                Throwables.closeNonNullAndAddSuppressed(ex, mmappedRegionsCache);
                 throw ex;
             }
             finally
             {
-                rowIndexEntrySerializer = null;
-                indexWriter = null;
-                dataWriter = null;
-                partitionWriter = null;
-                mmappedRegionsCache = null;
+                this.rowIndexEntrySerializer = null;
+                this.mmappedRegionsCache = null;
+                this.operationType = null;
+                this.partitionWriterOpened = false;
+                this.indexWriterOpened = false;
+                this.dataWriterOpened = false;
             }
         }
     }

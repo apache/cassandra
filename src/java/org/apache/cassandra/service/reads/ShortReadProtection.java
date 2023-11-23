@@ -38,7 +38,6 @@ import org.apache.cassandra.locator.Replica;
  */
 public class ShortReadProtection
 {
-    @SuppressWarnings("resource")
     public static UnfilteredPartitionIterator extend(Replica source,
                                                      Runnable preFetchCallback,
                                                      UnfilteredPartitionIterator partitions,

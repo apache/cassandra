@@ -32,8 +32,9 @@ import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.MapDifference;
+import com.google.common.collect.Sets;
+import com.google.common.collect.Streams;
 import org.apache.commons.lang3.ObjectUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -89,7 +90,6 @@ public class Schema implements SchemaProvider
     public static final Schema instance = new Schema();
 
     private volatile Keyspaces distributedKeyspaces = Keyspaces.none();
-    private volatile Keyspaces distributedAndLocalKeyspaces;
 
     private final Keyspaces localKeyspaces;
 
@@ -121,7 +121,6 @@ public class Schema implements SchemaProvider
         this.localKeyspaces = (CassandraRelevantProperties.FORCE_LOAD_LOCAL_KEYSPACES.getBoolean() || isDaemonInitialized() || isToolInitialized())
                               ? Keyspaces.of(SchemaKeyspace.metadata(), SystemKeyspace.metadata())
                               : Keyspaces.none();
-        this.distributedAndLocalKeyspaces = this.localKeyspaces;
 
         this.localKeyspaces.forEach(this::loadNew);
         this.updateHandler = SchemaUpdateHandlerFactoryProvider.instance.get().getSchemaUpdateHandler(online, this::mergeAndUpdateVersion);
@@ -132,7 +131,6 @@ public class Schema implements SchemaProvider
     {
         this.online = online;
         this.localKeyspaces = localKeyspaces;
-        this.distributedAndLocalKeyspaces = this.localKeyspaces;
         this.updateHandler = updateHandler;
     }
 
@@ -174,7 +172,6 @@ public class Schema implements SchemaProvider
             reload(previous, ksm);
 
         distributedKeyspaces = distributedKeyspaces.withAddedOrUpdated(ksm);
-        distributedAndLocalKeyspaces = distributedAndLocalKeyspaces.withAddedOrUpdated(ksm);
     }
 
     private synchronized void loadNew(KeyspaceMetadata ksm)
@@ -263,11 +260,6 @@ public class Schema implements SchemaProvider
         }
     }
 
-    public Keyspaces distributedAndLocalKeyspaces()
-    {
-        return distributedAndLocalKeyspaces;
-    }
-
     public Keyspaces distributedKeyspaces()
     {
         return distributedKeyspaces;
@@ -279,11 +271,11 @@ public class Schema implements SchemaProvider
      */
     public int largestGcgs()
     {
-        return distributedAndLocalKeyspaces().stream()
-                                             .flatMap(ksm -> ksm.tables.stream())
-                                             .mapToInt(tm -> tm.params.gcGraceSeconds)
-                                             .max()
-                                             .orElse(Integer.MIN_VALUE);
+        return Streams.concat(distributedKeyspaces.stream(), localKeyspaces.stream())
+                      .flatMap(ksm -> ksm.tables.stream())
+                      .mapToInt(tm -> tm.params.gcGraceSeconds)
+                      .max()
+                      .orElse(Integer.MIN_VALUE);
     }
 
     /**
@@ -294,7 +286,6 @@ public class Schema implements SchemaProvider
     private synchronized void unload(KeyspaceMetadata ksm)
     {
         distributedKeyspaces = distributedKeyspaces.without(ksm.name);
-        distributedAndLocalKeyspaces = distributedAndLocalKeyspaces.without(ksm.name);
 
         this.tableMetadataRefCache = tableMetadataRefCache.withRemovedRefs(ksm);
 
@@ -303,13 +294,16 @@ public class Schema implements SchemaProvider
 
     public int getNumberOfTables()
     {
-        return distributedAndLocalKeyspaces().stream().mapToInt(k -> size(k.tablesAndViews())).sum();
+        return Streams.concat(distributedKeyspaces.stream(), localKeyspaces.stream())
+                      .mapToInt(k -> size(k.tablesAndViews()))
+                      .sum();
     }
 
     public ViewMetadata getView(String keyspaceName, String viewName)
     {
         assert keyspaceName != null;
-        KeyspaceMetadata ksm = distributedAndLocalKeyspaces().getNullable(keyspaceName);
+        KeyspaceMetadata ksm = distributedKeyspaces.getNullable(keyspaceName);
+        ksm = ksm != null ? ksm : localKeyspaces.getNullable(keyspaceName);
         return (ksm == null) ? null : ksm.views.getNullable(viewName);
     }
 
@@ -324,36 +318,18 @@ public class Schema implements SchemaProvider
     public KeyspaceMetadata getKeyspaceMetadata(String keyspaceName)
     {
         assert keyspaceName != null;
-        KeyspaceMetadata keyspace = distributedAndLocalKeyspaces().getNullable(keyspaceName);
-        return null != keyspace ? keyspace : VirtualKeyspaceRegistry.instance.getKeyspaceMetadataNullable(keyspaceName);
-    }
-
-    /**
-     * Returns all non-local keyspaces, that is, all but {@link SchemaConstants#LOCAL_SYSTEM_KEYSPACE_NAMES}
-     * or virtual keyspaces.
-     * @deprecated use {@link #distributedKeyspaces()}
-     */
-    @Deprecated
-    public Keyspaces getNonSystemKeyspaces()
-    {
-        return distributedKeyspaces;
-    }
-
-    /**
-     * Returns all non-local keyspaces whose replication strategy is not {@link LocalStrategy}.
-     */
-    public Keyspaces getNonLocalStrategyKeyspaces()
-    {
-        return distributedKeyspaces.filter(keyspace -> keyspace.params.replication.klass != LocalStrategy.class);
+        KeyspaceMetadata ksm = distributedKeyspaces.getNullable(keyspaceName);
+        ksm = ksm != null ? ksm : localKeyspaces.getNullable(keyspaceName);
+        return null != ksm ? ksm : VirtualKeyspaceRegistry.instance.getKeyspaceMetadataNullable(keyspaceName);
     }
 
     /**
      * Returns user keyspaces, that is all but {@link SchemaConstants#LOCAL_SYSTEM_KEYSPACE_NAMES},
      * {@link SchemaConstants#REPLICATED_SYSTEM_KEYSPACE_NAMES} or virtual keyspaces.
      */
-    public Keyspaces getUserKeyspaces()
+    public Sets.SetView<String> getUserKeyspaces()
     {
-        return distributedKeyspaces.without(SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES);
+        return Sets.difference(distributedKeyspaces.names(), SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES);
     }
 
     /**
@@ -372,11 +348,11 @@ public class Schema implements SchemaProvider
     }
 
     /**
-     * @return collection of the all keyspace names registered in the system (system and non-system)
+     * @return a set of local and distributed keyspace names; it does not include virtual keyspaces
      */
-    public ImmutableSet<String> getKeyspaces()
+    public Sets.SetView<String> getKeyspaces()
     {
-        return distributedAndLocalKeyspaces().names();
+        return Sets.union(distributedKeyspaces.names(), localKeyspaces.names());
     }
 
     public Keyspaces getLocalKeyspaces()
@@ -511,7 +487,12 @@ public class Schema implements SchemaProvider
     /* Version control */
 
     /**
-     * @return current schema version
+     * Returns the current schema version. Although, if the schema is being updated while the method was called, it
+     * can return a stale version which does not correspond to the current keyspaces metadata. It is because the schema
+     * version is unknown for the partially applied changes and is updated after the entire schema change is completed.
+     * <p>
+     * This method should be used only internally by {@link Schema} or {@link SchemaUpdateHandler} implementations.
+     * Please use {@link #getDistributedSchemaBlocking()} to get schema version consistently in other cases.
      */
     public UUID getVersion()
     {
@@ -519,7 +500,17 @@ public class Schema implements SchemaProvider
     }
 
     /**
+     * Returns the current keyspaces metadata and version synchronouly. If the schema is in the middle of a multistep
+     * transformation, the method blocks until the update is completed.
+     */
+    public synchronized DistributedSchema getDistributedSchemaBlocking()
+    {
+        return new DistributedSchema(distributedKeyspaces, version);
+    }
+
+    /**
      * Checks whether the given schema version is the same as the current local schema.
+     * Note that this method is non-blocking and may use a stale schema version for comparison - see {@link #getVersion()}.
      */
     public boolean isSameVersion(UUID schemaVersion)
     {
@@ -528,6 +519,7 @@ public class Schema implements SchemaProvider
 
     /**
      * Checks whether the current schema is empty.
+     * Note that this method is non-blocking and may use a stale schema version for comparison - see {@link #getVersion()}.
      */
     public boolean isEmpty()
     {
@@ -603,6 +595,7 @@ public class Schema implements SchemaProvider
     public synchronized void mergeAndUpdateVersion(SchemaTransformationResult result, boolean dropData)
     {
         result = localDiff(result);
+        assert result.after.getKeyspaces().stream().noneMatch(ksm -> ksm.params.replication.klass == LocalStrategy.class) : "LocalStrategy should not be used";
         schemaChangeNotifier.notifyPreChanges(result);
         merge(result.diff, dropData);
         updateVersion(result.after.getVersion());

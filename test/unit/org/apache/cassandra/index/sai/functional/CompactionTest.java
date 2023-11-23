@@ -61,8 +61,8 @@ import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -96,14 +96,14 @@ public class CompactionTest extends SAITester
         {
             InetAddressAndPort endpoint = InetAddressAndPort.getByName("10.0.0.1");
             TimeUUID parentRepairSession = TimeUUID.Generator.nextTimeUUID();
-            ActiveRepairService.instance.registerParentRepairSession(parentRepairSession,
-                                                                     endpoint,
-                                                                     Lists.newArrayList(cfs),
-                                                                     Collections.singleton(range),
-                                                                     true,
-                                                                     1000,
-                                                                     false,
-                                                                     PreviewKind.NONE);
+            ActiveRepairService.instance().registerParentRepairSession(parentRepairSession,
+                                                                       endpoint,
+                                                                       Lists.newArrayList(cfs),
+                                                                       Collections.singleton(range),
+                                                                       true,
+                                                                       1000,
+                                                                       false,
+                                                                       PreviewKind.NONE);
             RangesAtEndpoint replicas = RangesAtEndpoint.builder(endpoint).add(Replica.fullReplica(endpoint, range)).build();
             CompactionManager.instance.performAnticompaction(cfs, replicas, refs, txn, parentRepairSession, () -> false);
         }
@@ -339,8 +339,7 @@ public class CompactionTest extends SAITester
         }
 
         // verify index group metrics are cleared.
-        assertEquals(0, getOpenIndexFiles());
-        assertEquals(0, getDiskUsage());
+        assertNull(getCurrentIndexGroup());
 
         // verify indexes are dropped
         // verify indexes are dropped

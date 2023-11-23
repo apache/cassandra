@@ -1,0 +1,9 @@
+[TIP]
+====
+In CQL queries of database tables with SAI indexes, the `CONTAINS` clauses
+are supported with, and specific to:
+
+* SAI *collection maps* with `keys`, `values`, and `entries`
+
+* SAI *collections* with `list` and `set` types
+====

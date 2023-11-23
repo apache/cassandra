@@ -62,8 +62,4 @@ else
     sudo alternatives --set javac $(alternatives --display javac | grep "family java-${java_version}-openjdk" | cut -d' ' -f1)
 fi
 export JAVA_HOME=$(readlink -f /usr/bin/javac | sed "s:/bin/javac::")
-echo "Cassandra will be built with Java ${java_version}"
-
-# print debug information on versions
-java -version 2>&1
-javac -version 2>&1
+echo "Using Java ${java_version}"

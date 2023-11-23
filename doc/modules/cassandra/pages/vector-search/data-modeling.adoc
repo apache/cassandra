@@ -1,0 +1,132 @@
+= Data Modeling
+
+As you develop AI and Machine Learning (ML) applications using Vector Search, here are some data modeling considerations. 
+These factors help effectively leverage vector search to produce accurate and efficient search responses within your application.
+
+== Data representation
+
+Vector search relies on representing data points as high-dimensional vectors. 
+The choice of vector representation depends on the nature of the data. 
+
+For data that consists of text documents, techniques like word embeddings (e.g., https://towardsdatascience.com/word2vec-explained-49c52b4ccb71[Word2Vec]) or document embeddings (e.g., https://en.wikipedia.org/wiki/Word2vec#doc2vec[Doc2Vec]) can be used to convert text into vectors.
+More complex models can also be used to generate embeddings using Large Language Models (LLMs) like https://openai.com/gpt-4[OpenAI GPT-4] or https://ai.meta.com/llama/[Meta LLaMA 2].
+Word2Vec is a relatively simple model that uses a shallow neural network to learn embeddings for words based on their context. 
+The key concept is that Word2Vec generates a single fixed vector for each word, regardless of the context in which the word is used.
+LLMs are much more complex models that use deep neural networks, specifically transformer architectures, to learn embeddings for words based on their context. 
+Unlike Word2Vec, these models generate contextual embeddings, meaning the same word can have different embeddings depending on the context in which it is used.
+
+Images can be represented using deep learning techniques like https://medium.com/@singole/an-extensive-guide-to-convolution-neural-network-2023-84872b16bd78[convolutional neural networks (CNNs)] or pre-trained models such as https://openai.com/research/clip[Contrastive Language Image Pre-training (CLIP)]. 
+Select a vector representation that captures the essential features of the data.
+
+== Dataset dimensions
+
+A vector search only works when the vectors have the same dimensions, because vector operations like https://www.mathsisfun.com/algebra/vectors-dot-product.html[dot product] and https://www.learndatasci.com/glossary/cosine-similarity/[cosine similarity] require vectors to have the same number of dimensions.
+
+For vector search, it is crucial that all embeddings are created in the same vector space. 
+This means that the embeddings should follow the same principles and rules to enable proper comparison and analysis. 
+Using the same embedding library guarantees this compatibility because the library consistently transforms data into vectors in a specific, defined way.
+For example, comparing Word2Vec embeddings with BERT (an LLM) embeddings could be problematic because these models have different architectures and create embeddings in fundamentally different ways.
+
+== Preprocessing embeddings vectors
+
+Normalizing is about scaling the data so it has a length of one. 
+This is typically done by dividing each element in a vector by the vector's length.
+
+Standardizing is about shifting (subtracting the mean) and scaling (dividing by the standard deviation) the data so it has a mean of zero and a standard deviation of one.
+
+It is important to note that standardizing and normalizing in the context of embedding vectors are not the same.
+The correct preprocessing method (standardizing, normalizing, or even something else) depends on the specific characteristics of your data and what you are trying to achieve with your machine learning model.
+Preprocessing steps may involve cleaning and tokenizing text, resizing and normalizing images, or handling missing values. 
+
+=== Normalizing embedding vectors
+
+Normalizing embedding vectors is a process that ensures every embedding vector in your vector space has a length (or norm) of one. 
+This is done by dividing each element of the vector by the vector's length (also known as its `Euclidean` norm or `L2` norm).
+
+For example, look at the embedding vectors from the xref:getting-started/vector-search-quickstart.adoc[Vector Search Quickstart] and their normalized counterparts, where a consistent length has been used for all the vectors:
+
+[tabs]
+====
+Original::
++
+--
+[source,console]
+----
+include::cassandra:example$TEXT/original-embedding-vectors.txt[]
+----
+--
+
+Normalized::
++
+--
+[source, console]
+----
+include::cassandra:example$TEXT/normalized-embedding-vectors.txt[]
+----
+--
+====
+
+The primary reason you would normalize vectors when working with embeddings is that it makes comparisons between vectors more meaningful. 
+By normalizing, you ensure that comparisons are not affected by the scale of the vectors, and are solely based on their direction. 
+This is particularly useful to calculate the cosine similarity between vectors, where the focus is on the angle between vectors (directional relationship), not their magnitude.
+
+Normalizing embedding vectors is a way of standardizing your high-dimensional data so that comparisons between different vectors are more meaningful and less affected by the scale of the original vectors.
+Since `dot product` and cosine are equivalent for normalized vectors, but the `dot product` algorithm is 50% faster, it is recommended that developers use `dot product` for the similarity function.
+
+However, if embeddings are NOT normalized, then `dot product` silently returns meaningless query results.
+Therefore, `dot product` is not set as the default similarity function in Vector Search.
+
+When you use OpenAI, PaLM, or Simsce to generate your embeddings, they are normalized by default.
+If you use a different library, you want to normalize your vectors and set the similarity function to `dot product`.
+See how to set the similarity function in the xref:getting-started/vector-search-quickstart.adoc#_create_vector_index[Vector Search quickstart].
+
+Normalization is not required for all vector search examples.
+
+=== Standardizing embedding vectors
+
+Standardizing embedding vectors typically refers to a process similar to that used in statistics where data is standardized to have a mean of zero and a standard deviation of one.
+The goal of standardizing is to transform the embedding vectors so they have properties of a standard normal Gaussian distribution. 
+
+If you are using a machine learning model that uses distances between points (like nearest neighbors or any model that uses Euclidean distance or cosine similarity), standardizing can ensure that all features contribute equally to the distance calculations. 
+Without standardization, features on larger scales can dominate the distance calculations.
+
+In the context of neural networks, for example, having input values that are on a similar scale can help the network learn more effectively, because it ensures that no particular feature dominates the learning process simply because of its scale.
+
+== Indexing and Storage
+
+SAI indexing and storage mechanisms are tailored for large datasets like vector search. 
+Currently, SAI uses https://github.com/jbellis/jvector[JVector], an algorithm for Approximate Nearest Neighbor (ANN) search and close cousin to Hierarchical Navigable Small World (HNSW).
+
+The goal of ANN search algorithms like JVector is to find the data points in a dataset that are closest (or most similar) to a given query point. However, finding the exact nearest neighbors can be computationally expensive, particularly when dealing with high-dimensional data. 
+Therefore, ANN algorithms aim to find the nearest neighbors approximately, prioritizing speed and efficiency over exact accuracy.
+
+JVector achieves this goal by creating a hierarchy of graphs, where each level of the hierarchy corresponds to a `small world` graph that is navigable.  
+It is inspired by DiskANN, a disk-backed ANN library, to store the graphs on disk.
+For any given node (data point) in the graph, it is easy to find a path to any other node. 
+The higher levels of the hierarchy have fewer nodes and are used for coarse navigation, while the lower levels have more nodes and are used for fine navigation.
+Such indexing structures enable fast retrieval by narrowing down the search space to potential matches. 
+
+JVector also uses the Panama SIMD API to accelerate index build and queries.
+
+== Similarity Metric
+
+Vector search relies on computing the similarity or distance between vectors to identify relevant matches. 
+Choosing an appropriate similarity metric is crucial, as different metrics may be more suitable for specific types of data. 
+Common similarity metrics include cosine similarity, Euclidean distance, or Jaccard similarity. 
+The choice of metric should align with the characteristics of the data and the desired search behavior.
+
+Vector Search supports three similarity metrics: `cosine similarity`, `dot product`, and `Euclidean distance`.
+The default similarity algorithm for the Vector Search indexes is `cosine similarity`.
+The recommendation is to use the `dot product` on normalized embeddings for most applications, because `dot product` is 50% faster than `cosine similarity`.
+
+== Scalability and Performance
+
+Scalability is a critical consideration as your dataset expands.
+Vector search algorithms should be designed to handle large-scale datasets efficiently. 
+Your {cassandra} database using Vector Search efficiently distributes data and accesses that data with parallel processing to enhance performance. 
+
+== Evaluation and iteration
+
+Continuously evaluate and iterate the data to refine search results against known truth and user feedback. 
+This also helps identify areas for improvement. 
+Iteratively refining the vector representations, similarity metrics, indexing techniques, or preprocessing steps can lead to better search performance and user satisfaction.

@@ -458,7 +458,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         this.openReason = builder.getOpenReason();
         this.first = builder.getFirst();
         this.last = builder.getLast();
-        this.bounds = AbstractBounds.strictlyWrapsAround(first.getToken(), last.getToken())
+        this.bounds = first == null || last == null || AbstractBounds.strictlyWrapsAround(first.getToken(), last.getToken())
                       ? null // this will cause the validation to fail, but the reader is opened with no validation,
                              // e.g. for scrubbing, we should accept screwed bounds
                       : AbstractBounds.bounds(first.getToken(), true, last.getToken(), true);
@@ -878,7 +878,6 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     public void setCrcCheckChance(double crcCheckChance)
     {
         this.crcCheckChance = crcCheckChance;
-        dfile.compressionMetadata().ifPresent(metadata -> metadata.parameters.setCrcCheckChance(crcCheckChance));
     }
 
     /**
@@ -1545,7 +1544,6 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         }
 
         // get a new reference to the shared GlobalTidy for this sstable
-        @SuppressWarnings("resource")
         public static Ref<GlobalTidy> get(SSTableReader sstable)
         {
             Descriptor descriptor = sstable.descriptor;

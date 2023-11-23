@@ -1,0 +1,429 @@
+= CREATE CUSTOM INDEX
+:description: Creates a storage-attached index (SAI).
+
+include::cassandra:partial$sai/support-databases.adoc[]
+
+Creates a Storage-Attached Indexing (SAI) index.
+You can create multiple secondary indexes on the same database table, with each SAI index based on any column in the table.
+All column date types except the following are supported for SAI indexes:
+
+* `counter`
+* geospatial types: `PointType`, `LineStringType`, `PolygonType`
+* non-frozen user-defined type (UDT)
+
+.One exception 
+****
+You cannot define an SAI index based on the partition key when it's comprised of only one column.
+If you attempt to create an SAI index in this case, SAI issues an error message.
+****
+
+However,you can define an SAI index on one of the columns in a table's composite partition key, i.e., a partition key comprised of multiple columns.
+If you need to query based on one of those columns, an SAI index is a helpful option. In fact, you can define an SAI index on each column in a composite partition key, if needed.
+
+Defining one or more SAI indexes based on any column in a database table (with the rules noted above) subsequently gives you the ability to run performant queries that use the indexed column to filter results.
+
+See the xref:cassandra:developing/indexing/sai/sai-overview.adoc[SAI section].
+
+== Syntax
+
+BNF definition:
+
+[source,bnf]
+----
+include::example$BNF/index_name.bnf[]
+----
+
+// tag::syntax[]
+----
+CREATE CUSTOM INDEX [ IF NOT EXISTS ] [ <index_name> ]
+  ON [ <keyspace_name>.]<table_name> (<column_name>)
+    | [ (KEYS(<map_name>)) ]
+    | [ (VALUES(<map_name>)) ]
+    | [ (ENTRIES(<map_name>)) ]
+  USING 'StorageAttachedIndex'
+  [ WITH OPTIONS = { <option_map> } ] ;
+----
+// end::syntax[]
+
+.Syntax legend
+[%collapsible]
+====
+include::cassandra:partial$cql-syntax-legend.adoc[]
+====
+
+index_name::
+Optional identifier for index.
+If no name is specified, the default is used, `<table_name>_<column_name>_idx`.
+Enclose in quotes to use special characters or to preserve capitalization.
+
+column_name::
+The name of the table column on which the SAI index is being defined.
+SAI allows only alphanumeric characters and underscores in names.
+SAI returns `InvalidRequestException` if you try to define an index on a column name that contains other characters, and does not create the index.
+
+map_name::
+// LLP FIX
+Used with xref:cassandra:developing/collections/collection-create.adoc[collections], identifier of the `map_name` specified in `CREATE TABLE` ...
+`map(<map_name>)`.
+The regular column syntax applies for collection types `list` and `set`.
+
+option_map::
+Define options in JSON simple format.
++
+[cols="100,223"]
+|===
+| Option | Description
+
+| `case_sensitive`
+| Ignore case in matching string values.
+Default: `true`.
+| `normalize`
+| When set to `true`, perform https://unicode.org/faq/normalization.html[Unicode normalization] on indexed strings.
+SAI supports Normalization Form C (NFC) Unicode.
+When set to `true`, SAI normalizes the different versions of a given Unicode character to a single version, retaining all the marks and symbols in the index.
+For example, SAI would change the character Å (U+212B) to Å (U+00C5).
+
+When implementations keep strings in a normalized form, equivalent strings have a unique binary representation.
+See https://unicode.org/reports/tr15/[Unicode Standard Annex #15, Unicode Normalization Forms].
+
+Default: `false`.
+
+| `ascii`
+| When set to `true`, SAI converts alphabetic, numeric, and symbolic characters that are not in the Basic Latin Unicode block (the first 127 ASCII characters) to the ASCII equivalent, if one exists.
+For example, this option changes à to a.
+Default: `false`.
+| similarity_function
+|  Vector search relies on computing the similarity or distance between vectors to identify relevant matches. 
+The similarity function is used to compute the similarity between two vectors. 
+Valid options are: EUCLIDEAN, DOT_PRODUCT, COSINE
+Default: `COSINE`
+|===
+
+== Query operators
+
+SAI supports the following query operators for tables with SAI indexes:
+
+include::cassandra:partial$sai/supported-query-operators-list.adoc[]
+
+SAI does not supports the following query operators for tables with SAI indexes:
+
+include::cassandra:partial$sai/notSupportedOperators.adoc[]
+
+== Examples
+
+These examples define SAI indexes for the `cycling.cyclist_semi_pro` table, which is demonstrated in the xref:cassandra:getting-started/sai-quickstart.adoc[SAI quickstart].
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/cyclist_semi_pro_sai_indices.cql[tag=createQuickStartIndices]
+----
+
+For sample queries that find data in `cycling.cyclist_semi_pro` via these sample SAI indexes, see xref:cassandra:getting-started/sai-quickstart.adoc#saiQuickStart__saiQuickStartSubmitQueries[Submit CQL queries].
+Also refer xref:cassandra:developing/indexing/sai/sai-query.adoc[Examine SAI column index and query rules].
+
+[[saiCollectionsExamples]]
+=== SAI collection map examples with keys, values, and entries
+
+// LLP FIX
+The following examples demonstrate using collection maps of multiple types (`keys`, `values`, `entries`) in SAI indexes.
+For related information, see xref:cassandra:developing/collections/collection-create.adoc[Creating collections] and xref:cassandra:developing/collections/map.adoc[Using map type].
+
+Also refer to the SAI collection examples of type xref:#saiCreateCustomIndexCollectionsListAndSetExamples[list and set] in this topic.
+
+First, create the keyspace:
+
+[source,language-cql]
+----
+CREATE KEYSPACE demo3 WITH REPLICATION =
+       {'class': 'SimpleStrategy', 'replication_factor': '1'};
+----
+
+Next, use the keyspace:
+
+[source,language-cql]
+----
+USE demo3;
+----
+
+Create an `audit` table, with a collection map named `text_map`:
+
+[source,language-cql]
+----
+CREATE TABLE audit ( id int PRIMARY KEY , text_map map<text, text>);
+----
+
+Create multiple SAI indexes on the same `map` column, each using `KEYS`, `VALUES`, and `ENTRIES`.
+
+[source,language-cql]
+----
+CREATE CUSTOM INDEX ON audit (KEYS(text_map)) USING 'StorageAttachedIndex';
+CREATE CUSTOM INDEX ON audit (VALUES(text_map)) USING 'StorageAttachedIndex';
+CREATE CUSTOM INDEX ON audit (ENTRIES(text_map)) USING 'StorageAttachedIndex';
+----
+
+Insert some data:
+
+[source,language-cql]
+----
+INSERT INTO audit (id, text_map) values (1, {'Carlos':'Perotti', 'Marcel':'Silva'});
+INSERT INTO audit (id, text_map) values (2, {'Giovani':'Pasi', 'Frances':'Giardello'});
+INSERT INTO audit (id, text_map) values (3, {'Mark':'Pastore', 'Irene':'Cantona'});
+----
+
+Query all data:
+
+[tabs]
+====
+Query::
++
+--
+[source, sql]
+----
+SELECT * FROM audit;
+----
+--
+
+Result::
++
+--
+[source,results]
+----
+ id | text_map
+----+---------------------------------------------
+  1 | {'Carlos': 'Perotti', 'Marcel': 'Silva'}
+  2 | {'Frances': 'Giardello', 'Giovani': 'Pasi'}
+  3 | {'Irene': 'Cantona', 'Mark': 'Pastore'}
+
+(3 rows)
+----
+--
+====
+
+Query using the SAI index for specific entries in the `map` column:
+
+[tabs]
+====
+Query::
++
+--
+[source, sql]
+----
+SELECT * FROM audit WHERE text_map['Irene'] = 'Cantona' AND text_map['Mark'] = 'Pastore';
+----
+--
+
+Result::
++
+--
+[source,results]
+----
+ id | text_map
+----+-----------------------------------------
+  3 | {'Irene': 'Cantona', 'Mark': 'Pastore'}
+
+(1 rows)
+----
+--
+====
+
+Query using the SAI index for specific keys in the `map` column using `CONTAINS KEY`:
+
+[tabs]
+====
+Query::
++
+--
+[source, sql]
+----
+SELECT * FROM audit WHERE text_map CONTAINS KEY 'Giovani';
+----
+--
+
+Result::
++
+--
+[source,results]
+----
+ id | text_map
+----+---------------------------------------------
+  2 | {'Frances': 'Giardello', 'Giovani': 'Pasi'}
+
+(1 rows)
+----
+--
+====
+
+Query using the SAI index for specific values in the `map` column with `CONTAINS`:
+
+[tabs]
+====
+Query::
++
+--
+[source, sql]
+----
+SELECT * FROM audit WHERE text_map CONTAINS 'Silva';
+----
+--
+
+Result::
++
+--
+[source,results]
+----
+ id | text_map
+----+------------------------------------------
+  1 | {'Carlos': 'Perotti', 'Marcel': 'Silva'}
+
+(1 rows)
+----
+--
+====
+
+// tag::saiCollectionsReferenceNote[]
+Remember that in CQL queries using SAI indexes, the `CONTAINS` clauses are supported with, and specific to:
+
+* SAI *collection maps* with `keys`, `values`, and `entries`
+* SAI *collections* with `list` and `set` types
+// end::saiCollectionsReferenceNote[]
+
+[[saiCreateCustomIndexCollectionsListAndSetExamples]]
+=== SAI collection examples with list and set types
+
+These examples demonstrate using collections with the `list` and `set` types in SAI indexes.
+For related information, see:
+// LLP FIX
+* xref:cassandra:developing/collections/collection-create.adoc[Creating collections]
+* xref:cassandra:developing/collections/list.adoc[Using list type]
+* xref:cassandra:developing/collections/set.adoc[Using set type]
+
+If you have not already, create the keyspace.
+
+[source,language-cql]
+----
+CREATE KEYSPACE IF NOT EXISTS demo3 WITH REPLICATION =
+       {'class': 'SimpleStrategy', 'replication_factor': '1'};
+----
+
+[source,language-cql]
+----
+USE demo3;
+----
+
+==== Using the list type
+
+Create a `calendar` table with a collection of type `list`.
+
+[source,language-cql]
+----
+CREATE TABLE calendar (key int PRIMARY KEY, years list<int>);
+----
+
+Create an SAI index using the collection's `years` column.
+
+[source,language-cql]
+----
+CREATE CUSTOM INDEX ON calendar(years) USING 'StorageAttachedIndex';
+----
+
+Insert some random `int` list data for `years`, just for demo purposes.
+
+[TIP]
+====
+Notice the `INSERT` command's square brackets syntax for list values.
+
+[source,language-cql]
+----
+INSERT INTO calendar (key, years) VALUES (0, [1990,1996]);
+INSERT INTO calendar (key, years) VALUES (1, [2000,2010]);
+INSERT INTO calendar (key, years) VALUES (2, [2001,1990]);
+----
+====
+
+Query with `CONTAINS` example:
+
+[tabs]
+====
+Query::
++
+--
+[source, sql]
+----
+SELECT * FROM calendar WHERE years CONTAINS 1990;
+----
+--
+
+Result::
++
+--
+[source,results]
+----
+ key | years
+-----+--------------
+   0 | [1990, 1996]
+   2 | [2001, 1990]
+(2 rows)
+----
+--
+====
+
+This example created the `calendar` table with `years list<int>`.
+Of course, you could have created the table with `years list<text>`, for example, inserted 'string' values, and queried on the strings.
+
+==== Using the set type
+
+Now create a `calendar2` table with a collection of type `set`.
+
+[source,language-cql]
+----
+CREATE TABLE calendar2 (key int PRIMARY KEY, years set<int>);
+----
+
+Create an SAI index using the collection's `years` column -- this time for the `calendar2` table.
+
+[source,language-cql]
+----
+CREATE CUSTOM INDEX ON calendar2(years) USING 'StorageAttachedIndex';
+----
+
+Insert some random `int` set data for `years`, again just for demo purposes.
+
+[TIP]
+--
+Notice the `INSERT` command's curly braces syntax for set values.
+
+[source,language-cql]
+----
+INSERT INTO calendar2 (key, years) VALUES (0, {1990,1996});
+INSERT INTO calendar2 (key, years) VALUES (1, {2000,2010});
+INSERT INTO calendar2 (key, years) VALUES (2, {2001,1990,2020});
+----
+--
+
+Query with `CONTAINS` example from the list:
+
+[tabs]
+====
+Query::
++
+--
+[source, sql]
+----
+SELECT * FROM calendar2  WHERE years CONTAINS 1990;
+----
+--
+
+Result::
++
+--
+[source,results]
+----
+ key | years
+-----+--------------------
+   0 |       {1990, 1996}
+   2 | {1990, 2001, 2020}
+
+(2 rows)
+----
+--
+====

@@ -132,7 +132,6 @@ public class JMXTool
             {
                 void dump(OutputStream output, Map<String, Info> map)
                 {
-                    @SuppressWarnings("resource")
                     // output should be released by caller
                     PrintStream out = toPrintStream(output);
                     for (Map.Entry<String, Info> e : map.entrySet())
@@ -302,7 +301,8 @@ public class JMXTool
                 DiffResult<Operation> operations = diff(leftInfo.operationSet(), rightInfo.operationSet(), operation -> {
                     for (CliPattern p : excludeOperations)
                     {
-                        if (p.pattern.matcher(operation.name).matches())
+                        if (p.pattern.matcher(operation.name).matches() ||
+                            p.pattern.matcher(operation.toString().replaceAll(" +", "")).matches())
                             return false;
                     }
                     return true;

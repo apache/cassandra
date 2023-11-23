@@ -231,6 +231,84 @@ pipeline {
             }
           }
         }
+        stage('oa') {
+          steps {
+            script {
+                def attempt = 1
+                while (attempt <=2) {
+                  if (attempt > 1) {
+                    sleep(60 * attempt)
+                  }
+                  attempt = attempt + 1
+                  oa = build job: "${env.JOB_NAME}-test-oa", propagate: false
+                  if (oa.result != 'FAILURE') break
+              }
+              if (oa.result != 'SUCCESS') unstable('oa failures')
+              if (oa.result == 'FAILURE') currentBuild.result='FAILURE'
+            }
+          }
+          post {
+            always {
+                warnError('missing test xml files') {
+                    script {
+                        copyTestResults('test-oa', oa.getNumber())
+                    }
+                }
+            }
+          }
+        }
+        stage('system-keyspace-directory') {
+          steps {
+            script {
+                def attempt = 1
+                while (attempt <=2) {
+                  if (attempt > 1) {
+                    sleep(60 * attempt)
+                  }
+                  attempt = attempt + 1
+                  system_keyspace_directory = build job: "${env.JOB_NAME}-test-system-keyspace-directory", propagate: false
+                  if (system_keyspace_directory.result != 'FAILURE') break
+              }
+              if (system_keyspace_directory.result != 'SUCCESS') unstable('system-keyspace-directory failures')
+              if (system_keyspace_directory.result == 'FAILURE') currentBuild.result='FAILURE'
+            }
+          }
+          post {
+            always {
+                warnError('missing test xml files') {
+                    script {
+                        copyTestResults('test-system-keyspace-directory', system_keyspace_directory.getNumber())
+                    }
+                }
+            }
+          }
+        }
+        stage('trie') {
+          steps {
+            script {
+                def attempt = 1
+                while (attempt <=2) {
+                  if (attempt > 1) {
+                    sleep(60 * attempt)
+                  }
+                  attempt = attempt + 1
+                  trie = build job: "${env.JOB_NAME}-test-trie", propagate: false
+                  if (trie.result != 'FAILURE') break
+              }
+              if (trie.result != 'SUCCESS') unstable('trie failures')
+              if (trie.result == 'FAILURE') currentBuild.result='FAILURE'
+            }
+          }
+          post {
+            always {
+                warnError('missing test xml files') {
+                    script {
+                        copyTestResults('test-trie', trie.getNumber())
+                    }
+                }
+            }
+          }
+        }
         stage('cqlsh') {
           steps {
             script {
@@ -252,6 +330,32 @@ pipeline {
                   warnError('missing test xml files') {
                       script {
                           copyTestResults('cqlsh-tests', cqlsh.getNumber())
+                      }
+                  }
+              }
+            }
+        }
+        stage('simulator-dtest') {
+          steps {
+            script {
+                def attempt = 1
+                while (attempt <=2) {
+                  if (attempt > 1) {
+                    sleep(60 * attempt)
+                  }
+                  attempt = attempt + 1
+                  simulator_dtest = build job: "${env.JOB_NAME}-simulator-dtest", propagate: false
+                  if (simulator_dtest.result != 'FAILURE') break
+                }
+                if (simulator_dtest.result != 'SUCCESS') unstable('simulator-dtest failures')
+                if (simulator_dtest.result == 'FAILURE') currentBuild.result='FAILURE'
+              }
+            }
+            post {
+              always {
+                  warnError('missing test xml files') {
+                      script {
+                          copyTestResults('simulator-dtest', simulator_dtest.getNumber())
                       }
                   }
               }
@@ -287,6 +391,32 @@ pipeline {
               }
             }
           }
+          stage('jvm-dtest-novnode') {
+            steps {
+              script {
+                  def attempt = 1
+                  while (attempt <=2) {
+                    if (attempt > 1) {
+                      sleep(60 * attempt)
+                    }
+                    attempt = attempt + 1
+                    jvm_dtest_novnode = build job: "${env.JOB_NAME}-jvm-dtest-novnode", propagate: false
+                    if (jvm_dtest_novnode.result != 'FAILURE') break
+                  }
+                  if (jvm_dtest_novnode.result != 'SUCCESS') unstable('jvm-dtest-novnode failures')
+                  if (jvm_dtest_novnode.result == 'FAILURE') currentBuild.result='FAILURE'
+              }
+            }
+            post {
+              always {
+                  warnError('missing test xml files') {
+                      script {
+                          copyTestResults('jvm-dtest-novnode', jvm_dtest_novnode.getNumber())
+                      }
+                  }
+              }
+            }
+          }
           stage('jvm-dtest-upgrade') {
             steps {
               script {
@@ -311,8 +441,34 @@ pipeline {
                       }
                   }
               }
-            } 
-          }       
+            }
+          }
+          stage('jvm-dtest-upgrade-novnode') {
+            steps {
+              script {
+                  def attempt = 1
+                  while (attempt <=2) {
+                    if (attempt > 1) {
+                      sleep(60 * attempt)
+                    }
+                    attempt = attempt + 1
+                    jvm_dtest_upgrade_novnode = build job: "${env.JOB_NAME}-jvm-dtest-upgrade-novnode", propagate: false
+                    if (jvm_dtest_upgrade_novnode.result != 'FAILURE') break
+                }
+                if (jvm_dtest_upgrade_novnode.result != 'SUCCESS') unstable('jvm-dtest-upgrade-novnode failures')
+                if (jvm_dtest_upgrade_novnode.result == 'FAILURE') currentBuild.result='FAILURE'
+              }
+            }
+            post {
+              always {
+                  warnError('missing test xml files') {
+                      script {
+                          copyTestResults('jvm-dtest-upgrade-novnode', jvm_dtest_upgrade_novnode.getNumber())
+                      }
+                  }
+              }
+            }
+          }
           stage('dtest') {
             steps {
               script {
@@ -464,6 +620,84 @@ pipeline {
                   warnError('missing test xml files') {
                       script {
                           copyTestResults('dtest-upgrade', dtest_upgrade.getNumber())
+                      }
+                  }
+              }
+            }
+          }
+          stage('dtest-upgrade-large') {
+            steps {
+              script {
+                  def attempt = 1
+                  while (attempt <=2) {
+                    if (attempt > 1) {
+                      sleep(60 * attempt)
+                    }
+                    attempt = attempt + 1
+                    dtest_upgrade = build job: "${env.JOB_NAME}-dtest-upgrade-large", propagate: false
+                    if (dtest_upgrade.result != 'FAILURE') break
+                }
+                if (dtest_upgrade.result != 'SUCCESS') unstable('dtest failures')
+                if (dtest_upgrade.result == 'FAILURE') currentBuild.result='FAILURE'
+              }
+            }
+            post {
+              always {
+                  warnError('missing test xml files') {
+                      script {
+                          copyTestResults('dtest-upgrade', dtest_upgrade.getNumber())
+                      }
+                  }
+              }
+            }
+          }
+          stage('dtest-upgrade-novnode') {
+            steps {
+              script {
+                  def attempt = 1
+                  while (attempt <=2) {
+                    if (attempt > 1) {
+                      sleep(60 * attempt)
+                    }
+                    attempt = attempt + 1
+                    dtest_upgrade_novnode = build job: "${env.JOB_NAME}-dtest-upgrade-novnode", propagate: false
+                    if (dtest_upgrade_novnode.result != 'FAILURE') break
+                }
+                if (dtest_upgrade_novnode.result != 'SUCCESS') unstable('dtest-upgrade-novnode failures')
+                if (dtest_upgrade_novnode.result == 'FAILURE') currentBuild.result='FAILURE'
+              }
+            }
+            post {
+              always {
+                  warnError('missing test xml files') {
+                      script {
+                          copyTestResults('dtest-upgrade-novnode', dtest_upgrade_novnode.getNumber())
+                      }
+                  }
+              }
+            }
+          }
+          stage('dtest-upgrade-novnode-large') {
+            steps {
+              script {
+                  def attempt = 1
+                  while (attempt <=2) {
+                    if (attempt > 1) {
+                      sleep(60 * attempt)
+                    }
+                    attempt = attempt + 1
+                    dtest_upgrade_novnode_large = build job: "${env.JOB_NAME}-dtest-upgrade-novnode-large", propagate: false
+                    if (dtest_upgrade_novnode_large.result != 'FAILURE') break
+                }
+                if (dtest_upgrade_novnode_large.result != 'SUCCESS') unstable('dtest-upgrade-novnode-large failures')
+                if (dtest_upgrade_novnode_large.result == 'FAILURE') currentBuild.result='FAILURE'
+              }
+            }
+            post {
+              always {
+                  warnError('missing test xml files') {
+                      script {
+                          copyTestResults('dtest-upgrade-novnode-large', dtest_upgrade_novnode_large.getNumber())
                       }
                   }
               }

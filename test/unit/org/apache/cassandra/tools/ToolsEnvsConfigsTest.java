@@ -32,7 +32,6 @@ import static org.junit.Assert.assertTrue;
 public class ToolsEnvsConfigsTest
 {
     //Some JDK can output env info on stdout/err. Check we can clean them
-    @SuppressWarnings("resource")
     @Test
     public void testJDKEnvInfoDefaultCleaners()
     {

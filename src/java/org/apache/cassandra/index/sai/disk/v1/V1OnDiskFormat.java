@@ -24,6 +24,7 @@ import java.util.EnumSet;
 import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.utils.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -85,6 +86,13 @@ public class V1OnDiskFormat implements OnDiskFormat
                                                                             IndexComponent.META,
                                                                             IndexComponent.BALANCED_TREE,
                                                                             IndexComponent.POSTING_LISTS);
+
+    @VisibleForTesting
+    public static final Set<IndexComponent> VECTOR_COMPONENTS = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
+                                                                           IndexComponent.META,
+                                                                           IndexComponent.COMPRESSED_VECTORS,
+                                                                           IndexComponent.TERMS_DATA,
+                                                                           IndexComponent.POSTING_LISTS);
 
     /**
      * Global limit on heap consumed by all index segment building that occurs outside the context of Memtable flush.
@@ -181,21 +189,7 @@ public class V1OnDiskFormat implements OnDiskFormat
         {
             if (isNotBuildCompletionMarker(indexComponent))
             {
-                try (IndexInput input = indexDescriptor.openPerSSTableInput(indexComponent))
-                {
-                    if (checksum)
-                        SAICodecUtils.validateChecksum(input);
-                    else
-                        SAICodecUtils.validate(input);
-                }
-                catch (Exception e)
-                {
-                    logger.warn(indexDescriptor.logMessage("{} failed for index component {} on SSTable {}."),
-                                                           checksum ? "Checksum validation" : "Validation",
-                                                           indexComponent,
-                                                           indexDescriptor.sstableDescriptor);
-                    rethrowIOException(e);
-                }
+                validateIndexComponent(indexDescriptor, null, indexComponent, checksum);
             }
         }
     }
@@ -203,26 +197,54 @@ public class V1OnDiskFormat implements OnDiskFormat
     @Override
     public void validatePerColumnIndexComponents(IndexDescriptor indexDescriptor, IndexContext indexContext, boolean checksum)
     {
+        // determine if the index is empty, which would be encoded in the column completion marker
+        boolean isEmptyIndex = false;
+        if (indexDescriptor.hasComponent(IndexComponent.COLUMN_COMPLETION_MARKER, indexContext))
+        {
+            // first validate the file...
+            validateIndexComponent(indexDescriptor, indexContext, IndexComponent.COLUMN_COMPLETION_MARKER, checksum);
+
+            // ...then read to check if the index is empty
+            try
+            {
+                isEmptyIndex = ColumnCompletionMarkerUtil.isEmptyIndex(indexDescriptor, indexContext);
+            }
+            catch (IOException e)
+            {
+                rethrowIOException(e);
+            }
+        }
+
         for (IndexComponent indexComponent : perColumnIndexComponents(indexContext))
         {
-            if (isNotBuildCompletionMarker(indexComponent))
+            if (!isEmptyIndex && isNotBuildCompletionMarker(indexComponent))
             {
-                try (IndexInput input = indexDescriptor.openPerIndexInput(indexComponent, indexContext))
-                {
-                    if (checksum)
-                        SAICodecUtils.validateChecksum(input);
-                    else
-                        SAICodecUtils.validate(input);
-                }
-                catch (Exception e)
-                {
-                    logger.warn(indexDescriptor.logMessage("{} failed for index component {} on SSTable {}"),
-                                                           checksum ? "Checksum validation" : "Validation",
-                                                           indexComponent,
-                                                           indexDescriptor.sstableDescriptor);
-                    rethrowIOException(e);
-                }
+                validateIndexComponent(indexDescriptor, indexContext, indexComponent, checksum);
             }
+        }
+    }
+
+    private static void validateIndexComponent(IndexDescriptor indexDescriptor,
+                                               IndexContext indexContext,
+                                               IndexComponent indexComponent,
+                                               boolean checksum)
+    {
+        try (IndexInput input = indexContext == null
+                                ? indexDescriptor.openPerSSTableInput(indexComponent)
+                                : indexDescriptor.openPerIndexInput(indexComponent, indexContext))
+        {
+            if (checksum)
+                SAICodecUtils.validateChecksum(input);
+            else
+                SAICodecUtils.validate(input);
+        }
+        catch (Exception e)
+        {
+            logger.warn(indexDescriptor.logMessage("{} failed for index component {} on SSTable {}"),
+                        checksum ? "Checksum validation" : "Validation",
+                        indexComponent,
+                        indexDescriptor.sstableDescriptor);
+            rethrowIOException(e);
         }
     }
 
@@ -244,7 +266,7 @@ public class V1OnDiskFormat implements OnDiskFormat
     @Override
     public Set<IndexComponent> perColumnIndexComponents(IndexContext indexContext)
     {
-        return indexContext.isLiteral() ? LITERAL_COMPONENTS : NUMERIC_COMPONENTS;
+        return indexContext.isVector() ? VECTOR_COMPONENTS : indexContext.isLiteral() ? LITERAL_COMPONENTS : NUMERIC_COMPONENTS;
     }
 
     @Override

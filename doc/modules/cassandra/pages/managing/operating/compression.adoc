@@ -81,11 +81,6 @@ use. The two "fast" compressors are `LZ4Compressor` and
 kilobytes of data per compression chunk. The main tradeoff here is that
 larger chunk sizes give compression algorithms more context and improve
 their ratio, but require reads to deserialize and read more off disk.
-* `crc_check_chance` (default: `1.0`): determines how likely Cassandra
-is to verify the checksum on each compression chunk during reads to
-protect against data corruption. Unless you have profiles indicating
-this is a performance problem it is highly encouraged not to turn this
-off as it is Cassandra's only protection against bitrot.
 
 The `LZ4Compressor` supports the following additional options:
 
@@ -123,7 +118,7 @@ Or
 [source,cql]
 ----
 ALTER TABLE keyspace.table
-   WITH compression = {'class': 'LZ4Compressor', 'chunk_length_in_kb': 64, 'crc_check_chance': 0.5};
+   WITH compression = {'class': 'LZ4Compressor', 'chunk_length_in_kb': 64};
 ----
 
 Once enabled, compression can be disabled with `ALTER TABLE` setting
@@ -144,6 +139,16 @@ compacted - if an operator needs compression changes to take effect
 immediately, the operator can trigger an SSTable rewrite using
 `nodetool scrub` or `nodetool upgradesstables -a`, both of which will
 rebuild the SSTables on disk, re-compressing the data in the process.
+
+== Other options
+
+* `crc_check_chance` (default: `1.0`): determines how likely Cassandra
+is to verify the checksum on each compression chunk during reads to
+protect against data corruption. Unless you have profiles indicating
+this is a performance problem it is highly encouraged not to turn this
+off as it is Cassandra's only protection against bitrot. In earlier versions of Cassandra a
+duplicate of this option existed in the compression configuration.
+The latter was deprecated in Cassandra 3.0 and removed in Cassandra 5.0.
 
 == Benefits and Uses
 

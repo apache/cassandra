@@ -24,7 +24,9 @@ import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.SortedSet;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.Function;
 
+import org.apache.cassandra.index.sai.QueryContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,6 +41,8 @@ import org.apache.cassandra.db.tries.Trie;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
@@ -53,15 +57,12 @@ import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
  * This is an in-memory index using the {@link InMemoryTrie} to store a {@link ByteComparable}
  * representation of the indexed values. Data is stored on-heap or off-heap and follows the
  * settings of the {@link TrieMemtable} to determine where.
- *
- *
  */
-public class TrieMemoryIndex
+public class TrieMemoryIndex extends MemoryIndex
 {
     private static final Logger logger = LoggerFactory.getLogger(TrieMemoryIndex.class);
     private static final int MAX_RECURSIVE_KEY_LENGTH = 128;
 
-    private final IndexContext indexContext;
     private final InMemoryTrie<PrimaryKeys> data;
     private final PrimaryKeysReducer primaryKeysReducer;
     private final AbstractAnalyzer.AnalyzerFactory analyzerFactory;
@@ -73,7 +74,7 @@ public class TrieMemoryIndex
 
     public TrieMemoryIndex(IndexContext indexContext)
     {
-        this.indexContext = indexContext;
+        super(indexContext);
         this.data = new InMemoryTrie<>(TrieMemtable.BUFFER_TYPE);
         this.primaryKeysReducer = new PrimaryKeysReducer();
         // The use of the analyzer is within a synchronized block so can be considered thread-safe
@@ -90,6 +91,7 @@ public class TrieMemoryIndex
      * @param value indexed value
      * @return amount of heap allocated by the new value
      */
+    @Override
     public synchronized long add(DecoratedKey key, Clustering<?> clustering, ByteBuffer value)
     {
         AbstractAnalyzer analyzer = analyzerFactory.create();
@@ -106,6 +108,8 @@ public class TrieMemoryIndex
             while (analyzer.hasNext())
             {
                 final ByteBuffer term = analyzer.next();
+                if (!indexContext.validateMaxTermSize(key, term, false))
+                    continue;
 
                 setMinMaxTerm(term.duplicate());
 
@@ -139,15 +143,21 @@ public class TrieMemoryIndex
         }
     }
 
+    @Override
+    public long update(DecoratedKey key, Clustering<?> clustering, ByteBuffer oldValue, ByteBuffer newValue)
+    {
+        throw new UnsupportedOperationException();
+    }
+
     /**
      * Search for an expression in the in-memory index within the {@link AbstractBounds} defined
      * by keyRange. This can either be an exact match or a range match.
-
+     * <p>
      * @param expression the {@link Expression} to search for
      * @param keyRange the {@link AbstractBounds} containing the key range to restrict the search to
      * @return a {@link KeyRangeIterator} containing the search results
      */
-    public KeyRangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange)
+    public KeyRangeIterator search(QueryContext queryContext, Expression expression, AbstractBounds<PartitionPosition> keyRange)
     {
         if (logger.isTraceEnabled())
             logger.trace("Searching memtable index on expression '{}'...", expression);
@@ -171,10 +181,11 @@ public class TrieMemoryIndex
      *
      * @return the iterator containing the trie data
      */
+    @Override
     public Iterator<Pair<ByteComparable, PrimaryKeys>> iterator()
     {
         Iterator<Map.Entry<ByteComparable, PrimaryKeys>> iterator = data.entrySet().iterator();
-        return new Iterator<Pair<ByteComparable, PrimaryKeys>>()
+        return new Iterator<>()
         {
             @Override
             public boolean hasNext()
@@ -191,11 +202,27 @@ public class TrieMemoryIndex
         };
     }
 
+    @Override
+    public SegmentMetadata.ComponentMetadataMap writeDirect(IndexDescriptor indexDescriptor,
+                                                            IndexContext indexContext,
+                                                            Function<PrimaryKey, Integer> postingTransformer)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean isEmpty()
+    {
+        return minTerm == null;
+    }
+
+    @Override
     public ByteBuffer getMinTerm()
     {
         return minTerm;
     }
 
+    @Override
     public ByteBuffer getMaxTerm()
     {
         return maxTerm;
@@ -259,7 +286,7 @@ public class TrieMemoryIndex
         // This allows for receiving a stream of wide range queries where the queue size
         // is larger than we would want to default the size to.
         // TODO Investigate using a decaying histogram here to avoid the effect of outliers.
-        private static final FastThreadLocal<Integer> lastQueueSize = new FastThreadLocal<Integer>()
+        private static final FastThreadLocal<Integer> lastQueueSize = new FastThreadLocal<>()
         {
             protected Integer initialValue()
             {

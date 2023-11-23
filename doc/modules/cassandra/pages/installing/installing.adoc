@@ -23,7 +23,7 @@ Deploying on older Linux versions is not recommended unless you have previous ex
 
 include::cassandra:partial$java_version.adoc[]
 
-* To use the CQL shell `cqlsh`, install the latest version of Python 3.6+.
+* To use the CQL shell `cqlsh`, install the latest version of Python 3.7+.
 
 To verify that you have the correct version of Python installed, type `python --version`.
 
@@ -142,9 +142,9 @@ include::cassandra:example$BASH/curl_verify_sha.sh[]
 Result::
 +
 --
-[source,plaintext]
+[source,console]
 ----
-28757dde589f70410f9a6a95c39ee7e6cde63440e2b06b91ae6b200614fa364d
+include::example$RESULTS/curl_verify_sha.result[]
 ----
 --
 ====

@@ -1,0 +1,394 @@
+= CREATE INDEX
+:description: Defines a new index for a single column of a table.
+
+{description}
+
+{product} supports creating an index on most columns, including the partition and cluster columns of a `PRIMARY KEY`, collections, and static columns. For maps, you can index using the key, value, or entries (a key:value pair).
+
+*See also:* xref:cassandra:reference/cql-commands/create-custom-index.adoc[CREATE CUSTOM INDEX] for Storage-Attached Indexes (SAI), xref:cassandra:reference/cql-commands/drop-index.adoc[DROP INDEX]
+
+== Syntax
+
+BNF definition:
+
+[source,bnf]
+----
+include::example$BNF/index_name.bnf[]
+----
+
+// tag::syntax[]
+----
+CREATE INDEX [ IF NOT EXISTS ] <index_name>
+  ON [<keyspace_name>.]<table_name>
+  ([ ( KEYS | FULL ) ] <column_name>)
+  (ENTRIES <column_name>)
+    //   | [ (KEYS(<map_name>)) ]
+    // | [ (VALUES(<map_name>)) ]
+    // | [ (ENTRIES(<map_name>)) ]
+   [USING 'sai'
+  [ WITH OPTIONS = { <option_map> } ]];
+----
+// end::syntax[]
+
+.Syntax legend
+[%collapsible]
+====
+include::cassandra:partial$cql-syntax-legend.adoc[]
+====
+
+== Required parameters
+
+*table_name*::
+Name of the table to index.
+
+*column_name*::
+Name of the column to index.
+
+== Optional parameters
+
+*index_name*::
+Name of the index.
+Enclose in quotes to use special characters or preserve capitalization.
+If no name is specified, {product} names the index: `<table_name>_<column_name>_idx`.
+
+*keyspace_name*::
+Name of the keyspace that contains the table to index.
+If no name is specified, the current keyspace is used.
+
+== Usage notes
+
+If the column already contains data, it is indexed during the execution of this statement.
+After an index has been created, it is automatically updated when data in the column changes.
+
+Indexing with the `CREATE INDEX` command can impact performance.
+Before creating an index, be aware of when and xref:cassandra:developing/indexing/2i/2i-when-to-use.adoc#when-no-index[when not to create an index].
+
+*Restriction:* Indexing counter columns is not supported.
+
+== Examples
+
+=== Creating an index on a clustering column
+
+Define a table having a xref:cassandra:reference/cql-commands/create-table.adoc#cqlPKcomposite[composite partition key], and then create an index on a clustering column.
+
+[tabs]
+====
+CREATE TABLE::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/rank_by_year_and_name-table.cql[tag=compositepk]
+----
+--
+
+CREATE INDEX::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/rank_by_year_and_name-table.cql[tag=createindex]
+----
+--
+
+SELECT query::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/select_all_from_rank_by_year_and_name-rank.cql[]
+----
+--
+
+SELECT result::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$RESULTS/sai/select_all_from_rank_by_year_and_name-rank.result[]
+----
+--
+====
+
+=== Creating an index on a set or list collection
+
+Create an index on a set or list collection column as you would any other column.
+Enclose the name of the collection column in parentheses at the end of the `CREATE INDEX` statement.
+For example, add a collection of teams to the `cyclist_career_teams` table to index the data in the teams set.
+
+[tabs]
+====
+CREATE TABLE::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/cyclist_career_teams-table.cql[tag=setColumn]
+----
+--
+
+CREATE INDEX::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/cyclist_career_teams-table.cql[tag=createidxset]
+----
+--
+
+SELECT query::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/select_all_from_cyclist_career_teams-team.cql[]
+----
+--
+
+SELECT result::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$RESULTS/sai/select_all_from_cyclist_career_teams-team.result[]
+----
+--
+====
+
+[[CreatIdxCollKey]]
+=== Creating an index on map keys
+
+You can create an index on xref:cassandra:developing/indexing/2i/2i-create-on-collection.adoc[map collection keys].
+If an index of the map values of the collection exists, drop that index before creating an index on the map collection keys.
+Assume a cyclist table contains this map data where `nation is the map key and `Canada` is the map value`:
+
+[source,no-highlight]
+----
+{'nation':'CANADA' }
+----
+
+To index map keys, use the `KEYS` keyword and map name in nested parentheses in the CREATE INDEX statement.
+To run a `SELECT` query on the table, use xref:cassandra:reference/cql-commands/select.adoc#filtering-on-collections[CONTAINS KEY] in `WHERE` clauses.
+This query returns cyclist teams that have an entry for the year 2015.
+
+[tabs]
+====
+CREATE TABLE::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/cyclist_teams-table.cql[tag=mapColumn]
+----
+--
+
+CREATE INDEX::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/cyclist_teams-table.cql[tag=keysidx]
+----
+--
+
+SELECT query::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/cyclist_teams-table.cql[tag=queryindexkey]
+----
+--
+
+SELECT result::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$RESULTS/sai/cyclist_team-queries.result[]
+----
+--
+====
+
+=== Creating an index on map entries
+
+You can create an index on map entries.
+An `ENTRIES` index can be created only on a map column of a table that doesn't have an existing index.
+
+To index collection entries, use the `ENTRIES` keyword and map name in nested parentheses.
+To query the map entries in the table, use a `WHERE` clause with the map name and a value.
+This query finds cyclists who are the same age.
+
+[tabs]
+====
+CREATE TABLE::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/birthday_list_map_entries-table.cql[tag=blisttable]
+----
+--
+
+CREATE INDEX::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/birthday_list_map_entries-table.cql[tag=entriesidx]
+----
+--
+
+SELECT query::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/birthday_list_map_entries-table.cql[tag=ageentryquery]
+----
+--
+
+SELECT result::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$RESULTS/sai/select_from_birthday_list_where_age_23.result[]
+----
+--
+====
+
+Use the same index to find cyclists from the same country:
+
+[tabs]
+====
+CREATE TABLE::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/birthday_list_map_entries-table.cql[tag=blisttable]
+----
+--
+
+CREATE INDEX::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/birthday_list_map_entries-table.cql[tag=entriesidx]
+----
+--
+
+SELECT query::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/birthday_list_map_entries-table.cql[tag=nationentryquery]
+----
+--
+
+SELECT result::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$RESULTS/sai/select_from_birthday_list_where_nation_netherlands.result[]
+----
+--
+====
+
+=== Creating an index on map values
+
+To create an index on map values, use the `VALUES` keyword and map name in nested parentheses.
+To query the table, use a `WHERE` clause with the map name and the value it contains.
+
+[tabs]
+====
+CREATE TABLE::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/birthday_list_map_entries-table.cql[tag=blisttable]
+----
+--
+
+CREATE INDEX::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/birthday_list_map_entries-table.cql[tag=mapvaluesidx]
+----
+--
+
+SELECT query::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/birthday_list_map_entries-table.cql[tag=nationvaluesquery]
+----
+--
+
+SELECT result::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$RESULTS/sai/select_from_birthday_list_where_nation_netherlands_2.result[]
+----
+--
+====
+
+=== Creating an index on the full content of a frozen collection
+
+You can create an index on a full `FROZEN` collection.
+A `FULL` index can be created on a set, list, or map column of a table that doesn't have an existing index.
+
+Create an index on the full content of a `FROZEN` `list`.
+The table in this example stores the number of Pro wins, Grand Tour races, and Classic races that a cyclist has competed in.
+To index collection entries, use the `FULL` keyword and collection name in nested parentheses.
+For example, index the frozen list `rnumbers`.
+To query the table, use a `WHERE` clause with the collection name and values.
+
+[tabs]
+====
+CREATE TABLE::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/race_starts-table.cql[tag=frozenlist]
+----
+--
+
+CREATE INDEX::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/race_starts-table.cql[tag=fullindex]
+----
+--
+
+SELECT query::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/race_starts-table.cql[tag=selectrnumbers]
+----
+--
+
+SELECT result::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$RESULTS/sai/race_starts-queries.result[]
+----
+--
+====

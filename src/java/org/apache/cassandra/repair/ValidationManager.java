@@ -37,13 +37,12 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.metrics.TopPartitionTracker;
 import org.apache.cassandra.repair.state.ValidationState;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTrees;
 
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-
-public class ValidationManager
+public class ValidationManager implements IValidationManager
 {
     private static final Logger logger = LoggerFactory.getLogger(ValidationManager.class);
 
@@ -98,9 +97,10 @@ public class ValidationManager
      * Performs a readonly "compaction" of all sstables in order to validate complete rows,
      * but without writing the merge result
      */
-    @SuppressWarnings("resource")
-    private void doValidation(ColumnFamilyStore cfs, Validator validator) throws IOException, NoSuchRepairSessionException
+    public static void doValidation(ColumnFamilyStore cfs, Validator validator) throws IOException, NoSuchRepairSessionException
     {
+        SharedContext ctx = validator.ctx;
+        Clock clock = ctx.clock();
         // this isn't meant to be race-proof, because it's not -- it won't cause bugs for a CFS to be dropped
         // mid-validation, or to attempt to validate a droped CFS.  this is just a best effort to avoid useless work,
         // particularly in the scenario where a validation is submitted before the drop, and there are compactions
@@ -119,8 +119,8 @@ public class ValidationManager
 
         // Create Merkle trees suitable to hold estimated partitions for the given ranges.
         // We blindly assume that a partition is evenly distributed on all sstables for now.
-        long start = nanoTime();
-        try (ValidationPartitionIterator vi = getValidationIterator(cfs.getRepairManager(), validator, topPartitionCollector))
+        long start = clock.nanoTime();
+        try (ValidationPartitionIterator vi = getValidationIterator(ctx.repairManager(cfs), validator, topPartitionCollector))
         {
             state.phase.start(vi.estimatedPartitions(), vi.getEstimatedBytes());
             MerkleTrees trees = createMerkleTrees(vi, validator.desc.ranges, cfs);
@@ -148,7 +148,7 @@ public class ValidationManager
         }
         if (logger.isDebugEnabled())
         {
-            long duration = TimeUnit.NANOSECONDS.toMillis(nanoTime() - start);
+            long duration = TimeUnit.NANOSECONDS.toMillis(clock.nanoTime() - start);
             logger.debug("Validation of {} partitions (~{}) finished in {} msec, for {}",
                          state.partitionsProcessed,
                          FBUtilities.prettyPrintMemory(state.estimatedTotalBytes),
@@ -177,6 +177,7 @@ public class ValidationManager
     /**
      * Does not mutate data, so is not scheduled.
      */
+    @Override
     public Future<?> submitValidation(ColumnFamilyStore cfs, Validator validator)
     {
         Callable<Object> validation = new Callable<Object>()

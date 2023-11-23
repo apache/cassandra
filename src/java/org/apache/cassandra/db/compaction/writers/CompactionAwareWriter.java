@@ -223,7 +223,6 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
         sstableWriter.switchWriter(sstableWriter(directory, nextKey));
     }
 
-    @SuppressWarnings("resource")
     protected SSTableWriter sstableWriter(Directories.DataDirectory directory, DecoratedKey nextKey)
     {
         Descriptor descriptor = cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(directory));
@@ -319,7 +318,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
                          .setTransientSSTable(isTransient)
                          .setRepairedAt(minRepairedAt)
                          .setPendingRepair(pendingRepair)
-                         .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexGroups(), txn, cfs.metadata.get())
+                         .setSecondaryIndexGroups(cfs.indexManager.listIndexGroups())
                          .addDefaultComponents(cfs.indexManager.listIndexGroups());
     }
 }

@@ -128,12 +128,11 @@ import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token.TokenFactory;
-import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.dht.RangeStreamer;
 import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
 import org.apache.cassandra.dht.StreamStateStore;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.dht.Token.TokenFactory;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnavailableException;
@@ -148,6 +147,7 @@ import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.gms.TokenSerializer;
 import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.index.IndexStatusManager;
 import org.apache.cassandra.io.sstable.IScrubber;
 import org.apache.cassandra.io.sstable.IVerifier;
@@ -179,7 +179,7 @@ import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.AsyncOneResponse;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.repair.RepairRunnable;
+import org.apache.cassandra.repair.RepairCoordinator;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -339,7 +339,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @VisibleForTesting // this is used for dtests only, see CASSANDRA-18152
     public volatile boolean skipNotificationListeners = false;
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-12509 */
+    @Deprecated(since = "3.10")
     public boolean isInShutdownHook()
     {
         return isShutdown();
@@ -361,8 +362,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public RangesAtEndpoint getLocalReplicas(String keyspaceName)
     {
-        return Keyspace.open(keyspaceName).getReplicationStrategy()
-                .getAddressReplicas(FBUtilities.getBroadcastAddressAndPort());
+        return getReplicas(keyspaceName, FBUtilities.getBroadcastAddressAndPort());
+    }
+
+    public RangesAtEndpoint getReplicas(String keyspaceName, InetAddressAndPort endpoint)
+    {
+        return Keyspace.open(keyspaceName).getReplicationStrategy().getAddressReplicas(endpoint);
     }
 
     public List<Range<Token>> getLocalRanges(String ks)
@@ -1345,7 +1350,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private void executePreJoinTasks(boolean bootstrap)
     {
         StreamSupport.stream(ColumnFamilyStore.all().spliterator(), false)
-                .filter(cfs -> Schema.instance.getUserKeyspaces().names().contains(cfs.getKeyspaceName()))
+                .filter(cfs -> Schema.instance.getUserKeyspaces().contains(cfs.getKeyspaceName()))
                 .forEach(cfs -> cfs.indexManager.executePreJoinTasksBlocking(bootstrap));
     }
 
@@ -1472,7 +1477,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             if (keyspace == null)
             {
-                for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces().names())
+                for (String keyspaceName : Schema.instance.distributedKeyspaces().names())
                     streamer.addRanges(keyspaceName, getLocalReplicas(keyspaceName));
             }
             else if (tokens == null)
@@ -1677,7 +1682,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getTruncateRpcTimeout(MILLISECONDS);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-15234 */
+    @Deprecated(since = "4.1")
     public void setStreamThroughputMbPerSec(int value)
     {
         setStreamThroughputMbitPerSec(value);
@@ -1710,13 +1716,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getStreamThroughputOutboundMebibytesPerSecAsInt();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-15234 */
+    @Deprecated(since = "4.1")
     public int getStreamThroughputMbPerSec()
     {
         return getStreamThroughputMbitPerSec();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17225 */
+    @Deprecated(since = "4.1")
     public int getStreamThroughputMbitPerSec()
     {
         return DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec();
@@ -1741,7 +1749,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMebibytesPerSec();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-15234 */
+    @Deprecated(since = "4.1")
     public void setInterDCStreamThroughputMbPerSec(int value)
     {
         setInterDCStreamThroughputMbitPerSec(value);
@@ -1755,13 +1764,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("setinterdcstreamthroughput: throttle set to {}{} megabits per second (was {} megabits per second)", value, value <= 0 ? " (unlimited)" : "", oldValue);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-15234 */
+    @Deprecated(since = "4.1")
     public int getInterDCStreamThroughputMbPerSec()
     {
         return getInterDCStreamThroughputMbitPerSec();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17225 */
+    @Deprecated(since = "4.1")
     public int getInterDCStreamThroughputMbitPerSec()
     {
         return DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec();
@@ -1813,7 +1824,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return (long)DatabaseDescriptor.getCompactionThroughputBytesPerSec();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17225 */
+    @Deprecated(since = "4.1")
     public int getCompactionThroughputMbPerSec()
     {
         return DatabaseDescriptor.getCompactionThroughputMebibytesPerSecAsInt();
@@ -2158,7 +2170,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     private void markViewsAsBuilt()
     {
-        for (String keyspace : Schema.instance.getUserKeyspaces().names())
+        for (String keyspace : Schema.instance.getUserKeyspaces())
         {
             for (ViewMetadata view: Schema.instance.getKeyspaceMetadata(keyspace).views)
                 SystemKeyspace.finishViewBuildStatus(view.keyspace(), view.name());
@@ -2395,7 +2407,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // some people just want to get a visual representation of things. Allow null and set it to the first
         // non-system keyspace.
         if (keyspace == null)
-            keyspace = Schema.instance.getNonLocalStrategyKeyspaces().iterator().next().name;
+            keyspace = Schema.instance.distributedKeyspaces().iterator().next().name;
 
         Map<List<String>, List<String>> map = new HashMap<>();
         for (Map.Entry<Range<Token>, EndpointsForRange> entry : tokenMetadata.getPendingRangesMM(keyspace).asMap().entrySet())
@@ -2449,7 +2461,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // some people just want to get a visual representation of things. Allow null and set it to the first
         // non-system keyspace.
         if (keyspace == null)
-            keyspace = Schema.instance.getNonLocalStrategyKeyspaces().iterator().next().name;
+            keyspace = Schema.instance.distributedKeyspaces().iterator().next().name;
 
         List<Range<Token>> ranges = getAllRanges(sortedTokens);
         return constructRangeToEndpointMap(keyspace, ranges);
@@ -3570,7 +3582,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         InetAddressAndPort myAddress = FBUtilities.getBroadcastAddressAndPort();
 
-        for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces().names())
+        for (String keyspaceName : Schema.instance.distributedKeyspaces().names())
         {
             logger.debug("Restoring replica count for keyspace {}", keyspaceName);
             EndpointsByReplica changedReplicas = getChangedReplicasForLeaving(keyspaceName, endpoint, tokenMetadata, Keyspace.open(keyspaceName).getReplicationStrategy());
@@ -3870,7 +3882,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return replicationInfo;
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-7544 */
+    @Deprecated(since = "4.0")
     public List<String> getLeavingNodes()
     {
         return stringify(tokenMetadata.getLeavingEndpoints(), false);
@@ -3881,7 +3894,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return stringify(tokenMetadata.getLeavingEndpoints(), true);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-7544 */
+    @Deprecated(since = "4.0")
     public List<String> getMovingNodes()
     {
         List<String> endpoints = new ArrayList<>();
@@ -3906,7 +3920,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return endpoints;
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-7544 */
+    @Deprecated(since = "4.0")
     public List<String> getJoiningNodes()
     {
         return stringify(tokenMetadata.getBootstrapTokens().valueSet(), false);
@@ -3917,7 +3932,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return stringify(tokenMetadata.getBootstrapTokens().valueSet(), true);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-7544 */
+    @Deprecated(since = "4.0")
     public List<String> getLiveNodes()
     {
         return stringify(Gossiper.instance.getLiveMembers(), false);
@@ -3952,7 +3968,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-7544 */
+    @Deprecated(since = "4.0")
     public List<String> getUnreachableNodes()
     {
         return stringify(Gossiper.instance.getUnreachableMembers(), false);
@@ -4063,7 +4080,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return status.statusCode;
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-14201 */
+    @Deprecated(since = "4.0")
     public int verify(boolean extendedVerify, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         return verify(extendedVerify, false, false, false, false, false, keyspaceName, tableNames);
@@ -4541,7 +4559,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return snapshotMap;
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-16789 */
+    @Deprecated(since = "4.1")
     public Map<String, TabularData> getSnapshotDetails()
     {
         return getSnapshotDetails(ImmutableMap.of());
@@ -4593,7 +4612,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * @param cfNames CFs
      * @throws java.lang.IllegalArgumentException when given CF name does not exist
      */
-    public Iterable<ColumnFamilyStore> getValidColumnFamilies(boolean allowIndexes, boolean autoAddIndexes, String keyspaceName, String... cfNames) throws IOException
+    public Iterable<ColumnFamilyStore> getValidColumnFamilies(boolean allowIndexes, boolean autoAddIndexes, String keyspaceName, String... cfNames)
     {
         Keyspace keyspace = getValidKeyspace(keyspaceName);
         return keyspace.getValidColumnFamilies(allowIndexes, autoAddIndexes, cfNames);
@@ -4714,7 +4733,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (!options.getDataCenters().isEmpty() && !options.getDataCenters().contains(DatabaseDescriptor.getLocalDataCenter()))
         {
-            throw new IllegalArgumentException("the local data center must be part of the repair");
+            throw new IllegalArgumentException("the local data center must be part of the repair; requested " + options.getDataCenters() + " but DC is " + DatabaseDescriptor.getLocalDataCenter());
         }
         Set<String> existingDatacenters = tokenMetadata.cloneOnlyTokenMap().getTopology().getDatacenterEndpoints().keys().elementSet();
         List<String> datacenters = new ArrayList<>(options.getDataCenters());
@@ -4724,7 +4743,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new IllegalArgumentException("data center(s) " + datacenters.toString() + " not found");
         }
 
-        RepairRunnable task = new RepairRunnable(this, cmd, options, keyspace);
+        RepairCoordinator task = new RepairCoordinator(this, cmd, options, keyspace);
         task.addProgressListener(progressSupport);
         for (ProgressListener listener : listeners)
             task.addProgressListener(listener);
@@ -4797,7 +4816,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         List<Future<?>> futures = new ArrayList<>();
 
-        Keyspaces keyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
+        Keyspaces keyspaces = Schema.instance.distributedKeyspaces();
         for (String ksName : keyspaces.names())
         {
             if (SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES.contains(ksName))
@@ -4807,7 +4826,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 continue;
 
             List<Range<Token>> ranges = getLocalAndPendingRanges(ksName);
-            futures.add(ActiveRepairService.instance.repairPaxosForTopologyChange(ksName, ranges, reason));
+            futures.add(ActiveRepairService.instance().repairPaxosForTopologyChange(ksName, ranges, reason));
         }
 
         return FutureCombiner.allOf(futures);
@@ -4827,25 +4846,27 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void forceTerminateAllRepairSessions()
     {
-        ActiveRepairService.instance.terminateSessions();
+        ActiveRepairService.instance().terminateSessions();
     }
 
     @Nullable
     public List<String> getParentRepairStatus(int cmd)
     {
-        Pair<ParentRepairStatus, List<String>> pair = ActiveRepairService.instance.getRepairStatus(cmd);
+        Pair<ParentRepairStatus, List<String>> pair = ActiveRepairService.instance().getRepairStatus(cmd);
         return pair == null ? null :
                ImmutableList.<String>builder().add(pair.left.name()).addAll(pair.right).build();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17668 */
+    @Deprecated(since = "5.0")
     @Override
     public void setRepairSessionMaxTreeDepth(int depth)
     {
         DatabaseDescriptor.setRepairSessionMaxTreeDepth(depth);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17668 */
+    @Deprecated(since = "5.0")
     @Override
     public int getRepairSessionMaxTreeDepth()
     {
@@ -5002,8 +5023,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * @param cf Column family name
      * @param key key for which we need to find the endpoint
      * @return the endpoint responsible for this key
+     * @deprecated See CASSANDRA-7544
      */
-    @Deprecated
+    @Deprecated(since = "4.0")
     public List<InetAddress> getNaturalEndpoints(String keyspaceName, String cf, String key)
     {
         EndpointsForToken replicas = getNaturalReplicasForToken(keyspaceName, cf, key);
@@ -5017,7 +5039,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return Replicas.stringify(getNaturalReplicasForToken(keyspaceName, cf, key), true);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-7544 */
+    @Deprecated(since = "4.0")
     public List<InetAddress> getNaturalEndpoints(String keyspaceName, ByteBuffer key)
     {
         EndpointsForToken replicas = getNaturalReplicasForToken(keyspaceName, key);
@@ -5192,7 +5215,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (operationMode != Mode.LEAVING)
             {
                 int rf, numNodes;
-                for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces().names())
+                for (String keyspaceName : Schema.instance.distributedKeyspaces().names())
                 {
                     if (!force)
                     {
@@ -5293,7 +5316,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         Map<String, EndpointsByReplica> rangesToStream = new HashMap<>();
 
-        for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces().names())
+        for (String keyspaceName : Schema.instance.distributedKeyspaces().names())
         {
             EndpointsByReplica rangesMM = getChangedReplicasForLeaving(keyspaceName, FBUtilities.getBroadcastAddressAndPort(), tokenMetadata, Keyspace.open(keyspaceName).getReplicationStrategy());
 
@@ -5323,7 +5346,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         Future<?> hintsSuccess = ImmediateFuture.success(null);
 
-        if (DatabaseDescriptor.getTransferHintsOnDecommission()) 
+        if (DatabaseDescriptor.getTransferHintsOnDecommission())
         {
             setMode(Mode.LEAVING, "streaming hints to other nodes", true);
             hintsSuccess = streamHints();
@@ -5417,7 +5440,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new UnsupportedOperationException("This node has more than one token and cannot be moved thusly.");
         }
 
-        List<String> keyspacesToProcess = ImmutableList.copyOf(Schema.instance.getNonLocalStrategyKeyspaces().names());
+        List<String> keyspacesToProcess = ImmutableList.copyOf(Schema.instance.distributedKeyspaces().names());
 
         PendingRangeCalculatorService.instance.blockUntilFinished();
         // checking if data is moving to this node
@@ -5497,7 +5520,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         return String.format("Removing token (%s). Waiting for replication confirmation from [%s].",
-                             tokenMetadata.getToken(removingNode),
+                             tokenMetadata.getTokens(removingNode).iterator().next(),
                              StringUtils.join(toFormat, ","));
     }
 
@@ -5564,7 +5587,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Collection<Token> tokens = tokenMetadata.getTokens(endpoint);
 
         // Find the endpoints that are going to become responsible for data
-        for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces().names())
+        for (String keyspaceName : Schema.instance.distributedKeyspaces().names())
         {
             // if the replication factor is 1 the data is lost so we shouldn't wait for confirmation
             if (Keyspace.open(keyspaceName).getReplicationStrategy().getReplicationFactor().allReplicas == 1)
@@ -5729,7 +5752,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 shutdownClientServers();
             ScheduledExecutors.optionalTasks.shutdown();
             Gossiper.instance.stop();
-            ActiveRepairService.instance.stop();
+            ActiveRepairService.instance().stop();
 
             if (!isFinalShutdown)
                 setMode(Mode.DRAINING, "shutting down MessageService", false);
@@ -5763,12 +5786,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             // count CFs first, since forceFlush could block for the flushWriter to get a queue slot empty
             totalCFs = 0;
-            for (Keyspace keyspace : Keyspace.nonSystem())
+            for (Keyspace keyspace : Keyspace.nonLocalStrategy())
                 totalCFs += keyspace.getColumnFamilyStores().size();
             remainingCFs = totalCFs;
             // flush
             List<Future<?>> flushes = new ArrayList<>();
-            for (Keyspace keyspace : Keyspace.nonSystem())
+            for (Keyspace keyspace : Keyspace.nonLocalStrategy())
             {
                 for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
                     flushes.add(cfs.forceFlush(ColumnFamilyStore.FlushReason.DRAIN));
@@ -5860,7 +5883,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * Add a runnable which will be called before shut down or drain. This is useful for other
      * applications running in the same JVM which may want to shut down first rather than time
      * out attempting to use Cassandra calls which will no longer work.
-     * @param hook: the code to run
+     * @param hook the code to run
      * @return true on success, false if Cassandra is already shutting down, in which case the runnable
      * has NOT been added.
      */
@@ -5883,7 +5906,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     /**
      * Add a runnable which will be called after shutdown or drain. This is useful for other applications
      * running in the same JVM that Cassandra needs to work and should shut down later.
-     * @param hook: the code to run
+     * @param hook the code to run
      * @return true on success, false if Cassandra is already shutting down, in which case the runnable has NOT been
      * added.
      */
@@ -6012,9 +6035,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         else
         {
-            Collection<String> userKeyspaces = Schema.instance.getUserKeyspaces().names();
+            Collection<String> userKeyspaces = Schema.instance.getUserKeyspaces();
 
-            if (userKeyspaces.size() > 0)
+            if (!userKeyspaces.isEmpty())
             {
                 keyspace = userKeyspaces.iterator().next();
                 AbstractReplicationStrategy replicationStrategy = Schema.instance.getKeyspaceInstance(keyspace).getReplicationStrategy();
@@ -6083,7 +6106,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public List<String> getKeyspaces()
     {
-        return Lists.newArrayList(Schema.instance.distributedAndLocalKeyspaces().names());
+        return Lists.newArrayList(Schema.instance.getKeyspaces());
     }
 
     public List<String> getNonSystemKeyspaces()
@@ -6093,7 +6116,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public List<String> getNonLocalStrategyKeyspaces()
     {
-        return Lists.newArrayList(Schema.instance.getNonLocalStrategyKeyspaces().names());
+        return Lists.newArrayList(Schema.instance.distributedKeyspaces().names());
     }
 
     public Map<String, String> getViewBuildStatuses(String keyspace, String view, boolean withPort)
@@ -6335,9 +6358,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     /**
-     * #{@inheritDoc}
+     * @deprecated See CASSANDRA-14417
      */
-    @Deprecated
+    @Deprecated(since = "4.0")
     public void loadNewSSTables(String ksName, String cfName)
     {
         if (!isInitialized())
@@ -6606,7 +6629,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("Updated column_index_size to {} KiB (was {} KiB)", columnIndexSizeInKiB, oldValueInKiB);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17668 */
+    @Deprecated(since = "5.0")
     @Override
     public void setColumnIndexSize(int columnIndexSizeInKB)
     {
@@ -6615,14 +6639,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("Updated column_index_size to {} KiB (was {} KiB)", columnIndexSizeInKB, oldValueInKiB);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17668 */
+    @Deprecated(since = "5.0")
     @Override
     public int getColumnIndexCacheSize()
     {
         return DatabaseDescriptor.getColumnIndexCacheSizeInKiB();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17668 */
+    @Deprecated(since = "5.0")
     @Override
     public void setColumnIndexCacheSize(int cacheSizeInKB)
     {
@@ -6666,14 +6692,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("updated batch_size_fail_threshold to {}", threshold);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17668 */
+    @Deprecated(since = "5.0")
     @Override
     public int getBatchSizeWarnThreshold()
     {
         return DatabaseDescriptor.getBatchSizeWarnThresholdInKiB();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17668 */
+    @Deprecated(since = "5.0")
     @Override
     public void setBatchSizeWarnThreshold(int threshold)
     {
@@ -6771,7 +6799,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("Auditlog is disabled");
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-16725 */
+    @Deprecated(since = "4.1")
     public void enableAuditLog(String loggerName, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
                                String includedUsers, String excludedUsers) throws ConfigurationException, IllegalStateException
     {
@@ -6787,7 +6816,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                        maxArchiveRetries, block, rollCycle, maxLogSize, maxQueueWeight, archiveCommand);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-16725 */
+    @Deprecated(since = "4.1")
     public void enableAuditLog(String loggerName, Map<String, String> parameters, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
                                String includedUsers, String excludedUsers) throws ConfigurationException, IllegalStateException
     {
@@ -6985,29 +7015,33 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setAutoOptimisePreviewRepairStreams(enabled);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17195 */
+    @Deprecated(since = "4.1")
     public int getTableCountWarnThreshold()
     {
         return (int) Converters.TABLE_COUNT_THRESHOLD_TO_GUARDRAIL.unconvert(Guardrails.instance.getTablesWarnThreshold());
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17195 */
+    @Deprecated(since = "4.1")
     public void setTableCountWarnThreshold(int value)
     {
         if (value < 0)
             throw new IllegalStateException("Table count warn threshold should be positive, not "+value);
         logger.info("Changing table count warn threshold from {} to {}", getTableCountWarnThreshold(), value);
-        Guardrails.instance.setTablesThreshold((int) Converters.TABLE_COUNT_THRESHOLD_TO_GUARDRAIL.convert(value), 
+        Guardrails.instance.setTablesThreshold((int) Converters.TABLE_COUNT_THRESHOLD_TO_GUARDRAIL.convert(value),
                                                Guardrails.instance.getTablesFailThreshold());
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17195 */
+    @Deprecated(since = "4.1")
     public int getKeyspaceCountWarnThreshold()
     {
         return (int) Converters.KEYSPACE_COUNT_THRESHOLD_TO_GUARDRAIL.unconvert(Guardrails.instance.getKeyspacesWarnThreshold());
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17195 */
+    @Deprecated(since = "4.1")
     public void setKeyspaceCountWarnThreshold(int value)
     {
         if (value < 0)

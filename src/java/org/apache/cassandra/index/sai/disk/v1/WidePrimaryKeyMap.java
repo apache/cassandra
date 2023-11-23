@@ -25,7 +25,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringComparator;
-import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
@@ -82,7 +82,7 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
         }
 
         @Override
-        @SuppressWarnings({ "resource", "RedundantSuppression" })
+        @SuppressWarnings({ "resource", "RedundantSuppression" }) // deferred long arrays and cursors are closed in the WidePrimaryKeyMap#close method
         public PrimaryKeyMap newPerSSTablePrimaryKeyMap() throws IOException
         {
             LongArray rowIdToToken = new LongArray.DeferredLongArray(tokenReaderFactory::open);
@@ -92,7 +92,6 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
                                          partitionIdToToken,
                                          partitionKeyReader.openCursor(),
                                          clusteringKeyReader.openCursor(),
-                                         partitioner,
                                          primaryKeyFactory,
                                          clusteringComparator);
         }
@@ -112,11 +111,10 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
                               LongArray partitionArray,
                               KeyLookup.Cursor partitionKeyCursor,
                               KeyLookup.Cursor clusteringKeyCursor,
-                              IPartitioner partitioner,
                               PrimaryKey.Factory primaryKeyFactory,
                               ClusteringComparator clusteringComparator)
     {
-        super(tokenArray, partitionArray, partitionKeyCursor, partitioner, primaryKeyFactory);
+        super(tokenArray, partitionArray, partitionKeyCursor, primaryKeyFactory);
 
         this.clusteringComparator = clusteringComparator;
         this.clusteringKeyCursor = clusteringKeyCursor;
@@ -142,6 +140,15 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
 
         // Search the key store for the key in the same partition
         return clusteringKeyCursor.clusteredSeekToKey(clusteringComparator.asByteComparable(primaryKey.clustering()), rowId, startOfNextPartition(rowId));
+    }
+
+    @Override
+    public long floor(Token token)
+    {
+        if (token.isMinimum())
+            return Long.MIN_VALUE;
+        long rowId = tokenArray.indexOf(token.getLongValue());
+        return rowId < 0 ? rowId : startOfNextPartition(rowId) - 1;
     }
 
     @Override

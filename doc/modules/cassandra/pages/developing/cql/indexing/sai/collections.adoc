@@ -1,0 +1,37 @@
+= SAI indexing with collections
+:description: Understand the columns on which you can define SAI indexes and run queries.
+
+[[saiUsingCollections]]
+
+SAI supports collections of type `map`, `list`, and `set`.
+Collections allow you to group and store data together in a column.
+
+In a relational database, a grouping such as a user's multiple email addresses is achieved via many-to-one joined relationship between (for example) a `user` table and an `email` table.
+{product} avoids joins between two tables by storing the user's email addresses in a collection column in the `user` table.
+Each collection specifies the data type of the data held.
+
+A collection is appropriate if the data for collection storage is limited.
+If the data has unbounded growth potential, like messages sent or sensor events registered every second, do not use collections.
+Instead, use a table with a compound primary key where data is stored in the clustering columns.
+
+[TIP]
+====
+In CQL queries of database tables with SAI indexes, the `CONTAINS` clauses are supported with, and specific to:
+
+* SAI *collection maps* with `keys`, `values`, and `entries`
+* SAI *collections* with `list` and `set` types
+====
+
+include::_collections-set.adoc[leveloffset=+1]
+
+include::_collections-list.adoc[leveloffset=+1]
+
+include::_collections-map.adoc[leveloffset=+1]
+
+For more information, see:
+
+* xref:developing/cql/create-custom-index.adoc[CREATE CUSTOM INDEX]
+* xref:developing/cql/collections/collection-create.adoc[Creating collections]
+* xref:developing/cql/collections/set.adoc[Using set type]
+* xref:developing/cql/collections/list.adoc[Using list type]
+* xref:developing/cql/collections/map.adoc[Using map type]

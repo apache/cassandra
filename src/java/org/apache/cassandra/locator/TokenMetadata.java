@@ -349,12 +349,6 @@ public class TokenMetadata
         }
     }
 
-    @Deprecated
-    public void addBootstrapToken(Token token, InetAddressAndPort endpoint)
-    {
-        addBootstrapTokens(Collections.singleton(token), endpoint);
-    }
-
     public void addBootstrapTokens(Collection<Token> tokens, InetAddressAndPort endpoint)
     {
         addBootstrapTokens(tokens, endpoint, null);
@@ -611,12 +605,6 @@ public class TokenMetadata
         }
     }
 
-    @Deprecated
-    public Token getToken(InetAddressAndPort endpoint)
-    {
-        return getTokens(endpoint).iterator().next();
-    }
-
     public boolean isMember(InetAddressAndPort endpoint)
     {
         assert endpoint != null;
@@ -790,12 +778,6 @@ public class TokenMetadata
         for (Token right : tokens)
             ranges.add(new Range<>(getPredecessor(right), right));
         return ranges;
-    }
-
-    @Deprecated
-    public Range<Token> getPrimaryRangeFor(Token right)
-    {
-        return getPrimaryRangesFor(Arrays.asList(right)).iterator().next();
     }
 
     public ArrayList<Token> sortedTokens()
@@ -1339,7 +1321,7 @@ public class TokenMetadata
     /**
      * @deprecated retained for benefit of old tests
      */
-    @Deprecated
+    @Deprecated(since = "4.0")
     public EndpointsForToken getWriteEndpoints(Token token, String keyspaceName, EndpointsForToken natural)
     {
         EndpointsForToken pending = pendingEndpointsForToken(token, keyspaceName);

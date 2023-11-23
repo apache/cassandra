@@ -57,7 +57,7 @@ public class AbstractPendingRepairTest extends AbstractRepairTest
     public static void setupClass()
     {
         SchemaLoader.prepareServer();
-        ARS = ActiveRepairService.instance;
+        ARS = ActiveRepairService.instance();
         LocalSessionAccessor.startup();
 
         // cutoff messaging service

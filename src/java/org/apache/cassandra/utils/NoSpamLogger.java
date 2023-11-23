@@ -51,19 +51,18 @@ public class NoSpamLogger
     }
 
     @VisibleForTesting
-    static interface Clock
+    public interface Clock
     {
         long nanoTime();
     }
 
+    private static Clock CLOCK = Global::nanoTime;
+
     @VisibleForTesting
-    static Clock CLOCK = new Clock()
+    public static void unsafeSetClock(Clock clock)
     {
-        public long nanoTime()
-        {
-            return Global.nanoTime();
-        }
-    };
+        CLOCK = clock;
+    }
 
     public class NoSpamLogStatement extends AtomicLong
     {

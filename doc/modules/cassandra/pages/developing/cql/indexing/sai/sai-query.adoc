@@ -1,0 +1,38 @@
+= Querying with SAI
+:description: Understand the columns on which you can define SAI indexes and run queries.
+
+The xref:cassandra:getting-started/sai-quickstart.adoc[SAI quickstart] focuses only on defining multiple indexes based on non-primary key columns (a very useful feature).
+Let's explore other options using some examples of how you can run queries on tables that have differently defined SAI indexes.
+
+// IS THERE AN EXAMPLE OF 
+// WITH OPTIONS = {'case_sensitive': false, 'normalize': true };
+// case_sensitive	Ignore case in matching string values.
+// Default: true.
+
+// normalize	When set to true, perform Unicode normalization on indexed strings.
+// SAI supports Normalization Form C (NFC) Unicode. When set to true, SAI normalizes the different versions of a given Unicode character to a single version, retaining all the marks and symbols in the index. For example, SAI would change the character Å (U+212B) to Å (U+00C5).
+
+// When implementations keep strings in a normalized form, equivalent strings have a unique binary representation. See Unicode Standard Annex #15, Unicode Normalization Forms.
+
+// Default: false.
+
+// ascii	When set to true, SAI converts alphabetic, numeric, and symbolic characters that are not in the Basic Latin Unicode block (the first 127 ASCII characters) to the ASCII equivalent, if one exists. For example, this option changes à to a.
+// Default: false.
+
+include::_vector-search.adoc[leveloffset=+1]
+
+include::_single-index-match.adoc[leveloffset=+1]
+
+include::_single-index-with-case-sensitive.adoc[leveloffset=+1]
+
+include::_composite-partition-key-index.adoc[leveloffset=+1]
+
+include::_multiple-index-match-with-and.adoc[leveloffset=+1]
+
+include::_multiple-index-match-with-or.adoc[leveloffset=+1]
+
+include::_multiple-index-match-with-in.adoc[leveloffset=+1]
+
+include::_user-defined-type-match.adoc[leveloffset=+1]
+
+include::collections.adoc[leveloffset=+1]

@@ -1,0 +1,38 @@
+= Using list type
+:description: Use a list when the order of elements matter or when you need to store same value multiple times.
+
+A `list` is similar to a `set`; it groups and stores values.
+Unlike a `set`, the values stored in a `list` do not need to be unique and can be duplicated.
+In addition, a `list` stores the elements in a particular order and may be inserted or retrieved according to an index value.
+
+Use the `list` data type to store data that has a possible many-to-many relationship with another column.
+
+== Prerequisite
+
+* xref:developing/cql/keyspace-check.adoc[Keyspace] must exist
+
+In the following example, a `list` called `events` stores all the race events on an upcoming calendar.
+The table is called `upcoming_calendar`. Each event listed in the `list` will have a `text` data type.
+Events can have several events occurring in a particular month and year, so duplicates can occur.
+The `list` can be ordered so that the races appear in the order that they will take place, rather than alphabetical order.
+
+[tabs]
+====
+CQL::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/upcoming_calendar-table.cql[tag=listColumn]
+----
+--
+
+Result::
++
+--
+[source,results]
+----
+include::cassandra:example$RESULTS/sai/select_all_from_upcoming_calendar.result[]
+----
+--
+====

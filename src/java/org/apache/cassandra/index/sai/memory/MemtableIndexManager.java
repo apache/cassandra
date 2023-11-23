@@ -21,6 +21,7 @@ package org.apache.cassandra.index.sai.memory;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
@@ -36,9 +37,11 @@ import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeUnionIterator;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -88,6 +91,22 @@ public class MemtableIndexManager
         return bytes;
     }
 
+    public long update(DecoratedKey key, Row oldRow, Row newRow, Memtable memtable)
+    {
+        if (!indexContext.isVector())
+        {
+            return index(key, newRow, memtable);
+        }
+
+        MemtableIndex target = liveMemtableIndexMap.get(memtable);
+        if (target == null)
+            return 0;
+
+        ByteBuffer oldValue = indexContext.getValueOf(key, oldRow, FBUtilities.nowInSeconds());
+        ByteBuffer newValue = indexContext.getValueOf(key, newRow, FBUtilities.nowInSeconds());
+        return target.update(key, oldRow.clustering(), oldValue, newValue);
+    }
+
     public void renewMemtable(Memtable renewed)
     {
         for (Memtable memtable : liveMemtableIndexMap.keySet())
@@ -115,7 +134,7 @@ public class MemtableIndexManager
                                    .orElse(null);
     }
 
-    public KeyRangeIterator searchMemtableIndexes(Expression e, AbstractBounds<PartitionPosition> keyRange)
+    public KeyRangeIterator searchMemtableIndexes(QueryContext queryContext, Expression e, AbstractBounds<PartitionPosition> keyRange)
     {
         Collection<MemtableIndex> memtableIndexes = liveMemtableIndexMap.values();
 
@@ -128,7 +147,26 @@ public class MemtableIndexManager
 
         for (MemtableIndex memtableIndex : memtableIndexes)
         {
-            builder.add(memtableIndex.search(e, keyRange));
+            builder.add(memtableIndex.search(queryContext, e, keyRange));
+        }
+
+        return builder.build();
+    }
+
+    public KeyRangeIterator limitToTopResults(QueryContext context, List<PrimaryKey> source, Expression e)
+    {
+        Collection<MemtableIndex> memtables = liveMemtableIndexMap.values();
+
+        if (memtables.isEmpty())
+        {
+            return KeyRangeIterator.empty();
+        }
+
+        KeyRangeUnionIterator.Builder builder = KeyRangeUnionIterator.builder(memtables.size());
+
+        for (MemtableIndex index : memtables)
+        {
+            builder.add(index.limitToTopResults(source, e, context.vectorContext().limit()));
         }
 
         return builder.build();

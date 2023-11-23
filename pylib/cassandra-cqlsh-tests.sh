@@ -42,7 +42,7 @@ export TMPDIR="$(mktemp -d /tmp/run-python-dtest.XXXXXX)"
 java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print $1}')
 version=$(grep 'property\s*name=\"base.version\"' ${CASSANDRA_DIR}/build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')
 
-python_version="3.6"
+python_version="3.7"
 command -v python3 >/dev/null 2>&1 && python_version="$(python3 -V | awk '{print $2}' | awk -F'.' '{print $1"."$2}')"
 
 export TESTSUITE_NAME="cqlshlib.python${python_version}.jdk${java_version}"
@@ -84,23 +84,7 @@ fi
 ccm remove test || true # in case an old ccm cluster is left behind
 ccm create test -n 1 --install-dir=${CASSANDRA_DIR}
 ccm updateconf "user_defined_functions_enabled: true"
-
-version_from_build=$(ccm node1 versionfrombuild)
-export pre_or_post_cdc=$(python -c """from distutils.version import LooseVersion
-print (\"postcdc\" if LooseVersion(\"${version_from_build}\") >= \"3.8\" else \"precdc\")
-""")
-case "${pre_or_post_cdc}" in
-    postcdc)
-        ccm updateconf "cdc_enabled: true"
-        ;;
-    precdc)
-        :
-        ;;
-    *)
-        echo "${pre_or_post_cdc}" is an invalid value.
-        exit 1
-        ;;
-esac
+ccm updateconf "cdc_enabled: true"
 
 ccm start --wait-for-binary-proto
 

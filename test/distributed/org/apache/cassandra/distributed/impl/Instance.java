@@ -180,7 +180,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     private final AtomicLong startedAt = new AtomicLong();
     private IsolatedJmx isolatedJmx;
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17013 */
+    @Deprecated(since = "4.1")
     Instance(IInstanceConfig config, ClassLoader classLoader)
     {
         this(config, classLoader, null);
@@ -747,7 +748,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     FBUtilities.getBroadcastAddressAndPort().getPort() != broadcastAddress().getPort())
                     throw new IllegalStateException(String.format("%s != %s", FBUtilities.getBroadcastAddressAndPort(), broadcastAddress()));
 
-                ActiveRepairService.instance.start();
+                ActiveRepairService.instance().start();
                 StreamManager.instance.start();
 
                 PaxosState.startAutoRepairs();
@@ -810,7 +811,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     @Override
     public void postStartup()
     {
-        StorageService.instance.doAuthSetup(false);
+        sync(() ->
+            StorageService.instance.doAuthSetup(false)
+        ).run();
     }
 
     private void mkdirs()
@@ -896,7 +899,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> DiagnosticSnapshotService.instance.shutdownAndWait(1L, MINUTES),
                                 () -> SSTableReader.shutdownBlocking(1L, MINUTES),
                                 () -> shutdownAndWait(Collections.singletonList(ActiveRepairService.repairCommandExecutor())),
-                                () -> ActiveRepairService.instance.shutdownNowAndWait(1L, MINUTES),
+                                () -> ActiveRepairService.instance().shutdownNowAndWait(1L, MINUTES),
                                 () -> SnapshotManager.shutdownAndWait(1L, MINUTES)
             );
 
@@ -1026,9 +1029,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     private static class CapturingOutput implements Closeable
     {
-        @SuppressWarnings("resource")
         private final ByteArrayOutputStream outBase = new ByteArrayOutputStream();
-        @SuppressWarnings("resource")
         private final ByteArrayOutputStream errBase = new ByteArrayOutputStream();
 
         public final PrintStream out;

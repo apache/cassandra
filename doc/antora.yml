@@ -5,6 +5,10 @@ prerelease: true
 asciidoc:
   attributes:
     cass_url: 'http://cassandra.apache.org/'
+    cass-50: 'Cassandra 5.0'
+    cassandra: 'Cassandra' 
+    product: 'Apache Cassandra'
+
 nav:
 - modules/ROOT/nav.adoc
 - modules/cassandra/nav.adoc

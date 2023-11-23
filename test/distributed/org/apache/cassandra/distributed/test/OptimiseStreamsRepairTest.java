@@ -39,6 +39,7 @@ import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
@@ -114,7 +115,8 @@ public class OptimiseStreamsRepairTest extends TestBaseImpl
                            .load(cl, ClassLoadingStrategy.Default.INJECTION);
         }
 
-        public static List<SyncTask> createOptimisedSyncingSyncTasks(RepairJobDesc desc,
+        public static List<SyncTask> createOptimisedSyncingSyncTasks(SharedContext ctx,
+                                                                     RepairJobDesc desc,
                                                                      List<TreeResponse> trees,
                                                                      InetAddressAndPort local,
                                                                      Predicate<InetAddressAndPort> isTransient,

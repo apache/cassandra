@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 
 import com.google.common.base.MoreObjects;
@@ -40,14 +41,17 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.disk.format.Version;
+import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.memory.MemtableIndexManager;
 import org.apache.cassandra.index.sai.metrics.ColumnQueryMetrics;
 import org.apache.cassandra.index.sai.metrics.IndexMetrics;
@@ -59,7 +63,14 @@ import org.apache.cassandra.index.sai.view.View;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_MAX_FROZEN_TERM_SIZE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_MAX_STRING_TERM_SIZE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_MAX_VECTOR_TERM_SIZE;
 
 /**
  * Manages metadata for each column index.
@@ -67,6 +78,13 @@ import org.apache.cassandra.utils.Pair;
 public class IndexContext
 {
     private static final Logger logger = LoggerFactory.getLogger(IndexContext.class);
+    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
+
+    public static final long MAX_STRING_TERM_SIZE = SAI_MAX_STRING_TERM_SIZE.getSizeInBytes();
+    public static final long MAX_FROZEN_TERM_SIZE = SAI_MAX_FROZEN_TERM_SIZE.getSizeInBytes();
+    public static final long MAX_VECTOR_TERM_SIZE = SAI_MAX_VECTOR_TERM_SIZE.getSizeInBytes();
+    public static final String TERM_OVERSIZE_MESSAGE = "Can't add term of column %s to index for key: %s, term size %s " +
+                                                       "max allowed size %s, use analyzed = true (if not yet set) for that column.";
 
     private static final Set<AbstractType<?>> EQ_ONLY_TYPES = ImmutableSet.of(UTF8Type.instance,
                                                                               AsciiType.instance,
@@ -91,8 +109,11 @@ public class IndexContext
     private final IndexViewManager viewManager;
     private final IndexMetrics indexMetrics;
     private final ColumnQueryMetrics columnQueryMetrics;
+    private final IndexWriterConfig indexWriterConfig;
     private final AbstractAnalyzer.AnalyzerFactory analyzerFactory;
     private final PrimaryKey.Factory primaryKeyFactory;
+
+    private final long maxTermSize;
 
     public IndexContext(String keyspace,
                         String table,
@@ -115,6 +136,8 @@ public class IndexContext
         this.indexMetadata = indexMetadata;
         this.memtableIndexManager = indexMetadata == null ? null : new MemtableIndexManager(this);
 
+        this.indexWriterConfig = indexMetadata == null ? IndexWriterConfig.emptyConfig()
+                                                       : IndexWriterConfig.fromOptions(indexMetadata.name, validator, indexMetadata.options);
         this.indexMetrics = indexMetadata == null ? null : new IndexMetrics(this);
         this.viewManager = new IndexViewManager(this);
         this.columnQueryMetrics = isLiteral() ? new ColumnQueryMetrics.TrieIndexMetrics(this)
@@ -122,6 +145,8 @@ public class IndexContext
 
         this.analyzerFactory = indexMetadata == null ? AbstractAnalyzer.fromOptions(getValidator(), Collections.emptyMap())
                                                      : AbstractAnalyzer.fromOptions(getValidator(), indexMetadata.options);
+
+        maxTermSize = isVector() ? MAX_VECTOR_TERM_SIZE : (isFrozen() ? MAX_FROZEN_TERM_SIZE : MAX_STRING_TERM_SIZE);
     }
 
     public boolean hasClustering()
@@ -142,6 +167,11 @@ public class IndexContext
     public String getKeyspace()
     {
         return keyspace;
+    }
+
+    public IndexWriterConfig getIndexWriterConfig()
+    {
+        return indexWriterConfig;
     }
 
     public IndexMetrics getIndexMetrics()
@@ -267,6 +297,12 @@ public class IndexContext
             op == Operator.LIKE_MATCHES ||
             op == Operator.LIKE_SUFFIX) return false;
 
+        // ANN is only supported against vectors, and vector indexes only support ANN
+        if (isVector())
+            return op == Operator.ANN;
+        if (op == Operator.ANN)
+            return false;
+
         Expression.IndexOperator operator = Expression.IndexOperator.valueOf(op);
 
         if (isNonFrozenCollection())
@@ -352,6 +388,11 @@ public class IndexContext
     public boolean isLiteral()
     {
         return TypeUtil.isLiteral(getValidator());
+    }
+
+    public boolean isVector()
+    {
+        return getValidator().isVector() && ((VectorType<?>)getValidator()).elementType instanceof FloatType;
     }
 
     @Override
@@ -486,5 +527,62 @@ public class IndexContext
                         .stream()
                         .mapToLong(SSTableIndex::indexFileCacheSize)
                         .sum();
+    }
+
+    /**
+     * Validate maximum term size for given row
+     */
+    public void validateMaxTermSizeForRow(DecoratedKey key, Row row, boolean sendClientWarning)
+    {
+        AbstractAnalyzer analyzer = getAnalyzerFactory().create();
+        if (isNonFrozenCollection())
+        {
+            Iterator<ByteBuffer> bufferIterator = getValuesOf(row, FBUtilities.nowInSeconds());
+            while (bufferIterator != null && bufferIterator.hasNext())
+                validateMaxTermSizeForCell(analyzer, key, bufferIterator.next(), sendClientWarning);
+        }
+        else
+        {
+            ByteBuffer value = getValueOf(key, row, FBUtilities.nowInSeconds());
+            validateMaxTermSizeForCell(analyzer, key, value, sendClientWarning);
+        }
+    }
+
+    private void validateMaxTermSizeForCell(AbstractAnalyzer analyzer, DecoratedKey key, @Nullable ByteBuffer cellBuffer, boolean sendClientWarning)
+    {
+        if (cellBuffer == null || cellBuffer.remaining() == 0)
+            return;
+
+        // analyzer should not return terms that are larger than the origin value.
+        if (cellBuffer.remaining() <= maxTermSize)
+            return;
+
+        analyzer.reset(cellBuffer.duplicate());
+        while (analyzer.hasNext())
+            validateMaxTermSize(key, analyzer.next(), sendClientWarning);
+    }
+
+    /**
+     * Validate maximum term size for given term
+     * @return true if given term is valid; otherwise false.
+     */
+    public boolean validateMaxTermSize(DecoratedKey key, ByteBuffer term, boolean sendClientWarning)
+    {
+        if (term.remaining() > maxTermSize)
+        {
+            String message = logMessage(String.format(TERM_OVERSIZE_MESSAGE,
+                                                      getColumnName(),
+                                                      keyValidator().getString(key.getKey()),
+                                                      FBUtilities.prettyPrintMemory(term.remaining()),
+                                                      FBUtilities.prettyPrintMemory(maxTermSize)));
+
+            if (sendClientWarning)
+                ClientWarn.instance.warn(message);
+
+            noSpamLogger.warn(message);
+            return false;
+        }
+
+        return true;
     }
 }

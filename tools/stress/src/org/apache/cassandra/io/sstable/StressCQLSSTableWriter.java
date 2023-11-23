@@ -567,7 +567,6 @@ public class StressCQLSSTableWriter implements Closeable
             return this;
         }
 
-        @SuppressWarnings("resource")
         public StressCQLSSTableWriter build()
         {
             if (directoryList.isEmpty() && cfs == null)

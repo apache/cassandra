@@ -19,16 +19,20 @@
 package org.apache.cassandra.tools;
 
 import java.util.List;
+import java.util.Map;
 
+import com.google.common.collect.ImmutableMap;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import com.datastax.driver.core.SimpleStatement;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
@@ -58,6 +62,8 @@ import static com.google.common.collect.Lists.newArrayList;
  */
 public class JMXCompatabilityTest extends CQLTester
 {
+    private static final Map<String, String> ENV = ImmutableMap.of("JAVA_HOME", CassandraRelevantProperties.JAVA_HOME.getString());
+
     @ClassRule
     public static TemporaryFolder TMP = new TemporaryFolder();
 
@@ -70,6 +76,8 @@ public class JMXCompatabilityTest extends CQLTester
         DatabaseDescriptor.setColumnIndexSizeInKiB(0); // make sure the column index is created
 
         startJMXServer();
+        // as of CASSANDRA-18816 the instance is lazy loaded only once instance() is called, which isn't true from this code path (but is from CassandraDaemon)
+        ActiveRepairService.instance();
     }
 
     private void setupStandardTables() throws Throwable
@@ -81,14 +89,14 @@ public class JMXCompatabilityTest extends CQLTester
         GCInspector.register();
         CassandraDaemon.registerNativeAccess();
 
-        String name = KEYSPACE + "." + createTable("CREATE TABLE %s (pk int PRIMARY KEY)");
+        String name = KEYSPACE + '.' + createTable("CREATE TABLE %s (pk int PRIMARY KEY)");
 
         // use net to register everything like storage proxy
         executeNet(ProtocolVersion.CURRENT, new SimpleStatement("INSERT INTO " + name + " (pk) VALUES (?)", 42));
         executeNet(ProtocolVersion.CURRENT, new SimpleStatement("SELECT * FROM " + name + " WHERE pk=?", 42));
 
-        String script = "tools/bin/jmxtool dump -f yaml --url service:jmx:rmi:///jndi/rmi://" + jmxHost + ":" + jmxPort + "/jmxrmi > " + TMP.getRoot().getAbsolutePath() + "/out.yaml";
-        ToolRunner.invoke("bash", "-c", script).assertOnCleanExit();
+        String script = "tools/bin/jmxtool dump -f yaml --url service:jmx:rmi:///jndi/rmi://" + jmxHost + ':' + jmxPort + "/jmxrmi > " + TMP.getRoot().getAbsolutePath() + "/out.yaml";
+        ToolRunner.invoke(ENV, "bash", "-c", script).assertOnCleanExit();
         CREATED_TABLE = true;
     }
 
@@ -111,14 +119,16 @@ public class JMXCompatabilityTest extends CQLTester
                                                    ".*keyspace=system,(scope|table|columnfamily)=hints.*",
                                                    ".*keyspace=system,(scope|table|columnfamily)=batchlog.*");
         List<String> excludeAttributes = newArrayList("RPCServerRunning", // removed in CASSANDRA-11115
-                                                      "MaxNativeProtocolVersion");
+                                                      "MaxNativeProtocolVersion",
+                                                      "HostIdMap"); // removed in CASSANDRA-18959
         List<String> excludeOperations = newArrayList("startRPCServer", "stopRPCServer", // removed in CASSANDRA-11115
                                                       // nodetool apis that were changed,
                                                       "decommission", // -> decommission(boolean)
                                                       "forceRepairAsync", // -> repairAsync
                                                       "forceRepairRangeAsync", // -> repairAsync
                                                       "beginLocalSampling", // -> beginLocalSampling(p1: java.lang.String, p2: int, p3: int): void
-                                                      "finishLocalSampling" // -> finishLocalSampling(p1: java.lang.String, p2: int): java.util.List
+                                                      "finishLocalSampling", // -> finishLocalSampling(p1: java.lang.String, p2: int): java.util.List
+                                                      "scrub\\(p1:boolean,p2:boolean,p3:java.lang.String,p4:java.lang.String\\[\\]\\):int" // removed in CASSANDRA-18959
         );
 
         if (BtiFormat.isSelected())
@@ -149,14 +159,16 @@ public class JMXCompatabilityTest extends CQLTester
         );
         List<String> excludeAttributes = newArrayList("RPCServerRunning", // removed in CASSANDRA-11115
                                                       "MaxNativeProtocolVersion",
-                                                      "StreamingSocketTimeout");
+                                                      "StreamingSocketTimeout",
+                                                      "HostIdMap"); // removed in CASSANDRA-18959;
         List<String> excludeOperations = newArrayList("startRPCServer", "stopRPCServer", // removed in CASSANDRA-11115
                                                       // nodetool apis that were changed,
                                                       "decommission", // -> decommission(boolean)
                                                       "forceRepairAsync", // -> repairAsync
                                                       "forceRepairRangeAsync", // -> repairAsync
                                                       "beginLocalSampling", // -> beginLocalSampling(p1: java.lang.String, p2: int, p3: int): void
-                                                      "finishLocalSampling" // -> finishLocalSampling(p1: java.lang.String, p2: int): java.util.List
+                                                      "finishLocalSampling", // -> finishLocalSampling(p1: java.lang.String, p2: int): java.util.List
+                                                      "scrub\\(p1:boolean,p2:boolean,p3:java.lang.String,p4:java.lang.String\\[\\]\\):int" // removed in CASSANDRA-18959
         );
 
         if (BtiFormat.isSelected())
@@ -173,8 +185,8 @@ public class JMXCompatabilityTest extends CQLTester
     {
         List<String> excludeObjects = newArrayList("org.apache.cassandra.metrics:type=BufferPool,name=(Misses|Size)" // removed in CASSANDRA-18313
                 );
-        List<String> excludeAttributes = newArrayList();
-        List<String> excludeOperations = newArrayList();
+        List<String> excludeAttributes = newArrayList("HostIdMap"); // removed in CASSANDRA-18959
+        List<String> excludeOperations = newArrayList("scrub\\(p1:boolean,p2:boolean,p3:java.lang.String,p4:java.lang.String\\[\\]\\):int"); // removed in CASSANDRA-18959
 
         if (BtiFormat.isSelected())
         {
@@ -190,8 +202,8 @@ public class JMXCompatabilityTest extends CQLTester
     {
         List<String> excludeObjects = newArrayList("org.apache.cassandra.metrics:type=BufferPool,name=(Misses|Size)" // removed in CASSANDRA-18313
         );
-        List<String> excludeAttributes = newArrayList();
-        List<String> excludeOperations = newArrayList();
+        List<String> excludeAttributes = newArrayList("HostIdMap"); // removed in CASSANDRA-18959
+        List<String> excludeOperations = newArrayList("scrub\\(p1:boolean,p2:boolean,p3:java.lang.String,p4:java.lang.String\\[\\]\\):int"); // removed in CASSANDRA-18959
 
         if (BtiFormat.isSelected())
         {
@@ -222,7 +234,7 @@ public class JMXCompatabilityTest extends CQLTester
             args.add("--exclude-operation");
             args.add(a);
         });
-        ToolResult result = ToolRunner.invoke(args);
+        ToolResult result = ToolRunner.invoke(ENV, args);
         result.assertOnCleanExit();
         Assertions.assertThat(result.getStdout()).isEmpty();
     }

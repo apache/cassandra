@@ -19,33 +19,23 @@
 
 package org.apache.cassandra.io.sstable;
 
-import java.io.IOException;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
-import java.util.stream.Stream;
-
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.RegularAndStaticColumns;
-import org.apache.cassandra.db.RowUpdateBuilder;
-import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
+
+import java.io.IOException;
+import java.util.*;
+import java.util.stream.Stream;
 
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
@@ -93,10 +83,10 @@ public class SSTableUtils
         File cfDir = new File(tempdir, keyspaceName + File.pathSeparator() + cfname);
         cfDir.tryCreateDirectories();
         cfDir.deleteOnExit();
-        File datafile = new Descriptor(cfDir, keyspaceName, cfname, id, BigFormat.getInstance()).fileFor(Components.DATA);
+        File datafile = new Descriptor(cfDir, keyspaceName, cfname, id, DatabaseDescriptor.getSelectedSSTableFormat()).fileFor(Components.DATA);
         if (!datafile.createFileIfNotExists())
             throw new IOException("unable to create file " + datafile);
-        datafile.deleteOnExit();
+        datafile.delete();
         return datafile;
     }
 

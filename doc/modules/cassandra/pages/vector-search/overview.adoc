@@ -1,0 +1,30 @@
+= Overview of Vector Search
+:navtitle: Vector Search overview
+:description: Vector Search overview
+:keywords: CEP-30
+
+Vector Search is a new feature added to {cass-50}.
+It is a powerful technique for finding relevant content within large document collections and is particularly useful for AI applications.
+
+xref:cassandra:vector-search/concepts.adoc[Vector Search concepts]::
+Use Vector Search to create powerful relevant content search for any CQL table.
+
+xref:cassandra:getting-started/vector-search-quickstart.adoc[Vector Search quickstart]::
+Follow the steps to get started quickly with Vector Search.
+
+// xref:cassandra:vector-search/faq.adoc[Vector Search FAQs]::
+// Frequently asked questions about Vector Search.
+
+xref:cassandra:vector-search/vector-search-working-with.adoc[Working with Vector Search]::
+Create, check, alter, drop, and query Vector Search.
+
+// xref:cassandra:vector-search/vector-search-operations.adoc[Vector Search operations]::
+// Configuring and monitoring.
+
+// xref:cassandra:vector-search/vector-search-query.adoc[Querying with Vector Search]::
+// Understand how to run Vector Search queries.
+
+xref:cassandra:vector-search/data-modeling.adoc[Data modeling with Vector Search]::
+The ins and outs of data modeling with Vector Search.
+
+*Reference:* xref:cassandra:reference/cql-commands/create-table.adoc[CREATE TABLE], xref:cassandra:reference/cql-commands/create-index.adoc[CREATE INDEX], xref:cassandra:reference/cql-commands/create-custom-index.adoc[CREATE CUSTOM INDEX]

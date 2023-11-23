@@ -44,7 +44,7 @@ public class Version implements Comparable<Version>
 
     // These should be added in reverse order so that the latest version is used first. Version matching tests
     // are more likely to match the latest version, so we want to test that one first.
-    public static final SortedSet<Version> ALL = new TreeSet<Version>(Comparator.reverseOrder()) {{
+    public static final SortedSet<Version> ALL = new TreeSet<>(Comparator.reverseOrder()) {{
         add(AA);
     }};
 
@@ -133,7 +133,7 @@ public class Version implements Comparable<Version>
     /**
      * SAI default filename formatter. This is the current SAI on-disk filename format
      *
-     * Format: <sstable descriptor>-SAI+<version>(+<index name>)+<component name>.db
+     * Format: {@code <sstable descriptor>-SAI+<version>(+<index name>)+<component name>.db}
      * Note: The index name is excluded for per-SSTable index files that are shared
      * across all the per-column indexes for the SSTable.
      */

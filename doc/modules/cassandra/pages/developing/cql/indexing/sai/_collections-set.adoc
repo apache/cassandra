@@ -1,0 +1,35 @@
+[[saiUsingCollectionsSetExamples]]
+= Using the set type
+
+This example uses the following table and index:
+
+[source,sql]
+----
+include::cassandra:example$CQL/sai/cyclist_career_teams-table.cql[tag=setColumn]
+include::cassandra:example$CQL/sai/index-sai-from-set-match.cql[]
+----
+
+An index is created on the set column `teams` in the `cyclist_career_teams` table.
+
+Query with `CONTAINS` from the set `teams` column:
+
+[tabs]
+====
+CQL::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/index-sai-select-from-set.cql[]
+----
+--
+
+Result::
++
+--
+[source,console]
+----
+include::cassandra:example$RESULTS/sai/index-sai-select-from-set.result[]
+----
+--
+====

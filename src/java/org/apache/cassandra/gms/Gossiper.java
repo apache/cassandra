@@ -65,7 +65,6 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -117,7 +116,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
  * This class is not threadsafe and any state changes should happen in the gossip stage.
  */
 
-public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
+public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, IGossiper
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.net:type=Gossiper";
 
@@ -161,9 +160,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     /* live member set */
     @VisibleForTesting
     final Set<InetAddressAndPort> liveEndpoints = new ConcurrentSkipListSet<>();
-
-    /* Inflight echo requests. */
-    private final Set<InetAddressAndPort> inflightEcho = new ConcurrentSkipListSet<>();
 
     /* unreachable member set */
     private final Map<InetAddressAndPort, Long> unreachableEndpoints = new ConcurrentHashMap<>();
@@ -452,6 +448,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      *
      * @param subscriber module which implements the IEndpointStateChangeSubscriber
      */
+    @Override
     public void register(IEndpointStateChangeSubscriber subscriber)
     {
         subscribers.add(subscriber);
@@ -462,6 +459,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      *
      * @param subscriber module which implements the IEndpointStateChangeSubscriber
      */
+    @Override
     public void unregister(IEndpointStateChangeSubscriber subscriber)
     {
         subscribers.remove(subscriber);
@@ -601,12 +599,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     /**
      * This method is used to mark a node as shutdown; that is it gracefully exited on its own and told us about it
      * @param endpoint endpoint that has shut itself down
+     * @deprecated see CASSANDRA-18913
      */
+    @Deprecated(since = "5.0") // can remove once 4.x is not supported
     protected void markAsShutdown(InetAddressAndPort endpoint)
     {
         checkProperThreadForStateMutation();
         EndpointState epState = endpointStateMap.get(endpoint);
-        if (epState == null)
+        if (epState == null || epState.isStateEmpty())
             return;
         VersionedValue shutdown = StorageService.instance.valueFactory.shutdown(true);
         epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, shutdown);
@@ -614,6 +614,32 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         epState.addApplicationState(ApplicationState.RPC_READY, StorageService.instance.valueFactory.rpcReady(false));
         epState.getHeartBeatState().forceHighestPossibleVersionUnsafe();
         markDead(endpoint, epState);
+        FailureDetector.instance.forceConviction(endpoint);
+        GossiperDiagnostics.markedAsShutdown(this, endpoint);
+        for (IEndpointStateChangeSubscriber subscriber : subscribers)
+            subscriber.onChange(endpoint, ApplicationState.STATUS_WITH_PORT, shutdown);
+        logger.debug("Marked {} as shutdown", endpoint);
+    }
+
+    /**
+     * This method is used to mark a node as shutdown; that is it gracefully exited on its own and told us about it
+     * @param endpoint endpoint that has shut itself down
+     * @param remoteState from the endpoint shutting down
+     */
+    protected void markAsShutdown(InetAddressAndPort endpoint, EndpointState remoteState)
+    {
+        checkProperThreadForStateMutation();
+        EndpointState epState = endpointStateMap.get(endpoint);
+        if (epState == null || epState.isStateEmpty())
+            return;
+        if (!VersionedValue.SHUTDOWN.equals(remoteState.getStatus()))
+            throw new AssertionError("Remote shutdown sent but was not with a shutdown status?  " + remoteState);
+        // added in 5.0 so we know STATUS_WITH_PORT is set
+        VersionedValue shutdown = remoteState.getApplicationState(ApplicationState.STATUS_WITH_PORT);
+        if (shutdown == null)
+            throw new AssertionError("Remote shutdown sent but missing STATUS_WITH_PORT; " + remoteState);
+        endpointStateMap.put(endpoint, remoteState);
+        markDead(endpoint, remoteState);
         FailureDetector.instance.forceConviction(endpoint);
         GossiperDiagnostics.markedAsShutdown(this, endpoint);
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
@@ -676,7 +702,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return;
 
         liveEndpoints.remove(endpoint);
-        inflightEcho.remove(endpoint);
         unreachableEndpoints.remove(endpoint);
         MessagingService.instance().versions.reset(endpoint);
         quarantineEndpoint(endpoint);
@@ -1152,6 +1177,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return storedTime == null ? computeExpireTime() : storedTime;
     }
 
+    @Override
     public EndpointState getEndpointStateForEndpoint(InetAddressAndPort ep)
     {
         return endpointStateMap.get(ep);
@@ -1350,45 +1376,13 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private void markAlive(final InetAddressAndPort addr, final EndpointState localState)
     {
-        if (inflightEcho.contains(addr))
-        {
-            return;
-        }
-        inflightEcho.add(addr);
-
         localState.markDead();
 
         Message<NoPayload> echoMessage = Message.out(ECHO_REQ, noPayload);
         logger.trace("Sending ECHO_REQ to {}", addr);
-        RequestCallback echoHandler = new RequestCallback()
+        RequestCallback echoHandler = msg ->
         {
-            @Override
-            public void onResponse(Message msg)
-            {
-                // force processing of the echo response onto the gossip stage, as it comes in on the REQUEST_RESPONSE stage
-                runInGossipStageBlocking(() -> {
-                    try
-                    {
-                        realMarkAlive(addr, localState);
-                    }
-                    finally
-                    {
-                        inflightEcho.remove(addr);
-                    }
-                });
-            }
-
-            @Override
-            public boolean invokeOnFailure()
-            {
-                return true;
-            }
-
-            @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
-            {
-                inflightEcho.remove(addr);
-            }
+            runInGossipStageBlocking(() -> realMarkAlive(addr, localState));
         };
 
         MessagingService.instance().sendWithCallback(echoMessage, addr, echoHandler);
@@ -1444,7 +1438,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         if (!disableEndpointRemoval)
         {
             liveEndpoints.remove(addr);
-            inflightEcho.remove(addr);
             unreachableEndpoints.put(addr, nanoTime());
         }
     }
@@ -2212,7 +2205,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             logger.info("Announcing shutdown");
             addLocalApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.shutdown(true));
             addLocalApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.shutdown(true));
-            Message message = Message.out(Verb.GOSSIP_SHUTDOWN, noPayload);
+            Message<GossipShutdown> message = Message.out(Verb.GOSSIP_SHUTDOWN, new GossipShutdown(mystate));
             for (InetAddressAndPort ep : liveEndpoints)
                 MessagingService.instance().send(message, ep);
             Uninterruptibles.sleepUninterruptibly(SHUTDOWN_ANNOUNCE_DELAY_IN_MS.getInt(), TimeUnit.MILLISECONDS);
@@ -2357,13 +2350,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return currentTimeMillis() + aVeryLongTime;
     }
 
-    @Nullable
-    public CassandraVersion getReleaseVersion(InetAddressAndPort ep)
-    {
-        EndpointState state = getEndpointStateForEndpoint(ep);
-        return state != null ? state.getReleaseVersion() : null;
-    }
-
     public Map<String, List<String>> getReleaseVersionsWithPort()
     {
         Map<String, List<String>> results = new HashMap<>();
@@ -2408,14 +2394,12 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         int totalPolls = 0;
         int numOkay = 0;
         int epSize = Gossiper.instance.getEndpointCount();
-        int liveSize = Gossiper.instance.getLiveMembers().size();
         while (numOkay < GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED)
         {
             Uninterruptibles.sleepUninterruptibly(GOSSIP_SETTLE_POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
             int currentSize = Gossiper.instance.getEndpointCount();
-            int currentLive = Gossiper.instance.getLiveMembers().size();
             totalPolls++;
-            if (currentSize == epSize && currentLive == liveSize)
+            if (currentSize == epSize)
             {
                 logger.debug("Gossip looks settled.");
                 numOkay++;
@@ -2426,7 +2410,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 numOkay = 0;
             }
             epSize = currentSize;
-            liveSize = currentLive;
             if (forceAfter > 0 && totalPolls > forceAfter)
             {
                 logger.warn("Gossip not settled but startup forced by cassandra.skip_wait_for_gossip_to_settle. Gossip total polls: {}",

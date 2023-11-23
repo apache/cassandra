@@ -563,9 +563,6 @@ public class DatabaseDescriptor
         if (conf.concurrent_counter_writes < 2)
             throw new ConfigurationException("concurrent_counter_writes must be at least 2, but was " + conf.concurrent_counter_writes, false);
 
-        if (conf.concurrent_replicates != null)
-            logger.warn("concurrent_replicates has been deprecated and should be removed from cassandra.yaml");
-
         if (conf.networking_cache_size == null)
             conf.networking_cache_size = new DataStorageSpec.IntMebibytesBound(Math.min(128, SPACE_UPPER_BOUND_MB));
 
@@ -617,10 +614,6 @@ public class DatabaseDescriptor
             checkValidForByteConversion(conf.column_index_size, "column_index_size");
         checkValidForByteConversion(conf.column_index_cache_size, "column_index_cache_size");
         checkValidForByteConversion(conf.batch_size_warn_threshold, "batch_size_warn_threshold");
-
-        if (conf.native_transport_max_negotiable_protocol_version != null)
-            logger.warn("The configuration option native_transport_max_negotiable_protocol_version has been deprecated " +
-                        "and should be removed from cassandra.yaml as it has no longer has any effect.");
 
         // if data dirs, commitlog dir, or saved caches dir are set in cassandra.yaml, use that.  Otherwise,
         // use -Dcassandra.storagedir (set in cassandra-env.sh) as the parent dir for data/, commitlog/, and saved_caches/
@@ -3659,6 +3652,12 @@ public class DatabaseDescriptor
         return localDC;
     }
 
+    @VisibleForTesting
+    public static void setLocalDataCenter(String value)
+    {
+        localDC = value;
+    }
+
     public static Comparator<Replica> getLocalComparator()
     {
         return localComparator;
@@ -4304,7 +4303,8 @@ public class DatabaseDescriptor
         conf.auto_optimise_preview_repair_streams = enabled;
     }
 
-    @Deprecated // this warning threshold will be replaced by an equivalent guardrail
+    /** @deprecated See CASSANDRA-17195 */
+    @Deprecated(since = "4.1") // this warning threshold will be replaced by an equivalent guardrail
     public static ConsistencyLevel getAuthWriteConsistencyLevel()
     {
         return ConsistencyLevel.valueOf(conf.auth_write_consistency_level);
@@ -4869,6 +4869,11 @@ public class DatabaseDescriptor
     public static DataStorageSpec.IntMebibytesBound getSAISegmentWriteBufferSpace()
     {
         return conf.sai_options.segment_write_buffer_size;
+    }
+
+    public static RepairRetrySpec getRepairRetrySpec()
+    {
+        return conf == null ? new RepairRetrySpec() : conf.repair.retries;
     }
 
     public static <T> ListenableProperty.Remover addBeforeChangePropertyListener(String name, Class<T> clazz, BiConsumer<T, T> consumer)

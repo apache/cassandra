@@ -317,6 +317,18 @@ public interface GuardrailsMBean
     void setDropKeyspaceEnabled(boolean enabled);
 
     /**
+     * Returns whether bulk load of SSTables is allowed
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getBulkLoadEnabled();
+
+    /**
+     * Sets whether bulk load of SSTables is allowed
+     */
+    void setBulkLoadEnabled(boolean enabled);
+
+    /**
      * @return The threshold to warn when requested page size greater than threshold.
      * -1 means disabled.
      */

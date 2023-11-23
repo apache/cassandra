@@ -1,4 +1,4 @@
-= Physical Data Modeling
+= Physical data modeling
 
 Once you have a logical data model defined, creating the physical model
 is a relatively simple process.

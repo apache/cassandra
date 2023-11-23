@@ -97,8 +97,8 @@ public final class TableAttributes extends PropertyDefinitions
 
     private TableParams build(TableParams.Builder builder)
     {
-        if (hasOption(Option.ALLOW_AUTO_SNAPSHOT))
-            builder.allowAutoSnapshot(getBoolean(Option.ALLOW_AUTO_SNAPSHOT.toString(), true));
+        if (hasOption(ALLOW_AUTO_SNAPSHOT))
+            builder.allowAutoSnapshot(getBoolean(ALLOW_AUTO_SNAPSHOT.toString(), true));
 
         if (hasOption(BLOOM_FILTER_FP_CHANCE))
             builder.bloomFilterFpChance(getDouble(BLOOM_FILTER_FP_CHANCE));
@@ -113,20 +113,10 @@ public final class TableAttributes extends PropertyDefinitions
             builder.compaction(CompactionParams.fromMap(getMap(COMPACTION)));
 
         if (hasOption(COMPRESSION))
-        {
-            //crc_check_chance was "promoted" from a compression property to a top-level-property after #9839,
-            //so we temporarily accept it to be defined as a compression option, to maintain backwards compatibility
-            Map<String, String> compressionOpts = getMap(COMPRESSION);
-            if (compressionOpts.containsKey(CRC_CHECK_CHANCE.toString().toLowerCase()))
-            {
-                double crcCheckChance = getDeprecatedCrcCheckChance(compressionOpts);
-                builder.crcCheckChance(crcCheckChance);
-            }
             builder.compression(CompressionParams.fromMap(getMap(COMPRESSION)));
-        }
 
-        if (hasOption(Option.MEMTABLE))
-            builder.memtable(MemtableParams.get(getString(Option.MEMTABLE)));
+        if (hasOption(MEMTABLE))
+            builder.memtable(MemtableParams.get(getString(MEMTABLE)));
 
         if (hasOption(DEFAULT_TIME_TO_LIVE))
             builder.defaultTimeToLive(getInt(DEFAULT_TIME_TO_LIVE));
@@ -198,11 +188,5 @@ public final class TableAttributes extends PropertyDefinitions
     private double getDouble(Option option)
     {
         return parseDouble(option.toString(), getString(option));
-    }
-
-    private double getDeprecatedCrcCheckChance(Map<String, String> compressionOpts)
-    {
-        String value = compressionOpts.get(CRC_CHECK_CHANCE.toString().toLowerCase());
-        return parseDouble(CRC_CHECK_CHANCE.toString(), value);
     }
 }

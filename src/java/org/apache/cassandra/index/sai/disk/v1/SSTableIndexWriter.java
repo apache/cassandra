@@ -44,10 +44,6 @@ import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.NoSpamLogger;
-
-import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_MAX_FROZEN_TERM_SIZE;
-import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_MAX_STRING_TERM_SIZE;
 
 /**
  * Column index writer that accumulates (on-heap) indexed data from a compacted SSTable as it's being flushed to disk.
@@ -56,19 +52,12 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_MAX_ST
 public class SSTableIndexWriter implements PerColumnIndexWriter
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableIndexWriter.class);
-    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
-
-    public static final int MAX_STRING_TERM_SIZE = SAI_MAX_STRING_TERM_SIZE.getInt() * 1024;
-    public static final int MAX_FROZEN_TERM_SIZE = SAI_MAX_FROZEN_TERM_SIZE.getInt() * 1024;
-    public static final String TERM_OVERSIZE_MESSAGE = "Can't add term of column {} to index for key: {}, term size {} " +
-                                                       "max allowed size {}, use analyzed = true (if not yet set) for that column.";
 
     private final IndexDescriptor indexDescriptor;
     private final IndexContext indexContext;
     private final long nowInSec = FBUtilities.nowInSeconds();
     private final AbstractAnalyzer analyzer;
     private final NamedMemoryLimiter limiter;
-    private final int maxTermSize;
     private final BooleanSupplier isIndexValid;
     private final List<SegmentMetadata> segments = new ArrayList<>();
 
@@ -82,7 +71,6 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
         this.analyzer = indexContext.getAnalyzerFactory().create();
         this.limiter = limiter;
         this.isIndexValid = isIndexValid;
-        this.maxTermSize = indexContext.isFrozen() ? MAX_FROZEN_TERM_SIZE : MAX_STRING_TERM_SIZE;
     }
 
     @Override
@@ -146,7 +134,9 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
             }
 
             writeSegmentsMetadata();
-            indexDescriptor.createComponentOnDisk(IndexComponent.COLUMN_COMPLETION_MARKER, indexContext);
+
+            // write column index completion marker, indicating whether the index is empty
+            ColumnCompletionMarkerUtil.create(indexDescriptor, indexContext, segments.isEmpty());
         }
         finally
         {
@@ -199,15 +189,8 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
 
     private void addTerm(ByteBuffer term, PrimaryKey key, long sstableRowId, AbstractType<?> type) throws IOException
     {
-        if (term.remaining() >= maxTermSize)
-        {
-            noSpamLogger.warn(indexContext.logMessage(TERM_OVERSIZE_MESSAGE),
-                              indexContext.getColumnName(),
-                              indexContext.keyValidator().getString(key.partitionKey().getKey()),
-                              FBUtilities.prettyPrintMemory(term.remaining()),
-                              FBUtilities.prettyPrintMemory(maxTermSize));
+        if (!indexContext.validateMaxTermSize(key.partitionKey(), term, false))
             return;
-        }
 
         if (currentBuilder == null)
         {
@@ -327,9 +310,14 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
 
     private SegmentBuilder newSegmentBuilder()
     {
-        SegmentBuilder builder = TypeUtil.isLiteral(indexContext.getValidator())
-                                 ? new SegmentBuilder.RAMStringSegmentBuilder(indexContext.getValidator(), limiter)
-                                 : new SegmentBuilder.BlockBalancedTreeSegmentBuilder(indexContext.getValidator(), limiter);
+        SegmentBuilder builder;
+
+        if (indexContext.isVector())
+            builder = new SegmentBuilder.VectorSegmentBuilder(indexContext.getValidator(), limiter, indexContext.getIndexWriterConfig());
+        else if (indexContext.isLiteral())
+            builder = new SegmentBuilder.RAMStringSegmentBuilder(indexContext.getValidator(), limiter);
+        else
+            builder = new SegmentBuilder.BlockBalancedTreeSegmentBuilder(indexContext.getValidator(), limiter);
 
         long globalBytesUsed = limiter.increment(builder.totalBytesAllocated());
         logger.debug(indexContext.logMessage("Created new segment builder while flushing SSTable {}. Global segment memory usage now at {}."),

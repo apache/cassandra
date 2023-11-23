@@ -128,7 +128,11 @@ public class SegmentMetadata
         this.componentMetadatas = new ComponentMetadataMap(input);
     }
 
-    @SuppressWarnings({"resource", "RedundantSuppression"})
+    public int toSegmentRowId(long sstableRowId)
+    {
+        return Math.toIntExact(sstableRowId - rowIdOffset);
+    }
+
     public static List<SegmentMetadata> load(MetadataSource source, PrimaryKey.Factory primaryKeyFactory) throws IOException
     {
         DataInput input = source.get(NAME);

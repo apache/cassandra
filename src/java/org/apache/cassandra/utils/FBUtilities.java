@@ -1032,6 +1032,22 @@ public class FBUtilities
     }
 
     /**
+     * Parse a double where both a direct value and a percentage are accepted.
+     * For example, for inputs "0.1" and "10%", this function will return 0.1.
+     */
+    public static double parsePercent(String value)
+    {
+        value = value.trim();
+        if (value.endsWith("%"))
+        {
+            value = value.substring(0, value.length() - 1).trim();
+            return Double.parseDouble(value) / 100.0;
+        }
+        else
+            return Double.parseDouble(value);
+    }
+
+    /**
      * Starts and waits for the given @param pb to finish.
      * @throws java.io.IOException on non-zero exit code
      */

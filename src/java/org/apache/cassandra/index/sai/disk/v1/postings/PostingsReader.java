@@ -23,15 +23,12 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import org.apache.cassandra.index.sai.disk.io.SeekingRandomAccessInput;
 import org.apache.cassandra.index.sai.disk.v1.DirectReaders;
-import org.apache.cassandra.index.sai.postings.OrdinalPostingList;
-import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.disk.v1.LongArray;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
-import org.apache.cassandra.index.sai.disk.io.SeekingRandomAccessInput;
+import org.apache.cassandra.index.sai.postings.OrdinalPostingList;
+import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IndexInput;
@@ -41,15 +38,13 @@ import org.apache.lucene.util.packed.DirectReader;
 
 /**
  * Reads, decompresses and decodes postings lists written by {@link PostingsWriter}.
- *
+ * <p>
  * Holds exactly one posting block in memory at a time. Does binary search over skip table to find a postings block to
  * load.
  */
 @NotThreadSafe
 public class PostingsReader implements OrdinalPostingList
 {
-    private static final Logger logger = LoggerFactory.getLogger(PostingsReader.class);
-
     private final IndexInput input;
     private final SeekingRandomAccessInput seekingInput;
     private final QueryEventListener.PostingListEventListener listener;
@@ -62,7 +57,6 @@ public class PostingsReader implements OrdinalPostingList
     private long totalPostingsRead;
     private long actualPosting;
 
-    private long currentPosition;
     private LongValues currentFoRValues;
     private long postingsDecoded = 0;
 
@@ -175,9 +169,9 @@ public class PostingsReader implements OrdinalPostingList
      * Advances to the first row ID beyond the current that is greater than or equal to the
      * target, and returns that row ID. Exhausts the iterator and returns {@link #END_OF_STREAM} if
      * the target is greater than the highest row ID.
-     *
+     * <p>
      * Does binary search over the skip table to find the next block to load into memory.
-     *
+     * <p>
      * Note: Callers must use the return value of this method before calling {@link #nextPosting()}, as calling
      * that method will return the next posting, not the one to which we have just advanced.
      *
@@ -349,7 +343,7 @@ public class PostingsReader implements OrdinalPostingList
 
         byte bitsPerValue = in.readByte();
 
-        currentPosition = in.getFilePointer();
+        long currentPosition = in.getFilePointer();
 
         if (bitsPerValue == 0)
         {

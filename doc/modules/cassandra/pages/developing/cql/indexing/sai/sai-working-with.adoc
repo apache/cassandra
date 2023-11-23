@@ -1,0 +1,16 @@
+= Working with Storage-attached indexing (SAI)
+:navtitle: Working with SAI
+:description: CRUD operations on SAI + querying with SAI
+
+== Prerequisites
+
+* xref:developing/keyspace-create.adoc[Keyspace created]
+* xref:developing/table-create.adoc[Table created]
+
+include::_sai-create.adoc[leveloffset=+1]
+
+include::_sai-alter.adoc[leveloffset=+1]
+
+include::_sai-drop.adoc[leveloffset=+1]
+
+include::sai-query.adoc[leveloffset=+1]

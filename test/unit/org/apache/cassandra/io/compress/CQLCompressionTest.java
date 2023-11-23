@@ -106,7 +106,7 @@ public class CQLCompressionTest extends CQLTester
     @Test
     public void lz4FlushTest() throws Throwable
     {
-        createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'sstable_compression': 'LZ4Compressor'};");
+        createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'class': 'LZ4Compressor'};");
         ColumnFamilyStore store = flushTwice();
 
         // Should flush as LZ4 "fast"
@@ -131,7 +131,7 @@ public class CQLCompressionTest extends CQLTester
     public void lz4hcFlushTest() throws Throwable
     {
         createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = " +
-                    "{'sstable_compression': 'LZ4Compressor', 'lz4_compressor_type': 'high'};");
+                    "{'class': 'LZ4Compressor', 'lz4_compressor_type': 'high'};");
         ColumnFamilyStore store = flushTwice();
 
         // Should flush as LZ4 "fast" mode
@@ -155,7 +155,7 @@ public class CQLCompressionTest extends CQLTester
     @Test
     public void zstdFlushTest() throws Throwable
     {
-        createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'sstable_compression': 'ZstdCompressor'};");
+        createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'class': 'ZstdCompressor'};");
         ColumnFamilyStore store = flushTwice();
 
         // Should flush as LZ4
@@ -177,7 +177,7 @@ public class CQLCompressionTest extends CQLTester
     @Test
     public void deflateFlushTest() throws Throwable
     {
-        createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'sstable_compression': 'DeflateCompressor'};");
+        createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'class': 'DeflateCompressor'};");
         ColumnFamilyStore store = flushTwice();
 
         // Should flush as LZ4
@@ -200,7 +200,7 @@ public class CQLCompressionTest extends CQLTester
     public void useNoCompressorOnFlushTest() throws Throwable
     {
         DatabaseDescriptor.setFlushCompression(Config.FlushCompression.none);
-        createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'sstable_compression': 'LZ4Compressor'};");
+        createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'class': 'LZ4Compressor'};");
         ColumnFamilyStore store = flushTwice();
 
         // Should flush as Noop compressor
@@ -224,7 +224,7 @@ public class CQLCompressionTest extends CQLTester
     {
         DatabaseDescriptor.setFlushCompression(Config.FlushCompression.table);
 
-        createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'sstable_compression': 'ZstdCompressor'};");
+        createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'class': 'ZstdCompressor'};");
         ColumnFamilyStore store = flushTwice();
 
         // Should flush as Zstd
@@ -237,7 +237,7 @@ public class CQLCompressionTest extends CQLTester
     @Test
     public void zstdTableFlushTest() throws Throwable
     {
-        createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'sstable_compression': 'ZstdCompressor'};");
+        createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'class': 'ZstdCompressor'};");
         ColumnFamilyStore store = flushTwice();
 
         // Should flush as LZ4

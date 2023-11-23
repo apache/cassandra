@@ -80,6 +80,13 @@ public final class IntegerType extends NumberType<BigInteger>
 
     IntegerType() {super(ComparisonType.CUSTOM);}/* singleton */
 
+    @Override
+    public boolean allowsEmpty()
+    {
+        return true;
+    }
+
+    @Override
     public boolean isEmptyValueMeaningless()
     {
         return true;
@@ -153,8 +160,8 @@ public final class IntegerType extends NumberType<BigInteger>
      *
      * In the current format we represent it:
      *    directly as varint, if the length is 6 or smaller (the encoding has non-00/FF first byte)
-     *    <signbyte><length as unsigned integer - 7><7 or more bytes>, otherwise
-     * where <signbyte> is 00 for negative numbers and FF for positive ones, and the length's bytes are inverted if
+     *    {@code <signbyte><length as unsigned integer - 7><7 or more bytes>}, otherwise
+     * where {@code <signbyte>} is 00 for negative numbers and FF for positive ones, and the length's bytes are inverted if
      * the number is negative (so that longer length sorts smaller).
      *
      * Because we present the sign separately, we don't need to include 0x00 prefix for positive integers whose first
@@ -249,8 +256,8 @@ public final class IntegerType extends NumberType<BigInteger>
      * Constructs a full-form byte-comparable representation of the number in the current format.
      *
      * This contains:
-     *    <signbyte><length as unsigned integer - 7><7 or more bytes>, otherwise
-     * where <signbyte> is 00 for negative numbers and FF for positive ones, and the length's bytes are inverted if
+     *    {@code <signbyte><length as unsigned integer - 7><7 or more bytes>}, otherwise
+     * where {@code <signbyte>} is 00 for negative numbers and FF for positive ones, and the length's bytes are inverted if
      * the number is negative (so that longer length sorts smaller).
      *
      * Because we present the sign separately, we don't need to include 0x00 prefix for positive integers whose first
@@ -294,7 +301,7 @@ public final class IntegerType extends NumberType<BigInteger>
     /**
      * Constructs a byte-comparable representation of the number in the legacy format.
      * We represent it as
-     *    <zero or more length_bytes where length = 128> <length_byte> <first_significant_byte> <zero or more bytes>
+     *    {@code <zero or more length_bytes where length = 128> <length_byte> <first_significant_byte> <zero or more bytes>}
      * where a length_byte is:
      *    - 0x80 + (length - 1) for positive numbers (so that longer length sorts bigger)
      *    - 0x7F - (length - 1) for negative numbers (so that longer length sorts smaller)

@@ -196,7 +196,6 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         return cacheLoad;
     }
 
-    @SuppressWarnings("resource")
     public int loadSaved()
     {
         int count = 0;
@@ -269,12 +268,12 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             catch (CorruptFileException e)
             {
                 JVMStabilityInspector.inspectThrowable(e);
-                logger.warn(String.format("Non-fatal checksum error reading saved cache %s", dataPath.absolutePath()), e);
+                logger.warn("Non-fatal checksum error reading saved cache {}: {}", dataPath.absolutePath(), e.getMessage());
             }
             catch (Throwable t)
             {
                 JVMStabilityInspector.inspectThrowable(t);
-                logger.info(String.format("Harmless error reading saved cache %s", dataPath.absolutePath()), t);
+                logger.info("Harmless error reading saved cache {}: {}", dataPath.absolutePath(), t.getMessage());
             }
             finally
             {

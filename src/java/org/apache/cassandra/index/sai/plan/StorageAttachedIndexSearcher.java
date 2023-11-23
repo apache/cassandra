@@ -61,7 +61,6 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     private final ReadCommand command;
     private final QueryController queryController;
     private final QueryContext queryContext;
-    private final PrimaryKey.Factory keyFactory;
 
     public StorageAttachedIndexSearcher(ColumnFamilyStore cfs,
                                         TableQueryMetrics tableQueryMetrics,
@@ -72,7 +71,6 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         this.command = command;
         this.queryContext = new QueryContext(command, executionQuotaMs);
         this.queryController = new QueryController(cfs, command, filterOperation, queryContext, tableQueryMetrics);
-        this.keyFactory = new PrimaryKey.Factory(cfs.getPartitioner(), cfs.metadata().comparator);
     }
 
     @Override
@@ -105,7 +103,25 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     @Override
     public UnfilteredPartitionIterator search(ReadExecutionController executionController) throws RequestTimeoutException
     {
-        return new ResultRetriever(queryController, executionController, queryContext, keyFactory);
+        if (!command.isTopK())
+            return new ResultRetriever(queryController, executionController, queryContext, false);
+        else
+        {
+            Supplier<ResultRetriever> resultSupplier = () -> new ResultRetriever(queryController, executionController, queryContext, true);
+
+            // VSTODO performance: if there is shadowed primary keys, we have to at least query twice.
+            //  First time to find out there are shadow keys, second time to find out there are no more shadow keys.
+            while (true)
+            {
+                long lastShadowedKeysCount = queryContext.vectorContext().getShadowedPrimaryKeys().size();
+                ResultRetriever result = resultSupplier.get();
+                UnfilteredPartitionIterator topK = (UnfilteredPartitionIterator) new VectorTopKProcessor(command).filter(result);
+
+                long currentShadowedKeysCount = queryContext.vectorContext().getShadowedPrimaryKeys().size();
+                if (lastShadowedKeysCount == currentShadowedKeysCount)
+                    return topK;
+            }
+        }
     }
 
     private static class ResultRetriever extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
@@ -121,29 +137,29 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         private final ReadExecutionController executionController;
         private final QueryContext queryContext;
         private final PrimaryKey.Factory keyFactory;
+        private final boolean topK;
+
         private PrimaryKey lastKey;
 
         private ResultRetriever(QueryController queryController,
                                 ReadExecutionController executionController,
                                 QueryContext queryContext,
-                                PrimaryKey.Factory keyFactory)
+                                boolean topK)
         {
             this.keyRanges = queryController.dataRanges().iterator();
             this.currentKeyRange = keyRanges.next().keyRange();
-
             this.resultKeyIterator = Operation.buildIterator(queryController);
             this.filterTree = Operation.buildFilter(queryController);
             this.queryController = queryController;
             this.executionController = executionController;
             this.queryContext = queryContext;
-            this.keyFactory = keyFactory;
-
-            this.firstPrimaryKey = keyFactory.create(queryController.mergeRange().left.getToken());
-            this.lastPrimaryKey = keyFactory.create(queryController.mergeRange().right.getToken());
+            this.keyFactory = queryController.primaryKeyFactory();
+            this.firstPrimaryKey = queryController.firstPrimaryKeyInRange();
+            this.lastPrimaryKey = queryController.lastPrimaryKeyInRange();
+            this.topK = topK;
         }
 
         @Override
-        @SuppressWarnings({"resource", "RedundantSuppression"}) // The iterator produced here has a nop close operation
         public UnfilteredRowIterator computeNext()
         {
             // IMPORTANT: The correctness of the entire query pipeline relies on the fact that we consume a token
@@ -319,7 +335,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
          * Initially, it retrieves the rows from the given iterator until it runs out of data.
          * Then it iterates the primary keys obtained from the index until the end of the partition
          * and lazily constructs new row itertors for each of the keys. At a given time, only one row iterator is open.
-         *
+         * <p>
          * The rows are retrieved in the order of primary keys provided by the underlying index.
          * The iterator is complete when the next key to be fetched belongs to different partition
          * (but the iterator does not consume that key).
@@ -373,11 +389,11 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             {
                 queryContext.partitionsRead++;
 
-                return applyIndexFilter(partition, filterTree, queryContext);
+                return applyIndexFilter(key, partition, filterTree, queryContext);
             }
         }
 
-        private static UnfilteredRowIterator applyIndexFilter(UnfilteredRowIterator partition, FilterTree tree, QueryContext queryContext)
+        private UnfilteredRowIterator applyIndexFilter(PrimaryKey key, UnfilteredRowIterator partition, FilterTree tree, QueryContext queryContext)
         {
             Row staticRow = partition.staticRow();
 
@@ -409,6 +425,10 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
              */
             if (clusters.isEmpty())
             {
+                // shadowed by expired TTL or row tombstone or range tombstone
+                if (topK)
+                    queryContext.vectorContext().recordShadowedPrimaryKey(key);
+
                 return null;
             }
 
@@ -457,7 +477,6 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
      * Used by {@link StorageAttachedIndexSearcher#filterReplicaFilteringProtection} to filter rows for columns that
      * have transformations so won't get handled correctly by the row filter.
      */
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     private static PartitionIterator applyIndexFilter(PartitionIterator response, FilterTree tree, QueryContext queryContext)
     {
         return new PartitionIterator()

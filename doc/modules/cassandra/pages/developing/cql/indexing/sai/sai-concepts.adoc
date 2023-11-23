@@ -1,0 +1,56 @@
+= Storage-attached indexing (SAI) concepts
+:navtitle: Concepts
+:description: Use Storage-Attached Indexing (SAI) to create multiple secondary indexes on the same table.
+
+Storage-Attached Indexing (SAI) is a highly-scalable, globally-distributed index for 
+{cassandra} databases.
+
+The main advantage of SAI over existing indexes for {product} are:
+
+* enables vector search for AI applications
+* shares common index data across multiple indexes on same table
+* alleviates write-time scalability issues
+* significantly reduced disk usage
+* great numeric range performance
+* zero copy streaming of indexes
+
+In fact, SAI provides the most indexing functionality available for {product}.
+SAI adds column-level indexes to any CQL table column of almost any CQL data type.
+
+SAI enables queries that filter based on:
+
+* vector embeddings
+* AND/OR logic for numeric and text types
+* IN logic (use an array of values) for numeric and text types
+* numeric range  
+* non-variable length numeric types
+* text type equality
+* CONTAINs logic (for collections)
+* tokenized data
+* row-aware query path
+* case sensitivity (optional)
+* unicode normalization (optional)
+
+== Advantages
+
+Defining one or more SAI indexes based on any column in a database table subsequently gives you the ability to run performant queries that specify the indexed column.
+Especially compared to relational databases and complex indexing schemes, SAI makes you more efficient by accelerating your path to developing apps.
+
+SAI is deeply integrated with the storage engine of Cassandra.
+The SAI functionality indexes the in-memory memtables and the on-disk SSTables as they are written, and resolves the differences between those indexes at read time.
+Consequently, the design of SAI has very little operational complexity on top of the core database.
+From snapshot creation, to schema management, to data expiration, SAI integrates tightly with the capabilities and mechanisms that the core database already provides.
+
+SAI is also fully compatible with zero-copy streaming (ZCS).
+Thus, when you bootstrap or decommission nodes in a cluster, the indexes are fully streamed with the SSTables and not serialized or rebuilt on the receiving node's end.
+
+At its core, SAI is a filtering engine, and simplifies data modeling and client applications that would otherwise rely heavily on maintaining multiple query-specific tables.
+
+== Performance
+
+SAI outperforms any other indexing method available for {product}.
+
+SAI provides more functionality than secondary indexing (2i), using a fraction of the disk space, and reducing the total cost of ownership (TCO) for disk, infrastructure, and operations.
+For read path performance, SAI performs at least as well as the other indexing methods for throughput and latency.
+
+include::sai-read-write-paths.adoc[leveloffset=+1]

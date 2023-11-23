@@ -1,0 +1,51 @@
+= When to use an index
+:description: When to use and when not to use a 2i index.
+
+Built-in indexes are best on a table having many rows that contain the indexed value.
+The more unique values that exist in a particular column, the more overhead on average is required to query and maintain the index.
+For example, suppose you had a races table with a billion entries for cyclists in hundreds of races and wanted to look up rank by the cyclist.
+Many cyclists' ranks will share the same column value for race year.
+The `race_year` column is a good candidate for an index.
+
+If secondary indexes are required, based on one or more table columns other than its partition key, use Storage-Attached Indexing (SAI).
+For details, see xref:cassandra:reference/cql-commands/create-custom-index.adoc[CREATE CUSTOM INDEX].
+
+[[when-no-index]]
+== When _not_ to use an index
+
+Do not use an index in these situations:
+
+* On high-cardinality columns for a query of a huge volume of records for a small number of results.
+See xref:#highCardCol[Problems using a high-cardinality column index] below.
+* In tables that use a counter column.
+* On a frequently updated or deleted column.
+See xref:#upDatIndx[Problems using an index on a frequently updated or deleted column] below.
+* To look for a row in a large partition unless narrowly queried.
+See xref:#largCluster[Problems using an index to look for a row in a large partition unless narrowly queried] below.
+* Do not add a secondary index and a search index to the same table.
+
+[[highCardCol]]
+=== Problems using a high-cardinality column index
+
+If you create an index on a high-cardinality column, which has many distinct values, a query between the fields incurs many seeks for very few results.
+In the table with a billion songs, looking up songs by writer (a value that is typically unique for each song) instead of by their recording artist is likely to be very inefficient.
+
+It would probably be more efficient to manually maintain the table as a form of an index instead of using the built-in index.
+For columns containing unique data, it is sometimes better for performance to use an index for convenience, as long as the query volume to the table having an indexed column is moderate and not under constant load.
+
+Conversely, creating an index on an extremely low-cardinality column, such as a boolean column, does not make sense.
+Each value in the index becomes a single row in the index, resulting in a huge row for all the false values, for example.
+Indexing a multitude of indexed columns having foo = true and foo = false is not useful.
+
+[[upDatIndx]]
+=== Problems using an index on a frequently updated or deleted column
+
+The database stores tombstones in the index until the tombstone limit reaches 100K cells.
+After exceeding the tombstone limit, the query that uses the indexed value will fail.
+
+[[largCluster]]
+=== Problems using an index to look for a row in a large partition unless narrowly queried
+
+A query on an indexed column in a large cluster typically requires collating responses from multiple data partitions.
+The query response slows down as more machines are added to the cluster.
+When looking for a row in a large partition, narrow the search to avoid query performance degradation.

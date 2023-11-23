@@ -185,9 +185,7 @@ public class RowIndexEntryTest extends CQLTester
         RowIndexEntry.IndexSerializer rieSerializer = new RowIndexEntry.Serializer(version, header, null);
         Pre_C_11206_RowIndexEntry.Serializer oldSerializer = new Pre_C_11206_RowIndexEntry.Serializer(metadata, version, header);
 
-        @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" })
         final DataOutputBuffer rieOutput = new DataOutputBuffer(1024);
-        @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" })
         final DataOutputBuffer oldOutput = new DataOutputBuffer(1024);
 
         final SequentialWriter dataWriterNew;
