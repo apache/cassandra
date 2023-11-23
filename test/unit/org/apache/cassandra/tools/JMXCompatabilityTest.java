@@ -73,7 +73,7 @@ public class JMXCompatabilityTest extends CQLTester
     public static void setup() throws Exception
     {
         DatabaseDescriptor.daemonInitialization();
-        DatabaseDescriptor.setColumnIndexSizeInKiB(0); // make sure the column index is created
+        DatabaseDescriptor.setRowIndexGranularityInKiB(0); // make sure the column index is created
 
         startJMXServer();
         // as of CASSANDRA-18816 the instance is lazy loaded only once instance() is called, which isn't true from this code path (but is from CassandraDaemon)

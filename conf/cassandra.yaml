@@ -1042,8 +1042,15 @@ snapshot_links_per_second: 0
 # The default format is "big", the legacy SSTable format in use since Cassandra 3.0.
 # Cassandra versions 5.0 and later also support the trie-indexed "bti" format,
 # which offers better performance.
+# The format define the different sstable format option, where the format name can be
+# user custom type and the value is some key-value pair that used to define the sstable
+# format options, like row_index_granularity.
 #sstable:
 #  selected_format: big
+#  format:
+#    big:
+#      row_index_granularity: 4KiB
+#      column_index_cache_size: 2KiB
 
 # Granularity of the collation index of rows within a partition.
 # Applies to both BIG and BTI SSTable formats. In both formats,
@@ -1055,11 +1062,11 @@ snapshot_links_per_second: 0
 # large rows, or a very large number of rows per partition are
 # present, it is recommended to increase the index granularity
 # or switch to the BTI SSTable format.
-#
+# The original name of this configuration is colum_index_size.
 # Leave undefined to use a default suitable for the SSTable format
 # in use (64 KiB for BIG, 16KiB for BTI).
 # Min unit: KiB
-# column_index_size: 4KiB
+# row_index_granularity: 4KiB
 
 # Per sstable indexed key cache entries (the collation index in memory
 # mentioned above) exceeding this size will not be held on heap.

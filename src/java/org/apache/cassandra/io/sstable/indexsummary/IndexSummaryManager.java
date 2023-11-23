@@ -31,6 +31,10 @@ import java.util.function.Supplier;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+import org.apache.cassandra.io.sstable.format.AbstractSSTableFormat.Option;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,7 +77,10 @@ public class IndexSummaryManager<T extends SSTableReader & IndexSummarySupport<T
 
     private final Supplier<List<T>> indexSummariesProvider;
 
-    private static <T extends SSTableReader & IndexSummarySupport<T>> List<T> getAllSupportedReaders() {
+    private final  SSTableFormat<?, ?> format;
+
+    private static <T extends SSTableReader & IndexSummarySupport<T>> List<T> getAllSupportedReaders()
+    {
         List<T> readers = new ArrayList<>();
         for (Keyspace keyspace : Keyspace.all())
             for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
@@ -99,24 +106,26 @@ public class IndexSummaryManager<T extends SSTableReader & IndexSummarySupport<T
         this.indexSummariesProvider = indexSummariesProvider;
 
         executor = executorFactory().scheduled(false, "IndexSummaryManager", Thread.MIN_PRIORITY);
-
-        long indexSummarySizeInMB = DatabaseDescriptor.getIndexSummaryCapacityInMiB();
-        int interval = DatabaseDescriptor.getIndexSummaryResizeIntervalInMinutes();
+        // TODO make format get from default format
+        format = DatabaseDescriptor.getSelectedSSTableFormat();
+        long indexSummarySizeInMB = (long)format.getSSTableFormatValue(Option.INDEX_SUMMARY_CAPACITY);
+        int interval = (int)format.getSSTableFormatValue(Option.INDEX_SUMMARY_RESIZE_INTERVAL);
         logger.info("Initializing index summary manager with a memory pool size of {} MB and a resize interval of {} minutes",
                     indexSummarySizeInMB, interval);
 
-        setMemoryPoolCapacityInMB(DatabaseDescriptor.getIndexSummaryCapacityInMiB());
-        setResizeIntervalInMinutes(DatabaseDescriptor.getIndexSummaryResizeIntervalInMinutes());
+        setMemoryPoolCapacityInMB(indexSummarySizeInMB);
+        setResizeIntervalInMinutes(interval);
     }
 
     public int getResizeIntervalInMinutes()
     {
-        return DatabaseDescriptor.getIndexSummaryResizeIntervalInMinutes();
+        return format == null ? DatabaseDescriptor.getIndexSummaryResizeIntervalInMinutes() : (int)format.getSSTableFormatValue(Option.INDEX_SUMMARY_RESIZE_INTERVAL);
     }
 
     public void setResizeIntervalInMinutes(int resizeIntervalInMinutes)
     {
         int oldInterval = getResizeIntervalInMinutes();
+//        DatabaseDescriptor.setSSTableFormatOption(format, Option.INDEX_SUMMARY_RESIZE_INTERVAL, resizeIntervalInMinutes);
         DatabaseDescriptor.setIndexSummaryResizeIntervalInMinutes(resizeIntervalInMinutes);
 
         long initialDelay;

@@ -288,22 +288,22 @@ public class DatabaseDescriptorTest
 
         try
         {
-            DatabaseDescriptor.setColumnIndexSizeInKiB(-5);
+            DatabaseDescriptor.setRowIndexGranularityInKiB(-5);
             fail("Should have received a IllegalArgumentException column_index_size = -5");
         }
         catch (IllegalArgumentException ignored) { }
-        Assert.assertEquals(4096, DatabaseDescriptor.getColumnIndexSize(0));
+        Assert.assertEquals(4096, DatabaseDescriptor.getRowIndexGranularity(0));
 
         try
         {
-            DatabaseDescriptor.setColumnIndexSizeInKiB(2 * 1024 * 1024);
+            DatabaseDescriptor.setRowIndexGranularityInKiB(2 * 1024 * 1024);
             fail("Should have received a ConfigurationException column_index_size = 2GiB");
         }
         catch (ConfigurationException ignored) { }
-        Assert.assertEquals(4096, DatabaseDescriptor.getColumnIndexSize(0));
+        Assert.assertEquals(4096, DatabaseDescriptor.getRowIndexGranularity(0));
 
-        DatabaseDescriptor.setColumnIndexSizeInKiB(-1);  // set undefined
-        Assert.assertEquals(8192, DatabaseDescriptor.getColumnIndexSize(8192));
+        DatabaseDescriptor.setRowIndexGranularityInKiB(-1);  // set undefined
+        Assert.assertEquals(8192, DatabaseDescriptor.getRowIndexGranularity(8192));
 
         try
         {

@@ -92,7 +92,7 @@ public class Upgrader
     {
         outputHandler.output("Upgrading " + sstable);
         long nowInSec = FBUtilities.nowInSeconds();
-        try (SSTableRewriter writer = SSTableRewriter.construct(cfs, transaction, keepOriginals, CompactionTask.getMaxDataAge(transaction.originals()));
+        try (SSTableRewriter writer = SSTableRewriter.construct(cfs, sstable.descriptor.getFormat(), transaction, keepOriginals, CompactionTask.getMaxDataAge(transaction.originals()));
              AbstractCompactionStrategy.ScannerList scanners = strategyManager.getScanners(transaction.originals());
              CompactionIterator iter = new CompactionIterator(transaction.opType(), scanners.scanners, controller, nowInSec, nextTimeUUID()))
         {

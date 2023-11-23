@@ -20,10 +20,10 @@ package org.apache.cassandra.io.sstable.format.bti;
 
 import java.io.IOException;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.io.sstable.format.AbstractSSTableFormat.Option;
 import org.apache.cassandra.io.sstable.format.SortedTablePartitionWriter;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.bti.RowIndexReader.IndexInfo;
@@ -33,7 +33,7 @@ import org.apache.cassandra.io.util.SequentialWriter;
  * Partition writer used by {@link BtiTableWriter}.
  * <p>
  * Writes all passed data to the given SequentialWriter and if necessary builds a RowIndex by constructing an entry
- * for each row within a partition that follows {@link org.apache.cassandra.config.Config#column_index_size} of written
+ * for each row within a partition that follows {@link org.apache.cassandra.config.Config#row_index_granularity} of written
  * data.
  */
 class BtiFormatPartitionWriter extends SortedTablePartitionWriter
@@ -49,7 +49,7 @@ class BtiFormatPartitionWriter extends SortedTablePartitionWriter
                              SequentialWriter rowIndexWriter,
                              Version version)
     {
-        this(header, comparator, dataWriter, rowIndexWriter, version, DatabaseDescriptor.getColumnIndexSize(DEFAULT_GRANULARITY));
+        this(header, comparator, dataWriter, rowIndexWriter, version, (int)version.getSSTableFormatValue(Option.ROW_INDEX_GRANULARITY));
     }
 
 

@@ -57,6 +57,8 @@ import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
+import org.apache.cassandra.io.sstable.format.AbstractSSTableFormat;
+import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -605,8 +607,8 @@ public class DatabaseDescriptor
                                              false);
         }
 
-        if (conf.column_index_size != null)
-            checkValidForByteConversion(conf.column_index_size, "column_index_size");
+        if (conf.row_index_granularity != null)
+            checkValidForByteConversion(conf.row_index_granularity, "row_index_granularity");
         checkValidForByteConversion(conf.column_index_cache_size, "column_index_cache_size");
         checkValidForByteConversion(conf.batch_size_warn_threshold, "batch_size_warn_threshold");
 
@@ -1436,6 +1438,7 @@ public class DatabaseDescriptor
     {
         ImmutableMap.Builder<String, Supplier<SSTableFormat<?, ?>>> providersBuilder = ImmutableMap.builder();
         if (options == null)
+            // todo should we change the map to mutable as we may change the option map value
             options = ImmutableMap.of();
         for (SSTableFormat.Factory factory : factories)
         {
@@ -1897,19 +1900,20 @@ public class DatabaseDescriptor
         newFailureDetector = () -> createFailureDetector("FailureDetector");
     }
 
-    public static int getColumnIndexSize(int defaultValue)
+    // see CASSANDRA-18533 for more detail
+    public static int getRowIndexGranularity(int defaultValue)
     {
-        return conf.column_index_size != null ? conf.column_index_size.toBytes() : defaultValue;
+        return conf.row_index_granularity != null ? conf.row_index_granularity.toBytes() : defaultValue;
     }
 
-    public static int getColumnIndexSizeInKiB()
+    public static int getRowIndexGranularityInKiB()
     {
-        return conf.column_index_size != null ? conf.column_index_size.toKibibytes() : -1;
+        return conf.row_index_granularity != null ? conf.row_index_granularity.toKibibytes() : -1;
     }
 
-    public static void setColumnIndexSizeInKiB(int val)
+    public static void setRowIndexGranularityInKiB(int val)
     {
-        conf.column_index_size = val != -1 ? createIntKibibyteBoundAndEnsureItIsValidForByteConversion(val,"column_index_size") : null;
+        conf.row_index_granularity = val != -1 ? createIntKibibyteBoundAndEnsureItIsValidForByteConversion(val,"row_index_granularity") : null;
     }
 
     public static int getColumnIndexCacheSize()
@@ -4230,7 +4234,7 @@ public class DatabaseDescriptor
     /**
      * Ensures passed in configuration value is positive and will not overflow when converted to Bytes
      */
-    private static void checkValidForByteConversion(final DataStorageSpec.IntKibibytesBound value, String name)
+    public static void checkValidForByteConversion(final DataStorageSpec.IntKibibytesBound value, String name)
     {
         long valueInBytes = value.toBytesInLong();
         if (valueInBytes < 0 || valueInBytes > Integer.MAX_VALUE - 1)
@@ -4865,6 +4869,33 @@ public class DatabaseDescriptor
     public static void setSelectedSSTableFormat(SSTableFormat<?, ?> format)
     {
         selectedSSTableFormat = Objects.requireNonNull(format);
+    }
+
+    // do we need a function like this ?
+    public static void setSSTableFormatOption(SSTableFormat<?, ?> format, AbstractSSTableFormat.Option option, Object value)
+    {
+        assert format != null && value != null;
+        Map<String, String> options = format.options();
+        //just update
+        ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+        options.forEach((key, entry) -> {
+            if (!key.equals(option.getName()))
+            {
+                builder.put(key, entry);
+            }
+        });
+        builder.put(option.getName(), String.valueOf(value));
+        Map<String, String> newOption = builder.build();
+        SSTableFormat<?, ?> newFormat = null;
+        if (format instanceof BigFormat)
+        {
+            newFormat = new BigFormat(newOption);
+        }
+        else
+        {
+            newFormat = new BtiFormat(newOption);
+        }
+        DatabaseDescriptor.setSelectedSSTableFormat(newFormat);
     }
 
     public static boolean getDynamicDataMaskingEnabled()

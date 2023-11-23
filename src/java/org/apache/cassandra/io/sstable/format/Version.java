@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.io.sstable.format;
 
+import org.apache.cassandra.io.sstable.format.AbstractSSTableFormat.Option;
+
 import java.util.Objects;
 import java.util.regex.Pattern;
 
@@ -59,7 +61,7 @@ public abstract class Version
     public abstract boolean hasIsTransient();
 
     public abstract boolean hasMetadataChecksum();
-    
+
     /**
      * This format raises the legacy int year 2038 limit to 2106 by using an uint instead
      */
@@ -126,6 +128,11 @@ public abstract class Version
     public String toFormatAndVersionString()
     {
         return format.name() + '-' + version;
+    }
+
+    public Object getSSTableFormatValue(Option option)
+    {
+        return format.getSSTableFormatValue(option);
     }
 
     @Override

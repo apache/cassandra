@@ -184,7 +184,7 @@ public abstract class SortedTableScrubber<R extends SSTableReaderWithFilter> imp
     {
         List<SSTableReader> finished = new ArrayList<>();
         outputHandler.output("Scrubbing %s (%s)", sstable, FBUtilities.prettyPrintMemory(dataFile.length()));
-        try (SSTableRewriter writer = SSTableRewriter.construct(cfs, transaction, false, sstable.maxDataAge);
+        try (SSTableRewriter writer = SSTableRewriter.construct(cfs, sstable.descriptor.getFormat(), transaction, false, sstable.maxDataAge);
              Refs<SSTableReader> refs = Refs.ref(Collections.singleton(sstable)))
         {
             StatsMetadata metadata = sstable.getSSTableMetadata();

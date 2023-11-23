@@ -20,12 +20,14 @@ package org.apache.cassandra.config;
 
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.collect.ImmutableMap;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -70,7 +72,7 @@ public class LoadOldYAMLBackwardCompatibilityTest
         assertEquals(new DurationSpec.IntMillisecondsBound(300000), config.internode_streaming_tcp_user_timeout);
         assertEquals(new DataStorageSpec.IntMebibytesBound(16), config.native_transport_max_frame_size);
         assertEquals(new DataStorageSpec.IntMebibytesBound(256), config.max_value_size);
-        assertEquals(new DataStorageSpec.IntKibibytesBound(4), config.column_index_size);
+        assertEquals(new DataStorageSpec.IntKibibytesBound(4), config.row_index_granularity);
         assertEquals(new DataStorageSpec.IntKibibytesBound(2), config.column_index_cache_size);
         assertEquals(new DataStorageSpec.IntKibibytesBound(5), config.batch_size_warn_threshold);
         assertEquals(new DataRateSpec.LongBytesPerSecondBound(64, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND), config.compaction_throughput);
@@ -128,5 +130,11 @@ public class LoadOldYAMLBackwardCompatibilityTest
         assertEquals(new DurationSpec.IntSecondsBound(0), config.row_cache_save_period);
         assertEquals(new DurationSpec.IntSecondsBound(2, TimeUnit.HOURS), config.counter_cache_save_period);
         assertEquals(new DurationSpec.IntSecondsBound(35), config.cache_load_timeout);
+
+        // sstable format, see test's config cassandra.yaml
+        assertNotNull(config.sstable);
+        // big by default
+        assertEquals("big", config.sstable.selected_format);
+        assertEquals(ImmutableMap.of("row_index_granularity", "4KiB", "column_index_cache_size", "2KiB"), config.sstable.format.get("big"));
     }
 }

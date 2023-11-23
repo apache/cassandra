@@ -1,4 +1,5 @@
 5.1
+ * Move format-specific sstable options into the format configuration(CASSANDRA-18533)
  * Add ELAPSED command to cqlsh (CASSANDRA-18861)
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)

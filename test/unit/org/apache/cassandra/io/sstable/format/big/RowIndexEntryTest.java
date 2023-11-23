@@ -27,6 +27,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import com.google.common.primitives.Ints;
+import org.apache.cassandra.io.sstable.format.AbstractSSTableFormat.Option;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.BeforeClass;
@@ -419,7 +420,7 @@ public class RowIndexEntryTest extends CQLTester
                 }
 
                 // if we hit the column index size that we have to index after, go ahead and index it.
-                if (currentPosition() - startPosition >= DatabaseDescriptor.getColumnIndexSize(BigFormatPartitionWriter.DEFAULT_GRANULARITY))
+                if (currentPosition() - startPosition >= (int)version.getSSTableFormatValue(Option.ROW_INDEX_GRANULARITY))
                     addIndexBlock();
 
             }
@@ -461,7 +462,7 @@ public class RowIndexEntryTest extends CQLTester
         assertEquals(buffer.getLength(), serializer.serializedSize(simple));
 
         // write enough rows to ensure we get a few column index entries
-        for (int i = 0; i <= DatabaseDescriptor.getColumnIndexSize(BigFormatPartitionWriter.DEFAULT_GRANULARITY) / 4; i++)
+        for (int i = 0; i <= DatabaseDescriptor.getRowIndexGranularity(BigFormatPartitionWriter.DEFAULT_GRANULARITY) / 4; i++)
             execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, String.valueOf(i), i);
 
         ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs).build());

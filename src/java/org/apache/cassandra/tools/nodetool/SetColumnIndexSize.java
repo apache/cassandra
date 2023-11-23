@@ -33,6 +33,8 @@ public class SetColumnIndexSize extends NodeToolCmd
     @Override
     protected void execute(NodeProbe probe)
     {
+        //TODO we may change the nodetool name in the future as we change the column_index_size to row_index_granularity
+        // see CASSANDRA-18533 for more detail
         probe.setColumnIndexSize(columnIndexSizeInKiB);
     }
 }

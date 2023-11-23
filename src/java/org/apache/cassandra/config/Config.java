@@ -315,7 +315,8 @@ public class Config
 
     /* if the size of columns or super-columns are more than this, indexing will kick in */
     @Replaces(oldName = "column_index_size_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
-    public volatile DataStorageSpec.IntKibibytesBound column_index_size;
+    @Replaces(oldName = "column_index_size", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
+    public volatile DataStorageSpec.IntKibibytesBound row_index_granularity;
     @Replaces(oldName = "column_index_cache_size_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
     public volatile DataStorageSpec.IntKibibytesBound column_index_cache_size = new DataStorageSpec.IntKibibytesBound("2KiB");
     @Replaces(oldName = "batch_size_warn_threshold_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)

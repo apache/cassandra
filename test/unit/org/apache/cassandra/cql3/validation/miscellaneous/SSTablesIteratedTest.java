@@ -374,7 +374,7 @@ public class SSTablesIteratedTest extends CQLTester
     private void testDeletionOnIndexedSSTableDESC(boolean deleteWithRange) throws Throwable
     {
         // reduce the column index size so that columns get indexed during flush
-        DatabaseDescriptor.setColumnIndexSizeInKiB(1);
+        DatabaseDescriptor.setRowIndexGranularityInKiB(1);
 
         createTable("CREATE TABLE %s (id int, col int, val text, PRIMARY KEY (id, col)) WITH CLUSTERING ORDER BY (col DESC)");
 
@@ -422,7 +422,7 @@ public class SSTablesIteratedTest extends CQLTester
     private void testDeletionOnIndexedSSTableASC(boolean deleteWithRange) throws Throwable
     {
         // reduce the column index size so that columns get indexed during flush
-        DatabaseDescriptor.setColumnIndexSizeInKiB(1);
+        DatabaseDescriptor.setRowIndexGranularityInKiB(1);
 
         createTable("CREATE TABLE %s (id int, col int, val text, PRIMARY KEY (id, col)) WITH CLUSTERING ORDER BY (col ASC)");
 
@@ -477,7 +477,7 @@ public class SSTablesIteratedTest extends CQLTester
     private void testDeletionOnOverlappingIndexedSSTable(boolean deleteWithRange) throws Throwable
     {
         // reduce the column index size so that columns get indexed during flush
-        DatabaseDescriptor.setColumnIndexSizeInKiB(1);
+        DatabaseDescriptor.setRowIndexGranularityInKiB(1);
 
         createTable("CREATE TABLE %s (id int, col int, val1 text, val2 text, PRIMARY KEY (id, col)) WITH CLUSTERING ORDER BY (col ASC)");
 

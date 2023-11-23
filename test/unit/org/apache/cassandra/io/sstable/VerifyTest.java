@@ -119,7 +119,7 @@ public class VerifyTest
     {
         CompressionParams compressionParameters = CompressionParams.snappy(32768);
         DatabaseDescriptor.daemonInitialization();
-        DatabaseDescriptor.setColumnIndexSizeInKiB(0);
+        DatabaseDescriptor.setRowIndexGranularityInKiB(0);
 
         loadSchema();
         createKeyspace(KEYSPACE,

@@ -1435,7 +1435,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         List<SSTableReader> finished;
 
         long nowInSec = FBUtilities.nowInSeconds();
-        try (SSTableRewriter writer = SSTableRewriter.construct(cfs, txn, false, sstable.maxDataAge);
+        try (SSTableRewriter writer = SSTableRewriter.construct(cfs, sstable.descriptor.getFormat(), txn, false, sstable.maxDataAge);
              ISSTableScanner scanner = cleanupStrategy.getScanner(sstable);
              CompactionController controller = new CompactionController(cfs, txn.originals(), getDefaultGcBefore(cfs, nowInSec));
              Refs<SSTableReader> refs = Refs.ref(Collections.singleton(sstable));
@@ -1775,10 +1775,11 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         }
 
         CompactionStrategyManager strategy = cfs.getCompactionStrategyManager();
+        SSTableFormat<?, ?> format = DatabaseDescriptor.getSelectedSSTableFormat();
         try (SharedTxn sharedTxn = new SharedTxn(txn);
-             SSTableRewriter fullWriter = SSTableRewriter.constructWithoutEarlyOpening(sharedTxn, false, groupMaxDataAge);
-             SSTableRewriter transWriter = SSTableRewriter.constructWithoutEarlyOpening(sharedTxn, false, groupMaxDataAge);
-             SSTableRewriter unrepairedWriter = SSTableRewriter.constructWithoutEarlyOpening(sharedTxn, false, groupMaxDataAge);
+             SSTableRewriter fullWriter = SSTableRewriter.constructWithoutEarlyOpening(sharedTxn, format, false, groupMaxDataAge);
+             SSTableRewriter transWriter = SSTableRewriter.constructWithoutEarlyOpening(sharedTxn,  format, false, groupMaxDataAge);
+             SSTableRewriter unrepairedWriter = SSTableRewriter.constructWithoutEarlyOpening(sharedTxn, format, false, groupMaxDataAge);
 
              AbstractCompactionStrategy.ScannerList scanners = strategy.getScanners(txn.originals());
              CompactionController controller = new CompactionController(cfs, sstableAsSet, getDefaultGcBefore(cfs, nowInSec));

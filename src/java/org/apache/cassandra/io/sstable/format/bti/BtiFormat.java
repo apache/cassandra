@@ -26,6 +26,9 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import org.apache.cassandra.config.DataStorageSpec;
+import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,6 +56,9 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
+
+import static org.apache.cassandra.config.DatabaseDescriptor.checkValidForByteConversion;
+import static org.apache.cassandra.io.sstable.format.big.BigFormatPartitionWriter.DEFAULT_GRANULARITY;
 
 /**
  * Bigtable format with trie indices. See BTIFormat.md for the format documentation.
@@ -136,6 +142,49 @@ public class BtiFormat extends AbstractSSTableFormat<BtiTableReader, BtiTableWri
     public Version getVersion(String version)
     {
         return new BtiVersion(this, version);
+    }
+
+    @Override
+    public Object getSSTableFormatValue(Option option)
+    {
+        String value = options.get(option.getName());
+        switch (option)
+        {
+            case ROW_INDEX_GRANULARITY:
+                if (value == null)
+                {
+                    return DatabaseDescriptor.getRowIndexGranularity(DEFAULT_GRANULARITY);
+                }
+                DataStorageSpec.IntKibibytesBound resultKb = new DataStorageSpec.IntKibibytesBound(value);
+                checkValidForByteConversion(resultKb, "row_index_granularity");
+                return resultKb.toKibibytes();
+            case INDEX_SUMMARY_CAPACITY:
+                if (value == null)
+                {
+                    return DatabaseDescriptor.getIndexSummaryCapacityInMiB();
+                }
+                DataStorageSpec.LongMebibytesBound resultLongMb = new DataStorageSpec.LongMebibytesBound(value);
+                if (resultLongMb.toMebibytes() < 0)
+                    throw new ConfigurationException("SSTable format option index_summary_capacity option was set incorrectly to '"
+                            + value + "', it should be a non-negative integer.", false);
+                return resultLongMb.toMebibytes();
+            case INDEX_SUMMARY_RESIZE_INTERVAL:
+                if (value == null)
+                {
+                    return DatabaseDescriptor.getIndexSummaryResizeIntervalInMinutes();
+                }
+                DurationSpec.IntMinutesBound resultMin = new DurationSpec.IntMinutesBound(value);
+                return resultMin.toMinutes();
+            case SSTABLE_PREEMPTIVE_OPEN_INTERVAL:
+                if (value == null)
+                {
+                    return DatabaseDescriptor.getSSTablePreemptiveOpenIntervalInMiB();
+                }
+                DataStorageSpec.IntMebibytesBound resultIntMb = new DataStorageSpec.IntMebibytesBound(value);
+                return resultIntMb.toMebibytes();
+            default:
+                throw new UnsupportedOperationException("Unsupported sstable format option " + option);
+        }
     }
 
     @Override

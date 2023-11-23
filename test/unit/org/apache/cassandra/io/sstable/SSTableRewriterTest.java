@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.junit.Test;
 
 import org.apache.cassandra.UpdateBuilder;
@@ -98,7 +99,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         long nowInSec = FBUtilities.nowInSeconds();
         try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(sstables);
              LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN);
-             SSTableRewriter writer = SSTableRewriter.constructKeepingOriginals(txn, false, 1000);
+             SSTableRewriter writer = SSTableRewriter.constructKeepingOriginals(txn, sstables.iterator().next().descriptor.getFormat(),false, 1000);
              CompactionController controller = new CompactionController(cfs, sstables, cfs.gcBefore(nowInSec));
              CompactionIterator ci = new CompactionIterator(COMPACTION, scanners.scanners, controller, nowInSec, nextTimeUUID()))
         {
@@ -804,10 +805,11 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         Set<SSTableReader> sstables = Sets.newHashSet(s);
         assertEquals(1, sstables.size());
         long nowInSec = FBUtilities.nowInSeconds();
+        SSTableFormat<?, ?> format = sstables.iterator().next().descriptor.getFormat();
         try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(sstables);
              LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN);
-             SSTableRewriter writer = SSTableRewriter.constructWithoutEarlyOpening(txn, false, 1000);
-             SSTableRewriter writer2 = SSTableRewriter.constructWithoutEarlyOpening(txn, false, 1000);
+             SSTableRewriter writer = SSTableRewriter.constructWithoutEarlyOpening(txn, format, false, 1000);
+             SSTableRewriter writer2 = SSTableRewriter.constructWithoutEarlyOpening(txn, format, false, 1000);
              CompactionController controller = new CompactionController(cfs, sstables, cfs.gcBefore(nowInSec));
              CompactionIterator ci = new CompactionIterator(COMPACTION, scanners.scanners, controller, nowInSec, nextTimeUUID())
              )

@@ -6611,16 +6611,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public int getColumnIndexSizeInKiB()
     {
-        return DatabaseDescriptor.getColumnIndexSizeInKiB();
+        return DatabaseDescriptor.getRowIndexGranularityInKiB();
     }
 
+    //todo we should support set the sstable format option value like: nodetool set sstable-format option value
     @Override
     public void setColumnIndexSizeInKiB(int columnIndexSizeInKiB)
     {
-        int oldValueInKiB = DatabaseDescriptor.getColumnIndexSizeInKiB();
+        int oldValueInKiB = DatabaseDescriptor.getRowIndexGranularityInKiB();
         try
         {
-            DatabaseDescriptor.setColumnIndexSizeInKiB(columnIndexSizeInKiB);
+            DatabaseDescriptor.setRowIndexGranularityInKiB(columnIndexSizeInKiB);
         }
         catch (ConfigurationException e)
         {
@@ -6634,8 +6635,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public void setColumnIndexSize(int columnIndexSizeInKB)
     {
-        int oldValueInKiB = DatabaseDescriptor.getColumnIndexSizeInKiB();
-        DatabaseDescriptor.setColumnIndexSizeInKiB(columnIndexSizeInKB);
+        int oldValueInKiB = DatabaseDescriptor.getRowIndexGranularityInKiB();
+        DatabaseDescriptor.setRowIndexGranularityInKiB(columnIndexSizeInKB);
         logger.info("Updated column_index_size to {} KiB (was {} KiB)", columnIndexSizeInKB, oldValueInKiB);
     }
 

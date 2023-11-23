@@ -25,6 +25,8 @@ import java.util.Map;
 import java.util.function.BiFunction;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.cassandra.config.DataStorageSpec;
+import org.apache.cassandra.io.sstable.format.AbstractSSTableFormat;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -43,8 +45,12 @@ import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.mockito.Mockito;
 
+import static org.apache.cassandra.config.DatabaseDescriptor.checkValidForByteConversion;
+import static org.apache.cassandra.io.sstable.format.big.BigFormatPartitionWriter.DEFAULT_GRANULARITY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 import static org.mockito.Mockito.when;
 
 public class SSTableFormatTest
@@ -58,6 +64,12 @@ public class SSTableFormatTest
         public AbstractFormat(String latestVersion)
         {
             this.latestVersion = latestVersion;
+        }
+
+        @Override
+        public Map<String, String> options()
+        {
+            return options;
         }
 
         @Override
@@ -140,6 +152,66 @@ public class SSTableFormatTest
         }
     }
 
+    public static abstract class Format4 extends AbstractFormat
+    {
+        public Format4()
+        {
+            super("ww");
+        }
+
+        public Object getSSTableFormatValue(AbstractSSTableFormat.Option option)
+        {
+            String value = options.get(option.getName());
+            switch (option)
+            {
+                case ROW_INDEX_GRANULARITY:
+                    if (value == null)
+                    {
+                        return DatabaseDescriptor.getRowIndexGranularity(DEFAULT_GRANULARITY);
+                    }
+                    DataStorageSpec.IntKibibytesBound resultKb = new DataStorageSpec.IntKibibytesBound(value);
+                    checkValidForByteConversion(resultKb, "row_index_granularity");
+                    return resultKb.toKibibytes();
+                case COLUMN_INDEX_CACHE_SIZE:
+                    if (value == null)
+                    {
+                        return DatabaseDescriptor.getColumnIndexCacheSize();
+                    }
+                    resultKb = new DataStorageSpec.IntKibibytesBound(value);
+                    checkValidForByteConversion(resultKb, "column_index_cache_size");
+                    return resultKb.toKibibytes();
+                default:
+                    throw new UnsupportedOperationException("Unsupported sstable format option " + option);
+            }
+        }
+    }
+
+    public static abstract class Format5 extends AbstractFormat
+    {
+        public Format5()
+        {
+            super("aa");
+        }
+
+        public Object getSSTableFormatValue(AbstractSSTableFormat.Option option)
+        {
+            String value = options.get(option.getName());
+            switch (option)
+            {
+                case ROW_INDEX_GRANULARITY:
+                    if (value == null)
+                    {
+                        return DatabaseDescriptor.getRowIndexGranularity(DEFAULT_GRANULARITY);
+                    }
+                    DataStorageSpec.IntKibibytesBound resultKb = new DataStorageSpec.IntKibibytesBound(value);
+                    checkValidForByteConversion(resultKb, "row_index_granularity");
+                    return resultKb.toKibibytes();
+                default:
+                    throw new UnsupportedOperationException("Un supported sstable format option " + option);
+            }
+        }
+    }
+
     @BeforeClass
     public static void beforeClass()
     {
@@ -177,6 +249,23 @@ public class SSTableFormatTest
         }
     };
 
+    private static final String yamlContent3 = "sstable:\n" +
+                                            "   format:\n" +
+                                            "       big:\n" +
+                                            "           row_index_granularity: 4KiB\n" +
+                                            "           column_index_cache_size: 2KiB\n" +
+                                            "       bti:\n" +
+                                            "           row_index_granularity: 2KiB\n";
+
+    private static final Config.SSTableConfig expected3 = new SSTableConfig()
+    {
+        {
+            selected_format = "big"; //big by default
+            format = ImmutableMap.of("big", ImmutableMap.of("row_index_granularity", "4KiB", "column_index_cache_size", "2KiB"),
+                    "bti", ImmutableMap.of("row_index_granularity", "2KiB"));
+        }
+    };
+
     private static final SSTableConfig unexpected = new Config.SSTableConfig()
     {
         {
@@ -192,7 +281,7 @@ public class SSTableFormatTest
         File f = FileUtils.createTempFile("sstable_format_test_config", ".yaml");
         URL url = f.toPath().toUri().toURL();
 
-        ImmutableMap.of(yamlContent0, expected0, yamlContent1, expected1, yamlContent2, expected2).forEach((yamlContent, expected) -> {
+        ImmutableMap.of(yamlContent0, expected0, yamlContent1, expected1, yamlContent2, expected2, yamlContent3, expected3).forEach((yamlContent, expected) -> {
             try (FileOutputStreamPlus out = f.newOutputStream(File.WriteMode.OVERWRITE))
             {
                 out.write(yamlContent.getBytes());
@@ -242,6 +331,12 @@ public class SSTableFormatTest
         verifyFormat("bbb", ImmutableMap.of("param3", "value3", "param4", "value4"));
         verifyFormat("ccc", ImmutableMap.of());
         verifySelectedFormat("aaa");
+
+        configure(expected3, factory("big", Format4.class), factory("bti", Format5.class));
+        assertThat(DatabaseDescriptor.getSSTableFormats()).hasSize(2);
+        verifyFormat("big", ImmutableMap.of("row_index_granularity", "4KiB", "column_index_cache_size", "2KiB"));
+        verifyFormat("bti", ImmutableMap.of("row_index_granularity", "2KiB"));
+        verifySelectedFormat("big");
     }
 
     @Test
@@ -272,5 +367,25 @@ public class SSTableFormatTest
         // Selected sstable format '%s' is not available
         assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> configure(expected1, factory("bbb", Format1.class)))
                                                                .withMessageContainingAll("Selected sstable format", "aaa", "is not available");
+    }
+
+    @Test
+    public void testUnSupportOption()
+    {
+        configure(expected3, factory("big", Format4.class), factory("bti", Format5.class));
+        assertThat(DatabaseDescriptor.getSSTableFormats()).hasSize(2);
+        SSTableFormat<?, ?> ssTableFormat = DatabaseDescriptor.getSelectedSSTableFormat();
+        assertEquals(4, ssTableFormat.getSSTableFormatValue(AbstractSSTableFormat.Option.ROW_INDEX_GRANULARITY));
+        assertEquals(2, ssTableFormat.getSSTableFormatValue(AbstractSSTableFormat.Option.COLUMN_INDEX_CACHE_SIZE));
+        try
+        {
+            ssTableFormat.getSSTableFormatValue(AbstractSSTableFormat.Option.SSTABLE_PREEMPTIVE_OPEN_INTERVAL);
+            fail();
+        }
+        catch (Throwable throwable)
+        {
+            assertThat(throwable instanceof UnsupportedOperationException);
+            assertThat(throwable.getMessage().contains("Unsupported sstable format option sstable_preemptive_open_interval"));
+        }
     }
 }
