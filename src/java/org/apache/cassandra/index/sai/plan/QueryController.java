@@ -146,7 +146,9 @@ public class QueryController
                                                     cfs.getPartitioner(),
                                                     cfs.getComparator(),
                                                     expression.column(),
-                                                    IndexTarget.Type.VALUES,
+                                                    expression.operator().isContainsKey()
+                                                            ? IndexTarget.Type.KEYS
+                                                            : IndexTarget.Type.VALUES,
                                                     null)
                                  : indexes.iterator().next().getIndexContext();
     }
