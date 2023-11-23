@@ -751,9 +751,16 @@ public class StorageAttachedIndex implements Index
         if (cellBuffer.remaining() <= maxTermSize)
             return;
 
-        analyzer.reset(cellBuffer.duplicate());
-        while (analyzer.hasNext())
-            validateMaxTermSize(key, analyzer.next(), sendClientWarning);
+        if (analyzer != null)
+        {
+            analyzer.reset(cellBuffer.duplicate());
+            while (analyzer.hasNext())
+                validateMaxTermSize(key, analyzer.next(), sendClientWarning);
+        }
+        else
+        {
+            validateMaxTermSize(key, cellBuffer.duplicate(), sendClientWarning);
+        }
     }
 
     /**
