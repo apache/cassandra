@@ -20,13 +20,17 @@ package org.apache.cassandra.tools;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.junit.After;
 import org.junit.Before;
 
+import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.io.util.File;
+
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
@@ -49,8 +53,24 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
     public void before() throws Throwable
     {
         setupTestSstables();
+        // Stop server as this is exercising an offline tool
         tearDownClass();
         SSTableReader.resetTidying();
+    }
+
+    @After
+    public void unsafeRemoveSSTables() throws Throwable
+    {
+        // Before resetting the CMS in CQLTester::afterClass, manually remove the original SSTables from the
+        // CFS. If we don't do this, restoring the schema to a pre-test state causes the CFS to be dropped
+        // which attempts to remove the SSTables in the tracker. Because we've unsafely modified these with
+        // a tool that should only be used offline, this causes an error in test tear down. In a real node,
+        // running the tool while offline, or even just restarting the node after the tool has been unsafely
+        // run like this, would avoid/fix this issue.
+        Tracker tracker = getCurrentColumnFamilyStore(KEYSPACE).getTracker();
+        Set<SSTableReader> toRemove = new HashSet<>();
+        tracker.getView().allKnownSSTables().forEach(toRemove::add);
+        tracker.removeUnsafe(toRemove);
     }
 
     @Test

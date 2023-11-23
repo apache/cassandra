@@ -58,6 +58,7 @@ public class RowFilterTest
                                               .addPartitionKeyColumn("pk", Int32Type.instance)
                                               .addStaticColumn("s", Int32Type.instance)
                                               .addRegularColumn("r", Int32Type.instance)
+                                              .offline()
                                               .build();
         ColumnMetadata s = metadata.getColumn(new ColumnIdentifier("s", true));
         ColumnMetadata r = metadata.getColumn(new ColumnIdentifier("r", true));

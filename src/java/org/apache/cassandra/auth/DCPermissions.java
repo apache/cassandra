@@ -28,6 +28,7 @@ import com.google.common.collect.Sets;
 
 import org.apache.cassandra.dht.Datacenters;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 public abstract class DCPermissions
 {
@@ -93,7 +94,7 @@ public abstract class DCPermissions
 
         public void validate()
         {
-            Set<String> unknownDcs = Sets.difference(subset, Datacenters.getValidDatacenters());
+            Set<String> unknownDcs = Sets.difference(subset, Datacenters.getValidDatacenters(ClusterMetadata.current()));
             if (!unknownDcs.isEmpty())
             {
                 throw new InvalidRequestException(String.format("Invalid value(s) for DATACENTERS '%s'," +

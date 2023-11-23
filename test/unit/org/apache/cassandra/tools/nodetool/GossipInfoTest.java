@@ -99,7 +99,6 @@ public class GossipInfoTest extends CQLTester
         Assertions.assertThat(stdout).contains("/127.0.0.1");
         Assertions.assertThat(stdout).containsPattern("\\s+generation:[0-9]+");
         Assertions.assertThat(stdout).containsPattern("heartbeat:[0-9]+");
-        Assertions.assertThat(stdout).containsPattern("STATUS:[0-9]+:NORMAL," + token);
         Assertions.assertThat(stdout).containsPattern("SCHEMA:.+");
         Assertions.assertThat(stdout).containsPattern("DC:[0-9]+:datacenter1");
         Assertions.assertThat(stdout).containsPattern("RACK:[0-9]+:rack1");

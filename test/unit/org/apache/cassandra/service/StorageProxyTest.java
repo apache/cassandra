@@ -19,7 +19,6 @@
 package org.apache.cassandra.service;
 
 import java.net.UnknownHostException;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -32,11 +31,15 @@ import org.junit.runner.RunWith;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.HeartBeatState;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.StubClusterMetadataService;
 import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
@@ -134,18 +137,13 @@ public class StorageProxyTest
     private void shouldHintTest(Consumer<Replica> test) throws UnknownHostException
     {
         InetAddressAndPort testEp = InetAddressAndPort.getByName("192.168.1.1");
+        ClusterMetadataService.unsetInstance();
+        ClusterMetadataService.setInstance(StubClusterMetadataService.forTesting());
+        ClusterMetadataTestHelper.addEndpoint(testEp, ClusterMetadata.current().partitioner.getRandomToken());
         Replica replica = full(testEp);
-        StorageService.instance.getTokenMetadata().updateHostId(UUID.randomUUID(), testEp);
         EndpointState state = new EndpointState(new HeartBeatState(0, 0));
         Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.markDead(replica.endpoint(), state));
 
-        try
-        {
-            test.accept(replica);
-        }
-        finally
-        {
-            StorageService.instance.getTokenMetadata().removeEndpoint(testEp);
-        }
+        test.accept(replica);
     }
 }

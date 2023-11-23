@@ -70,18 +70,15 @@ public class CIDRGroupsMappingManager implements CIDRGroupsMappingManagerMBean
         if (!MBeanWrapper.instance.isRegistered(MBEAN_NAME))
             MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
 
-        String getCidrGroupsQuery = String.format("SELECT %s FROM %s.%s",
-                                                  AuthKeyspace.CIDR_GROUPS_TBL_CIDR_GROUP_COL_NAME,
+        String getCidrGroupsQuery = String.format("SELECT cidr_group FROM %s.%s",
                                                   SchemaConstants.AUTH_KEYSPACE_NAME,
                                                   AuthKeyspace.CIDR_GROUPS);
         getCidrGroupsStatement = (SelectStatement) QueryProcessor.getStatement(getCidrGroupsQuery,
                                                                                ClientState.forInternalCalls());
 
-        String getCidrsForCidrGroupQuery = String.format("SELECT %s FROM %s.%s where %s = ?",
-                                                         AuthKeyspace.CIDR_GROUPS_TBL_CIDRS_COL_NAME,
+        String getCidrsForCidrGroupQuery = String.format("SELECT cidrs FROM %s.%s where cidr_group = ?",
                                                          SchemaConstants.AUTH_KEYSPACE_NAME,
-                                                         AuthKeyspace.CIDR_GROUPS,
-                                                         AuthKeyspace.CIDR_GROUPS_TBL_CIDR_GROUP_COL_NAME);
+                                                         AuthKeyspace.CIDR_GROUPS);
         getCidrsForCidrGroupStatement = (SelectStatement) QueryProcessor.getStatement(getCidrsForCidrGroupQuery,
                                                                                       ClientState.forInternalCalls());
     }
@@ -125,11 +122,11 @@ public class CIDRGroupsMappingManager implements CIDRGroupsMappingManagerMBean
 
         for (UntypedResultSet.Row row : result)
         {
-            if (!row.has(AuthKeyspace.CIDR_GROUPS_TBL_CIDR_GROUP_COL_NAME))
+            if (!row.has("cidr_group"))
                 throw new IllegalStateException("Invalid row " + row + " in table: " +
                                                 SchemaConstants.AUTH_KEYSPACE_NAME + '.' + AuthKeyspace.CIDR_GROUPS);
 
-            availableCidrGroups.add(row.getString(AuthKeyspace.CIDR_GROUPS_TBL_CIDR_GROUP_COL_NAME));
+            availableCidrGroups.add(row.getString("cidr_group"));
         }
 
         return availableCidrGroups;
@@ -137,14 +134,13 @@ public class CIDRGroupsMappingManager implements CIDRGroupsMappingManagerMBean
 
     public Set<Pair<InetAddress, Short>> retrieveCidrsFromRow(UntypedResultSet.Row row)
     {
-        if (!row.has(AuthKeyspace.CIDR_GROUPS_TBL_CIDRS_COL_NAME))
-            throw new RuntimeException("Invalid row, doesn't have column " +
-                                       AuthKeyspace.CIDR_GROUPS_TBL_CIDRS_COL_NAME);
+        if (!row.has("cidrs"))
+            throw new RuntimeException("Invalid row, doesn't have column cidrs");
 
         Set<Pair<InetAddress, Short>> cidrs = new HashSet<>();
         TupleType tupleType = new TupleType(Arrays.asList(InetAddressType.instance, ShortType.instance));
 
-        Set<ByteBuffer> cidrAsTuples = row.getFrozenSet(AuthKeyspace.CIDR_GROUPS_TBL_CIDRS_COL_NAME, tupleType);
+        Set<ByteBuffer> cidrAsTuples = row.getFrozenSet("cidrs", tupleType);
         for (ByteBuffer cidrAsTuple : cidrAsTuples)
         {
             ByteBuffer[] splits = tupleType.split(ByteBufferAccessor.instance, cidrAsTuple);
@@ -182,12 +178,10 @@ public class CIDRGroupsMappingManager implements CIDRGroupsMappingManagerMBean
             validCidrs.add(CIDR.getInstance(cidr));
         }
 
-        String query = String.format("UPDATE %s.%s SET %s = %s WHERE %s = '%s'",
+        String query = String.format("UPDATE %s.%s SET cidrs = %s WHERE cidr_group = '%s'",
                                      SchemaConstants.AUTH_KEYSPACE_NAME,
                                      AuthKeyspace.CIDR_GROUPS,
-                                     AuthKeyspace.CIDR_GROUPS_TBL_CIDRS_COL_NAME,
                                      getCidrTuplesSetString(validCidrs),
-                                     AuthKeyspace.CIDR_GROUPS_TBL_CIDR_GROUP_COL_NAME,
                                      cidrGroupName);
 
         process(query, CassandraAuthorizer.authWriteConsistencyLevel());

@@ -2001,7 +2001,6 @@ public class CompactStorageSplit2Test extends CQLTester
 
         execute("UPDATE %s SET value = ? WHERE partitionKey = ? AND clustering_1 = ?", null, 0, 0);
         flush(forceFlush);
-
         if (isEmpty(CompactStorageSplit1Test.compactOption))
         {
             assertRows(execute("SELECT * FROM %s WHERE partitionKey = ? AND (clustering_1) IN ((?), (?))",

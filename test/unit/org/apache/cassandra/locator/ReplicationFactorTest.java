@@ -23,7 +23,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertEquals;
@@ -35,7 +35,7 @@ public class ReplicationFactorTest
     {
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
-        Gossiper.instance.start(1);
+        ClusterMetadataTestHelper.setInstanceForTest();
     }
 
     @Test

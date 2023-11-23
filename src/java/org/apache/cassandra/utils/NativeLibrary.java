@@ -433,4 +433,9 @@ public final class NativeLibrary
 
         return -1;
     }
+
+    public static boolean isEnabled()
+    {
+        return REQUIRE;
+    }
 }

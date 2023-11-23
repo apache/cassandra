@@ -31,24 +31,24 @@ public enum ApplicationState
     /** @deprecated See CASSANDRA-7544 */
     @Deprecated(since = "4.0") STATUS, //Deprecated and unsued in 4.0, stop publishing in 5.0, reclaim in 6.0
     LOAD,
-    SCHEMA,
-    DC,
-    RACK,
-    RELEASE_VERSION,
-    REMOVAL_COORDINATOR,
+    @Deprecated(since = "CEP-21") SCHEMA, // derived from ClusterMetadata
+    @Deprecated(since = "CEP-21") DC, // derived from ClusterMetadata
+    @Deprecated(since = "CEP-21") RACK, // derived from ClusterMetadata
+    @Deprecated(since = "CEP-21") RELEASE_VERSION, // derived from ClusterMetadata
+    @Deprecated(since = "CEP-21") REMOVAL_COORDINATOR,
     /** @deprecated See CASSANDRA-7544 */
-    @Deprecated(since = "4.0") INTERNAL_IP, //Deprecated and unused in 4.0, stop publishing in 5.0, reclaim in 6.0
+    @Deprecated(since = "4.0") INTERNAL_IP, //derived from ClusterMetadata, Deprecated and unused in 4.0, stop publishing in 5.0, reclaim in 6.0
     /** @deprecated See CASSANDRA-7544 */
     @Deprecated(since = "4.0") RPC_ADDRESS, // ^ Same
     X_11_PADDING, // padding specifically for 1.1
     SEVERITY,
-    NET_VERSION,
-    HOST_ID,
-    TOKENS,
+    NET_VERSION, // derived from ClusterMetadata
+    @Deprecated(since = "CEP-21") HOST_ID, // derived from ClusterMetadata
+    @Deprecated(since = "CEP-21") TOKENS, // derived from ClusterMetadata
     RPC_READY,
     // pad to allow adding new states to existing cluster
-    INTERNAL_ADDRESS_AND_PORT, //Replacement for INTERNAL_IP with up to two ports
-    NATIVE_ADDRESS_AND_PORT, //Replacement for RPC_ADDRESS
+    @Deprecated(since = "CEP-21") INTERNAL_ADDRESS_AND_PORT, //derived from ClusterMetadata, Replacement for INTERNAL_IP with up to two ports
+    @Deprecated(since = "CEP-21") NATIVE_ADDRESS_AND_PORT, //derived from ClusterMetadata, Replacement for RPC_ADDRESS
     STATUS_WITH_PORT, //Replacement for STATUS
     /**
      * The set of sstable versions on this node. This will usually be only the "current" sstable format (the one with
@@ -71,5 +71,5 @@ public enum ApplicationState
     X7,
     X8,
     X9,
-    X10,
+    X10;
 }

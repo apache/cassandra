@@ -47,9 +47,8 @@ public class SSTableTasksTableTest extends CQLTester
     private SSTableTasksTable table;
 
     @BeforeClass
-    public static void setUpClass()
+    public static void setUpAutoCompaction()
     {
-        CQLTester.setUpClass();
         CompactionManager.instance.disableAutoCompaction();
     }
 

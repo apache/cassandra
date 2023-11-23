@@ -76,6 +76,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.btree.BTreeSet;
@@ -91,7 +92,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     protected final ClusteringIndexFilter clusteringIndexFilter;
 
     @VisibleForTesting
-    protected SinglePartitionReadCommand(boolean isDigest,
+    protected SinglePartitionReadCommand(Epoch serializedAtEpoch,
+                                         boolean isDigest,
                                          int digestVersion,
                                          boolean acceptsTransient,
                                          TableMetadata metadata,
@@ -104,24 +106,25 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                          Index.QueryPlan indexQueryPlan,
                                          boolean trackWarnings)
     {
-        super(Kind.SINGLE_PARTITION, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan, trackWarnings);
+        super(serializedAtEpoch, Kind.SINGLE_PARTITION, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan, trackWarnings);
         assert partitionKey.getPartitioner() == metadata.partitioner;
         this.partitionKey = partitionKey;
         this.clusteringIndexFilter = clusteringIndexFilter;
     }
 
-    private static SinglePartitionReadCommand create(boolean isDigest,
-                                                    int digestVersion,
-                                                    boolean acceptsTransient,
-                                                    TableMetadata metadata,
-                                                    long nowInSec,
-                                                    ColumnFilter columnFilter,
-                                                    RowFilter rowFilter,
-                                                    DataLimits limits,
-                                                    DecoratedKey partitionKey,
-                                                    ClusteringIndexFilter clusteringIndexFilter,
-                                                    Index.QueryPlan indexQueryPlan,
-                                                    boolean trackWarnings)
+    private static SinglePartitionReadCommand create(Epoch serializedAtEpoch,
+                                                     boolean isDigest,
+                                                     int digestVersion,
+                                                     boolean acceptsTransient,
+                                                     TableMetadata metadata,
+                                                     long nowInSec,
+                                                     ColumnFilter columnFilter,
+                                                     RowFilter rowFilter,
+                                                     DataLimits limits,
+                                                     DecoratedKey partitionKey,
+                                                     ClusteringIndexFilter clusteringIndexFilter,
+                                                     Index.QueryPlan indexQueryPlan,
+                                                     boolean trackWarnings)
     {
         if (metadata.isVirtual())
         {
@@ -138,7 +141,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                               indexQueryPlan,
                                                               trackWarnings);
         }
-        return new SinglePartitionReadCommand(isDigest,
+        return new SinglePartitionReadCommand(serializedAtEpoch,
+                                              isDigest,
                                               digestVersion,
                                               acceptsTransient,
                                               metadata,
@@ -175,7 +179,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                     ClusteringIndexFilter clusteringIndexFilter,
                                                     Index.QueryPlan indexQueryPlan)
     {
-        return create(false,
+        return create(metadata.epoch,
+                      false,
                       0,
                       false,
                       metadata,
@@ -352,7 +357,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
     public SinglePartitionReadCommand copy()
     {
-        return create(isDigestQuery(),
+        return create(serializedAtEpoch(),
+                      isDigestQuery(),
                       digestVersion(),
                       acceptsTransient(),
                       metadata(),
@@ -369,7 +375,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     @Override
     protected SinglePartitionReadCommand copyAsDigestQuery()
     {
-        return create(true,
+        return create(serializedAtEpoch(),
+                      true,
                       digestVersion(),
                       acceptsTransient(),
                       metadata(),
@@ -386,7 +393,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     @Override
     protected SinglePartitionReadCommand copyAsTransientQuery()
     {
-        return create(false,
+        return create(serializedAtEpoch(),
+                      false,
                       0,
                       true,
                       metadata(),
@@ -403,7 +411,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     @Override
     public SinglePartitionReadCommand withUpdatedLimit(DataLimits newLimits)
     {
-        return create(isDigestQuery(),
+        return create(serializedAtEpoch(),
+                      isDigestQuery(),
                       digestVersion(),
                       acceptsTransient(),
                       metadata(),
@@ -1302,6 +1311,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     {
         public ReadCommand deserialize(DataInputPlus in,
                                        int version,
+                                       Epoch serializedAtEpoch,
                                        boolean isDigest,
                                        int digestVersion,
                                        boolean acceptsTransient,
@@ -1315,7 +1325,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         {
             DecoratedKey key = metadata.partitioner.decorateKey(metadata.partitionKeyType.readBuffer(in, DatabaseDescriptor.getMaxValueSize()));
             ClusteringIndexFilter filter = ClusteringIndexFilter.serializer.deserialize(in, version, metadata);
-            return SinglePartitionReadCommand.create(isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, key, filter, indexQueryPlan, false);
+            return SinglePartitionReadCommand.create(serializedAtEpoch, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, key, filter, indexQueryPlan, false);
         }
     }
 
@@ -1362,7 +1372,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                          Index.QueryPlan indexQueryPlan,
                                                          boolean trackWarnings)
         {
-            super(isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, partitionKey, clusteringIndexFilter, indexQueryPlan, trackWarnings);
+            super(metadata.epoch, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, partitionKey, clusteringIndexFilter, indexQueryPlan, trackWarnings);
         }
 
         @Override

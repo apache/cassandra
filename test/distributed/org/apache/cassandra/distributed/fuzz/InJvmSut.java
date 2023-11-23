@@ -20,7 +20,11 @@ package org.apache.cassandra.distributed.fuzz;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,9 +33,15 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import harry.core.Configuration;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 public class InJvmSut extends InJvmSutBase<IInvokableInstance, Cluster>
 {
@@ -44,12 +54,12 @@ public class InJvmSut extends InJvmSutBase<IInvokableInstance, Cluster>
 
     public InJvmSut(Cluster cluster)
     {
-        super(cluster, 10);
+        super(cluster, roundRobin(cluster), retryOnTimeout(), 10);
     }
 
-    public InJvmSut(Cluster cluster, int threads)
+    public InJvmSut(Cluster cluster, Supplier<Integer> lbs, Function<Throwable, Boolean> retryStrategy)
     {
-        super(cluster, threads);
+        super(cluster, lbs, retryStrategy, 10);
     }
 
     @JsonTypeName("in_jvm")
@@ -82,5 +92,32 @@ public class InJvmSut extends InJvmSutBase<IInvokableInstance, Cluster>
         {
             return new InJvmSut(cluster);
         }
+    }
+
+    // TODO: this would only return _read_ (or natural) replicas for the token
+    public int[] getReadReplicasFor(Object[] partitionKey, String keyspace, String table)
+    {
+        return cluster.get(1).appliesOnInstance(InJvmSut::getReadReplicasForCallable).apply(partitionKey, keyspace, table);
+    }
+
+    public static int[] getReadReplicasForCallable(Object[] pk, String ks, String table)
+    {
+        String pkString = Arrays.stream(pk).map(Object::toString).collect(Collectors.joining(":"));
+        EndpointsForToken endpoints = StorageService.instance.getNaturalReplicasForToken(ks, table, pkString);
+        int[] nodes = new int[endpoints.size()];
+        for (int i = 0; i < endpoints.size(); i++)
+            nodes[i] = endpoints.get(i).endpoint().getAddress().getAddress()[3];
+
+        sanity_check:
+        {
+            Keyspace ksp = Keyspace.open(ks);
+            Token token = DatabaseDescriptor.getPartitioner().getToken(ksp.getMetadata().getTableOrViewNullable(table).partitionKeyType.fromString(pkString));
+
+            ClusterMetadata metadata = ClusterMetadata.current();
+            EndpointsForToken replicas = metadata.placements.get(ksp.getMetadata().params.replication).reads.forToken(token).get();
+
+            assert replicas.endpoints().equals(endpoints.endpoints()) : String.format("Consistent metadata endpoints %s disagree with token metadata computation %s", endpoints.endpoints(), replicas.endpoints());
+        }
+        return nodes;
     }
 }

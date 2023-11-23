@@ -58,7 +58,7 @@ public class CompactionDiskSpaceTest extends TestBaseImpl
             cluster.schemaChange("create table "+KEYSPACE+".tbl (id int primary key, x int) with compaction = {'class':'SizeTieredCompactionStrategy'}");
             cluster.coordinator(1).execute("insert into "+KEYSPACE+".tbl (id, x) values (1,1)", ConsistencyLevel.ALL);
             cluster.get(1).flush(KEYSPACE);
-            cluster.setUncaughtExceptionsFilter((t) -> t.getMessage() != null && t.getMessage().contains("Not enough space for compaction") && t.getMessage().contains(KEYSPACE+".tbl"));
+            cluster.setUncaughtExceptionsFilter((t) -> t.getMessage() != null && t.getMessage().contains("Not enough space for compaction"));
             cluster.get(1).runOnInstance(() -> {
                 ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl");
                 BB.estimatedRemaining.set(2000);

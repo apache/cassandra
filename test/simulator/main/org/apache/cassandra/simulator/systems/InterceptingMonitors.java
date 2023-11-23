@@ -687,7 +687,10 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
                 {
                     if (!thread.isIntercepting() && disabled) return;
                     else if (!thread.isIntercepting())
-                        throw new AssertionError();
+                    {
+                        throw new AssertionError("Thread " + thread + " is running but is not simulated");
+                    }
+
 
                     checkForDeadlock(thread, state.heldBy);
                     InterceptedMonitorWait wait = new InterceptedMonitorWait(UNBOUNDED_WAIT, 0L, state, thread, captureWaitSite(thread));

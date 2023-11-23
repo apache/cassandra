@@ -20,29 +20,55 @@ package org.apache.cassandra;
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.AuditLogManager;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummarySupport;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.AbstractEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
 import org.apache.cassandra.service.EmbeddedCassandraService;
+import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Commit;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.MetadataSnapshots;
+import org.apache.cassandra.tcm.Processor;
+import org.apache.cassandra.tcm.log.LocalLog;
+import org.apache.cassandra.tcm.log.LogStorage;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.ownership.PlacementProvider;
+import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
+import org.apache.cassandra.tcm.transformations.ForceSnapshot;
+import org.apache.cassandra.tcm.transformations.Register;
+import org.apache.cassandra.tcm.transformations.UnsafeJoin;
+import org.apache.cassandra.tcm.transformations.cms.Initialize;
+import org.apache.cassandra.utils.FBUtilities;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 
 /**
  * Utility methodes used by SchemaLoader and CQLTester to manage the server and its state.
@@ -66,7 +92,11 @@ public final class ServerTestUtils
     public static void daemonInitialization()
     {
         DatabaseDescriptor.daemonInitialization();
+        initSnitch();
+    }
 
+    public static void initSnitch()
+    {
         // Register an EndpointSnitch which returns fixed values for test.
         DatabaseDescriptor.setEndpointSnitch(new AbstractEndpointSnitch()
         {
@@ -93,8 +123,32 @@ public final class ServerTestUtils
         });
     }
 
+    public static NodeId registerLocal()
+    {
+        return registerLocal(Collections.singleton(DatabaseDescriptor.getPartitioner().getRandomToken()));
+    }
+
+    public static NodeId registerLocal(Set<Token> tokens)
+    {
+        NodeId nodeId = Register.maybeRegister();
+        ClusterMetadataService.instance().commit(new UnsafeJoin(nodeId,
+                                                                tokens,
+                                                                ClusterMetadataService.instance().placementProvider()));
+        SystemKeyspace.setLocalHostId(nodeId.toUUID());
+        return nodeId;
+    }
+
     public static void prepareServer()
     {
+        prepareServerNoRegister();
+        registerLocal();
+        markCMS();
+    }
+
+    public static void prepareServerNoRegister()
+    {
+        daemonInitialization();
+
         if (isServerPrepared)
             return;
 
@@ -131,11 +185,14 @@ public final class ServerTestUtils
 
         ThreadAwareSecurityManager.install();
 
-        Keyspace.setInitialized();
+        CassandraRelevantProperties.GOSSIPER_SKIP_WAITING_TO_SETTLE.setInt(0);
+        initCMS();
         SystemKeyspace.persistLocalMetadata();
         AuditLogManager.instance.initialize();
+
         isServerPrepared = true;
     }
+
 
     /**
      * Cleanup the directories used by the server, creating them if they do not exist.
@@ -204,6 +261,113 @@ public final class ServerTestUtils
         EmbeddedCassandraService service = new EmbeddedCassandraService();
         service.start();
         return service;
+    }
+
+    public static void initCMS()
+    {
+        // Effectively disable automatic snapshots using AtomicLongBackedProcessopr and LocaLLog.Sync interacts
+        // badly with submitting SealPeriod transformations from the log listener. In this configuration, SealPeriod
+        // commits performed on NonPeriodicTasks threads end up actually performing the transformations as well as
+        // calling the pre and post commit listeners, which is not threadsafe. In a non-test setup the processing of
+        // log entries is always done by the dedicated log follower thread.
+        DatabaseDescriptor.setMetadataSnapshotFrequency(Integer.MAX_VALUE);
+
+        Function<LocalLog, Processor> processorFactory = AtomicLongBackedProcessor::new;
+        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
+        boolean addListeners = true;
+        ClusterMetadata initial = new ClusterMetadata(partitioner);
+        LocalLog.LogSpec logSpec = new LocalLog.LogSpec().withInitialState(initial)
+                                                         .withDefaultListeners(addListeners);
+        LocalLog log = LocalLog.async(logSpec);
+        ResettableClusterMetadataService service = new ResettableClusterMetadataService(new UniformRangePlacement(),
+                                                                                        MetadataSnapshots.NO_OP,
+                                                                                        log,
+                                                                                        processorFactory.apply(log),
+                                                                                        Commit.Replicator.NO_OP,
+                                                                                        true);
+
+        ClusterMetadataService.setInstance(service);
+        initial.schema.initializeKeyspaceInstances(DistributedSchema.empty());
+        if (!Keyspace.isInitialized())
+            Keyspace.setInitialized();
+        log.ready();
+        log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
+        service.commit(new Initialize(ClusterMetadata.current()));
+        QueryProcessor.registerStatementInvalidatingListener();
+        service.mark();
+    }
+
+    public static void recreateCMS()
+    {
+        assert ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.getBoolean() : "Need to set " + ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION + " to true for resetCMS to work";
+        // unfortunately, for now this is sometimes necessary because of the initialisation ordering with regard to
+        // IPartitioner. For example, if a test has a requirement to use a different partitioner to the one in yaml:
+        // SchemaLoader.prepareServer
+        // |-- SchemaLoader.prepareServerNoRegister
+        // |   |-- ServerTestUtils.daemonInitialization();        # sets DD.partitioner according to yaml (i.e. BOP)
+        // |   |-- ServerTestUtils.prepareServer();               # includes inititial CMS using DD partitioner
+        // |-- StorageService.instance.setPartitionerUnsafe(M3P)  # test wants to use LongToken
+        // |-- ServerTestUtils.recreateCMS                        # recreates the CMS using the updated partitioner
+        ClusterMetadata initial = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
+        initial.schema.initializeKeyspaceInstances(DistributedSchema.empty());
+        LocalLog.LogSpec logSpec = new LocalLog.LogSpec().withInitialState(initial)
+                                                         .withStorage(LogStorage.SystemKeyspace)
+                                                         .withDefaultListeners();
+        LocalLog log = LocalLog.async(logSpec);
+        log.ready();
+        ResettableClusterMetadataService cms = new ResettableClusterMetadataService(new UniformRangePlacement(),
+                                                                                    MetadataSnapshots.NO_OP,
+                                                                                    log,
+                                                                                    new AtomicLongBackedProcessor(log),
+                                                                                    Commit.Replicator.NO_OP,
+                                                                                    true);
+        ClusterMetadataService.unsetInstance();
+        ClusterMetadataService.setInstance(cms);
+        log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
+        cms.mark();
+    }
+
+    public static void markCMS()
+    {
+        ClusterMetadataService cms = ClusterMetadataService.instance();
+        assert cms instanceof ResettableClusterMetadataService : "CMS instance is not resettable";
+        ((ResettableClusterMetadataService)cms).mark();
+    }
+
+    public static void resetCMS()
+    {
+        ClusterMetadataService cms = ClusterMetadataService.instance();
+        assert cms instanceof ResettableClusterMetadataService : "CMS instance is not resettable";
+        ((ResettableClusterMetadataService)cms).reset();
+    }
+
+    public static class ResettableClusterMetadataService extends ClusterMetadataService
+    {
+
+        private ClusterMetadata mark;
+
+        public ResettableClusterMetadataService(PlacementProvider placementProvider,
+                                                MetadataSnapshots snapshots,
+                                                LocalLog log,
+                                                Processor processor,
+                                                Commit.Replicator replicator,
+                                                boolean isMemberOfOwnershipGroup)
+        {
+            super(placementProvider, snapshots, log, processor, replicator, isMemberOfOwnershipGroup);
+            mark = log.metadata();
+        }
+
+        public void mark()
+        {
+            mark = log().metadata();
+        }
+
+        public Epoch reset()
+        {
+            Epoch nextEpoch = ClusterMetadata.current().epoch.nextEpoch();
+            ClusterMetadata newBaseState = mark.forceEpoch(nextEpoch);
+            return ClusterMetadataService.instance().commit(new ForceSnapshot(newBaseState)).epoch;
+        }
     }
 
     private ServerTestUtils()

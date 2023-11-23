@@ -289,6 +289,8 @@ public class TableMetrics
             Keyspace k = Schema.instance.getKeyspaceInstance(keyspace);
             if (SchemaConstants.DISTRIBUTED_KEYSPACE_NAME.equals(k.getName()))
                 continue;
+            if (k.getMetadata().params.replication.isMeta())
+                continue;
             if (k.getReplicationStrategy().getReplicationFactor().allReplicas < 2)
                 continue;
 

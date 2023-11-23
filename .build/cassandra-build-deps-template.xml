@@ -71,6 +71,10 @@
       <artifactId>checkstyle</artifactId>
     </dependency>
     <dependency>
+      <groupId>com.google.guava</groupId>
+      <artifactId>guava-testlib</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.quicktheories</groupId>
       <artifactId>quicktheories</artifactId>
     </dependency>

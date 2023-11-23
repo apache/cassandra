@@ -31,6 +31,7 @@ import org.junit.BeforeClass;
 import org.junit.Ignore;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -72,6 +73,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -148,7 +150,7 @@ public abstract class AbstractReadResponseTest
                      .addPartitionKeyColumn("k", ByteType.instance)
                      .addRegularColumn("m", MapType.getInstance(IntegerType.instance, IntegerType.instance, true));
 
-        SchemaLoader.prepareServer();
+        ServerTestUtils.prepareServerNoRegister();
         SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(2), builder1, builder2);
         SchemaLoader.createKeyspace(KEYSPACE3, KeyspaceParams.simple(4), builder3);
 
@@ -161,11 +163,13 @@ public abstract class AbstractReadResponseTest
         cfs3 = ks3.getColumnFamilyStore(CF_STANDARD);
         cfm3 = cfs3.metadata();
         m = cfm2.getColumn(new ColumnIdentifier("m", false));
+        ServerTestUtils.markCMS();
     }
 
     @Before
     public void setUp() throws Exception
     {
+        ServerTestUtils.resetCMS();
         dk = Util.dk("key1");
         nowInSec = FBUtilities.nowInSeconds();
     }
@@ -250,6 +254,7 @@ public abstract class AbstractReadResponseTest
                                 : ReadResponse.createRemoteDataResponse(data, repairedDataDigest, hasPendingRepair, command, fromVersion);
         return Message.builder(READ_REQ, response)
                       .from(from)
+                      .withEpoch(ClusterMetadata.current().epoch)
                       .build();
     }
 

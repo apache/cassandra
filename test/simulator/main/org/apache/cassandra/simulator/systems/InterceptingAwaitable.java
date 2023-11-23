@@ -275,7 +275,11 @@ abstract class InterceptingAwaitable implements Awaitable
         Condition maybeIntercept(InterceptedWait.Kind kind, long waitNanos)
         {
             assert intercepted == null;
-            assert !inner.isSignalled();
+
+            // It is possible that by the time we call `await` on a signal, it will already have been
+            // signalled, so we do not have to intercept or wait here.
+            if (inner.isSignalled())
+                return inner;
 
             InterceptibleThread thread = ifIntercepted();
             if (thread == null)

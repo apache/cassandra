@@ -55,11 +55,10 @@ public class JmxPermissionsCacheKeysTableTest extends CQLTester
 
     // this method is intentionally not called "setUpClass" to let it throw exception brought by startJMXServer method 
     @BeforeClass
-    public static void setup() throws Exception {
+    public static void setupAuth() throws Exception {
         // high value is used for convenient debugging
         DatabaseDescriptor.setPermissionsValidity(20_000);
 
-        CQLTester.setUpClass();
         CQLTester.requireAuthentication();
 
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();

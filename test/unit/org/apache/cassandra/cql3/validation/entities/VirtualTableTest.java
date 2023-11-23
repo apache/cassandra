@@ -207,7 +207,7 @@ public class VirtualTableTest extends CQLTester
     }
 
     @BeforeClass
-    public static void setUpClass()
+    public static void setUpVirtualTables()
     {
         ServerTestUtils.daemonInitialization();
 
@@ -371,8 +371,6 @@ public class VirtualTableTest extends CQLTester
         };
 
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(vt1, vt2, vt3, vt4, vt5)));
-
-        CQLTester.setUpClass();
     }
 
     @Test
@@ -1076,7 +1074,7 @@ public class VirtualTableTest extends CQLTester
         }
         catch (InvalidQueryException ex)
         {
-            assertTrue(ex.getMessage().contains("Cannot execute this query as it might involve data filtering and thus may have unpredictable performance"));
+            assertTrue(ex.getMessage(), ex.getMessage().contains("Cannot execute this query as it might involve data filtering and thus may have unpredictable performance"));
         }
     }
 

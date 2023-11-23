@@ -17,14 +17,13 @@
  */
 
 package org.apache.cassandra.service.paxos.v1;
-import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.PrepareResponse;
 
-public class PrepareVerbHandler implements IVerbHandler<Commit>
+public class PrepareVerbHandler extends AbstractPaxosVerbHandler
 {
     public static PrepareVerbHandler instance = new PrepareVerbHandler();
 
@@ -33,7 +32,8 @@ public class PrepareVerbHandler implements IVerbHandler<Commit>
         return PaxosState.legacyPrepare(toPrepare);
     }
 
-    public void doVerb(Message<Commit> message)
+    @Override
+    public void processMessage(Message<Commit> message)
     {
         Message<PrepareResponse> reply = message.responseWith(doPrepare(message.payload));
         MessagingService.instance().send(reply, message.from());

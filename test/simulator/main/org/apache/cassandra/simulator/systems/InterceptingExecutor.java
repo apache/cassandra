@@ -68,6 +68,7 @@ import static org.apache.cassandra.simulator.systems.SimulatedExecution.callable
 import static org.apache.cassandra.simulator.systems.SimulatedTime.Global.localToRelativeNanos;
 import static org.apache.cassandra.simulator.systems.SimulatedTime.Global.localToGlobalNanos;
 import static org.apache.cassandra.simulator.systems.SimulatedTime.Global.relativeToGlobalNanos;
+import static org.apache.cassandra.simulator.systems.SimulatedTime.Global.relativeToLocalNanos;
 import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
@@ -778,7 +779,7 @@ public interface InterceptingExecutor extends OrderOn
 
         public ScheduledFuture<?> scheduleTimeoutWithDelay(Runnable run, long delay, TimeUnit unit)
         {
-            return scheduleTimeoutAt(run, relativeToGlobalNanos(unit.toNanos(delay)));
+            return scheduleTimeoutAt(run, relativeToLocalNanos(unit.toNanos(delay)));
         }
 
         public ScheduledFuture<?> scheduleAt(Runnable run, long deadlineNanos)

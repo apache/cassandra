@@ -424,7 +424,7 @@ public class ViewTest extends ViewAbstractTest
         assertRowsNet(executeViewNet("SELECT * FROM %s"), row(1, 0));
     }
 
-    private void testViewBuilderResume(int concurrentViewBuilders) throws Throwable
+    private void testViewBuilderResumeHelper(int concurrentViewBuilders) throws Throwable
     {
         createTable("CREATE TABLE %s (" +
                     "k int, " +
@@ -481,7 +481,7 @@ public class ViewTest extends ViewAbstractTest
     {
         for (int i = 1; i <= 8; i *= 2)
         {
-            testViewBuilderResume(i);
+            testViewBuilderResumeHelper(i);
         }
     }
 

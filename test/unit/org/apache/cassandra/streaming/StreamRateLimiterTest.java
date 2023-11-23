@@ -20,7 +20,7 @@ package org.apache.cassandra.streaming;
 
 import java.net.UnknownHostException;
 
-import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.ServerTestUtils;
@@ -33,10 +33,10 @@ import static org.junit.Assert.assertTrue;
 
 public class StreamRateLimiterTest
 {
-    InetAddressAndPort REMOTE_PEER_ADDRESS;
+    static InetAddressAndPort REMOTE_PEER_ADDRESS;
 
-    @Before
-    public void prepareServer() throws UnknownHostException
+    @BeforeClass
+    public static void prepareServer() throws UnknownHostException
     {
         ServerTestUtils.daemonInitialization();
         ServerTestUtils.prepareServer();

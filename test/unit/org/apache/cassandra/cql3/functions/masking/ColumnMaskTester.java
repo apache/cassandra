@@ -60,7 +60,6 @@ public class ColumnMaskTester extends CQLTester
     @BeforeClass
     public static void beforeClass()
     {
-        CQLTester.setUpClass();
         requireAuthentication();
         requireNetwork();
     }

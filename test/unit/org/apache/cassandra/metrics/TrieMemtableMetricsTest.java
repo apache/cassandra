@@ -78,8 +78,6 @@ public class TrieMemtableMetricsTest extends SchemaLoader
         });
         MEMTABLE_SHARD_COUNT.setInt(NUM_SHARDS);
 
-        SchemaLoader.loadSchema();
-
         EmbeddedCassandraService cassandra = new EmbeddedCassandraService();
         cassandra.start();
 

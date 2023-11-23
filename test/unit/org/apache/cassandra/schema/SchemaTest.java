@@ -18,207 +18,198 @@
  */
 package org.apache.cassandra.schema;
 
-import java.io.IOException;
-import java.time.Duration;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.UUID;
-import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ForkJoinTask;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.function.Predicate;
 
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.utils.FBUtilities;
-import org.awaitility.Awaitility;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement;
+import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class SchemaTest
 {
+    private static final String KS_PREFIX = "schema_test_ks_";
+    private static final String KS_ONE = KS_PREFIX + "1";
+    private static final String KS_TWO = KS_PREFIX + "2";
+
     @BeforeClass
     public static void setup()
     {
         DatabaseDescriptor.daemonInitialization();
         ServerTestUtils.prepareServer();
-        Schema.instance.loadFromDisk();
     }
 
-    @Test
-    public void testTransKsMigration() throws IOException
+    @Before
+    public void clearSchema()
     {
-        assertEquals(0, Schema.instance.distributedKeyspaces().size());
-
-        Gossiper.instance.start((int) (System.currentTimeMillis() / 1000));
-        try
-        {
-            // add a few.
-            saveKeyspaces();
-            Schema.instance.reloadSchemaAndAnnounceVersion();
-
-            assertNotNull(Schema.instance.getKeyspaceMetadata("ks0"));
-            assertNotNull(Schema.instance.getKeyspaceMetadata("ks1"));
-
-            Schema.instance.transform(keyspaces -> keyspaces.without(Arrays.asList("ks0", "ks1")));
-
-            assertNull(Schema.instance.getKeyspaceMetadata("ks0"));
-            assertNull(Schema.instance.getKeyspaceMetadata("ks1"));
-
-            saveKeyspaces();
-            Schema.instance.reloadSchemaAndAnnounceVersion();
-
-            assertNotNull(Schema.instance.getKeyspaceMetadata("ks0"));
-            assertNotNull(Schema.instance.getKeyspaceMetadata("ks1"));
-        }
-        finally
-        {
-            Gossiper.instance.stop();
-        }
+        SchemaTestUtil.dropKeyspaceIfExist(KS_ONE, true);
+        SchemaTestUtil.dropKeyspaceIfExist(KS_TWO, true);
     }
 
     @Test
-    public void testKeyspaceCreationWhenNotInitialized() {
-        Keyspace.unsetInitialized();
-        try
-        {
-            SchemaTestUtil.addOrUpdateKeyspace(KeyspaceMetadata.create("test", KeyspaceParams.simple(1)), true);
-            assertNotNull(Schema.instance.getKeyspaceMetadata("test"));
-            assertNull(Schema.instance.getKeyspaceInstance("test"));
-
-            SchemaTestUtil.dropKeyspaceIfExist("test", true);
-            assertNull(Schema.instance.getKeyspaceMetadata("test"));
-            assertNull(Schema.instance.getKeyspaceInstance("test"));
-        }
-        finally
-        {
-            Keyspace.setInitialized();
-        }
-
-        SchemaTestUtil.addOrUpdateKeyspace(KeyspaceMetadata.create("test", KeyspaceParams.simple(1)), true);
-        assertNotNull(Schema.instance.getKeyspaceMetadata("test"));
-        assertNotNull(Schema.instance.getKeyspaceInstance("test"));
-
-        SchemaTestUtil.dropKeyspaceIfExist("test", true);
-        assertNull(Schema.instance.getKeyspaceMetadata("test"));
-        assertNull(Schema.instance.getKeyspaceInstance("test"));
-    }
-
-    /**
-     * This test checks that the schema version is updated only after the entire schema change is processed.
-     * In particular, we expect that {@link Schema#getVersion()} returns stale schema version as it was before
-     * the change, but it does not block. On the other hand, {@link Schema#getDistributedSchemaBlocking()} should block
-     * until the schema change is processed and return the new schema version.
-     */
-    @Test
-    public void testGettingSchemaVersion()
+    public void tablesInNewKeyspaceHaveCorrectEpoch()
     {
-        Duration timeout = Duration.ofMillis(DatabaseDescriptor.getReadRpcTimeout(TimeUnit.MILLISECONDS));
+        Tables tables = Tables.of(TableMetadata.minimal(KS_ONE, "modified1"),
+                                  TableMetadata.minimal(KS_ONE, "modified2"));
+        KeyspaceMetadata ksm = KeyspaceMetadata.create(KS_ONE, KeyspaceParams.simple(1), tables);
+        applyAndAssertTableMetadata((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm), true);
+    }
 
-        // the listener with a barrier will let us control the schema change process
-        CyclicBarrier barrier = new CyclicBarrier(2);
-        SchemaChangeListener listener = new SchemaChangeListener()
-        {
-            @Override
-            public void onCreateKeyspace(KeyspaceMetadata keyspace)
+    @Test
+    public void newTablesInExistingKeyspaceHaveCorrectEpoch()
+    {
+        // Create an empty keyspace
+        KeyspaceMetadata ksm = KeyspaceMetadata.create(KS_ONE, KeyspaceParams.simple(1));
+        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
+
+        // Add two tables and verify that the resultant table metadata has the correct epoch
+        Tables tables = Tables.of(TableMetadata.minimal(KS_ONE, "modified1"), TableMetadata.minimal(KS_ONE, "modified2"));
+        KeyspaceMetadata updated = ksm.withSwapped(tables);
+        applyAndAssertTableMetadata((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(updated), true);
+    }
+
+    @Test
+    public void newTablesInNonEmptyKeyspaceHaveCorrectEpoch()
+    {
+        Tables tables = Tables.of(TableMetadata.minimal(KS_ONE, "unmodified"));
+        KeyspaceMetadata ksm = KeyspaceMetadata.create(KS_ONE, KeyspaceParams.simple(1), tables);
+        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
+
+        // Add a second table and assert that its table metadata has the latest epoch, but that the
+        // metadata of the other table stays unmodified
+        KeyspaceMetadata updated = ksm.withSwapped(tables.with(TableMetadata.minimal(KS_ONE, "modified1")));
+        applyAndAssertTableMetadata((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(updated));
+    }
+
+    @Test
+    public void createTableCQLSetsCorrectEpoch()
+    {
+        Tables tables = Tables.of(TableMetadata.minimal(KS_ONE, "unmodified"));
+        KeyspaceMetadata ksm = KeyspaceMetadata.create(KS_ONE, KeyspaceParams.simple(1), tables);
+        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
+
+        applyAndAssertTableMetadata(cql(KS_ONE, "CREATE TABLE %s.modified (k int PRIMARY KEY)"));
+    }
+
+    @Test
+    public void createTablesInMultipleKeyspaces()
+    {
+        KeyspaceMetadata ksm1 = KeyspaceMetadata.create(KS_ONE, KeyspaceParams.simple(1));
+        KeyspaceMetadata ksm2 = KeyspaceMetadata.create(KS_TWO, KeyspaceParams.simple(1));
+        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm1).withAddedOrUpdated(ksm2));
+
+        // Add two tables in each ks and verify that the resultant table metadata has the correct epoch
+        Tables tables1 = Tables.of(TableMetadata.minimal(KS_ONE, "modified1"), TableMetadata.minimal(KS_ONE, "modified2"));
+        KeyspaceMetadata updated1 = ksm1.withSwapped(tables1);
+        Tables tables2 = Tables.of(TableMetadata.minimal(KS_TWO, "modified1"), TableMetadata.minimal(KS_TWO, "modified2"));
+        KeyspaceMetadata updated2 = ksm2.withSwapped(tables2);
+        applyAndAssertTableMetadata((metadata) -> metadata.schema.getKeyspaces()
+                                                                         .withAddedOrUpdated(updated1)
+                                                                         .withAddedOrUpdated(updated2),
+                                    true);
+    }
+
+
+    @Test
+    public void createTablesInMultipleNonEmptyKeyspaces()
+    {
+        KeyspaceMetadata ksm1 = KeyspaceMetadata.create(KS_ONE, KeyspaceParams.simple(1));
+        KeyspaceMetadata ksm2 = KeyspaceMetadata.create(KS_TWO, KeyspaceParams.simple(1));
+        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm1).withAddedOrUpdated(ksm2));
+
+        // Add two tables in each ks and verify that the resultant table metadata has the correct epoch
+        Tables tables1 = Tables.of(TableMetadata.minimal(KS_ONE, "unmodified1"), TableMetadata.minimal(KS_ONE, "unmodified2"));
+        KeyspaceMetadata updated1 = ksm1.withSwapped(tables1);
+        Tables tables2 = Tables.of(TableMetadata.minimal(KS_TWO, "unmodified1"), TableMetadata.minimal(KS_TWO, "unmodified2"));
+        KeyspaceMetadata updated2 = ksm2.withSwapped(tables2);
+        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(updated1).withAddedOrUpdated(updated2));
+
+        // Add a third table in one ks and assert that its table metadata has the latest epoch, but that the
+        // metadata of the all other tables stays unmodified
+        applyAndAssertTableMetadata(cql(KS_ONE, "CREATE TABLE %s.modified (k int PRIMARY KEY)"));
+    }
+
+    @Test
+    public void alterTableAndVerifyEpoch()
+    {
+        SchemaTestUtil.addOrUpdateKeyspace(KeyspaceMetadata.create(KS_ONE, KeyspaceParams.simple(1)), true);
+        Schema.instance.submit(cql(KS_ONE, "CREATE TABLE %s.unmodified (k int PRIMARY KEY)"));
+        Schema.instance.submit(cql(KS_ONE, "CREATE TABLE %s.modified ( " +
+                                           "k int, " +
+                                           "c1 int, " +
+                                           "v1 text, " +
+                                           "v2 text, " +
+                                           "v3 text, " +
+                                           "v4 text," +
+                                           "PRIMARY KEY(k,c1))"));
+
+        applyAndAssertTableMetadata(cql(KS_ONE, "ALTER TABLE %s.modified DROP v4"));
+        applyAndAssertTableMetadata(cql(KS_ONE, "ALTER TABLE %s.modified ADD v5 text"));
+        applyAndAssertTableMetadata(cql(KS_ONE, "ALTER TABLE %s.modified RENAME c1 TO c2"));
+        applyAndAssertTableMetadata(cql(KS_ONE, "ALTER TABLE %s.modified WITH comment = 'altered'"));
+    }
+
+    @Test
+    public void alterTableMultipleKeyspacesAndVerifyEpoch()
+    {
+        SchemaTestUtil.addOrUpdateKeyspace(KeyspaceMetadata.create(KS_ONE, KeyspaceParams.simple(1)), true);
+        SchemaTestUtil.addOrUpdateKeyspace(KeyspaceMetadata.create(KS_TWO, KeyspaceParams.simple(1)), true);
+        Schema.instance.submit(cql(KS_ONE, "CREATE TABLE %s.unmodified (k int PRIMARY KEY)"));
+        Schema.instance.submit(cql(KS_TWO, "CREATE TABLE %s.unmodified (k int PRIMARY KEY)"));
+        Schema.instance.submit(cql(KS_ONE, "CREATE TABLE %s.modified ( " +
+                                           "k int, " +
+                                           "c1 int, " +
+                                           "v1 text, " +
+                                           "v2 text, " +
+                                           "v3 text, " +
+                                           "v4 text," +
+                                           "PRIMARY KEY(k, c1))"));
+
+        applyAndAssertTableMetadata(cql(KS_ONE, "ALTER TABLE %s.modified DROP v4"));
+        applyAndAssertTableMetadata(cql(KS_ONE, "ALTER TABLE %s.modified ADD v5 text"));
+        applyAndAssertTableMetadata(cql(KS_ONE, "ALTER TABLE %s.modified RENAME c1 TO c2"));
+        applyAndAssertTableMetadata(cql(KS_ONE, "ALTER TABLE %s.modified WITH comment = 'altered'"));
+    }
+
+    private void applyAndAssertTableMetadata(SchemaTransformation transformation)
+    {
+        applyAndAssertTableMetadata(transformation, false);
+    }
+
+    private void applyAndAssertTableMetadata(SchemaTransformation transformation, boolean onlyModified)
+    {
+        Epoch before = ClusterMetadata.current().epoch;
+        Schema.instance.submit(transformation);
+        Epoch after = ClusterMetadata.current().epoch;
+        assertTrue(after.isDirectlyAfter(before));
+        DistributedSchema schema = ClusterMetadata.current().schema;
+        Predicate<TableMetadata> modified = (tm) -> tm.name.startsWith("modified") && tm.epoch.is(after);
+        Predicate<TableMetadata> predicate = onlyModified
+                                             ? modified
+                                             : modified.or((tm) -> tm.name.startsWith("unmodified") && tm.epoch.isBefore(after));
+
+        schema.getKeyspaces().forEach(keyspace -> {
+            if (keyspace.name.startsWith(KS_PREFIX))
             {
-                try
-                {
-                    barrier.await();
-                }
-                catch (InterruptedException e)
-                {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException(e);
-                }
-                catch (BrokenBarrierException e)
-                {
-                    throw new RuntimeException(e);
-                }
+                boolean containsUnmodified = keyspace.tables.stream().anyMatch(tm -> tm.name.startsWith("unmodified"));
+                assertEquals("Expected an unmodified table metadata but none found in " + keyspace.name, !onlyModified, containsUnmodified);
+                assertTrue(keyspace.tables.stream().allMatch(predicate));
             }
-        };
-
-        String suffix = String.valueOf(System.currentTimeMillis());
-        try
-        {
-            Schema.instance.registerListener(listener);
-
-            // initial schema version - we will expect it not to change until the entire schema change is processed
-            UUID v0 = Schema.instance.getDistributedSchemaBlocking().getVersion();
-
-            // a multi-step schema transformation
-            SchemaTransformation transformation = schema -> {
-                schema = schema.withAddedOrReplaced(KeyspaceMetadata.create("test1" + suffix, KeyspaceParams.simple(1)));
-                schema = schema.withAddedOrReplaced(KeyspaceMetadata.create("test2" + suffix, KeyspaceParams.simple(1)));
-                schema = schema.withAddedOrReplaced(KeyspaceMetadata.create("test3" + suffix, KeyspaceParams.simple(1)));
-                return schema;
-            };
-
-            // schema change is executed async because it is expected to wait for the barrier
-            ForkJoinTask<SchemaTransformation.SchemaTransformationResult> resultFuture = ForkJoinPool.commonPool().submit(() -> Schema.instance.transform(transformation, true));
-
-            // let the first statement execute
-            barrier.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
-            Awaitility.await().atMost(timeout).until(() -> Schema.instance.distributedKeyspaces().containsKeyspace("test1" + suffix));
-            assertThat(Schema.instance.getVersion()).isEqualTo(v0); // we should be able to get version unsafely, and it should return stale schema version
-            assertThat(resultFuture.isDone()).isFalse(); // the schema change should not be done yet
-
-            // let's query the schema version safely - in particular, this task should not finish until the schema change is done
-            ForkJoinTask<UUID> futureSchemaVersion = ForkJoinPool.commonPool().submit(() -> Schema.instance.getDistributedSchemaBlocking().getVersion());
-
-            // let the second statement execute
-            barrier.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
-            Awaitility.await().atMost(timeout).until(() -> Schema.instance.distributedKeyspaces().containsKeyspace("test2" + suffix));
-            assertThat(Schema.instance.getVersion()).isEqualTo(v0); // we should be able to get version unsafely, and it should return stale schema version
-            assertThat(resultFuture.isDone()).isFalse(); // the schema change should not be done yet
-            assertThat(futureSchemaVersion.isDone()).isFalse(); // the schema version should not be available yet
-
-            // let the third statement execute
-            barrier.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
-            Awaitility.await().atMost(timeout).until(() -> Schema.instance.distributedKeyspaces().containsKeyspace("test3" + suffix));
-
-            SchemaTransformation.SchemaTransformationResult result = resultFuture.get(timeout.toMillis(), TimeUnit.MILLISECONDS); // the schema change should be done shortly
-            assertThat(futureSchemaVersion.isDone()).isTrue(); // the schema version should be available now
-            UUID v1 = futureSchemaVersion.get();
-            assertThat(v1).isNotEqualTo(v0); // the schema version should be updated
-            assertThat(result).isNotNull();
-            assertThat(Schema.instance.getVersion()).isEqualTo(v1);
-            assertThat(result.after.getVersion()).isEqualTo(v1);
-            assertThat(result.before.getVersion()).isEqualTo(v0);
-        }
-        catch (BrokenBarrierException | TimeoutException | ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (InterruptedException e)
-        {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
-        }
-        finally
-        {
-            Schema.instance.unregisterListener(listener);
-            barrier.reset();
-            Schema.instance.transform(schema -> schema.without(Arrays.asList("test1" + suffix, "test2" + suffix, "test3" + suffix)));
-        }
+        });
     }
 
-    private void saveKeyspaces()
+    private static AlterSchemaStatement cql(String keyspace, String cql)
     {
-        Collection<Mutation> mutations = Arrays.asList(SchemaKeyspace.makeCreateKeyspaceMutation(KeyspaceMetadata.create("ks0", KeyspaceParams.simple(3)), FBUtilities.timestampMicros()).build(),
-                                                       SchemaKeyspace.makeCreateKeyspaceMutation(KeyspaceMetadata.create("ks1", KeyspaceParams.simple(3)), FBUtilities.timestampMicros()).build());
-        SchemaKeyspace.applyChanges(mutations);
+        return (AlterSchemaStatement) QueryProcessor.parseStatement(String.format(cql, keyspace))
+                                                    .prepare(ClientState.forInternalCalls());
     }
 }

@@ -17,6 +17,7 @@ pylib/src/
 pylib/cqlshlib/serverversion.py
 !lib/cassandra-driver-internal-only-*.zip
 !lib/puresasl-*.zip
+!lib/harry-0.0.2-internal-20221121.14211-2.jar
 
 # C* debs
 build-stamp

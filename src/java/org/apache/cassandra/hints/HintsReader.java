@@ -27,12 +27,14 @@ import javax.annotation.Nullable;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.RateLimiter;
 
+import org.apache.cassandra.exceptions.CoordinatorBehindException;
 import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.FSReadError;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.AbstractIterator;
 
@@ -239,12 +241,13 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
                 hint = Hint.serializer.deserializeIfLive(input, now, size, descriptor.messagingVersion());
                 input.checkLimit(0);
             }
-            catch (UnknownTableException e)
+            catch (UnknownTableException | CoordinatorBehindException e)
             {
+                TableId id = ((UnknownTableException) (e instanceof CoordinatorBehindException ? e.getCause() : e)).id;
                 logger.warn("Failed to read a hint for {}: {} - table with id {} is unknown in file {}",
                             StorageService.instance.getEndpointForHostId(descriptor.hostId),
                             descriptor.hostId,
-                            e.id,
+                            id,
                             descriptor.fileName());
                 input.skipBytes(Ints.checkedCast(size - input.bytesPastLimit()));
 

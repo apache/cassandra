@@ -59,8 +59,6 @@ public class CassandraCIDRAuthorizerMonitorModeTest extends CQLTester
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
-        SchemaLoader.prepareServer();
-
         SchemaLoader.setupAuth(new AuthTestUtils.LocalCassandraRoleManager(),
                                new AuthTestUtils.LocalPasswordAuthenticator(),
                                new AuthTestUtils.LocalCassandraAuthorizer(),

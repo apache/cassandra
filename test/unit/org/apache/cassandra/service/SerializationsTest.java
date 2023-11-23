@@ -26,6 +26,8 @@ import java.util.List;
 import java.util.UUID;
 
 import com.google.common.collect.Lists;
+
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -70,6 +72,7 @@ public class SerializationsTest extends AbstractSerializationsTester
     {
         DatabaseDescriptor.daemonInitialization();
         partitionerSwitcher = Util.switchPartitioner(RandomPartitioner.instance);
+        ClusterMetadataTestHelper.setInstanceForTest();
         RANDOM_UUID = TimeUUID.fromString("743325d0-4c4b-11ec-8a88-2d67081686db");
         FULL_RANGE = new Range<>(Util.testPartitioner().getMinimumToken(), Util.testPartitioner().getMinimumToken());
         DESC = new RepairJobDesc(RANDOM_UUID, RANDOM_UUID, "Keyspace1", "Standard1", Arrays.asList(FULL_RANGE));

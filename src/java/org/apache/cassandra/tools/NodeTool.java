@@ -94,6 +94,7 @@ public class NodeTool
     public int execute(String... args)
     {
         List<Class<? extends NodeToolCmdRunnable>> commands = newArrayList(
+                AbortBootstrap.class,
                 Assassinate.class,
                 CassHelp.class,
                 CIDRFilteringStats.class,
@@ -106,6 +107,7 @@ public class NodeTool
                 DataPaths.class,
                 Decommission.class,
                 DescribeCluster.class,
+                DescribeCMS.class,
                 DescribeRing.class,
                 DisableAuditLog.class,
                 DisableAutoCompaction.class,
@@ -156,6 +158,7 @@ public class NodeTool
                 GossipInfo.class,
                 Import.class,
                 Info.class,
+                InitializeCMS.class,
                 InvalidateCIDRPermissionsCache.class,
                 InvalidateCounterCache.class,
                 InvalidateCredentialsCache.class,
@@ -179,6 +182,7 @@ public class NodeTool
                 Rebuild.class,
                 RebuildIndex.class,
                 RecompressSSTables.class,
+                ReconfigureCMS.class,
                 Refresh.class,
                 RefreshSizeEstimates.class,
                 ReloadLocalSchema.class,
@@ -194,6 +198,7 @@ public class NodeTool
                 ResumeHandoff.class,
                 Ring.class,
                 Scrub.class,
+                SealPeriod.class,
                 SetAuthCacheConfig.class,
                 SetBatchlogReplayThrottle.class,
                 SetCacheCapacity.class,

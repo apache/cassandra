@@ -38,7 +38,10 @@ import org.slf4j.LoggerFactory;
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.exceptions.CoordinatorBehindException;
 import org.apache.cassandra.exceptions.QueryCancelledException;
+import org.apache.cassandra.exceptions.UnknownTableException;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ParamType;
@@ -67,9 +70,12 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.CassandraUInt;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -100,6 +106,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     private final boolean isDigestQuery;
     private final boolean acceptsTransient;
+    private final Epoch serializedAtEpoch;
     // if a digest query, the version for which the digest is expected. Ignored if not a digest.
     private int digestVersion;
 
@@ -112,6 +119,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     {
         public abstract ReadCommand deserialize(DataInputPlus in,
                                                 int version,
+                                                Epoch serializedAtEpoch,
                                                 boolean isDigest,
                                                 int digestVersion,
                                                 boolean acceptsTransient,
@@ -136,7 +144,8 @@ public abstract class ReadCommand extends AbstractReadQuery
         }
     }
 
-    protected ReadCommand(Kind kind,
+    protected ReadCommand(Epoch serializedAtEpoch,
+                          Kind kind,
                           boolean isDigestQuery,
                           int digestVersion,
                           boolean acceptsTransient,
@@ -158,6 +167,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         this.acceptsTransient = acceptsTransient;
         this.indexQueryPlan = indexQueryPlan;
         this.trackWarnings = trackWarnings;
+        this.serializedAtEpoch = serializedAtEpoch;
     }
 
     public static ReadCommand getCommand()
@@ -195,6 +205,15 @@ public abstract class ReadCommand extends AbstractReadQuery
     public boolean isDigestQuery()
     {
         return isDigestQuery;
+    }
+
+    /**
+     * the schema version on the table when serializing this read command
+     * @return
+     */
+    public Epoch serializedAtEpoch()
+    {
+        return serializedAtEpoch;
     }
 
     /**
@@ -1011,6 +1030,11 @@ public abstract class ReadCommand extends AbstractReadQuery
     @VisibleForTesting
     public static class Serializer implements IVersionedSerializer<ReadCommand>
     {
+        private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 10L, TimeUnit.SECONDS);
+        private static final NoSpamLogger.NoSpamLogStatement schemaMismatchStmt =
+            noSpamLogger.getStatement("Schema epoch mismatch during read command deserialization. " +
+                                      "TableId: {}, remote epoch: {}, local epoch: {}", 10L, TimeUnit.SECONDS);
+
         private final SchemaProvider schema;
 
         public Serializer()
@@ -1075,6 +1099,8 @@ public abstract class ReadCommand extends AbstractReadQuery
             if (command.isDigestQuery())
                 out.writeUnsignedVInt32(command.digestVersion());
             command.metadata().id.serialize(out);
+            if (version >= MessagingService.VERSION_50)
+                Epoch.serializer.serialize(command.serializedAtEpoch, out);
             out.writeInt(version >= MessagingService.VERSION_50 ? CassandraUInt.fromLong(command.nowInSec()) : (int) command.nowInSec());
             ColumnFilter.serializer.serialize(command.columnFilter(), out, version);
             RowFilter.serializer.serialize(command.rowFilter(), out, version);
@@ -1098,28 +1124,47 @@ public abstract class ReadCommand extends AbstractReadQuery
             // better complain loudly than doing the wrong thing.
             if (isForThrift(flags))
                 throw new IllegalStateException("Received a command with the thrift flag set. "
-                                              + "This means thrift is in use in a mixed 3.0/3.X and 4.0+ cluster, "
-                                              + "which is unsupported. Make sure to stop using thrift before "
-                                              + "upgrading to 4.0");
+                                                + "This means thrift is in use in a mixed 3.0/3.X and 4.0+ cluster, "
+                                                + "which is unsupported. Make sure to stop using thrift before "
+                                                + "upgrading to 4.0");
 
             boolean hasIndex = hasIndex(flags);
-            int digestVersion = isDigest ? in.readUnsignedVInt32() : 0;
-            TableMetadata metadata = schema.getExistingTableMetadata(TableId.deserialize(in));
-            long nowInSec = version >= MessagingService.VERSION_50 ? CassandraUInt.toLong(in.readInt()) : in.readInt();
-            ColumnFilter columnFilter = ColumnFilter.serializer.deserialize(in, version, metadata);
-            RowFilter rowFilter = RowFilter.serializer.deserialize(in, version, metadata);
-            DataLimits limits = DataLimits.serializer.deserialize(in, version,  metadata);
+            int digestVersion = isDigest ? (int)in.readUnsignedVInt() : 0;
+            TableId tableId = TableId.deserialize(in);
 
+            Epoch schemaVersion = null;
+            if (version >= MessagingService.VERSION_50)
+                schemaVersion = Epoch.serializer.deserialize(in);
+            TableMetadata tableMetadata;
+            try
+            {
+                tableMetadata = schema.getExistingTableMetadata(tableId);
+            }
+            catch (UnknownTableException e)
+            {
+                ClusterMetadata metadata = ClusterMetadata.current();
+                Epoch localCurrentEpoch = metadata.epoch;
+                if (schemaVersion != null && localCurrentEpoch.isAfter(schemaVersion))
+                {
+                    TCMMetrics.instance.coordinatorBehindSchema.mark();
+                    throw new CoordinatorBehindException(e.getMessage());
+                }
+                throw e;
+            }
+            long nowInSec = version >= MessagingService.VERSION_50 ? CassandraUInt.toLong(in.readInt()) : in.readInt();
+            ColumnFilter columnFilter = ColumnFilter.serializer.deserialize(in, version, tableMetadata);
+            RowFilter rowFilter = RowFilter.serializer.deserialize(in, version, tableMetadata);
+            DataLimits limits = DataLimits.serializer.deserialize(in, version,  tableMetadata);
             Index.QueryPlan indexQueryPlan = null;
             if (hasIndex)
             {
-                IndexMetadata index = deserializeIndexMetadata(in, version, metadata);
-                Index.Group indexGroup =  Keyspace.openAndGetStore(metadata).indexManager.getIndexGroup(index);
+                IndexMetadata index = deserializeIndexMetadata(in, version, tableMetadata);
+                Index.Group indexGroup =  Keyspace.openAndGetStore(tableMetadata).indexManager.getIndexGroup(index);
                 if (indexGroup != null)
                     indexQueryPlan = indexGroup.queryPlanFor(rowFilter);
             }
 
-            return kind.selectionDeserializer.deserialize(in, version, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan);
+            return kind.selectionDeserializer.deserialize(in, version, schemaVersion, isDigest, digestVersion, acceptsTransient, tableMetadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan);
         }
 
         private IndexMetadata deserializeIndexMetadata(DataInputPlus in, int version, TableMetadata metadata) throws IOException
@@ -1144,6 +1189,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             return 2 // kind + flags
                    + (command.isDigestQuery() ? TypeSizes.sizeofUnsignedVInt(command.digestVersion()) : 0)
                    + command.metadata().id.serializedSize()
+                   + (version >= MessagingService.VERSION_50 ? Epoch.serializer.serializedSize(command.metadata().epoch) : 0)
                    + TypeSizes.INT_SIZE // command.nowInSec() is serialized as uint
                    + ColumnFilter.serializer.serializedSize(command.columnFilter(), version)
                    + RowFilter.serializer.serializedSize(command.rowFilter(), version)

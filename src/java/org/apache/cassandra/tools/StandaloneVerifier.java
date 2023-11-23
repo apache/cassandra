@@ -47,6 +47,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IVerifier;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Throwables;
@@ -77,19 +78,16 @@ public class StandaloneVerifier
             System.exit(1);
         }
         initDatabaseDescriptorForTool();
-
+        ClusterMetadataService.initializeForTools(false);
         System.out.println("sstableverify using the following options: " + options);
 
         List<SSTableReader> sstables = new ArrayList<>();
         int exitCode = 0;
         try
         {
-            // load keyspace descriptions.
-            Schema.instance.loadFromDisk();
-
             boolean hasFailed = false;
 
-            if (Schema.instance.getTableMetadataRef(options.keyspaceName, options.cfName) == null)
+            if (Schema.instance.getTableMetadata(options.keyspaceName, options.cfName) == null)
                 throw new IllegalArgumentException(String.format("Unknown keyspace/table %s.%s",
                                                                  options.keyspaceName,
                                                                  options.cfName));

@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Files;
 
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -31,7 +30,6 @@ import org.apache.cassandra.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.sasi.SASIIndex;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
@@ -53,12 +51,6 @@ import static org.junit.Assert.assertThat;
 
 public class SchemaCQLHelperTest extends CQLTester
 {
-    @Before
-    public void defineSchema() throws ConfigurationException
-    {
-        SchemaLoader.prepareServer();
-    }
-
     @Test
     public void testUserTypesCQL()
     {

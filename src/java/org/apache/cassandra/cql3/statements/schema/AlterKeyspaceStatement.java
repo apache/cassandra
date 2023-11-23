@@ -18,21 +18,19 @@
 package org.apache.cassandra.cql3.statements.schema;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
@@ -42,7 +40,11 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata.KeyspaceDiff;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.utils.FBUtilities;
@@ -52,9 +54,10 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNSA
 
 public final class AlterKeyspaceStatement extends AlterSchemaStatement
 {
+    private static final Logger logger = LoggerFactory.getLogger(AlterKeyspaceStatement.class);
+
     private static final boolean allow_alter_rf_during_range_movement = ALLOW_ALTER_RF_DURING_RANGE_MOVEMENT.getBoolean();
     private static final boolean allow_unsafe_transient_changes = ALLOW_UNSAFE_TRANSIENT_CHANGES.getBoolean();
-    private final HashSet<String> clientWarnings = new HashSet<>();
 
     private final KeyspaceAttributes attrs;
     private final boolean ifExists;
@@ -66,10 +69,11 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         this.ifExists = ifExists;
     }
 
-    public Keyspaces apply(Keyspaces schema)
+    public Keyspaces apply(ClusterMetadata metadata)
     {
         attrs.validate();
 
+        Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
         if (null == keyspace)
         {
@@ -83,17 +87,29 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         if (attrs.getReplicationStrategyClass() != null && attrs.getReplicationStrategyClass().equals(SimpleStrategy.class.getSimpleName()))
             Guardrails.simpleStrategyEnabled.ensureEnabled(state);
 
+        if (keyspace.params.replication.isMeta() && !keyspace.name.equals(SchemaConstants.METADATA_KEYSPACE_NAME))
+            throw ire("Can not alter a keyspace to use MetaReplicationStrategy");
+
         if (newKeyspace.params.replication.klass.equals(LocalStrategy.class))
             throw ire("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
 
-        newKeyspace.params.validate(keyspaceName, state);
+        newKeyspace.params.validate(keyspaceName, state, metadata);
+        newKeyspace.replicationStrategy.validate(metadata);
 
         validateNoRangeMovements();
-        validateTransientReplication(keyspace.createReplicationStrategy(), newKeyspace.createReplicationStrategy());
+        validateTransientReplication(keyspace, newKeyspace);
 
-        Keyspaces res = schema.withAddedOrUpdated(newKeyspace);
+        // Because we used to not properly validate unrecognized options, we only log a warning if we find one.
+        try
+        {
+            newKeyspace.replicationStrategy.validateExpectedOptions(metadata);
+        }
+        catch (ConfigurationException e)
+        {
+            logger.warn("Ignoring {}", e.getMessage());
+        }
 
-        return res;
+        return schema.withAddedOrUpdated(newKeyspace);
     }
 
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)
@@ -109,13 +125,14 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
     @Override
     Set<String> clientWarnings(KeyspacesDiff diff)
     {
+        HashSet<String> clientWarnings = new HashSet<>();
         if (diff.isEmpty())
             return clientWarnings;
 
         KeyspaceDiff keyspaceDiff = diff.altered.get(0);
 
-        AbstractReplicationStrategy before = keyspaceDiff.before.createReplicationStrategy();
-        AbstractReplicationStrategy after = keyspaceDiff.after.createReplicationStrategy();
+        AbstractReplicationStrategy before = keyspaceDiff.before.replicationStrategy;
+        AbstractReplicationStrategy after = keyspaceDiff.after.replicationStrategy;
 
         if (before.getReplicationFactor().fullReplicas < after.getReplicationFactor().fullReplicas)
             clientWarnings.add("When increasing replication factor you need to run a full (-full) repair to distribute the data.");
@@ -128,29 +145,36 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         if (allow_alter_rf_during_range_movement)
             return;
 
-        Stream<InetAddressAndPort> unreachableNotAdministrativelyInactive =
-            Gossiper.instance.getUnreachableMembers().stream().filter(endpoint -> !FBUtilities.getBroadcastAddressAndPort().equals(endpoint) &&
-                                                                      !Gossiper.instance.isAdministrativelyInactiveState(endpoint));
-        Stream<InetAddressAndPort> endpoints = Stream.concat(Gossiper.instance.getLiveMembers().stream(),
-                                                             unreachableNotAdministrativelyInactive);
-        List<InetAddressAndPort> notNormalEndpoints = endpoints.filter(endpoint -> !FBUtilities.getBroadcastAddressAndPort().equals(endpoint) &&
-                                                                                   !Gossiper.instance.getEndpointStateForEndpoint(endpoint).isNormalState())
-                                                               .collect(Collectors.toList());
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId nodeId = metadata.directory.peerId(FBUtilities.getBroadcastAddressAndPort());
+        Set<InetAddressAndPort> notNormalEndpoints = metadata.directory.states.entrySet().stream().filter(e -> !e.getKey().equals(nodeId)).filter(e -> {
+            switch (e.getValue())
+            {
+                case BOOTSTRAPPING:
+                case LEAVING:
+                case MOVING:
+                    return true;
+                default:
+                    return false;
+            }
+
+        }).map(e -> metadata.directory.endpoint(e.getKey())).collect(Collectors.toSet());
+
         if (!notNormalEndpoints.isEmpty())
         {
             throw new ConfigurationException("Cannot alter RF while some endpoints are not in normal state (no range movements): " + notNormalEndpoints);
         }
     }
 
-    private void validateTransientReplication(AbstractReplicationStrategy oldStrategy, AbstractReplicationStrategy newStrategy)
+    private void validateTransientReplication(KeyspaceMetadata current, KeyspaceMetadata proposed)
     {
         //If there is no read traffic there are some extra alterations you can safely make, but this is so atypical
         //that a good default is to not allow unsafe changes
         if (allow_unsafe_transient_changes)
             return;
 
-        ReplicationFactor oldRF = oldStrategy.getReplicationFactor();
-        ReplicationFactor newRF = newStrategy.getReplicationFactor();
+        ReplicationFactor oldRF = current.replicationStrategy.getReplicationFactor();
+        ReplicationFactor newRF = proposed.replicationStrategy.getReplicationFactor();
 
         int oldTrans = oldRF.transientReplicas();
         int oldFull = oldRF.fullReplicas;
@@ -162,19 +186,13 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
             if (DatabaseDescriptor.getNumTokens() > 1)
                 throw new ConfigurationException(String.format("Transient replication is not supported with vnodes yet"));
 
-            Keyspace ks = Keyspace.open(keyspaceName);
-            for (ColumnFamilyStore cfs : ks.getColumnFamilyStores())
-            {
-                if (cfs.viewManager.hasViews())
-                {
-                    throw new ConfigurationException("Cannot use transient replication on keyspaces using materialized views");
-                }
 
-                if (cfs.indexManager.hasIndexes())
-                {
+            if (!current.views.isEmpty())
+                throw new ConfigurationException("Cannot use transient replication on keyspaces using materialized views");
+
+            for (TableMetadata table : current.tables)
+                if (!table.indexes.isEmpty())
                     throw new ConfigurationException("Cannot use transient replication on keyspaces using secondary indexes");
-                }
-            }
         }
 
         //This is true right now because the transition from transient -> full lacks the pending state

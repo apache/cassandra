@@ -1201,16 +1201,16 @@ range_request_timeout: 10000ms
 # How long the coordinator should wait for writes to complete.
 # Lowest acceptable value is 10 ms.
 # Min unit: ms
-write_request_timeout: 2000ms
+write_request_timeout: 10000ms
 # How long the coordinator should wait for counter writes to complete.
 # Lowest acceptable value is 10 ms.
 # Min unit: ms
-counter_write_request_timeout: 5000ms
+counter_write_request_timeout: 1000ms
 # How long a coordinator should continue to retry a CAS operation
 # that contends with other proposals for the same row.
 # Lowest acceptable value is 10 ms.
 # Min unit: ms
-cas_contention_timeout: 1000ms
+cas_contention_timeout: 5000ms
 # How long the coordinator should wait for truncates to complete
 # (This can be much longer, because unless auto_snapshot is disabled
 # we need to flush first so we can snapshot before removing the data.)
@@ -2088,12 +2088,6 @@ drop_compact_storage_enabled: false
 #    enabled: false
 #    ownership_token: "sometoken" # (overriden by "CassandraOwnershipToken" system property)
 #    ownership_filename: ".cassandra_fs_ownership" # (overriden by "cassandra.fs_ownership_filename")
-# Prevents a node from starting if snitch's data center differs from previous data center.
-#  check_dc:
-#    enabled: true # (overriden by cassandra.ignore_dc system property)
-# Prevents a node from starting if snitch's rack differs from previous rack.
-#  check_rack:
-#    enabled: true # (overriden by cassandra.ignore_rack system property)
 # Enable this property to fail startup if the node is down for longer than gc_grace_seconds, to potentially
 # prevent data resurrection on tables with deletes. By default, this will run against all keyspaces and tables
 # except the ones specified on excluded_keyspaces and excluded_tables.
@@ -2129,4 +2123,4 @@ drop_compact_storage_enabled: false
 # - Do a rolling restart with all nodes starting with NONE. This sheds the extra cost of checking nodes versions and ensures 
 #   a stable cluster. If a node from a previous version was started by accident we won't any longer toggle behaviors as when UPGRADING.
 #
-storage_compatibility_mode: CASSANDRA_4
+storage_compatibility_mode: NONE

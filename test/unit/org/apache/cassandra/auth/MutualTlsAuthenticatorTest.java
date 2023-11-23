@@ -71,9 +71,8 @@ public class MutualTlsAuthenticatorTest
     @BeforeClass
     public static void setup()
     {
-        SchemaLoader.loadSchema();
-        DatabaseDescriptor.daemonInitialization();
-        StorageService.instance.initServer(0);
+        SchemaLoader.prepareServer();
+        StorageService.instance.initServer();
         ((CassandraRoleManager)DatabaseDescriptor.getRoleManager()).loadIdentityStatement();
         final Config config = DatabaseDescriptor.getRawConfig();
         config.client_encryption_options = config.client_encryption_options.withEnabled(true)

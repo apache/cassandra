@@ -131,6 +131,7 @@ public class CellSpecTest
     public static Collection<Object[]> data() {
         TableMetadata table = TableMetadata.builder("testing", "testing")
                                            .addPartitionKeyColumn("pk", BytesType.instance)
+                                           .offline()
                                            .build();
 
         byte[] rawBytes = { 0, 1, 2, 3, 4, 5, 6 };

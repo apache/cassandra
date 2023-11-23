@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.apache.commons.lang3.StringUtils;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -54,28 +55,35 @@ public class InvalidatePermissionsCacheTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
-        CQLTester.setUpClass();
         CQLTester.requireAuthentication();
-
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOptions());
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOptions());
         AuthCacheService.initializeAndRegisterCaches();
+        requireNetwork();
+        startJMXServer();
+    }
 
+    @Before
+    public void grantInitialPermissions()
+    {
+        // Because we reset the CMS in CQLTester::afterTest, the per-test keyspaces created in CQLTester::beforeTest
+        // get dropped and re-created for every individual test. This means we need to recreate the perms here (we
+        // could markCMS() after granting the first time and add a flag to avoid re-granting but this is simpler).
         List<IResource> resources = Arrays.asList(
-                DataResource.root(),
-                DataResource.keyspace(KEYSPACE),
-                DataResource.allTables(KEYSPACE),
-                DataResource.table(KEYSPACE, "t1"),
-                RoleResource.root(),
-                RoleResource.role("role_x"),
-                FunctionResource.root(),
-                FunctionResource.keyspace(KEYSPACE),
-                // Particular function is excluded from here and covered by a separate test because in order to grant
-                // permissions we need to have a function registered. However, the function cannot be registered via
-                // CQLTester.createFunction from static contex. That's why we initialize it in a separate test case.
-                JMXResource.root(),
-                JMXResource.mbean("org.apache.cassandra.auth:type=*"));
+            DataResource.root(),
+            DataResource.keyspace(KEYSPACE),
+            DataResource.allTables(KEYSPACE),
+            DataResource.table(KEYSPACE, "t1"),
+            RoleResource.root(),
+            RoleResource.role("role_x"),
+            FunctionResource.root(),
+            FunctionResource.keyspace(KEYSPACE),
+            // Particular function is excluded from here and covered by a separate test because in order to grant
+            // permissions we need to have a function registered. However, the function cannot be registered via
+            // CQLTester.createFunction from static contex. That's why we initialize it in a separate test case.
+            JMXResource.root(),
+            JMXResource.mbean("org.apache.cassandra.auth:type=*"));
 
         IAuthorizer authorizer = DatabaseDescriptor.getAuthorizer();
         for (IResource resource : resources)
@@ -84,9 +92,6 @@ public class InvalidatePermissionsCacheTest extends CQLTester
             authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_A);
             authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_B);
         }
-
-        requireNetwork();
-        startJMXServer();
     }
 
     @Test

@@ -70,6 +70,7 @@ import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
+import org.apache.cassandra.notifications.InitialSSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableDeletingNotification;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
@@ -888,6 +889,11 @@ public class CompactionStrategyManager implements INotificationConsumer
             if (notification instanceof SSTableAddedNotification)
             {
                 SSTableAddedNotification flushedNotification = (SSTableAddedNotification) notification;
+                handleFlushNotification(flushedNotification.added);
+            }
+            else if (notification instanceof InitialSSTableAddedNotification)
+            {
+                InitialSSTableAddedNotification flushedNotification = (InitialSSTableAddedNotification) notification;
                 handleFlushNotification(flushedNotification.added);
             }
             else if (notification instanceof SSTableListChangedNotification)

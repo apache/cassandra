@@ -34,6 +34,7 @@ import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
@@ -41,12 +42,46 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
 {
     protected final String keyspaceName; // name of the keyspace affected by the statement
     protected ClientState state;
+    // TODO: not sure if this is going to stay the same, or will be replaced by more efficient serialization/sanitation means
+    // or just `toString` for every statement
+    private String cql;
 
     protected AlterSchemaStatement(String keyspaceName)
     {
         this.keyspaceName = keyspaceName;
     }
 
+    public void setCql(String cql)
+    {
+        this.cql = cql;
+    }
+
+    @Override
+    public String cql()
+    {
+        assert cql != null;
+        return cql;
+    }
+
+    @Override
+    public void enterExecution()
+    {
+        ClientWarn.instance.pauseCapture();
+        ClientState localState = state;
+        if (localState != null)
+            localState.pauseGuardrails();
+    }
+
+    @Override
+    public void exitExecution()
+    {
+        ClientWarn.instance.resumeCapture();
+        ClientState localState = state;
+        if (localState != null)
+            localState.resumeGuardrails();
+    }
+
+    // TODO: validation should be performed during application
     public void validate(ClientState state)
     {
         // validation is performed while executing the statement, in apply()
@@ -57,7 +92,7 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
 
     public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime)
     {
-        return execute(state, false);
+        return execute(state);
     }
 
     @Override
@@ -68,7 +103,7 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
 
     public ResultMessage executeLocally(QueryState state, QueryOptions options)
     {
-        return execute(state, true);
+        return execute(state);
     }
 
     /**
@@ -100,7 +135,7 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
         return ImmutableSet.of();
     }
 
-    public ResultMessage execute(QueryState state, boolean locally)
+    public ResultMessage execute(QueryState state)
     {
         if (SchemaConstants.isLocalSystemKeyspace(keyspaceName))
             throw ire("System keyspace '%s' is not user-modifiable", keyspaceName);
@@ -110,12 +145,24 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
             throw ire("Virtual keyspace '%s' is not user-modifiable", keyspaceName);
 
         validateKeyspaceName();
+        // Perform a 'dry-run' attempt to apply the transformation locally before submitting to the CMS. This can save a
+        // round trip to the CMS for things syntax errors, but also fail fast for things like configuration errors.
+        // Such failures may be dependent on the specific node's config (for things like guardrails/memtable
+        // config/etc), but executing a schema change which has already been committed by the CMS should always succeed
+        // or else the node cannot make progress on any subsequent metadata changes. For this reason, validation errors
+        // during execution are trapped and the node will fall back to safe default config wherever possible. Attempting
+        // to apply the SchemaTransformation at this point will catch any such error which occurs locally before
+        // submission to the CMS, but it can't guarantee that the statement can be applied as-is on every node in the
+        // cluster, as config can be heterogenous falling back to safe defaults may occur on some nodes.
+        ClusterMetadata metadata = ClusterMetadata.current();
+        apply(metadata);
 
-        SchemaTransformationResult result = Schema.instance.transform(this, locally);
+        ClusterMetadata result = Schema.instance.submit(this);
 
-        clientWarnings(result.diff).forEach(ClientWarn.instance::warn);
+        KeyspacesDiff diff = Keyspaces.diff(metadata.schema.getKeyspaces(), result.schema.getKeyspaces());
+        clientWarnings(diff).forEach(ClientWarn.instance::warn);
 
-        if (result.diff.isEmpty())
+        if (diff.isEmpty())
             return new ResultMessage.Void();
 
         /*
@@ -127,9 +174,9 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
          */
         AuthenticatedUser user = state.getClientState().getUser();
         if (null != user && !user.isAnonymous())
-            createdResources(result.diff).forEach(r -> grantPermissionsOnResource(r, user));
+            createdResources(diff).forEach(r -> grantPermissionsOnResource(r, user));
 
-        return new ResultMessage.SchemaChange(schemaChangeEvent(result.diff));
+        return new ResultMessage.SchemaChange(schemaChangeEvent(diff));
     }
 
     private void validateKeyspaceName()
@@ -169,5 +216,13 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
     static InvalidRequestException ire(String format, Object... args)
     {
         return new InvalidRequestException(String.format(format, args));
+    }
+
+    public String toString()
+    {
+        return "AlterSchemaStatement{" +
+               "keyspaceName='" + keyspaceName + '\'' +
+               ", cql='" + cql() + '\'' +
+               '}';
     }
 }

@@ -59,7 +59,7 @@
             <remoterepo id="resolver-central" url="${artifact.remoteRepository.central}"/>
             <remoterepo id="resolver-apache" url="${artifact.remoteRepository.apache}"/>
             <!-- Snapshots are not allowed, but for feature branches they may be needed, so uncomment the below to allow snapshots to work -->
-            <!-- <remoterepo id="resolver-apache-snapshot" url="https://repository.apache.org/content/repositories/snapshots" releases="false" snapshots="true" updates="always" checksums="fail" /> -->
+            <remoterepo id="resolver-apache-snapshot" url="https://repository.apache.org/content/repositories/snapshots" releases="false" snapshots="true" updates="always" checksums="fail" />
         </resolver:remoterepos>
 
         <macrodef name="resolve">
@@ -267,6 +267,10 @@
 
         <delete file="${build.lib}/netty-tcnative-boringssl-static-2.0.61.Final-windows-x86_64.jar" failonerror="false"/>
         <delete file="${build.dir.lib}/jars/netty-tcnative-boringssl-static-2.0.61.Final-windows-x86_64.jar" failonerror="false"/>
+
+        <copy todir="${test.lib}/jars" quiet="false">
+            <file file="${build.lib}/harry-core-0.0.2-CASSANDRA-18768.jar"/>
+       </copy>
     </target>
 
     <target name="_resolver-dist-lib_get_files">

@@ -21,10 +21,13 @@ package org.apache.cassandra.distributed;
 import java.io.IOException;
 import java.util.function.Consumer;
 
-import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.distributed.api.*;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
-import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.distributed.shared.Versions;
+import org.apache.cassandra.net.Message;
 
 /**
  * A simple cluster supporting only the 'current' Cassandra version, offering easy access to the convenience methods
@@ -68,6 +71,40 @@ public class Cluster extends AbstractCluster<IInvokableInstance>
         {
             super(Cluster::new);
             withVersion(CURRENT_VERSION);
+        }
+    }
+
+    public void enableMessageLogging()
+    {
+        filters().allVerbs().inbound().messagesMatching((from, to, msg) -> {
+            if (!get(1).isShutdown())
+            {
+                get(1).acceptsOnInstance((IIsolatedExecutor.SerializableConsumer<IMessage>) (msgPassed) -> {
+                    Message decoded = Instance.deserializeMessage(msgPassed);
+                    if (!decoded.verb().toString().toLowerCase().contains("gossip"))
+                        System.out.println(String.format("MSG %d -> %d: %s | %s", from, to, decoded, decoded.payload));
+                }).accept(msg);
+            }
+            return false;
+        }).drop().on();
+    }
+
+    @Override
+    public void disableAutoCompaction(String keyspace)
+    {
+        stream().forEach(i -> {
+            i.acceptsOnInstance(new DisableAutoCompaction()).accept(keyspace);
+        });
+    }
+
+    // Without this class, lambda is trying to capture too much of the Cluster object, which leads to
+    // an attempt to capture unshareable class instances.
+    private static class DisableAutoCompaction implements IIsolatedExecutor.SerializableConsumer<String>
+    {
+        public void accept(String ks)
+        {
+            for (ColumnFamilyStore cs : Keyspace.open(ks).getColumnFamilyStores())
+                cs.disableAutoCompaction();
         }
     }
 }

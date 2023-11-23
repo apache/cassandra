@@ -39,6 +39,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 import static org.apache.cassandra.net.MessagingService.instance;
@@ -73,6 +75,9 @@ public class PaxosCleanupRequest
 
         if (!PaxosCleanup.isInRangeAndShouldProcess(request.ranges, request.tableId))
         {
+            // Try catching up, in case it's us
+            ClusterMetadataService.instance().fetchLogFromPeerOrCMSAsync(ClusterMetadata.current(), in.from(),in.epoch());
+
             String msg = String.format("Rejecting cleanup request %s from %s. Some ranges are not replicated (%s)",
                                        request.session, in.from(), request.ranges);
             Message<PaxosCleanupResponse> response = Message.out(PAXOS2_CLEANUP_RSP2, PaxosCleanupResponse.failed(request.session, msg));

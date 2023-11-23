@@ -20,18 +20,10 @@ package org.apache.cassandra.schema;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
-
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.BeforeClass;
@@ -49,21 +41,15 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.NoPayload;
-import org.apache.cassandra.net.RequestCallback;
-import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
-import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(BMUnitRunner.class)
 public class SchemaKeyspaceTest
@@ -80,62 +66,6 @@ public class SchemaKeyspaceTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
 
         MessagingService.instance().listen();
-    }
-
-    /** See CASSANDRA-16856/16996. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes */
-    @Test
-    @BMRule(name = "delay partition updates to schema tables",
-            targetClass = "CassandraTableWriteHandler",
-            targetMethod = "write",
-            action = "Thread.sleep(1000);",
-            targetLocation = "AT EXIT")
-    public void testNoVisiblePartialSchemaUpdates() throws Exception
-    {
-        String keyspace = "sandbox";
-        ExecutorService pool = Executors.newFixedThreadPool(2);
-
-        SchemaKeyspace.truncate(); // Make sure there's nothing but the create we're about to do
-        CyclicBarrier barrier = new CyclicBarrier(2);
-
-        Future<Void> creation = pool.submit(() -> {
-            barrier.await();
-            createTable(keyspace, "CREATE TABLE test (a text primary key, b int, c int)");
-            return null;
-        });
-
-        Future<Collection<Mutation>> mutationsFromThread = pool.submit(() -> {
-            barrier.await();
-            return Stream.generate(this::getSchemaMutations).filter(m -> !m.isEmpty()).findFirst().get();
-        });
-
-        creation.get(); // make sure the creation is finished
-
-        Collection<Mutation> mutationsFromConcurrentAccess = mutationsFromThread.get();
-        Collection<Mutation> settledMutations = getSchemaMutations();
-
-        // If the worker thread picked up the creation at all, it should have the same modifications.
-        // In other words, we should see all modifications or none.
-        if (mutationsFromConcurrentAccess.size() == settledMutations.size())
-        {
-            assertEquals(1, settledMutations.size());
-            Mutation mutationFromConcurrentAccess = mutationsFromConcurrentAccess.iterator().next();
-            Mutation settledMutation = settledMutations.iterator().next();
-
-            assertEquals("Read partial schema change!",
-                         settledMutation.getTableIds(), mutationFromConcurrentAccess.getTableIds());
-        }
-
-        pool.shutdownNow();
-    }
-
-    private Collection<Mutation> getSchemaMutations()
-    {
-        AsyncPromise<Collection<Mutation>> p = new AsyncPromise<>();
-        MessagingService.instance().sendWithCallback(Message.out(Verb.SCHEMA_PULL_REQ, NoPayload.noPayload),
-                                                     FBUtilities.getBroadcastAddressAndPort(),
-                                                     (RequestCallback<Collection<Mutation>>) msg -> p.setSuccess(msg.payload));
-        p.syncUninterruptibly();
-        return p.getNow();
     }
 
     @Test
@@ -223,17 +153,15 @@ public class SchemaKeyspaceTest
     private static void updateTable(String keyspace, TableMetadata oldTable, TableMetadata newTable)
     {
         KeyspaceMetadata ksm = Schema.instance.getKeyspaceInstance(keyspace).getMetadata();
-        Mutation mutation = SchemaKeyspace.makeUpdateTableMutation(ksm, oldTable, newTable, FBUtilities.timestampMicros()).build();
-        SchemaTestUtil.mergeAndAnnounceLocally(Collections.singleton(mutation));
+        ksm = ksm.withSwapped(ksm.tables.without(oldTable).with(newTable));
+        SchemaTestUtil.addOrUpdateKeyspace(ksm);
     }
 
     private static void createTable(String keyspace, String cql)
     {
         TableMetadata table = CreateTableStatement.parse(cql, keyspace).build();
-
         KeyspaceMetadata ksm = KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1), Tables.of(table));
-        Mutation mutation = SchemaKeyspace.makeCreateTableMutation(ksm, table, FBUtilities.timestampMicros()).build();
-        SchemaTestUtil.mergeAndAnnounceLocally(Collections.singleton(mutation));
+        SchemaTestUtil.addOrUpdateKeyspace(ksm);
     }
 
     private static void checkInverses(TableMetadata metadata) throws Exception

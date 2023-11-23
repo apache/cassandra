@@ -18,19 +18,6 @@
  */
 package org.apache.cassandra.gms;
 
-import org.apache.cassandra.AbstractSerializationsTester;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.util.DataOutputStreamPlus;
-import org.apache.cassandra.io.util.FileInputStreamPlus;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
-
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -38,12 +25,27 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.junit.BeforeClass;
+import org.junit.Test;
+
+import org.apache.cassandra.AbstractSerializationsTester;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.utils.FBUtilities;
+
 public class SerializationsTest extends AbstractSerializationsTester
 {
     @BeforeClass
     public static void initDD()
     {
         DatabaseDescriptor.daemonInitialization();
+        ClusterMetadataTestHelper.setInstanceForTest();
     }
 
     private void testEndpointStateWrite() throws IOException
@@ -84,7 +86,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         GossipDigestAck ack = new GossipDigestAck(Statics.Digests, states);
         GossipDigestAck2 ack2 = new GossipDigestAck2(states);
         GossipDigestSyn syn = new GossipDigestSyn("Not a real cluster name",
-                                                  StorageService.instance.getTokenMetadata().partitioner.getClass().getCanonicalName(),
+                                                  ClusterMetadata.current().tokenMap.partitioner().getClass().getCanonicalName(),
                                                   Statics.Digests);
 
         DataOutputStreamPlus out = getOutput("gms.Gossip.bin");
@@ -123,7 +125,7 @@ public class SerializationsTest extends AbstractSerializationsTester
     {
         private static HeartBeatState HeartbeatSt = new HeartBeatState(101, 201);
         private static EndpointState EndpointSt = new EndpointState(HeartbeatSt);
-        private static IPartitioner partitioner = StorageService.instance.getTokenMetadata().partitioner;
+        private static IPartitioner partitioner = ClusterMetadata.current().tokenMap.partitioner();
         private static VersionedValue.VersionedValueFactory vvFact = new VersionedValue.VersionedValueFactory(partitioner);
         private static VersionedValue vv0 = vvFact.load(23d);
         private static VersionedValue vv1 = vvFact.bootstrapping(Collections.<Token>singleton(partitioner.getRandomToken()));

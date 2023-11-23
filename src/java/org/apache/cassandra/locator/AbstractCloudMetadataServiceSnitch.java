@@ -23,10 +23,8 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.EndpointState;
-import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -73,16 +71,11 @@ abstract class AbstractCloudMetadataServiceSnitch extends AbstractNetworkTopolog
     {
         if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return getLocalRack();
-        EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
-        if (state == null || state.getApplicationState(ApplicationState.RACK) == null)
-        {
-            if (savedEndpoints == null)
-                savedEndpoints = SystemKeyspace.loadDcRackInfo();
-            if (savedEndpoints.containsKey(endpoint))
-                return savedEndpoints.get(endpoint).get("rack");
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId nodeId = metadata.directory.peerId(endpoint);
+        if (nodeId == null)
             return DEFAULT_RACK;
-        }
-        return state.getApplicationState(ApplicationState.RACK).value;
+        return metadata.directory.location(nodeId).rack;
     }
 
     @Override
@@ -90,15 +83,10 @@ abstract class AbstractCloudMetadataServiceSnitch extends AbstractNetworkTopolog
     {
         if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return getLocalDatacenter();
-        EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
-        if (state == null || state.getApplicationState(ApplicationState.DC) == null)
-        {
-            if (savedEndpoints == null)
-                savedEndpoints = SystemKeyspace.loadDcRackInfo();
-            if (savedEndpoints.containsKey(endpoint))
-                return savedEndpoints.get(endpoint).get("data_center");
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId nodeId = metadata.directory.peerId(endpoint);
+        if (nodeId == null)
             return DEFAULT_DC;
-        }
-        return state.getApplicationState(ApplicationState.DC).value;
+        return metadata.directory.location(nodeId).datacenter;
     }
 }

@@ -33,7 +33,6 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.auth.AuthTestUtils.getMockInetAddress;
 import static org.junit.Assert.assertNotNull;
@@ -47,9 +46,8 @@ public class MutualTlsWithPasswordFallbackAuthenticatorTest
     @BeforeClass
     public static void initialize()
     {
-        SchemaLoader.loadSchema();
         DatabaseDescriptor.daemonInitialization();
-        StorageService.instance.initServer(0);
+        SchemaLoader.loadSchema();
         Config config = DatabaseDescriptor.getRawConfig();
         config.client_encryption_options = config.client_encryption_options.withEnabled(true)
                                                                            .withRequireClientAuth(true);

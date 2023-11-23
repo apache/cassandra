@@ -230,7 +230,7 @@ public class RoleOptionsTest
 
             }
 
-            public void setup()
+            public void setup(boolean asyncRoleSetup)
             {
 
             }

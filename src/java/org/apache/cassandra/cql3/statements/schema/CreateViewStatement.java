@@ -41,6 +41,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
@@ -110,7 +111,8 @@ public final class CreateViewStatement extends AlterSchemaStatement
         this.state = state;
     }
 
-    public Keyspaces apply(Keyspaces schema)
+    @Override
+    public Keyspaces apply(ClusterMetadata metadata)
     {
         if (!DatabaseDescriptor.getMaterializedViewsEnabled())
             throw ire("Materialized views are disabled. Enable in cassandra.yaml to use.");
@@ -119,11 +121,12 @@ public final class CreateViewStatement extends AlterSchemaStatement
          * Basic dependency validations
          */
 
+        Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
         if (null == keyspace)
             throw ire("Keyspace '%s' doesn't exist", keyspaceName);
 
-        if (keyspace.createReplicationStrategy().hasTransientReplicas())
+        if (keyspace.replicationStrategy.hasTransientReplicas())
             throw new InvalidRequestException("Materialized views are not supported on transiently replicated keyspaces");
 
         TableMetadata table = keyspace.tables.getNullable(tableName);
@@ -324,6 +327,8 @@ public final class CreateViewStatement extends AlterSchemaStatement
 
         if (attrs.hasProperty(TableAttributes.ID))
             builder.id(attrs.getId());
+        else if (!builder.hasId() && !DatabaseDescriptor.useDeterministicTableID())
+            builder.id(TableId.get(metadata));
 
         builder.params(attrs.asNewTableParams())
                .kind(TableMetadata.Kind.VIEW);

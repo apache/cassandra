@@ -66,6 +66,11 @@ public class ActionList extends AbstractCollection<Action>
         return actions[i];
     }
 
+    public Action asAction(Action.Modifiers self, Action.Modifiers children, String description)
+    {
+        return Actions.of(self, children, description, () -> this);
+    }
+
     public Iterator<Action> iterator()
     {
         return Iterators.forArray(actions);
@@ -114,6 +119,13 @@ public class ActionList extends AbstractCollection<Action>
     {
         if (isEmpty()) return this;
         StrictSequential orderOn = new StrictSequential(on);
+        forEach(a -> a.orderOn(orderOn));
+        return this;
+    }
+
+    public ActionList orderOn(OrderOn orderOn)
+    {
+        if (isEmpty()) return this;
         forEach(a -> a.orderOn(orderOn));
         return this;
     }

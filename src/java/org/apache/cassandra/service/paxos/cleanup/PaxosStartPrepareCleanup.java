@@ -39,7 +39,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
@@ -126,8 +125,6 @@ public class PaxosStartPrepareCleanup extends AsyncFuture<PaxosCleanupHistory> i
             //       (which currently drops some migration tasks on the floor).
             //       Note it would be fine for us to fail to complete the migration task and simply treat this response as a failure/timeout.
         }
-        // even if we have th latest gossip info, wait until pending range calculations are complete
-        PendingRangeCalculatorService.instance.blockUntilFinished();
     }
 
     public static class Request

@@ -28,7 +28,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.auth.AuthCacheService;
 import org.apache.cassandra.cql3.CIDR;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.ToolRunner;
@@ -41,17 +40,14 @@ public class ListCIDRGroupTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
-        CQLTester.setUpClass();
         CQLTester.requireAuthentication();
-        AuthCacheService.initializeAndRegisterCaches();
-
         startJMXServer();
     }
 
     @Before
     public void before()
     {
-        Map<String, List<CIDR>> cidrsMapping = new HashMap<String, List<CIDR>>()
+        Map<String, List<CIDR>> cidrsMapping = new HashMap<>()
         {{
             put("test1", Collections.singletonList(CIDR.getInstance("10.11.12.0/24")));
             put("test2", Arrays.asList(CIDR.getInstance("11.11.12.0/24"), CIDR.getInstance("12.11.12.0/18")));

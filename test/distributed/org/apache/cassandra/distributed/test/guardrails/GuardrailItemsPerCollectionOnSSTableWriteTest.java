@@ -52,7 +52,6 @@ public class GuardrailItemsPerCollectionOnSSTableWriteTest extends GuardrailTest
                               .withConfig(c -> c.set("items_per_collection_warn_threshold", WARN_THRESHOLD)
                                                 .set("items_per_collection_fail_threshold", FAIL_THRESHOLD))
                               .start());
-        cluster.disableAutoCompaction(KEYSPACE);
         coordinator = cluster.coordinator(1);
     }
 
@@ -335,5 +334,13 @@ public class GuardrailItemsPerCollectionOnSSTableWriteTest extends GuardrailTest
         return String.format("Detected collection v in row %s in table %s with %d items, " +
                              "this exceeds the failure threshold of %d.",
                              key, qualifiedTableName, numItems, FAIL_THRESHOLD);
+    }
+
+    @Override
+    protected void schemaChange(String query)
+    {
+        super.schemaChange(query);
+        // Make sure to disable auto compaction for each newly created cf
+        cluster.disableAutoCompaction(KEYSPACE);
     }
 }

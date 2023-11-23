@@ -40,7 +40,6 @@
     </filter>
   </appender>
 
-  <logger name="org.apache.cassandra.locator.TokenMetadata" level="ERROR"/>
   <logger name="org.apache.cassandra.net.Message" level="ERROR"/>
   <logger name="org.reflections.Reflections" level="ERROR"/>
   <logger name="org.apache.hadoop" level="WARN"/>

@@ -24,7 +24,7 @@ import org.apache.cassandra.tracing.Tracing;
 
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.ENTRY_OVERHEAD_SIZE;
 
-public class MutationVerbHandler implements IVerbHandler<Mutation>
+public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
 {
     public static final MutationVerbHandler instance = new MutationVerbHandler();
 
@@ -51,12 +51,17 @@ public class MutationVerbHandler implements IVerbHandler<Mutation>
         InetAddressAndPort respondToAddress = message.respondTo();
         try
         {
-            message.payload.applyFuture().addCallback(o -> respond(message, respondToAddress), wto -> failed());
+            processMessage(message, respondToAddress);
         }
         catch (WriteTimeoutException wto)
         {
             failed();
         }
+    }
+
+    protected void applyMutation(Message<Mutation> message, InetAddressAndPort respondToAddress)
+    {
+        message.payload.applyFuture().addCallback(o -> respond(message, respondToAddress), wto -> failed());
     }
 
     private static void forwardToLocalNodes(Message<Mutation> originalMessage, ForwardingInfo forwardTo)

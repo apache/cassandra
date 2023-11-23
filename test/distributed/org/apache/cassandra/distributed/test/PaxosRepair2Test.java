@@ -90,6 +90,7 @@ import org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTracker.Up
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -99,8 +100,6 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_PA
 import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.GLOBAL;
 import static org.apache.cassandra.service.paxos.BallotGenerator.Global.staleBallot;
-
-import org.apache.cassandra.utils.CloseableIterator;
 
 // quick workaround for metaspace ooms, will properly reuse clusters later
 public class PaxosRepair2Test extends TestBaseImpl
@@ -112,6 +111,7 @@ public class PaxosRepair2Test extends TestBaseImpl
     static
     {
         CassandraRelevantProperties.PAXOS_USE_SELF_EXECUTION.setBoolean(false);
+        CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR.setBoolean(true);
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -197,6 +197,7 @@ public class PaxosRepair2Test extends TestBaseImpl
             repair(cluster, KEYSPACE, TABLE);
 
             // stop and start node 2 to test loading paxos repair history from disk
+            cluster.get(2).flush(SYSTEM_KEYSPACE_NAME);
             cluster.get(2).shutdown().get();
             cluster.get(2).startup();
 

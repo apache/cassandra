@@ -30,6 +30,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.utils.FreeRunningClock;
 
 import static org.apache.cassandra.net.NoPayload.noPayload;
@@ -42,6 +43,7 @@ public class OutboundMessageQueueTest
     public static void init()
     {
         DatabaseDescriptor.daemonInitialization();
+        ClusterMetadataTestHelper.setInstanceForTest();
     }
 
     @Test

@@ -30,20 +30,27 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
+import org.apache.cassandra.tcm.transformations.Register;
+import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -61,12 +68,22 @@ public class DiskBoundaryManagerTest extends CQLTester
     private List<File> tableDirs;
     private Path tmpDir;
 
+    @BeforeClass
+    public static void setUpClass()
+    {
+        ServerTestUtils.daemonInitialization();
+        StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
+        ServerTestUtils.prepareServerNoRegister();
+        ClusterMetadataTestHelper.register(FBUtilities.getBroadcastAddressAndPort());
+        ClusterMetadataTestHelper.join(FBUtilities.getBroadcastAddressAndPort(),
+                                       BootStrapper.getRandomTokens(ClusterMetadata.current(), 10));
+        ServerTestUtils.markCMS();
+    }
+
     @Before
     public void setup() throws IOException
     {
         DisallowedDirectories.clearUnwritableUnsafe();
-        TokenMetadata metadata = StorageService.instance.getTokenMetadata();
-        metadata.updateNormalTokens(BootStrapper.getRandomTokens(metadata, 10), FBUtilities.getBroadcastAddressAndPort());
         createTable("create table %s (id int primary key, x text)");
         tmpDir = Files.createTempDirectory("DiskBoundaryManagerTest");
         datadirs = Lists.newArrayList(new Directories.DataDirectory(new File(tmpDir, "1")),
@@ -103,8 +120,11 @@ public class DiskBoundaryManagerTest extends CQLTester
     @Test
     public void updateTokensTest() throws UnknownHostException
     {
+        //do not use mock to since it will not be invalidated after alter keyspace
+        DiskBoundaryManager dbm = getCurrentColumnFamilyStore().diskBoundaryManager;
         DiskBoundaries dbv1 = dbm.getDiskBoundaries(mock);
-        StorageService.instance.getTokenMetadata().updateNormalTokens(BootStrapper.getRandomTokens(StorageService.instance.getTokenMetadata(), 10), InetAddressAndPort.getByName("127.0.0.10"));
+        InetAddressAndPort ep = InetAddressAndPort.getByName("127.0.0.10");
+        UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep)), BootStrapper.getRandomTokens(ClusterMetadata.current(), 10));
         DiskBoundaries dbv2 = dbm.getDiskBoundaries(mock);
         assertFalse(dbv1.equals(dbv2));
     }
@@ -132,7 +152,7 @@ public class DiskBoundaryManagerTest extends CQLTester
         pps.add(pp(200));
         pps.add(pp(Long.MAX_VALUE)); // last position is always the max token
 
-        DiskBoundaries diskBoundaries = new DiskBoundaries(mock, dirs.getWriteableLocations(), pps, 0, 0);
+        DiskBoundaries diskBoundaries = new DiskBoundaries(mock, dirs.getWriteableLocations(), pps, Epoch.EMPTY, 0);
 
         Assert.assertEquals(Lists.newArrayList(datadirs.get(0)),                  diskBoundaries.getDisksInBounds(dk(10),  dk(50)));
         Assert.assertEquals(Lists.newArrayList(datadirs.get(2)),                  diskBoundaries.getDisksInBounds(dk(250), dk(500)));
@@ -209,7 +229,7 @@ public class DiskBoundaryManagerTest extends CQLTester
     {
         MockCFS(ColumnFamilyStore cfs, Directories dirs)
         {
-            super(cfs.keyspace, cfs.getTableName(), Util.newSeqGen(), cfs.metadata, dirs, false, false, true);
+            super(cfs.keyspace, cfs.getTableName(), Util.newSeqGen(), cfs.metadata.get(), dirs, false, false);
         }
     }
 }

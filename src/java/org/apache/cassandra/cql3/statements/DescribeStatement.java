@@ -132,13 +132,9 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
     @Override
     public ResultMessage executeLocally(QueryState state, QueryOptions options)
     {
-        DistributedSchema schema = Schema.instance.getDistributedSchemaBlocking();
-
-        Keyspaces keyspaces = Keyspaces.builder()
-                                       .add(schema.getKeyspaces())
-                                       .add(Schema.instance.getLocalKeyspaces())
-                                       .add(VirtualKeyspaceRegistry.instance.virtualKeyspacesMetadata())
-                                       .build();
+        Keyspaces keyspaces = Schema.instance.distributedAndLocalKeyspaces();
+        UUID schemaVersion = Schema.instance.getVersion();
+        keyspaces = keyspaces.with(VirtualKeyspaceRegistry.instance.virtualKeyspacesMetadata());
 
         PagingState pagingState = options.getPagingState();
 
@@ -156,7 +152,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
         //   (vint bytes) serialized schema hash (currently the result of Keyspaces.hashCode())
         //
 
-        long offset = getOffset(pagingState, schema.getVersion());
+        long offset = getOffset(pagingState, schemaVersion);
         int pageSize = options.getPageSize();
 
         Stream<? extends T> stream = describe(state.getClientState(), keyspaces);
@@ -173,7 +169,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
         ResultSet result = new ResultSet(resultMetadata, rows);
 
         if (pageSize > 0 && rows.size() == pageSize)
-            result.metadata.setHasMorePages(getPagingState(offset + pageSize, schema.getVersion()));
+            result.metadata.setHasMorePages(getPagingState(offset + pageSize, schemaVersion));
 
         return new ResultMessage.Rows(result);
     }

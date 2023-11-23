@@ -27,6 +27,8 @@ import java.util.function.IntSupplier;
 import java.util.function.Predicate;
 
 import com.google.common.collect.Iterators;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.distributed.Cluster;
@@ -35,18 +37,8 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
 import org.apache.cassandra.distributed.shared.InstanceClassLoader;
-import org.apache.cassandra.simulator.Action;
-import org.apache.cassandra.simulator.ActionList;
-import org.apache.cassandra.simulator.ActionPlan;
-import org.apache.cassandra.simulator.ActionSchedule;
+import org.apache.cassandra.simulator.*;
 import org.apache.cassandra.simulator.ActionSchedule.Work;
-import org.apache.cassandra.simulator.FutureActionScheduler;
-import org.apache.cassandra.simulator.RunnableActionScheduler;
-import org.apache.cassandra.simulator.ClusterSimulation;
-import org.apache.cassandra.simulator.Debug;
-import org.apache.cassandra.simulator.RandomSource;
-import org.apache.cassandra.simulator.Simulation;
-import org.apache.cassandra.simulator.SimulationRunner;
 import org.apache.cassandra.simulator.asm.InterceptClasses;
 import org.apache.cassandra.simulator.asm.NemesisFieldSelectors;
 import org.apache.cassandra.simulator.systems.Failures;
@@ -62,9 +54,10 @@ import org.apache.cassandra.simulator.utils.LongRange;
 import org.apache.cassandra.utils.CloseableIterator;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.apache.cassandra.simulator.ActionSchedule.Mode.STREAM_LIMITED;
+import static org.apache.cassandra.simulator.ActionSchedule.Mode.TIME_LIMITED;
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.UNLIMITED;
 import static org.apache.cassandra.simulator.ClusterSimulation.ISOLATE;
 import static org.apache.cassandra.simulator.ClusterSimulation.SHARE;
@@ -76,11 +69,13 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 public class SimulationTestBase
 {
+    private static final Logger logger = LoggerFactory.getLogger(Logger.class);
+
     static abstract class DTestClusterSimulation implements Simulation
     {
-        final SimulatedSystems simulated;
-        final RunnableActionScheduler scheduler;
-        final Cluster cluster;
+        protected final SimulatedSystems simulated;
+        protected final RunnableActionScheduler scheduler;
+        protected final Cluster cluster;
 
         public DTestClusterSimulation(SimulatedSystems simulated, RunnableActionScheduler scheduler, Cluster cluster)
         {
@@ -111,15 +106,15 @@ public class SimulationTestBase
         }
 
         protected abstract ActionList initialize();
-
+        protected abstract ActionList teardown();
         protected abstract ActionList execute();
 
         public CloseableIterator<?> iterator()
         {
-            return new ActionPlan(ActionList.of(initialize()),
-                                  Collections.singletonList(execute()),
-                                  ActionList.empty())
-                   .iterator(STREAM_LIMITED, -1, () -> 0L, simulated.time, scheduler, simulated.futureScheduler);
+            return ActionPlan.setUpTearDown(ActionList.of(initialize()),
+                                            ActionList.of(teardown()))
+                             .encapsulate(ActionPlan.interleave(Collections.singletonList(execute())))
+                             .iterator(TIME_LIMITED, MINUTES.toNanos(10), () -> 0L, simulated.time, scheduler, simulated.futureScheduler);
         }
 
         public void run()
@@ -137,36 +132,65 @@ public class SimulationTestBase
         }
     }
 
+    static class DTestClusterSimulationBuilder extends ClusterSimulation.Builder<DTestClusterSimulation>
+    {
+        protected final Function<DTestClusterSimulation, ActionList> init;
+        protected final Function<DTestClusterSimulation, ActionList> test;
+        protected final Function<DTestClusterSimulation, ActionList> teardown;
+
+        DTestClusterSimulationBuilder(Function<DTestClusterSimulation, ActionList> init,
+                                      Function<DTestClusterSimulation, ActionList> test,
+                                      Function<DTestClusterSimulation, ActionList> teardown)
+        {
+            this.init = init;
+            this.test = test;
+            this.teardown = teardown;
+        }
+
+        public ClusterSimulation<DTestClusterSimulation> create(long seed) throws IOException
+        {
+            RandomSource random = new RandomSource.Default();
+            random.reset(seed);
+
+            return new ClusterSimulation<>(random, seed, 1, this,
+                                           (c) -> {},
+                                           (simulated, scheduler, cluster, options) -> new DTestClusterSimulation(simulated, scheduler, cluster)
+                                           {
+                                               protected ActionList initialize()
+                                               {
+                                                   return init.apply(this);
+                                               }
+
+                                               protected ActionList teardown()
+                                               {
+                                                   return teardown.apply(this);
+                                               }
+
+                                               protected ActionList execute()
+                                               {
+                                                   return test.apply(this);
+                                               }
+                                           });
+        }
+    }
+
     public static void simulate(Function<DTestClusterSimulation, ActionList> init,
                                 Function<DTestClusterSimulation, ActionList> test,
+                                Function<DTestClusterSimulation, ActionList> teardown,
                                 Consumer<ClusterSimulation.Builder<DTestClusterSimulation>> configure) throws IOException
+    {
+        simulate(new DTestClusterSimulationBuilder(init, test, teardown),
+                 configure);
+    }
+
+    public static <T extends Simulation> void simulate(ClusterSimulation.Builder<T> factory,
+                                                       Consumer<ClusterSimulation.Builder<T>> configure) throws IOException
     {
         SimulationRunner.beforeAll();
         long seed = System.currentTimeMillis();
-        RandomSource random = new RandomSource.Default();
-        random.reset(seed);
-        class Factory extends ClusterSimulation.Builder<DTestClusterSimulation>
-        {
-            public ClusterSimulation<DTestClusterSimulation> create(long seed) throws IOException
-            {
-                return new ClusterSimulation<>(random, seed, 1, this,
-                                               (c) -> {},
-                                               (simulated, scheduler, cluster, options) -> new DTestClusterSimulation(simulated, scheduler, cluster) {
-
-                                                   protected ActionList initialize()
-                                                   {
-                                                       return init.apply(this);
-                                                   }
-
-                                                   protected ActionList execute()
-                                                   {
-                                                       return test.apply(this);
-                                                   }
-                                               });
-            }
-        }
-
-        Factory factory = new Factory();
+        // Development seed:
+        //long seed = 1687184561194L;
+        System.out.println("Simulation seed: " + seed + "L");
         configure.accept(factory);
         try (ClusterSimulation<?> cluster = factory.create(seed))
         {
@@ -192,7 +216,7 @@ public class SimulationTestBase
     public static void simulate(IIsolatedExecutor.SerializableRunnable[] runnables,
                                 IIsolatedExecutor.SerializableRunnable check)
     {
-        Failures failures = new Failures();
+        Failures failures = new HarrySimulatorTest.HaltOnError();
         RandomSource random = new RandomSource.Default();
         long seed = System.currentTimeMillis();
         System.out.println("Using seed: " + seed);
@@ -253,7 +277,7 @@ public class SimulationTestBase
             {
                 return 0;
             }
-        }, new Debug(), failures);
+        }, Collections.emptyMap(), new Debug(), failures);
 
         RunnableActionScheduler runnableScheduler = new RunnableActionScheduler.RandomUniform(random);
 
@@ -269,7 +293,6 @@ public class SimulationTestBase
             }
         };
 
-
         ActionSchedule testSchedule = new ActionSchedule(simulated.time, simulated.futureScheduler, () -> 0, runnableScheduler, new Work(UNLIMITED, Collections.singletonList(ActionList.of(entrypoint))));
         Iterators.advance(testSchedule, Integer.MAX_VALUE);
         ActionSchedule checkSchedule = new ActionSchedule(simulated.time, simulated.futureScheduler, () -> 0, runnableScheduler, new Work(UNLIMITED, Collections.singletonList(ActionList.of(toAction(check, classLoader, factory, simulated)))));
@@ -284,6 +307,11 @@ public class SimulationTestBase
     }
 
     public static <T> T[] arr(T... arr)
+    {
+        return arr;
+    }
+
+    public static int[] arr(int... arr)
     {
         return arr;
     }

@@ -298,14 +298,12 @@ public class InterceptAgent
                     visitor.visitMethodInsn(INVOKESTATIC, "java/lang/Thread", "currentThread", "()Ljava/lang/Thread;", false);
                     visitor.visitFieldInsn(GETSTATIC, "java/util/concurrent/ThreadLocalRandom", "SEED", "J");
                     visitor.visitMethodInsn(INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfSystemMethods$Global", "randomSeed", "()J", false);
-
-                    String unsafeClass = Utils.descriptorToClassName(unsafeDescriptor);
-                    visitor.visitMethodInsn(INVOKEVIRTUAL, unsafeClass, "putLong", "(Ljava/lang/Object;JJ)V", false);
+                    visitor.visitMethodInsn(INVOKEVIRTUAL, unsafeDescriptor, "putLong", "(Ljava/lang/Object;JJ)V", false);
                     visitor.visitFieldInsn(GETSTATIC, "java/util/concurrent/ThreadLocalRandom", unsafeFieldName, unsafeDescriptor);
                     visitor.visitMethodInsn(INVOKESTATIC, "java/lang/Thread", "currentThread", "()Ljava/lang/Thread;", false);
                     visitor.visitFieldInsn(GETSTATIC, "java/util/concurrent/ThreadLocalRandom", "PROBE", "J");
                     visitor.visitLdcInsn(0);
-                    visitor.visitMethodInsn(INVOKEVIRTUAL, unsafeClass, "putInt", "(Ljava/lang/Object;JI)V", false);
+                    visitor.visitMethodInsn(INVOKEVIRTUAL, unsafeDescriptor, "putInt", "(Ljava/lang/Object;JI)V", false);
                     visitor.visitInsn(RETURN);
                     visitor.visitLabel(new Label());
                     visitor.visitMaxs(6, 1);

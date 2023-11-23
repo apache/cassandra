@@ -25,6 +25,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
@@ -131,8 +132,8 @@ public class FrozenUDTTest extends TestBaseImpl
         {
             cluster.schemaChange("create type " + KEYSPACE + ".a (foo text)");
             cluster.schemaChange("create table " + KEYSPACE + ".x (id int, ck frozen<a>, i int, primary key (id, ck))");
-
-            cluster.get(1).executeInternal("alter type " + KEYSPACE + ".a add bar text");
+            cluster.filters().verbs(Verb.TCM_REPLICATION.id).drop().on();
+            cluster.coordinator(1).execute("alter type " + KEYSPACE + ".a add bar text", ConsistencyLevel.QUORUM);
             cluster.coordinator(1).execute("insert into " + KEYSPACE + ".x (id, ck, i) VALUES (?, " + json(1, 1) + ", ? )", ConsistencyLevel.ALL,
                                            1, 1);
             cluster.coordinator(1).execute("insert into " + KEYSPACE + ".x (id, ck, i) VALUES (?, " + json(1, 2) + ", ? )", ConsistencyLevel.ALL,

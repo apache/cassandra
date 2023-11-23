@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableSet;
 import org.apache.commons.io.FileUtils;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -83,6 +84,11 @@ public class SSTableIdGenerationTest extends TestBaseImpl
         TestBaseImpl.beforeClass();
 
         originalSecurityManager = System.getSecurityManager();
+    }
+
+    @Before
+    public void beforeEach()
+    {
         // we prevent system exit and convert it to exception becuase this is one of the expected test outcomes,
         // and we want to make an assertion on that
         ClusterUtils.preventSystemExit();

@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.cql3;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -32,6 +33,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
+import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,8 +42,12 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeGenBuilder;
 import org.apache.cassandra.utils.CassandraGenerators;
@@ -54,6 +60,8 @@ import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.JavaRandom;
 
 import static org.apache.cassandra.utils.Generators.IDENTIFIER_GEN;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 public class RandomSchemaTest extends CQLTester.InMemory
 {
@@ -113,6 +121,7 @@ public class RandomSchemaTest extends CQLTester.InMemory
             // just to make the CREATE TABLE stmt easier to read for CUSTOM types
             createTable = createTable.replaceAll("org.apache.cassandra.db.marshal.", "");
             createTable(KEYSPACE, createTable);
+            serde(ClusterMetadata.current(), metadata);
 
             Gen<ByteBuffer[]> dataGen = CassandraGenerators.data(metadata, domainGen);
             String insertStmt = insertStmt(metadata);
@@ -158,6 +167,26 @@ public class RandomSchemaTest extends CQLTester.InMemory
                 }
             }
         });
+    }
+
+    private void serde(ClusterMetadata metadata, TableMetadata tableMetadata) throws IOException
+    {
+        assertTrue(metadata.schema.getKeyspaces().containsKeyspace(tableMetadata.keyspace));
+        assertNotNull(metadata.schema.getKeyspace(tableMetadata.keyspace).getColumnFamilyStore(tableMetadata.name));
+
+        DataOutputBuffer dop = new DataOutputBuffer((int) ClusterMetadata.serializer.serializedSize(metadata, NodeVersion.CURRENT_METADATA_VERSION));
+        ClusterMetadata.serializer.serialize(metadata, dop, NodeVersion.CURRENT_METADATA_VERSION);
+
+        try (DataInputBuffer dip = new DataInputBuffer(dop.buffer(), true))
+        {
+            ClusterMetadata deserCm = ClusterMetadata.serializer.deserialize(dip, NodeVersion.CURRENT_METADATA_VERSION);
+            if (!metadata.equals(deserCm))
+            {
+                metadata.dumpDiff(deserCm);
+                Assert.fail("Metadata mismatch");
+            }
+
+        }
     }
 
     private void maybeCreateUDTs(TableMetadata metadata)

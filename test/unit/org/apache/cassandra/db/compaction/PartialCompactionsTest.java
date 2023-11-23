@@ -53,11 +53,11 @@ public class PartialCompactionsTest extends SchemaLoader
     @BeforeClass
     public static void initSchema()
     {
-        CompactionManager.instance.disableAutoCompaction();
-
+        SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE, TABLE));
+        CompactionManager.instance.disableAutoCompaction();
 
         LimitableDataDirectory.applyTo(KEYSPACE, TABLE);
     }
@@ -193,7 +193,7 @@ public class PartialCompactionsTest extends SchemaLoader
             ColumnFamilyStore store = keyspace.getColumnFamilyStore(cf);
             TableMetadataRef metadata = store.metadata;
             keyspace.dropCf(metadata.id, true);
-            ColumnFamilyStore cfs = ColumnFamilyStore.createColumnFamilyStore(keyspace, cf, metadata, wrapDirectoriesOf(store), false, false, true);
+            ColumnFamilyStore cfs = ColumnFamilyStore.createColumnFamilyStore(keyspace, cf, metadata.get(), wrapDirectoriesOf(store), false, false);
             keyspace.initCfCustom(cfs);
         }
 

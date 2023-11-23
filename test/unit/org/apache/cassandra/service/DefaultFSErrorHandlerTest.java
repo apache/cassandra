@@ -39,6 +39,7 @@ import org.apache.cassandra.io.FSErrorHandler;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.JOIN_RING;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -54,6 +55,7 @@ public class DefaultFSErrorHandlerTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
+        JOIN_RING.setBoolean(false); // required to start gossiper without setting tokens
         SchemaLoader.prepareServer();
         CassandraDaemon daemon = new CassandraDaemon();
         daemon.completeSetup(); //startup must be completed, otherwise FS error will kill JVM regardless of failure policy

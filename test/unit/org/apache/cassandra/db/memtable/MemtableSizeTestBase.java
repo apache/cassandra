@@ -96,7 +96,6 @@ public abstract class MemtableSizeTestBase extends CQLTester
         }
 
         CQLTester.setUpClass();
-        CQLTester.prepareServer();
         logger.info("setupClass done, allocation type {}", allocationType);
     }
 

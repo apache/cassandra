@@ -70,7 +70,6 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_MIS
 import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.LIBJEMALLOC;
 import static org.apache.cassandra.config.CassandraRelevantProperties.MEMTABLE_OVERHEAD_SIZE;
-import static org.apache.cassandra.config.CassandraRelevantProperties.MIGRATION_DELAY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPAIR_RETRY_TIMEOUT_IN_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RING_DELAY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SHUTDOWN_ANNOUNCE_DELAY_IN_MS;
@@ -124,7 +123,6 @@ public class SimulationRunner
         CONSISTENT_DIRECTORY_LISTINGS.setBoolean(true);
         TEST_IGNORE_SIGAR.setBoolean(true);
         SYSTEM_AUTH_DEFAULT_RF.setInt(3);
-        MIGRATION_DELAY.setInt(Integer.MAX_VALUE);
         DISABLE_GOSSIP_ENDPOINT_REMOVAL.setBoolean(true);
         MEMTABLE_OVERHEAD_SIZE.setInt(100);
         IGNORE_MISSING_NATIVE_FILE_HINTS.setBoolean(true);

@@ -34,10 +34,9 @@ public class CassandraAuthorizerTest extends CQLTester
     private static final String PASSWORD = "secret";
 
     @BeforeClass
-    public static void setupClass()
+    public static void setupAuth()
     {
         CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
-        CQLTester.setUpClass();
         requireAuthentication();
         requireNetwork();
     }

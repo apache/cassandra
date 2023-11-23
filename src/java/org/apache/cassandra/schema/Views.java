@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.schema;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -30,12 +31,19 @@ import javax.annotation.Nullable;
 import com.google.common.collect.*;
 
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.tcm.serialization.UDTAndFunctionsAwareMetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.transform;
+import static org.apache.cassandra.db.TypeSizes.sizeof;
 
 public final class Views implements Iterable<ViewMetadata>
 {
+    public static final Serializer serializer = new Serializer();
+
     private static final Views NONE = builder().build();
 
     private final ImmutableMap<String, ViewMetadata> views;
@@ -250,6 +258,36 @@ public final class Views implements Iterable<ViewMetadata>
             });
 
             return new ViewsDiff(created, dropped, altered.build());
+        }
+    }
+
+    public static class Serializer implements UDTAndFunctionsAwareMetadataSerializer<Views>
+    {
+        public void serialize(Views t, DataOutputPlus out, Version version) throws IOException
+        {
+            out.writeInt(t.views.size());
+            for (ViewMetadata vm : t.views.values())
+                ViewMetadata.serializer.serialize(vm, out, version);
+        }
+
+        public Views deserialize(DataInputPlus in, Types types, UserFunctions functions, Version version) throws IOException
+        {
+            int size = in.readInt();
+            Views.Builder builder = Views.builder();
+            for (int i = 0; i < size; i++)
+            {
+                ViewMetadata vm = ViewMetadata.serializer.deserialize(in, types, functions, version);
+                builder.put(vm);
+            }
+            return builder.build();
+        }
+
+        public long serializedSize(Views t, Version version)
+        {
+            long size = sizeof(t.views.size());
+            for (ViewMetadata vm : t.views.values())
+                size += ViewMetadata.serializer.serializedSize(vm, version);
+            return size;
         }
     }
 }

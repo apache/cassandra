@@ -34,7 +34,6 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
     protected static final Logger logger = LoggerFactory.getLogger(ResponseResolver.class);
 
     protected final ReadCommand command;
-    // TODO: this doesn't need to be a full ReplicaPlan; just a replica collection
     protected final Supplier<? extends P> replicaPlan;
 
     // Accumulator gives us non-blocking thread-safety with optimal algorithmic constraints

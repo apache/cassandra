@@ -17,11 +17,23 @@
  */
 package org.apache.cassandra.schema;
 
+import java.io.IOException;
+
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.tcm.serialization.UDTAndFunctionsAwareMetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
+
+import static org.apache.cassandra.db.TypeSizes.sizeof;
+
+
 public final class DroppedColumn
 {
+    public static final Serializer serializer = new Serializer();
+
     public final ColumnMetadata column;
     public final long droppedTime; // drop timestamp, in microseconds, yet with millisecond granularity
 
@@ -55,5 +67,27 @@ public final class DroppedColumn
     public String toString()
     {
         return MoreObjects.toStringHelper(this).add("column", column).add("droppedTime", droppedTime).toString();
+    }
+
+    public static class Serializer implements UDTAndFunctionsAwareMetadataSerializer<DroppedColumn>
+    {
+        public void serialize(DroppedColumn t, DataOutputPlus out, Version version) throws IOException
+        {
+            out.writeLong(t.droppedTime);
+            ColumnMetadata.serializer.serialize(t.column, out, version);
+        }
+
+        public DroppedColumn deserialize(DataInputPlus in, Types types, UserFunctions functions, Version version) throws IOException
+        {
+            long droppedTime = in.readLong();
+            ColumnMetadata column = ColumnMetadata.serializer.deserialize(in, types, functions, version);
+            return new DroppedColumn(column, droppedTime);
+        }
+
+        public long serializedSize(DroppedColumn t, Version version)
+        {
+            return sizeof(t.droppedTime)
+                   + ColumnMetadata.serializer.serializedSize(t.column, version);
+        }
     }
 }

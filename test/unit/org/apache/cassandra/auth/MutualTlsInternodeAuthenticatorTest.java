@@ -41,7 +41,6 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.auth.AuthTestUtils.loadCertificateChain;
 import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.INBOUND;
@@ -74,9 +73,7 @@ public class MutualTlsInternodeAuthenticatorTest
     public static void initialize()
     {
         CASSANDRA_CONFIG.setString("cassandra-mtls.yaml");
-        SchemaLoader.loadSchema();
-        DatabaseDescriptor.daemonInitialization();
-        StorageService.instance.initServer(0);
+        SchemaLoader.prepareServer();
     }
 
     @Before

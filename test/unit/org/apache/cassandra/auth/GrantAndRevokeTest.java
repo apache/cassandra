@@ -35,11 +35,10 @@ public class GrantAndRevokeTest extends CQLTester
     private static final String pass = "12345";
 
     @BeforeClass
-    public static void setUpClass()
+    public static void setUpAuth()
     {
         ServerTestUtils.daemonInitialization();
         DatabaseDescriptor.setPermissionsValidity(0);
-        CQLTester.setUpClass();
         requireAuthentication();
         requireNetwork();
     }

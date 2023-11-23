@@ -23,7 +23,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.StorageService;
@@ -41,7 +41,7 @@ public class MockMessagingServiceTest
     @BeforeClass
     public static void initCluster() throws ConfigurationException
     {
-        SchemaLoader.prepareServer();
+        ServerTestUtils.prepareServerNoRegister();
         StorageService.instance.initServer();
     }
 

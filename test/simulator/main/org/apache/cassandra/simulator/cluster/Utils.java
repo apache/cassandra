@@ -18,9 +18,6 @@
 
 package org.apache.cassandra.simulator.cluster;
 
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -28,11 +25,8 @@ import java.util.stream.Collectors;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.EndpointState;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.TokenSerializer;
-import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
@@ -41,16 +35,9 @@ public class Utils
 {
     static Token currentToken()
     {
-        EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(getBroadcastAddressAndPort());
-        VersionedValue value = epState.getApplicationState(ApplicationState.TOKENS);
-        try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(value.toBytes())))
-        {
-            return TokenSerializer.deserialize(getPartitioner(), in).iterator().next();
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId nodeId = metadata.directory.peerId(getBroadcastAddressAndPort());
+        return metadata.tokenMap.tokens(nodeId).iterator().next();
     }
 
     static List<Token> parseTokens(Collection<String> tokens)

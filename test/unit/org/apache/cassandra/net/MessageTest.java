@@ -28,6 +28,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -36,6 +37,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.tracing.Tracing.TraceType;
 import org.apache.cassandra.utils.FBUtilities;
@@ -58,6 +60,7 @@ public class MessageTest
     @BeforeClass
     public static void setUpClass() throws Exception
     {
+        ServerTestUtils.prepareServer();
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setCrossNodeTimeout(true);
 
@@ -91,6 +94,7 @@ public class MessageTest
     {
         Message<Integer> msg =
             Message.builder(Verb._TEST_2, 37)
+                   .withEpoch(Epoch.EMPTY)
                    .withId(1)
                    .from(FBUtilities.getLocalAddressAndPort())
                    .withCreatedAt(approxTime.now())
@@ -118,11 +122,11 @@ public class MessageTest
 
             // should return -1 - fail to infer size - for all lengths of buffer until payload length can be read
             for (int limit = 0; limit < serializedSize - payloadSize; limit++)
-                assertEquals(-1, serializer.inferMessageSize(buffer, 0, limit));
+                assertEquals(-1, serializer.inferMessageSize(buffer, 0, limit, version));
 
             // once payload size can be read, should correctly infer message size
             for (int limit = serializedSize - payloadSize; limit < serializedSize; limit++)
-                assertEquals(serializedSize, serializer.inferMessageSize(buffer, 0, limit));
+                assertEquals(serializedSize, serializer.inferMessageSize(buffer, 0, limit, version));
         }
     }
 
@@ -138,6 +142,7 @@ public class MessageTest
 
         Message<NoPayload> msg =
             Message.builder(Verb._TEST_1, noPayload)
+                   .withEpoch(Epoch.EMPTY)
                    .withId(1)
                    .from(from)
                    .withCreatedAt(createAtNanos)
@@ -164,6 +169,7 @@ public class MessageTest
     {
         Message<NoPayload> msg =
             Message.builder(Verb._TEST_1, noPayload)
+                   .withEpoch(Epoch.EMPTY)
                    .withId(1)
                    .from(FBUtilities.getLocalAddressAndPort())
                    .withCreatedAt(approxTime.now())
@@ -207,7 +213,7 @@ public class MessageTest
     @Test
     public void testBuilderNotAddTraceHeaderWithNoTraceSession()
     {
-        Message<NoPayload> msg = Message.builder(Verb._TEST_1, noPayload).withTracingParams().build();
+        Message<NoPayload> msg = Message.builder(Verb._TEST_1, noPayload).withTracingParams().withEpoch(Epoch.EMPTY).build();
         assertNull(msg.header.traceSession());
     }
 
@@ -219,6 +225,7 @@ public class MessageTest
 
         Message<NoPayload> msg =
             Message.builder(Verb._TEST_1, noPayload)
+                   .withEpoch(Epoch.EMPTY)
                    .withId(1)
                    .from(from)
                    .withCustomParam("custom1", "custom1value".getBytes(StandardCharsets.UTF_8))
@@ -248,7 +255,7 @@ public class MessageTest
         try
         {
             TimeUUID sessionId = Tracing.instance.newSession(traceType);
-            Message<NoPayload> msg = Message.builder(Verb._TEST_1, noPayload).withTracingParams().build();
+            Message<NoPayload> msg = Message.builder(Verb._TEST_1, noPayload).withEpoch(Epoch.FIRST).withTracingParams().build();
             assertEquals(sessionId, msg.header.traceSession());
             assertEquals(traceType, msg.header.traceType());
         }

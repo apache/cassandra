@@ -19,7 +19,6 @@
 package org.apache.cassandra.service.paxos.cleanup;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
@@ -36,13 +35,11 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.Ballot;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -120,18 +117,7 @@ public class PaxosCleanup extends AsyncFuture<Void> implements Runnable
     private static boolean isOutOfRange(String ksName, Collection<Range<Token>> repairRanges)
     {
         Keyspace keyspace = Keyspace.open(ksName);
-        List<Range<Token>> localRanges = Range.normalize(keyspace.getReplicationStrategy()
-                                                                 .getAddressReplicas()
-                                                                 .get(FBUtilities.getBroadcastAddressAndPort())
-                                                                 .ranges());
-
-        RangesAtEndpoint pendingRanges = StorageService.instance.getTokenMetadata().getPendingRanges(ksName, FBUtilities.getBroadcastAddressAndPort());
-        if (!pendingRanges.isEmpty())
-        {
-            localRanges.addAll(pendingRanges.ranges());
-            localRanges = Range.normalize(localRanges);
-        }
-
+        Collection<Range<Token>> localRanges = Range.normalize(ClusterMetadata.current().localWriteRanges(keyspace.getMetadata()));
         for (Range<Token> repairRange : Range.normalize(repairRanges))
         {
             if (!Iterables.any(localRanges, localRange -> localRange.contains(repairRange)))

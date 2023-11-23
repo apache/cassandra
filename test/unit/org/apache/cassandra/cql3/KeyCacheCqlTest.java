@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 
 import org.junit.Assert;
@@ -39,10 +40,11 @@ import org.apache.cassandra.metrics.CacheMetrics;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -314,8 +316,12 @@ public class KeyCacheCqlTest extends CQLTester
             assertEquals(500, result.size());
         }
 
+        Epoch preDropEpoch = ClusterMetadata.current().schema.lastModified();
         dropTable("DROP TABLE %s");
-        assert Schema.instance.isSameVersion(SchemaKeyspace.calculateSchemaDigest());
+        Epoch postDropEpoch = ClusterMetadata.current().schema.lastModified();
+        assertEquals(preDropEpoch.nextEpoch(), postDropEpoch);
+        // for now, we keep version as a UUID, but it's simply constructed from the schema epoch
+        assertEquals(new UUID(0L, postDropEpoch.getEpoch()), Schema.instance.getVersion());
 
         //Test loading for a dropped 2i/table
         CacheService.instance.keyCache.clear();

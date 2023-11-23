@@ -25,6 +25,7 @@ import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.Operator;
@@ -60,7 +61,7 @@ public class OperationTest extends SchemaLoader
     public static void loadSchema() throws ConfigurationException
     {
         CASSANDRA_CONFIG.setString("cassandra-murmur.yaml");
-        SchemaLoader.loadSchema();
+        ServerTestUtils.prepareServer();
         SchemaLoader.createKeyspace(KS_NAME,
                                     KeyspaceParams.simpleTransient(1),
                                     SchemaLoader.sasiCFMD(KS_NAME, CF_NAME),

@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.cql3.validation.entities;
 
-import org.apache.cassandra.ServerTestUtils;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -41,6 +39,7 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.*;
 
+import static org.apache.cassandra.ServerTestUtils.daemonInitialization;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -51,13 +50,8 @@ public class JsonTest extends CQLTester
     @BeforeClass
     public static void setUpClass()
     {
-        ServerTestUtils.daemonInitialization();
-        if (ROW_CACHE_SIZE_IN_MIB > 0)
-            DatabaseDescriptor.setRowCacheSizeInMiB(ROW_CACHE_SIZE_IN_MIB);
-
+        daemonInitialization();
         StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
-
-        // Once per-JVM is enough
         prepareServer();
     }
 

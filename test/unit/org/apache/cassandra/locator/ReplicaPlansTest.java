@@ -27,6 +27,11 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.StubClusterMetadataService;
+
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Map;
@@ -43,6 +48,7 @@ public class ReplicaPlansTest
         DatabaseDescriptor.daemonInitialization();
     }
 
+    // TODO replace use of snitch in determining counts per DC with directory lookup
     static class Snitch extends AbstractNetworkTopologySnitch
     {
         final Set<InetAddressAndPort> dc1;
@@ -63,13 +69,19 @@ public class ReplicaPlansTest
         }
     }
 
+    @Before
+    public void setup()
+    {
+        ClusterMetadataService.unsetInstance();
+        ClusterMetadataService.setInstance(StubClusterMetadataService.forTesting());
+    }
+
     private static Keyspace ks(Set<InetAddressAndPort> dc1, Map<String, String> replication)
     {
         replication = ImmutableMap.<String, String>builder().putAll(replication).put("class", "NetworkTopologyStrategy").build();
         Keyspace keyspace = Keyspace.mockKS(KeyspaceMetadata.create("blah", KeyspaceParams.create(false, replication)));
         Snitch snitch = new Snitch(dc1);
         DatabaseDescriptor.setEndpointSnitch(snitch);
-        keyspace.getReplicationStrategy().snitch = snitch;
         return keyspace;
     }
 
@@ -89,7 +101,7 @@ public class ReplicaPlansTest
                 Keyspace ks = ks(ImmutableSet.of(EP1, EP2, EP3), ImmutableMap.of("DC1", "3", "DC2", "3"));
                 EndpointsForToken natural = EndpointsForToken.of(token, full(EP1), full(EP2), full(EP3), full(EP4), full(EP5), full(EP6));
                 EndpointsForToken pending = EndpointsForToken.empty(token);
-                ReplicaPlan.ForWrite plan = ReplicaPlans.forWrite(ks, ConsistencyLevel.EACH_QUORUM, natural, pending, Predicates.alwaysTrue(), ReplicaPlans.writeNormal);
+                ReplicaPlan.ForWrite plan = ReplicaPlans.forWrite(ks, ConsistencyLevel.EACH_QUORUM, (cm) -> natural, (cm) -> pending, null, Predicates.alwaysTrue(), ReplicaPlans.writeNormal);
                 assertEquals(natural, plan.liveAndDown);
                 assertEquals(natural, plan.live);
                 assertEquals(natural, plan.contacts());
@@ -99,7 +111,7 @@ public class ReplicaPlansTest
                 Keyspace ks = ks(ImmutableSet.of(EP1, EP2, EP3), ImmutableMap.of("DC1", "3", "DC2", "3"));
                 EndpointsForToken natural = EndpointsForToken.of(token, full(EP1), full(EP2), trans(EP3), full(EP4), full(EP5), trans(EP6));
                 EndpointsForToken pending = EndpointsForToken.empty(token);
-                ReplicaPlan.ForWrite plan = ReplicaPlans.forWrite(ks, ConsistencyLevel.EACH_QUORUM, natural, pending, Predicates.alwaysTrue(), ReplicaPlans.writeNormal);
+                ReplicaPlan.ForWrite plan = ReplicaPlans.forWrite(ks, ConsistencyLevel.EACH_QUORUM, (cm) -> natural, (cm) -> pending, Epoch.FIRST, Predicates.alwaysTrue(), ReplicaPlans.writeNormal);
                 assertEquals(natural, plan.liveAndDown);
                 assertEquals(natural, plan.live);
                 EndpointsForToken expectContacts = EndpointsForToken.of(token, full(EP1), full(EP2), full(EP4), full(EP5));

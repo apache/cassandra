@@ -62,7 +62,7 @@ final class HintsDispatchTrigger implements Runnable
                .filter(store -> !isScheduled(store))
                .filter(HintsStore::isLive)
                .filter(store -> store.isWriting() || store.hasFiles())
-               .filter(store -> Schema.instance.isSameVersion(Gossiper.instance.getSchemaVersion(store.address())))
+               .filter(store -> Schema.instance.getVersion().equals(Gossiper.instance.getSchemaVersion(store.address())))
                .forEach(this::schedule);
     }
 

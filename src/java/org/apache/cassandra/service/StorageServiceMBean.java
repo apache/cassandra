@@ -536,6 +536,9 @@ public interface StorageServiceMBean extends NotificationEmitter
      * enpoint that had it) from the ring
      */
     public void removeNode(String token);
+    public void removeNode(String token, boolean force);
+
+    public void assassinateEndpoint(String addr);
 
     /**
      * Get the status of a token removal.
@@ -1060,6 +1063,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     public boolean resumeBootstrap();
 
     public String getBootstrapState();
+    void abortBootstrap(String nodeId, String endpoint);
 
     /** Gets the concurrency settings for processing stages*/
     static class StageConcurrency implements Serializable
@@ -1155,6 +1159,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     @Deprecated(since = "4.0")
     public Map<String, Set<InetAddress>> getOutstandingSchemaVersions();
+    @Deprecated(since = "CEP-21")
     public Map<String, Set<String>> getOutstandingSchemaVersionsWithPort();
 
     // see CASSANDRA-3200

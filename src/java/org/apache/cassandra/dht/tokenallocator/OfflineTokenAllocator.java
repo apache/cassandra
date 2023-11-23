@@ -36,7 +36,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SimpleSnitch;
-import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.OutputHandler;
 
 public class OfflineTokenAllocator
@@ -115,7 +115,6 @@ public class OfflineTokenAllocator
     private static class MultinodeAllocator
     {
         private final FakeSnitch fakeSnitch;
-        private final TokenMetadata fakeMetadata;
         private final TokenAllocation allocation;
         private final Map<Integer, SummaryStatistics> lastCheckPoint = Maps.newHashMap();
         private final OutputHandler logger;
@@ -123,8 +122,7 @@ public class OfflineTokenAllocator
         private MultinodeAllocator(int rf, int numTokens, OutputHandler logger, IPartitioner partitioner)
         {
             this.fakeSnitch = new FakeSnitch();
-            this.fakeMetadata = new TokenMetadata(fakeSnitch).cloneWithNewPartitioner(partitioner);
-            this.allocation = TokenAllocation.create(fakeSnitch, fakeMetadata, rf, numTokens);
+            this.allocation = TokenAllocation.create(fakeSnitch, new ClusterMetadata(partitioner), rf, numTokens);
             this.logger = logger;
         }
 
@@ -133,7 +131,8 @@ public class OfflineTokenAllocator
             // Update snitch and token metadata info
             InetAddressAndPort fakeNodeAddressAndPort = getLoopbackAddressWithPort(nodeId);
             fakeSnitch.nodeByRack.put(fakeNodeAddressAndPort, rackId);
-            fakeMetadata.updateTopology(fakeNodeAddressAndPort);
+            // todo:
+            //fakeMetadata.updateTopology(fakeNodeAddressAndPort);
 
             // Allocate tokens
             Collection<Token> tokens = allocation.allocate(fakeNodeAddressAndPort);

@@ -82,7 +82,7 @@ public class PropertyDefinitions
         return properties.containsKey(name);
     }
 
-    protected String getString(String name) throws SyntaxException
+    public String getString(String name) throws SyntaxException
     {
         Object val = properties.get(name);
         if (val == null)

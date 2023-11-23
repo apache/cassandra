@@ -21,7 +21,6 @@ import com.google.common.collect.ImmutableList;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.virtual.VirtualKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
@@ -60,8 +59,6 @@ public class IndexesSystemViewTest extends SAITester
     public static void setup()
     {
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(SchemaConstants.VIRTUAL_VIEWS, ImmutableList.of(new ColumnIndexesSystemView(SchemaConstants.VIRTUAL_VIEWS))));
-
-        CQLTester.setUpClass();
     }
 
     @Test

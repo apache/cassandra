@@ -69,8 +69,8 @@ public class MemtableQuickTest extends CQLTester
     @BeforeClass
     public static void setUp()
     {
-        CQLTester.setUpClass();
-        CQLTester.prepareServer();
+//        CQLTester.setUpClass();
+//        CQLTester.prepareServer();
         CQLTester.disablePreparedReuseForTest();
         logger.info("setupClass done.");
     }

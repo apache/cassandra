@@ -17,11 +17,7 @@
  */
 package org.apache.cassandra.locator;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.Map;
+import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,7 +31,15 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageService;
-
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
+import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.ownership.TokenMap;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
+import org.apache.cassandra.tcm.ownership.PlacementForRange;
+import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 
 /**
  * This class returns the nodes responsible for a given
@@ -45,28 +49,52 @@ import org.apache.cassandra.service.StorageService;
  */
 public class SimpleStrategy extends AbstractReplicationStrategy
 {
-    private static final String REPLICATION_FACTOR = "replication_factor";
+    public static final String REPLICATION_FACTOR = "replication_factor";
+
     private static final Logger logger = LoggerFactory.getLogger(SimpleStrategy.class);
     private final ReplicationFactor rf;
 
-    public SimpleStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
+    public SimpleStrategy(String keyspaceName, Map<String, String> configOptions)
     {
-        super(keyspaceName, tokenMetadata, snitch, configOptions);
+        super(keyspaceName, configOptions);
         validateOptionsInternal(configOptions);
         this.rf = ReplicationFactor.fromString(this.configOptions.get(REPLICATION_FACTOR));
     }
 
-    @Override
-    public EndpointsForRange calculateNaturalReplicas(Token token, TokenMetadata metadata)
-    {
-        ArrayList<Token> ring = metadata.sortedTokens();
-        if (ring.isEmpty())
-            return EndpointsForRange.empty(new Range<>(metadata.partitioner.getMinimumToken(), metadata.partitioner.getMinimumToken()));
 
-        Token replicaEnd = TokenMetadata.firstToken(ring, token);
-        Token replicaStart = metadata.getPredecessor(replicaEnd);
-        Range<Token> replicaRange = new Range<>(replicaStart, replicaEnd);
-        Iterator<Token> iter = TokenMetadata.ringIterator(ring, token, false);
+    @Override
+    public DataPlacement calculateDataPlacement(Epoch epoch, List<Range<Token>> ranges, ClusterMetadata metadata)
+    {
+        PlacementForRange.Builder builder = PlacementForRange.builder();
+        for (Range<Token> range : ranges)
+            builder.withReplicaGroup(VersionedEndpoints.forRange(epoch,
+                                                                 calculateNaturalReplicas(range.right, metadata.tokenMap.tokens(), range, metadata.directory, metadata.tokenMap)));
+
+        PlacementForRange built = builder.build();
+        return new DataPlacement(built, built);
+    }
+
+    @Override
+    public EndpointsForRange calculateNaturalReplicas(Token token, ClusterMetadata metadata)
+    {
+        List<Token> ring = metadata.tokenMap.tokens();
+        if (ring.isEmpty())
+            return EndpointsForRange.empty(new Range<>(metadata.tokenMap.partitioner().getMinimumToken(), metadata.tokenMap.partitioner().getMinimumToken()));
+
+        Range<Token> replicaRange = TokenRingUtils.getRange(ring, token);
+        return calculateNaturalReplicas(token, ring, replicaRange, metadata.directory, metadata.tokenMap);
+    }
+
+    private EndpointsForRange calculateNaturalReplicas(Token token,
+                                                       List<Token> ring,
+                                                       Range<Token> replicaRange,
+                                                       Directory endpoints,
+                                                       TokenMap tokens)
+    {
+        if (ring.isEmpty())
+            return EndpointsForRange.empty(new Range<>(tokens.partitioner().getMinimumToken(), token.getPartitioner().getMinimumToken()));
+
+        Iterator<Token> iter = TokenRingUtils.ringIterator(ring, token, false);
 
         EndpointsForRange.Builder replicas = new EndpointsForRange.Builder(replicaRange, rf.allReplicas);
 
@@ -74,13 +102,15 @@ public class SimpleStrategy extends AbstractReplicationStrategy
         while (replicas.size() < rf.allReplicas && iter.hasNext())
         {
             Token tk = iter.next();
-            InetAddressAndPort ep = metadata.getEndpoint(tk);
+            NodeId owner = tokens.owner(tk);
+            InetAddressAndPort ep = endpoints.endpoint(owner);
             if (!replicas.endpoints().contains(ep))
                 replicas.add(new Replica(ep, replicaRange, replicas.size() < rf.fullReplicas));
         }
 
         return replicas.build();
     }
+
 
     @Override
     public ReplicationFactor getReplicationFactor()
@@ -124,7 +154,7 @@ public class SimpleStrategy extends AbstractReplicationStrategy
     }
 
     @Override
-    public Collection<String> recognizedOptions()
+    public Collection<String> recognizedOptions(ClusterMetadata metadata)
     {
         return Collections.singleton(REPLICATION_FACTOR);
     }

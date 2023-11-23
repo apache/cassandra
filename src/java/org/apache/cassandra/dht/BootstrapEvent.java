@@ -28,7 +28,7 @@ import com.google.common.collect.ImmutableCollection;
 
 import org.apache.cassandra.diag.DiagnosticEvent;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 /**
  * DiagnosticEvent implementation for bootstrap related activities.
@@ -38,7 +38,7 @@ final class BootstrapEvent extends DiagnosticEvent
 
     private final BootstrapEventType type;
     @Nullable
-    private final TokenMetadata tokenMetadata;
+    private final ClusterMetadata metadata;
     private final InetAddressAndPort address;
     @Nullable
     private final String allocationKeyspace;
@@ -47,12 +47,12 @@ final class BootstrapEvent extends DiagnosticEvent
     private final Integer numTokens;
     private final Collection<Token> tokens;
 
-    BootstrapEvent(BootstrapEventType type, InetAddressAndPort address, @Nullable TokenMetadata tokenMetadata,
+    BootstrapEvent(BootstrapEventType type, InetAddressAndPort address, @Nullable ClusterMetadata metadata,
                    @Nullable String allocationKeyspace, @Nullable Integer rf, int numTokens, ImmutableCollection<Token> tokens)
     {
         this.type = type;
         this.address = address;
-        this.tokenMetadata = tokenMetadata;
+        this.metadata = metadata;
         this.allocationKeyspace = allocationKeyspace;
         this.rf = rf;
         this.numTokens = numTokens;
@@ -76,7 +76,7 @@ final class BootstrapEvent extends DiagnosticEvent
     {
         // be extra defensive against nulls and bugs
         HashMap<String, Serializable> ret = new HashMap<>();
-        ret.put("tokenMetadata", String.valueOf(tokenMetadata));
+        ret.put("metadata", metadata.legacyToString());
         ret.put("allocationKeyspace", allocationKeyspace);
         ret.put("rf", rf);
         ret.put("numTokens", numTokens);

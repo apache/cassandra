@@ -230,9 +230,15 @@ public class Tracker
         addSSTablesInternal(sstables, true, false, true);
     }
 
-    public void addInitialSSTablesWithoutUpdatingSize(Iterable<SSTableReader> sstables)
+    public void addInitialSSTablesWithoutUpdatingSize(Iterable<SSTableReader> sstables, ColumnFamilyStore cfs)
     {
-        addSSTablesInternal(sstables, true, false, false);
+        if (!isDummy())
+        {
+            for (SSTableReader reader : sstables)
+                reader.setupOnline();
+        }
+        apply(updateLiveSet(emptySet(), sstables));
+        notifyAdded(sstables, true);
     }
 
     public void updateInitialSSTableSize(Iterable<SSTableReader> sstables)

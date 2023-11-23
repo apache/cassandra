@@ -46,7 +46,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
@@ -73,9 +73,7 @@ public class StandaloneSplitter
 
         try
         {
-            // load keyspace descriptions.
-            Schema.instance.loadFromDisk();
-
+            ClusterMetadataService.initializeForTools(false);
             String ksName = null;
             String cfName = null;
             Map<Descriptor, Set<Component>> parsedFilenames = new HashMap<Descriptor, Set<Component>>();

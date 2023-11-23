@@ -33,6 +33,9 @@ import org.apache.cassandra.schema.TableId;
 
 public class DropRecreateAndRestoreTest extends CQLTester
 {
+    // don't run CQLTester after test, commitlog is messed up by testCreateWithIdRestore and we now need to commit a ForceSnapshot when resetting the CMS
+    public void afterTest() {}
+
     @Test
     public void testCreateWithIdRestore() throws Throwable
     {

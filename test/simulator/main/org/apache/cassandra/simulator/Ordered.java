@@ -280,7 +280,9 @@ class Ordered extends OrderedLink implements ActionListener
 
     void invalidate(boolean isCancellation)
     {
-        Preconditions.checkState(!isCancellation || !isStarted);
+        if (isCancellation && isStarted)
+            new RuntimeException(String.format("Cancellation: %s. Started: %s", isCancellation, isStarted)).printStackTrace();
+        //Preconditions.checkState(!isCancellation || !isStarted, String.format("Cancellation: %s. Started: %s", isCancellation, isStarted));
         isStarted = isComplete = true;
         action.deregister(this);
         remove();

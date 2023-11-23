@@ -25,6 +25,7 @@ import org.junit.Test;
 
 import com.google.common.collect.Iterators;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.ClusteringPrefix.Kind;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -58,6 +59,7 @@ public final class RTTransformationsTest
     @Before
     public void setUp()
     {
+        DatabaseDescriptor.daemonInitialization();
         metadata =
             TableMetadata.builder(KEYSPACE, TABLE)
                          .addPartitionKeyColumn("pk", UTF8Type.instance)

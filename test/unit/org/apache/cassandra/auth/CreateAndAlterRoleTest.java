@@ -21,7 +21,6 @@ package org.apache.cassandra.auth;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 
@@ -31,15 +30,12 @@ import static org.mindrot.jbcrypt.BCrypt.hashpw;
 public class CreateAndAlterRoleTest extends CQLTester
 {
     @BeforeClass
-    public static void setUpClass()
+    public static void setUpAuth()
     {
-        ServerTestUtils.daemonInitialization();
-
         DatabaseDescriptor.setPermissionsValidity(0);
         DatabaseDescriptor.setRolesValidity(0);
         DatabaseDescriptor.setCredentialsValidity(0);
 
-        CQLTester.setUpClass();
         requireAuthentication();
         requireNetwork();
     }

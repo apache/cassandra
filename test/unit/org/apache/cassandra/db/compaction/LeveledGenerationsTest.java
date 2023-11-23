@@ -47,7 +47,6 @@ public class LeveledGenerationsTest extends CQLTester
     public static void setUp()
     {
         DatabaseDescriptor.daemonInitialization();
-        MockSchema.cleanup();
     }
 
     @Test

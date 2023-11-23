@@ -22,13 +22,10 @@ import java.util.HashSet;
 import java.util.Set;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.locator.IEndpointSnitch;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 public class Datacenters
 {
-
     private static class DCHandle
     {
         private static final String thisDc = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
@@ -41,22 +38,15 @@ public class Datacenters
 
     /*
      * (non-javadoc) Method to generate list of valid data center names to be used to validate the replication parameters during CREATE / ALTER keyspace operations.
-     * All peers of current node are fetched from {@link TokenMetadata} and then a set is build by fetching DC name of each peer.
      * @return a set of valid DC names
      */
-    public static Set<String> getValidDatacenters()
+    public static Set<String> getValidDatacenters(ClusterMetadata metadata)
     {
         final Set<String> validDataCenters = new HashSet<>();
-        final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-
         // Add data center of localhost.
         validDataCenters.add(thisDatacenter());
         // Fetch and add DCs of all peers.
-        for (InetAddressAndPort peer : StorageService.instance.getTokenMetadata().getAllEndpoints())
-        {
-            validDataCenters.add(snitch.getDatacenter(peer));
-        }
-
+        validDataCenters.addAll(metadata.directory.knownDatacenters());
         return validDataCenters;
     }
 }

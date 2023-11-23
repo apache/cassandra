@@ -45,6 +45,15 @@ public class OrderPreservingPartitioner implements IPartitioner
     private static final String rndchars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
     public static final StringToken MINIMUM = new StringToken("");
+    public static final StringToken MAXIMUM = new StringToken("") {
+        public int compareTo(Token o)
+        {
+            if (o == MAXIMUM)
+                return 0;
+
+            return 1;
+        }
+    };
 
     public static final BigInteger CHAR_MASK = new BigInteger("65535");
 
@@ -114,6 +123,11 @@ public class OrderPreservingPartitioner implements IPartitioner
     public StringToken getMinimumToken()
     {
         return MINIMUM;
+    }
+
+    public StringToken getMaximumToken()
+    {
+        return MAXIMUM;
     }
 
     public StringToken getRandomToken()
@@ -207,6 +221,16 @@ public class OrderPreservingPartitioner implements IPartitioner
         public ByteSource asComparableBytes(ByteComparable.Version version)
         {
             return ByteSource.of(token, version);
+        }
+
+        @Override
+        public int compareTo(Token o)
+        {
+            // todo (rebase): I have no recollection of why this is needed - investigate
+            if (o == MAXIMUM)
+                    return -1;
+
+            return super.compareTo(o);
         }
     }
 

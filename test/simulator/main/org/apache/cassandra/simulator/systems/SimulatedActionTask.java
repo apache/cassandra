@@ -27,6 +27,7 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnab
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.OrderOn;
+import org.apache.cassandra.simulator.OrderOns;
 import org.apache.cassandra.simulator.systems.InterceptedExecution.InterceptedTaskExecution;
 import org.apache.cassandra.utils.Throwables;
 
@@ -51,6 +52,13 @@ public class SimulatedActionTask extends SimulatedAction implements Runnable
     public SimulatedActionTask(Object description, Modifiers self, Modifiers children, SimulatedSystems simulated, IInvokableInstance on, SerializableRunnable run)
     {
         super(description, self, children, null, simulated);
+        this.task = unsafeAsTask(on, asSafeRunnable(on, run), simulated.failures);
+        task.onCancel(this);
+    }
+
+    public SimulatedActionTask(Object description, Modifiers self, Modifiers children, SimulatedSystems simulated, Map<Verb, Modifiers> verbModifiers, IInvokableInstance on, SerializableRunnable run)
+    {
+        super(description, TASK, OrderOns.NONE, self, children, verbModifiers, null, simulated);
         this.task = unsafeAsTask(on, asSafeRunnable(on, run), simulated.failures);
         task.onCancel(this);
     }

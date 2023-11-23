@@ -219,7 +219,7 @@ public abstract class CommitLogStressTest
             verifySizes(commitLog);
 
             commitLog.discardCompletedSegments(Schema.instance.getTableMetadata("Keyspace1", "Standard1").id,
-                    CommitLogPosition.NONE, discardedPos);
+                                               CommitLogPosition.NONE, discardedPos);
             threads.clear();
 
             System.out.format("Discarded at %s\n", discardedPos);

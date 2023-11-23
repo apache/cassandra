@@ -42,6 +42,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.JOIN_RING;
 import static org.apache.cassandra.config.Config.DiskFailurePolicy.best_effort;
 import static org.apache.cassandra.config.Config.DiskFailurePolicy.die;
 import static org.apache.cassandra.config.Config.DiskFailurePolicy.ignore;
@@ -68,6 +69,7 @@ public class DiskFailurePolicyTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
+        JOIN_RING.setBoolean(false); // required to start gossiper without setting tokens
         SchemaLoader.prepareServer();
         StorageService.instance.initServer();
         FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());

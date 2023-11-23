@@ -36,18 +36,19 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.FBUtilities;
 import org.mindrot.jbcrypt.BCrypt;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.AUTH_BCRYPT_GENSALT_LOG2_ROUNDS;
@@ -144,14 +145,21 @@ public class CassandraRoleManager implements IRoleManager
     }
 
     @Override
-    public void setup()
+    public void setup(boolean asyncRoleSetup)
     {
         loadRoleStatement();
         loadIdentityStatement();
-        scheduleSetupTask(() -> {
+        if (asyncRoleSetup)
+        {
+            scheduleSetupTask(() -> {
+                setupDefaultRole();
+                return null;
+            });
+        }
+        else
+        {
             setupDefaultRole();
-            return null;
-        });
+        }
     }
 
     @Override
@@ -417,7 +425,7 @@ public class CassandraRoleManager implements IRoleManager
      */
     private static void setupDefaultRole()
     {
-        if (StorageService.instance.getTokenMetadata().sortedTokens().isEmpty())
+        if (ClusterMetadata.current().tokenMap.tokens().isEmpty())
             throw new IllegalStateException("CassandraRoleManager skipped default role setup: no known tokens in ring");
 
         try
@@ -461,7 +469,7 @@ public class CassandraRoleManager implements IRoleManager
     {
         // The delay is to give the node a chance to see its peers before attempting the operation
         ScheduledExecutors.optionalTasks.scheduleSelfRecurring(() -> {
-            if (!StorageProxy.isSafeToPerformRead())
+            if (!StorageProxy.hasJoined())
             {
                 logger.trace("Setup task may not run due to it not being safe to perform reads... rescheduling");
                 scheduleSetupTask(setupTask);
@@ -487,7 +495,7 @@ public class CassandraRoleManager implements IRoleManager
         }
         catch (RequestValidationException e)
         {
-            throw new AssertionError(e); // not supposed to happen
+            throw new AssertionError(e + " " + FBUtilities.getJustLocalAddress()); // not supposed to happen
         }
     }
 

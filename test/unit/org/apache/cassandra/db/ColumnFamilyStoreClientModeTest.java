@@ -31,15 +31,17 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.locator.SimpleSnitch;
+import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaTransformations;
+import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 
 import static org.apache.cassandra.cql3.CQLTester.KEYSPACE;
 import static org.apache.cassandra.cql3.QueryProcessor.parseStatement;
@@ -60,10 +62,14 @@ public class ColumnFamilyStoreClientModeTest
     public static void setUpClass()
     {
         DatabaseDescriptor.clientInitialization();
+        if (DatabaseDescriptor.getPartitioner() == null)
+            DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
+
         DatabaseDescriptor.setEndpointSnitch(new SimpleSnitch());
         DatabaseDescriptor.getRawConfig().memtable_flush_writers = 1;
         DatabaseDescriptor.getRawConfig().local_system_data_file_directory = tempFolder.toString();
         DatabaseDescriptor.getRawConfig().partitioner = "Murmur3Partitioner";
+        DatabaseDescriptor.setLocalDataCenter("DC1");
         DatabaseDescriptor.applyPartitioner();
     }
 
@@ -71,16 +77,15 @@ public class ColumnFamilyStoreClientModeTest
     public void testTopPartitionsAreNotInitialized() throws IOException
     {
         CreateTableStatement.Raw schemaStatement = parseStatement("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (a int, b text, PRIMARY KEY (a))", CreateTableStatement.Raw.class, "CREATE TABLE");
-
-        Schema.instance.transform(SchemaTransformations.addKeyspace(KeyspaceMetadata.create(KEYSPACE, KeyspaceParams.simple(1)), true));
+        KeyspaceMetadata ksm = KeyspaceMetadata.create(KEYSPACE, KeyspaceParams.simple(1));
+        DistributedSchema initialSchema = new DistributedSchema(Keyspaces.of(ksm));
+        ClusterMetadataService.initializeForClients(initialSchema);
+        ClusterMetadata.current().schema.initializeKeyspaceInstances(DistributedSchema.empty(), false);
 
         Types types = Types.rawBuilder(KEYSPACE).build();
-        Schema.instance.transform(SchemaTransformations.addTypes(types, true));
-
         ClientState state = ClientState.forInternalCalls(KEYSPACE);
         CreateTableStatement statement = schemaStatement.prepare(state);
         statement.validate(state);
-
         TableMetadata tableMetadata = statement.builder(types)
                                                .id(TableId.fromUUID(UUID.nameUUIDFromBytes(ArrayUtils.addAll(schemaStatement.keyspace().getBytes(), schemaStatement.table().getBytes()))))
                                                .partitioner(Murmur3Partitioner.instance)
@@ -88,7 +93,7 @@ public class ColumnFamilyStoreClientModeTest
         Keyspace.setInitialized();
         Directories directories = new Directories(tableMetadata, new Directories.DataDirectory[]{ new Directories.DataDirectory(new org.apache.cassandra.io.util.File(tempFolder.newFolder("datadir"))) });
         Keyspace ks = Keyspace.openWithoutSSTables(KEYSPACE);
-        ColumnFamilyStore cfs = ColumnFamilyStore.createColumnFamilyStore(ks, TABLE, TableMetadataRef.forOfflineTools(tableMetadata), directories, false, false, true);
+        ColumnFamilyStore cfs = ColumnFamilyStore.createColumnFamilyStore(ks, TABLE, TableMetadataRef.forOfflineTools(tableMetadata).get(), directories, false, false);
 
         assertNull(cfs.topPartitions);
     }

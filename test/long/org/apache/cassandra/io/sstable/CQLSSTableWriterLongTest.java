@@ -25,20 +25,10 @@ import java.util.Random;
 import com.google.common.io.Files;
 
 import org.apache.cassandra.io.util.File;
-import org.junit.BeforeClass;
 import org.junit.Test;
-import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.service.StorageService;
 
 public class CQLSSTableWriterLongTest
 {
-    @BeforeClass
-    public static void setup() throws Exception
-    {
-        SchemaLoader.prepareServer();
-        StorageService.instance.initServer();
-    }
-
     @Test
     public void testWideRow() throws Exception
     {

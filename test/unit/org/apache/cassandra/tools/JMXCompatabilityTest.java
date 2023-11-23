@@ -183,7 +183,24 @@ public class JMXCompatabilityTest extends CQLTester
     @Test
     public void diff40() throws Throwable
     {
-        List<String> excludeObjects = newArrayList("org.apache.cassandra.metrics:type=BufferPool,name=(Misses|Size)" // removed in CASSANDRA-18313
+        List<String> excludeObjects = newArrayList("org.apache.cassandra.metrics:type=BufferPool,name=(Misses|Size)", // removed in CASSANDRA-18313
+                                                   // removed by CEP-21:
+                                                   "org.apache.cassandra.internal:type=MigrationStage",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=MigrationStage,name=ActiveTasks",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=MigrationStage,name=CompletedTasks",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=MigrationStage,name=CurrentlyBlockedTasks",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=MigrationStage,name=MaxPoolSize",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=MigrationStage,name=MaxTasksQueued",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=MigrationStage,name=PendingTasks",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=MigrationStage,name=TotalBlockedTasks",
+                                                   "org.apache.cassandra.internal:type=PendingRangeCalculator",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=ActiveTasks",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=CompletedTasks",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=CurrentlyBlockedTasks",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=MaxPoolSize",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=MaxTasksQueued",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=PendingTasks",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=TotalBlockedTasks"
                 );
         List<String> excludeAttributes = newArrayList("HostIdMap"); // removed in CASSANDRA-18959
         List<String> excludeOperations = newArrayList("scrub\\(p1:boolean,p2:boolean,p3:java.lang.String,p4:java.lang.String\\[\\]\\):int"); // removed in CASSANDRA-18959
@@ -200,7 +217,24 @@ public class JMXCompatabilityTest extends CQLTester
     @Test
     public void diff41() throws Throwable
     {
-        List<String> excludeObjects = newArrayList("org.apache.cassandra.metrics:type=BufferPool,name=(Misses|Size)" // removed in CASSANDRA-18313
+        List<String> excludeObjects = newArrayList("org.apache.cassandra.metrics:type=BufferPool,name=(Misses|Size)", // removed in CASSANDRA-18313
+                                                   // removed by CEP-21:
+                                                   "org.apache.cassandra.internal:type=MigrationStage",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=MigrationStage,name=ActiveTasks",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=MigrationStage,name=CompletedTasks",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=MigrationStage,name=CurrentlyBlockedTasks",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=MigrationStage,name=MaxPoolSize",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=MigrationStage,name=MaxTasksQueued",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=MigrationStage,name=PendingTasks",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=MigrationStage,name=TotalBlockedTasks",
+                                                   "org.apache.cassandra.internal:type=PendingRangeCalculator",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=ActiveTasks",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=CompletedTasks",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=CurrentlyBlockedTasks",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=MaxPoolSize",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=MaxTasksQueued",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=PendingTasks",
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=TotalBlockedTasks"
         );
         List<String> excludeAttributes = newArrayList("HostIdMap"); // removed in CASSANDRA-18959
         List<String> excludeOperations = newArrayList("scrub\\(p1:boolean,p2:boolean,p3:java.lang.String,p4:java.lang.String\\[\\]\\):int"); // removed in CASSANDRA-18959

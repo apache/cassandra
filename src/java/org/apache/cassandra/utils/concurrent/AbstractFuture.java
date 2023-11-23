@@ -384,6 +384,39 @@ public abstract class AbstractFuture<V> implements Future<V>
     }
 
     /**
+     * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
+     *
+     * See {@link #addListener(GenericFutureListener)} for ordering semantics.
+     */
+    @Override
+    public <T> Future<T> andThenAsync(Function<? super V, ? extends Future<T>> andThen)
+    {
+        return andThenAsync(andThen, null);
+    }
+
+    /**
+     * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
+     *
+     * See {@link #addListener(GenericFutureListener)} for ordering semantics.
+     */
+    protected <T> Future<T> andThenAsync(AbstractFuture<T> result, Function<? super V, ? extends Future<T>> andThen, @Nullable Executor executor)
+    {
+        addListener(() -> {
+            try
+            {
+                if (isSuccess()) andThen.apply(getNow()).addListener(propagate(result));
+                else result.tryFailure(cause());
+            }
+            catch (Throwable t)
+            {
+                result.tryFailure(t);
+                throw t;
+            }
+        }, executor);
+        return result;
+    }
+
+    /**
      * Add a listener to be invoked once this future completes.
      * Listeners are submitted to {@link #notifyExecutor} in the order they are added (or the specified executor
      * in the case of {@link #addListener(Runnable, Executor)}.

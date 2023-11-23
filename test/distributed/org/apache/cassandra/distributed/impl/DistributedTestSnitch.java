@@ -64,7 +64,7 @@ public class DistributedTestSnitch extends AbstractNetworkTopologySnitch
 
     private Map<InetAddressAndPort, Map<String, String>> savedEndpoints;
     private static final String DEFAULT_DC = "UNKNOWN_DC";
-    private static final String DEFAULT_RACK = "UNKNOWN_RACK";
+    private static final String DEFAULT_RACK = "UNKNOWN_RCK"; // TODO must be =< 12 chars to preserve nodetool output required by tests
 
     public String getRack(InetAddress endpoint)
     {

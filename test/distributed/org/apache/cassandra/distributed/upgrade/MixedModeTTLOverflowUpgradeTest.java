@@ -23,6 +23,7 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.distributed.UpgradeableCluster;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
@@ -122,6 +123,7 @@ public class MixedModeTTLOverflowUpgradeTest extends UpgradeTestBase
                 // all upgrades from v40 to current, excluding v50 -> v51
                 .singleUpgradeToCurrentFrom(v40)
                 .singleUpgradeToCurrentFrom(v41)
+                .withConfig(c -> c.with(Feature.GOSSIP).set("storage_compatibility_mode", "CASSANDRA_4"))
                 .setup(cluster -> {
                     cluster.schemaChange(withKeyspace("CREATE TABLE %s.t (k int PRIMARY KEY, v int)"));
 

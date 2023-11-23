@@ -17,12 +17,9 @@
  */
 package org.apache.cassandra.cql3.validation.operations;
 
-import java.util.UUID;
-
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -30,16 +27,14 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.SkipListMemtable;
 import org.apache.cassandra.db.memtable.TestMemtable;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.index.StubIndex;
 import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
@@ -231,6 +226,44 @@ public class AlterTest extends CQLTester
                    row(1, 100, 100, 100, 100));
     }
 
+    @Test
+    public void testDropColumnWithIndex() throws Throwable
+    {
+        createTable("CREATE TABLE %s(k int, c int, v1 int, v2 int, v3 int, v4 int, PRIMARY KEY (k, c))");
+        createIndex(String.format("CREATE CUSTOM INDEX multi_idx ON %%s(v1, v2) USING '%s'", StubIndex.class.getName()));
+        createIndex("CREATE INDEX v3_idx ON %s(v3)");
+
+        assertInvalidMessage("Cannot drop column v1 because it has dependent secondary indexes",
+                             "ALTER TABLE %s DROP (v1)");
+        assertInvalidMessage("Cannot drop column v2 because it has dependent secondary indexes",
+                             "ALTER TABLE %s DROP (v2)");
+        // targets for a multi column custom index cannot be trivially derived from IndexMetadata so for now we
+        // assume that any such index may be depenendant on all columns
+        assertInvalidMessage("Cannot drop column v3 because it has dependent secondary indexes",
+                             "ALTER TABLE %s DROP (v3)");
+        // current implementation will only complain about 1 of the columns (previous behaviour preserved for now)
+        assertInvalidMessage("because it has dependent secondary indexes",
+                             "ALTER TABLE %s DROP (v1, v2)");
+    }
+
+    @Test
+    public void testRenameColumnWithIndex() throws Throwable
+    {
+        createTable("CREATE TABLE %s(k int, c1 int, c2 int, c3 int, v int, PRIMARY KEY (k, c1, c2, c3))");
+        createIndex(String.format("CREATE CUSTOM INDEX multi_idx ON %%s(c1, c2) USING '%s'", StubIndex.class.getName()));
+        createIndex("CREATE INDEX v3_idx ON %s(c3)");
+
+        assertInvalidMessage("Cannot rename column c1 because it has dependent secondary indexes (multi_idx)",
+                             "ALTER TABLE %s RENAME c1 TO c99");
+        assertInvalidMessage("Cannot rename column c2 because it has dependent secondary indexes (multi_idx)",
+                             "ALTER TABLE %s RENAME c2 TO c99");
+        // targets for a multi column custom index cannot be trivially derived from IndexMetadata so for now we
+        // assume that any such index may be depenendant on all columns
+        assertInvalidMessage("Cannot rename column c3 because it has dependent secondary indexes",
+                             "ALTER TABLE %s RENAME c3 to v99");
+    }
+
+
 
     @Test
     public void testChangeStrategyWithUnquotedAgrument() throws Throwable
@@ -298,15 +331,8 @@ public class AlterTest extends CQLTester
     @Test
     public void testCreateAlterNetworkTopologyWithDefaults() throws Throwable
     {
-        TokenMetadata metadata = StorageService.instance.getTokenMetadata();
-        metadata.clearUnsafe();
-        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
-        InetAddressAndPort remote = InetAddressAndPort.getByName("127.0.0.4");
-        metadata.updateHostId(UUID.randomUUID(), local);
-        metadata.updateNormalToken(Util.token("A"), local);
-        metadata.updateHostId(UUID.randomUUID(), remote);
-        metadata.updateNormalToken(Util.token("B"), remote);
-
+        // Node 1 is added automatically during setup, add another node in a different dc/rack
+        ClusterMetadataTestHelper.register(4, DATA_CENTER_REMOTE, RACK1);
         // With two datacenters we should respect anything passed in as a manual override
         String ks1 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'NetworkTopologyStrategy', 'replication_factor' : 1, '" + DATA_CENTER_REMOTE + "': 3}");
 
@@ -350,20 +376,18 @@ public class AlterTest extends CQLTester
                    row("tbl1", map("class", "org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy",
                                   "min_threshold", "7",
                                   "max_threshold", "32")));
-        metadata.clearUnsafe();
     }
 
     @Test
     public void testCreateSimpleAlterNTSDefaults() throws Throwable
     {
-        TokenMetadata metadata = StorageService.instance.getTokenMetadata();
-        metadata.clearUnsafe();
-        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
-        InetAddressAndPort remote = InetAddressAndPort.getByName("127.0.0.4");
-        metadata.updateHostId(UUID.randomUUID(), local);
+        // Node 1 is added automatically during setup, add another node in a different dc/rack
+        ClusterMetadataTestHelper.register(4, DATA_CENTER_REMOTE, RACK1);
+        /*
+        // todo (rebase) we also need these
         metadata.updateNormalToken(Util.token("A"), local);
-        metadata.updateHostId(UUID.randomUUID(), remote);
         metadata.updateNormalToken(Util.token("B"), remote);
+         */
 
         // Let's create a keyspace first with SimpleStrategy
         String ks1 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 2}");
@@ -393,89 +417,79 @@ public class AlterTest extends CQLTester
     @Test
     public void testDefaultRF() throws Throwable
     {
-        TokenMetadata metadata = StorageService.instance.getTokenMetadata();
-        metadata.clearUnsafe();
-        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
-        InetAddressAndPort remote = InetAddressAndPort.getByName("127.0.0.4");
-        metadata.updateHostId(UUID.randomUUID(), local);
-        metadata.updateNormalToken(Util.token("A"), local);
-        metadata.updateHostId(UUID.randomUUID(), remote);
-        metadata.updateNormalToken(Util.token("B"), remote);
+        // Node 1 is added automatically during setup, add another node in a different dc/rack
+        ClusterMetadataTestHelper.register(4, DATA_CENTER_REMOTE, RACK1);
 
         DatabaseDescriptor.setDefaultKeyspaceRF(3);
 
-        //ensure default rf is being taken into account during creation, and user can choose to override the default
-        String ks1 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy' }");
-        String ks2 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 2 }");
-        String ks3 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'NetworkTopologyStrategy' }");
-        String ks4 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'NetworkTopologyStrategy', 'replication_factor' : 2 }");
+        try
+        {
+            //ensure default rf is being taken into account during creation, and user can choose to override the default
+            String ks1 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy' }");
+            String ks2 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 2 }");
+            String ks3 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'NetworkTopologyStrategy' }");
+            String ks4 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'NetworkTopologyStrategy', 'replication_factor' : 2 }");
 
-        assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
-                                        row(ks1, true, map("class","org.apache.cassandra.locator.SimpleStrategy","replication_factor", Integer.toString(DatabaseDescriptor.getDefaultKeyspaceRF()))),
-                                        row(ks2, true, map("class","org.apache.cassandra.locator.SimpleStrategy","replication_factor", "2")),
-                                        row(ks3, true, map("class", "org.apache.cassandra.locator.NetworkTopologyStrategy", DATA_CENTER,
-                                                           Integer.toString(DatabaseDescriptor.getDefaultKeyspaceRF()), DATA_CENTER_REMOTE, Integer.toString(DatabaseDescriptor.getDefaultKeyspaceRF()))),
-                                        row(ks4, true, map("class", "org.apache.cassandra.locator.NetworkTopologyStrategy", DATA_CENTER, "2", DATA_CENTER_REMOTE, "2")));
+            assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
+                                            row(ks1, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", Integer.toString(DatabaseDescriptor.getDefaultKeyspaceRF()))),
+                                            row(ks2, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "2")),
+                                            row(ks3, true, map("class", "org.apache.cassandra.locator.NetworkTopologyStrategy", DATA_CENTER,
+                                                               Integer.toString(DatabaseDescriptor.getDefaultKeyspaceRF()), DATA_CENTER_REMOTE, Integer.toString(DatabaseDescriptor.getDefaultKeyspaceRF()))),
+                                            row(ks4, true, map("class", "org.apache.cassandra.locator.NetworkTopologyStrategy", DATA_CENTER, "2", DATA_CENTER_REMOTE, "2")));
 
-        //ensure alter keyspace does not default to default rf unless altering from NTS to SS
-        //no change alter
-        schemaChange("ALTER KEYSPACE " + ks4 + " WITH durable_writes=true");
-        assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
-                                        row(ks4, true, map("class", "org.apache.cassandra.locator.NetworkTopologyStrategy", DATA_CENTER, "2", DATA_CENTER_REMOTE, "2")));
-        schemaChange("ALTER KEYSPACE " + ks4 + " WITH replication={ 'class' : 'NetworkTopologyStrategy' }");
-        assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
-                                        row(ks4, true, map("class", "org.apache.cassandra.locator.NetworkTopologyStrategy", DATA_CENTER, "2", DATA_CENTER_REMOTE, "2")));
+            //ensure alter keyspace does not default to default rf unless altering from NTS to SS
+            //no change alter
+            schemaChange("ALTER KEYSPACE " + ks4 + " WITH durable_writes=true");
+            assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
+                                            row(ks4, true, map("class", "org.apache.cassandra.locator.NetworkTopologyStrategy", DATA_CENTER, "2", DATA_CENTER_REMOTE, "2")));
+            schemaChange("ALTER KEYSPACE " + ks4 + " WITH replication={ 'class' : 'NetworkTopologyStrategy' }");
+            assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
+                                            row(ks4, true, map("class", "org.apache.cassandra.locator.NetworkTopologyStrategy", DATA_CENTER, "2", DATA_CENTER_REMOTE, "2")));
 
-        // change from SS to NTS
-        // without specifying RF
-        schemaChange("ALTER KEYSPACE " + ks2 + " WITH replication={ 'class' : 'NetworkTopologyStrategy' } AND durable_writes=true");
-        // verify that RF of SS is retained
-        assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
-                                        row(ks2, true, map("class","org.apache.cassandra.locator.NetworkTopologyStrategy", DATA_CENTER, "2", DATA_CENTER_REMOTE, "2")));
-        // with specifying RF
-        schemaChange("ALTER KEYSPACE " + ks1 + " WITH replication={ 'class' : 'NetworkTopologyStrategy', 'replication_factor': '1' } AND durable_writes=true");
-        // verify that explicitly mentioned RF is taken into account
-        assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
-                                        row(ks1, true, map("class","org.apache.cassandra.locator.NetworkTopologyStrategy", DATA_CENTER, "1", DATA_CENTER_REMOTE, "1")));
+            // change from SS to NTS
+            // without specifying RF
+            schemaChange("ALTER KEYSPACE " + ks2 + " WITH replication={ 'class' : 'NetworkTopologyStrategy' } AND durable_writes=true");
+            // verify that RF of SS is retained
+            assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
+                                            row(ks2, true, map("class", "org.apache.cassandra.locator.NetworkTopologyStrategy", DATA_CENTER, "2", DATA_CENTER_REMOTE, "2")));
+            // with specifying RF
+            schemaChange("ALTER KEYSPACE " + ks1 + " WITH replication={ 'class' : 'NetworkTopologyStrategy', 'replication_factor': '1' } AND durable_writes=true");
+            // verify that explicitly mentioned RF is taken into account
+            assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
+                                            row(ks1, true, map("class", "org.apache.cassandra.locator.NetworkTopologyStrategy", DATA_CENTER, "1", DATA_CENTER_REMOTE, "1")));
 
-        // change from NTS to SS
-        // without specifying RF
-        schemaChange("ALTER KEYSPACE " + ks4 + " WITH replication={ 'class' : 'SimpleStrategy' } AND durable_writes=true");
-        // verify that default RF is taken into account
-        assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
-                                        row(ks4, true, map("class","org.apache.cassandra.locator.SimpleStrategy","replication_factor", Integer.toString(DatabaseDescriptor.getDefaultKeyspaceRF()))));
-        // with specifying RF
-        schemaChange("ALTER KEYSPACE " + ks3 + " WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : '1' } AND durable_writes=true");
-        // verify that explicitly mentioned RF is taken into account
-        assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
-                                        row(ks3, true, map("class","org.apache.cassandra.locator.SimpleStrategy","replication_factor", "1")));
+            // change from NTS to SS
+            // without specifying RF
+            schemaChange("ALTER KEYSPACE " + ks4 + " WITH replication={ 'class' : 'SimpleStrategy' } AND durable_writes=true");
+            // verify that default RF is taken into account
+            assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
+                                            row(ks4, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", Integer.toString(DatabaseDescriptor.getDefaultKeyspaceRF()))));
+            // with specifying RF
+            schemaChange("ALTER KEYSPACE " + ks3 + " WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : '1' } AND durable_writes=true");
+            // verify that explicitly mentioned RF is taken into account
+            assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
+                                            row(ks3, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")));
 
-        // verify updated default does not effect existing keyspaces
-        // create keyspaces
-        String ks5 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy' }");
-        String ks6 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'NetworkTopologyStrategy' }");
-        String oldRF = Integer.toString(DatabaseDescriptor.getDefaultKeyspaceRF());
-        // change default
-        DatabaseDescriptor.setDefaultKeyspaceRF(2);
-        // verify RF of existing keyspaces
-        assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
-                                        row(ks5, true, map("class","org.apache.cassandra.locator.SimpleStrategy","replication_factor", oldRF)));
-        assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
-                                        row(ks6, true, map("class", "org.apache.cassandra.locator.NetworkTopologyStrategy",
-                                                           DATA_CENTER, oldRF, DATA_CENTER_REMOTE, oldRF)));
-
-        //clean up config change
-        DatabaseDescriptor.setDefaultKeyspaceRF(1);
-
-        //clean up keyspaces
-        execute(String.format("DROP KEYSPACE IF EXISTS %s", ks1));
-        execute(String.format("DROP KEYSPACE IF EXISTS %s", ks2));
-        execute(String.format("DROP KEYSPACE IF EXISTS %s", ks3));
-        execute(String.format("DROP KEYSPACE IF EXISTS %s", ks4));
-        execute(String.format("DROP KEYSPACE IF EXISTS %s", ks5));
-        execute(String.format("DROP KEYSPACE IF EXISTS %s", ks6));
+            // verify updated default does not effect existing keyspaces
+            // create keyspaces
+            String ks5 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy' }");
+            String ks6 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'NetworkTopologyStrategy' }");
+            String oldRF = Integer.toString(DatabaseDescriptor.getDefaultKeyspaceRF());
+            // change default
+            DatabaseDescriptor.setDefaultKeyspaceRF(2);
+            // verify RF of existing keyspaces
+            assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
+                                            row(ks5, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", oldRF)));
+            assertRowsIgnoringOrderAndExtra(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
+                                            row(ks6, true, map("class", "org.apache.cassandra.locator.NetworkTopologyStrategy",
+                                                               DATA_CENTER, oldRF, DATA_CENTER_REMOTE, oldRF)));
+        }
+        finally
+        {
+            //clean up config change
+            DatabaseDescriptor.setDefaultKeyspaceRF(1);
+        }
     }
-
 
     /**
      * Test {@link ConfigurationException} thrown when altering a keyspace to invalid DC option in replication configuration.
@@ -709,7 +723,6 @@ public class AlterTest extends CQLTester
         assertAlterTableThrowsException(ConfigurationException.class,
                                         "The 'class' option must not be empty. To disable compression use 'enabled' : false",
                                         "ALTER TABLE %s WITH  compression = { 'class' : ''};");
-
 
         assertAlterTableThrowsException(ConfigurationException.class,
                                         "If the 'enabled' option is set to false no other options must be specified",
