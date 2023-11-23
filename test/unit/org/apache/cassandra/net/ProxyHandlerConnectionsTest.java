@@ -37,6 +37,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import io.netty.buffer.ByteBuf;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -85,6 +86,7 @@ public class ProxyHandlerConnectionsTest
         DatabaseDescriptor.daemonInitialization();
         // call these to initialize everything in case a message is dropped, otherwise we will NPE in the commitlog
         CommitLog.instance.start();
+        ServerTestUtils.initCMS();
         CompactionManager.instance.getPendingTasks();
     }
 

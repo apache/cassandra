@@ -177,8 +177,9 @@ public final class StatementRestrictions
     {
         this(type, table, allowFiltering);
 
-        final IndexRegistry indexRegistry = type.allowUseOfSecondaryIndices() ? IndexRegistry.obtain(table) : null;
-
+        final IndexRegistry indexRegistry = type.allowUseOfSecondaryIndices() && allowUseOfSecondaryIndices
+                                            ? IndexRegistry.obtain(table)
+                                            : null;
         /*
          * WHERE clause. For a given entity, rules are:
          *   - EQ relation conflicts with anything else (including a 2nd EQ)

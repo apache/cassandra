@@ -17,17 +17,17 @@
  */
 package org.apache.cassandra.db;
 
-import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 
-public class ReadRepairVerbHandler implements IVerbHandler<Mutation>
+public class ReadRepairVerbHandler extends AbstractMutationVerbHandler<Mutation>
 {
     public static final ReadRepairVerbHandler instance = new ReadRepairVerbHandler();
 
-    public void doVerb(Message<Mutation> message)
+    void applyMutation(Message<Mutation> message, InetAddressAndPort respondToAddress)
     {
         message.payload.apply();
-        MessagingService.instance().send(message.emptyResponse(), message.from());
+        MessagingService.instance().send(message.emptyResponse(), respondToAddress);
     }
 }

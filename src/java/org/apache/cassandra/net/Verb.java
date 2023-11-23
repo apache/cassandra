@@ -88,6 +88,15 @@ import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupResponse;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupComplete;
 import org.apache.cassandra.service.paxos.cleanup.PaxosStartPrepareCleanup;
 import org.apache.cassandra.service.paxos.cleanup.PaxosFinishPrepareCleanup;
+import org.apache.cassandra.streaming.DataMovement;
+import org.apache.cassandra.streaming.DataMovementVerbHandler;
+import org.apache.cassandra.tcm.Discovery;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.FetchCMSLog;
+import org.apache.cassandra.tcm.FetchPeerLog;
+import org.apache.cassandra.tcm.migration.Election;
+import org.apache.cassandra.tcm.sequences.DataMovements;
+import org.apache.cassandra.tcm.serialization.MessageSerializers;
 import org.apache.cassandra.utils.BooleanSerializer;
 import org.apache.cassandra.service.EchoVerbHandler;
 import org.apache.cassandra.service.SnapshotVerbHandler;
@@ -106,6 +115,11 @@ import static org.apache.cassandra.concurrent.Stage.*;
 import static org.apache.cassandra.net.VerbTimeouts.*;
 import static org.apache.cassandra.net.Verb.Kind.*;
 import static org.apache.cassandra.net.Verb.Priority.*;
+import static org.apache.cassandra.tcm.ClusterMetadataService.commitRequestHandler;
+import static org.apache.cassandra.tcm.ClusterMetadataService.currentEpochRequestHandler;
+import static org.apache.cassandra.tcm.ClusterMetadataService.logNotifyHandler;
+import static org.apache.cassandra.tcm.ClusterMetadataService.fetchLogRequestHandler;
+import static org.apache.cassandra.tcm.ClusterMetadataService.replicationHandler;
 
 /**
  * Note that priorities except P0 are presently unused.  P0 corresponds to urgent, i.e. what used to be the "Gossip" connection.
@@ -152,9 +166,13 @@ public enum Verb
     PING_REQ               (37,  P1, pingTimeout,     GOSSIP,            () -> PingRequest.serializer,               () -> PingVerbHandler.instance,            PING_RSP            ),
 
     // P1 because messages can be arbitrarily large or aren't crucial
+    @Deprecated (since = "CEP-21")
     SCHEMA_PUSH_RSP        (98,  P1, rpcTimeout,      MIGRATION,         () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
+    @Deprecated (since = "CEP-21")
     SCHEMA_PUSH_REQ        (18,  P1, rpcTimeout,      MIGRATION,         () -> SchemaMutationsSerializer.instance,   () -> SchemaPushVerbHandler.instance,      SCHEMA_PUSH_RSP     ),
+    @Deprecated (since = "CEP-21")
     SCHEMA_PULL_RSP        (88,  P1, rpcTimeout,      MIGRATION,         () -> SchemaMutationsSerializer.instance,   () -> ResponseVerbHandler.instance                             ),
+    @Deprecated (since = "CEP-21")
     SCHEMA_PULL_REQ        (28,  P1, rpcTimeout,      MIGRATION,         () -> NoPayload.serializer,                 () -> SchemaPullVerbHandler.instance,      SCHEMA_PULL_RSP     ),
     SCHEMA_VERSION_RSP     (80,  P1, rpcTimeout,      MIGRATION,         () -> UUIDSerializer.serializer,            () -> ResponseVerbHandler.instance                             ),
     SCHEMA_VERSION_REQ     (20,  P1, rpcTimeout,      MIGRATION,         () -> NoPayload.serializer,                 () -> SchemaVersionVerbHandler.instance,   SCHEMA_VERSION_RSP  ),
@@ -204,6 +222,28 @@ public enum Verb
     PAXOS2_CLEANUP_FINISH_PREPARE_REQ(47, P2, repairTimeout, IMMEDIATE,         () -> PaxosCleanupHistory.serializer,          () -> PaxosFinishPrepareCleanup.verbHandler,                 PAXOS2_CLEANUP_FINISH_PREPARE_RSP),
     PAXOS2_CLEANUP_COMPLETE_RSP      (59, P2, repairTimeout, PAXOS_REPAIR,      () -> NoPayload.serializer,                    () -> ResponseVerbHandler.instance                                                            ),
     PAXOS2_CLEANUP_COMPLETE_REQ      (48, P2, repairTimeout, PAXOS_REPAIR,      () -> PaxosCleanupComplete.serializer,         () -> PaxosCleanupComplete.verbHandler,                      PAXOS2_CLEANUP_COMPLETE_RSP      ),
+
+    // transactional cluster metadata
+    TCM_COMMIT_RSP         (801, P1, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::commitResultSerializer,         () -> ResponseVerbHandler.instance                                 ),
+    TCM_COMMIT_REQ         (802, P1, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::commitSerializer,               () -> commitRequestHandler(),               TCM_COMMIT_RSP         ),
+    TCM_FETCH_CMS_LOG_RSP  (803, P1, rpcTimeout,      FETCH_LOG,            MessageSerializers::logStateSerializer,             () -> ResponseVerbHandler.instance                                 ),
+    TCM_FETCH_CMS_LOG_REQ  (804, P1, rpcTimeout,      FETCH_LOG,            () -> FetchCMSLog.serializer,                       () -> fetchLogRequestHandler(),             TCM_FETCH_CMS_LOG_RSP  ),
+    TCM_REPLICATION        (805, P1, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::replicationSerializer,          () -> replicationHandler()                                         ),
+    TCM_NOTIFY_RSP         (806, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Epoch.messageSerializer,                      () -> ResponseVerbHandler.instance                                 ),
+    TCM_NOTIFY_REQ         (807, P1, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::logStateSerializer,             () -> logNotifyHandler(),                   TCM_NOTIFY_RSP         ),
+    TCM_CURRENT_EPOCH_REQ  (808, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Epoch.messageSerializer,                      () -> currentEpochRequestHandler(),         TCM_NOTIFY_RSP         ),
+    TCM_INIT_MIG_RSP       (809, P1, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::metadataHolderSerializer,       () -> ResponseVerbHandler.instance                                 ),
+    TCM_INIT_MIG_REQ       (810, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Election.Initiator.serializer,                () -> Election.instance.prepareHandler,     TCM_INIT_MIG_RSP       ),
+    TCM_ABORT_MIG          (811, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Election.Initiator.serializer,                () -> Election.instance.abortHandler,       TCM_INIT_MIG_RSP       ),
+    TCM_DISCOVER_RSP       (812, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Discovery.serializer,                         () -> ResponseVerbHandler.instance                                 ),
+    TCM_DISCOVER_REQ       (813, P1, rpcTimeout,      INTERNAL_METADATA,    () -> NoPayload.serializer,                         () -> Discovery.instance.requestHandler,    TCM_DISCOVER_RSP       ),
+    TCM_FETCH_PEER_LOG_RSP (818, P1, rpcTimeout,      FETCH_LOG,            MessageSerializers::logStateSerializer,             () -> ResponseVerbHandler.instance                                 ),
+    TCM_FETCH_PEER_LOG_REQ (819, P1, rpcTimeout,      FETCH_LOG,            () -> FetchPeerLog.serializer,                      () -> FetchPeerLog.Handler.instance,        TCM_FETCH_PEER_LOG_RSP ),
+
+    INITIATE_DATA_MOVEMENTS_RSP (814, P1, rpcTimeout, MISC, () -> NoPayload.serializer,             () -> ResponseVerbHandler.instance                                  ),
+    INITIATE_DATA_MOVEMENTS_REQ (815, P1, rpcTimeout, MISC, () -> DataMovement.serializer,          () -> DataMovementVerbHandler.instance, INITIATE_DATA_MOVEMENTS_RSP ),
+    DATA_MOVEMENT_EXECUTED_RSP  (816, P1, rpcTimeout, MISC, () -> NoPayload.serializer,             () -> ResponseVerbHandler.instance                                  ),
+    DATA_MOVEMENT_EXECUTED_REQ  (817, P1, rpcTimeout, MISC, () -> DataMovement.Status.serializer,   () -> DataMovements.instance,           DATA_MOVEMENT_EXECUTED_RSP  ),
 
     // generic failure response
     FAILURE_RSP            (99,  P0, noTimeout,       REQUEST_RESPONSE,  () -> RequestFailureReason.serializer,      () -> ResponseVerbHandler.instance                             ),

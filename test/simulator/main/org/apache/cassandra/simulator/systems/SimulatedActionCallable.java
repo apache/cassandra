@@ -26,8 +26,8 @@ import org.apache.cassandra.simulator.systems.InterceptedExecution.InterceptedTa
 
 public abstract class SimulatedActionCallable<O> extends SimulatedAction implements BiConsumer<O, Throwable>
 {
-    private final IInvokableInstance on;
-    private SerializableCallable<? extends O> execute;
+    protected final IInvokableInstance on;
+    protected SerializableCallable<? extends O> execute;
 
     public SimulatedActionCallable(Object description, Modifiers self, Modifiers children, SimulatedSystems simulated, IInvokableInstance on, SerializableCallable<? extends O> execute)
     {

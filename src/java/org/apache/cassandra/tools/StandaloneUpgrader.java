@@ -41,6 +41,7 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
 
@@ -61,13 +62,10 @@ public class StandaloneUpgrader
             DatabaseDescriptor.toolInitialization(false); //Necessary for testing
         else
             Util.initDatabaseDescriptor();
-
+        ClusterMetadataService.initializeForTools(false);
         try
         {
-            // load keyspace descriptions.
-            Schema.instance.loadFromDisk();
-
-            if (Schema.instance.getTableMetadataRef(options.keyspace, options.cf) == null)
+            if (Schema.instance.getTableMetadata(options.keyspace, options.cf) == null)
                 throw new IllegalArgumentException(String.format("Unknown keyspace/table %s.%s",
                                                                  options.keyspace,
                                                                  options.cf));

@@ -20,7 +20,7 @@ package org.apache.cassandra.utils;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUIDAsBytes;
 
@@ -138,7 +138,7 @@ public class CounterId implements Comparable<CounterId>
 
         LocalCounterIdHolder()
         {
-            current = new AtomicReference<>(wrap(ByteBufferUtil.bytes(SystemKeyspace.getOrInitializeLocalHostId())));
+            current = new AtomicReference<>(wrap(ByteBufferUtil.bytes(ClusterMetadata.current().myNodeId().toUUID())));
         }
 
         CounterId get()

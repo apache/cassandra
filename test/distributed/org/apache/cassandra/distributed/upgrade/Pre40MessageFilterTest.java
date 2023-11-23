@@ -52,7 +52,7 @@ public class Pre40MessageFilterTest extends UpgradeTestBase
     @Test
     public void reserializePre40RequestPaxosWithoutNetworkTest() throws Throwable
     {
-        reserializePre40RequestPaxosTest(config -> {});
+        reserializePre40RequestPaxosTest(config -> config.with(Feature.GOSSIP));
     }
 
     @Test

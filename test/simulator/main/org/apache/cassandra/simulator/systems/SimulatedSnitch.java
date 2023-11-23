@@ -19,7 +19,9 @@
 package org.apache.cassandra.simulator.systems;
 
 import java.net.InetSocketAddress;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
@@ -116,6 +118,11 @@ public class SimulatedSnitch extends NodeLookup
         Function<InetSocketAddress, String> lookup = Cluster.getUniqueAddressLookup(cluster, i -> nameOfDcs[dcOf(i.config().num())])::get;
         cluster.forEach(i -> i.unsafeAcceptOnThisThread(Instance::setup, lookup));
         Instance.setup(lookup);
+    }
+
+    public List<String> dcs()
+    {
+        return Arrays.asList(nameOfDcs);
     }
 
     private static int asInt(Replica address)

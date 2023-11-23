@@ -23,7 +23,8 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import org.junit.Assert;
-import org.apache.cassandra.config.DatabaseDescriptor;
+
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.db.commitlog.CommitLog;
 
 @Ignore
@@ -32,7 +33,7 @@ public abstract class AbstractTransactionalTest
     @BeforeClass
     public static void setupDD()
     {
-        DatabaseDescriptor.daemonInitialization();
+        ServerTestUtils.prepareServerNoRegister();
         CommitLog.instance.start();
     }
 

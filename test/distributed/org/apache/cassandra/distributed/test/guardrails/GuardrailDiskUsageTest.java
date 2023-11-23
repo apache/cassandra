@@ -28,6 +28,7 @@ import org.junit.Test;
 
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
+import com.datastax.driver.core.exceptions.AuthenticationException;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
@@ -63,7 +64,7 @@ public class GuardrailDiskUsageTest extends GuardrailTester
     private static Session driverSession;
 
     @BeforeClass
-    public static void setupCluster() throws IOException
+    public static void setupCluster() throws IOException, InterruptedException
     {
         // speed up the task that calculates and propagates the disk usage info
         CassandraRelevantProperties.DISK_USAGE_MONITOR_INTERVAL_MS.setInt(100);
@@ -76,17 +77,24 @@ public class GuardrailDiskUsageTest extends GuardrailTester
                                                 .set("data_disk_usage_percentage_fail_threshold", 99)
                                                 .set("authenticator", "PasswordAuthenticator"))
                               .start(), 1);
-
         Auth.waitForExistingRoles(cluster.get(1));
-
-        // create a regular user, since the default superuser is excluded from guardrails
-        com.datastax.driver.core.Cluster.Builder builder = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1");
-        try (com.datastax.driver.core.Cluster c = builder.withCredentials("cassandra", "cassandra").build();
-             Session session = c.connect())
+        com.datastax.driver.core.Cluster.Builder builder = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1")
+                                                                                           .withCredentials("cassandra", "cassandra");
+        while (true)
         {
-            session.execute("CREATE USER test WITH PASSWORD 'test'");
+            // create a regular user, since the default superuser is excluded from guardrails
+            try (com.datastax.driver.core.Cluster c = builder.build();
+                 Session session = c.connect())
+            {
+                session.execute("CREATE USER test WITH PASSWORD 'test'");
+                break;
+            }
+            catch (AuthenticationException e)
+            {
+                Thread.sleep(1000L);
+                // ignore
+            }
         }
-
         // connect using that superuser, we use the driver to get access to the client warnings
         driverCluster = builder.withCredentials("test", "test").build();
         driverSession = driverCluster.connect();

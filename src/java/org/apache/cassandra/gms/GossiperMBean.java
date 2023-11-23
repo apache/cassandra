@@ -27,8 +27,10 @@ public interface GossiperMBean
 
     public int getCurrentGenerationNumber(String address) throws UnknownHostException;
 
+    @Deprecated(since = "CEP-21")
     public void unsafeAssassinateEndpoint(String address) throws UnknownHostException;
 
+    @Deprecated(since = "CEP-21")
     public void assassinateEndpoint(String address) throws UnknownHostException;
 
     public List<String> reloadSeeds();

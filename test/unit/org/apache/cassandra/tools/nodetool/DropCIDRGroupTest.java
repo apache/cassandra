@@ -27,7 +27,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.auth.AuthCacheService;
 import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.cql3.CIDR;
 import org.apache.cassandra.cql3.CQLTester;
@@ -40,10 +39,7 @@ public class DropCIDRGroupTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
-        CQLTester.setUpClass();
         CQLTester.requireAuthentication();
-        AuthCacheService.initializeAndRegisterCaches();
-
         startJMXServer();
     }
 

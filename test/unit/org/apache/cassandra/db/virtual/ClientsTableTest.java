@@ -24,7 +24,6 @@ import com.google.common.collect.ImmutableList;
 
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.datastax.driver.core.ResultSet;
@@ -39,12 +38,6 @@ public class ClientsTableTest extends CQLTester
     
     private ClientsTable table;
     
-    @BeforeClass
-    public static void setUpClass()
-    {
-        CQLTester.setUpClass();
-    }
-
     @Before
     public void config()
     {

@@ -31,7 +31,6 @@ import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget.Type;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -40,6 +39,7 @@ import org.apache.cassandra.index.sasi.SASIIndex;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
@@ -112,7 +112,8 @@ public final class CreateIndexStatement extends AlterSchemaStatement
         this.state = state;
     }
 
-    public Keyspaces apply(Keyspaces schema)
+    @Override
+    public Keyspaces apply(ClusterMetadata metadata)
     {
         attrs.validate();
 
@@ -121,6 +122,7 @@ public final class CreateIndexStatement extends AlterSchemaStatement
         if (attrs.isCustom && attrs.customClass.equals(SASIIndex.class.getName()) && !DatabaseDescriptor.getSASIIndexesEnabled())
             throw new InvalidRequestException(SASI_INDEX_DISABLED);
 
+        Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
         if (null == keyspace)
             throw ire(KEYSPACE_DOES_NOT_EXIST, keyspaceName);
@@ -143,7 +145,7 @@ public final class CreateIndexStatement extends AlterSchemaStatement
         if (table.isView())
             throw ire(MATERIALIZED_VIEWS_NOT_SUPPORTED);
 
-        if (Keyspace.open(table.keyspace).getReplicationStrategy().hasTransientReplicas())
+        if (keyspace.replicationStrategy.hasTransientReplicas())
             throw new InvalidRequestException(TRANSIENTLY_REPLICATED_KEYSPACE_NOT_SUPPORTED);
 
         // guardrails to limit number of secondary indexes per table.

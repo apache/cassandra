@@ -31,8 +31,12 @@ import org.apache.cassandra.db.ClockAndCount;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.context.CounterContext.Relationship;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.StubClusterMetadataService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CounterId;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -58,6 +62,9 @@ public class CounterContextTest
     {
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
+        ClusterMetadataService.unsetInstance();
+        ClusterMetadataService.setInstance(StubClusterMetadataService.forTesting());
+        ClusterMetadataTestHelper.register(FBUtilities.getBroadcastAddressAndPort());
     }
 
     @Test

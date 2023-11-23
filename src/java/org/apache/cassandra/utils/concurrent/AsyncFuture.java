@@ -145,6 +145,17 @@ public class AsyncFuture<V> extends AbstractFuture<V>
     }
 
     /**
+     * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
+     *
+     * See {@link #addListener(GenericFutureListener)} for ordering semantics.
+     */
+    @Override
+    public <T> Future<T> andThenAsync(Function<? super V, ? extends Future<T>> andThen, @Nullable Executor executor)
+    {
+        return andThenAsync(new AsyncFuture<>(), andThen, executor);
+    }
+
+    /**
      * Wait for this future to complete {@link Awaitable#await()}
      */
     @Override

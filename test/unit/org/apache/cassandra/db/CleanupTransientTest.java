@@ -23,11 +23,11 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
 
-import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -36,12 +36,10 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -75,7 +73,7 @@ public class CleanupTransientTest
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
         oldPartitioner = StorageService.instance.setPartitionerUnsafe(partitioner);
-        SchemaLoader.prepareServer();
+        ServerTestUtils.prepareServerNoRegister();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple("2/1"),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
@@ -84,8 +82,6 @@ public class CleanupTransientTest
         StorageService ss = StorageService.instance;
         final int RING_SIZE = 2;
 
-        TokenMetadata tmd = ss.getTokenMetadata();
-        tmd.clearUnsafe();
         ArrayList<Token> endpointTokens = new ArrayList<>();
         ArrayList<Token> keyTokens = new ArrayList<>();
         List<InetAddressAndPort> hosts = new ArrayList<>();
@@ -94,24 +90,7 @@ public class CleanupTransientTest
         endpointTokens.add(RandomPartitioner.MINIMUM);
         endpointTokens.add(RandomPartitioner.instance.midpoint(RandomPartitioner.MINIMUM, new RandomPartitioner.BigIntegerToken(RandomPartitioner.MAXIMUM)));
 
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, RING_SIZE);
-        PendingRangeCalculatorService.instance.blockUntilFinished();
-
-
-        DatabaseDescriptor.setEndpointSnitch(new AbstractNetworkTopologySnitch()
-        {
-            @Override
-            public String getRack(InetAddressAndPort endpoint)
-            {
-                return "RC1";
-            }
-
-            @Override
-            public String getDatacenter(InetAddressAndPort endpoint)
-            {
-                return "DC1";
-            }
-        });
+        Util.createInitialRing(endpointTokens, keyTokens, hosts, hostIds, RING_SIZE);
     }
 
     @Test

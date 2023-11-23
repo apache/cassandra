@@ -25,6 +25,8 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.apache.cassandra.ServerTestUtils;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -67,7 +69,7 @@ public class SSTableWriterTestBase extends SchemaLoader
     {
         DatabaseDescriptor.daemonInitialization();
 
-        SchemaLoader.prepareServer();
+        ServerTestUtils.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE, CF),

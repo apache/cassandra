@@ -270,7 +270,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     private String repairedNodes()
     {
         StringBuilder sb = new StringBuilder();
-        sb.append(FBUtilities.getBroadcastAddressAndPort());
+        sb.append(ctx.broadcastAddressAndPort());
         for (InetAddressAndPort ep : state.commonRange.endpoints)
             sb.append(", ").append(ep);
         return sb.toString();

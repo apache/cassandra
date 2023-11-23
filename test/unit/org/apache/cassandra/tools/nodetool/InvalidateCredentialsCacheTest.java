@@ -45,13 +45,10 @@ public class InvalidateCredentialsCacheTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
-        CQLTester.setUpClass();
         CQLTester.requireAuthentication();
-
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOptions());
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOptions());
-
         PasswordAuthenticator passwordAuthenticator = (PasswordAuthenticator) DatabaseDescriptor.getAuthenticator();
         roleANegotiator = passwordAuthenticator.newSaslNegotiator(null);
         roleANegotiator.evaluateResponse(new PlainTextAuthProvider(ROLE_A.getRoleName(), "ignored")
@@ -61,7 +58,6 @@ public class InvalidateCredentialsCacheTest extends CQLTester
         roleBNegotiator.evaluateResponse(new PlainTextAuthProvider(ROLE_B.getRoleName(), "ignored")
                 .newAuthenticator((EndPoint) null, null)
                 .initialResponse());
-
         requireNetwork();
         startJMXServer();
     }

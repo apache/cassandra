@@ -19,17 +19,16 @@
 package org.apache.cassandra.locator;
 
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.FBUtilities;
 
 
@@ -37,14 +36,10 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
 {
     private static final Logger logger = LoggerFactory.getLogger(GossipingPropertyFileSnitch.class);
 
-    private PropertyFileSnitch psnitch;
-
     private final String myDC;
     private final String myRack;
     private final boolean preferLocal;
     private final AtomicReference<ReconnectableSnitchHelper> snitchHelperReference;
-
-    private Map<InetAddressAndPort, Map<String, String>> savedEndpoints;
     private static final String DEFAULT_DC = "UNKNOWN_DC";
     private static final String DEFAULT_RACK = "UNKNOWN_RACK";
 
@@ -56,16 +51,6 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
         myRack = properties.get("rack", DEFAULT_RACK).trim();
         preferLocal = Boolean.parseBoolean(properties.get("prefer_local", "false"));
         snitchHelperReference = new AtomicReference<>();
-
-        try
-        {
-            psnitch = new PropertyFileSnitch();
-            logger.info("Loaded {} for compatibility", PropertyFileSnitch.SNITCH_PROPERTIES_FILENAME);
-        }
-        catch (ConfigurationException e)
-        {
-            logger.info("Unable to load {}; compatibility mode disabled", PropertyFileSnitch.SNITCH_PROPERTIES_FILENAME);
-        }
     }
 
     private static SnitchProperties loadConfiguration() throws ConfigurationException
@@ -88,21 +73,11 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
         if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return myDC;
 
-        EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
-        if (epState == null || epState.getApplicationState(ApplicationState.DC) == null)
-        {
-            if (psnitch == null)
-            {
-                if (savedEndpoints == null)
-                    savedEndpoints = SystemKeyspace.loadDcRackInfo();
-                if (savedEndpoints.containsKey(endpoint))
-                    return savedEndpoints.get(endpoint).get("data_center");
-                return DEFAULT_DC;
-            }
-            else
-                return psnitch.getDatacenter(endpoint);
-        }
-        return epState.getApplicationState(ApplicationState.DC).value;
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId nodeId = metadata.directory.peerId(endpoint);
+        if (nodeId == null)
+            return DEFAULT_DC;
+        return metadata.directory.location(nodeId).datacenter;
     }
 
     /**
@@ -116,21 +91,11 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
         if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
             return myRack;
 
-        EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
-        if (epState == null || epState.getApplicationState(ApplicationState.RACK) == null)
-        {
-            if (psnitch == null)
-            {
-                if (savedEndpoints == null)
-                    savedEndpoints = SystemKeyspace.loadDcRackInfo();
-                if (savedEndpoints.containsKey(endpoint))
-                    return savedEndpoints.get(endpoint).get("rack");
-                return DEFAULT_RACK;
-            }
-            else
-                return psnitch.getRack(endpoint);
-        }
-        return epState.getApplicationState(ApplicationState.RACK).value;
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId nodeId = metadata.directory.peerId(endpoint);
+        if (nodeId == null)
+            return DEFAULT_RACK;
+        return metadata.directory.location(nodeId).rack;
     }
 
     public void gossiperStarting()

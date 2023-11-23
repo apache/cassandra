@@ -19,17 +19,21 @@
 package org.apache.cassandra.schema;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
+
+import org.apache.commons.lang3.ObjectUtils;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -65,6 +69,7 @@ import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.service.CacheService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.Throwables;
@@ -80,12 +85,6 @@ public class MockSchema
     public static SSTableId sstableId(int idx)
     {
         return sstableIds.computeIfAbsent(idx, ignored -> sstableIdGenerator.get());
-    }
-
-    public static Collection<Object[]> sstableIdGenerators()
-    {
-        return Arrays.asList(new Object[]{ Util.newSeqGen() },
-                             new Object[]{ Util.newUUIDGen() });
     }
 
     private static final File tempFile = temp("mocksegmentedfile");
@@ -104,9 +103,16 @@ public class MockSchema
         {
             throw Throwables.throwAsUncheckedException(ex);
         }
+
+        Schema.instance = new MockSchemaProvider();
+        if (DatabaseDescriptor.isDaemonInitialized() || DatabaseDescriptor.isToolInitialized())
+            DatabaseDescriptor.createAllDirectories();
+
     }
+
     private static final AtomicInteger id = new AtomicInteger();
-    public static final Keyspace ks = Keyspace.mockKS(KeyspaceMetadata.create("mockks", KeyspaceParams.simpleTransient(1)));
+    private static final String ksname = "mockks";
+    private static KeyspaceMetadata mockKS = KeyspaceMetadata.create(ksname, KeyspaceParams.simpleTransient(1));
 
     public static final IndexSummary indexSummary;
 
@@ -294,7 +300,7 @@ public class MockSchema
 
     public static ColumnFamilyStore newCFS()
     {
-        return newCFS(ks.getName());
+        return newCFS(ksname);
     }
 
     public static ColumnFamilyStore newCFS(String ksname)
@@ -304,7 +310,7 @@ public class MockSchema
 
     public static ColumnFamilyStore newCFS(Function<TableMetadata.Builder, TableMetadata.Builder> options)
     {
-        return newCFS(ks.getName(), options);
+        return newCFS(ksname, options);
     }
 
     public static ColumnFamilyStore newCFS(String ksname, Function<TableMetadata.Builder, TableMetadata.Builder> options)
@@ -314,10 +320,14 @@ public class MockSchema
 
     public static ColumnFamilyStore newCFS(TableMetadata metadata)
     {
-        return new ColumnFamilyStore(ks, metadata.name, Util.newSeqGen(), new TableMetadataRef(metadata), new Directories(metadata), false, false, false);
+        Tables tables = mockKS.tables.getNullable(metadata.name) == null
+                        ? mockKS.tables.with(metadata)
+                        : mockKS.tables.withSwapped(metadata);
+        mockKS = mockKS.withSwapped(tables);
+        return new ColumnFamilyStore(new Keyspace(mockKS), metadata.name, Util.newSeqGen(), metadata, new Directories(metadata), false, false);
     }
 
-    public static TableMetadata newTableMetadata(String ksname)
+    private static TableMetadata newTableMetadata(String ksname)
     {
         return newTableMetadata(ksname, "mockcf" + (id.incrementAndGet()));
     }
@@ -365,6 +375,136 @@ public class MockSchema
             String[] children = dir.tryListNames();
             for (String child : children)
                 FileUtils.deleteRecursive(new File(dir, child));
+        }
+    }
+
+    public static class MockSchemaProvider implements SchemaProvider
+    {
+        private final SchemaProvider originalSchemaProvider = Schema.instance;
+
+        @Override
+        public Set<String> getKeyspaces()
+        {
+            Set<String> kss = new HashSet<>(originalSchemaProvider.getKeyspaces());
+            kss.add(ksname);
+            return kss;
+        }
+
+        @Override
+        public int getNumberOfTables()
+        {
+            return originalSchemaProvider.getNumberOfTables() + mockKS.tables.size();
+        }
+
+        @Override
+        public ClusterMetadata submit(SchemaTransformation transformation)
+        {
+            return originalSchemaProvider.submit(transformation);
+        }
+
+        @Override
+        public Keyspaces localKeyspaces()
+        {
+            return originalSchemaProvider.localKeyspaces();
+        }
+
+        @Override
+        public Keyspaces distributedKeyspaces()
+        {
+            return originalSchemaProvider.distributedKeyspaces().with(mockKS);
+        }
+
+        @Override
+        public Keyspaces distributedAndLocalKeyspaces()
+        {
+            return Keyspaces.NONE.with(localKeyspaces()).with(distributedKeyspaces());
+        }
+
+        @Override
+        public Keyspaces getUserKeyspaces()
+        {
+            return distributedKeyspaces().without(SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES);
+        }
+
+        @Override
+        public void registerListener(SchemaChangeListener listener)
+        {
+            originalSchemaProvider.registerListener(listener);
+        }
+
+        @Override
+        public void unregisterListener(SchemaChangeListener listener)
+        {
+            originalSchemaProvider.unregisterListener(listener);
+        }
+
+        public SchemaChangeNotifier schemaChangeNotifier()
+        {
+            return originalSchemaProvider.schemaChangeNotifier();
+        }
+
+        @Override
+        public Optional<TableMetadata> getIndexMetadata(String keyspace, String index)
+        {
+            return originalSchemaProvider.getIndexMetadata(keyspace, index);
+        }
+
+        @Override
+        public Iterable<TableMetadata> getTablesAndViews(String keyspaceName)
+        {
+            Preconditions.checkNotNull(keyspaceName);
+            KeyspaceMetadata ksm = ObjectUtils.getFirstNonNull(() -> distributedKeyspaces().getNullable(keyspaceName),
+                                                               () -> localKeyspaces().getNullable(keyspaceName));
+            Preconditions.checkNotNull(ksm, "Keyspace %s not found", keyspaceName);
+            return ksm.tablesAndViews();
+        }
+
+        @Nullable
+        @Override
+        public Keyspace getKeyspaceInstance(String keyspaceName)
+        {
+            if (isMockKS(keyspaceName))
+                return new Keyspace(mockKS);
+
+            return originalSchemaProvider.getKeyspaceInstance(keyspaceName);
+        }
+
+        @Nullable
+        @Override
+        public KeyspaceMetadata getKeyspaceMetadata(String keyspaceName)
+        {
+            if (isMockKS(keyspaceName))
+                return mockKS;
+            return originalSchemaProvider.getKeyspaceMetadata(keyspaceName);
+        }
+
+        @Nullable
+        @Override
+        public TableMetadata getTableMetadata(TableId id)
+        {
+            if (mockKS.tables.containsTable(id))
+                return mockKS.tables.getNullable(id);
+            return originalSchemaProvider.getTableMetadata(id);
+        }
+
+        @Nullable
+        @Override
+        public TableMetadata getTableMetadata(String keyspace, String table)
+        {
+            if (isMockKS(keyspace) || mockKS.tables.stream().anyMatch(tm -> tm.name.equals(table)))
+                return mockKS.tables.getNullable(table);
+            return originalSchemaProvider.getTableMetadata(keyspace, table);
+        }
+
+        @Override
+        public void saveSystemKeyspace()
+        {
+            originalSchemaProvider.saveSystemKeyspace();
+        }
+
+        private boolean isMockKS(String keyspaceName)
+        {
+            return keyspaceName.equals(ksname)|| keyspaceName.equals(mockKS.name) || mockKS.tables.stream().anyMatch(tm -> tm.keyspace.equals(keyspaceName));
         }
     }
 }

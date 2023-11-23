@@ -71,11 +71,70 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    [The following is a placeholder, to be revised asap]
+    - CEP-21 Transactional Cluster Metadata introduces a distributed log for linearizing modifications to cluster
+    metadata. In the first instance, this encompasses cluster membership, token ownership and schema metadata. See
+    https://cwiki.apache.org/confluence/display/CASSANDRA/CEP-21%3A+Transactional+Cluster+Metadata for more detail on
+    the motivation and design, and see "Upgrading" below for specific instructions on migrating clusters to this system.
+    More updates and documentation to follow.
     - New Guardrails added:
       - Whether bulk loading of SSTables is allowed.
 
 Upgrading
 ---------
+    [The following is a placeholder, to be revised asap]
+    - Upgrading to 5.1 is currently only supported from 4.0, 4.1 or 5.0. Clusters running earlier releases must first
+    upgrade to at least the latest 4.0 release. When a cluster is upgraded to 5.1 there is an additional step for
+    operators to perform. The upgrade is not considered complete until:
+      1. All UP nodes are running 5.1
+      2. The Cluster Metadata Service (CMS) has been enabled
+    The first step is just a regular upgrade, there are no changes to external APIs, SSTable formats to consider.
+    Step 2 requires an operator to run a new nodetool subcommand, intializecms, on one node in the cluster.
+      - > nodetool initializecms
+    Doing so creates the CMS with the local node as its only member. The initializecms command cannot be executed until
+    step 1 is complete and all nodes are running 5.1 as migrating metadata management over to the new TCM system
+    requires all nodes to be in agreement over the current state of the cluster. Essentially this means agreement on
+    schema and topology. Once the upgrade has started, but before initializecms is run, metadata-changing operations are
+    not permitted and if attempted from an upgraded node will be rejected.
+    Prohibited operations include:
+      - schema changes
+      - node replacement
+      - bootstrap
+      - decommission
+      - move
+      - assasinate
+    For the time being there is no mechanism in place to prevent these operations being executed by a node still running
+    a previous version, though this is planned before release. Any automation which can trigger these operations should
+    be disabled for the cluster prior to starting the upgrade.
+    Should any of the prohibited operations be executed (i.e. on a node that is still running a pre-5.1 version) before
+    the CMS migration, nodes which are DOWN or which have been upgraded will not process the metadata changes. However,
+    nodes still UP and running the old version will. This will eventually cause the migration to fail, as the cluster
+    will not be in agreement.
+      - > nodetool initializecms
+        Got mismatching cluster metadatas from [/x.x.x.x:7000] aborting migration
+        See 'nodetool help' or 'nodetool help <command>'.
+    If the initializecms command fails, it will indicate which nodes’ current metadata does not agree with the node
+    where the command was executed. To mitigate this situation, bring any mismatching nodes DOWN and rerun the
+    initializecms command with the additional —ignore flag.
+      - nodetool intializecms -ignore x.x.x.x
+    Once the command has run successfully the ignored nodes can be restarted but any metadata changes that they
+    accepted/and or applied whilst the cluster was in mixed mode will be lost. We plan to improve this before beta, but
+    in the meantime operators should ensure no schema or membership/ownership changes are performed during the upgrade.
+    Although the restrictions on metadata-changing operations will be removed as soon as the initial CMS migration is
+    complete, at that point the CMS will only contain a single member, which is not suitable for real clusters. To
+    modify the membership of the CMS a second nodetool subcommand, reconfigurecms, should be run. This command allows
+    the number of required number of CMS members to be specified for each datacenter. Consensus for metadata operations
+    by the CMS is obtained via Paxos, operating at SERIAL/QUORUM consistency, so the minimum safe size for the CMS is 3
+    nodes. In multi-DC deployments, the CMS members may be distributed across DCs to ensure resilience in the case of a
+    DC outage. It is not recommended to make every node a member of the CMS. Redundancy is the primary concern here, not
+    locality or latency, so between 3 and 7 nodes per DC depending on the size of the cluster should be the goal.
+    Deploying to a fresh cluster is more straightforward. As the cluster comes up, at least one node will automatically
+    nominate itself as the first CMS node. A simple election mechanism ensures that only one node will be chosen if
+    multiple peers attempt to nominate themselves. As soon as the election is complete, metadata modifications are
+    supported. Typically, this takes only a few seconds and is likely to complete before all nodes are fully UP. Nodes
+    which come up during or after an election will learn of the elected first CMS node and direct metadata updates to
+    it. It is important to remember that at the completion of the election, the CMS still only comprises a single
+    member. Just as in the upgrade case, operators should add further members as soon as possible.
 
 Deprecation
 -----------

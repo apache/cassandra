@@ -23,12 +23,22 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.utils.FBUtilities;
 
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>>
 {
+    Epoch epoch();
     Keyspace keyspace();
     AbstractReplicationStrategy replicationStrategy();
     ConsistencyLevel consistencyLevel();
@@ -37,6 +47,10 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
 
     Replica lookup(InetAddressAndPort endpoint);
     P withContacts(E contacts);
+
+    void collectSuccess(InetAddressAndPort inetAddressAndPort);
+    void collectFailure(InetAddressAndPort inetAddressAndPort, RequestFailureReason t);
+    boolean stillAppliesTo(ClusterMetadata newMetadata);
 
     interface ForRead<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends ReplicaPlan<E, P>
     {
@@ -57,6 +71,7 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
         // It could be different than the one fetched from Keyspace later, e.g. RS altered during the query.
         // Use the snapshot to calculate {@code blockFor} in order to have a consistent view of RS for the query.
         protected final AbstractReplicationStrategy replicationStrategy;
+        protected final Epoch epoch;
 
         // all nodes we will contact via any mechanism, including hints
         // i.e., for:
@@ -66,22 +81,43 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
         //      ==> liveAndDown.natural().filter(isFull) ++ liveAndDown.pending() ++ live.natural.filter(isTransient, req)
         //  - paxos, includes all live replicas (natural+pending), for this DC if SERIAL_LOCAL
         //      ==> live.all()  (if consistencyLevel.isDCLocal(), then .filter(consistencyLevel.isLocal))
-        private final E contacts;
+        protected final E contacts;
 
-        AbstractReplicaPlan(Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, E contacts)
+        protected final Function<ClusterMetadata, P> recompute;
+        protected List<InetAddressAndPort> contacted = new CopyOnWriteArrayList<>();
+
+        AbstractReplicaPlan(Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, E contacts, Function<ClusterMetadata, P> recompute, Epoch epoch)
         {
             assert contacts != null;
             this.keyspace = keyspace;
             this.replicationStrategy = replicationStrategy;
             this.consistencyLevel = consistencyLevel;
             this.contacts = contacts;
+            this.recompute = recompute;
+            this.epoch = epoch;
         }
 
         public E contacts() { return contacts; }
-
         public Keyspace keyspace() { return keyspace; }
         public AbstractReplicationStrategy replicationStrategy() { return replicationStrategy; }
         public ConsistencyLevel consistencyLevel() { return consistencyLevel; }
+        public boolean canDoLocalRequest()
+        {
+            return contacts.contains(FBUtilities.getBroadcastAddressAndPort());
+        }
+
+        public Epoch epoch()
+        {
+            return epoch;
+        }
+
+        public void collectSuccess(InetAddressAndPort addr)
+        {
+            contacted.add(addr);
+        }
+
+        public void collectFailure(InetAddressAndPort inetAddressAndPort, RequestFailureReason t) {}
+
     }
 
     public static abstract class AbstractForRead<E extends Endpoints<E>, P extends ForRead<E, P>> extends AbstractReplicaPlan<E, P> implements ForRead<E, P>
@@ -89,14 +125,22 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
         // all nodes we *could* contacts; typically all natural replicas that are believed to be alive
         // we will consult this collection to find uncontacted nodes we might contact if we doubt we will meet consistency level
         final E candidates;
+        final int readQuorum;
 
-        AbstractForRead(Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, E candidates, E contacts)
+        AbstractForRead(Keyspace keyspace,
+                        AbstractReplicationStrategy replicationStrategy,
+                        ConsistencyLevel consistencyLevel,
+                        E candidates,
+                        E contacts,
+                        Function<ClusterMetadata, P> recompute,
+                        Epoch epoch)
         {
-            super(keyspace, replicationStrategy, consistencyLevel, contacts);
+            super(keyspace, replicationStrategy, consistencyLevel, contacts, recompute, epoch);
             this.candidates = candidates;
+            this.readQuorum = consistencyLevel.blockFor(replicationStrategy);
         }
 
-        public int readQuorum() { return consistencyLevel.blockFor(replicationStrategy); }
+        public int readQuorum() { return readQuorum; }
 
         public E readCandidates() { return candidates; }
 
@@ -114,27 +158,79 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
         {
             return "ReplicaPlan.ForRead [ CL: " + consistencyLevel + " keyspace: " + keyspace + " candidates: " + candidates + " contacts: " + contacts() + " ]";
         }
+
+        @Override
+        public boolean stillAppliesTo(ClusterMetadata newMetadata)
+        {
+            if (newMetadata.epoch.equals(epoch))
+                return true;
+
+            // If we can't decide, return.
+            if (recompute == null)
+                return true;
+
+            ForRead<?, ?> newPlan = recompute.apply(newMetadata);
+
+            if (readCandidates().equals(newPlan.readCandidates()))
+                return true;
+
+            int readQuorum = newPlan.readQuorum();
+            for (InetAddressAndPort addr : contacted)
+            {
+                if (newPlan.readCandidates().contains(addr))
+                    readQuorum--;
+            }
+
+            if (readQuorum <= 0)
+                return true;
+
+            throw new IllegalStateException(String.format("During operation execution, for keyspace %s at %s the ring has changed from %s to %s in a way that would make responses violate the consistency level." +
+                                                          "\n\tReceived responses from: %s" +
+                                                          "\n\tOld candidates: %s" +
+                                                          "\n\tNew candidates: %s" +
+                                                          "\n\tRemaining required: %d",
+                                                          keyspace.getName(), consistencyLevel,
+                                                          epoch, newMetadata.epoch,
+                                                          contacted, candidates, newPlan.readCandidates(), readQuorum));
+        }
     }
 
     public static class ForTokenRead extends AbstractForRead<EndpointsForToken, ForTokenRead>
     {
+        private final Function<ReplicaPlan<?, ?>, ForWrite> repairPlan;
+
         public ForTokenRead(Keyspace keyspace,
                             AbstractReplicationStrategy replicationStrategy,
                             ConsistencyLevel consistencyLevel,
                             EndpointsForToken candidates,
-                            EndpointsForToken contacts)
+                            EndpointsForToken contacts,
+                            Function<ClusterMetadata, ReplicaPlan.ForTokenRead> recompute,
+                            Function<ReplicaPlan<?, ?>, ReplicaPlan.ForWrite> repairPlan,
+                            Epoch epoch)
         {
-            super(keyspace, replicationStrategy, consistencyLevel, candidates, contacts);
+            super(keyspace, replicationStrategy, consistencyLevel, candidates, contacts, recompute, epoch);
+            this.repairPlan = repairPlan;
         }
 
-        public ForTokenRead withContacts(EndpointsForToken newContact)
+        public ForTokenRead withContacts(EndpointsForToken newContacts)
         {
-            return new ForTokenRead(keyspace, replicationStrategy, consistencyLevel, candidates, newContact);
+            ForTokenRead res = new ForTokenRead(keyspace, replicationStrategy, consistencyLevel, candidates, newContacts, recompute, repairPlan, epoch);
+            res.contacted.addAll(contacted);
+            return res;
+        }
+
+        public ForWrite repairPlan()
+        {
+            if (repairPlan != null)
+                return repairPlan.apply(this); //.get(); //.withContacts(contacts);
+
+            throw new IllegalStateException("Can not construct a repair plan on a derivative plan.");
         }
     }
 
     public static class ForRangeRead extends AbstractForRead<EndpointsForRange, ForRangeRead>
     {
+        private final BiFunction<ReplicaPlan<?, ?>, Token, ReplicaPlan.ForWrite> repairPlan;
         final AbstractBounds<PartitionPosition> range;
         final int vnodeCount;
 
@@ -144,11 +240,15 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
                             AbstractBounds<PartitionPosition> range,
                             EndpointsForRange candidates,
                             EndpointsForRange contact,
-                            int vnodeCount)
+                            int vnodeCount,
+                            Function<ClusterMetadata, ReplicaPlan.ForRangeRead> recompute,
+                            BiFunction<ReplicaPlan<?, ?>, Token, ReplicaPlan.ForWrite> repairPlan,
+                            Epoch epoch)
         {
-            super(keyspace, replicationStrategy, consistencyLevel, candidates, contact);
+            super(keyspace, replicationStrategy, consistencyLevel, candidates, contact, recompute, epoch);
             this.range = range;
             this.vnodeCount = vnodeCount;
+            this.repairPlan = repairPlan;
         }
 
         public AbstractBounds<PartitionPosition> range() { return range; }
@@ -160,7 +260,19 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
 
         public ForRangeRead withContacts(EndpointsForRange newContact)
         {
-            return new ForRangeRead(keyspace, replicationStrategy, consistencyLevel, range, readCandidates(), newContact, vnodeCount);
+            ForRangeRead res = new ForRangeRead(keyspace, replicationStrategy, consistencyLevel, range, readCandidates(), newContact, vnodeCount, recompute, repairPlan, epoch);
+            res.contacted.addAll(contacted);
+            return res;
+        }
+
+        public ForWrite repairPlan(Token token)
+        {
+            if (repairPlan != null)
+            {
+                return repairPlan.apply(this, token);
+            }
+
+            throw new IllegalStateException("Can not construct a repair plan on a derivative plan.");
         }
     }
 
@@ -172,9 +284,14 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
                                 AbstractBounds<PartitionPosition> range,
                                 EndpointsForRange candidates,
                                 EndpointsForRange contact,
-                                int vnodeCount)
+                                int vnodeCount,
+                                Epoch epoch)
         {
-            super(keyspace, replicationStrategy, consistencyLevel, range, candidates, contact, vnodeCount);
+            // A FullRangeRead plan, as part of a top K query, is not recomputed to check that it still applies should
+            // the epoch change during the course of query execution so no recomputation function is supplied. Likewise,
+            // no read repair is expected to be performed during this type of query so a null is also used in place of a
+            // function for calculating the repair plan.
+            super(keyspace, replicationStrategy, consistencyLevel, range, candidates, contact, vnodeCount, null, null, epoch);
         }
 
         @Override
@@ -190,16 +307,26 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
         final EndpointsForToken pending;
         final EndpointsForToken liveAndDown;
         final EndpointsForToken live;
+        final int writeQuorum;
 
-        public ForWrite(Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, EndpointsForToken pending, EndpointsForToken liveAndDown, EndpointsForToken live, EndpointsForToken contact)
+        public ForWrite(Keyspace keyspace,
+                        AbstractReplicationStrategy replicationStrategy,
+                        ConsistencyLevel consistencyLevel,
+                        EndpointsForToken pending,
+                        EndpointsForToken liveAndDown,
+                        EndpointsForToken live,
+                        EndpointsForToken contact,
+                        Function<ClusterMetadata, ForWrite> recompute,
+                        Epoch epoch)
         {
-            super(keyspace, replicationStrategy, consistencyLevel, contact);
+            super(keyspace, replicationStrategy, consistencyLevel, contact, recompute, epoch);
             this.pending = pending;
             this.liveAndDown = liveAndDown;
             this.live = live;
+            this.writeQuorum = consistencyLevel.blockForWrite(replicationStrategy, pending);
         }
 
-        public int writeQuorum() { return consistencyLevel.blockForWrite(replicationStrategy, pending()); }
+        public int writeQuorum() { return writeQuorum; }
 
         /** Replicas that a region of the ring is moving to; not yet ready to serve reads, but should receive writes */
         public EndpointsForToken pending() { return pending; }
@@ -223,11 +350,55 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
 
         private ForWrite copy(ConsistencyLevel newConsistencyLevel, EndpointsForToken newContact)
         {
-            return new ForWrite(keyspace, replicationStrategy, newConsistencyLevel, pending(), liveAndDown(), live(), newContact);
+            ForWrite res = new ForWrite(keyspace, replicationStrategy, newConsistencyLevel, pending(), liveAndDown(), live(), newContact, recompute, epoch);
+            res.contacted.addAll(contacted);
+            return res;
         }
 
         ForWrite withConsistencyLevel(ConsistencyLevel newConsistencylevel) { return copy(newConsistencylevel, contacts()); }
         public ForWrite withContacts(EndpointsForToken newContact) { return copy(consistencyLevel, newContact); }
+
+        // TODO: this method can return a collection of received responses that apply, and an explanation on why
+        // contacts are not enough to satisfy the replicaplan.
+        public boolean stillAppliesTo(ClusterMetadata newMetadata)
+        {
+            if (newMetadata.epoch.equals(epoch))
+                return true;
+
+            // If we can't decide, return.
+            if (recompute == null)
+                return true;
+
+            ForWrite newPlan = recompute.apply(newMetadata);
+
+            // We do not concern ourselves with down nodes here, at least not if we could make a successful write on them
+            if (liveAndDown.equals(newPlan.liveAndDown) && pending.equals(newPlan.pending))
+                return true;
+
+            int writeQuorum = newPlan.writeQuorum();
+
+            for (InetAddressAndPort addr : contacted)
+            {
+                if (newPlan.liveAndDown().contains(addr))
+                    writeQuorum--;
+            }
+
+            if (writeQuorum <= 0)
+                return true;
+
+            throw new IllegalStateException(String.format("During operation execution, for keyspace %s at %s the ring has changed from %s to %s in a way that would make responses violate the consistency level." +
+                                                          "\n\tReceived responses from: %s" +
+                                                          "\n\tOld candidates: %s%s" +
+                                                          "\n\tNew candidates: %s%s" +
+                                                          "\n\tRemaining required: %d",
+                                                          keyspace.getName(),
+                                                          consistencyLevel,
+                                                          epoch, newMetadata.epoch,
+                                                          contacted,
+                                                          liveAndDown, pending.isEmpty() ? "" : String.format(" (%s pending)", pending),
+                                                          newPlan.liveAndDown, newPlan.pending.isEmpty() ? "" : String.format(" (%s pending)", newPlan.pending),
+                                                          writeQuorum));
+        }
 
         public String toString()
         {
@@ -239,9 +410,17 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
     {
         final int requiredParticipants;
 
-        ForPaxosWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, EndpointsForToken pending, EndpointsForToken liveAndDown, EndpointsForToken live, EndpointsForToken contact, int requiredParticipants)
+        ForPaxosWrite(Keyspace keyspace,
+                      ConsistencyLevel consistencyLevel,
+                      EndpointsForToken pending,
+                      EndpointsForToken liveAndDown,
+                      EndpointsForToken live,
+                      EndpointsForToken contact,
+                      int requiredParticipants,
+                      Function<ClusterMetadata, ForWrite> recompute,
+                      Epoch epoch)
         {
-            super(keyspace, keyspace.getReplicationStrategy(), consistencyLevel, pending, liveAndDown, live, contact);
+            super(keyspace, keyspace.getReplicationStrategy(), consistencyLevel, pending, liveAndDown, live, contact, recompute, epoch);
             this.requiredParticipants = requiredParticipants;
         }
 

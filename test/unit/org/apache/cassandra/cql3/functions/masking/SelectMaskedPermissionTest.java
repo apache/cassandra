@@ -45,7 +45,6 @@ public class SelectMaskedPermissionTest extends CQLTester
         DatabaseDescriptor.setDynamicDataMaskingEnabled(true);
         DatabaseDescriptor.setPermissionsValidity(0);
         DatabaseDescriptor.setRolesValidity(0);
-        CQLTester.setUpClass();
         requireAuthentication();
         requireNetwork();
     }

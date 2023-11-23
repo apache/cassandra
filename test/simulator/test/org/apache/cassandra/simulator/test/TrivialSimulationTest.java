@@ -52,6 +52,7 @@ public class TrivialSimulationTest extends SimulationTestBase
                  },
                  (simulation) -> ActionList.of(simulation.executeQuery(1, "INSERT INTO ks.tbl VALUES (1,1)", ConsistencyLevel.QUORUM),
                                                simulation.executeQuery(1, "SELECT * FROM ks.tbl WHERE pk = 1", ConsistencyLevel.QUORUM)),
+                 (simulation) -> ActionList.of(),
                  (config) -> config
                              .threadCount(10)
                              .nodes(3, 3)

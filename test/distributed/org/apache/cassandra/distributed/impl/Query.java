@@ -101,11 +101,4 @@ public class Query implements IIsolatedExecutor.SerializableCallable<Object[][]>
     {
         return org.apache.cassandra.db.ConsistencyLevel.fromCode(cl.ordinal());
     }
-
-    static final org.apache.cassandra.distributed.api.ConsistencyLevel[] API_CLs = org.apache.cassandra.distributed.api.ConsistencyLevel.values();
-    static org.apache.cassandra.distributed.api.ConsistencyLevel fromCassandraCL(org.apache.cassandra.db.ConsistencyLevel cl)
-    {
-        return API_CLs[cl.ordinal()];
-    }
-
 }

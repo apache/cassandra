@@ -102,7 +102,10 @@ public class InterceptingGlobalMethods extends InterceptingMonitors implements I
             return null;
 
         if (!disabled)
+        {
+            logger.error("Caught a non-intercepted thread! " + thread, new RuntimeException());
             throw failWithOOM();
+        }
 
         return null;
     }

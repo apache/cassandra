@@ -32,6 +32,7 @@ import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 
@@ -79,11 +80,11 @@ public class ColumnIndexesSystemView extends AbstractVirtualTable
     {
         SimpleDataSet dataset = new SimpleDataSet(metadata());
 
-        for (String ks : Schema.instance.getUserKeyspaces())
+        for (KeyspaceMetadata ks: Schema.instance.getUserKeyspaces())
         {
-            Keyspace keyspace = Schema.instance.getKeyspaceInstance(ks);
+            Keyspace keyspace = Schema.instance.getKeyspaceInstance(ks.name);
             if (keyspace == null)
-                throw new IllegalArgumentException("Unknown keyspace " + ks);
+                throw new IllegalArgumentException("Unknown keyspace " + ks.name);
 
             for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
             {
@@ -97,7 +98,7 @@ public class ColumnIndexesSystemView extends AbstractVirtualTable
                         IndexContext context = ((StorageAttachedIndex) index).getIndexContext();
                         String indexName = context.getIndexName();
 
-                        dataset.row(ks, indexName)
+                        dataset.row(ks.name, indexName)
                                .column(TABLE_NAME, cfs.name)
                                .column(COLUMN_NAME, context.getColumnName())
                                .column(IS_QUERYABLE, manager.isIndexQueryable(index))

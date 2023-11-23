@@ -24,9 +24,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.service.StorageService;
 
 import javax.annotation.Nullable;
 
@@ -34,7 +34,7 @@ public interface IPartitioner
 {
     static IPartitioner global()
     {
-        return StorageService.instance.getTokenMetadata().partitioner;
+        return DatabaseDescriptor.getPartitioner();
     }
 
     static void validate(Collection<? extends AbstractBounds<?>> allBounds)
