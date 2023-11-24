@@ -160,7 +160,7 @@ public class DirectIOSegmentTest
         ByteBuffer buf = pool.createBuffer();
         try
         {
-            assertThat(buf.capacity()).isEqualTo(segmentSize);
+            assertThat(buf.remaining()).isEqualTo(segmentSize);
             assertThat(buf.alignmentOffset(buf.position(), builder.fsBlockSize)).isEqualTo(0);
             assertThat(buf).isInstanceOf(DirectBuffer.class);
             assertThat(((DirectBuffer) buf).attachment()).isNotNull();
