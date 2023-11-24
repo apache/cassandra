@@ -95,7 +95,6 @@ public class HintWriteTTLTest
         liveHint = makeHint(tbm, 1, nowInSeconds, GC_GRACE);
         ttldHint = makeHint(tbm, 2, nowInSeconds - (TTL + 1), GC_GRACE);
 
-
         File directory = new File(Files.createTempDirectory(null));
         HintsDescriptor descriptor = new HintsDescriptor(UUID.randomUUID(), s2m(nowInSeconds));
 
