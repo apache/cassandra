@@ -109,7 +109,7 @@ public class FrozenUDTTest extends TestBaseImpl
             cluster.forEach(i -> i.runOnInstance(() -> {
                 try
                 {
-                    StorageService.instance.upgradeSSTables(KEYSPACE, false, "x");
+                    StorageService.instance.upgradeSSTables(KEYSPACE, false, 0, "x");
                 }
                 catch (IOException | ExecutionException | InterruptedException e)
                 {

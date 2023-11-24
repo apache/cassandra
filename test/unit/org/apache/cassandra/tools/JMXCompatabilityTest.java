@@ -128,7 +128,15 @@ public class JMXCompatabilityTest extends CQLTester
                                                       "forceRepairRangeAsync", // -> repairAsync
                                                       "beginLocalSampling", // -> beginLocalSampling(p1: java.lang.String, p2: int, p3: int): void
                                                       "finishLocalSampling", // -> finishLocalSampling(p1: java.lang.String, p2: int): java.util.List
-                                                      "scrub\\(p1:boolean,p2:boolean,p3:java.lang.String,p4:java.lang.String\\[\\]\\):int" // removed in CASSANDRA-18959
+                                                      "scrub\\(p1:boolean,p2:boolean,p3:java.lang.String,p4:java.lang.String\\[\\]\\):int", // removed in CASSANDRA-18959
+                                                      "forceKeyspaceCleanup\\(p1:java.lang.String,p2:java.lang.String\\[\\]\\):int", // removed in CASSANDRA-18975
+                                                      "scrub\\(p1:boolean,p2:boolean,p3:boolean,p4:java.lang.String,p5:java.lang.String\\[\\]\\):int", // removed in CASSANDRA-18975
+                                                      "scrub\\(p1:boolean,p2:boolean,p3:boolean,p4:int,p5:java.lang.String,p6:java.lang.String\\[\\]\\):int", // removed in CASSANDRA-18975
+                                                      "takeMultipleTableSnapshot\\(p1:java.lang.String,p2:java.lang.String\\[\\]\\):void", // removed in CASSANDRA-18975
+                                                      "takeSnapshot\\(p1:java.lang.String,p2:java.lang.String\\[\\]\\):void", // removed in CASSANDRA-18975
+                                                      "takeTableSnapshot\\(p1:java.lang.String,p2:java.lang.String,p3:java.lang.String\\):void", // removed in CASSANDRA-18975
+                                                      "upgradeSSTables\\(p1:java.lang.String,p2:boolean,p3:java.lang.String\\[\\]\\):int" // removed in CASSANDRA-18975
+
         );
 
         if (BtiFormat.isSelected())
@@ -168,7 +176,15 @@ public class JMXCompatabilityTest extends CQLTester
                                                       "forceRepairRangeAsync", // -> repairAsync
                                                       "beginLocalSampling", // -> beginLocalSampling(p1: java.lang.String, p2: int, p3: int): void
                                                       "finishLocalSampling", // -> finishLocalSampling(p1: java.lang.String, p2: int): java.util.List
-                                                      "scrub\\(p1:boolean,p2:boolean,p3:java.lang.String,p4:java.lang.String\\[\\]\\):int" // removed in CASSANDRA-18959
+                                                      "scrub\\(p1:boolean,p2:boolean,p3:java.lang.String,p4:java.lang.String\\[\\]\\):int", // removed in CASSANDRA-18959
+                                                      "forceKeyspaceCleanup\\(p1:java.lang.String,p2:java.lang.String\\[\\]\\):int", // removed in CASSANDRA-18975
+                                                      "scrub\\(p1:boolean,p2:boolean,p3:boolean,p4:java.lang.String,p5:java.lang.String\\[\\]\\):int", // removed in CASSANDRA-18975
+                                                      "scrub\\(p1:boolean,p2:boolean,p3:boolean,p4:int,p5:java.lang.String,p6:java.lang.String\\[\\]\\):int", // removed in CASSANDRA-18975
+                                                      "takeMultipleTableSnapshot\\(p1:java.lang.String,p2:java.lang.String\\[\\]\\):void", // removed in CASSANDRA-18975
+                                                      "takeSnapshot\\(p1:java.lang.String,p2:java.lang.String\\[\\]\\):void", // removed in CASSANDRA-18975
+                                                      "takeTableSnapshot\\(p1:java.lang.String,p2:java.lang.String,p3:java.lang.String\\):void", // removed in CASSANDRA-18975
+                                                      "upgradeSSTables\\(p1:java.lang.String,p2:boolean,p3:java.lang.String\\[\\]\\):int", // removed in CASSANDRA-18975
+                                                      "relocateSSTables\\(p1:java.lang.String,p2:java.lang.String\\[\\]\\):int" // removed in CASSANDRA-18975
         );
 
         if (BtiFormat.isSelected())
@@ -203,7 +219,16 @@ public class JMXCompatabilityTest extends CQLTester
                                                    "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=TotalBlockedTasks"
                 );
         List<String> excludeAttributes = newArrayList("HostIdMap"); // removed in CASSANDRA-18959
-        List<String> excludeOperations = newArrayList("scrub\\(p1:boolean,p2:boolean,p3:java.lang.String,p4:java.lang.String\\[\\]\\):int"); // removed in CASSANDRA-18959
+        List<String> excludeOperations = newArrayList("scrub\\(p1:boolean,p2:boolean,p3:java.lang.String,p4:java.lang.String\\[\\]\\):int",
+                                                      "forceKeyspaceCleanup\\(p1:java.lang.String,p2:java.lang.String\\[\\]\\):int", // removed in CASSANDRA-18975
+                                                      "scrub\\(p1:boolean,p2:boolean,p3:boolean,p4:java.lang.String,p5:java.lang.String\\[\\]\\):int", // removed in CASSANDRA-18975
+                                                      "scrub\\(p1:boolean,p2:boolean,p3:boolean,p4:int,p5:java.lang.String,p6:java.lang.String\\[\\]\\):int", // removed in CASSANDRA-18975
+                                                      "takeMultipleTableSnapshot\\(p1:java.lang.String,p2:java.lang.String\\[\\]\\):void", // removed in CASSANDRA-18975
+                                                      "takeSnapshot\\(p1:java.lang.String,p2:java.lang.String\\[\\]\\):void", // removed in CASSANDRA-18975
+                                                      "takeTableSnapshot\\(p1:java.lang.String,p2:java.lang.String,p3:java.lang.String\\):void", // removed in CASSANDRA-18975
+                                                      "upgradeSSTables\\(p1:java.lang.String,p2:boolean,p3:java.lang.String\\[\\]\\):int", // removed in CASSANDRA-18975
+                                                      "relocateSSTables\\(p1:java.lang.String,p2:java.lang.String\\[\\]\\):int" // removed in CASSANDRA-18975
+        ); // removed in CASSANDRA-18959
 
         if (BtiFormat.isSelected())
         {
@@ -237,7 +262,16 @@ public class JMXCompatabilityTest extends CQLTester
                                                    "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=TotalBlockedTasks"
         );
         List<String> excludeAttributes = newArrayList("HostIdMap"); // removed in CASSANDRA-18959
-        List<String> excludeOperations = newArrayList("scrub\\(p1:boolean,p2:boolean,p3:java.lang.String,p4:java.lang.String\\[\\]\\):int"); // removed in CASSANDRA-18959
+        List<String> excludeOperations = newArrayList("scrub\\(p1:boolean,p2:boolean,p3:java.lang.String,p4:java.lang.String\\[\\]\\):int", // removed in CASSANDRA-18959
+                                                      "forceKeyspaceCleanup\\(p1:java.lang.String,p2:java.lang.String\\[\\]\\):int", // removed in CASSANDRA-18975
+                                                      "scrub\\(p1:boolean,p2:boolean,p3:boolean,p4:java.lang.String,p5:java.lang.String\\[\\]\\):int", // removed in CASSANDRA-18975
+                                                      "scrub\\(p1:boolean,p2:boolean,p3:boolean,p4:int,p5:java.lang.String,p6:java.lang.String\\[\\]\\):int", // removed in CASSANDRA-18975
+                                                      "takeMultipleTableSnapshot\\(p1:java.lang.String,p2:java.lang.String\\[\\]\\):void", // removed in CASSANDRA-18975
+                                                      "takeSnapshot\\(p1:java.lang.String,p2:java.lang.String\\[\\]\\):void", // removed in CASSANDRA-18975
+                                                      "takeTableSnapshot\\(p1:java.lang.String,p2:java.lang.String,p3:java.lang.String\\):void", // removed in CASSANDRA-18975
+                                                      "upgradeSSTables\\(p1:java.lang.String,p2:boolean,p3:java.lang.String\\[\\]\\):int", // removed in CASSANDRA-18975
+                                                      "relocateSSTables\\(p1:java.lang.String,p2:java.lang.String\\[\\]\\):int" // removed in CASSANDRA-18975
+        );
 
         if (BtiFormat.isSelected())
         {

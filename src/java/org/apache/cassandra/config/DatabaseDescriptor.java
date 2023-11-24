@@ -346,7 +346,6 @@ public class DatabaseDescriptor
             return;
         clientInitialized = true;
         setDefaultFailureDetector();
-        Config.setClientMode(true);
         conf = configSupplier.get();
         diskOptimizationStrategy = new SpinningDiskOptimizationStrategy();
         applySSTableFormats();

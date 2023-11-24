@@ -334,13 +334,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         (isStarting() ? StorageMetrics.startupOpsForInvalidToken : StorageMetrics.totalOpsForInvalidToken).inc();
     }
 
-    /** @deprecated See CASSANDRA-12509 */
-    @Deprecated(since = "3.10")
-    public boolean isInShutdownHook()
-    {
-        return isShutdown();
-    }
-
     public boolean isShutdown()
     {
         return isShutdown;
@@ -2498,11 +2491,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return Gossiper.instance.getCurrentGenerationNumber(getBroadcastAddressAndPort());
     }
 
-    public int forceKeyspaceCleanup(String keyspaceName, String... tables) throws IOException, ExecutionException, InterruptedException
-    {
-        return forceKeyspaceCleanup(0, keyspaceName, tables);
-    }
-
     public int forceKeyspaceCleanup(int jobs, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         if (isLocalSystemKeyspace(keyspaceName))
@@ -2527,11 +2515,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                              .checkData(checkData)
                                              .reinsertOverflowedTTLRows(reinsertOverflowedTTL)
                                              .build();
-        return scrub(disableSnapshot, options, jobs, keyspaceName, tableNames);
-    }
 
-    public int scrub(boolean disableSnapshot, IScrubber.Options options, int jobs, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
-    {
         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
         logger.info("Starting {} on {}.{}", OperationType.SCRUB, keyspaceName, Arrays.toString(tableNames));
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, false, keyspaceName, tableNames))
@@ -2569,11 +2553,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         logger.info("Completed {} with status {}", OperationType.VERIFY, status);
         return status.statusCode;
-    }
-
-    public int upgradeSSTables(String keyspaceName, boolean excludeCurrentVersion, String... tableNames) throws IOException, ExecutionException, InterruptedException
-    {
-        return upgradeSSTables(keyspaceName, excludeCurrentVersion, 0, tableNames);
     }
 
     public int upgradeSSTables(String keyspaceName,
@@ -2626,11 +2605,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             cfStore.forceMajorCompaction(splitOutput);
         }
-    }
-
-    public int relocateSSTables(String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
-    {
-        return relocateSSTables(0, keyspaceName, tableNames);
     }
 
     public int relocateSSTables(int jobs, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
@@ -2694,23 +2668,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
-    /**
-     * Takes the snapshot of a specific table. A snapshot name must be
-     * specified.
-     *
-     * @param keyspaceName
-     *            the keyspace which holds the specified table
-     * @param tableName
-     *            the table to snapshot
-     * @param tag
-     *            the tag given to the snapshot; may not be null or empty
-     */
-    public void takeTableSnapshot(String keyspaceName, String tableName, String tag)
-            throws IOException
-    {
-        takeMultipleTableSnapshot(tag, false, null, keyspaceName + "." + tableName);
-    }
-
     @Override
     public void forceKeyspaceCompactionForTokenRange(String keyspaceName, String startToken, String endToken, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
@@ -2762,31 +2719,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         ColumnFamilyStore cfStore = getValidKeyspace(keyspaceName).getColumnFamilyStore(tableName);
         cfStore.forceCompactionKeysIgnoringGcGrace(partitionKeysIgnoreGcGrace);
-    }
-
-    /**
-     * Takes the snapshot for the given keyspaces. A snapshot name must be specified.
-     *
-     * @param tag the tag given to the snapshot; may not be null or empty
-     * @param keyspaceNames the names of the keyspaces to snapshot; empty means "all."
-     */
-    public void takeSnapshot(String tag, String... keyspaceNames) throws IOException
-    {
-        takeSnapshot(tag, false, null, keyspaceNames);
-    }
-
-    /**
-     * Takes the snapshot of a multiple column family from different keyspaces. A snapshot name must be specified.
-     *
-     * @param tag
-     *            the tag given to the snapshot; may not be null or empty
-     * @param tableList
-     *            list of tables from different keyspace in the form of ks1.cf1 ks2.cf2
-     */
-    public void takeMultipleTableSnapshot(String tag, String... tableList)
-            throws IOException
-    {
-        takeMultipleTableSnapshot(tag, false, null, tableList);
     }
 
     /**
