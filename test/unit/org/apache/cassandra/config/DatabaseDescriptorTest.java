@@ -901,7 +901,6 @@ public class DatabaseDescriptorTest
         for (Config.DiskAccessMode mode : allowedModes)
         {
             DatabaseDescriptor.setCommitLogWriteDiskAccessMode(mode);
-            // logger.info("commit log directory {}", DatabaseDescriptor.getCommitLogLocation());
             DatabaseDescriptor.initializeCommitLogDiskAccessMode();
             boolean changed = DatabaseDescriptor.getCommitLogWriteDiskAccessMode() != mode;
             assertThat(changed).isEqualTo(mode == Config.DiskAccessMode.legacy || mode == Config.DiskAccessMode.auto);

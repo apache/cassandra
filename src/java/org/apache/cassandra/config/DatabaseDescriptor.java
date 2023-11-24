@@ -1460,7 +1460,7 @@ public class DatabaseDescriptor
         }
         catch (RuntimeException e)
         {
-            logger.info("Unable to determine block size for commit log directory: {}", e.getMessage());
+            logger.warn("Unable to determine block size for commit log directory: {}", e.getMessage());
         }
 
         if (providedDiskAccessMode == DiskAccessMode.auto)

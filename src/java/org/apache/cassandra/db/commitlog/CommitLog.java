@@ -642,7 +642,6 @@ public class CommitLog implements CommitLogMBean
         }
 
         /**
-         * Checks if the segments must be compressed.
          * @return <code>true</code> if the segments must be compressed, <code>false</code> otherwise.
          */
         public boolean useCompression()
@@ -651,7 +650,6 @@ public class CommitLog implements CommitLogMBean
         }
 
         /**
-         * Checks if the segments must be encrypted.
          * @return <code>true</code> if the segments must be encrypted, <code>false</code> otherwise.
          */
         public boolean useEncryption()
@@ -660,7 +658,6 @@ public class CommitLog implements CommitLogMBean
         }
 
         /**
-         * Returns the compressor used to compress the segments.
          * @return the compressor used to compress the segments
          */
         public ICompressor getCompressor()
@@ -669,7 +666,6 @@ public class CommitLog implements CommitLogMBean
         }
 
         /**
-         * Returns the compressor class.
          * @return the compressor class
          */
         public ParameterizedClass getCompressorClass()
@@ -678,7 +674,6 @@ public class CommitLog implements CommitLogMBean
         }
 
         /**
-         * Returns the compressor name.
          * @return the compressor name.
          */
         public String getCompressorName()
@@ -687,7 +682,6 @@ public class CommitLog implements CommitLogMBean
         }
 
         /**
-         * Returns the encryption context used to encrypt the segments.
          * @return the encryption context used to encrypt the segments
          */
         public EncryptionContext getEncryptionContext()
@@ -696,7 +690,6 @@ public class CommitLog implements CommitLogMBean
         }
 
         /**
-         * Returns Direct-IO/non-buffer used for CommitLog IO.
          * @return Direct-IO used for CommitLog IO
          */
         public boolean isDirectIOEnabled()
@@ -705,7 +698,6 @@ public class CommitLog implements CommitLogMBean
         }
 
         /**
-         * Returns Standard or buffered I/O used for CommitLog IO.
          * @return Standard or buffered I/O used for CommitLog IO
          */
         public boolean isStandardModeEnable()

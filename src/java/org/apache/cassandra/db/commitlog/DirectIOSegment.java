@@ -188,14 +188,14 @@ public class DirectIOSegment extends CommitLogSegment
                 {
                     int segmentSize = DatabaseDescriptor.getCommitLogSegmentSize();
 
-                    ByteBuffer original =  super.createBuffer();
+                    ByteBuffer original = super.createBuffer();
 
                     // May get previously used buffer and zero it out to now. Direct I/O writes additional bytes during
                     // flush operation
                     ByteBufferUtil.writeZeroes(original.duplicate(), original.limit());
 
                     ByteBuffer alignedBuffer = original.alignedSlice(fsBlockSize);
-                    assert alignedBuffer.limit() >= segmentSize : String.format("Bytebuffer slicing failed to get required buffer size (required=%d,current size=%d", segmentSize, alignedBuffer.limit());
+                    assert alignedBuffer.limit() >= segmentSize : String.format("Bytebuffer slicing failed to get required buffer size (required=%d, current size=%d", segmentSize, alignedBuffer.limit());
 
                     assert alignedBuffer.alignmentOffset(0, fsBlockSize) == 0 : String.format("Index 0 should be aligned to %d page size.", fsBlockSize);
                     assert alignedBuffer.alignmentOffset(alignedBuffer.limit(), fsBlockSize) == 0 : String.format("Limit should be aligned to %d page size", fsBlockSize);
