@@ -51,7 +51,7 @@ public class CompressedSegment extends FileDirectSegment
     CompressedSegment(AbstractCommitLogSegmentManager manager, ThrowingFunction<Path, FileChannel, IOException> channelFactory)
     {
         super(manager, channelFactory);
-        this.compressor = manager.commitLog.configuration.getCompressor();
+        this.compressor = manager.getConfiguration().getCompressor();
     }
 
     @Override
@@ -114,7 +114,7 @@ public class CompressedSegment extends FileDirectSegment
         {
             return new SimpleCachedBufferPool(DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool(),
                                               DatabaseDescriptor.getCommitLogSegmentSize(),
-                                              segmentManager.commitLog.configuration.getCompressor().preferredBufferType());
+                                              segmentManager.getConfiguration().getCompressor().preferredBufferType());
         }
     }
 }

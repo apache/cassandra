@@ -27,10 +27,9 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import net.openhft.chronicle.core.util.ThrowingFunction;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.SimpleCachedBufferPool;
@@ -42,6 +41,7 @@ import sun.nio.ch.DirectBuffer;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -51,14 +51,15 @@ import static org.quicktheories.QuickTheory.qt;
 
 public class DirectIOSegmentTest
 {
-    private final static Logger logger = LoggerFactory.getLogger(DirectIOSegmentTest.class);
-
     @BeforeClass
     public static void beforeClass() throws IOException
     {
         File commitLogDir = new File(Files.createTempDirectory("commitLogDir"));
-        DatabaseDescriptor.daemonInitialization();
-        DatabaseDescriptor.setCommitLogLocation(commitLogDir.toString());
+        DatabaseDescriptor.daemonInitialization(() -> {
+            Config config = DatabaseDescriptor.loadConfig();
+            config.commitlog_directory = commitLogDir.toString();
+            return config;
+        });
     }
 
     @Test
@@ -71,6 +72,7 @@ public class DirectIOSegmentTest
         AbstractCommitLogSegmentManager manager = mock(AbstractCommitLogSegmentManager.class,
                                                        new MockSettingsImpl<>().useConstructor(CommitLog.instance, DatabaseDescriptor.getCommitLogLocation()));
         doReturn(bufferPool).when(manager).getBufferPool();
+        doCallRealMethod().when(manager).getConfiguration();
         when(bufferPool.createBuffer()).thenReturn(ByteBuffer.allocate(bufSize + fsBlockSize));
         doNothing().when(manager).addSize(anyLong());
 
@@ -120,6 +122,7 @@ public class DirectIOSegmentTest
         AbstractCommitLogSegmentManager manager = mock(AbstractCommitLogSegmentManager.class,
                                                        new MockSettingsImpl<>().useConstructor(CommitLog.instance, DatabaseDescriptor.getCommitLogLocation()));
         doReturn(bufferPool).when(manager).getBufferPool();
+        doCallRealMethod().when(manager).getConfiguration();
         when(bufferPool.createBuffer()).thenReturn(ByteBuffer.allocate(bufSize + fsBlockSize));
         doNothing().when(manager).addSize(anyLong());
 
@@ -145,7 +148,6 @@ public class DirectIOSegmentTest
     @Test
     public void testBuilder()
     {
-        SimpleCachedBufferPool bufferPool = mock(SimpleCachedBufferPool.class);
         AbstractCommitLogSegmentManager manager = mock(AbstractCommitLogSegmentManager.class,
                                                        new MockSettingsImpl<>().useConstructor(CommitLog.instance, DatabaseDescriptor.getCommitLogLocation()));
         DirectIOSegment.DirectIOSegmentBuilder builder = new DirectIOSegment.DirectIOSegmentBuilder(manager);

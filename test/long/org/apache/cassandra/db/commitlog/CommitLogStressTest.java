@@ -101,6 +101,7 @@ public abstract class CommitLogStressTest
         DatabaseDescriptor.setEncryptionContext(encryptionContext);
         DatabaseDescriptor.setCommitLogSegmentSize(32);
         DatabaseDescriptor.setCommitLogWriteDiskAccessMode(accessMode);
+        DatabaseDescriptor.initializeCommitLogDiskAccessMode();
     }
 
     @BeforeClass
@@ -183,6 +184,7 @@ public abstract class CommitLogStressTest
         try
         {
             DatabaseDescriptor.setCommitLogLocation(location);
+            DatabaseDescriptor.initializeCommitLogDiskAccessMode();
             CommitLog commitLog = new CommitLog(CommitLogArchiver.disabled()).start();
             testLog(commitLog);
             assert !failed;
@@ -190,6 +192,7 @@ public abstract class CommitLogStressTest
         finally
         {
             DatabaseDescriptor.setCommitLogLocation(originalDir);
+            DatabaseDescriptor.initializeCommitLogDiskAccessMode();
         }
     }
 

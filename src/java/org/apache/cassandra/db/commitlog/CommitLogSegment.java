@@ -162,12 +162,11 @@ public abstract class CommitLogSegment
     CommitLogSegment(AbstractCommitLogSegmentManager manager, ThrowingFunction<Path, FileChannel, IOException> channelFactory)
     {
         this.manager = manager;
-        CommitLog commitLog = manager.commitLog;
 
         id = getNextId();
         descriptor = new CommitLogDescriptor(id,
-                                             commitLog.configuration.getCompressorClass(),
-                                             commitLog.configuration.getEncryptionContext());
+                                             manager.getConfiguration().getCompressorClass(),
+                                             manager.getConfiguration().getEncryptionContext());
         logFile = new File(manager.storageDirectory, descriptor.fileName());
 
         try
