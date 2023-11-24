@@ -61,7 +61,7 @@ public class NonTokenizingAnalyzerTest
         ByteBuffer analyzed = null;
         while (analyzer.hasNext())
             analyzed = analyzer.next();
-        Assert.assertFalse(testString.toLowerCase().equals(ByteBufferUtil.string(analyzed)));
+        Assert.assertNotEquals(testString.toLowerCase(), ByteBufferUtil.string(analyzed));
     }
 
     @Test

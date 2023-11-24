@@ -46,6 +46,7 @@ import org.apache.cassandra.service.StorageService;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 
@@ -403,7 +404,7 @@ public class KeyCacheCqlTest extends CQLTester
         {
             KeyCacheKey key = iter.next();
             TableMetadataRef tableMetadataRef = Schema.instance.getTableMetadataRef(key.tableId);
-            Assert.assertFalse(tableMetadataRef.keyspace.equals("KEYSPACE_PER_TEST"));
+            Assert.assertNotEquals(tableMetadataRef.keyspace, "KEYSPACE_PER_TEST");
             Assert.assertFalse(tableMetadataRef.name.startsWith(table));
         }
     }

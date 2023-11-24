@@ -53,6 +53,7 @@ import static org.apache.cassandra.cql3.CQLTester.assertRows;
 import static org.apache.cassandra.cql3.CQLTester.row;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -340,7 +341,7 @@ public class MigrationManagerTest
 
         KeyspaceMetadata newFetchedKs = Schema.instance.getKeyspaceMetadata(newKs.name);
         assertEquals(newFetchedKs.params.replication.klass, newKs.params.replication.klass);
-        assertFalse(newFetchedKs.params.replication.klass.equals(oldKs.params.replication.klass));
+        assertNotEquals(newFetchedKs.params.replication.klass, oldKs.params.replication.klass);
     }
 
     /*
