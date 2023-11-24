@@ -23,6 +23,8 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import com.sun.nio.file.ExtendedOpenOption;
 import net.openhft.chronicle.core.util.ThrowingFunction;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -162,8 +164,14 @@ public class DirectIOSegment extends CommitLogSegment
 
         public DirectIOSegmentBuilder(AbstractCommitLogSegmentManager segmentManager)
         {
+            this(segmentManager, FileUtils.getBlockSize(new File(segmentManager.storageDirectory)));
+        }
+
+        @VisibleForTesting
+        public DirectIOSegmentBuilder(AbstractCommitLogSegmentManager segmentManager, int fsBlockSize)
+        {
             super(segmentManager);
-            this.fsBlockSize = FileUtils.getBlockSize(new File(segmentManager.storageDirectory));
+            this.fsBlockSize = fsBlockSize;
         }
 
         @Override
