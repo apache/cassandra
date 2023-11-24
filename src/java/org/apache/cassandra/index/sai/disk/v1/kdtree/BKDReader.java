@@ -414,7 +414,7 @@ public class BKDReader extends TraversingBKDReader implements Closeable
             FileUtils.closeQuietly(bkdInput, postingsInput, postingsSummaryInput);
         }
 
-        protected PostingList mergePostings(Collection<PostingList.PeekablePostingList> postingLists)
+        protected PostingList mergePostings(ArrayList<PostingList.PeekablePostingList> postingLists)
         {
             final long elapsedMicros = queryExecutionTimer.stop().elapsed(TimeUnit.MICROSECONDS);
 

@@ -77,7 +77,7 @@ public class MergePostingListBenchmark
     @Setup(Level.Invocation)
     public void mergePostings()
     {
-        final PriorityQueue<PostingList.PeekablePostingList> lists = new PriorityQueue<>(Comparator.comparingLong(PostingList.PeekablePostingList::peek));
+        var lists = new ArrayList<PostingList.PeekablePostingList>();
         for (int[] postings : splitPostingLists)
         {
             lists.add(new ArrayPostingList(postings).peekable());

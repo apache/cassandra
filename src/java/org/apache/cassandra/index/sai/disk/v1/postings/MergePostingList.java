@@ -21,9 +21,7 @@ package org.apache.cassandra.index.sai.disk.v1.postings;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
-import java.util.List;
 import java.util.PriorityQueue;
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -40,14 +38,14 @@ public class MergePostingList implements PostingList
 {
     private static final Comparator<PeekablePostingList> COMPARATOR = Comparator.comparingLong(PostingList.PeekablePostingList::peek);
 
-    final Collection<PeekablePostingList> postingLists;
+    final ArrayList<PeekablePostingList> postingLists;
     // (Intersection code just calls advance(long), so don't create this until we need it)
     PriorityQueue<PeekablePostingList> pq;
     final Closeable onClose;
     final long size;
     private long lastRowId = -1;
 
-    private MergePostingList(Collection<PeekablePostingList> postingLists, Closeable onClose)
+    private MergePostingList(ArrayList<PeekablePostingList> postingLists, Closeable onClose)
     {
         this.onClose = onClose;
         this.postingLists = postingLists;
@@ -59,18 +57,17 @@ public class MergePostingList implements PostingList
         this.size = totalPostings;
     }
 
-    public static PostingList merge(Collection<PeekablePostingList> postings, Closeable onClose)
+    public static PostingList merge(ArrayList<PeekablePostingList> postings, Closeable onClose)
     {
         checkArgument(!postings.isEmpty());
         return postings.size() > 1 ? new MergePostingList(postings, onClose) : postings.iterator().next();
     }
 
-    public static PostingList merge(Collection<PeekablePostingList> postings)
+    public static PostingList merge(ArrayList<PeekablePostingList> postings)
     {
         return merge(postings, () -> FileUtils.close(postings));
     }
 
-    @SuppressWarnings("resource")
     @Override
     public long nextPosting() throws IOException
     {
@@ -117,22 +114,24 @@ public class MergePostingList implements PostingList
         // we can use it for the fast path
         long nextRowId = PostingList.END_OF_STREAM;
         PostingList nextPostingList = null;
-        var it = postingLists.iterator();
-        while (it.hasNext())
+        for (int i = postingLists.size() - 1; i >= 0; i--) // index backwards to simplify the remove() case
         {
-            var peekable = it.next();
-            peekable.advanceWithoutConsuming(targetRowID);
-            long peeked = peekable.peek();
+            var peekable = postingLists.get(i);
+            long peeked = peekable.advanceWithoutConsuming(targetRowID);
+
             // clean out obsolete child lists
             if (peeked == PostingList.END_OF_STREAM)
-                it.remove();
-
-            if (lastRowId <= peeked && peeked < nextRowId)
             {
+                postingLists.remove(i);
+                continue;
+            }
+
+            if (lastRowId <= peeked && peeked < nextRowId) {
                 nextRowId = peeked;
                 nextPostingList = peekable;
             }
         }
+
 
         if (lastRowId == targetRowID) {
             // we're asking for the next row, past the current row, which an arbitrary

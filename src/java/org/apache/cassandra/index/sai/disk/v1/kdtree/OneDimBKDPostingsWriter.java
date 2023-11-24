@@ -19,14 +19,13 @@ package org.apache.cassandra.index.sai.disk.v1.kdtree;
 
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.PriorityQueue;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -150,7 +149,7 @@ public class OneDimBKDPostingsWriter implements TraversingBKDReader.IndexTreeTra
                 numNonLeafPostings++;
             }
 
-            final PriorityQueue<PostingList.PeekablePostingList> postingLists = new PriorityQueue<>(100, Comparator.comparingLong(PostingList.PeekablePostingList::peek));
+            var postingLists = new ArrayList<PostingList.PeekablePostingList>(leaves.size());
             for (Integer leaf : leaves)
                 postingLists.add(new PackedLongsPostingList(leafToPostings.get(leaf)).peekable());
 
