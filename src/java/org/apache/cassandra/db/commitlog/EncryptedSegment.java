@@ -92,6 +92,10 @@ public class EncryptedSegment extends FileDirectSegment
         return map;
     }
 
+    // Note: we want to keep the compression buffers on-heap as we need those bytes for encryption,
+    // and we want to avoid copying from off-heap (compression buffer) to on-heap encryption APIs
+    // (so we do not override the createBuffer method)
+
     void write(int startMarker, int nextMarker)
     {
         int contentStart = startMarker + SYNC_MARKER_SIZE;
@@ -150,7 +154,7 @@ public class EncryptedSegment extends FileDirectSegment
         return lastWrittenPos;
     }
 
-    protected static class EncryptedSegmentBuilder extends CommitLogSegment.Builder<EncryptedSegment>
+    protected static class EncryptedSegmentBuilder extends CommitLogSegment.Builder
     {
 
         public EncryptedSegmentBuilder(AbstractCommitLogSegmentManager segmentManager)

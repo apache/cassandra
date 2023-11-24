@@ -515,17 +515,15 @@ public class DatabaseDescriptor
         }
 
         /* evaluate the DiskAccessMode Config directive, which also affects indexAccessMode selection */
-        if (conf.disk_access_mode == DiskAccessMode.auto || conf.disk_access_mode == DiskAccessMode.legacy)
-        {
-            conf.disk_access_mode = hasLargeAddressSpace() ? DiskAccessMode.mmap : DiskAccessMode.standard;
-            indexAccessMode = conf.disk_access_mode;
-            logger.info("DiskAccessMode 'auto' determined to be {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
-        }
-        else if (conf.disk_access_mode == DiskAccessMode.mmap_index_only)
+        if (conf.disk_access_mode == DiskAccessMode.auto || conf.disk_access_mode == DiskAccessMode.mmap_index_only)
         {
             conf.disk_access_mode = DiskAccessMode.standard;
             indexAccessMode = DiskAccessMode.mmap;
-            logger.info("DiskAccessMode is {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
+        }
+        if (conf.disk_access_mode == DiskAccessMode.legacy)
+        {
+            conf.disk_access_mode = hasLargeAddressSpace() ? DiskAccessMode.mmap : DiskAccessMode.standard;
+            indexAccessMode = conf.disk_access_mode;
         }
         else if (conf.disk_access_mode == DiskAccessMode.direct)
         {
@@ -534,8 +532,8 @@ public class DatabaseDescriptor
         else
         {
             indexAccessMode = conf.disk_access_mode;
-            logger.info("DiskAccessMode is {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
         }
+        logger.info("DiskAccessMode is {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
 
         /* phi convict threshold for FailureDetector */
         if (conf.phi_convict_threshold < 5 || conf.phi_convict_threshold > 16)

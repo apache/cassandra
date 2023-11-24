@@ -44,7 +44,6 @@ import sun.nio.ch.DirectBuffer;
 public class DirectIOSegment extends CommitLogSegment
 {
     private final int fsBlockSize;
-    private final int fsBlockQuotientMask;
     private final int fsBlockRemainderMask;
 
     // Needed to track number of bytes written to disk in multiple of page size.
@@ -66,7 +65,6 @@ public class DirectIOSegment extends CommitLogSegment
 
         this.fsBlockSize = fsBlockSize;
         this.fsBlockRemainderMask = fsBlockSize - 1;
-        this.fsBlockQuotientMask = ~fsBlockRemainderMask;
     }
 
     @Override
@@ -100,6 +98,8 @@ public class DirectIOSegment extends CommitLogSegment
     {
         try
         {
+            // TODO move the alignment calculations to PageAware
+
             // lastSyncedOffset is synced to disk. Align lastSyncedOffset to start of its block
             // and nextMarker to end of its block to avoid write errors.
             int flushPosition = lastSyncedOffset;
@@ -108,16 +108,15 @@ public class DirectIOSegment extends CommitLogSegment
             // Aligned file position if not aligned to start of a block.
             if ((flushPosition & fsBlockRemainderMask) != 0)
             {
-                flushPosition = flushPosition & fsBlockQuotientMask;
+                flushPosition = flushPosition & -fsBlockSize;
                 channel.position(flushPosition);
             }
             duplicate.position(flushPosition);
 
             int flushLimit = nextMarker;
 
-            // Align last byte to end of block.
-            if ((flushLimit & fsBlockRemainderMask) != 0)
-                flushLimit = (flushLimit + fsBlockSize) & fsBlockQuotientMask;
+            // Align last byte to end of block
+            flushLimit = (flushLimit + fsBlockSize - 1) & -fsBlockSize;
 
             duplicate.limit(flushLimit);
 
@@ -158,7 +157,7 @@ public class DirectIOSegment extends CommitLogSegment
         }
     }
 
-    protected static class DirectIOSegmentBuilder extends CommitLogSegment.Builder<DirectIOSegment>
+    protected static class DirectIOSegmentBuilder extends CommitLogSegment.Builder
     {
         public final int fsBlockSize;
 
