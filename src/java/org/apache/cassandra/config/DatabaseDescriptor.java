@@ -520,7 +520,7 @@ public class DatabaseDescriptor
             conf.disk_access_mode = DiskAccessMode.standard;
             indexAccessMode = DiskAccessMode.mmap;
         }
-        if (conf.disk_access_mode == DiskAccessMode.legacy)
+        else if (conf.disk_access_mode == DiskAccessMode.legacy)
         {
             conf.disk_access_mode = hasLargeAddressSpace() ? DiskAccessMode.mmap : DiskAccessMode.standard;
             indexAccessMode = conf.disk_access_mode;
