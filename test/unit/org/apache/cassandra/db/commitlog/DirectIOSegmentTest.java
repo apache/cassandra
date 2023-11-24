@@ -150,7 +150,7 @@ public class DirectIOSegmentTest
     {
         AbstractCommitLogSegmentManager manager = mock(AbstractCommitLogSegmentManager.class,
                                                        new MockSettingsImpl<>().useConstructor(CommitLog.instance, DatabaseDescriptor.getCommitLogLocation()));
-        DirectIOSegment.DirectIOSegmentBuilder builder = new DirectIOSegment.DirectIOSegmentBuilder(manager);
+        DirectIOSegment.DirectIOSegmentBuilder builder = new DirectIOSegment.DirectIOSegmentBuilder(manager, 4096);
         assertThat(builder.fsBlockSize).isGreaterThan(0);
 
         int segmentSize = Math.max(5 << 20, builder.fsBlockSize * 5);
