@@ -221,9 +221,10 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         VERSION_3014(11),
         VERSION_40(12),
         // c14227 TTL overflow, 'uint' timestamps
-        VERSION_50(13);
+        VERSION_50(13),
+        VERSION_51(14);
 
-        public static final Version CURRENT = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? VERSION_40 : VERSION_50;
+        public static final Version CURRENT = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? VERSION_40 : VERSION_51;
 
         public final int value;
 
@@ -253,6 +254,7 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
     public static final int VERSION_3014 = 11;
     public static final int VERSION_40 = 12;
     public static final int VERSION_50 = 13; // c14227 TTL overflow, 'uint' timestamps
+    public static final int VERSION_51 = 14; // TCM
     public static final int minimum_version = VERSION_40;
     public static final int current_version = Version.CURRENT.value;
     static AcceptVersions accept_messaging = new AcceptVersions(minimum_version, current_version);

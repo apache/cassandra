@@ -729,7 +729,7 @@ public class PartitionUpdate extends AbstractBTreePartition
                 assert !iter.isReverseOrder();
 
                 update.metadata.id.serialize(out);
-                if (version >= MessagingService.VERSION_50)
+                if (version >= MessagingService.VERSION_51)
                     Epoch.serializer.serialize(update.metadata.epoch != null ? update.metadata.epoch : Epoch.EMPTY, out);
                 UnfilteredRowIteratorSerializer.serializer.serialize(iter, null, out, version, update.rowCount());
             }
@@ -739,7 +739,7 @@ public class PartitionUpdate extends AbstractBTreePartition
         {
             TableId tableId = TableId.deserialize(in);
             Epoch remoteVersion = null;
-            if (version >= MessagingService.VERSION_50)
+            if (version >= MessagingService.VERSION_51)
                 remoteVersion = Epoch.serializer.deserialize(in);
             TableMetadata tableMetadata;
             try
@@ -796,7 +796,7 @@ public class PartitionUpdate extends AbstractBTreePartition
             if (position >= in.limit())
                 throw new EOFException();
 
-            if (version >= MessagingService.VERSION_50)
+            if (version >= MessagingService.VERSION_51)
             {
                 long epoch = VIntCoding.getUnsignedVInt(in, position);
                 position += VIntCoding.computeVIntSize(epoch);
@@ -816,7 +816,7 @@ public class PartitionUpdate extends AbstractBTreePartition
             try (UnfilteredRowIterator iter = update.unfilteredIterator())
             {
                 return update.metadata.id.serializedSize()
-                     + (version >= MessagingService.VERSION_50 ? Epoch.serializer.serializedSize(update.metadata.epoch) : 0)
+                     + (version >= MessagingService.VERSION_51 ? Epoch.serializer.serializedSize(update.metadata.epoch) : 0)
                      + UnfilteredRowIteratorSerializer.serializer.serializedSize(iter, null, version, update.rowCount());
             }
         }
