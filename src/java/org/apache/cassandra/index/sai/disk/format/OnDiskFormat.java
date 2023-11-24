@@ -43,8 +43,6 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
  * <ul>
  *     <li>Methods taking no parameters. These methods return static information about the
  *     format. This can include static information about the per-sstable components</li>
- *     <li>Methods taking just a {@link StorageAttachedIndex}. These methods return static information
- *     specific to the index. This can be information relating to the type of index being used</li>
  *     <li>Methods taking an {@link IndexDescriptor}. These methods interact with the on-disk components, or
  *     return objects that will interact with the on-disk components, or return information about the on-disk
  *     components. If they take an {@link IndexTermType} and/or a {@link IndexIdentifier} as well they will be
