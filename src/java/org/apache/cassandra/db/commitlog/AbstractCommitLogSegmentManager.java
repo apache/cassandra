@@ -139,7 +139,7 @@ public abstract class AbstractCommitLogSegmentManager
             return new MemoryMappedSegment.MemoryMappedSegmentBuilder(this);
         }
 
-        throw new AssertionError("Unsupported disk access mode");
+        throw new AssertionError("Unsupported disk access mode: " + config.diskAccessMode);
     }
 
     void start()

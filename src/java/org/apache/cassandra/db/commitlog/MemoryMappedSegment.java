@@ -52,7 +52,6 @@ public class MemoryMappedSegment extends CommitLogSegment
         int firstSync = buffer.position();
         buffer.putInt(firstSync + 0, 0);
         buffer.putInt(firstSync + 4, 0);
-
         fd = NativeLibrary.getfd(channel);
     }
 

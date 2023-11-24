@@ -62,7 +62,7 @@ public class DirectIOSegmentTest
     }
 
     @Test
-    public void testFlushBuffer() throws IOException
+    public void testFlushBuffer()
     {
         int fsBlockSize = 32;
         int bufSize = 4 * fsBlockSize;
@@ -111,7 +111,7 @@ public class DirectIOSegmentTest
     }
 
     @Test
-    public void testFlushSize() throws IOException
+    public void testFlushSize()
     {
         int fsBlockSize = 32;
         int bufSize = 4 * fsBlockSize;
@@ -143,7 +143,7 @@ public class DirectIOSegmentTest
     }
 
     @Test
-    public void testBuilder() throws IOException
+    public void testBuilder()
     {
         SimpleCachedBufferPool bufferPool = mock(SimpleCachedBufferPool.class);
         AbstractCommitLogSegmentManager manager = mock(AbstractCommitLogSegmentManager.class,

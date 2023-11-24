@@ -292,7 +292,8 @@ public abstract class CommitLogStressTest
         commitLog.segmentManager.awaitManagementTasksCompletion();
 
         long combinedSize = 0;
-        for (File f : new File(commitLog.segmentManager.storageDirectory).tryList()) {
+        for (File f : new File(commitLog.segmentManager.storageDirectory).tryList())
+        {
             combinedSize += f.length();
         }
         totalBytesWritten = combinedSize;
