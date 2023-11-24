@@ -309,9 +309,10 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
                 int cmp = super.compareTo(o);
                 if (cmp != 0 || o.kind() == Kind.TOKEN || o.kind() == Kind.SKINNY)
                     return cmp;
-                // The static clustering comes first in the sort order of if the other key has static clustering we
-                // are equals otherwise we are less than the other
-                return o.kind() == Kind.STATIC ? 0 : -1;
+                // At this point the other key is in the same partition as this static key so is equal to it. This
+                // has to be the case because otherwise, intersections between static column indexes and ordinary
+                // indexes will fail.
+                return 0;
             }
 
             @Override
@@ -368,9 +369,10 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
                 int cmp = super.compareTo(o);
                 if (cmp != 0 || o.kind() == Kind.TOKEN || o.kind() == Kind.SKINNY)
                     return cmp;
-                // At this point we will be greater than other if it is static
+                // At this point this key is in the same partition as the other key so if the other key is a static
+                // key then it must be equal to it. See comment in the compareTo for static keys above.
                 if (o.kind() == Kind.STATIC)
-                    return 1;
+                    return 0;
                 return clusteringComparator.compare(clustering(), o.clustering());
             }
 
