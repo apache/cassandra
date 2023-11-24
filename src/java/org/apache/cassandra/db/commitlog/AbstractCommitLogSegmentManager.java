@@ -108,7 +108,7 @@ public abstract class AbstractCommitLogSegmentManager
     private final BooleanSupplier managerThreadWaitCondition = () -> (availableSegment == null && !atSegmentBufferLimit());
     private final WaitQueue managerThreadWaitQueue = newWaitQueue();
 
-    private volatile CommitLogSegment.Builder<?> segmentBuilder;
+    private volatile CommitLogSegment.Builder segmentBuilder;
 
     private volatile SimpleCachedBufferPool bufferPool;
 
@@ -118,7 +118,7 @@ public abstract class AbstractCommitLogSegmentManager
         this.storageDirectory = storageDirectory;
     }
 
-    private CommitLogSegment.Builder<?> createSegmentBuilder(CommitLog.Configuration config)
+    private CommitLogSegment.Builder createSegmentBuilder(CommitLog.Configuration config)
     {
         if (config.useEncryption())
         {
@@ -240,7 +240,7 @@ public abstract class AbstractCommitLogSegmentManager
 
     private boolean atSegmentBufferLimit()
     {
-        return CommitLogSegment.usesBufferPool(commitLog) && bufferPool.atLimit();
+        return bufferPool != null && bufferPool.atLimit();
     }
 
     private void maybeFlushToReclaim()

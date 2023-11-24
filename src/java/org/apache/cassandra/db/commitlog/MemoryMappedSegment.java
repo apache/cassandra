@@ -27,7 +27,6 @@ import java.nio.file.StandardOpenOption;
 import net.openhft.chronicle.core.util.ThrowingFunction;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SimpleCachedBufferPool;
 import org.apache.cassandra.utils.NativeLibrary;
@@ -113,7 +112,7 @@ public class MemoryMappedSegment extends CommitLogSegment
         super.internalClose();
     }
 
-    protected static class MemoryMappedSegmentBuilder extends CommitLogSegment.Builder<MemoryMappedSegment>
+    protected static class MemoryMappedSegmentBuilder extends CommitLogSegment.Builder
     {
         public MemoryMappedSegmentBuilder(AbstractCommitLogSegmentManager segmentManager)
         {
@@ -130,9 +129,7 @@ public class MemoryMappedSegment extends CommitLogSegment
         @Override
         public SimpleCachedBufferPool createBufferPool()
         {
-            return new SimpleCachedBufferPool(DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool(),
-                                              DatabaseDescriptor.getCommitLogSegmentSize(),
-                                              BufferType.ON_HEAP);
+            return null;
         }
     }
 }

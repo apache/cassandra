@@ -95,7 +95,7 @@ public class CompressedSegment extends FileDirectSegment
         return lastWrittenPos;
     }
 
-    protected static class CompressedSegmentBuilder extends CommitLogSegment.Builder<CompressedSegment>
+    protected static class CompressedSegmentBuilder extends CommitLogSegment.Builder
     {
         public CompressedSegmentBuilder(AbstractCommitLogSegmentManager segmentManager)
         {

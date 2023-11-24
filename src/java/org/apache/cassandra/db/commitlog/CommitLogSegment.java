@@ -41,7 +41,6 @@ import com.codahale.metrics.Timer;
 import net.openhft.chronicle.core.util.ThrowingFunction;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.commitlog.CommitLog.Configuration;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.File;
@@ -138,18 +137,6 @@ public abstract class CommitLogSegment
     private volatile boolean headerWritten;
 
     public final CommitLogDescriptor descriptor;
-
-    /**
-     * Checks if the segments use a buffer pool.
-     *
-     * @param commitLog the commit log
-     * @return <code>true</code> if the segments use a buffer pool, <code>false</code> otherwise.
-     */
-    static boolean usesBufferPool(CommitLog commitLog)
-    {
-        Configuration config = commitLog.configuration;
-        return config.useEncryption() || config.useCompression();
-    }
 
     static long getNextId()
     {
@@ -763,7 +750,7 @@ public abstract class CommitLogSegment
         }
     }
 
-    protected abstract static class Builder<S extends CommitLogSegment>
+    protected abstract static class Builder
     {
         protected final AbstractCommitLogSegmentManager segmentManager;
 
@@ -772,7 +759,7 @@ public abstract class CommitLogSegment
             this.segmentManager = segmentManager;
         }
 
-        public abstract S build();
+        public abstract CommitLogSegment build();
 
         public abstract SimpleCachedBufferPool createBufferPool();
     }
