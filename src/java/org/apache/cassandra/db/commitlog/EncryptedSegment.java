@@ -72,7 +72,7 @@ public class EncryptedSegment extends FileDirectSegment
     public EncryptedSegment(AbstractCommitLogSegmentManager manager, ThrowingFunction<Path, FileChannel, IOException> channelFactory)
     {
         super(manager, channelFactory);
-        this.encryptionContext = manager.commitLog.configuration.getEncryptionContext();
+        this.encryptionContext = manager.getConfiguration().getEncryptionContext();
 
         try
         {

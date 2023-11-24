@@ -42,12 +42,14 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SimpleCachedBufferPool;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
@@ -104,7 +106,7 @@ public abstract class AbstractCommitLogSegmentManager
 
     @VisibleForTesting
     Interruptible executor;
-    protected final CommitLog commitLog;
+    private final CommitLog commitLog;
     private final BooleanSupplier managerThreadWaitCondition = () -> (availableSegment == null && !atSegmentBufferLimit());
     private final WaitQueue managerThreadWaitQueue = newWaitQueue();
 
@@ -140,6 +142,11 @@ public abstract class AbstractCommitLogSegmentManager
         }
 
         throw new AssertionError("Unsupported disk access mode: " + config.diskAccessMode);
+    }
+
+    CommitLog.Configuration getConfiguration()
+    {
+        return commitLog.configuration;
     }
 
     void start()
