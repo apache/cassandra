@@ -117,10 +117,43 @@ public class JMXCompatabilityTest extends CQLTester
                                                    ".*keyspace=system,(scope|table|columnfamily)=views_builds_in_progress.*",
                                                    ".*keyspace=system,(scope|table|columnfamily)=range_xfers.*",
                                                    ".*keyspace=system,(scope|table|columnfamily)=hints.*",
-                                                   ".*keyspace=system,(scope|table|columnfamily)=batchlog.*");
+                                                   ".*keyspace=system,(scope|table|columnfamily)=batchlog.*",
+                                                   // removed in CASSANDRA-18975
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=cql_test_keyspace,columnfamily=table_00",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=IndexInfo",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=available_ranges",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=batches",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=built_views",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=compaction_history",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=local",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=paxos",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=peer_events",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=peers",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=size_estimates",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=sstable_activity",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_auth,columnfamily=resource_role_permissons_index",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_auth,columnfamily=role_members",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_auth,columnfamily=role_permissions",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_auth,columnfamily=roles",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_distributed,columnfamily=parent_repair_history",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_distributed,columnfamily=repair_history",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=aggregates",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=columns",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=dropped_columns",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=functions",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=indexes",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=keyspaces",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=tables",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=triggers",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=types",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=views",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_traces,columnfamily=events",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_traces,columnfamily=sessions"
+                                                   );
         List<String> excludeAttributes = newArrayList("RPCServerRunning", // removed in CASSANDRA-11115
                                                       "MaxNativeProtocolVersion",
-                                                      "HostIdMap"); // removed in CASSANDRA-18959
+                                                      "HostIdMap", // removed in CASSANDRA-18959
+                                                      "ColumnFamilyName"); // removed in CASSANDRA-18975
         List<String> excludeOperations = newArrayList("startRPCServer", "stopRPCServer", // removed in CASSANDRA-11115
                                                       // nodetool apis that were changed,
                                                       "decommission", // -> decommission(boolean)
@@ -163,12 +196,47 @@ public class JMXCompatabilityTest extends CQLTester
                                                    ".*keyspace=system,(scope|table|columnfamily)=views_builds_in_progress.*",
                                                    ".*keyspace=system,(scope|table|columnfamily)=range_xfers.*",
                                                    ".*keyspace=system,(scope|table|columnfamily)=hints.*",
-                                                   ".*keyspace=system,(scope|table|columnfamily)=batchlog.*"
+                                                   ".*keyspace=system,(scope|table|columnfamily)=batchlog.*",
+                                                   // removed in CASSANDRA-18975
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=cql_test_keyspace,columnfamily=table_00",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=IndexInfo",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=available_ranges",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=batches",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=built_views",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=compaction_history",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=local",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=paxos",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=peer_events",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=peers",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=prepared_statements",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=size_estimates",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=sstable_activity",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=transferred_ranges",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_auth,columnfamily=resource_role_permissons_index",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_auth,columnfamily=role_members",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_auth,columnfamily=role_permissions",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_auth,columnfamily=roles",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_distributed,columnfamily=parent_repair_history",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_distributed,columnfamily=repair_history",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_distributed,columnfamily=view_build_status",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=aggregates",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=columns",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=dropped_columns",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=functions",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=indexes",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=keyspaces",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=tables",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=triggers",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=types",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=views",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_traces,columnfamily=events",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_traces,columnfamily=sessions"
         );
         List<String> excludeAttributes = newArrayList("RPCServerRunning", // removed in CASSANDRA-11115
                                                       "MaxNativeProtocolVersion",
                                                       "StreamingSocketTimeout",
-                                                      "HostIdMap"); // removed in CASSANDRA-18959;
+                                                      "HostIdMap", // removed in CASSANDRA-18959;
+                                                      "ColumnFamilyName"); // removed in CASSANDRA-18975
         List<String> excludeOperations = newArrayList("startRPCServer", "stopRPCServer", // removed in CASSANDRA-11115
                                                       // nodetool apis that were changed,
                                                       "decommission", // -> decommission(boolean)
@@ -216,9 +284,51 @@ public class JMXCompatabilityTest extends CQLTester
                                                    "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=MaxPoolSize",
                                                    "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=MaxTasksQueued",
                                                    "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=PendingTasks",
-                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=TotalBlockedTasks"
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=TotalBlockedTasks",
+                                                   // removed in CASSANDRA-18975
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=IndexInfo",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=available_ranges",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=available_ranges_v2",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=batches",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=built_views",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=compaction_history",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=local",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=paxos",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=peer_events",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=peer_events_v2",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=peers",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=peers_v2",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=prepared_statements",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=repairs",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=size_estimates",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=sstable_activity",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=table_estimates",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=transferred_ranges",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=transferred_ranges_v2",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=view_builds_in_progress",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_auth,columnfamily=network_permissions",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_auth,columnfamily=resource_role_permissons_index",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_auth,columnfamily=role_members",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_auth,columnfamily=role_permissions",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_auth,columnfamily=roles",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_distributed,columnfamily=parent_repair_history",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_distributed,columnfamily=repair_history",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_distributed,columnfamily=view_build_status",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=aggregates",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=columns",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=dropped_columns",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=functions",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=indexes",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=keyspaces",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=tables",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=triggers",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=types",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=views",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_traces,columnfamily=events",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_traces,columnfamily=sessions"
                 );
-        List<String> excludeAttributes = newArrayList("HostIdMap"); // removed in CASSANDRA-18959
+        List<String> excludeAttributes = newArrayList("HostIdMap", // removed in CASSANDRA-18959
+                                                      "ColumnFamilyName"); // removed in CASSANDRA-18975
         List<String> excludeOperations = newArrayList("scrub\\(p1:boolean,p2:boolean,p3:java.lang.String,p4:java.lang.String\\[\\]\\):int",
                                                       "forceKeyspaceCleanup\\(p1:java.lang.String,p2:java.lang.String\\[\\]\\):int", // removed in CASSANDRA-18975
                                                       "scrub\\(p1:boolean,p2:boolean,p3:boolean,p4:java.lang.String,p5:java.lang.String\\[\\]\\):int", // removed in CASSANDRA-18975
@@ -259,9 +369,51 @@ public class JMXCompatabilityTest extends CQLTester
                                                    "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=MaxPoolSize",
                                                    "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=MaxTasksQueued",
                                                    "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=PendingTasks",
-                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=TotalBlockedTasks"
+                                                   "org.apache.cassandra.metrics:type=ThreadPools,path=internal,scope=PendingRangeCalculator,name=TotalBlockedTasks",
+                                                   // removed in CASSANDRA-18975
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=IndexInfo",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=available_ranges",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=available_ranges_v2",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=batches",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=built_views",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=compaction_history",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=local",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=paxos",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=peer_events",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=peer_events_v2",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=peers",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=peers_v2",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=prepared_statements",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=repairs",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=size_estimates",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=sstable_activity_v2",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=table_estimates",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=transferred_ranges",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=transferred_ranges_v2",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system,columnfamily=view_builds_in_progress",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_auth,columnfamily=network_permissions",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_auth,columnfamily=resource_role_permissons_index",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_auth,columnfamily=role_members",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_auth,columnfamily=role_permissions",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_auth,columnfamily=roles",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_distributed,columnfamily=parent_repair_history",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_distributed,columnfamily=repair_history",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_distributed,columnfamily=view_build_status",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=aggregates",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=columns",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=dropped_columns",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=functions",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=indexes",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=keyspaces",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=tables",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=triggers",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=types",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_schema,columnfamily=views",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_traces,columnfamily=events",
+                                                   "org.apache.cassandra.db:type=ColumnFamilies,keyspace=system_traces,columnfamily=sessions"
         );
-        List<String> excludeAttributes = newArrayList("HostIdMap"); // removed in CASSANDRA-18959
+        List<String> excludeAttributes = newArrayList("HostIdMap", // removed in CASSANDRA-18959
+                                                      "ColumnFamilyName"); // removed in CASSANDRA-18975
         List<String> excludeOperations = newArrayList("scrub\\(p1:boolean,p2:boolean,p3:java.lang.String,p4:java.lang.String\\[\\]\\):int", // removed in CASSANDRA-18959
                                                       "forceKeyspaceCleanup\\(p1:java.lang.String,p2:java.lang.String\\[\\]\\):int", // removed in CASSANDRA-18975
                                                       "scrub\\(p1:boolean,p2:boolean,p3:boolean,p4:java.lang.String,p5:java.lang.String\\[\\]\\):int", // removed in CASSANDRA-18975
