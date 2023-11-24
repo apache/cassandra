@@ -113,7 +113,7 @@ public class InstanceConfig implements IInstanceConfig
                 .set("index_summary_capacity", "50MiB")
                 .set("counter_cache_size", "50MiB")
                 .set("key_cache_size", "50MiB")
-                .set("commitlog_disk_access_mode", "auto");
+                .set("commitlog_disk_access_mode", "legacy");
         this.featureFlags = EnumSet.noneOf(Feature.class);
         this.jmxPort = jmx_port;
     }
