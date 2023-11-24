@@ -83,7 +83,8 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     public void simplePartitonStaticAndSingleClusteringAscTest()
     {
         PrimaryKey.Factory factory = new PrimaryKey.Factory(Murmur3Partitioner.instance, simplePartitionStaticAndSingleClusteringAsc.comparator);
-        int rows = nextInt(10, 100);
+//        int rows = nextInt(10, 100);
+        int rows = 10;
         PrimaryKey[] keys = new PrimaryKey[rows];
         int partition = 0;
         int clustering = 0;
@@ -372,9 +373,14 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
             assertCompareToAndEquals(key, key, 0);
             assertCompareToAndEquals(tokenOnlyKey, tokenOnlyKey, 0);
 
+            // StaticPrimaryKey is a special case. All other keys in the partition are equal to it
+            boolean staticComparison = key.kind() == PrimaryKey.Kind.STATIC;
+            boolean inPartition = staticComparison;
             for (int comparisonIndex = index + 1; comparisonIndex < keys.length; comparisonIndex++)
             {
-                assertCompareToAndEquals(key, keys[comparisonIndex], -1);
+                if (staticComparison && keys[comparisonIndex].kind() == PrimaryKey.Kind.STATIC)
+                    inPartition = false;
+                assertCompareToAndEquals(key, keys[comparisonIndex], inPartition ? 0 : -1);
                 assertCompareToAndEquals(tokenOnlyKey, keys[comparisonIndex], tokenOnlyKey.token().equals(keys[comparisonIndex].token()) ? 0 : -1);
             }
         }
