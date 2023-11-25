@@ -883,19 +883,14 @@ public class FBUtilities
      */
     public static String prettyPrintRatio(Object ratioObj)
     {
+        double ratio;
         if (ratioObj instanceof Number)
         {
-            double ratio;
-            if (ratioObj instanceof Float || ratioObj instanceof Double)
-            {
-                ratio = (Double) ratioObj;
-            } else {
-                ratio = ((Integer) ratioObj).doubleValue();
-            }
-            return String.format("%.3f", ratio);
+            ratio = ((Number) ratioObj).doubleValue();
         } else {
-            return String.format("NaN");
+            ratio = Double.NaN;
         }
+        return String.format("%.3f", ratio);
     }
 
     /**

@@ -314,7 +314,7 @@ public class TableStatsHolder implements StatsHolder
                 statsTable.bytesUnrepaired = bytesUnrepaired != null ? bytesUnrepaired : 0;
                 statsTable.bytesPendingRepair = bytesPendingRepair != null ? bytesPendingRepair : 0;
 
-                statsTable.sstableCompressionRatio = probe.getColumnFamilyMetric(keyspaceName, tableName, "CompressionRatio");
+                statsTable.sstableCompressionRatio = toDouble(probe.getColumnFamilyMetric(keyspaceName, tableName, "CompressionRatio"));
                 Object estimatedPartitionCount = probe.getColumnFamilyMetric(keyspaceName, tableName, "EstimatedPartitionCount");
                 if (Long.valueOf(-1L).equals(estimatedPartitionCount))
                 {
@@ -388,6 +388,15 @@ public class TableStatsHolder implements StatsHolder
                 statsKeyspace.tables.add(statsTable);
             }
             keyspaces.add(statsKeyspace);
+        }
+    }
+
+    private double toDouble(Object valueObj) {
+        if (valueObj instanceof Number)
+        {
+            return ((Number) valueObj).doubleValue();
+        } else {
+            return Double.NaN;
         }
     }
 

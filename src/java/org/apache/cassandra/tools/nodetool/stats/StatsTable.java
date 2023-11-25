@@ -37,7 +37,7 @@ public class StatsTable
     public String spaceUsedBySnapshotsTotal;
     public boolean offHeapUsed = false;
     public String offHeapMemoryUsedTotal;
-    public Object sstableCompressionRatio;
+    public double sstableCompressionRatio;
     public Object numberOfPartitionsEstimate;
     public Object memtableCellCount;
     public String memtableDataSize;
