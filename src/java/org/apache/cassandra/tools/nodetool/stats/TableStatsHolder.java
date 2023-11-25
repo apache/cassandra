@@ -274,6 +274,7 @@ public class TableStatsHolder implements StatsHolder
                 Long bytesUnrepaired = null;
                 Long bytesPendingRepair = null;
                 Double sstableCompressionRatio = null;
+                Double bloomFilterFalseRatio = null;
 
                 try
                 {
@@ -287,6 +288,7 @@ public class TableStatsHolder implements StatsHolder
                     bytesUnrepaired = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "BytesUnrepaired");
                     bytesPendingRepair = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "BytesPendingRepair");
                     sstableCompressionRatio = (Double) probe.getColumnFamilyMetric(keyspaceName, tableName, "CompressionRatio");
+                    bloomFilterFalseRatio = (Double) probe.getColumnFamilyMetric(keyspaceName, tableName, "RecentBloomFilterFalseRatio");
                 }
                 catch (RuntimeException e)
                 {
@@ -350,7 +352,7 @@ public class TableStatsHolder implements StatsHolder
 
                 statsTable.bloomFilterFalsePositives = probe.getColumnFamilyMetric(keyspaceName, tableName, "BloomFilterFalsePositives");
 
-                statsTable.bloomFilterFalseRatio = toDouble(probe.getColumnFamilyMetric(keyspaceName, tableName, "RecentBloomFilterFalseRatio"));
+                statsTable.bloomFilterFalseRatio = bloomFilterFalseRatio != null ? bloomFilterFalseRatio : Double.NaN;
                 statsTable.bloomFilterSpaceUsed = format((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "BloomFilterDiskSpaceUsed"), humanReadable);
 
                 if (bloomFilterOffHeapSize != null)
@@ -391,15 +393,6 @@ public class TableStatsHolder implements StatsHolder
                 statsKeyspace.tables.add(statsTable);
             }
             keyspaces.add(statsKeyspace);
-        }
-    }
-
-    private double toDouble(Object valueObj) {
-        if (valueObj instanceof Number)
-        {
-            return ((Number) valueObj).doubleValue();
-        } else {
-            return Double.NaN;
         }
     }
 
