@@ -385,7 +385,6 @@ public class FBUtilitiesTest
         Assert.assertEquals("0.001", FBUtilities.prettyPrintRatio(0.0005));
         Assert.assertEquals("0.000", FBUtilities.prettyPrintRatio(0.0004));
         Assert.assertEquals("NaN", FBUtilities.prettyPrintRatio(Double.NaN));
-        Assert.assertEquals("NaN", FBUtilities.prettyPrintRatio(null));
         Assert.assertEquals("Infinity", FBUtilities.prettyPrintRatio(Double.POSITIVE_INFINITY));
     }
 

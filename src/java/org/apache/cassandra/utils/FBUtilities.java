@@ -879,17 +879,10 @@ public class FBUtilities
     /**
      * Formats a ratio value for display, rounds it to three decimal places.
      * For example, "10.000", "1.000", "0.050", "0.001", "0.000", "NaN".
-     * @param ratioObj   Ratio to print.
+     * @param ratio   Ratio to print.
      */
-    public static String prettyPrintRatio(Object ratioObj)
+    public static String prettyPrintRatio(double ratio)
     {
-        double ratio;
-        if (ratioObj instanceof Number)
-        {
-            ratio = ((Number) ratioObj).doubleValue();
-        } else {
-            ratio = Double.NaN;
-        }
         return String.format("%.3f", ratio);
     }
 
