@@ -25,11 +25,10 @@ import com.google.common.base.MoreObjects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.StringType;
 import org.apache.cassandra.index.sai.analyzer.filter.BasicFilters;
 import org.apache.cassandra.index.sai.analyzer.filter.FilterPipeline;
 import org.apache.cassandra.index.sai.analyzer.filter.FilterPipelineExecutor;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -41,21 +40,21 @@ public class NonTokenizingAnalyzer extends AbstractAnalyzer
 {
     private static final Logger logger = LoggerFactory.getLogger(NonTokenizingAnalyzer.class);
 
-    private final AbstractType<?> type;
+    private final IndexTermType indexTermType;
     private final NonTokenizingOptions options;
     private final FilterPipeline filterPipeline;
 
     private ByteBuffer input;
     private boolean hasNext = false;
 
-    NonTokenizingAnalyzer(AbstractType<?> type, Map<String, String> options)
+    NonTokenizingAnalyzer(IndexTermType indexTermType, Map<String, String> options)
     {
-        this(type, NonTokenizingOptions.fromMap(options));
+        this(indexTermType, NonTokenizingOptions.fromMap(options));
     }
 
-    NonTokenizingAnalyzer(AbstractType<?> type, NonTokenizingOptions tokenizerOptions)
+    NonTokenizingAnalyzer(IndexTermType indexTermType, NonTokenizingOptions tokenizerOptions)
     {
-        this.type = type;
+        this.indexTermType = indexTermType;
         this.options = tokenizerOptions;
         this.filterPipeline = getFilterPipeline();
     }
@@ -64,18 +63,19 @@ public class NonTokenizingAnalyzer extends AbstractAnalyzer
     public boolean hasNext()
     {
         // check that we know how to handle the input, otherwise bail
-        if (!(type instanceof StringType)) return false;
+        if (!indexTermType.isString())
+            return false;
 
         if (hasNext)
         {
             try
             {
-                String input = type.getString(this.input);
+                String input = indexTermType.asString(this.input);
 
                 if (input == null)
                 {
                     throw new MarshalException(String.format("'null' deserialized value for %s with %s",
-                                                             ByteBufferUtil.bytesToHex(this.input), type));
+                                                             ByteBufferUtil.bytesToHex(this.input), indexTermType));
                 }
 
                 String result = FilterPipelineExecutor.execute(filterPipeline, input);
@@ -88,13 +88,13 @@ public class NonTokenizingAnalyzer extends AbstractAnalyzer
                 }
 
                 nextLiteral = result;
-                next = type.fromString(result);
+                next = indexTermType.fromString(result);
 
                 return true;
             }
             catch (MarshalException e)
             {
-                logger.error("Failed to deserialize value with " + type, e);
+                logger.error("Failed to deserialize value with " + indexTermType, e);
                 return false;
             }
             finally

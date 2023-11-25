@@ -28,6 +28,7 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import org.junit.Test;
 
+import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.marshal.DecimalType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.IntegerType;
@@ -111,7 +112,7 @@ public class BalancedTreeIndexSearcherTest extends SAIRandomizedTester
         IndexSegmentSearcher indexSearcher = BlockBalancedTreeIndexBuilder.buildDecimalSearcher(newIndexDescriptor(),
                                                                                                 BigDecimal.ZERO, BigDecimal.valueOf(10L));
         testRangeQueries(indexSearcher, DecimalType.instance, DecimalType.instance, BigDecimal::valueOf,
-                         getLongsOnInterval(21L, 70L));
+                         getLongsOnInterval(20L, 70L));
     }
 
     private List<Long> getLongsOnInterval(long lowerInclusive, long upperInclusive)
@@ -148,11 +149,9 @@ public class BalancedTreeIndexSearcherTest extends SAIRandomizedTester
                                                   final NumberType<T> rawType, final NumberType<?> encodedType,
                                                   final Function<Short, T> rawValueProducer) throws Exception
     {
-        try (KeyRangeIterator results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
-        {{
-            operator = IndexOperator.EQ;
-            lower = upper = new Bound(rawType.decompose(rawValueProducer.apply(EQ_TEST_LOWER_BOUND_INCLUSIVE)), encodedType, true);
-        }}, null, mock(QueryContext.class)))
+        try (KeyRangeIterator results = indexSearcher.search(Expression.create(SAITester.createIndexTermType(rawType))
+                                                                       .add(Operator.EQ, rawType.decompose(rawValueProducer.apply(EQ_TEST_LOWER_BOUND_INCLUSIVE)))
+                                                             , null, mock(QueryContext.class)))
         {
             assertEquals(results.getMinimum(), results.getCurrent());
             assertTrue(results.hasNext());
@@ -160,11 +159,9 @@ public class BalancedTreeIndexSearcherTest extends SAIRandomizedTester
             assertEquals(0L, results.next().token().getLongValue());
         }
 
-        try (KeyRangeIterator results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
-        {{
-            operator = IndexOperator.EQ;
-            lower = upper = new Bound(rawType.decompose(rawValueProducer.apply(EQ_TEST_UPPER_BOUND_EXCLUSIVE)), encodedType, true);
-        }}, null, mock(QueryContext.class)))
+        try (KeyRangeIterator results = indexSearcher.search(Expression.create(SAITester.createIndexTermType(rawType))
+                                                                       .add(Operator.EQ, rawType.decompose(rawValueProducer.apply(EQ_TEST_UPPER_BOUND_EXCLUSIVE))),
+                                                             null, mock(QueryContext.class)))
         {
             assertFalse(results.hasNext());
             indexSearcher.close();
@@ -175,7 +172,7 @@ public class BalancedTreeIndexSearcherTest extends SAIRandomizedTester
                                                      final NumberType<T> rawType, final NumberType<?> encodedType,
                                                      final Function<Short, T> rawValueProducer) throws Exception
     {
-        List<Long> expectedTokenList = getLongsOnInterval(3L, 7L);
+        List<Long> expectedTokenList = getLongsOnInterval(2L, 7L);
         testRangeQueries(indexSearcher, rawType, encodedType, rawValueProducer, expectedTokenList);
     }
 
@@ -184,13 +181,10 @@ public class BalancedTreeIndexSearcherTest extends SAIRandomizedTester
                                                      final NumberType<T> rawType, final NumberType<?> encodedType,
                                                      final Function<Short, T> rawValueProducer, List<Long> expectedTokenList) throws Exception
     {
-        try (KeyRangeIterator results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
-        {{
-            operator = IndexOperator.RANGE;
-
-            lower = new Bound(rawType.decompose(rawValueProducer.apply((short)2)), encodedType, false);
-            upper = new Bound(rawType.decompose(rawValueProducer.apply((short)7)), encodedType, true);
-        }}, null, mock(QueryContext.class)))
+        try (KeyRangeIterator results = indexSearcher.search(Expression.create(SAITester.createIndexTermType(rawType))
+                                                                       .add(Operator.GTE, rawType.decompose(rawValueProducer.apply((short)2)))
+                                                                       .add(Operator.LTE, rawType.decompose(rawValueProducer.apply((short)7))),
+                                                             null, mock(QueryContext.class)))
         {
             assertEquals(results.getMinimum(), results.getCurrent());
             assertTrue(results.hasNext());
@@ -199,19 +193,19 @@ public class BalancedTreeIndexSearcherTest extends SAIRandomizedTester
             assertEquals(expectedTokenList, actualTokenList);
         }
 
-        try (KeyRangeIterator results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
+        try (KeyRangeIterator results = indexSearcher.search(new Expression.IndexedExpression(SAITester.createMockIndex("meh", rawType))
         {{
             operator = IndexOperator.RANGE;
-            lower = new Bound(rawType.decompose(rawValueProducer.apply(RANGE_TEST_UPPER_BOUND_EXCLUSIVE)), encodedType, true);
+            lower = new Bound(rawType.decompose(rawValueProducer.apply(RANGE_TEST_UPPER_BOUND_EXCLUSIVE)), getIndexTermType(), true);
         }}, null, mock(QueryContext.class)))
         {
             assertFalse(results.hasNext());
         }
 
-        try (KeyRangeIterator results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
+        try (KeyRangeIterator results = indexSearcher.search(new Expression.IndexedExpression(SAITester.createMockIndex("meh", rawType))
         {{
             operator = IndexOperator.RANGE;
-            upper = new Bound(rawType.decompose(rawValueProducer.apply(RANGE_TEST_LOWER_BOUND_INCLUSIVE)), encodedType, false);
+            upper = new Bound(rawType.decompose(rawValueProducer.apply(RANGE_TEST_LOWER_BOUND_INCLUSIVE)), getIndexTermType(), false);
         }}, null, mock(QueryContext.class)))
         {
             assertFalse(results.hasNext());

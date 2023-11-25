@@ -37,10 +37,11 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.VectorQueryContext;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v1.vector.OnHeapGraph;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
@@ -49,7 +50,6 @@ import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.index.sai.utils.RangeUtil;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
@@ -69,20 +69,20 @@ public class VectorMemoryIndex extends MemoryIndex
 
     private final NavigableSet<PrimaryKey> primaryKeys = new ConcurrentSkipListSet<>();
 
-    public VectorMemoryIndex(IndexContext indexContext)
+    public VectorMemoryIndex(StorageAttachedIndex index)
     {
-        super(indexContext);
-        this.graph = new OnHeapGraph<>(indexContext.getValidator(), indexContext.getIndexWriterConfig());
+        super(index);
+        this.graph = new OnHeapGraph<>(index.termType().indexType(), index.indexWriterConfig());
     }
 
     @Override
     public synchronized long add(DecoratedKey key, Clustering<?> clustering, ByteBuffer value)
     {
-        if (value == null || value.remaining() == 0 || !indexContext.validateMaxTermSize(key, value, false))
+        if (value == null || value.remaining() == 0 || !index.validateMaxTermSize(key, value, false))
             return 0;
 
-        var primaryKey = indexContext.hasClustering() ? indexContext.keyFactory().create(key, clustering)
-                                                      : indexContext.keyFactory().create(key);
+        var primaryKey = index.hasClustering() ? index.keyFactory().create(key, clustering)
+                                               : index.keyFactory().create(key);
         return index(primaryKey, value);
     }
 
@@ -117,8 +117,8 @@ public class VectorMemoryIndex extends MemoryIndex
         long bytesUsed = 0;
         if (different)
         {
-            var primaryKey = indexContext.hasClustering() ? indexContext.keyFactory().create(key, clustering)
-                                                          : indexContext.keyFactory().create(key);
+            var primaryKey = index.hasClustering() ? index.keyFactory().create(key, clustering)
+                                                   : index.keyFactory().create(key);
             // update bounds because only rows with vectors are included in the key bounds,
             // so if the vector was null before, we won't have included it
             updateKeyBounds(primaryKey);
@@ -151,12 +151,12 @@ public class VectorMemoryIndex extends MemoryIndex
     @Override
     public KeyRangeIterator search(QueryContext queryContext, Expression expr, AbstractBounds<PartitionPosition> keyRange)
     {
-        assert expr.getOp() == Expression.IndexOperator.ANN : "Only ANN is supported for vector search, received " + expr.getOp();
+        assert expr.getIndexOperator() == Expression.IndexOperator.ANN : "Only ANN is supported for vector search, received " + expr.getIndexOperator();
 
         VectorQueryContext vectorQueryContext = queryContext.vectorContext();
 
-        var buffer = expr.lower.value.raw;
-        float[] qv = TypeUtil.decomposeVector(indexContext, buffer);
+        var buffer = expr.lower().value.raw;
+        float[] qv = index.termType().decomposeVector(buffer);
 
         Bits bits;
         if (!RangeUtil.coversFullRing(keyRange))
@@ -168,8 +168,8 @@ public class VectorMemoryIndex extends MemoryIndex
             // if right token is MAX (Long.MIN_VALUE), there is no upper bound
             boolean isMaxToken = keyRange.right.getToken().isMinimum(); // max token
 
-            PrimaryKey left = indexContext.keyFactory().create(keyRange.left.getToken()); // lower bound
-            PrimaryKey right = isMaxToken ? null : indexContext.keyFactory().create(keyRange.right.getToken()); // upper bound
+            PrimaryKey left = index.keyFactory().create(keyRange.left.getToken()); // lower bound
+            PrimaryKey right = isMaxToken ? null : index.keyFactory().create(keyRange.right.getToken()); // upper bound
 
             Set<PrimaryKey> resultKeys = isMaxToken ? primaryKeys.tailSet(left, leftInclusive) : primaryKeys.subSet(left, leftInclusive, right, rightInclusive);
             if (!vectorQueryContext.getShadowedPrimaryKeys().isEmpty())
@@ -220,8 +220,8 @@ public class VectorMemoryIndex extends MemoryIndex
             return new KeyRangeListIterator(minimumKey, maximumKey, results);
         }
 
-        ByteBuffer buffer = expression.lower.value.raw;
-        float[] qv = TypeUtil.decomposeVector(indexContext, buffer);
+        ByteBuffer buffer = expression.lower().value.raw;
+        float[] qv = index.termType().decomposeVector(buffer);
         var bits = new KeyFilteringBits(results);
         var keyQueue = graph.search(qv, limit, bits);
         if (keyQueue.isEmpty())
@@ -232,7 +232,7 @@ public class VectorMemoryIndex extends MemoryIndex
     private int maxBruteForceRows(int limit, int nPermittedOrdinals, int graphSize)
     {
         int expectedNodesVisited = expectedNodesVisited(limit, nPermittedOrdinals, graphSize);
-        int expectedComparisons = indexContext.getIndexWriterConfig().getMaximumNodeConnections() * expectedNodesVisited;
+        int expectedComparisons = index.indexWriterConfig().getMaximumNodeConnections() * expectedNodesVisited;
         // in-memory comparisons are cheaper than pulling a row off disk and then comparing
         // VSTODO this is dramatically oversimplified
         // larger dimension should increase this, because comparisons are more expensive
@@ -266,10 +266,10 @@ public class VectorMemoryIndex extends MemoryIndex
     }
 
     public SegmentMetadata.ComponentMetadataMap writeDirect(IndexDescriptor indexDescriptor,
-                                                            IndexContext indexContext,
+                                                            IndexIdentifier indexIdentifier,
                                                             Function<PrimaryKey, Integer> postingTransformer) throws IOException
     {
-        return graph.writeData(indexDescriptor, indexContext, postingTransformer);
+        return graph.writeData(indexDescriptor, indexIdentifier, postingTransformer);
     }
 
     @Override

@@ -26,7 +26,6 @@ import java.util.SortedSet;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 
-import org.apache.cassandra.index.sai.QueryContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,20 +33,20 @@ import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.memtable.TrieMemtable;
 import org.apache.cassandra.db.tries.InMemoryTrie;
 import org.apache.cassandra.db.tries.Trie;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
+import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
-import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
@@ -65,22 +64,18 @@ public class TrieMemoryIndex extends MemoryIndex
 
     private final InMemoryTrie<PrimaryKeys> data;
     private final PrimaryKeysReducer primaryKeysReducer;
-    private final AbstractAnalyzer.AnalyzerFactory analyzerFactory;
-    private final AbstractType<?> validator;
     private final boolean isLiteral;
 
     private ByteBuffer minTerm;
     private ByteBuffer maxTerm;
 
-    public TrieMemoryIndex(IndexContext indexContext)
+    public TrieMemoryIndex(StorageAttachedIndex index)
     {
-        super(indexContext);
+        super(index);
         this.data = new InMemoryTrie<>(TrieMemtable.BUFFER_TYPE);
         this.primaryKeysReducer = new PrimaryKeysReducer();
         // The use of the analyzer is within a synchronized block so can be considered thread-safe
-        this.analyzerFactory = indexContext.getAnalyzerFactory();
-        this.validator = indexContext.getValidator();
-        this.isLiteral = TypeUtil.isLiteral(validator);
+        this.isLiteral = index.termType().isLiteral();
     }
 
     /**
@@ -94,53 +89,37 @@ public class TrieMemoryIndex extends MemoryIndex
     @Override
     public synchronized long add(DecoratedKey key, Clustering<?> clustering, ByteBuffer value)
     {
-        AbstractAnalyzer analyzer = analyzerFactory.create();
-        try
+        value = index.termType().asIndexBytes(value);
+        final PrimaryKey primaryKey = index.hasClustering() ? index.keyFactory().create(key, clustering)
+                                                            : index.keyFactory().create(key);
+        final long initialSizeOnHeap = data.sizeOnHeap();
+        final long initialSizeOffHeap = data.sizeOffHeap();
+        final long reducerHeapSize = primaryKeysReducer.heapAllocations();
+
+        if (index.hasAnalyzer())
         {
-            value = TypeUtil.asIndexBytes(value, validator);
-            analyzer.reset(value);
-            final PrimaryKey primaryKey = indexContext.hasClustering() ? indexContext.keyFactory().create(key, clustering)
-                                                                       : indexContext.keyFactory().create(key);
-            final long initialSizeOnHeap = data.sizeOnHeap();
-            final long initialSizeOffHeap = data.sizeOffHeap();
-            final long reducerHeapSize = primaryKeysReducer.heapAllocations();
-
-            while (analyzer.hasNext())
+            AbstractAnalyzer analyzer = index.analyzer();
+            try
             {
-                final ByteBuffer term = analyzer.next();
-                if (!indexContext.validateMaxTermSize(key, term, false))
-                    continue;
-
-                setMinMaxTerm(term.duplicate());
-
-                final ByteComparable comparableBytes = asComparableBytes(term);
-
-                try
+                analyzer.reset(value);
+                while (analyzer.hasNext())
                 {
-                    if (term.limit() <= MAX_RECURSIVE_KEY_LENGTH)
-                    {
-                        data.putRecursive(comparableBytes, primaryKey, primaryKeysReducer);
-                    }
-                    else
-                    {
-                        data.apply(Trie.singleton(comparableBytes, primaryKey), primaryKeysReducer);
-                    }
-                }
-                catch (InMemoryTrie.SpaceExhaustedException e)
-                {
-                    throw new RuntimeException(e);
+                    addTerm(primaryKey, analyzer.next());
                 }
             }
-
-            long onHeap = data.sizeOnHeap();
-            long offHeap = data.sizeOffHeap();
-            long heapAllocations = primaryKeysReducer.heapAllocations();
-            return (onHeap - initialSizeOnHeap) + (offHeap - initialSizeOffHeap) + (heapAllocations - reducerHeapSize);
+            finally
+            {
+                analyzer.end();
+            }
         }
-        finally
+        else
         {
-            analyzer.end();
+            addTerm(primaryKey, value);
         }
+        long onHeap = data.sizeOnHeap();
+        long offHeap = data.sizeOffHeap();
+        long heapAllocations = primaryKeysReducer.heapAllocations();
+        return (onHeap - initialSizeOnHeap) + (offHeap - initialSizeOffHeap) + (heapAllocations - reducerHeapSize);
     }
 
     @Override
@@ -162,7 +141,7 @@ public class TrieMemoryIndex extends MemoryIndex
         if (logger.isTraceEnabled())
             logger.trace("Searching memtable index on expression '{}'...", expression);
 
-        switch (expression.getOp())
+        switch (expression.getIndexOperator())
         {
             case EQ:
             case CONTAINS_KEY:
@@ -204,7 +183,7 @@ public class TrieMemoryIndex extends MemoryIndex
 
     @Override
     public SegmentMetadata.ComponentMetadataMap writeDirect(IndexDescriptor indexDescriptor,
-                                                            IndexContext indexContext,
+                                                            IndexIdentifier indexIdentifier,
                                                             Function<PrimaryKey, Integer> postingTransformer)
     {
         throw new UnsupportedOperationException();
@@ -228,18 +207,44 @@ public class TrieMemoryIndex extends MemoryIndex
         return maxTerm;
     }
 
+    private void addTerm(PrimaryKey primaryKey, ByteBuffer term)
+    {
+        if (index.validateMaxTermSize(primaryKey.partitionKey(), term, false))
+        {
+            setMinMaxTerm(term.duplicate());
+
+            final ByteComparable comparableBytes = asComparableBytes(term);
+
+            try
+            {
+                if (term.limit() <= MAX_RECURSIVE_KEY_LENGTH)
+                {
+                    data.putRecursive(comparableBytes, primaryKey, primaryKeysReducer);
+                }
+                else
+                {
+                    data.apply(Trie.singleton(comparableBytes, primaryKey), primaryKeysReducer);
+                }
+            }
+            catch (InMemoryTrie.SpaceExhaustedException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
     private void setMinMaxTerm(ByteBuffer term)
     {
         assert term != null;
 
-        minTerm = TypeUtil.min(term, minTerm, indexContext.getValidator());
-        maxTerm = TypeUtil.max(term, maxTerm, indexContext.getValidator());
+        minTerm = index.termType().min(term, minTerm);
+        maxTerm = index.termType().max(term, maxTerm);
     }
 
     private ByteComparable asComparableBytes(ByteBuffer input)
     {
         return isLiteral ? version -> terminated(ByteSource.of(input, version))
-                         : version -> TypeUtil.asComparableBytes(input, validator, version);
+                         : version -> index.termType().asComparableBytes(input, version);
     }
 
     private ByteComparable decode(ByteComparable term)
@@ -271,8 +276,8 @@ public class TrieMemoryIndex extends MemoryIndex
 
     private KeyRangeIterator exactMatch(Expression expression, AbstractBounds<PartitionPosition> keyRange)
     {
-        ByteComparable comparableMatch = expression.lower == null ? ByteComparable.EMPTY
-                                                                  : asComparableBytes(expression.lower.value.encoded);
+        ByteComparable comparableMatch = expression.lower() == null ? ByteComparable.EMPTY
+                                                                    : asComparableBytes(expression.lower().value.encoded);
         PrimaryKeys primaryKeys = data.get(comparableMatch);
         return primaryKeys == null ? KeyRangeIterator.empty()
                                    : new FilteringInMemoryKeyRangeIterator(primaryKeys.keys(), keyRange);
@@ -348,10 +353,10 @@ public class TrieMemoryIndex extends MemoryIndex
     {
         ByteComparable lowerBound, upperBound;
         boolean lowerInclusive, upperInclusive;
-        if (expression.lower != null)
+        if (expression.lower() != null)
         {
-            lowerBound = asComparableBytes(expression.lower.value.encoded);
-            lowerInclusive = expression.lower.inclusive;
+            lowerBound = asComparableBytes(expression.lower().value.encoded);
+            lowerInclusive = expression.lower().inclusive;
         }
         else
         {
@@ -359,10 +364,10 @@ public class TrieMemoryIndex extends MemoryIndex
             lowerInclusive = false;
         }
 
-        if (expression.upper != null)
+        if (expression.upper() != null)
         {
-            upperBound = asComparableBytes(expression.upper.value.encoded);
-            upperInclusive = expression.upper.inclusive;
+            upperBound = asComparableBytes(expression.upper().value.encoded);
+            upperInclusive = expression.upper().inclusive;
         }
         else
         {

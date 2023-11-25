@@ -24,7 +24,6 @@ import org.junit.Test;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.virtual.VirtualKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.inject.Injections;
@@ -118,7 +117,6 @@ public class IndexesSystemViewTest extends SAITester
     {
             ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
             StorageAttachedIndex sai = (StorageAttachedIndex) cfs.indexManager.getIndexByName(indexName);
-            IndexContext context = sai.getIndexContext();
 
             return row(indexName,
                        currentTable(),
@@ -126,6 +124,6 @@ public class IndexesSystemViewTest extends SAITester
                        isQueryable,
                        isBuilding,
                        isString,
-                       context.getAnalyzerFactory().toString());
+                       sai.hasAnalyzer() ? sai.analyzer().toString() : "NoOpAnalyzer");
     }
 }

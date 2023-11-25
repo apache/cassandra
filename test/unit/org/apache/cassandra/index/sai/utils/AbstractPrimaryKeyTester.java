@@ -146,7 +146,7 @@ public class AbstractPrimaryKeyTester extends SAIRandomizedTester
     protected DecoratedKey makeKey(TableMetadata table, Object...partitionKeys)
     {
         ByteBuffer key;
-        if (TypeUtil.isComposite(table.partitionKeyType))
+        if (table.partitionKeyType instanceof CompositeType)
             key = ((CompositeType)table.partitionKeyType).decompose(partitionKeys);
         else
             key = table.partitionKeyType.decomposeUntyped(partitionKeys[0]);

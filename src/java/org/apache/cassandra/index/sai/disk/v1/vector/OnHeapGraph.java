@@ -49,9 +49,9 @@ import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.io.IndexFileUtils;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
@@ -280,7 +280,7 @@ public class OnHeapGraph<T>
         return keyQueue;
     }
 
-    public SegmentMetadata.ComponentMetadataMap writeData(IndexDescriptor indexDescriptor, IndexContext indexContext, Function<T, Integer> postingTransformer) throws IOException
+    public SegmentMetadata.ComponentMetadataMap writeData(IndexDescriptor indexDescriptor, IndexIdentifier indexIdentifier, Function<T, Integer> postingTransformer) throws IOException
     {
         int nInProgress = builder.insertsInProgress();
         assert nInProgress == 0 : String.format("Attempting to write graph while %d inserts are in progress", nInProgress);
@@ -292,9 +292,9 @@ public class OnHeapGraph<T>
                                                                                   postingsMap.keySet().size(), vectorValues.size());
         logger.debug("Writing graph with {} rows and {} distinct vectors", postingsMap.values().stream().mapToInt(VectorPostings::size).sum(), vectorValues.size());
 
-        try (var pqOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.COMPRESSED_VECTORS, indexContext), true);
-             var postingsOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.POSTING_LISTS, indexContext), true);
-             var indexOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.TERMS_DATA, indexContext), true))
+        try (var pqOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.COMPRESSED_VECTORS, indexIdentifier), true);
+             var postingsOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.POSTING_LISTS, indexIdentifier), true);
+             var indexOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.TERMS_DATA, indexIdentifier), true))
         {
             SAICodecUtils.writeHeader(pqOutput);
             SAICodecUtils.writeHeader(postingsOutput);

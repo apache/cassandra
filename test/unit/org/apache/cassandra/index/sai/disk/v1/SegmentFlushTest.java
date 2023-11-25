@@ -31,19 +31,18 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.Clustering;
-import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.postings.PostingList;
@@ -54,7 +53,6 @@ import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
@@ -76,7 +74,7 @@ public class SegmentFlushTest
     @BeforeClass
     public static void init()
     {
-        DatabaseDescriptor.daemonInitialization();
+        DatabaseDescriptor.toolInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
     }
@@ -114,18 +112,10 @@ public class SegmentFlushTest
                                                                  SAITester.EMPTY_COMPARATOR);
 
         ColumnMetadata column = ColumnMetadata.regularColumn("sai", "internal", "column", UTF8Type.instance);
-        IndexMetadata config = IndexMetadata.fromSchemaMetadata("index_name", IndexMetadata.Kind.CUSTOM, null);
 
-        IndexContext indexContext = new IndexContext("ks",
-                                                     "cf",
-                                                     UTF8Type.instance,
-                                                     Murmur3Partitioner.instance,
-                                                     new ClusteringComparator(),
-                                                     column,
-                                                     IndexTarget.Type.SIMPLE,
-                                                     config);
+        StorageAttachedIndex index = SAITester.createMockIndex(column);
 
-        SSTableIndexWriter writer = new SSTableIndexWriter(indexDescriptor, indexContext, V1OnDiskFormat.SEGMENT_BUILD_MEMORY_LIMITER, () -> true);
+        SSTableIndexWriter writer = new SSTableIndexWriter(indexDescriptor, index, V1OnDiskFormat.SEGMENT_BUILD_MEMORY_LIMITER, () -> true);
 
         List<DecoratedKey> keys = Arrays.asList(dk("1"), dk("2"));
         Collections.sort(keys);
@@ -143,7 +133,7 @@ public class SegmentFlushTest
 
         writer.complete(Stopwatch.createStarted());
 
-        MetadataSource source = MetadataSource.loadColumnMetadata(indexDescriptor, indexContext);
+        MetadataSource source = MetadataSource.loadColumnMetadata(indexDescriptor, index.identifier());
 
         List<SegmentMetadata> segmentMetadatas = SegmentMetadata.load(source, indexDescriptor.primaryKeyFactory);
         assertEquals(segments, segmentMetadatas.size());
@@ -159,7 +149,7 @@ public class SegmentFlushTest
         maxTerm = segments == 1 ? term2 : term1;
         numRows = segments == 1 ? 2 : 1;
         verifySegmentMetadata(segmentMetadata);
-        verifyStringIndex(indexDescriptor, indexContext, segmentMetadata);
+        verifyStringIndex(indexDescriptor, index.identifier(), segmentMetadata);
 
         if (segments > 1)
         {
@@ -174,7 +164,7 @@ public class SegmentFlushTest
 
             segmentMetadata = segmentMetadatas.get(1);
             verifySegmentMetadata(segmentMetadata);
-            verifyStringIndex(indexDescriptor, indexContext, segmentMetadata);
+            verifyStringIndex(indexDescriptor, index.identifier(), segmentMetadata);
         }
     }
 
@@ -188,10 +178,10 @@ public class SegmentFlushTest
         assertEquals(numRows, segmentMetadata.numRows);
     }
 
-    private void verifyStringIndex(IndexDescriptor indexDescriptor, IndexContext indexContext, SegmentMetadata segmentMetadata) throws IOException
+    private void verifyStringIndex(IndexDescriptor indexDescriptor, IndexIdentifier indexIdentifier, SegmentMetadata segmentMetadata) throws IOException
     {
-        FileHandle termsData = indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexContext, null);
-        FileHandle postingLists = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, null);
+        FileHandle termsData = indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexIdentifier, null);
+        FileHandle postingLists = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexIdentifier, null);
 
         try (TermsIterator iterator = new TermsScanner(termsData, postingLists, segmentMetadata.componentMetadatas.get(IndexComponent.TERMS_DATA).root))
         {

@@ -34,24 +34,22 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.virtual.VirtualKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.index.Index;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
-import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
+import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_ENCRYPTION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
-
-import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_ENCRYPTION;
 
 /**
  * Tests the virtual table exposing SSTable index segment metadata.
@@ -193,17 +191,17 @@ public class SegmentsSystemViewTest extends SAITester
         {
             StorageAttachedIndex index = (StorageAttachedIndex) idx;
 
-            for (SSTableIndex sstableIndex : index.getIndexContext().getView().getIndexes())
+            for (SSTableIndex sstableIndex : index.view().getIndexes())
             {
                 SSTableReader sstable = sstableIndex.getSSTable();
 
                 IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable);
-                indexDescriptor.hasComponent(IndexComponent.COLUMN_COMPLETION_MARKER, index.getIndexContext());
+                indexDescriptor.hasComponent(IndexComponent.COLUMN_COMPLETION_MARKER, index.identifier());
 
-                if (TypeUtil.isLiteral(sstableIndex.getIndexContext().getValidator()))
+                if (sstableIndex.getIndexTermType().isLiteral())
                 {
-                    addComponentSizeToMap(lengths, IndexComponent.TERMS_DATA, index.getIndexContext(), indexDescriptor);
-                    addComponentSizeToMap(lengths, IndexComponent.POSTING_LISTS, index.getIndexContext(), indexDescriptor);
+                    addComponentSizeToMap(lengths, IndexComponent.TERMS_DATA, index.identifier(), indexDescriptor);
+                    addComponentSizeToMap(lengths, IndexComponent.POSTING_LISTS, index.identifier(), indexDescriptor);
                 }
             }
         }
@@ -211,10 +209,10 @@ public class SegmentsSystemViewTest extends SAITester
         return lengths;
     }
 
-    private static void addComponentSizeToMap(HashMap<String, Long> map, IndexComponent key, IndexContext indexContext, IndexDescriptor indexDescriptor)
+    private static void addComponentSizeToMap(HashMap<String, Long> map, IndexComponent key, IndexIdentifier indexIdentifier, IndexDescriptor indexDescriptor)
     {
         map.compute(key.name(), (typeName, acc) -> {
-            final long size = indexDescriptor.sizeOnDiskOfPerIndexComponent(key, indexContext);
+            final long size = indexDescriptor.sizeOnDiskOfPerIndexComponent(key, indexIdentifier);
             return acc == null ? size : size + acc;
         });
     }

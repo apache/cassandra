@@ -51,16 +51,15 @@ import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.dht.AbstractBounds;
-//import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.ExcludingBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.IncludingExcludingBounds;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
@@ -68,10 +67,7 @@ import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeUtil;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.inject.InvokePointBuilder;
-//import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.TableMetadata;
-//import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -90,7 +86,7 @@ public class VectorMemoryIndexTest extends SAITester
                                                                            .build();
 
     private ColumnFamilyStore cfs;
-    private IndexContext indexContext;
+    private StorageAttachedIndex index;
     private VectorMemoryIndex memtableIndex;
     private IPartitioner partitioner;
     private Map<DecoratedKey, Integer> keyMap;
@@ -114,14 +110,10 @@ public class VectorMemoryIndexTest extends SAITester
     @Before
     public void setup() throws Throwable
     {
-        TableMetadata tableMetadata = TableMetadata.builder("ks", "tb")
-                                                   .addPartitionKeyColumn("pk", Int32Type.instance)
-                                                   .addRegularColumn("val", Int32Type.instance)
-                                                   .build();
-        cfs = MockSchema.newCFS(tableMetadata);
-        partitioner = cfs.getPartitioner();
         dimensionCount = getRandom().nextIntBetween(2, 2048);
-        indexContext = SAITester.createIndexContext("index", VectorType.getInstance(FloatType.instance, dimensionCount));
+        index = SAITester.createMockIndex("index", VectorType.getInstance(FloatType.instance, dimensionCount));
+        cfs = index.baseCfs();
+        partitioner = cfs.getPartitioner();
         indexSearchCounter.reset();
         keyMap = new TreeMap<>();
         rowMap = new HashMap<>();
@@ -136,7 +128,7 @@ public class VectorMemoryIndexTest extends SAITester
     @Test
     public void randomQueryTest() throws Exception
     {
-        memtableIndex = new VectorMemoryIndex(indexContext);
+        memtableIndex = new VectorMemoryIndex(index);
 
         for (int row = 0; row < getRandom().nextIntBetween(1000, 5000); row++)
         {
@@ -200,7 +192,7 @@ public class VectorMemoryIndexTest extends SAITester
 
     private Expression generateRandomExpression()
     {
-        Expression expression = new Expression(indexContext);
+        Expression expression = Expression.create(index);
         expression.add(Operator.ANN, randomVector());
         return expression;
     }

@@ -15,11 +15,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.index.sai.utils;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 
@@ -40,16 +42,18 @@ import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
+import static org.apache.cassandra.index.sai.SAITester.getRandom;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class TypeUtilTest extends SAIRandomizedTester
+public class IndexTermTypeTest
 {
     @Test
     public void testSimpleType()
@@ -58,13 +62,16 @@ public class TypeUtilTest extends SAIRandomizedTester
         {
             AbstractType<?> type = cql3Type.getType();
             AbstractType<?> reversedType = ReversedType.getInstance(type);
-
-            boolean isUTF8OrAscii = cql3Type == CQL3Type.Native.ASCII || cql3Type == CQL3Type.Native.TEXT || cql3Type == CQL3Type.Native.VARCHAR;
-            boolean isLiteral = cql3Type == CQL3Type.Native.ASCII || cql3Type == CQL3Type.Native.TEXT || cql3Type == CQL3Type.Native.VARCHAR || cql3Type == CQL3Type.Native.BOOLEAN;
-            assertEquals(isLiteral, TypeUtil.isLiteral(type));
-            assertEquals(TypeUtil.isLiteral(type), TypeUtil.isLiteral(reversedType));
-            assertEquals(isUTF8OrAscii, TypeUtil.isString(type));
-            assertEquals(TypeUtil.isString(type), TypeUtil.isString(reversedType));
+            IndexTermType indexTermType = SAITester.createIndexTermType(type);
+            IndexTermType reversedIndexTermType = SAITester.createIndexTermType(reversedType);
+            boolean isUTF8OrAscii = cql3Type == CQL3Type.Native.ASCII || cql3Type == CQL3Type.Native.TEXT ||
+                                    cql3Type == CQL3Type.Native.VARCHAR;
+            boolean isLiteral = cql3Type == CQL3Type.Native.ASCII || cql3Type == CQL3Type.Native.TEXT ||
+                                cql3Type == CQL3Type.Native.VARCHAR || cql3Type == CQL3Type.Native.BOOLEAN;
+            assertEquals(isLiteral, indexTermType.isLiteral());
+            assertEquals(indexTermType.isLiteral(), reversedIndexTermType.isLiteral());
+            assertEquals(isUTF8OrAscii, indexTermType.isString());
+            assertEquals(indexTermType.isString(), reversedIndexTermType.isString());
         }
     }
 
@@ -77,11 +84,12 @@ public class TypeUtilTest extends SAIRandomizedTester
 
             testCollectionType((valueType, multiCell) -> MapType.getInstance(keyType, valueType, multiCell),
                                (valueType, nonFrozenMap) -> {
-                assertEquals(keyType, cellValueType(nonFrozenMap, IndexTarget.Type.KEYS));
-                assertEquals(valueType, cellValueType(nonFrozenMap, IndexTarget.Type.VALUES));
-                AbstractType<?> entryType = cellValueType(nonFrozenMap, IndexTarget.Type.KEYS_AND_VALUES);
-                assertEquals(CompositeType.getInstance(keyType, valueType), entryType);
-                assertTrue(TypeUtil.isLiteral(entryType));
+                assertEquals(keyType, indexTermType(nonFrozenMap, IndexTarget.Type.KEYS).indexType());
+                assertEquals(valueType, indexTermType(nonFrozenMap, IndexTarget.Type.VALUES).indexType());
+                IndexTermType entryIndexTermType = indexTermType(nonFrozenMap, IndexTarget.Type.KEYS_AND_VALUES);
+                assertEquals(CompositeType.getInstance(keyType, valueType), entryIndexTermType.indexType());
+                assertTrue(entryIndexTermType.isComposite());
+                assertTrue(entryIndexTermType.isLiteral());
             });
         }
     }
@@ -104,9 +112,17 @@ public class TypeUtilTest extends SAIRandomizedTester
         for (CQL3Type elementType : StorageAttachedIndex.SUPPORTED_TYPES)
         {
             TupleType type = TupleType.getInstance(new TypeParser(String.format("(%s, %s)", elementType.getType(), elementType.getType())));
-            assertFalse(TypeUtil.isFrozenCollection(type));
-            assertTrue(TypeUtil.isFrozen(type));
-            assertTrue(TypeUtil.isLiteral(type));
+            IndexTermType indexTermType = indexTermType(type, IndexTarget.Type.SIMPLE);
+            assertFalse(indexTermType.isFrozenCollection());
+            assertTrue(indexTermType.isFrozen());
+            assertTrue(indexTermType.isLiteral());
+            assertFalse(indexTermType.isReversed());
+
+            IndexTermType reversedIndexTermType = indexTermType(ReversedType.getInstance(type), IndexTarget.Type.SIMPLE);
+            assertFalse(reversedIndexTermType.isFrozenCollection());
+            assertTrue(reversedIndexTermType.isFrozen());
+            assertTrue(reversedIndexTermType.isLiteral());
+            assertTrue(reversedIndexTermType.isReversed());
         }
     }
 
@@ -119,18 +135,32 @@ public class TypeUtilTest extends SAIRandomizedTester
                                          Arrays.asList(FieldIdentifier.forQuoted("f1"), FieldIdentifier.forQuoted("f2")),
                                          Arrays.asList(elementType.getType(), elementType.getType()),
                                          true);
+            IndexTermType indexTermType = indexTermType(type, IndexTarget.Type.SIMPLE);
+            assertFalse(indexTermType.isFrozenCollection());
+            assertFalse(indexTermType.isFrozen());
+            assertFalse(indexTermType.isLiteral());
+            assertFalse(indexTermType.isReversed());
 
-            assertFalse(TypeUtil.isFrozenCollection(type));
-            assertFalse(TypeUtil.isFrozen(type));
-            assertFalse(TypeUtil.isLiteral(type));
+            IndexTermType reversedIndexTermType = indexTermType(ReversedType.getInstance(type), IndexTarget.Type.SIMPLE);
+            assertFalse(reversedIndexTermType.isFrozenCollection());
+            assertFalse(reversedIndexTermType.isFrozen());
+            assertFalse(reversedIndexTermType.isLiteral());
+            assertTrue(reversedIndexTermType.isReversed());
 
             type = new UserType("ks", ByteBufferUtil.bytes("myType"),
                                 Arrays.asList(FieldIdentifier.forQuoted("f1"), FieldIdentifier.forQuoted("f2")),
                                 Arrays.asList(elementType.getType(), elementType.getType()),
                                 false);
-            assertFalse(TypeUtil.isFrozenCollection(type));
-            assertTrue(TypeUtil.isFrozen(type));
-            assertTrue(TypeUtil.isLiteral(type));
+            indexTermType = indexTermType(type, IndexTarget.Type.SIMPLE);
+            assertFalse(indexTermType.isFrozenCollection());
+            assertTrue(indexTermType.isFrozen());
+            assertTrue(indexTermType.isLiteral());
+
+            reversedIndexTermType = indexTermType(ReversedType.getInstance(type), IndexTarget.Type.SIMPLE);
+            assertFalse(reversedIndexTermType.isFrozenCollection());
+            assertTrue(reversedIndexTermType.isFrozen());
+            assertTrue(reversedIndexTermType.isLiteral());
+            assertTrue(reversedIndexTermType.isReversed());
         }
     }
 
@@ -142,25 +172,25 @@ public class TypeUtilTest extends SAIRandomizedTester
             AbstractType<?> frozenCollection = init.apply(elementType.getType(), false);
             AbstractType<?> reversedFrozenCollection = ReversedType.getInstance(frozenCollection);
 
-            AbstractType<?> type = TypeUtil.cellValueType(column(frozenCollection), IndexTarget.Type.FULL);
-            assertTrue(TypeUtil.isFrozenCollection(type));
-            assertTrue(TypeUtil.isLiteral(type));
-            assertFalse(type.isReversed());
+            IndexTermType indexTermType = indexTermType(frozenCollection, IndexTarget.Type.FULL);
+            assertTrue(indexTermType.isFrozenCollection());
+            assertTrue(indexTermType.isLiteral());
+            assertFalse(indexTermType.isReversed());
 
-            type = TypeUtil.cellValueType(column(reversedFrozenCollection), IndexTarget.Type.FULL);
-            assertTrue(TypeUtil.isFrozenCollection(type));
-            assertTrue(TypeUtil.isLiteral(type));
-            assertTrue(type.isReversed());
+            IndexTermType reversedIndexTermType = indexTermType(reversedFrozenCollection, IndexTarget.Type.FULL);
+            assertTrue(reversedIndexTermType.isFrozenCollection());
+            assertTrue(reversedIndexTermType.isLiteral());
+            assertTrue(reversedIndexTermType.isReversed());
 
             AbstractType<?> nonFrozenCollection = init.apply(elementType.getType(), true);
-            assertEquals(elementType.getType(), cellValueType(nonFrozenCollection, IndexTarget.Type.VALUES));
+            assertEquals(elementType.getType(), indexTermType(nonFrozenCollection, IndexTarget.Type.VALUES).indexType());
             nonFrozenCollectionTester.accept(elementType.getType(), nonFrozenCollection);
         }
     }
 
-    private static AbstractType<?> cellValueType(AbstractType<?> type, IndexTarget.Type indexType)
+    private static IndexTermType indexTermType(AbstractType<?> type, IndexTarget.Type indexType)
     {
-        return TypeUtil.cellValueType(column(type), indexType);
+        return IndexTermType.create(column(type), Collections.emptyList(), indexType);
     }
 
     private static ColumnMetadata column(AbstractType<?> type)
@@ -171,22 +201,24 @@ public class TypeUtilTest extends SAIRandomizedTester
     @Test
     public void shouldCompareByteBuffers()
     {
+        IndexTermType indexTermType = indexTermType(Int32Type.instance, IndexTarget.Type.SIMPLE);
+
         final ByteBuffer a = Int32Type.instance.decompose(1);
         final ByteBuffer b = Int32Type.instance.decompose(2);
 
-        assertEquals(a, TypeUtil.min(a, b, Int32Type.instance));
-        assertEquals(a, TypeUtil.min(b, a, Int32Type.instance));
-        assertEquals(a, TypeUtil.min(a, a, Int32Type.instance));
-        assertEquals(b, TypeUtil.min(b, b, Int32Type.instance));
-        assertEquals(b, TypeUtil.min(null, b, Int32Type.instance));
-        assertEquals(a, TypeUtil.min(a, null, Int32Type.instance));
+        assertEquals(a, indexTermType.min(a, b));
+        assertEquals(a, indexTermType.min(b, a));
+        assertEquals(a, indexTermType.min(a, a));
+        assertEquals(b, indexTermType.min(b, b));
+        assertEquals(b, indexTermType.min(null, b));
+        assertEquals(a, indexTermType.min(a, null));
 
-        assertEquals(b, TypeUtil.max(b, a, Int32Type.instance));
-        assertEquals(b, TypeUtil.max(a, b, Int32Type.instance));
-        assertEquals(a, TypeUtil.max(a, a, Int32Type.instance));
-        assertEquals(b, TypeUtil.max(b, b, Int32Type.instance));
-        assertEquals(b, TypeUtil.max(null, b, Int32Type.instance));
-        assertEquals(a, TypeUtil.max(a, null, Int32Type.instance));
+        assertEquals(b, indexTermType.max(b, a));
+        assertEquals(b, indexTermType.max(a, b));
+        assertEquals(a, indexTermType.max(a, a));
+        assertEquals(b, indexTermType.max(b, b));
+        assertEquals(b, indexTermType.max(null, b));
+        assertEquals(a, indexTermType.max(a, null));
     }
 
     @Test
@@ -204,15 +236,18 @@ public class TypeUtilTest extends SAIRandomizedTester
 
         Arrays.sort(data, BigInteger::compareTo);
 
+        IndexTermType indexTermType = indexTermType(IntegerType.instance, IndexTarget.Type.SIMPLE);
+        assertTrue(indexTermType.supportsRounding());
+
         for (int i = 1; i < data.length; i++)
         {
             BigInteger i0 = data[i - 1];
             BigInteger i1 = data[i];
             assertTrue("#" + i, i0.compareTo(i1) <= 0);
 
-            ByteBuffer b0 = TypeUtil.asIndexBytes(ByteBuffer.wrap(i0.toByteArray()), IntegerType.instance);
-            ByteBuffer b1 = TypeUtil.asIndexBytes(ByteBuffer.wrap(i1.toByteArray()), IntegerType.instance);
-            assertTrue("#" + i, TypeUtil.compare(b0, b1, IntegerType.instance) <= 0);
+            ByteBuffer b0 = indexTermType.asIndexBytes(ByteBuffer.wrap(i0.toByteArray()));
+            ByteBuffer b1 = indexTermType.asIndexBytes(ByteBuffer.wrap(i1.toByteArray()));
+            assertTrue("#" + i, indexTermType.compare(b0, b1) <= 0);
         }
     }
 
@@ -220,6 +255,7 @@ public class TypeUtilTest extends SAIRandomizedTester
     public void testMapEntryEncoding()
     {
         CompositeType type = CompositeType.getInstance(UTF8Type.instance, Int32Type.instance);
+        IndexTermType indexTermType = indexTermType(type, IndexTarget.Type.SIMPLE);
 
         // simulate: index memtable insertion
         String[] data = new String[10000];
@@ -230,7 +266,7 @@ public class TypeUtilTest extends SAIRandomizedTester
             String v1 = new String(temp);
             int v2 = getRandom().nextInt();
 
-            data[i] = TypeUtil.getString(type.decompose(v1, v2), type);
+            data[i] = indexTermType.asString(type.decompose(v1, v2));
         }
 
         Arrays.sort(data, String::compareTo);
@@ -238,9 +274,9 @@ public class TypeUtilTest extends SAIRandomizedTester
         for (int i = 1; i < data.length; i++)
         {
             // simulate: index memtable flush
-            ByteBuffer b0 = TypeUtil.fromString(data[i - 1], type);
-            ByteBuffer b1 = TypeUtil.fromString(data[i], type);
-            assertTrue("#" + i, TypeUtil.compare(b0, b1, type) <= 0);
+            ByteBuffer b0 = indexTermType.fromString(data[i - 1]);
+            ByteBuffer b1 = indexTermType.fromString(data[i]);
+            assertTrue("#" + i, indexTermType.compare(b0, b1) <= 0);
 
             // simulate: saving into on-disk trie
             ByteComparable t0 = ByteComparable.fixedLength(b0);

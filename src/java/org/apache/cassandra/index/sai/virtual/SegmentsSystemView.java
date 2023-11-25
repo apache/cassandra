@@ -28,8 +28,6 @@ import org.apache.cassandra.db.virtual.AbstractVirtualTable;
 import org.apache.cassandra.db.virtual.SimpleDataSet;
 import org.apache.cassandra.db.virtual.VirtualTable;
 import org.apache.cassandra.dht.LocalPartitioner;
-import org.apache.cassandra.index.Index;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
@@ -90,8 +88,8 @@ public class SegmentsSystemView extends AbstractVirtualTable
     {
         SimpleDataSet dataset = new SimpleDataSet(metadata());
 
-        forEachIndex(indexContext -> {
-            for (SSTableIndex sstableIndex : indexContext.getView())
+        forEachIndex(index -> {
+            for (SSTableIndex sstableIndex : index.view())
             {
                 sstableIndex.populateSegmentView(dataset);
             }
@@ -100,7 +98,7 @@ public class SegmentsSystemView extends AbstractVirtualTable
         return dataset;
     }
 
-    private void forEachIndex(Consumer<IndexContext> process)
+    private void forEachIndex(Consumer<StorageAttachedIndex> process)
     {
         for (KeyspaceMetadata ks : Schema.instance.getUserKeyspaces())
         {
@@ -113,12 +111,7 @@ public class SegmentsSystemView extends AbstractVirtualTable
                 StorageAttachedIndexGroup group = StorageAttachedIndexGroup.getIndexGroup(cfs);
 
                 if (group != null)
-                {
-                    for (Index index : group.getIndexes())
-                    {
-                        process.accept(((StorageAttachedIndex)index).getIndexContext());
-                    }
-                }
+                    group.getIndexes().stream().map(index -> (StorageAttachedIndex) index).forEach(process);
             }
         }
     }

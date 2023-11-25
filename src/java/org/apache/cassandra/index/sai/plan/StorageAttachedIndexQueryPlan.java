@@ -55,7 +55,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
         this.postIndexFilter = postIndexFilter;
         this.filterOperation = filterOperation;
         this.indexes = indexes;
-        this.isTopK = indexes.stream().anyMatch(i -> i instanceof StorageAttachedIndex && ((StorageAttachedIndex) i).getIndexContext().isVector());
+        this.isTopK = indexes.stream().anyMatch(i -> i instanceof StorageAttachedIndex && ((StorageAttachedIndex) i).termType().isVector());
     }
 
     @Nullable
@@ -66,12 +66,25 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
     {
         ImmutableSet.Builder<Index> selectedIndexesBuilder = ImmutableSet.builder();
 
+        RowFilter preIndexFilter = rowFilter;
+        RowFilter postIndexFilter = rowFilter;
+
         for (RowFilter.Expression expression : rowFilter)
         {
-            // we ignore user-defined expressions here because we don't have a way to translate their #isSatifiedBy
-            // method, they will be included in the filter returned by QueryPlan#postIndexQueryFilter()
-            if (expression.isUserDefined())
+            // we ignore any expressions here (currently IN and user-defined expressions) where we don't have a way to
+            // translate their #isSatifiedBy method, they will be included in the filter returned by QueryPlan#postIndexQueryFilter()
+            //
+            // Note: For both the pre- and post-filters we need to check that the expression exists before removing it
+            // because the without method assert if the expression doesn't exist. This can be the case if we are given
+            // a duplicate expression - a = 1 and a = 1. The without method removes all instances of the expression.
+            if (expression.operator().isIN() || expression.isUserDefined())
+            {
+                if (preIndexFilter.getExpressions().contains(expression))
+                    preIndexFilter = preIndexFilter.without(expression);
                 continue;
+            }
+            if (postIndexFilter.getExpressions().contains(expression))
+                postIndexFilter = postIndexFilter.without(expression);
 
             for (StorageAttachedIndex index : indexes)
             {
@@ -86,13 +99,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
         if (selectedIndexes.isEmpty())
             return null;
 
-        /*
-         * postIndexFilter comprised by those expressions in the read command row filter that can't be handled by
-         * {@link FilterTree#satisfiedBy(Unfiltered, Row, boolean)}. This includes expressions targeted
-         * at {@link RowFilter.UserExpression}s.
-         */
-        RowFilter postIndexFilter = rowFilter.restrict(RowFilter.Expression::isUserDefined);
-        return new StorageAttachedIndexQueryPlan(cfs, queryMetrics, postIndexFilter, rowFilter, selectedIndexes);
+        return new StorageAttachedIndexQueryPlan(cfs, queryMetrics, postIndexFilter, preIndexFilter, selectedIndexes);
     }
 
     @Override
@@ -141,7 +148,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
 
     /**
      * @return a filter with all the expressions that are user-defined or for a non-indexed partition key column
-     *
+     * <p>
      * (currently index on partition columns is not supported, see {@link StorageAttachedIndex#validateOptions(Map, TableMetadata)})
      */
     @Override

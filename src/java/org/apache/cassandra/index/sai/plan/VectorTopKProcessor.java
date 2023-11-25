@@ -43,12 +43,11 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.utils.InMemoryPartitionIterator;
 import org.apache.cassandra.index.sai.utils.InMemoryUnfilteredPartitionIterator;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.index.sai.utils.PartitionInfo;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -65,7 +64,8 @@ import org.apache.cassandra.utils.Pair;
 public class VectorTopKProcessor
 {
     private final ReadCommand command;
-    private final IndexContext indexContext;
+    private final StorageAttachedIndex index;
+    private final IndexTermType indexTermType;
     private final float[] queryVector;
 
     private final int limit;
@@ -74,10 +74,11 @@ public class VectorTopKProcessor
     {
         this.command = command;
 
-        Pair<IndexContext, float[]> annIndexAndExpression = findTopKIndexContext();
+        Pair<StorageAttachedIndex, float[]> annIndexAndExpression = findTopKIndex();
         Preconditions.checkNotNull(annIndexAndExpression);
 
-        this.indexContext = annIndexAndExpression.left;
+        this.index = annIndexAndExpression.left;
+        this.indexTermType = annIndexAndExpression.left().termType();
         this.queryVector = annIndexAndExpression.right;
         this.limit = command.limits().count();
     }
@@ -142,7 +143,7 @@ public class VectorTopKProcessor
      */
     private float getScoreForRow(DecoratedKey key, Row row)
     {
-        ColumnMetadata column = indexContext.getDefinition();
+        ColumnMetadata column = indexTermType.columnMetadata();
 
         if (column.isPrimaryKeyColumn() && key == null)
             return 0;
@@ -153,17 +154,17 @@ public class VectorTopKProcessor
         if ((column.isClusteringColumn() || column.isRegular()) && row.isStatic())
             return 0;
 
-        ByteBuffer value = indexContext.getValueOf(key, row, FBUtilities.nowInSeconds());
+        ByteBuffer value = indexTermType.valueOf(key, row, FBUtilities.nowInSeconds());
         if (value != null)
         {
-            float[] vector = TypeUtil.decomposeVector(indexContext, value);
-            return indexContext.getIndexWriterConfig().getSimilarityFunction().compare(vector, queryVector);
+            float[] vector = indexTermType.decomposeVector(value);
+            return index.indexWriterConfig().getSimilarityFunction().compare(vector, queryVector);
         }
         return 0;
     }
 
 
-    private Pair<IndexContext, float[]> findTopKIndexContext()
+    private Pair<StorageAttachedIndex, float[]> findTopKIndex()
     {
         ColumnFamilyStore cfs = Keyspace.openAndGetStore(command.metadata());
 
@@ -172,9 +173,8 @@ public class VectorTopKProcessor
             StorageAttachedIndex sai = findVectorIndexFor(cfs.indexManager, expression);
             if (sai != null)
             {
-
-                float[] qv = TypeUtil.decomposeVector(sai.getIndexContext(), expression.getIndexValue().duplicate());
-                return Pair.create(sai.getIndexContext(), qv);
+                float[] qv = sai.termType().decomposeVector(expression.getIndexValue().duplicate());
+                return Pair.create(sai, qv);
             }
         }
 
