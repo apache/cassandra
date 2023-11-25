@@ -273,6 +273,7 @@ public class TableStatsHolder implements StatsHolder
                 Long bytesRepaired = null;
                 Long bytesUnrepaired = null;
                 Long bytesPendingRepair = null;
+                Double sstableCompressionRatio = null;
 
                 try
                 {
@@ -285,6 +286,7 @@ public class TableStatsHolder implements StatsHolder
                     bytesRepaired = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "BytesRepaired");
                     bytesUnrepaired = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "BytesUnrepaired");
                     bytesPendingRepair = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "BytesPendingRepair");
+                    sstableCompressionRatio = (Double) probe.getColumnFamilyMetric(keyspaceName, tableName, "CompressionRatio");
                 }
                 catch (RuntimeException e)
                 {
@@ -314,7 +316,7 @@ public class TableStatsHolder implements StatsHolder
                 statsTable.bytesUnrepaired = bytesUnrepaired != null ? bytesUnrepaired : 0;
                 statsTable.bytesPendingRepair = bytesPendingRepair != null ? bytesPendingRepair : 0;
 
-                statsTable.sstableCompressionRatio = toDouble(probe.getColumnFamilyMetric(keyspaceName, tableName, "CompressionRatio"));
+                statsTable.sstableCompressionRatio = sstableCompressionRatio != null ? sstableCompressionRatio : Double.NaN;
                 Object estimatedPartitionCount = probe.getColumnFamilyMetric(keyspaceName, tableName, "EstimatedPartitionCount");
                 if (Long.valueOf(-1L).equals(estimatedPartitionCount))
                 {
@@ -347,6 +349,7 @@ public class TableStatsHolder implements StatsHolder
                 statsTable.pendingFlushes = probe.getColumnFamilyMetric(keyspaceName, tableName, "PendingFlushes");
 
                 statsTable.bloomFilterFalsePositives = probe.getColumnFamilyMetric(keyspaceName, tableName, "BloomFilterFalsePositives");
+
                 statsTable.bloomFilterFalseRatio = toDouble(probe.getColumnFamilyMetric(keyspaceName, tableName, "RecentBloomFilterFalseRatio"));
                 statsTable.bloomFilterSpaceUsed = format((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "BloomFilterDiskSpaceUsed"), humanReadable);
 
