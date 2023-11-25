@@ -27,9 +27,7 @@ import org.apache.cassandra.db.virtual.SimpleDataSet;
 import org.apache.cassandra.db.virtual.VirtualTable;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -93,19 +91,18 @@ public class ColumnIndexesSystemView extends AbstractVirtualTable
 
                 if (group != null)
                 {
-                    for (Index index : group.getIndexes())
-                    {
-                        IndexContext context = ((StorageAttachedIndex) index).getIndexContext();
-                        String indexName = context.getIndexName();
+                    group.getIndexes().forEach(i -> {
+                        StorageAttachedIndex index = (StorageAttachedIndex) i;
+                        String indexName = index.identifier().indexName;
 
                         dataset.row(ks.name, indexName)
                                .column(TABLE_NAME, cfs.name)
-                               .column(COLUMN_NAME, context.getColumnName())
+                               .column(COLUMN_NAME, index.termType().columnName())
                                .column(IS_QUERYABLE, manager.isIndexQueryable(index))
                                .column(IS_BUILDING, manager.isIndexBuilding(indexName))
-                               .column(IS_STRING, context.isLiteral())
-                               .column(ANALYZER, context.getAnalyzerFactory().toString());
-                    }
+                               .column(IS_STRING, index.termType().isLiteral())
+                               .column(ANALYZER, index.hasAnalyzer() ? index.analyzer().toString() : "NoOpAnalyzer");
+                    });
                 }
             }
         }

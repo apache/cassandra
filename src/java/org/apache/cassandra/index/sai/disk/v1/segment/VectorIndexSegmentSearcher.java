@@ -33,8 +33,8 @@ import io.github.jbellis.jvector.util.SparseFixedBitSet;
 import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.VectorQueryContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
@@ -49,7 +49,6 @@ import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.utils.AtomicRatio;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeUtil;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.tracing.Tracing;
 
 import static java.lang.Math.max;
@@ -71,13 +70,13 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
     VectorIndexSegmentSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
                                PerColumnIndexFiles perIndexFiles,
                                SegmentMetadata segmentMetadata,
-                               IndexContext indexContext) throws IOException
+                               StorageAttachedIndex index) throws IOException
     {
-        super(primaryKeyMapFactory, perIndexFiles, segmentMetadata, indexContext);
-        graph = new DiskAnn(segmentMetadata.componentMetadatas, perIndexFiles, indexContext);
+        super(primaryKeyMapFactory, perIndexFiles, segmentMetadata, index);
+        graph = new DiskAnn(segmentMetadata.componentMetadatas, perIndexFiles, index.indexWriterConfig());
         cachedBitSets = ThreadLocal.withInitial(() -> new SparseFixedBitSet(graph.size()));
         globalBruteForceRows = Integer.MAX_VALUE;
-        optimizeFor = indexContext.getIndexWriterConfig().getOptimizeFor();
+        optimizeFor = index.indexWriterConfig().getOptimizeFor();
     }
 
     @Override
@@ -92,17 +91,17 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
         int limit = context.vectorContext().limit();
 
         if (logger.isTraceEnabled())
-            logger.trace(indexContext.logMessage("Searching on expression '{}'..."), exp);
+            logger.trace(index.identifier().logMessage("Searching on expression '{}'..."), exp);
 
-        if (exp.getOp() != Expression.IndexOperator.ANN)
-            throw new IllegalArgumentException(indexContext.logMessage("Unsupported expression during ANN index query: " + exp));
+        if (exp.getIndexOperator() != Expression.IndexOperator.ANN)
+            throw new IllegalArgumentException(index.identifier().logMessage("Unsupported expression during ANN index query: " + exp));
 
         int topK = optimizeFor.topKFor(limit);
         BitsOrPostingList bitsOrPostingList = bitsOrPostingListForKeyRange(context.vectorContext(), keyRange, topK);
         if (bitsOrPostingList.skipANN())
             return toPrimaryKeyIterator(bitsOrPostingList.postingList(), context);
 
-        float[] queryVector = TypeUtil.decomposeVector(indexContext, exp.lower.value.raw.duplicate());
+        float[] queryVector = index.termType().decomposeVector(exp.lower().value.raw.duplicate());
         var vectorPostings = graph.search(queryVector, topK, limit, bitsOrPostingList.getBits());
         if (bitsOrPostingList.expectedNodesVisited >= 0)
             updateExpectedNodes(vectorPostings.getVisitedCount(), bitsOrPostingList.expectedNodesVisited);
@@ -258,7 +257,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
                 return toPrimaryKeyIterator(new IntArrayPostingList(rowIds.toIntArray()), context);
 
             // else ask the index to perform a search limited to the bits we created
-            float[] queryVector = TypeUtil.decomposeVector(indexContext, expression.lower.value.raw.duplicate());
+            float[] queryVector = index.termType().decomposeVector(expression.lower().value.raw.duplicate());
             var results = graph.search(queryVector, topK, limit, bits);
             updateExpectedNodes(results.getVisitedCount(), expectedNodesVisited(topK, maxSegmentRowId, graph.size()));
             return toPrimaryKeyIterator(results, context);
@@ -304,9 +303,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
     @Override
     public String toString()
     {
-        return MoreObjects.toStringHelper(this)
-                          .add("indexContext", indexContext)
-                          .toString();
+        return MoreObjects.toStringHelper(this).add("index", index).toString();
     }
 
     @Override

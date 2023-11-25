@@ -174,7 +174,7 @@ public class SSTablesSystemViewTest extends SAITester
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         StorageAttachedIndex sai = (StorageAttachedIndex) cfs.indexManager.getIndexByName(indexName);
 
-        for (SSTableIndex sstableIndex : sai.getIndexContext().getView())
+        for (SSTableIndex sstableIndex : sai.view())
         {
             SSTableReader sstable = sstableIndex.getSSTable();
 

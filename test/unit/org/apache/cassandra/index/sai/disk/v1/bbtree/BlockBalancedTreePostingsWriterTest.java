@@ -26,12 +26,11 @@ import org.junit.Before;
 import org.junit.Test;
 
 import org.agrona.collections.IntArrayList;
-import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.ArrayPostingList;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.disk.v1.postings.PostingsReader;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
@@ -48,13 +47,13 @@ import static org.mockito.Mockito.mock;
 public class BlockBalancedTreePostingsWriterTest extends SAIRandomizedTester
 {
     private IndexDescriptor indexDescriptor;
-    private IndexContext indexContext;
+    private IndexIdentifier indexIdentifier;
 
     @Before
     public void setup() throws Throwable
     {
         indexDescriptor = newIndexDescriptor();
-        indexContext = SAITester.createIndexContext(newIndex(), Int32Type.instance);
+        indexIdentifier = SAITester.createIndexIdentifier("test", "test", newIndex());
     }
 
     @Test
@@ -73,12 +72,12 @@ public class BlockBalancedTreePostingsWriterTest extends SAIRandomizedTester
         writer.onLeaf(112, 4, pathToRoot(1, 3, 7, 14, 28));
 
         long fp;
-        try (IndexOutputWriter output = indexDescriptor.openPerIndexOutput(IndexComponent.POSTING_LISTS, indexContext))
+        try (IndexOutputWriter output = indexDescriptor.openPerIndexOutput(IndexComponent.POSTING_LISTS, indexIdentifier))
         {
-            fp = writer.finish(output, leaves, indexContext);
+            fp = writer.finish(output, leaves, indexIdentifier);
         }
 
-        BlockBalancedTreePostingsIndex postingsIndex = new BlockBalancedTreePostingsIndex(indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, null), fp);
+        BlockBalancedTreePostingsIndex postingsIndex = new BlockBalancedTreePostingsIndex(indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexIdentifier, null), fp);
         assertEquals(10, postingsIndex.size());
 
         // Internal postings...
@@ -120,13 +119,13 @@ public class BlockBalancedTreePostingsWriterTest extends SAIRandomizedTester
         writer.onLeaf(16, 1, pathToRoot(1, 2, 4, 8));
 
         long fp;
-        try (IndexOutputWriter output = indexDescriptor.openPerIndexOutput(IndexComponent.POSTING_LISTS, indexContext))
+        try (IndexOutputWriter output = indexDescriptor.openPerIndexOutput(IndexComponent.POSTING_LISTS, indexIdentifier))
         {
-            fp = writer.finish(output, leaves, indexContext);
+            fp = writer.finish(output, leaves, indexIdentifier);
         }
 
         // There is only a single posting list...the leaf posting list.
-        BlockBalancedTreePostingsIndex postingsIndex = new BlockBalancedTreePostingsIndex(indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, null), fp);
+        BlockBalancedTreePostingsIndex postingsIndex = new BlockBalancedTreePostingsIndex(indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexIdentifier, null), fp);
         assertEquals(1, postingsIndex.size());
     }
 
@@ -142,19 +141,19 @@ public class BlockBalancedTreePostingsWriterTest extends SAIRandomizedTester
         writer.onLeaf(16, 1, pathToRoot(1, 2, 4, 8));
 
         long fp;
-        try (IndexOutputWriter output = indexDescriptor.openPerIndexOutput(IndexComponent.POSTING_LISTS, indexContext))
+        try (IndexOutputWriter output = indexDescriptor.openPerIndexOutput(IndexComponent.POSTING_LISTS, indexIdentifier))
         {
-            fp = writer.finish(output, leaves, indexContext);
+            fp = writer.finish(output, leaves, indexIdentifier);
         }
 
         // There is only a single posting list...the leaf posting list.
-        BlockBalancedTreePostingsIndex postingsIndex = new BlockBalancedTreePostingsIndex(indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, null), fp);
+        BlockBalancedTreePostingsIndex postingsIndex = new BlockBalancedTreePostingsIndex(indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexIdentifier, null), fp);
         assertEquals(1, postingsIndex.size());
     }
 
     private void assertPostingReaderEquals(BlockBalancedTreePostingsIndex postingsIndex, int nodeID, long... postings) throws IOException
     {
-        assertPostingReaderEquals(indexDescriptor.openPerIndexInput(IndexComponent.POSTING_LISTS, indexContext),
+        assertPostingReaderEquals(indexDescriptor.openPerIndexInput(IndexComponent.POSTING_LISTS, indexIdentifier),
                                   postingsIndex.getPostingsFilePointer(nodeID),
                                   new ArrayPostingList(postings));
     }

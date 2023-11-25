@@ -26,9 +26,9 @@ import java.util.Map;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.lucene.store.IndexOutput;
@@ -51,31 +51,31 @@ public class NumericIndexWriter
 
     private final BlockBalancedTreeWriter writer;
     private final IndexDescriptor indexDescriptor;
-    private final IndexContext indexContext;
+    private final IndexIdentifier indexIdentifier;
     private final int bytesPerValue;
 
     /**
      * @param maxSegmentRowId maximum possible segment row ID, used to create `maxRows` for the balanced tree
      */
     public NumericIndexWriter(IndexDescriptor indexDescriptor,
-                              IndexContext indexContext,
+                              IndexIdentifier indexIdentifier,
                               int bytesPerValue,
                               long maxSegmentRowId)
     {
-        this(indexDescriptor, indexContext, MAX_POINTS_IN_LEAF_NODE, bytesPerValue, maxSegmentRowId);
+        this(indexDescriptor, indexIdentifier, MAX_POINTS_IN_LEAF_NODE, bytesPerValue, maxSegmentRowId);
     }
 
     @VisibleForTesting
     public NumericIndexWriter(IndexDescriptor indexDescriptor,
-                              IndexContext indexContext,
+                              IndexIdentifier indexIdentifier,
                               int maxPointsInLeafNode,
                               int bytesPerValue,
                               long maxSegmentRowId)
     {
-        checkArgument(maxSegmentRowId >= 0, "[%s] maxSegmentRowId must be non-negative value, but got %s", indexContext.getIndexName(), maxSegmentRowId);
+        checkArgument(maxSegmentRowId >= 0, "[%s] maxSegmentRowId must be non-negative value, but got %s", indexIdentifier, maxSegmentRowId);
 
         this.indexDescriptor = indexDescriptor;
-        this.indexContext = indexContext;
+        this.indexIdentifier = indexIdentifier;
         this.bytesPerValue = bytesPerValue;
         this.writer = new BlockBalancedTreeWriter(bytesPerValue, maxPointsInLeafNode);
     }
@@ -83,10 +83,7 @@ public class NumericIndexWriter
     @Override
     public String toString()
     {
-        return MoreObjects.toStringHelper(this)
-                          .add("indexContext", indexContext)
-                          .add("bytesPerValue", bytesPerValue)
-                          .toString();
+        return MoreObjects.toStringHelper(this).add("indexName", indexIdentifier).add("bytesPerValue", bytesPerValue).toString();
     }
 
     private static class LeafCallback implements BlockBalancedTreeWriter.Callback
@@ -126,7 +123,7 @@ public class NumericIndexWriter
 
         LeafCallback leafCallback = new LeafCallback();
 
-        try (IndexOutput treeOutput = indexDescriptor.openPerIndexOutput(IndexComponent.BALANCED_TREE, indexContext, true))
+        try (IndexOutput treeOutput = indexDescriptor.openPerIndexOutput(IndexComponent.BALANCED_TREE, indexIdentifier, true))
         {
             // The SSTable balanced tree component file is opened in append mode, so our offset is the current file pointer.
             long treeOffset = treeOutput.getFilePointer();
@@ -148,8 +145,11 @@ public class NumericIndexWriter
             components.put(IndexComponent.BALANCED_TREE, treePosition, treeOffset, treeLength, attributes);
         }
 
-        try (BlockBalancedTreeWalker reader = new BlockBalancedTreeWalker(indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext, null), treePosition);
-             IndexOutputWriter postingsOutput = indexDescriptor.openPerIndexOutput(IndexComponent.POSTING_LISTS, indexContext, true))
+        try (BlockBalancedTreeWalker reader = new BlockBalancedTreeWalker(indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE,
+                                                                                                                   indexIdentifier,
+                                                                                                                   null),
+                                                                          treePosition);
+             IndexOutputWriter postingsOutput = indexDescriptor.openPerIndexOutput(IndexComponent.POSTING_LISTS, indexIdentifier, true))
         {
             long postingsOffset = postingsOutput.getFilePointer();
 
@@ -157,7 +157,7 @@ public class NumericIndexWriter
             reader.traverse(postingsWriter);
 
             // The balanced tree postings writer already writes its own header & footer.
-            long postingsPosition = postingsWriter.finish(postingsOutput, leafCallback.leafPostings, indexContext);
+            long postingsPosition = postingsWriter.finish(postingsOutput, leafCallback.leafPostings, indexIdentifier);
 
             Map<String, String> attributes = new LinkedHashMap<>();
             attributes.put("num_leaf_postings", Integer.toString(postingsWriter.numLeafPostings));

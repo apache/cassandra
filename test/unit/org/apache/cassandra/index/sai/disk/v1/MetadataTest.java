@@ -29,11 +29,9 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.index.sai.IndexContext;
-import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 import org.apache.cassandra.io.util.File;
@@ -52,21 +50,20 @@ public class MetadataTest extends SAIRandomizedTester
     public final ExpectedException expectedException = ExpectedException.none();
 
     private IndexDescriptor indexDescriptor;
-    private IndexContext indexContext;
+    private IndexIdentifier indexIdentifier;
 
     @Before
     public void setup() throws Throwable
     {
         indexDescriptor = newIndexDescriptor();
-        String index = newIndex();
-        indexContext = SAITester.createIndexContext(index, UTF8Type.instance);
+        indexIdentifier = createIndexIdentifier("test", "test", newIndex());
     }
 
     @Test
     public void shouldReadWrittenMetadata() throws Exception
     {
         final Map<String, byte[]> data = new HashMap<>();
-        try (MetadataWriter writer = new MetadataWriter(indexDescriptor.openPerIndexOutput(IndexComponent.META, indexContext)))
+        try (MetadataWriter writer = new MetadataWriter(indexDescriptor.openPerIndexOutput(IndexComponent.META, indexIdentifier)))
         {
             int num = nextInt(1, 50);
             for (int x = 0; x < num; x++)
@@ -82,7 +79,7 @@ public class MetadataTest extends SAIRandomizedTester
                 }
             }
         }
-        MetadataSource reader = MetadataSource.loadColumnMetadata(indexDescriptor, indexContext);
+        MetadataSource reader = MetadataSource.loadColumnMetadata(indexDescriptor, indexIdentifier);
 
         for (Map.Entry<String, byte[]> entry : data.entrySet())
         {
@@ -98,7 +95,7 @@ public class MetadataTest extends SAIRandomizedTester
     @Test
     public void shouldFailWhenFileHasNoHeader() throws IOException
     {
-        try (IndexOutputWriter out = indexDescriptor.openPerIndexOutput(IndexComponent.META, indexContext))
+        try (IndexOutputWriter out = indexDescriptor.openPerIndexOutput(IndexComponent.META, indexIdentifier))
         {
             final byte[] bytes = nextBytes(13, 29);
             out.writeBytes(bytes, bytes.length);
@@ -106,7 +103,7 @@ public class MetadataTest extends SAIRandomizedTester
 
         expectedException.expect(CorruptIndexException.class);
         expectedException.expectMessage("codec header mismatch");
-        MetadataSource.loadColumnMetadata(indexDescriptor, indexContext);
+        MetadataSource.loadColumnMetadata(indexDescriptor, indexIdentifier);
     }
 
     @Test
@@ -130,7 +127,7 @@ public class MetadataTest extends SAIRandomizedTester
 
             expectedException.expect(CorruptIndexException.class);
             expectedException.expectMessage("misplaced codec footer (file truncated?)");
-            MetadataSource.loadColumnMetadata(indexDescriptor, indexContext);
+            MetadataSource.loadColumnMetadata(indexDescriptor, indexIdentifier);
         }
     }
 
@@ -166,13 +163,13 @@ public class MetadataTest extends SAIRandomizedTester
 
             expectedException.expect(CorruptIndexException.class);
             expectedException.expectMessage("checksum failed");
-            MetadataSource.loadColumnMetadata(indexDescriptor, indexContext);
+            MetadataSource.loadColumnMetadata(indexDescriptor, indexIdentifier);
         }
     }
 
     private IndexOutputWriter writeRandomBytes() throws IOException
     {
-        final IndexOutputWriter output = indexDescriptor.openPerIndexOutput(IndexComponent.META, indexContext);
+        final IndexOutputWriter output = indexDescriptor.openPerIndexOutput(IndexComponent.META, indexIdentifier);
         try (MetadataWriter writer = new MetadataWriter(output))
         {
             byte[] bytes = nextBytes(11, 1024);
