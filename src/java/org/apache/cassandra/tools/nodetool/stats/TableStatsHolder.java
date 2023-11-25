@@ -347,7 +347,7 @@ public class TableStatsHolder implements StatsHolder
                 statsTable.pendingFlushes = probe.getColumnFamilyMetric(keyspaceName, tableName, "PendingFlushes");
 
                 statsTable.bloomFilterFalsePositives = probe.getColumnFamilyMetric(keyspaceName, tableName, "BloomFilterFalsePositives");
-                statsTable.bloomFilterFalseRatio = probe.getColumnFamilyMetric(keyspaceName, tableName, "RecentBloomFilterFalseRatio");
+                statsTable.bloomFilterFalseRatio = toDouble(probe.getColumnFamilyMetric(keyspaceName, tableName, "RecentBloomFilterFalseRatio"));
                 statsTable.bloomFilterSpaceUsed = format((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "BloomFilterDiskSpaceUsed"), humanReadable);
 
                 if (bloomFilterOffHeapSize != null)

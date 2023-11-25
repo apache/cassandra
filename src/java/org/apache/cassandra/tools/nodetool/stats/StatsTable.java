@@ -51,7 +51,7 @@ public class StatsTable
     public double localWriteLatencyMs;
     public Object pendingFlushes;
     public Object bloomFilterFalsePositives;
-    public Object bloomFilterFalseRatio;
+    public double bloomFilterFalseRatio;
     public String bloomFilterSpaceUsed;
     public boolean bloomFilterOffHeapUsed = false;
     public String bloomFilterOffHeapMemoryUsed;
