@@ -388,14 +388,11 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         {
             Row staticRow = partition.staticRow();
 
-            // We want to short-circuit the filtering of the whole partition if the static row
-            // satisfies the filter. If that is the case we just need to return the whole partition.
-            queryContext.rowsFiltered++;
-            if (tree.isSatisfiedBy(partition.partitionKey(), staticRow, staticRow))
-                return partition;
-
             List<Unfiltered> clusters = new ArrayList<>();
 
+            // We need to filter the partition rows before filtering on the static row. If this is done in the other
+            // order then we get incorrect results if we are filtering on a partition key index on a table with a
+            // composite partition key.
             while (partition.hasNext())
             {
                 Unfiltered row = partition.next();
@@ -404,6 +401,15 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                 if (tree.isSatisfiedBy(partition.partitionKey(), row, staticRow))
                 {
                     clusters.add(row);
+                }
+            }
+
+            if (clusters.isEmpty())
+            {
+                queryContext.rowsFiltered++;
+                if (tree.isSatisfiedBy(key.partitionKey(), staticRow, staticRow))
+                {
+                    clusters.add(staticRow);
                 }
             }
 
