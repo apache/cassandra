@@ -20,6 +20,8 @@ package org.apache.cassandra.transport;
 
 import java.util.List;
 
+import javax.net.ssl.SSLException;
+
 import com.google.common.base.Predicate;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -42,6 +44,7 @@ import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.Throwables;
 
 import static org.apache.cassandra.transport.CQLMessageHandler.RATE_LIMITER_DELAY_UNIT;
 import static org.apache.cassandra.transport.ClientResourceLimits.GLOBAL_REQUEST_LIMITER;
@@ -327,6 +330,13 @@ public class PreV5Handlers
                 logger.debug("Excluding client exception for {}; address contained in client_error_reporting_exclusions", ctx.channel().remoteAddress(), cause);
                 return;
             }
+
+            if (Throwables.anyCauseMatches(cause, t -> t instanceof SSLException))
+            {
+                logger.warn("SSLException in client networking with peer {} {}", ctx.channel().remoteAddress(), cause.getMessage());
+                return;
+            }
+            
             ExceptionHandlers.logClientNetworkingExceptions(cause);
             JVMStabilityInspector.inspectThrowable(cause);
         }

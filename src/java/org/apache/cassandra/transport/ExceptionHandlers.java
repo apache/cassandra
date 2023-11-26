@@ -23,8 +23,6 @@ import java.net.SocketAddress;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import javax.net.ssl.SSLException;
-
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableSet;
 
@@ -93,13 +91,6 @@ public class ExceptionHandlers
                     JVMStabilityInspector.inspectThrowable(cause);
                 }
             }
-
-            if (Throwables.anyCauseMatches(cause, t -> t instanceof SSLException))
-            {
-                logger.warn("SSLException in client networking with peer {}", ctx.channel().remoteAddress(), cause);
-                return;
-            }
-            
             if (DatabaseDescriptor.getClientErrorReportingExclusions().contains(ctx.channel().remoteAddress()))
             {
                 // Sometimes it is desirable to ignore exceptions from specific IPs; such as when security scans are
