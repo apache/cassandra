@@ -20,6 +20,8 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
+
+import org.apache.cassandra.debug.BlockingReadRepairDebugLog;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 
@@ -40,5 +42,8 @@ public class ReadRepairVerbHandler extends AbstractMutationVerbHandler<Mutation>
     {
         message.payload.apply();
         MessagingService.instance().send(message.emptyResponse(), respondToAddress);
+        BlockingReadRepairDebugLog.info(message.payload.key(),
+                                        String.format("received read repair mutation from: %s, for string key: %s",
+                                                      message.from(), message.payload.getKey()));
     }
 }

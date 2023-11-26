@@ -99,6 +99,9 @@ public abstract class ReadResponse
                 }
             }
         }
+        if (key == null) {
+            return "Key not found";
+        }
         return String.format("<key %s not found (repaired_digest=%s repaired_digest_conclusive=%s)>",
                              key, ByteBufferUtil.bytesToHex(repairedDataDigest()), isRepairedDigestConclusive());
     }

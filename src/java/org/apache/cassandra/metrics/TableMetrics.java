@@ -256,6 +256,8 @@ public class TableMetrics
      * {@link org.apache.cassandra.db.monitoring.LargePartition} for more details.*/
     public final Counter largePartitionWriteSize;
 
+    public final Counter readRepair;
+
     /**
      * Metrics for inconsistencies detected between repaired data sets across replicas. These
      * are tracked on the coordinator.
@@ -1061,6 +1063,8 @@ public class TableMetrics
         rowIndexSizeWarnings = createTableMeter("RowIndexSizeWarnings", cfs.keyspace.metric.rowIndexSizeWarnings);
         rowIndexSizeAborts = createTableMeter("RowIndexSizeAborts", cfs.keyspace.metric.rowIndexSizeAborts);
         rowIndexSize = createTableHistogram("RowIndexSize", cfs.keyspace.metric.rowIndexSize, false);
+
+        readRepair = createTableCounter("ReadRepair");
     }
 
     private Memtable.MemoryUsage getMemoryUsageWithIndexes(ColumnFamilyStore cfs)

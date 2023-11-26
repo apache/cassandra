@@ -80,6 +80,11 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         this.trackRepairedStatus = trackRepairedStatus;
     }
 
+    public ReadRepair getReadRepair()
+    {
+        return readRepair;
+    }
+
     public PartitionIterator getData()
     {
         ReadResponse response = responses.get(0).payload;

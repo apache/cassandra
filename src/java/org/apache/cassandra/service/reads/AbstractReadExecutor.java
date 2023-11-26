@@ -30,6 +30,7 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.transform.DuplicateRowChecker;
+import org.apache.cassandra.debug.BlockingReadRepairDebugLog;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.UnavailableException;
@@ -428,6 +429,7 @@ public abstract class AbstractReadExecutor
         else
         {
             Tracing.trace("Digest mismatch: Mismatch for key {}", getKey());
+            BlockingReadRepairDebugLog.info(getKey(), "Digest mismatch");
             readRepair.startRepair(digestResolver, this::setResult);
             if (logBlockingReadRepairAttempt)
             {
@@ -451,6 +453,7 @@ public abstract class AbstractReadExecutor
                 Tracing.trace("Timed out waiting on digest mismatch repair requests");
             else
                 logger.trace("Timed out waiting on digest mismatch repair requests");
+            BlockingReadRepairDebugLog.info(getKey(), "Timed out waiting on digest mismatch repair requests");
             // the caught exception here will have CL.ALL from the repair command,
             // not whatever CL the initial command was at (CASSANDRA-7947)
             throw new ReadTimeoutException(replicaPlan().consistencyLevel(), handler.blockFor - 1, handler.blockFor, true);

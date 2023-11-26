@@ -25,6 +25,9 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.MessageParams;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.debug.BlockingReadRepairDebugLog;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.concurrent.Condition;
@@ -46,6 +49,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.reads.thresholds.CoordinatorWarnings;
 import org.apache.cassandra.service.reads.thresholds.WarningContext;
 import org.apache.cassandra.service.reads.thresholds.WarningsSnapshot;
+import org.apache.cassandra.service.reads.repair.BlockingReadRepair;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
@@ -179,6 +183,12 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     public void onResponse(Message<ReadResponse> message)
     {
         assertWaitingFor(message.from());
+        if (command instanceof SinglePartitionReadCommand && resolver instanceof DataResolver && ((DataResolver)resolver).getReadRepair() instanceof BlockingReadRepair)
+        {
+            DecoratedKey key = ((SinglePartitionReadCommand) command).partitionKey();
+            BlockingReadRepairDebugLog.info(key, String.format("received full data read from %s, data received %s",
+                                                               message.from(), message.payload.toDebugString(command, key)));
+        }
         Map<ParamType, Object> params = message.header.params();
         InetAddressAndPort from = message.from();
         if (WarningContext.isSupported(params.keySet()))

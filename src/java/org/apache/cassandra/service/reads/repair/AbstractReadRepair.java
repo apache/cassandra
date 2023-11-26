@@ -126,6 +126,8 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
     public void startRepair(DigestResolver<E, P> digestResolver, Consumer<PartitionIterator> resultConsumer)
     {
         getRepairMeter().mark();
+        // Add table level read repair metric
+        cfs.metric.readRepair.inc(1);
 
         /*
          * When repaired data tracking is enabled, a digest will be created from data reads from repaired SSTables.

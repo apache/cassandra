@@ -47,6 +47,7 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowDiffListener;
 import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
+import org.apache.cassandra.debug.BlockingReadRepairDebugLog;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
@@ -223,6 +224,7 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
         }
         Arrays.fill(currentRows, null);
 
+        BlockingReadRepairDebugLog.logTimestampOfMergedCells(partitionKey, merged);
         return merged;
     }
 

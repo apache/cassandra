@@ -337,6 +337,9 @@ public class Config
     public volatile int concurrent_materialized_view_builders = 1;
     public volatile int reject_repair_compaction_threshold = Integer.MAX_VALUE;
 
+    // debug log
+    public boolean blocking_read_repair_debug_log_enabled = false;
+
     /**
      * @deprecated retry support removed on CASSANDRA-10992
      */

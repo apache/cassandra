@@ -2222,6 +2222,11 @@ public class DatabaseDescriptor
         conf.concurrent_materialized_view_builders = value;
     }
 
+    public static boolean getBlockingReadRepairDebugLogEnabled()
+    {
+        return conf.blocking_read_repair_debug_log_enabled;
+    }
+
     public static long getMinFreeSpacePerDriveInBytes()
     {
         return conf.min_free_space_per_drive.toBytesInLong();

@@ -37,6 +37,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.debug.BlockingReadRepairDebugLog;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
@@ -71,10 +72,11 @@ public class BlockingPartitionRepair
         this.key = key;
         this.pendingRepairs = new ConcurrentHashMap<>(repairs);
         this.writePlan = writePlan;
-
         // make sure all the read repair targets are contact of the repair write plan
         Preconditions.checkState(all(repairs.keySet(), (r) -> writePlan.contacts().contains(r)),
                                  "All repair targets should be part of contacts of read repair write plan.");
+
+        BlockingReadRepairDebugLog.logPendingRepairs(key, pendingRepairs);
 
         int blockFor = writePlan.writeQuorum();
         // here we remove empty repair mutations from the block for total, since
@@ -82,7 +84,10 @@ public class BlockingPartitionRepair
         for (Replica participant : writePlan.contacts())
         {
             if (!repairs.containsKey(participant))
+            {
+                BlockingReadRepairDebugLog.info(key, String.format("not blocking for %s", participant.endpoint()));
                 blockFor--;
+            }
 
             // make sure for local consistency, all contacts are local replicas
             Preconditions.checkState(!writePlan.consistencyLevel().isDatacenterLocal() || InOurDc.replicas().test(participant),
@@ -94,6 +99,7 @@ public class BlockingPartitionRepair
         // empty mutations. If we'd also speculated on either of the read stages, the number
         // of empty mutations would be greater than blockFor, causing the latch ctor to throw
         // an illegal argument exception due to a negative start value. So here we clamp it 0
+        BlockingReadRepairDebugLog.info(key, String.format("initializing latch with blockFor=%d", blockFor));
         latch = newCountDownLatch(Math.max(blockFor, 0));
     }
 
@@ -111,6 +117,7 @@ public class BlockingPartitionRepair
     @VisibleForTesting
     void ack(InetAddressAndPort from)
     {
+        BlockingReadRepairDebugLog.info(key, String.format("got mutation response from: %s", from));
         pendingRepairs.remove(writePlan.lookup(from));
         latch.decrement();
     }
@@ -155,6 +162,8 @@ public class BlockingPartitionRepair
             TableId tableId = extractUpdate(mutation).metadata().id;
 
             Tracing.trace("Sending read-repair-mutation to {}", destination);
+            BlockingReadRepairDebugLog.info(key, String.format("Sending read-repair-mutation %s to %s",
+                                                               mutation, destination.endpoint()));
             // use a separate verb here to avoid writing hints on timeouts
             sendRR(Message.out(READ_REPAIR_REQ, mutation), destination.endpoint());
             ColumnFamilyStore.metricsFor(tableId).readRepairRequests.mark();

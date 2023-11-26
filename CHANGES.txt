@@ -176,6 +176,7 @@ Merged from 3.0:
  * Remove unused suppressions (CASSANDRA-18724)
 
 Unreleased
+ * [SO-26272] Add debug log for blocking read repair and add table level read repair metrics
  * [SO-25894] Bug fix: ExecuteMessage should also increase resultset size counter
  * Fix nodetool enable/disablebinary to correctly set rpc readiness in gossip (CASSANDRA-18935)
  * [SO-25995] Cassandra dtest should match the production setup
