@@ -1550,7 +1550,7 @@ client_encryption_options:
   # optional: true
   # Set keystore and keystore_password to valid keystores if enabled is true
   keystore: conf/.keystore
-  # keystore_password: cassandra
+  #keystore_password: cassandra
   # Configure the way Cassandra creates SSL contexts.
   # To use PEM-based key material, see org.apache.cassandra.security.PEMBasedSslContextFactory
   # ssl_context_factory:
