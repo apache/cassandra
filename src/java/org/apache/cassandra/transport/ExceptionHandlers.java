@@ -91,6 +91,7 @@ public class ExceptionHandlers
                     JVMStabilityInspector.inspectThrowable(cause);
                 }
             }
+            
             if (DatabaseDescriptor.getClientErrorReportingExclusions().contains(ctx.channel().remoteAddress()))
             {
                 // Sometimes it is desirable to ignore exceptions from specific IPs; such as when security scans are

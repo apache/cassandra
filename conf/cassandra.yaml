@@ -1543,14 +1543,14 @@ server_encryption_options:
 # auth set require_client_auth=true. Restart all nodes
 client_encryption_options:
   # Enable client-to-server encryption
-  enabled: true
+  enabled: false
   # When set to true, encrypted and unencrypted connections are allowed on the native_transport_port
   # This should _only be true_ while in unencrypted or transitional operation
   # optional defaults to true when enabled is false, and false when enabled is true.
-  optional: false
+  # optional: true
   # Set keystore and keystore_password to valid keystores if enabled is true
-  keystore: /home/gfx/Documents/cassandra/test/conf/cassandra_ssl_test.keystore
-  keystore_password: cassandra
+  keystore: conf/.keystore
+  # keystore_password: cassandra
   # Configure the way Cassandra creates SSL contexts.
   # To use PEM-based key material, see org.apache.cassandra.security.PEMBasedSslContextFactory
   # ssl_context_factory:
