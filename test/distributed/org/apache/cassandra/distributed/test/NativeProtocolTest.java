@@ -149,10 +149,8 @@ public class NativeProtocolTest extends TestBaseImpl
             i.runOnInstance((IIsolatedExecutor.SerializableRunnable) () -> StorageService.instance.startNativeTransport());
             assertTrue(i.callOnInstance((IIsolatedExecutor.SerializableCallable<Boolean>) () -> StorageService.instance.isRpcReady(FBUtilities.getBroadcastAddressAndPort())));
 
-            // by calling e.g. nodetool disablebinary, rpc will NOT be set to false again
-            // please read CASSANDRA-18935 for in-depth explanation why it is so
             i.runOnInstance((IIsolatedExecutor.SerializableRunnable) () -> StorageService.instance.stopNativeTransport());
-            assertTrue(i.callOnInstance((IIsolatedExecutor.SerializableCallable<Boolean>) () -> StorageService.instance.isRpcReady(FBUtilities.getBroadcastAddressAndPort())));
+            assertFalse(i.callOnInstance((IIsolatedExecutor.SerializableCallable<Boolean>) () -> StorageService.instance.isRpcReady(FBUtilities.getBroadcastAddressAndPort())));
         }
     }
 }

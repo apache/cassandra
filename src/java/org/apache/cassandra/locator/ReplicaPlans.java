@@ -62,7 +62,6 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexStatusManager;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.service.reads.AlwaysSpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
@@ -233,10 +232,10 @@ public class ReplicaPlans
 
         EndpointsForToken replicas = metadata.placements.get(keyspace.getMetadata().params.replication).reads.forToken(key.getToken()).get();
 
-        // CASSANDRA-13043: filter out those endpoints not accepting clients yet, maybe because still bootstrapping
-        // TODO: replace this with JOINED state.
-        // TODO don't forget adding replicas = replicas.filter(replica -> FailureDetector.instance.isAlive(replica.endpoint())); after rebase (from CASSANDRA-17411)
-        replicas = replicas.filter(replica -> StorageService.instance.isRpcReady(replica.endpoint()));
+        // CASSANDRA-17411: filter out endpoints that are not alive
+        replicas = replicas.filter(replica -> FailureDetector.instance.isAlive(replica.endpoint()));
+        // CASSANDRA-19103 decouple from rpc ready, check if node is joined instead
+        replicas = replicas.filter(replica -> metadata.directory.peerState(replica.endpoint()) == NodeState.JOINED);
 
         // TODO have a way to compute the consistency level
         if (replicas.isEmpty())
