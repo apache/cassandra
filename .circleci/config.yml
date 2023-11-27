@@ -94,7 +94,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -201,7 +201,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -265,7 +265,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -373,7 +373,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -462,7 +462,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -551,7 +551,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -616,7 +616,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -725,7 +725,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -842,7 +842,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -950,7 +950,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -1104,7 +1104,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -1236,7 +1236,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -1368,7 +1368,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -1486,7 +1486,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -1595,7 +1595,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -1684,7 +1684,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -1802,7 +1802,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -1891,7 +1891,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -1999,7 +1999,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -2132,7 +2132,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -2286,7 +2286,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -2403,7 +2403,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -2512,7 +2512,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -2620,7 +2620,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -2710,7 +2710,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -2799,7 +2799,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -2917,7 +2917,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -3112,7 +3112,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -3197,7 +3197,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -3330,7 +3330,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -3448,7 +3448,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -3556,7 +3556,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -3641,7 +3641,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -3731,7 +3731,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -3849,7 +3849,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -3982,7 +3982,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -4100,7 +4100,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -4295,7 +4295,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -4403,7 +4403,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -4510,7 +4510,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -4627,7 +4627,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -4717,7 +4717,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -4788,7 +4788,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -4921,7 +4921,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -5039,7 +5039,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -5143,7 +5143,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -5215,7 +5215,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -5305,7 +5305,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -5418,7 +5418,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -5536,7 +5536,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -5608,7 +5608,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -5698,7 +5698,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -5805,7 +5805,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -5937,7 +5937,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -6055,7 +6055,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -6145,7 +6145,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -6253,7 +6253,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -6362,7 +6362,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -6480,7 +6480,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -6565,7 +6565,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -6698,7 +6698,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -6788,7 +6788,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -6896,7 +6896,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -6968,7 +6968,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -7052,7 +7052,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -7136,7 +7136,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -7245,7 +7245,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -7335,7 +7335,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -7425,7 +7425,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -7515,7 +7515,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -7624,7 +7624,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -7687,7 +7687,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -7795,7 +7795,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -7913,7 +7913,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -8021,7 +8021,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -8129,7 +8129,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -8246,7 +8246,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -8318,7 +8318,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -8407,7 +8407,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -8514,7 +8514,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -8604,7 +8604,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -8668,7 +8668,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -8753,7 +8753,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -8871,7 +8871,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -8979,7 +8979,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -9096,7 +9096,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -9185,7 +9185,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -9269,7 +9269,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -9358,7 +9358,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -9430,7 +9430,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -9519,7 +9519,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -9603,7 +9603,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -9693,7 +9693,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -9799,7 +9799,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -9931,7 +9931,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -10020,7 +10020,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
@@ -10109,7 +10109,7 @@ jobs:
     - REPEATED_JVM_DTESTS_COUNT: 500
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: commitlog_test.py::TestCommitLog::test_stop_failure_policy
+    - REPEATED_DTESTS: bootstrap_test.py::TestBootstrap::test_shutdown_wiped_node_cannot_join
     - REPEATED_DTESTS_COUNT: 100
     - REPEATED_LARGE_DTESTS: null
     - REPEATED_LARGE_DTESTS_COUNT: 100
