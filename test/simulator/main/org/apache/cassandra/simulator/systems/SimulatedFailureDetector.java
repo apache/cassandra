@@ -118,6 +118,12 @@ public class SimulatedFailureDetector
         );
     }
 
+    public void markUp(InetSocketAddress address)
+    {
+        override.put(address, Boolean.TRUE);
+        listeners.forEach(c -> c.accept(address));
+    }
+
     public void markDown(InetSocketAddress address)
     {
         override.put(address, Boolean.FALSE);

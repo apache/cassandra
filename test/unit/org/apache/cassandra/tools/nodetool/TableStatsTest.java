@@ -248,7 +248,9 @@ public class TableStatsTest extends CQLTester
             ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", arg, "yaml");
             tool.assertOnCleanExit();
             String yaml = tool.getStdout();
-            assertThatCode(() -> new Yaml().load(yaml)).doesNotThrowAnyException();
+            org.yaml.snakeyaml.LoaderOptions loaderOptions = new org.yaml.snakeyaml.LoaderOptions();
+            loaderOptions.setMaxAliasesForCollections(100); // we now have > 50 tables
+            assertThatCode(() -> new Yaml(loaderOptions).load(yaml)).doesNotThrowAnyException();
             assertThat(yaml).containsPattern("sstable_count:\\s*[0-9]+")
                             .containsPattern("old_sstable_count:\\s*[0-9]+");
         });

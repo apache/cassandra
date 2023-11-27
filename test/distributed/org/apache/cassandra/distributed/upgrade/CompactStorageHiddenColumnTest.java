@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.upgrade;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
 
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
@@ -33,6 +34,7 @@ public class CompactStorageHiddenColumnTest extends UpgradeTestBase
         new TestCase()
         .nodes(2)
         .nodesToUpgrade(2)
+        .withConfig(c -> c.with(Feature.GOSSIP))
         .upgradesToCurrentFrom(v40)
         .setup((cluster) -> {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, PRIMARY KEY (pk, ck)) WITH COMPACT STORAGE");

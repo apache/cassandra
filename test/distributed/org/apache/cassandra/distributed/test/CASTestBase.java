@@ -45,9 +45,9 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.PaxosRepair;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.db.ConsistencyLevel.SERIAL;
@@ -160,22 +160,21 @@ public abstract class CASTestBase extends TestBaseImpl
             UUID hostId = config.hostId();
             Gossiper.runInGossipStageBlocking(() -> {
                 Gossiper.instance.initializeNodeUnsafe(address, hostId, 1);
-                Gossiper.instance.injectApplicationState(address,
-                                                         ApplicationState.TOKENS,
-                                                         new VersionedValue.VersionedValueFactory(partitioner).tokens(Collections.singleton(token)));
-                VersionedValue status = bootstrapping
-                                        ? new VersionedValue.VersionedValueFactory(partitioner).bootstrapping(Collections.singleton(token))
-                                        : new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(token));
-                Gossiper.instance.injectApplicationState(address, ApplicationState.STATUS, status);
-                StorageService.instance.onChange(address, ApplicationState.STATUS, status);
+                                Gossiper.instance.injectApplicationState(address,
+                                                                         ApplicationState.TOKENS,
+                                                                         new VersionedValue.VersionedValueFactory(partitioner).tokens(Collections.singleton(token)));
+                                VersionedValue status = bootstrapping
+                                                        ? new VersionedValue.VersionedValueFactory(partitioner).bootstrapping(Collections.singleton(token))
+                                                        : new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(token));
+                                Gossiper.instance.injectApplicationState(address, ApplicationState.STATUS, status);
+                                StorageService.instance.onChange(address, ApplicationState.STATUS, status);
                 Gossiper.instance.realMarkAlive(address, Gossiper.instance.getEndpointStateForEndpoint(address));
             });
             int version = Math.min(MessagingService.current_version, peer.getMessagingVersion());
             MessagingService.instance().versions.set(address, version);
 
             if (!bootstrapping)
-                assert StorageService.instance.getTokenMetadata().isMember(address);
-            PendingRangeCalculatorService.instance.blockUntilFinished();
+                assert ClusterMetadata.current().directory.allAddresses().contains(address);
         }
         catch (Throwable e) // UnknownHostException
         {
@@ -206,7 +205,6 @@ public abstract class CASTestBase extends TestBaseImpl
                 Gossiper.instance.unsafeAnnulEndpoint(address);
                 Gossiper.instance.realMarkAlive(address, new EndpointState(new HeartBeatState(0, 0)));
             });
-            PendingRangeCalculatorService.instance.blockUntilFinished();
         }
         catch (Throwable e) // UnknownHostException
         {
@@ -223,7 +221,7 @@ public abstract class CASTestBase extends TestBaseImpl
     public static void addToRingNormal(IInstance peer)
     {
         addToRing(false, peer);
-        assert StorageService.instance.getTokenMetadata().isMember(InetAddressAndPort.getByAddress(peer.broadcastAddress()));
+        assert ClusterMetadata.current().directory.allAddresses().contains(InetAddressAndPort.getByAddress(peer.broadcastAddress()));
     }
 
     public static void addToRingBootstrapping(IInstance peer)

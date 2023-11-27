@@ -27,13 +27,6 @@ import org.apache.cassandra.schema.SchemaEvent;
 
 public class Listen implements IListen
 {
-    final Instance instance;
-
-    public Listen(Instance instance)
-    {
-        this.instance = instance;
-    }
-
     public Cancel schema(Runnable onChange)
     {
         Consumer<SchemaEvent> consumer = event -> onChange.run();

@@ -49,6 +49,8 @@ import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaLayout.ForTokenWrite;
 import org.apache.cassandra.locator.ReplicaPlan.ForRead;
 import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -85,9 +87,12 @@ import org.apache.cassandra.service.CASRequest;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.FailureRecordingCallback.AsMap;
 import org.apache.cassandra.service.paxos.Commit.Proposal;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.service.paxos.cleanup.PaxosTableRepairs;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -105,7 +110,6 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_MODE
 import static org.apache.cassandra.config.Config.PaxosVariant.v2_without_linearizable_reads_or_rejected_writes;
 import static org.apache.cassandra.db.Keyspace.openAndGetStore;
 import static org.apache.cassandra.exceptions.RequestFailureReason.TIMEOUT;
-import static org.apache.cassandra.gms.ApplicationState.RELEASE_VERSION;
 import static org.apache.cassandra.config.DatabaseDescriptor.*;
 import static org.apache.cassandra.db.ConsistencyLevel.*;
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
@@ -314,7 +318,7 @@ public class Paxos
     /**
      * Encapsulates the peers we will talk to for this operation.
      */
-    static class Participants implements ForRead<EndpointsForToken, Participants>, Supplier<Participants>
+    static class Participants implements ForRead<EndpointsForToken, Participants>
     {
         final Keyspace keyspace;
 
@@ -355,8 +359,13 @@ public class Paxos
          */
         final int sizeOfReadQuorum;
 
-        Participants(Keyspace keyspace, ConsistencyLevel consistencyForConsensus, ReplicaLayout.ForTokenWrite all, ReplicaLayout.ForTokenWrite electorate, EndpointsForToken live)
+        final Epoch epoch;
+        final Function<ClusterMetadata, Participants> recompute;
+
+        Participants(Epoch epoch, Keyspace keyspace, ConsistencyLevel consistencyForConsensus, ReplicaLayout.ForTokenWrite all, ReplicaLayout.ForTokenWrite electorate, EndpointsForToken live,
+                     Function<ClusterMetadata, Participants> recompute)
         {
+            this.epoch = epoch;
             this.keyspace = keyspace;
             this.replicationStrategy = all.replicationStrategy();
             this.consistencyForConsensus = consistencyForConsensus;
@@ -369,6 +378,7 @@ public class Paxos
             this.allLive = live;
             this.sizeOfReadQuorum = electorate.natural().size() / 2 + 1;
             this.sizeOfConsensusQuorum = sizeOfReadQuorum + electorate.pending().size();
+            this.recompute = recompute;
         }
 
         @Override
@@ -384,16 +394,43 @@ public class Paxos
             return electorateNatural;
         }
 
-        static Participants get(TableMetadata table, Token token, ConsistencyLevel consistencyForConsensus)
+        @Override
+        public boolean stillAppliesTo(ClusterMetadata newMetadata)
         {
-            Keyspace keyspace = Keyspace.open(table.keyspace);
-            ReplicaLayout.ForTokenWrite all = forTokenWriteLiveAndDown(keyspace, token);
+            if (newMetadata.epoch.equals(epoch))
+                return true;
+
+            Participants newParticipants = recompute.apply(newMetadata);
+            return newParticipants.electorate.equals(electorate);
+        }
+
+        @Override
+        public void collectSuccess(InetAddressAndPort inetAddressAndPort)
+        {
+
+        }
+
+        @Override
+        public void collectFailure(InetAddressAndPort inetAddressAndPort, RequestFailureReason t)
+        {
+
+        }
+
+        static Participants get(ClusterMetadata metadata, TableMetadata table, Token token, ConsistencyLevel consistencyForConsensus)
+        {
+            KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaceMetadata(table.keyspace);
+            ReplicaLayout.ForTokenWrite all = forTokenWriteLiveAndDown(keyspaceMetadata, token);
             ReplicaLayout.ForTokenWrite electorate = consistencyForConsensus.isDatacenterLocal()
                                                      ? all.filter(InOurDc.replicas()) : all;
 
             EndpointsForToken live = all.all().filter(FailureDetector.isReplicaAlive);
+            return new Participants(metadata.epoch, Keyspace.open(table.keyspace), consistencyForConsensus, all, electorate, live,
+                                    (cm) -> get(cm, table, token, consistencyForConsensus));
+        }
 
-            return new Participants(keyspace, consistencyForConsensus, all, electorate, live);
+        static Participants get(TableMetadata table, Token token, ConsistencyLevel consistencyForConsensus)
+        {
+            return get(ClusterMetadata.current(), table, token, consistencyForConsensus);
         }
 
         static Participants get(TableMetadata cfm, DecoratedKey key, ConsistencyLevel consistency)
@@ -416,7 +453,7 @@ public class Paxos
             if (sizeOfConsensusQuorum > sizeOfPoll())
             {
                 mark(isWrite, m -> m.unavailables, consistencyForConsensus);
-                throw new UnavailableException("Cannot achieve consistency level " + consistencyForConsensus, consistencyForConsensus, sizeOfConsensusQuorum, sizeOfPoll());
+                throw new UnavailableException("Cannot achieve consistency level " + consistencyForConsensus + " " + sizeOfConsensusQuorum + " > " + sizeOfPoll(), consistencyForConsensus, sizeOfConsensusQuorum, sizeOfPoll());
             }
         }
 
@@ -441,10 +478,9 @@ public class Paxos
             return electorateLive.anyMatch(Paxos::isOldParticipant);
         }
 
-        @Override
-        public Participants get()
+        public Epoch epoch()
         {
-            return this;
+            return epoch;
         }
 
         @Override
@@ -638,13 +674,13 @@ public class Paxos
         return cas(key, request, consistencyForConsensus, consistencyForCommit, clientState, nanoTime(), proposeDeadline, commitDeadline);
     }
     private static RowIterator cas(DecoratedKey partitionKey,
-                                  CASRequest request,
-                                  ConsistencyLevel consistencyForConsensus,
-                                  ConsistencyLevel consistencyForCommit,
-                                  ClientState clientState,
-                                  long start,
-                                  long proposeDeadline,
-                                  long commitDeadline
+                                   CASRequest request,
+                                   ConsistencyLevel consistencyForConsensus,
+                                   ConsistencyLevel consistencyForCommit,
+                                   ClientState clientState,
+                                   long start,
+                                   long proposeDeadline,
+                                   long commitDeadline
                                   )
             throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException
     {
@@ -847,7 +883,9 @@ public class Paxos
 
                 switch (PAXOS_VARIANT)
                 {
-                    default: throw new AssertionError();
+                    default:
+                        if (!read.metadata().keyspace.equals(SchemaConstants.METADATA_KEYSPACE_NAME))
+                            throw new AssertionError();
 
                     case v2_without_linearizable_reads_or_rejected_writes:
                     case v2_without_linearizable_reads:
@@ -1013,7 +1051,6 @@ public class Paxos
                             // we don't need to test the side effects, as we just want to start again, and fall through
                             // to the superseded section below
                             prepare = new PaxosPrepare.Superseded(proposeResult.superseded().by, inProgress.participants);
-
                     }
                 }
 
@@ -1033,7 +1070,8 @@ public class Paxos
                     // round's proposal (if any).
                     PaxosPrepare.Success success = prepare.success();
 
-                    DataResolver<?, ?> resolver = new DataResolver(query, success.participants, NoopReadRepair.instance, query.creationTimeNanos());
+                    Supplier<Participants> plan = () -> success.participants;
+                    DataResolver<?, ?> resolver = new DataResolver<>(query, plan, NoopReadRepair.instance, query.creationTimeNanos());
                     for (int i = 0 ; i < success.responses.size() ; ++i)
                         resolver.preprocess(success.responses.get(i));
 
@@ -1081,7 +1119,7 @@ public class Paxos
     public static boolean isInRangeAndShouldProcess(InetAddressAndPort from, DecoratedKey key, TableMetadata table, boolean includesRead)
     {
         Keyspace keyspace = Keyspace.open(table.keyspace);
-        return (includesRead ? EndpointsForToken.natural(keyspace, key.getToken())
+        return (includesRead ? EndpointsForToken.natural(keyspace, key.getToken()).get()
                              : ReplicaLayout.forTokenWriteLiveAndDown(keyspace, key.getToken()).all()
         ).contains(getBroadcastAddressAndPort());
     }
@@ -1239,13 +1277,15 @@ public class Paxos
 
     static boolean isOldParticipant(Replica replica)
     {
-        String version = Gossiper.instance.getForEndpoint(replica.endpoint(), RELEASE_VERSION);
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId addr = metadata.directory.peerId(replica.endpoint());
+        CassandraVersion version = ClusterMetadata.current().directory.version(addr).cassandraVersion;
         if (version == null)
             return false;
 
         try
         {
-            return new CassandraVersion(version).compareTo(MODERN_PAXOS_RELEASE) < 0;
+            return version.compareTo(MODERN_PAXOS_RELEASE) < 0;
         }
         catch (Throwable t)
         {

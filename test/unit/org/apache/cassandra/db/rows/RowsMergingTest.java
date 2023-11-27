@@ -31,10 +31,9 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.BTREE_BRAN
 public class RowsMergingTest extends CQLTester
 {
     @BeforeClass
-    public static void setUpClass()
+    public static void setSystemProps()
     {
         BTREE_BRANCH_SHIFT.setInt(2);
-        CQLTester.setUpClass();
     }
 
     @Test

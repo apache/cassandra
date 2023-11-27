@@ -25,10 +25,10 @@ import javax.annotation.concurrent.NotThreadSafe;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.agrona.collections.LongArrayList;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.ResettableByteBuffersIndexOutput;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
 import org.apache.cassandra.index.sai.postings.PostingList;
@@ -105,9 +105,9 @@ public class PostingsWriter implements Closeable
     private long maxDelta;
     private long totalPostings;
 
-    public PostingsWriter(IndexDescriptor indexDescriptor, IndexContext indexContext) throws IOException
+    public PostingsWriter(IndexDescriptor indexDescriptor, IndexIdentifier indexIdentifier) throws IOException
     {
-        this(indexDescriptor, indexContext, BLOCK_SIZE);
+        this(indexDescriptor, indexIdentifier, BLOCK_SIZE);
     }
 
     public PostingsWriter(IndexOutputWriter dataOutput) throws IOException
@@ -116,9 +116,9 @@ public class PostingsWriter implements Closeable
     }
 
     @VisibleForTesting
-    PostingsWriter(IndexDescriptor indexDescriptor, IndexContext indexContext, int blockSize) throws IOException
+    PostingsWriter(IndexDescriptor indexDescriptor, IndexIdentifier indexIdentifier, int blockSize) throws IOException
     {
-        this(indexDescriptor.openPerIndexOutput(IndexComponent.POSTING_LISTS, indexContext, true), blockSize);
+        this(indexDescriptor.openPerIndexOutput(IndexComponent.POSTING_LISTS, indexIdentifier, true), blockSize);
     }
 
     private PostingsWriter(IndexOutputWriter dataOutput, int blockSize) throws IOException

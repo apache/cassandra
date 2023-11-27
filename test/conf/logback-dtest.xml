@@ -27,7 +27,7 @@
   <appender name="INSTANCEFILE" class="ch.qos.logback.core.FileAppender">
     <file>./build/test/logs/${cassandra.testtag}/${suitename}/${cluster_id}/${instance_id}/system.log</file>
     <encoder>
-      <pattern>%-5level [%thread] ${instance_id} %date{ISO8601} %msg%n</pattern>
+      <pattern>%-5level [%thread] ${instance_id} %date{ISO8601} %F:%L - %msg%n</pattern>
     </encoder>
     <immediateFlush>true</immediateFlush>
   </appender>
@@ -50,7 +50,8 @@
     </filter>
   </appender>
 
-  <logger name="org.apache.hadoop" level="WARN"/>
+  <logger name="io.netty.*" level="WARN"/>
+  <logger name="org.apache.cassandra.db.Memtable" level="WARN"/>        
 
   <root level="DEBUG">
     <appender-ref ref="INSTANCEFILE" /> <!-- use blocking to avoid race conditions with appending and searching -->

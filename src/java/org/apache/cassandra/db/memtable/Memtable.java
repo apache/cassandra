@@ -399,10 +399,19 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
      * - SNAPSHOT will be followed by performSnapshot().
      * - STREAMING/REPAIR will be followed by creating a FlushSet for the streamed/repaired ranges. This data will be
      *   used to create sstables, which will be streamed and then deleted.
+     * The table metadata is supplied explicitly as this might not be the same as the current published metadata for
+     * the table. When applying a schema change, the ColumnFamilyStore instance is reloaded using the new table metadata
+     * before the Schema registry is updated. The memtable needs to examine the new metadata in order to determine
+     * whether the changes warrant a switch.
      * This will not be called to perform truncation or drop (in that case the memtable is unconditionally dropped),
      * but a flush may nevertheless be requested in that case to prepare a snapshot.
      */
-    boolean shouldSwitch(ColumnFamilyStore.FlushReason reason);
+    boolean shouldSwitch(ColumnFamilyStore.FlushReason reason, TableMetadata latest);
+
+    default boolean shouldSwitch(ColumnFamilyStore.FlushReason reason)
+    {
+        return shouldSwitch(reason, metadata());
+    }
 
     /**
      * Called when the table's metadata is updated. The memtable's metadata reference now points to the new version.

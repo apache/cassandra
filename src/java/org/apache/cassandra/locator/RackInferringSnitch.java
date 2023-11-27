@@ -17,19 +17,51 @@
  */
 package org.apache.cassandra.locator;
 
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.Location;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.utils.FBUtilities;
+
 /**
  * A simple endpoint snitch implementation that assumes datacenter and rack information is encoded
  * in the 2nd and 3rd octets of the ip address, respectively.
+ * As with all snitches post CEP-21, this retrieves Location for remote peers from ClusterMetadata.
+ * Local location is derived from (broadcast) ip address and added to ClusterMetadata during node
+ * registration. Every member of the cluster is required to do this, hence remote peers' Location
+ * can always be retrieved, consistently.
  */
 public class RackInferringSnitch extends AbstractNetworkTopologySnitch
 {
-    public String getRack(InetAddressAndPort endpoint)
+    final Location local;
+
+    public RackInferringSnitch()
     {
-        return Integer.toString(endpoint.getAddress().getAddress()[2] & 0xFF, 10);
+        InetAddressAndPort localAddress = FBUtilities.getBroadcastAddressAndPort();
+        local = new Location(Integer.toString(localAddress.getAddress().getAddress()[1] & 0xFF, 10),
+                             Integer.toString(localAddress.getAddress().getAddress()[2] & 0xFF, 10));
     }
 
     public String getDatacenter(InetAddressAndPort endpoint)
     {
-        return Integer.toString(endpoint.getAddress().getAddress()[1] & 0xFF, 10);
+        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
+            return local.datacenter;
+
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId nodeId = metadata.directory.peerId(endpoint);
+        if (nodeId == null)
+            return Integer.toString(endpoint.getAddress().getAddress()[1] & 0xFF, 10);
+        return metadata.directory.location(nodeId).datacenter;
+    }
+
+    public String getRack(InetAddressAndPort endpoint)
+    {
+        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
+            return local.rack;
+
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId nodeId = metadata.directory.peerId(endpoint);
+        if (nodeId == null)
+            return Integer.toString(endpoint.getAddress().getAddress()[2] & 0xFF, 10);
+        return metadata.directory.location(nodeId).rack;
     }
 }

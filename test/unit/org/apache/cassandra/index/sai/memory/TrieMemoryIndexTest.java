@@ -34,6 +34,7 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -45,17 +46,14 @@ import org.apache.cassandra.dht.ExcludingBounds;
 import org.apache.cassandra.dht.IncludingExcludingBounds;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.index.TargetParser;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
-import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
+import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.schema.CachingParams;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
@@ -74,7 +72,7 @@ public class TrieMemoryIndexTest extends SAIRandomizedTester
 
     private static final DecoratedKey key = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes("key"));
 
-    private IndexContext indexContext;
+    private StorageAttachedIndex index;
 
     @Test
     public void heapGrowsAsDataIsAddedTest()
@@ -169,7 +167,7 @@ public class TrieMemoryIndexTest extends SAIRandomizedTester
 
     private Expression generateRandomExpression()
     {
-        Expression expression = new Expression(indexContext);
+        Expression expression = Expression.create(index);
 
         int equality = getRandom().nextIntBetween(0, 100);
         int lower = getRandom().nextIntBetween(0, 75);
@@ -216,7 +214,7 @@ public class TrieMemoryIndexTest extends SAIRandomizedTester
             assertEquals(1, pair.right.size());
 
             final int rowId = i;
-            final ByteComparable expectedByteComparable = TypeUtil.isLiteral(type)
+            final ByteComparable expectedByteComparable = index.index.termType().isLiteral()
                                                           ? ByteComparable.fixedLength(decompose.apply(rowId))
                                                           : version -> type.asComparableBytes(decompose.apply(rowId), version);
             final ByteComparable actualByteComparable = pair.left;
@@ -241,15 +239,10 @@ public class TrieMemoryIndexTest extends SAIRandomizedTester
         options.put("target", REG_COL);
 
         IndexMetadata indexMetadata = IndexMetadata.fromSchemaMetadata("col_index", IndexMetadata.Kind.CUSTOM, options);
-        Pair<ColumnMetadata, IndexTarget.Type> target = TargetParser.parse(table, indexMetadata);
-        indexContext = new IndexContext(table.keyspace,
-                                        table.name,
-                                        table.partitionKeyType,
-                                        table.partitioner,
-                                        table.comparator,
-                                        target.left,
-                                        target.right,
-                                        indexMetadata);
-        return new TrieMemoryIndex(indexContext);
+
+        ColumnFamilyStore cfs = MockSchema.newCFS(table);
+
+        index = new StorageAttachedIndex(cfs, indexMetadata);
+        return new TrieMemoryIndex(index);
     }
 }

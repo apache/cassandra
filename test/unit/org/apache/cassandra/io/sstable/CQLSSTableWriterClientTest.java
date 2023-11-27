@@ -45,11 +45,19 @@ public class CQLSSTableWriterClientTest
     }
 
     @Test
-    public void testWriterInClientMode() throws IOException, InvalidRequestException
+    public void testMultipleWritersWithDistinctTables() throws IOException
     {
-        final String TABLE1 = "table1";
-        final String TABLE2 = "table2";
+        testWriterInClientMode("table1", "table2");
+    }
 
+    @Test
+    public void testMultipleWritersWithSameTable() throws IOException
+    {
+        testWriterInClientMode("table1", "table1");
+    }
+
+    public void testWriterInClientMode(String table1, String table2) throws IOException, InvalidRequestException
+    {
         String schema = "CREATE TABLE client_test.%s ("
                             + "  k int PRIMARY KEY,"
                             + "  v1 text,"
@@ -59,13 +67,13 @@ public class CQLSSTableWriterClientTest
 
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(this.testDirectory)
-                                                  .forTable(String.format(schema, TABLE1))
-                                                  .using(String.format(insert, TABLE1)).build();
+                                                  .forTable(String.format(schema, table1))
+                                                  .using(String.format(insert, table1)).build();
 
         CQLSSTableWriter writer2 = CQLSSTableWriter.builder()
                                                    .inDirectory(this.testDirectory)
-                                                   .forTable(String.format(schema, TABLE2))
-                                                   .using(String.format(insert, TABLE2)).build();
+                                                   .forTable(String.format(schema, table2))
+                                                   .using(String.format(insert, table2)).build();
 
         writer.addRow(0, "A", 0);
         writer2.addRow(0, "A", 0);

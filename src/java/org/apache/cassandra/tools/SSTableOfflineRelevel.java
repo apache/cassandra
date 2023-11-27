@@ -44,6 +44,7 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 
 /**
  * Create a decent leveling for the given keyspace/column family
@@ -88,13 +89,12 @@ public class SSTableOfflineRelevel
         }
 
         Util.initDatabaseDescriptor();
-
+        ClusterMetadataService.initializeForTools(false);
         boolean dryRun = args[0].equals("--dry-run");
         String keyspace = args[args.length - 2];
         String columnfamily = args[args.length - 1];
-        Schema.instance.loadFromDisk();
 
-        if (Schema.instance.getTableMetadataRef(keyspace, columnfamily) == null)
+        if (Schema.instance.getTableMetadata(keyspace, columnfamily) == null)
             throw new IllegalArgumentException(String.format("Unknown keyspace/table %s.%s",
                     keyspace,
                     columnfamily));

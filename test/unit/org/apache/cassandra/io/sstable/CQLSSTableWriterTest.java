@@ -31,6 +31,7 @@ import java.util.stream.StreamSupport;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.io.util.File;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -83,6 +84,7 @@ public class CQLSSTableWriterTest
         CommitLog.instance.start();
         SchemaLoader.cleanupAndLeaveDirs();
         Keyspace.setInitialized();
+        ServerTestUtils.prepareServerNoRegister();
         StorageService.instance.initServer();
     }
 

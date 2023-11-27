@@ -25,7 +25,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.auth.AuthCacheService;
 import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.cql3.CIDR;
@@ -45,9 +44,7 @@ public class CIDRFilteringStatsTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
-        CQLTester.setUpClass();
         CQLTester.requireAuthentication();
-        AuthCacheService.initializeAndRegisterCaches();
 
         String KS_NAME = SchemaConstants.VIRTUAL_VIEWS;
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME,

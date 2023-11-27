@@ -36,6 +36,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -66,6 +67,7 @@ public class RepairMessageSerializationsTest
     {
         DatabaseDescriptor.daemonInitialization();
         originalPartitioner = StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
+        ClusterMetadataTestHelper.setInstanceForTest();
     }
 
     @AfterClass

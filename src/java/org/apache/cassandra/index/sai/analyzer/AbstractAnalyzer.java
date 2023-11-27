@@ -24,9 +24,8 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.StringType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 
 public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
 {
@@ -83,23 +82,23 @@ public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
         }
     }
 
-    public static AnalyzerFactory fromOptions(AbstractType<?> type, Map<String, String> options)
+    public static AnalyzerFactory fromOptions(IndexTermType indexTermType, Map<String, String> options)
     {
         if (hasNonTokenizingOptions(options))
         {
-            if (type instanceof StringType)
+            if (indexTermType.isString())
             {
                 // validate options
                 NonTokenizingOptions.fromMap(options);
-                return () -> new NonTokenizingAnalyzer(type, options);
+                return () -> new NonTokenizingAnalyzer(indexTermType, options);
             }
             else
             {
-                throw new InvalidRequestException("CQL type " + type.asCQL3Type() + " cannot be analyzed.");
+                throw new InvalidRequestException("CQL type " + indexTermType.asCQL3Type() + " cannot be analyzed.");
             }
         }
 
-        return NoOpAnalyzer::new;
+        return null;
     }
 
     private static boolean hasNonTokenizingOptions(Map<String, String> options)

@@ -50,8 +50,6 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
-import org.apache.cassandra.config.UnitConfigOverride;
-import org.junit.Before;
 import org.junit.BeforeClass;
 
 import accord.utils.DefaultRandom;
@@ -60,6 +58,7 @@ import accord.utils.Gens;
 import accord.utils.RandomSource;
 import org.agrona.collections.Long2ObjectHashMap;
 import org.agrona.collections.LongHashSet;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.concurrent.ExecutorBuilder;
 import org.apache.cassandra.concurrent.ExecutorBuilderFactory;
 import org.apache.cassandra.concurrent.ExecutorFactory;
@@ -71,6 +70,7 @@ import org.apache.cassandra.concurrent.SequentialExecutorPlus;
 import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.UnitConfigOverride;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Digest;
@@ -82,6 +82,7 @@ import org.apache.cassandra.db.repair.PendingAntiCompaction;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
@@ -96,7 +97,6 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.RangesAtEndpoint;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -126,6 +126,7 @@ import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.StreamingDataInputPlus;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tools.nodetool.Repair;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
@@ -269,11 +270,8 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         InMemory.setUpClass();
     }
 
-    @Before
-    public void setupSchema()
+    public static void setupSchema()
     {
-        if (SETUP_SCHEMA) return;
-        SETUP_SCHEMA = true;
         // StorageService can not be mocked out, nor can ColumnFamilyStores, so make sure that the keyspace is a "local" keyspace to avoid replication as the peers don't actually exist for replication
         schemaChange(String.format("CREATE KEYSPACE %s WITH REPLICATION = {'class': '%s'}", SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, HackStrat.class.getName()));
         for (TableMetadata table : SystemDistributedKeyspace.metadata().tables)
@@ -288,7 +286,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             execute(String.format("TRUNCATE %s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, table));
     }
 
-    private void createSchema()
+    private static void createSchema()
     {
         // The main reason to use random here with a fixed seed is just to have a set of tables that are not hard coded.
         // The tables will have diversity to them that most likely doesn't matter to repair (hence why the tables are shared), but
@@ -704,15 +702,14 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                 nodes.put(addressAndPort, node);
             }
             this.nodes = nodes;
-
-            TokenMetadata tm = StorageService.instance.getTokenMetadata();
-            tm.clearUnsafe();
+            ServerTestUtils.recreateCMS();
+            assert ClusterMetadata.current().directory.isEmpty() : ClusterMetadata.current().directory;
             for (Node inst : nodes.values())
             {
-                tm.updateHostId(inst.hostId(), inst.broadcastAddressAndPort());
-                for (Token token : inst.tokens())
-                    tm.updateNormalToken(token, inst.broadcastAddressAndPort());
+                ClusterMetadataTestHelper.register(inst.broadcastAddressAndPort());
+                ClusterMetadataTestHelper.join(inst.broadcastAddressAndPort(), inst.tokens());
             }
+            setupSchema();
         }
 
         public Closeable addListener(MessageListener listener)
@@ -1227,9 +1224,9 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
 
     public static class HackStrat extends LocalStrategy
     {
-        public HackStrat(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
+        public HackStrat(String keyspaceName, Map<String, String> configOptions)
         {
-            super(keyspaceName, tokenMetadata, snitch, configOptions);
+            super(keyspaceName, configOptions);
         }
     }
 
@@ -1285,9 +1282,15 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                         next = it.next();
                     }
                     if (FuzzTestBase.class.getName().equals(next.getClassName())) return Access.MAIN_THREAD_ONLY;
-                    if (next.getClassName().startsWith("org.apache.cassandra.db.") || next.getClassName().startsWith("org.apache.cassandra.gms.") || next.getClassName().startsWith("org.apache.cassandra.cql3.") || next.getClassName().startsWith("org.apache.cassandra.metrics.") || next.getClassName().startsWith("org.apache.cassandra.utils.concurrent.")
-                        || next.getClassName().startsWith("org.apache.cassandra.utils.TimeUUID") // this would be good to solve
-                        || next.getClassName().startsWith(PendingAntiCompaction.class.getName()))
+                    if (next.getClassName().startsWith("org.apache.cassandra.db.") ||
+                        next.getClassName().startsWith("org.apache.cassandra.gms.") ||
+                        next.getClassName().startsWith("org.apache.cassandra.cql3.") ||
+                        next.getClassName().startsWith("org.apache.cassandra.metrics.") ||
+                        next.getClassName().startsWith("org.apache.cassandra.utils.concurrent.") ||
+                        next.getClassName().startsWith("org.apache.cassandra.tcm") ||
+                        next.getClassName().startsWith("org.apache.cassandra.utils.TimeUUID") ||
+                        next.getClassName().startsWith("org.apache.cassandra.schema") ||
+                        next.getClassName().startsWith(PendingAntiCompaction.class.getName()))
                         return Access.IGNORE;
                     if (next.getClassName().startsWith("org.apache.cassandra.repair") || ActiveRepairService.class.getName().startsWith(next.getClassName()))
                         return Access.REJECT;

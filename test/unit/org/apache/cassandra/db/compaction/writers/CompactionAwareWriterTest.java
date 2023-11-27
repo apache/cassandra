@@ -35,6 +35,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -63,11 +64,14 @@ public class CompactionAwareWriterTest extends CQLTester
     private static final int ROW_PER_PARTITION = 10;
 
     @BeforeClass
-    public static void beforeClass() throws Throwable
+    public static void setUpClass()
     {
+        // Don't register/join the local node so that DiskBoundaries are empty (testMultiDatadirCheck depends on this)
+        ServerTestUtils.prepareServerNoRegister();
         // Disabling durable write since we don't care
         schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'} AND durable_writes=false");
         schemaChange(String.format("CREATE TABLE %s.%s (k int, t int, v blob, PRIMARY KEY (k, t))", KEYSPACE, TABLE));
+        ServerTestUtils.markCMS();
     }
 
     @AfterClass

@@ -27,9 +27,9 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 
-import static org.apache.cassandra.distributed.action.GossipHelper.decommission;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
@@ -46,29 +46,31 @@ public class CommunicationDuringDecommissionTest extends TestBaseImpl
         {
             BootstrapTest.populate(cluster, 0, 100);
 
-            cluster.run(decommission(), 1);
-
-            cluster.filters().allVerbs().from(1).messagesMatching((i, i1, iMessage) -> {
+            int decomissioningNode = 4;
+            cluster.get(decomissioningNode).nodetoolResult("decommission").asserts().success();
+            cluster.filters().allVerbs().from(decomissioningNode).messagesMatching((i, i1, iMessage) -> {
                 throw new AssertionError("Decomissioned node should not send any messages");
             }).drop();
 
-
+            ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1), decomissioningNode);
             Map<Integer, Long> connectionAttempts = new HashMap<>();
             long deadline = currentTimeMillis() + TimeUnit.SECONDS.toMillis(10);
 
             // Wait 10 seconds and check if there are any new connection attempts to the decomissioned node
             while (currentTimeMillis() <= deadline)
             {
-                for (int i = 2; i <= cluster.size(); i++)
+                for (int i = 1; i <= 3; i++)
                 {
-                    Object[][] res = cluster.get(i).executeInternal("SELECT active_connections, connection_attempts FROM system_views.internode_outbound WHERE address = '127.0.0.1' AND port = 7012");
+                    Object[][] res = cluster.get(i).executeInternal("SELECT active_connections, connection_attempts FROM system_views.internode_outbound WHERE address = '127.0.0.4' AND port = 7012");
                     Assert.assertEquals(1, res.length);
                     Assert.assertEquals(0L, ((Long) res[0][0]).longValue());
                     long attempts = ((Long) res[0][1]).longValue();
                     if (connectionAttempts.get(i) == null)
                         connectionAttempts.put(i, attempts);
                     else
-                        Assert.assertEquals(connectionAttempts.get(i), (Long) attempts);
+                        Assert.assertEquals(String.format("Number of connection attempts from %d to %d should have been stable but changed from %d to %d",
+                                                          i, decomissioningNode, connectionAttempts.get(i), attempts),
+                                            connectionAttempts.get(i), (Long) attempts);
                 }
                 LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
             }

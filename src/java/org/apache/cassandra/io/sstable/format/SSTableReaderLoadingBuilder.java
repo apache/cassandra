@@ -141,7 +141,7 @@ public abstract class SSTableReaderLoadingBuilder<R extends SSTableReader, B ext
         {
             int i = descriptor.cfname.indexOf(SECONDARY_INDEX_NAME_SEPARATOR);
             String indexName = descriptor.cfname.substring(i + 1);
-            metadata = Schema.instance.getIndexTableMetadataRef(descriptor.ksname, indexName);
+            metadata = Schema.instance.getIndexMetadata(descriptor.ksname, indexName).map(m -> m.ref).orElse(null);
             if (metadata == null)
                 throw new AssertionError("Could not find index metadata for index cf " + i);
         }

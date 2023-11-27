@@ -21,7 +21,7 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.UUID;
+import java.util.function.BiFunction;
 
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
@@ -58,18 +58,23 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.locator.ReplicaUtils;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.net.*;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.service.reads.repair.RepairedDataTracker;
 import org.apache.cassandra.service.reads.repair.RepairedDataVerifier;
 import org.apache.cassandra.service.reads.repair.TestableReadRepair;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.transformations.Register;
+import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.Util.assertClustering;
@@ -92,8 +97,6 @@ public class DataResolverTest extends AbstractReadResponseTest
 
     private EndpointsForRange makeReplicas(int num)
     {
-        StorageService.instance.getTokenMetadata().clearUnsafe();
-
         switch (num)
         {
             case 2:
@@ -118,8 +121,9 @@ public class DataResolverTest extends AbstractReadResponseTest
             {
                 InetAddressAndPort endpoint = InetAddressAndPort.getByAddress(new byte[]{ 127, 0, 0, (byte) (i + 1) });
                 replicas.add(ReplicaUtils.full(endpoint));
-                StorageService.instance.getTokenMetadata().updateNormalToken(token = token.nextValidToken(), endpoint);
-                Gossiper.instance.initializeNodeUnsafe(endpoint, UUID.randomUUID(), 1);
+                NodeId node = Register.register(new NodeAddresses(endpoint));
+                UnsafeJoin.unsafeJoin(node, Sets.newHashSet(token = token.nextValidToken()));
+
             }
             catch (UnknownHostException e)
             {
@@ -547,11 +551,12 @@ public class DataResolverTest extends AbstractReadResponseTest
     @Test
     public void testRepairRangeTombstoneBoundary() throws UnknownHostException
     {
-        testRepairRangeTombstoneBoundary(1, 0, 1);
+        EndpointsForRange replicas = makeReplicas(2);
+        testRepairRangeTombstoneBoundary(replicas, 1, 0, 1);
         readRepair.sent.clear();
-        testRepairRangeTombstoneBoundary(1, 1, 0);
+        testRepairRangeTombstoneBoundary(replicas, 1, 1, 0);
         readRepair.sent.clear();
-        testRepairRangeTombstoneBoundary(1, 1, 1);
+        testRepairRangeTombstoneBoundary(replicas, 1, 1, 1);
     }
 
     /**
@@ -559,9 +564,8 @@ public class DataResolverTest extends AbstractReadResponseTest
      * same deletion on both side (while is useless but could be created by legacy code pre-CASSANDRA-13237 and could
      * thus still be sent).
      */
-    private void testRepairRangeTombstoneBoundary(int timestamp1, int timestamp2, int timestamp3) throws UnknownHostException
+    private void testRepairRangeTombstoneBoundary(EndpointsForRange replicas, int timestamp1, int timestamp2, int timestamp3) throws UnknownHostException
     {
-        EndpointsForRange replicas = makeReplicas(2);
         DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
         InetAddressAndPort peer1 = replicas.get(0).endpoint();
         InetAddressAndPort peer2 = replicas.get(1).endpoint();
@@ -1322,7 +1326,15 @@ public class DataResolverTest extends AbstractReadResponseTest
 
     private ReplicaPlan.SharedForRangeRead plan(EndpointsForRange replicas, ConsistencyLevel consistencyLevel)
     {
-        return ReplicaPlan.shared(new ReplicaPlan.ForRangeRead(ks, ks.getReplicationStrategy(), consistencyLevel, ReplicaUtils.FULL_BOUNDS, replicas, replicas, 1));
+        BiFunction<ReplicaPlan<?, ?>, Token, ReplicaPlan.ForWrite> repairPlan = (self, t) -> ReplicaPlans.forReadRepair(self, ClusterMetadata.current(), ks, consistencyLevel, t, (i) -> true);
+        return ReplicaPlan.shared(new ReplicaPlan.ForRangeRead(ks,
+                                                               ks.getReplicationStrategy(),
+                                                               consistencyLevel,
+                                                               ReplicaUtils.FULL_BOUNDS,
+                                                               replicas, replicas,
+                                                               1, null,
+                                                               repairPlan,
+                                                               Epoch.EMPTY));
     }
 
     private static void resolveAndConsume(DataResolver resolver)

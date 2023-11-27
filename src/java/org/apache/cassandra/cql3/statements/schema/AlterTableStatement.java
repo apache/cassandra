@@ -24,14 +24,15 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
 
 import com.google.common.base.Splitter;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,38 +45,38 @@ import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
-
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.index.TargetParser;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
+import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.NoSpamLogger;
-
-import static java.lang.String.format;
-import static java.lang.String.join;
+import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.collect.Iterables.isEmpty;
-import static com.google.common.collect.Iterables.transform;
-
+import static java.lang.String.format;
+import static java.lang.String.join;
 import static org.apache.cassandra.schema.TableMetadata.Flag;
 
 public abstract class AlterTableStatement extends AlterSchemaStatement
@@ -100,8 +101,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         this.state = state;
     }
 
-    public Keyspaces apply(Keyspaces schema)
+    public Keyspaces apply(ClusterMetadata metadata)
     {
+        Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
 
         TableMetadata table = null == keyspace
@@ -118,7 +120,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         if (table.isView())
             throw ire("Cannot use ALTER TABLE on a materialized view; use ALTER MATERIALIZED VIEW instead");
 
-        return schema.withAddedOrUpdated(apply(keyspace, table));
+        return schema.withAddedOrUpdated(apply(metadata.nextEpoch(), keyspace, table));
     }
 
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)
@@ -142,7 +144,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         return format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, tableName);
     }
 
-    abstract KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table);
+    abstract KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table);
 
     /**
      * {@code ALTER TABLE [IF EXISTS] <table> ALTER <column> TYPE <newtype>;}
@@ -156,7 +158,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             super(keyspaceName, tableName, ifTableExists);
         }
 
-        public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
         {
             throw ire("Altering column types is no longer supported");
         }
@@ -196,7 +198,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         }
 
         @Override
-        public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
         {
             ColumnMetadata column = table.getColumn(columnName);
 
@@ -214,7 +216,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             if (Objects.equals(oldMask, newMask))
                 return keyspace;
 
-            TableMetadata.Builder tableBuilder = table.unbuild();
+            TableMetadata.Builder tableBuilder = table.unbuild().epoch(epoch);
             tableBuilder.alterColumnMask(columnName, newMask);
             TableMetadata newTable = tableBuilder.build();
             newTable.validate();
@@ -274,10 +276,10 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             newColumns.forEach(c -> c.type.validate(state, "Column " + c.name));
         }
 
-        public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
         {
             Guardrails.alterTableEnabled.ensureEnabled("ALTER TABLE changing columns", state);
-            TableMetadata.Builder tableBuilder = table.unbuild();
+            TableMetadata.Builder tableBuilder = table.unbuild().epoch(epoch);
             Views.Builder viewsBuilder = keyspace.views.unbuild();
             newColumns.forEach(c -> addColumn(keyspace, table, c, ifColumnNotExists, tableBuilder, viewsBuilder));
 
@@ -360,6 +362,38 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         }
     }
 
+    private static void validateIndexesForColumnModification(TableMetadata table,
+                                                             ColumnIdentifier colId,
+                                                             boolean isRename)
+    {
+        ColumnMetadata column = table.getColumn(colId);
+        Set<String> dependentIndexes = new HashSet<>();
+        for (IndexMetadata index : table.indexes)
+        {
+            Optional<Pair<ColumnMetadata, IndexTarget.Type>> target = TargetParser.tryParse(table, index);
+            if (target.isEmpty())
+            {
+                // The target column(s) of this index is not trivially discernible from its metadata.
+                // This implies an external custom index implementation and without instantiating the
+                // index itself we cannot be sure that the column metadata is safe to modify.
+                dependentIndexes.add(index.name);
+            }
+            else if (target.get().left.equals(column))
+            {
+                // The index metadata declares an explicit dependency on the column being modified, so
+                // the mutation must be rejected.
+                dependentIndexes.add(index.name);
+            }
+        }
+        if (!dependentIndexes.isEmpty())
+        {
+            throw ire("Cannot %s column %s because it has dependent secondary indexes (%s)",
+                      isRename ? "rename" : "drop",
+                      colId,
+                      join(", ", dependentIndexes));
+        }
+    }
+
     /**
      * {@code ALTER TABLE [IF EXISTS] <table> DROP [IF EXISTS] <column>}
      * {@code ALTER TABLE [IF EXISTS] <table> DROP [IF EXISTS] ( <column>, <column1>, ... <columnn>)}
@@ -379,7 +413,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             this.timestamp = timestamp;
         }
 
-        public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
         {
             Guardrails.alterTableEnabled.ensureEnabled("ALTER TABLE changing columns", state);
             TableMetadata.Builder builder = table.unbuild();
@@ -407,14 +441,8 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             if (currentColumn.type.isUDT() && currentColumn.type.isMultiCell())
                 throw ire("Cannot drop non-frozen column %s of user type %s", column, currentColumn.type.asCQL3Type());
 
-            // TODO: some day try and find a way to not rely on Keyspace/IndexManager/Index to find dependent indexes
-            Set<IndexMetadata> dependentIndexes = Keyspace.openAndGetStore(table).indexManager.getDependentIndexes(currentColumn);
-            if (!dependentIndexes.isEmpty())
-            {
-                throw ire("Cannot drop column %s because it has dependent secondary indexes (%s)",
-                          currentColumn,
-                          join(", ", transform(dependentIndexes, i -> i.name)));
-            }
+            if (!table.indexes.isEmpty())
+                AlterTableStatement.validateIndexesForColumnModification(table, column, false);
 
             if (!isEmpty(keyspace.views.forTable(table.id)))
                 throw ire("Cannot drop column %s on base table %s with materialized views", currentColumn, table.name);
@@ -447,10 +475,10 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             this.ifColumnsExists = ifColumnsExists;
         }
 
-        public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
         {
             Guardrails.alterTableEnabled.ensureEnabled("ALTER TABLE changing columns", state);
-            TableMetadata.Builder tableBuilder = table.unbuild();
+            TableMetadata.Builder tableBuilder = table.unbuild().epoch(epoch);
             Views.Builder viewsBuilder = keyspace.views.unbuild();
             renamedColumns.forEach((o, n) -> renameColumn(keyspace, table, o, n, ifColumnsExists, tableBuilder, viewsBuilder));
 
@@ -485,14 +513,8 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                           table);
             }
 
-            // TODO: some day try and find a way to not rely on Keyspace/IndexManager/Index to find dependent indexes
-            Set<IndexMetadata> dependentIndexes = Keyspace.openAndGetStore(table).indexManager.getDependentIndexes(column);
-            if (!dependentIndexes.isEmpty())
-            {
-                throw ire("Can't rename column %s because it has dependent secondary indexes (%s)",
-                          oldName,
-                          join(", ", transform(dependentIndexes, i -> i.name)));
-            }
+            if (!table.indexes.isEmpty())
+                AlterTableStatement.validateIndexesForColumnModification(table, oldName, true);
 
             for (ViewMetadata view : keyspace.views.forTable(table.id))
             {
@@ -523,13 +545,15 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         public void validate(ClientState state)
         {
             super.validate(state);
-
+            // If a memtable configuration is specified, validate it against config
+            if (attrs.hasOption(TableParams.Option.MEMTABLE))
+                MemtableParams.get(attrs.getString(TableParams.Option.MEMTABLE.toString()));
             Guardrails.tableProperties.guard(attrs.updatedProperties(), attrs::removeProperty, state);
 
             validateDefaultTimeToLive(attrs.asNewTableParams());
         }
 
-        public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
         {
             attrs.validate();
 
@@ -547,7 +571,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                           "before being replayed.");
             }
 
-            if (keyspace.createReplicationStrategy().hasTransientReplicas()
+            if (keyspace.replicationStrategy.hasTransientReplicas()
                 && params.readRepair != ReadRepairStrategy.NONE)
             {
                 throw ire("read_repair must be set to 'NONE' for transiently replicated keyspaces");
@@ -573,7 +597,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             super(keyspaceName, tableName, ifTableExists);
         }
 
-        public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
         {
             if (!DatabaseDescriptor.enableDropCompactStorage())
                 throw new InvalidRequestException("DROP COMPACT STORAGE is disabled. Enable in cassandra.yaml to use.");
@@ -587,7 +611,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                             ? ImmutableSet.of(Flag.COMPOUND, Flag.COUNTER)
                             : ImmutableSet.of(Flag.COMPOUND);
 
-            return keyspace.withSwapped(keyspace.tables.withSwapped(table.withSwapped(flags)));
+            return keyspace.withSwapped(keyspace.tables.withSwapped(table.unbuild().flags(flags).build()));
         }
 
         /**
@@ -608,40 +632,45 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             Set<InetAddressAndPort> preC15897nodes = new HashSet<>();
             Set<InetAddressAndPort> with2xSStables = new HashSet<>();
             Splitter onComma = Splitter.on(',').omitEmptyStrings().trimResults();
-            for (InetAddressAndPort node : StorageService.instance.getTokenMetadata().getAllEndpoints())
+            Directory directory = ClusterMetadata.current().directory;
+            for (InetAddressAndPort node : directory.allAddresses())
             {
-                if (MessagingService.instance().versions.knows(node) &&
-                    MessagingService.instance().versions.getRaw(node) < MessagingService.VERSION_40)
+
+                CassandraVersion version = directory.version(directory.peerId(node)).cassandraVersion;
+
+                if (version.compareTo(CassandraVersion.CASSANDRA_4_0) < 0)
                 {
+                    // if the cluster contains any pre-4.0 nodes (which really shouldn't be the case), reject this
+                    // operation as we can't be certain all peers can support it.
                     before4.add(node);
-                    continue;
                 }
-
-                String sstableVersionsString = Gossiper.instance.getApplicationState(node, ApplicationState.SSTABLE_VERSIONS);
-                if (sstableVersionsString == null)
+                else
                 {
-                    preC15897nodes.add(node);
-                    continue;
-                }
-
-                try
-                {
-                    boolean has2xSStables = onComma.splitToList(sstableVersionsString)
-                                                   .stream()
-                                                   .anyMatch(v -> v.compareTo("big-ma")<=0);
-                    if (has2xSStables)
-                        with2xSStables.add(node);
-                }
-                catch (IllegalArgumentException e)
-                {
-                    // Means VersionType::fromString didn't parse a version correctly. Which shouldn't happen, we shouldn't
-                    // have garbage in Gossip. But crashing the request is not ideal, so we log the error but ignore the
-                    // node otherwise.
-                    noSpamLogger.error("Unexpected error parsing sstable versions from gossip for {} (gossiped value " +
-                                       "is '{}'). This is a bug and should be reported. Cannot ensure that {} has no " +
-                                       "non-upgraded 2.x sstables anymore. If after this DROP COMPACT STORAGE some old " +
-                                       "sstables cannot be read anymore, please use `upgradesstables` with the " +
-                                       "`--force-compact-storage-on` option.", node, sstableVersionsString, node);
+                    // any peer on a version greater than 4.0.0 must include CASSANDRA-15897, so just check that
+                    // its min sstable version. Note: this app state may be empty/unset if the full StorageService
+                    // initialisation hasn't been done, i.e. in tests.
+                    String sstableVersionsString = Gossiper.instance.getApplicationState(node, ApplicationState.SSTABLE_VERSIONS);
+                    if (Strings.isNullOrEmpty(sstableVersionsString))
+                        continue;
+                    try
+                    {
+                        boolean has2xSStables = onComma.splitToList(sstableVersionsString)
+                                                       .stream()
+                                                       .anyMatch(v -> v.compareTo("big-ma")<=0);
+                        if (has2xSStables)
+                            with2xSStables.add(node);
+                    }
+                    catch (IllegalArgumentException e)
+                    {
+                        // Means VersionType::fromString didn't parse a version correctly. Which shouldn't happen, we shouldn't
+                        // have garbage in Gossip. But crashing the request is not ideal, so we log the error but ignore the
+                        // node otherwise.
+                        noSpamLogger.error("Unexpected error parsing sstable versions from gossip for {} (gossiped value " +
+                                           "is '{}'). This is a bug and should be reported. Cannot ensure that {} has no " +
+                                           "non-upgraded 2.x sstables anymore. If after this DROP COMPACT STORAGE some old " +
+                                           "sstables cannot be read anymore, please use `upgradesstables` with the " +
+                                           "`--force-compact-storage-on` option.", node, sstableVersionsString, node);
+                    }
                 }
             }
 
@@ -649,10 +678,6 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 throw new InvalidRequestException(format("Cannot DROP COMPACT STORAGE as some nodes in the cluster (%s) " +
                                                          "are not on 4.0+ yet. Please upgrade those nodes and run " +
                                                          "`upgradesstables` before retrying.", before4));
-            if (!preC15897nodes.isEmpty())
-                throw new InvalidRequestException(format("Cannot guarantee that DROP COMPACT STORAGE is safe as some nodes " +
-                                                         "in the cluster (%s) do not have https://issues.apache.org/jira/browse/CASSANDRA-15897. " +
-                                                         "Please upgrade those nodes and retry.", preC15897nodes));
             if (!with2xSStables.isEmpty())
                 throw new InvalidRequestException(format("Cannot DROP COMPACT STORAGE as some nodes in the cluster (%s) " +
                                                          "has some non-upgraded 2.x sstables. Please run `upgradesstables` " +

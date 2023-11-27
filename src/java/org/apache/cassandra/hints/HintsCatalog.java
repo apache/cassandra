@@ -162,6 +162,10 @@ final class HintsCatalog
                 FileUtils.handleFSErrorAndPropagate(e);
             }
         }
+        else if (!NativeLibrary.isEnabled())
+        {
+            return;
+        }
         else if (DatabaseDescriptor.isClientInitialized())
         {
             logger.warn("Unable to open hint directory using Native library. Skipping sync.");

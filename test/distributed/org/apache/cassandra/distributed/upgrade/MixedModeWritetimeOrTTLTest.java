@@ -23,6 +23,7 @@ import java.util.List;
 
 import org.junit.Test;
 
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.assertj.core.api.Assertions;
 
@@ -48,6 +49,7 @@ public class MixedModeWritetimeOrTTLTest extends UpgradeTestBase
         // all upgrades from v40 to current, excluding v50 -> v51
         .singleUpgradeToCurrentFrom(v40)
         .singleUpgradeToCurrentFrom(v41)
+        .withConfig(c -> c.with(Feature.GOSSIP))
         .setup(cluster -> {
 
             ICoordinator coordinator = cluster.coordinator(1);

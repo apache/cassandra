@@ -68,8 +68,6 @@ public class LocalRepairTablesTest extends CQLTester
     @BeforeClass
     public static void before()
     {
-        CQLTester.setUpClass();
-
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, LocalRepairTables.getAll(KS_NAME)));
     }
 

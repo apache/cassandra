@@ -23,9 +23,9 @@ import java.util.stream.Collectors;
 
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.disk.v1.vector.OptimizeFor;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_VECTOR_SEARCH_MAX_TOP_K;
 
@@ -100,7 +100,7 @@ public class IndexWriterConfig
         return optimizeFor;
     }
 
-    public static IndexWriterConfig fromOptions(String indexName, AbstractType<?> type, Map<String, String> options)
+    public static IndexWriterConfig fromOptions(String indexName, IndexTermType indexTermType, Map<String, String> options)
     {
         int maximumNodeConnections = DEFAULT_MAXIMUM_NODE_CONNECTIONS;
         int queueSize = DEFAULT_CONSTRUCTION_BEAM_WIDTH;
@@ -112,8 +112,8 @@ public class IndexWriterConfig
             options.get(SIMILARITY_FUNCTION) != null ||
             options.get(OPTIMIZE_FOR) != null)
         {
-            if (!type.isVector())
-                throw new InvalidRequestException(String.format("CQL type %s cannot have vector options", type.asCQL3Type()));
+            if (!indexTermType.isVector())
+                throw new InvalidRequestException(String.format("CQL type %s cannot have vector options", indexTermType.asCQL3Type()));
 
             if (options.containsKey(MAXIMUM_NODE_CONNECTIONS))
             {

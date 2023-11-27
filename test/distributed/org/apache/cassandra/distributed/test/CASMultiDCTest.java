@@ -26,6 +26,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.distributed.Cluster;
@@ -39,6 +40,11 @@ import static org.apache.cassandra.distributed.api.ConsistencyLevel.*;
 
 public class CASMultiDCTest
 {
+    static
+    {
+        CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR.setBoolean(true);
+    }
+
     private static Cluster CLUSTER;
     private static final String KEYSPACE = "ks";
     private static final String TABLE = "tbl";

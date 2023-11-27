@@ -37,6 +37,7 @@ import org.apache.cassandra.net.Message.Header;
 import org.apache.cassandra.net.FrameDecoder.IntactFrame;
 import org.apache.cassandra.net.FrameDecoder.CorruptFrame;
 import org.apache.cassandra.net.ResourceLimits.Limit;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -125,7 +126,7 @@ public class InboundMessageHandler extends AbstractMessageHandler
         long currentTimeNanos = approxTime.now();
         Header header = serializer.extractHeader(buf, peer, currentTimeNanos, version);
         long timeElapsed = currentTimeNanos - header.createdAtNanos;
-        int size = serializer.inferMessageSize(buf, buf.position(), buf.limit());
+        int size = serializer.inferMessageSize(buf, buf.position(), buf.limit(), version);
 
         if (approxTime.isAfter(currentTimeNanos, header.expiresAtNanos))
         {
@@ -172,6 +173,7 @@ public class InboundMessageHandler extends AbstractMessageHandler
         {
             callbacks.onFailedDeserialize(size, header, e);
             noSpamLogger.info("{} incompatible schema encountered while deserializing a message", this, e);
+            ClusterMetadataService.instance().fetchLogFromPeerAsync(header.from, header.epoch);
         }
         catch (Throwable t)
         {
@@ -211,7 +213,7 @@ public class InboundMessageHandler extends AbstractMessageHandler
 
         long currentTimeNanos = approxTime.now();
         Header header = serializer.extractHeader(buf, peer, currentTimeNanos, version);
-        int size = serializer.inferMessageSize(buf, buf.position(), buf.limit());
+        int size = serializer.inferMessageSize(buf, buf.position(), buf.limit(), version);
 
         boolean expired = approxTime.isAfter(currentTimeNanos, header.expiresAtNanos);
         if (!expired && !acquireCapacity(endpointReserve, globalReserve, size, currentTimeNanos, header.expiresAtNanos))

@@ -24,7 +24,6 @@ import java.util.EnumSet;
 import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.cassandra.utils.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,7 +31,6 @@ import com.codahale.metrics.Gauge;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.PerColumnIndexWriter;
@@ -45,10 +43,13 @@ import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.format.OnDiskFormat;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
 import org.apache.cassandra.index.sai.metrics.AbstractMetrics;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.lucene.store.IndexInput;
 
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
@@ -135,9 +136,9 @@ public class V1OnDiskFormat implements OnDiskFormat
     }
 
     @Override
-    public SSTableIndex newSSTableIndex(SSTableContext sstableContext, IndexContext indexContext)
+    public SSTableIndex newSSTableIndex(SSTableContext sstableContext, StorageAttachedIndex index)
     {
-        return new V1SSTableIndex(sstableContext, indexContext);
+        return new V1SSTableIndex(sstableContext, index);
     }
 
     @Override
@@ -156,15 +157,17 @@ public class V1OnDiskFormat implements OnDiskFormat
         if (tracker.opType() != OperationType.FLUSH || !index.isInitBuildStarted())
         {
             NamedMemoryLimiter limiter = SEGMENT_BUILD_MEMORY_LIMITER;
-            logger.info(index.getIndexContext().logMessage("Starting a compaction index build. Global segment memory usage: {}"),
+            logger.info(index.identifier().logMessage("Starting a compaction index build. Global segment memory usage: {}"),
                         prettyPrintMemory(limiter.currentBytesUsed()));
 
-            return new SSTableIndexWriter(indexDescriptor, index.getIndexContext(), limiter, index.isIndexValid());
+            return new SSTableIndexWriter(indexDescriptor, index, limiter, index.isIndexValid());
         }
 
-        return new MemtableIndexWriter(index.getIndexContext().getMemtableIndexManager().getPendingMemtableIndex(tracker),
+        return new MemtableIndexWriter(index.memtableIndexManager().getPendingMemtableIndex(tracker),
                                        indexDescriptor,
-                                       index.getIndexContext(),
+                                       index.termType(),
+                                       index.identifier(),
+                                       index.indexMetrics(),
                                        rowMapping);
     }
 
@@ -175,10 +178,10 @@ public class V1OnDiskFormat implements OnDiskFormat
     }
 
     @Override
-    public boolean isPerColumnIndexBuildComplete(IndexDescriptor indexDescriptor, IndexContext indexContext)
+    public boolean isPerColumnIndexBuildComplete(IndexDescriptor indexDescriptor, IndexIdentifier indexIdentifier)
     {
         return indexDescriptor.hasComponent(IndexComponent.GROUP_COMPLETION_MARKER) &&
-               indexDescriptor.hasComponent(IndexComponent.COLUMN_COMPLETION_MARKER, indexContext);
+               indexDescriptor.hasComponent(IndexComponent.COLUMN_COMPLETION_MARKER, indexIdentifier);
     }
 
     @Override
@@ -188,48 +191,62 @@ public class V1OnDiskFormat implements OnDiskFormat
         {
             if (isNotBuildCompletionMarker(indexComponent))
             {
-                try (IndexInput input = indexDescriptor.openPerSSTableInput(indexComponent))
-                {
-                    if (checksum)
-                        SAICodecUtils.validateChecksum(input);
-                    else
-                        SAICodecUtils.validate(input);
-                }
-                catch (Exception e)
-                {
-                    logger.warn(indexDescriptor.logMessage("{} failed for index component {} on SSTable {}."),
-                                                           checksum ? "Checksum validation" : "Validation",
-                                                           indexComponent,
-                                                           indexDescriptor.sstableDescriptor);
-                    rethrowIOException(e);
-                }
+                validateIndexComponent(indexDescriptor, null, indexComponent, checksum);
             }
         }
     }
 
     @Override
-    public void validatePerColumnIndexComponents(IndexDescriptor indexDescriptor, IndexContext indexContext, boolean checksum)
+    public void validatePerColumnIndexComponents(IndexDescriptor indexDescriptor, IndexTermType indexTermType, IndexIdentifier indexIdentifier, boolean checksum)
     {
-        for (IndexComponent indexComponent : perColumnIndexComponents(indexContext))
+        // determine if the index is empty, which would be encoded in the column completion marker
+        boolean isEmptyIndex = false;
+        if (indexDescriptor.hasComponent(IndexComponent.COLUMN_COMPLETION_MARKER, indexIdentifier))
         {
-            if (isNotBuildCompletionMarker(indexComponent))
+            // first validate the file...
+            validateIndexComponent(indexDescriptor, indexIdentifier, IndexComponent.COLUMN_COMPLETION_MARKER, checksum);
+
+            // ...then read to check if the index is empty
+            try
             {
-                try (IndexInput input = indexDescriptor.openPerIndexInput(indexComponent, indexContext))
-                {
-                    if (checksum)
-                        SAICodecUtils.validateChecksum(input);
-                    else
-                        SAICodecUtils.validate(input);
-                }
-                catch (Exception e)
-                {
-                    logger.warn(indexDescriptor.logMessage("{} failed for index component {} on SSTable {}"),
-                                                           checksum ? "Checksum validation" : "Validation",
-                                                           indexComponent,
-                                                           indexDescriptor.sstableDescriptor);
-                    rethrowIOException(e);
-                }
+                isEmptyIndex = ColumnCompletionMarkerUtil.isEmptyIndex(indexDescriptor, indexIdentifier);
             }
+            catch (IOException e)
+            {
+                rethrowIOException(e);
+            }
+        }
+
+        for (IndexComponent indexComponent : perColumnIndexComponents(indexTermType))
+        {
+            if (!isEmptyIndex && isNotBuildCompletionMarker(indexComponent))
+            {
+                validateIndexComponent(indexDescriptor, indexIdentifier, indexComponent, checksum);
+            }
+        }
+    }
+
+    private static void validateIndexComponent(IndexDescriptor indexDescriptor,
+                                               IndexIdentifier indexContext,
+                                               IndexComponent indexComponent,
+                                               boolean checksum)
+    {
+        try (IndexInput input = indexContext == null
+                                ? indexDescriptor.openPerSSTableInput(indexComponent)
+                                : indexDescriptor.openPerIndexInput(indexComponent, indexContext))
+        {
+            if (checksum)
+                SAICodecUtils.validateChecksum(input);
+            else
+                SAICodecUtils.validate(input);
+        }
+        catch (Exception e)
+        {
+            logger.warn(indexDescriptor.logMessage("{} failed for index component {} on SSTable {}"),
+                        checksum ? "Checksum validation" : "Validation",
+                        indexComponent,
+                        indexDescriptor.sstableDescriptor);
+            rethrowIOException(e);
         }
     }
 
@@ -249,9 +266,9 @@ public class V1OnDiskFormat implements OnDiskFormat
     }
 
     @Override
-    public Set<IndexComponent> perColumnIndexComponents(IndexContext indexContext)
+    public Set<IndexComponent> perColumnIndexComponents(IndexTermType indexTermType)
     {
-        return indexContext.isVector() ? VECTOR_COMPONENTS : indexContext.isLiteral() ? LITERAL_COMPONENTS : NUMERIC_COMPONENTS;
+        return indexTermType.isVector() ? VECTOR_COMPONENTS : indexTermType.isLiteral() ? LITERAL_COMPONENTS : NUMERIC_COMPONENTS;
     }
 
     @Override
@@ -266,7 +283,7 @@ public class V1OnDiskFormat implements OnDiskFormat
     }
 
     @Override
-    public int openFilesPerColumnIndex(IndexContext indexContext)
+    public int openFilesPerColumnIndex()
     {
         // For the V1 format there are always 2 open files per index - index (balanced tree or terms) + auxiliary postings
         // for the balanced tree and postings for the literal terms

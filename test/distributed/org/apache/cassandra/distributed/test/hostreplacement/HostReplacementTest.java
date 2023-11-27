@@ -34,13 +34,13 @@ import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
-import org.apache.cassandra.distributed.shared.AssertUtils;
-import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SKIP_SCHEMA_CHECK;
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIPER_QUARANTINE_DELAY;
+import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.assertInRing;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.assertRingIs;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.awaitRingHealthy;
@@ -81,7 +81,7 @@ public class HostReplacementTest extends TestBaseImpl
             setupCluster(cluster);
 
             // collect rows to detect issues later on if the state doesn't match
-            SimpleQueryResult expectedState = nodeToRemove.coordinator().executeWithResult("SELECT * FROM " + KEYSPACE + ".tbl", ConsistencyLevel.ALL);
+            SimpleQueryResult expectedState = seed.coordinator().executeWithResult("SELECT * FROM " + KEYSPACE + ".tbl", ConsistencyLevel.ALL);
 
             stopUnchecked(nodeToRemove);
 
@@ -102,6 +102,8 @@ public class HostReplacementTest extends TestBaseImpl
             assertRingIs(seed, seed, replacingNode);
             logger.info("Current ring is {}", assertRingIs(replacingNode, seed, replacingNode));
 
+            assertRows(replacingNode.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl"),
+                                                     expectedState.toObjectArrays());
             validateRows(seed.coordinator(), expectedState);
             validateRows(replacingNode.coordinator(), expectedState);
         }
@@ -111,6 +113,7 @@ public class HostReplacementTest extends TestBaseImpl
      * Attempt to do a host replacement on a alive host
      */
     @Test
+    // TODO this might actually be safe now (though probably still undesirable),
     public void replaceAliveHost() throws IOException
     {
         // start with 2 nodes, stop both nodes, start the seed, host replace the down node)
@@ -170,6 +173,11 @@ public class HostReplacementTest extends TestBaseImpl
             SimpleQueryResult expectedState = nodeToRemove.coordinator().executeWithResult("SELECT * FROM " + KEYSPACE + ".tbl", ConsistencyLevel.ALL);
             List<String> beforeCrashTokens = getTokenMetadataTokens(seed);
 
+            // TODO the node acting as the CMS must flush its distributed_metadata_log table before shutdown
+            //  this should be a temporary hack
+            seed.flush("system");
+            seed.flush(SchemaConstants.METADATA_KEYSPACE_NAME);
+
             // shutdown the seed, then the node to remove
             stopUnchecked(seed);
             stopUnchecked(nodeToRemove);
@@ -211,8 +219,6 @@ public class HostReplacementTest extends TestBaseImpl
         fixDistributedSchemas(cluster);
         init(cluster);
 
-        ClusterUtils.awaitGossipSchemaMatch(cluster);
-
         populate(cluster);
         cluster.forEach(i -> i.flush(KEYSPACE));
     }
@@ -232,6 +238,6 @@ public class HostReplacementTest extends TestBaseImpl
     {
         expected.reset();
         SimpleQueryResult rows = coordinator.executeWithResult("SELECT * FROM " + KEYSPACE + ".tbl", ConsistencyLevel.ALL);
-        AssertUtils.assertRows(rows, expected);
+        assertRows(rows, expected);
     }
 }

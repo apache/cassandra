@@ -48,7 +48,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.QueryContext;
-import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
@@ -84,16 +83,8 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     {
         for (RowFilter.Expression expression : queryController.filterOperation())
         {
-            AbstractAnalyzer analyzer = queryController.getContext(expression).getAnalyzerFactory().create();
-            try
-            {
-                if (analyzer.transformValue())
-                    return applyIndexFilter(fullResponse, Operation.buildFilter(queryController), queryContext);
-            }
-            finally
-            {
-                analyzer.end();
-            }
+            if (queryController.hasAnalyzer(expression))
+                return applyIndexFilter(fullResponse, Operation.buildFilter(queryController), queryContext);
         }
 
         // if no analyzer does transformation
@@ -397,14 +388,11 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         {
             Row staticRow = partition.staticRow();
 
-            // We want to short-circuit the filtering of the whole partition if the static row
-            // satisfies the filter. If that is the case we just need to return the whole partition.
-            queryContext.rowsFiltered++;
-            if (tree.isSatisfiedBy(partition.partitionKey(), staticRow, staticRow))
-                return partition;
-
             List<Unfiltered> clusters = new ArrayList<>();
 
+            // We need to filter the partition rows before filtering on the static row. If this is done in the other
+            // order then we get incorrect results if we are filtering on a partition key index on a table with a
+            // composite partition key.
             while (partition.hasNext())
             {
                 Unfiltered row = partition.next();
@@ -413,6 +401,15 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                 if (tree.isSatisfiedBy(partition.partitionKey(), row, staticRow))
                 {
                     clusters.add(row);
+                }
+            }
+
+            if (clusters.isEmpty())
+            {
+                queryContext.rowsFiltered++;
+                if (tree.isSatisfiedBy(key.partitionKey(), staticRow, staticRow))
+                {
+                    clusters.add(staticRow);
                 }
             }
 

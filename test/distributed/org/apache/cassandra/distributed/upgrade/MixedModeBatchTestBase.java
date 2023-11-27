@@ -25,6 +25,7 @@ import com.vdurmont.semver4j.Semver;
 
 import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
@@ -57,6 +58,7 @@ public class MixedModeBatchTestBase extends UpgradeTestBase
         .nodes(3)
         .nodesToUpgrade(1, 2)
         .upgrades(from, to)
+        .withConfig(c -> c.with(Feature.GOSSIP))
         .setup(cluster -> {
             cluster.schemaChange("CREATE KEYSPACE test_simple WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2};");
             cluster.schemaChange("CREATE TABLE test_simple.names (key int PRIMARY KEY, name text)");

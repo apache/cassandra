@@ -17,11 +17,13 @@
  */
 package org.apache.cassandra.schema;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -59,13 +61,19 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.EmptyType;
-import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.serialization.UDTAndFunctionsAwareMetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.utils.AbstractIterator;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.github.jamm.Unmetered;
 
 import static com.google.common.collect.Iterables.any;
@@ -73,11 +81,14 @@ import static com.google.common.collect.Iterables.transform;
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
+import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.schema.IndexMetadata.isNameValid;
 
 @Unmetered
 public class TableMetadata implements SchemaElement
 {
+    public static final Serializer serializer = new Serializer();
+
     private static final Logger logger = LoggerFactory.getLogger(TableMetadata.class);
 
     // Please note that currently the only one truly useful flag is COUNTER, as the rest of the flags were about
@@ -151,6 +162,7 @@ public class TableMetadata implements SchemaElement
     public final String keyspace;
     public final String name;
     public final TableId id;
+    public final Epoch epoch;
 
     public final IPartitioner partitioner;
     public final Kind kind;
@@ -182,6 +194,7 @@ public class TableMetadata implements SchemaElement
 
     // performance hacks; TODO see if all are really necessary
     public final DataResource resource;
+    public TableMetadataRef ref;
 
     protected TableMetadata(Builder builder)
     {
@@ -189,7 +202,7 @@ public class TableMetadata implements SchemaElement
         keyspace = builder.keyspace;
         name = builder.name;
         id = builder.id;
-
+        epoch = builder.epoch;
         partitioner = builder.partitioner;
         kind = builder.kind;
         params = builder.params.build();
@@ -214,6 +227,14 @@ public class TableMetadata implements SchemaElement
         comparator = new ClusteringComparator(transform(clusteringColumns, c -> c.type));
 
         resource = DataResource.table(keyspace, name);
+        if (builder.isOffline)
+            ref = TableMetadataRef.forOfflineTools(this);
+        else if (SchemaConstants.isLocalSystemKeyspace(keyspace))
+            ref = TableMetadataRef.forSystemTable(this);
+        else if (isIndex())
+            ref = TableMetadataRef.forIndex(Schema.instance, this, keyspace, indexName, id);
+        else
+            ref = TableMetadataRef.withInitialReference(new TableMetadataRef(Schema.instance, keyspace, name, id), this);
     }
 
     public static Builder builder(String keyspace, String table)
@@ -236,7 +257,8 @@ public class TableMetadata implements SchemaElement
                .addColumns(columns())
                .droppedColumns(droppedColumns)
                .indexes(indexes)
-               .triggers(triggers);
+               .triggers(triggers)
+               .epoch(epoch);
     }
 
     public boolean isIndex()
@@ -763,6 +785,7 @@ public class TableMetadata implements SchemaElement
         final String keyspace;
         final String name;
 
+        private Epoch epoch = Epoch.EMPTY;
         private TableId id;
 
         private IPartitioner partitioner;
@@ -773,6 +796,8 @@ public class TableMetadata implements SchemaElement
         private Set<Flag> flags = EnumSet.of(Flag.COMPOUND);
         private Triggers triggers = Triggers.none();
         private Indexes indexes = Indexes.none();
+
+        private boolean isOffline = false;
 
         private final Map<ByteBuffer, DroppedColumn> droppedColumns = new HashMap<>();
         private final Map<ByteBuffer, ColumnMetadata> columns = new HashMap<>();
@@ -795,15 +820,19 @@ public class TableMetadata implements SchemaElement
 
         public TableMetadata build()
         {
+            if (keyspace == null)
+                throw new ConfigurationException(keyspace + '.' + name + ": Keyspace name must not be empty");
             if (partitioner == null)
                 partitioner = DatabaseDescriptor.getPartitioner();
 
             if (id == null)
             {
-                // make sure vtables use determiniestic ids so they can be referenced in calls cross-nodes
+                // make sure vtables use deteriminstic ids so they can be referenced in calls cross-nodes
                 // see CASSANDRA-17295
-                if (DatabaseDescriptor.useDeterministicTableID() || kind == Kind.VIRTUAL) id = TableId.unsafeDeterministic(keyspace, name);
-                else id = TableId.generate();
+                if (DatabaseDescriptor.useDeterministicTableID() || kind == Kind.VIRTUAL)
+                    id = TableId.unsafeDeterministic(keyspace, name);
+                else
+                    id = TableId.generate();
             }
 
             if (Flag.isCQLTable(flags))
@@ -815,6 +844,17 @@ public class TableMetadata implements SchemaElement
         public Builder id(TableId val)
         {
             id = val;
+            return this;
+        }
+
+        public boolean hasId()
+        {
+            return id != null;
+        }
+
+        public Builder epoch(Epoch val)
+        {
+            epoch = val;
             return this;
         }
 
@@ -1208,6 +1248,12 @@ public class TableMetadata implements SchemaElement
             }
 
             columns.put(column.name.bytes, newColumn);
+        }
+
+        public Builder offline()
+        {
+            this.isOffline = true;
+            return this;
         }
     }
     
@@ -1665,14 +1711,6 @@ public class TableMetadata implements SchemaElement
             return clusteringColumns.get(0).type;
         }
 
-        public AbstractType<?> columnDefinitionNameComparator(ColumnMetadata.Kind kind)
-        {
-            return (Flag.isSuper(this.flags) && kind == ColumnMetadata.Kind.REGULAR) ||
-                   (isStaticCompactTable() && kind == ColumnMetadata.Kind.STATIC)
-                   ? staticCompactOrSuperTableColumnNameType()
-                   : UTF8Type.instance;
-        }
-
         @Override
         public boolean isStaticCompactTable()
         {
@@ -1716,7 +1754,110 @@ public class TableMetadata implements SchemaElement
             assert columns.regulars.simpleColumnCount() == 1 && columns.regulars.complexColumnCount() == 0;
             return columns.regulars.getSimple(0);
         }
-
     }
 
+    public static class Serializer implements UDTAndFunctionsAwareMetadataSerializer<TableMetadata>
+    {
+        public void serialize(TableMetadata t, DataOutputPlus out, Version version) throws IOException
+        {
+            out.writeUTF(t.keyspace);
+            out.writeUTF(t.name);
+
+            out.writeBoolean(t.epoch != null);
+            if (t.epoch != null)
+                Epoch.serializer.serialize(t.epoch, out, version);
+
+            t.id.serialize(out);
+            out.writeUTF(t.partitioner.getClass().getCanonicalName());
+            out.writeUTF(t.kind.name());
+            TableParams.serializer.serialize(t.params, out, version);
+
+            out.writeInt(t.flags.size());
+            for (Flag f : t.flags)
+                out.writeUTF(f.name());
+
+            out.writeInt(t.columns().size());
+            for (ColumnMetadata cm : t.columns())
+                ColumnMetadata.serializer.serialize(cm, out, version);
+
+            out.writeInt(t.droppedColumns.size());
+            for (Entry<ByteBuffer, DroppedColumn> e: t.droppedColumns.entrySet())
+            {
+                ByteBufferUtil.writeWithShortLength(e.getKey(), out);
+                DroppedColumn.serializer.serialize(e.getValue(), out, version);
+            }
+
+            Indexes.serializer.serialize(t.indexes, out, version);
+            Triggers.serializer.serialize(t.triggers, out, version);
+        }
+
+        public TableMetadata deserialize(DataInputPlus in, Types types, UserFunctions functions, Version version) throws IOException
+        {
+            String ks = in.readUTF();
+            String name = in.readUTF();
+
+            boolean hasEpoch = in.readBoolean();
+            Epoch epoch = null;
+            if (hasEpoch)
+                epoch = Epoch.serializer.deserialize(in, version);
+
+            TableId tableId = TableId.deserialize(in);
+            TableMetadata.Builder builder = TableMetadata.builder(ks, name, tableId);
+            builder.epoch(epoch);
+            builder.partitioner(FBUtilities.newPartitioner(in.readUTF()));
+            builder.kind(Kind.valueOf(in.readUTF()));
+            builder.params(TableParams.serializer.deserialize(in, version));
+            int flagCount = in.readInt();
+            Set<Flag> flags = new HashSet<>();
+            for (int i = 0; i < flagCount; i++)
+                flags.add(Flag.valueOf(in.readUTF()));
+            builder.flags(flags);
+            int columnCount = in.readInt();
+            for (int i = 0; i < columnCount; i++)
+                builder.addColumn(ColumnMetadata.serializer.deserialize(in, types, functions, version));
+            int droppedColCount = in.readInt();
+            Map<ByteBuffer, DroppedColumn> droppedColumns = new HashMap<>();
+            for (int i = 0; i < droppedColCount; i++)
+                droppedColumns.put(ByteBufferUtil.readWithShortLength(in), DroppedColumn.serializer.deserialize(in, types, functions, version));
+            builder.droppedColumns(droppedColumns);
+            builder.indexes(Indexes.serializer.deserialize(in, version));
+            builder.triggers(Triggers.serializer.deserialize(in, version));
+            return builder.build();
+        }
+
+        public long serializedSize(TableMetadata t, Version version)
+        {
+            long size = sizeof(t.keyspace) +
+                        sizeof(t.name) +
+                        t.id.serializedSize() +
+                        sizeof(t.partitioner.getClass().getCanonicalName()) +
+                        sizeof(t.kind.name()) +
+                        TableParams.serializer.serializedSize(t.params, version);
+
+            size += sizeof(t.epoch != null);
+            if (t.epoch != null)
+                size += Epoch.serializer.serializedSize(t.epoch, version);
+
+            size += sizeof(t.flags.size());
+            for (Flag f : t.flags)
+                size += sizeof(f.name());
+
+            size += sizeof(t.columns.size());
+            for (ColumnMetadata cm : t.columns())
+                size += ColumnMetadata.serializer.serializedSize(cm, version);
+
+            size += sizeof(t.droppedColumns.size());
+            for (Entry<ByteBuffer, DroppedColumn> e : t.droppedColumns.entrySet())
+            {
+                size += ByteBufferUtil.serializedSizeWithShortLength(e.getKey());
+                size += DroppedColumn.serializer.serializedSize(e.getValue(), version);
+            }
+
+            size += Indexes.serializer.serializedSize(t.indexes, version);
+            size += Triggers.serializer.serializedSize(t.triggers, version);
+
+            return size;
+
+        }
+    }
 }

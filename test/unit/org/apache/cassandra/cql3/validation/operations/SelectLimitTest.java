@@ -23,11 +23,11 @@ package org.apache.cassandra.cql3.validation.operations;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.ServerTestUtils;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.service.StorageService;
+
+import static org.apache.cassandra.ServerTestUtils.daemonInitialization;
 
 public class SelectLimitTest extends CQLTester
 {
@@ -35,11 +35,8 @@ public class SelectLimitTest extends CQLTester
     @BeforeClass
     public static void setUpClass()
     {
-        ServerTestUtils.daemonInitialization();
-
+        daemonInitialization();
         StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
-        DatabaseDescriptor.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
-
         prepareServer();
     }
 

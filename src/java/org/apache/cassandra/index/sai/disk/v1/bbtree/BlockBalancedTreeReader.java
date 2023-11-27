@@ -29,8 +29,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.exceptions.QueryCancelledException;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.io.IndexFileUtils;
 import org.apache.cassandra.index.sai.disk.io.SeekingRandomAccessInput;
 import org.apache.cassandra.index.sai.disk.v1.postings.FilteringPostingList;
@@ -61,21 +61,21 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
 
     private static final Comparator<PeekablePostingList> COMPARATOR = Comparator.comparingLong(PeekablePostingList::peek);
 
-    private final IndexContext indexContext;
+    private final IndexIdentifier indexIdentifier;
     private final FileHandle postingsFile;
     private final BlockBalancedTreePostingsIndex postingsIndex;
     private final int leafOrderMapBitsRequired;
     /**
      * Performs a blocking read.
      */
-    public BlockBalancedTreeReader(IndexContext indexContext,
+    public BlockBalancedTreeReader(IndexIdentifier indexIdentifier,
                                    FileHandle treeIndexFile,
                                    long treeIndexRoot,
                                    FileHandle postingsFile,
                                    long treePostingsRoot) throws IOException
     {
         super(treeIndexFile, treeIndexRoot);
-        this.indexContext = indexContext;
+        this.indexIdentifier = indexIdentifier;
         this.postingsFile = postingsFile;
         this.postingsIndex = new BlockBalancedTreePostingsIndex(postingsFile, treePostingsRoot);
         leafOrderMapBitsRequired = DirectWriter.unsignedBitsRequired(maxValuesInLeafNode - 1);
@@ -161,7 +161,7 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
             catch (Throwable t)
             {
                 if (!(t instanceof QueryCancelledException))
-                    logger.error(indexContext.logMessage("Balanced tree intersection failed on {}"), treeIndexFile.path(), t);
+                    logger.error(indexIdentifier.logMessage("Balanced tree intersection failed on {}"), treeIndexFile.path(), t);
 
                 closeOnException();
                 throw Throwables.cleaned(t);
@@ -196,7 +196,7 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
             else
             {
                 if (logger.isTraceEnabled())
-                    logger.trace(indexContext.logMessage("[{}] Intersection completed in {} microseconds. {} leaf and internal posting lists hit."),
+                    logger.trace(indexIdentifier.logMessage("[{}] Intersection completed in {} microseconds. {} leaf and internal posting lists hit."),
                                  treeIndexFile.path(), elapsedMicros, postingLists.size());
                 return MergePostingList.merge(postingLists, () -> FileUtils.close(postingsInput, postingsSummaryInput));
             }
@@ -215,7 +215,7 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
             }
 
             if (state.atLeafNode())
-                throw new CorruptIndexException(indexContext.logMessage(String.format("Leaf node %s does not have balanced tree postings.", state.nodeID)), "");
+                throw new CorruptIndexException(indexIdentifier.logMessage(String.format("Leaf node %s does not have balanced tree postings.", state.nodeID)), "");
 
             // Recurse on left subtree:
             state.pushLeft();

@@ -32,6 +32,8 @@ import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.SharedContext;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.StubClusterMetadataService;
 import org.apache.cassandra.utils.Backoff;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
@@ -60,7 +62,9 @@ public class RepairMessageTest
 
     static
     {
-        DatabaseDescriptor.clientInitialization();
+        DatabaseDescriptor.daemonInitialization();
+        ClusterMetadataService.unsetInstance();
+        ClusterMetadataService.setInstance(StubClusterMetadataService.forTesting());
         RepairMetrics.init();
     }
 

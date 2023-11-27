@@ -34,6 +34,7 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -60,6 +61,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
+import com.google.common.base.Preconditions;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -544,11 +546,34 @@ public class FBUtilities
         }
         catch (ExecutionException ee)
         {
+            logger.info("Exception occurred in async code", ee);
             throw Throwables.cleaned(ee);
         }
         catch (InterruptedException ie)
         {
             throw new UncheckedInterruptedException(ie);
+        }
+    }
+
+    public static <T> T waitOnFuture(Future<T> future, Duration timeout)
+    {
+        Preconditions.checkArgument(!timeout.isNegative(), "Timeout must not be negative, provided %s", timeout);
+        try
+        {
+            return future.get(timeout.toNanos(), TimeUnit.NANOSECONDS);
+        }
+        catch (ExecutionException ee)
+        {
+            logger.info("Exception occurred in async code", ee);
+            throw Throwables.cleaned(ee);
+        }
+        catch (InterruptedException ie)
+        {
+            throw new AssertionError(ie);
+        }
+        catch (TimeoutException e)
+        {
+            throw new RuntimeException("Timeout - task did not finish in " + timeout);
         }
     }
 
@@ -1068,9 +1093,9 @@ public class FBUtilities
                         sb.append(str).append(lineSep);
                     while ((str = err.readLine()) != null)
                         sb.append(str).append(lineSep);
-                    throw new IOException("Exception while executing the command: "+ StringUtils.join(pb.command(), " ") +
+                    throw new IOException("Exception while executing the command: " + StringUtils.join(pb.command(), " ") +
                                           ", command error Code: " + errCode +
-                                          ", command output: "+ sb.toString());
+                                          ", command output: " + sb);
                 }
             }
         }

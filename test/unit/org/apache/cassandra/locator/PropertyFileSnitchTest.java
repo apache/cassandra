@@ -18,39 +18,34 @@
 package org.apache.cassandra.locator;
 
 import java.io.IOException;
-import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.Random;
 import java.util.regex.Matcher;
+import java.util.stream.Collectors;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.RandomPartitioner;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.VersionedValue;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
-
+import com.google.common.collect.ImmutableMap;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
-import static org.junit.Assert.*;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.StubClusterMetadataService;
+import org.apache.cassandra.tcm.membership.MembershipUtils;
+import org.apache.cassandra.utils.FBUtilities;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * Unit tests for {@link PropertyFileSnitch}.
@@ -59,9 +54,7 @@ public class PropertyFileSnitchTest
 {
     private Path effectiveFile;
     private Path backupFile;
-
-    private VersionedValue.VersionedValueFactory valueFactory;
-    private Map<InetAddressAndPort, Set<Token>> tokenMap;
+    private InetAddressAndPort localAddress;
 
     @BeforeClass
     public static void setupDD()
@@ -72,32 +65,73 @@ public class PropertyFileSnitchTest
     @Before
     public void setup() throws ConfigurationException, IOException
     {
-        GOSSIP_DISABLE_THREAD_VALIDATION.setBoolean(true);
+        ClusterMetadataService.unsetInstance();
+        ClusterMetadataService.setInstance(StubClusterMetadataService.forTesting());
         String confFile = FBUtilities.resourceToFile(PropertyFileSnitch.SNITCH_PROPERTIES_FILENAME);
         effectiveFile = Paths.get(confFile);
         backupFile = Paths.get(confFile + ".bak");
+        localAddress = FBUtilities.getBroadcastAddressAndPort();
 
         restoreOrigConfigFile();
+    }
 
-        InetAddressAndPort[] hosts = {
-        InetAddressAndPort.getByName("127.0.0.1"), // this exists in the config file
-        InetAddressAndPort.getByName("127.0.0.2"), // this exists in the config file
-        InetAddressAndPort.getByName("127.0.0.9"), // this does not exist in the config file
-        };
+    @Test
+    public void localLocationPresentInConfig() throws IOException
+    {
+        replaceConfigFile(Collections.singletonMap(localAddress.getHostAddressAndPort(), "DC1:RAC2"));
+        PropertyFileSnitch snitch = new PropertyFileSnitch();
+        assertEquals("DC1", snitch.getDatacenter(localAddress));
+        assertEquals("RAC2", snitch.getRack(localAddress));
+    }
 
-        IPartitioner partitioner = new RandomPartitioner();
-        valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
-        tokenMap = new HashMap<>();
+    @Test
+    public void localLocationNotPresentInConfig() throws IOException
+    {
+        replaceConfigFile(Collections.singletonMap("default", "DEFAULT_DC:DEFAULT_RACK"));
+        PropertyFileSnitch snitch = new PropertyFileSnitch();
+        assertEquals("DEFAULT_DC", snitch.getDatacenter(localAddress));
+        assertEquals("DEFAULT_RACK", snitch.getRack(localAddress));
+    }
 
-        for (InetAddressAndPort host : hosts)
+    @Test
+    public void localAndDefaultLocationNotPresentInConfig() throws IOException
+    {
+        replaceConfigFile(Collections.emptyMap());
+        try
         {
-            Set<Token> tokens = Collections.singleton(partitioner.getRandomToken());
-            Gossiper.instance.initializeNodeUnsafe(host, UUID.randomUUID(), 1);
-            Gossiper.instance.injectApplicationState(host, ApplicationState.TOKENS, valueFactory.tokens(tokens));
-
-            setNodeShutdown(host);
-            tokenMap.put(host, tokens);
+            PropertyFileSnitch snitch = new PropertyFileSnitch();
+            fail("Expected ConfigurationException");
         }
+        catch (ConfigurationException e)
+        {
+            String expectedMessage = String.format("Snitch definitions at %s do not define a location for this node's " +
+                                                   "broadcast address %s, nor does it provides a default",
+                                                   PropertyFileSnitch.SNITCH_PROPERTIES_FILENAME, localAddress);
+            assertTrue(e.getMessage().contains(expectedMessage));
+        }
+    }
+
+    @Test
+    public void configContainsRemoteConfig() throws IOException
+    {
+        // Locations of remote peers should not be accessible from this snitch unless
+        // they are present in ClusterMetadata
+        Random r = new Random(System.nanoTime());
+        InetAddressAndPort peer = MembershipUtils.randomEndpoint(r);
+        replaceConfigFile(ImmutableMap.of(localAddress.getHostAddressAndPort(), "DC1:RAC1",
+                                          peer.getHostAddressAndPort(), "OTHER_DC1:OTHER_RAC1"));
+        PropertyFileSnitch snitch = new PropertyFileSnitch();
+        assertEquals("DC1", snitch.getDatacenter(localAddress));
+        assertEquals("RAC1", snitch.getRack(localAddress));
+
+        assertEquals(PropertyFileSnitch.DEFAULT_DC, snitch.getDatacenter(peer));
+        assertEquals(PropertyFileSnitch.DEFAULT_RACK, snitch.getRack(peer));
+
+        // Register peer, causing ClusterMetadata to be updated. Note that the location
+        // here is not the one in the config file, that should still be irrelevant
+        ClusterMetadataTestHelper.register(peer, "OTHER_DC2", "OTHER_RAC2");
+        assertEquals("OTHER_DC2", snitch.getDatacenter(peer));
+        assertEquals("OTHER_RAC2", snitch.getRack(peer));
     }
 
     private void restoreOrigConfigFile() throws IOException
@@ -111,246 +145,16 @@ public class PropertyFileSnitchTest
 
     private void replaceConfigFile(Map<String, String> replacements) throws IOException
     {
-        List<String> lines = Files.readAllLines(effectiveFile, StandardCharsets.UTF_8);
-        List<String> newLines = new ArrayList<>(lines.size());
-        Set<String> replaced = new HashSet<>();
-
-        for (String line : lines)
-        {
-            String[] info = line.split("=");
-            if (info.length == 2 && !line.startsWith("#") && !line.startsWith("default="))
-            {
-                InetAddressAndPort address = InetAddressAndPort.getByName(info[0].replaceAll(Matcher.quoteReplacement("\\:"), ":"));
-                String replacement = replacements.get(address.getHostAddressAndPort());
-                if (replacement != null)
-                {
-                    if (!replacement.isEmpty()) // empty means remove this line
-                        newLines.add(info[0] + '=' + replacement);
-
-                    replaced.add(address.getHostAddressAndPort());
-                }
-                else
-                {
-                    newLines.add(line);
-                }
-            }
-            else
-            {
-                newLines.add(line);
-            }
-        }
-
-        // add any new lines that were not replaced
-        for (Map.Entry<String, String> replacement : replacements.entrySet())
-        {
-            if (replaced.contains(replacement.getKey()))
-                continue;
-
-            if (!replacement.getValue().isEmpty()) // empty means remove this line so do nothing here
-            {
-                String escaped = replacement.getKey().replaceAll(Matcher.quoteReplacement(":"), "\\\\:");
-                newLines.add(escaped + '=' + replacement.getValue());
-            }
-        }
-
+        List<String> newLines = replacements.entrySet()
+                                            .stream()
+                                            .map(e -> toLine(e.getKey(), e.getValue()))
+                                            .collect(Collectors.toList());
         Files.write(effectiveFile, newLines, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING);
     }
 
-    private void setNodeShutdown(InetAddressAndPort host)
+    private String toLine(String key, String value)
     {
-        StorageService.instance.getTokenMetadata().removeEndpoint(host);
-        Gossiper.instance.injectApplicationState(host, ApplicationState.STATUS_WITH_PORT, valueFactory.shutdown(true));
-        Gossiper.instance.injectApplicationState(host, ApplicationState.STATUS, valueFactory.shutdown(true));
-        Gossiper.instance.markDead(host, Gossiper.instance.getEndpointStateForEndpoint(host));
-    }
-
-    private void setNodeLive(InetAddressAndPort host)
-    {
-        Gossiper.instance.injectApplicationState(host, ApplicationState.STATUS_WITH_PORT, valueFactory.normal(tokenMap.get(host)));
-        Gossiper.instance.injectApplicationState(host, ApplicationState.STATUS, valueFactory.normal(tokenMap.get(host)));
-        Gossiper.instance.realMarkAlive(host, Gossiper.instance.getEndpointStateForEndpoint(host));
-        StorageService.instance.getTokenMetadata().updateNormalTokens(tokenMap.get(host), host);
-    }
-
-    private static void checkEndpoint(final AbstractNetworkTopologySnitch snitch,
-                                      final String endpointString, final String expectedDatacenter,
-                                      final String expectedRack) throws UnknownHostException
-    {
-        final InetAddressAndPort endpoint = InetAddressAndPort.getByName(endpointString);
-        assertEquals(expectedDatacenter, snitch.getDatacenter(endpoint));
-        assertEquals(expectedRack, snitch.getRack(endpoint));
-    }
-
-    /**
-     * Test that changing rack for a host in the configuration file is only effective if the host is not live.
-     * The original configuration file contains: 127.0.0.1=DC1:RAC1
-     */
-    @Test
-    public void testChangeHostRack() throws Exception
-    {
-        final InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.1");
-        final PropertyFileSnitch snitch = new PropertyFileSnitch(/*refreshPeriodInSeconds*/1);
-        checkEndpoint(snitch, host.getHostAddressAndPort(), "DC1", "RAC1");
-
-        try
-        {
-            setNodeLive(host);
-
-            Files.copy(effectiveFile, backupFile);
-            replaceConfigFile(Collections.singletonMap(host.getHostAddressAndPort(), "DC1:RAC2"));
-
-            Thread.sleep(1500);
-            checkEndpoint(snitch, host.getHostAddressAndPort(), "DC1", "RAC1");
-
-            setNodeShutdown(host);
-            replaceConfigFile(Collections.singletonMap(host.getHostAddressAndPort(), "DC1:RAC2"));
-
-            Thread.sleep(1500);
-            checkEndpoint(snitch, host.getHostAddressAndPort(), "DC1", "RAC2");
-        }
-        finally
-        {
-            restoreOrigConfigFile();
-            setNodeShutdown(host);
-        }
-    }
-
-    /**
-     * Test that changing dc for a host in the configuration file is only effective if the host is not live.
-     * The original configuration file contains: 127.0.0.1=DC1:RAC1
-     */
-    @Test
-    public void testChangeHostDc() throws Exception
-    {
-        final InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.1");
-        final PropertyFileSnitch snitch = new PropertyFileSnitch(/*refreshPeriodInSeconds*/1);
-        checkEndpoint(snitch, host.getHostAddressAndPort(), "DC1", "RAC1");
-
-        try
-        {
-            setNodeLive(host);
-
-            Files.copy(effectiveFile, backupFile);
-            replaceConfigFile(Collections.singletonMap(host.getHostAddressAndPort(), "DC2:RAC1"));
-
-            Thread.sleep(1500);
-            checkEndpoint(snitch, host.getHostAddressAndPort(), "DC1", "RAC1");
-
-            setNodeShutdown(host);
-            replaceConfigFile(Collections.singletonMap(host.getHostAddressAndPort(), "DC2:RAC1"));
-
-            Thread.sleep(1500);
-            checkEndpoint(snitch, host.getHostAddressAndPort(), "DC2", "RAC1");
-        }
-        finally
-        {
-            restoreOrigConfigFile();
-            setNodeShutdown(host);
-        }
-    }
-
-    /**
-     * Test that adding a host to the configuration file changes the host dc and rack only if the host
-     * is not live. The original configuration file does not contain 127.0.0.9 and so it should use
-     * the default default=DC1:r1.
-     */
-    @Test
-    public void testAddHost() throws Exception
-    {
-        final InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.9");
-        final PropertyFileSnitch snitch = new PropertyFileSnitch(/*refreshPeriodInSeconds*/1);
-        checkEndpoint(snitch, host.getHostAddressAndPort(), "DC1", "r1"); // default
-
-        try
-        {
-            setNodeLive(host);
-
-            Files.copy(effectiveFile, backupFile);
-            replaceConfigFile(Collections.singletonMap(host.getHostAddressAndPort(), "DC2:RAC2")); // add this line if not yet there
-
-            Thread.sleep(1500);
-            checkEndpoint(snitch, host.getHostAddressAndPort(), "DC1", "r1"); // unchanged
-
-            setNodeShutdown(host);
-            replaceConfigFile(Collections.singletonMap(host.getHostAddressAndPort(), "DC2:RAC2")); // add this line if not yet there
-
-            Thread.sleep(1500);
-            checkEndpoint(snitch, host.getHostAddressAndPort(), "DC2", "RAC2"); // changed
-        }
-        finally
-        {
-            restoreOrigConfigFile();
-            setNodeShutdown(host);
-        }
-    }
-
-    /**
-     * Test that removing a host from the configuration file changes the host rack only if the host
-     * is not live. The original configuration file contains 127.0.0.2=DC1:RAC2 and default=DC1:r1 so removing
-     * this host should result in a different rack if the host is not live.
-     */
-    @Test
-    public void testRemoveHost() throws Exception
-    {
-        final InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.2");
-        final PropertyFileSnitch snitch = new PropertyFileSnitch(/*refreshPeriodInSeconds*/1);
-        checkEndpoint(snitch, host.getHostAddressAndPort(), "DC1", "RAC2");
-
-        try
-        {
-            setNodeLive(host);
-
-            Files.copy(effectiveFile, backupFile);
-            replaceConfigFile(Collections.singletonMap(host.getHostAddressAndPort(), "")); // removes line if found
-
-            Thread.sleep(1500);
-            checkEndpoint(snitch, host.getHostAddressAndPort(), "DC1", "RAC2"); // unchanged
-
-            setNodeShutdown(host);
-            replaceConfigFile(Collections.singletonMap(host.getHostAddressAndPort(), "")); // removes line if found
-
-            Thread.sleep(1500);
-            checkEndpoint(snitch, host.getHostAddressAndPort(), "DC1", "r1"); // default
-        }
-        finally
-        {
-            restoreOrigConfigFile();
-            setNodeShutdown(host);
-        }
-    }
-
-    /**
-     * Test that we can change the default only if this does not result in any live node changing dc or rack.
-     * The configuration file contains default=DC1:r1 and we change it to default=DC2:r2. Let's use host 127.0.0.9
-     * since it is not in the configuration file.
-     */
-    @Test
-    public void testChangeDefault() throws Exception
-    {
-        final InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.9");
-        final PropertyFileSnitch snitch = new PropertyFileSnitch(/*refreshPeriodInSeconds*/1);
-        checkEndpoint(snitch, host.getHostAddressAndPort(), "DC1", "r1"); // default
-
-        try
-        {
-            setNodeLive(host);
-
-            Files.copy(effectiveFile, backupFile);
-            replaceConfigFile(Collections.singletonMap("default", "DC2:r2")); // change default
-
-            Thread.sleep(1500);
-            checkEndpoint(snitch, host.getHostAddressAndPort(), "DC1", "r1"); // unchanged
-
-            setNodeShutdown(host);
-            replaceConfigFile(Collections.singletonMap("default", "DC2:r2")); // change default again (refresh file update)
-
-            Thread.sleep(1500);
-            checkEndpoint(snitch, host.getHostAddressAndPort(), "DC2", "r2"); // default updated
-        }
-        finally
-        {
-            restoreOrigConfigFile();
-            setNodeShutdown(host);
-        }
+        // make a suitably escaped key=value string to write to a properties file
+        return key.replaceAll(Matcher.quoteReplacement(":"), "\\\\:") + '=' + value;
     }
 }

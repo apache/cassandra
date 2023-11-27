@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.gms;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
@@ -36,29 +37,27 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SeedProvider;
-import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.StubClusterMetadataService;
 import org.apache.cassandra.utils.CassandraGenerators;
-import org.apache.cassandra.utils.CassandraVersion;
-import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
 import org.quicktheories.core.Gen;
 import org.quicktheories.impl.Constraint;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -66,30 +65,29 @@ import static org.quicktheories.QuickTheory.qt;
 
 public class GossiperTest
 {
-    static
-    {
-        GOSSIP_DISABLE_THREAD_VALIDATION.setBoolean(true);
-        DatabaseDescriptor.daemonInitialization();
-        CommitLog.instance.start();
-    }
-
-    private static final CassandraVersion CURRENT_VERSION = new CassandraVersion(FBUtilities.getReleaseVersionString());
-
-    static final IPartitioner partitioner = new RandomPartitioner();
-    StorageService ss = StorageService.instance;
-    TokenMetadata tmd = StorageService.instance.getTokenMetadata();
     ArrayList<Token> endpointTokens = new ArrayList<>();
-    ArrayList<Token> keyTokens = new ArrayList<>();
     List<InetAddressAndPort> hosts = new ArrayList<>();
     List<UUID> hostIds = new ArrayList<>();
-
     private SeedProvider originalSeedProvider;
+    private IPartitioner partitioner;
+
+    @BeforeClass
+    public static void init() throws IOException
+    {
+        DatabaseDescriptor.daemonInitialization();
+        DatabaseDescriptor.setPartitionerUnsafe(RandomPartitioner.instance);
+        ServerTestUtils.cleanupAndLeaveDirs();
+        GOSSIP_DISABLE_THREAD_VALIDATION.setBoolean(true);
+        CommitLog.instance.start();
+    }
 
     @Before
     public void setup()
     {
-        tmd.clearUnsafe();
+        ClusterMetadataService.unsetInstance();
+        ClusterMetadataService.setInstance(StubClusterMetadataService.forTesting());
         originalSeedProvider = DatabaseDescriptor.getSeedProvider();
+        partitioner = DatabaseDescriptor.getPartitioner();
     }
 
     @After
@@ -121,50 +119,9 @@ public class GossiperTest
     }
 
     @Test
-    public void testHasVersion3Nodes() throws Exception
-    {
-        Gossiper.instance.start(0);
-        Gossiper.instance.expireUpgradeFromVersion();
-
-        VersionedValue.VersionedValueFactory factory = new VersionedValue.VersionedValueFactory(null);
-        EndpointState es = new EndpointState((HeartBeatState) null);
-        es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion(CURRENT_VERSION.toString()));
-        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.1"), es);
-        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.1"));
-
-
-        es = new EndpointState((HeartBeatState) null);
-        es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion("3.11.3"));
-        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.2"), es);
-        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.2"));
-
-        es = new EndpointState((HeartBeatState) null);
-        es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion("3.0.0"));
-        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.3"), es);
-        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.3"));
-
-        assertFalse(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.0")) < 0);
-        assertTrue(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.1")) < 0);
-        assertTrue(Gossiper.instance.hasMajorVersion3Nodes());
-
-        Gossiper.instance.endpointStateMap.remove(InetAddressAndPort.getByName("127.0.0.3"));
-        Gossiper.instance.liveEndpoints.remove(InetAddressAndPort.getByName("127.0.0.3"));
-
-        assertFalse(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.0")) < 0);
-        assertFalse(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.1")) < 0);
-        assertTrue(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.12")) < 0);
-        assertTrue(Gossiper.instance.hasMajorVersion3Nodes());
-
-        Gossiper.instance.endpointStateMap.remove(InetAddressAndPort.getByName("127.0.0.2"));
-        Gossiper.instance.liveEndpoints.remove(InetAddressAndPort.getByName("127.0.0.2"));
-
-        assertEquals(SystemKeyspace.CURRENT_VERSION, Gossiper.instance.upgradeFromVersionSupplier.get().value());
-    }
-
-    @Test
     public void testLargeGenerationJump() throws UnknownHostException, InterruptedException
     {
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
+        Util.initGossipTokens(partitioner, endpointTokens, hosts, hostIds, 2);
         try
         {
             InetAddressAndPort remoteHostAddress = hosts.get(1);
@@ -172,7 +129,7 @@ public class GossiperTest
             EndpointState initialRemoteState = Gossiper.instance.getEndpointStateForEndpoint(remoteHostAddress);
             HeartBeatState initialRemoteHeartBeat = initialRemoteState.getHeartBeatState();
 
-            //Util.createInitialRing should have initialized remoteHost's HeartBeatState's generation to 1
+            //Util.initGossipTokens should have initialized remoteHost's HeartBeatState's generation to 1
             assertEquals(initialRemoteHeartBeat.getGeneration(), 1);
 
             HeartBeatState proposedRemoteHeartBeat = new HeartBeatState(initialRemoteHeartBeat.getGeneration() + Gossiper.MAX_GENERATION_DIFFERENCE + 1);
@@ -211,7 +168,7 @@ public class GossiperTest
             new VersionedValue.VersionedValueFactory(DatabaseDescriptor.getPartitioner());
 
         SimpleStateChangeListener stateChangeListener = null;
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
+        Util.initGossipTokens(partitioner, endpointTokens, hosts, hostIds, 2);
         try
         {
             InetAddressAndPort remoteHostAddress = hosts.get(1);
@@ -219,7 +176,7 @@ public class GossiperTest
             EndpointState initialRemoteState = Gossiper.instance.getEndpointStateForEndpoint(remoteHostAddress);
             HeartBeatState initialRemoteHeartBeat = initialRemoteState.getHeartBeatState();
 
-            //Util.createInitialRing should have initialized remoteHost's HeartBeatState's generation to 1
+            //Util.initGossipTokens should have initialized remoteHost's HeartBeatState's generation to 1
             assertEquals(initialRemoteHeartBeat.getGeneration(), 1);
 
             HeartBeatState proposedRemoteHeartBeat = new HeartBeatState(initialRemoteHeartBeat.getGeneration());
@@ -253,6 +210,8 @@ public class GossiperTest
 
             // The following state change should only update heartbeat without updating the TOKENS state
             Gossiper.instance.applyStateLocally(ImmutableMap.of(remoteHostAddress, proposedRemoteState));
+            // TOKENS are maintained in ClusterMetadata. Although present in ApplicationState for backwards
+            // compatibility, they don't trigger state changes any more.
             assertEquals(1, stateChangedNum);
 
             actualRemoteHeartBeat = Gossiper.instance.getEndpointStateForEndpoint(remoteHostAddress).getHeartBeatState();
@@ -369,14 +328,14 @@ public class GossiperTest
         VersionedValue.VersionedValueFactory valueFactory =
             new VersionedValue.VersionedValueFactory(DatabaseDescriptor.getPartitioner());
 
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
+        Util.initGossipTokens(partitioner, endpointTokens, hosts, hostIds, 2);
         SimpleStateChangeListener stateChangeListener = null;
         try
         {
             InetAddressAndPort remoteHostAddress = hosts.get(1);
             EndpointState initialRemoteState = Gossiper.instance.getEndpointStateForEndpoint(remoteHostAddress);
             HeartBeatState initialRemoteHeartBeat = initialRemoteState.getHeartBeatState();
-            //Util.createInitialRing should have initialized remoteHost's HeartBeatState's generation to 1
+            //Util.initGossipTokens should have initialized remoteHost's HeartBeatState's generation to 1
             assertEquals(initialRemoteHeartBeat.getGeneration(), 1);
 
             // Test begins
@@ -415,6 +374,7 @@ public class GossiperTest
                 notificationCount.getAndIncrement();
                 fail("It should not fire notification for STATUS");
             });
+            Gossiper.instance.applyStateLocally(ImmutableMap.of(remoteHostAddress, proposedRemoteState));
 
             assertEquals("Expect exact 2 notifications with the test setup",
                          2, notificationCount.get());

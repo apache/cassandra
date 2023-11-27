@@ -21,6 +21,8 @@ package org.apache.cassandra.locator;
 import java.io.IOException;
 import java.util.*;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -28,12 +30,30 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.StubClusterMetadataService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 public class DynamicEndpointSnitchTest
 {
+    private double oldBadness;
+
+    @Before
+    public void before()
+    {
+        oldBadness = DatabaseDescriptor.getDynamicBadnessThreshold();
+        DatabaseDescriptor.setDynamicBadnessThreshold(0.1);
+        ClusterMetadataService.unsetInstance();
+        ClusterMetadataService.setInstance(StubClusterMetadataService.forTesting());
+    }
+
+    @After
+    public void after()
+    {
+        DatabaseDescriptor.setDynamicBadnessThreshold(oldBadness);
+    }
 
     @BeforeClass
     public static void setupDD()

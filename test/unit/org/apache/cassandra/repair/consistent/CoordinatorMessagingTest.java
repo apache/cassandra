@@ -32,6 +32,7 @@ import com.google.common.collect.Lists;
 
 import org.apache.cassandra.repair.CoordinatedRepairResult;
 import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.Promise;
@@ -57,7 +58,6 @@ import org.apache.cassandra.repair.messages.FinalizePropose;
 import org.apache.cassandra.repair.messages.PrepareConsistentRequest;
 import org.apache.cassandra.repair.messages.PrepareConsistentResponse;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 

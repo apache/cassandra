@@ -11,9 +11,8 @@ Use the `list` data type to store data that has a possible many-to-many relation
 
 * xref:developing/cql/keyspace-check.adoc[Keyspace] must exist
 
- In the following example, a `list` called `events` stores all the race events on an upcoming calendar.
- The table is called `upcoming_calendar`.
- Each event listed in the `list` will have a `text` data type.
+In the following example, a `list` called `events` stores all the race events on an upcoming calendar.
+The table is called `upcoming_calendar`. Each event listed in the `list` will have a `text` data type.
 Events can have several events occurring in a particular month and year, so duplicates can occur.
 The `list` can be ordered so that the races appear in the order that they will take place, rather than alphabetical order.
 

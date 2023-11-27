@@ -26,6 +26,8 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 
 import java.util.Set;
@@ -161,6 +163,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
         {
             this(replicationStrategy, natural, pending, null);
         }
+
         public ForTokenWrite(AbstractReplicationStrategy replicationStrategy, EndpointsForToken natural, EndpointsForToken pending, EndpointsForToken all)
         {
             super(replicationStrategy, natural, pending, all);
@@ -180,8 +183,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
                     replicationStrategy(),
                     natural().keep(filtered.endpoints()),
                     pending().keep(filtered.endpoints()),
-                    filtered
-            );
+                    filtered);
         }
     }
 
@@ -202,13 +204,40 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
      * only responsibility is to fetch the 'natural' and 'pending' replicas, then resolve any conflicts
      * {@link ReplicaLayout#haveWriteConflicts(Endpoints, Endpoints)}
      */
-    public static ReplicaLayout.ForTokenWrite forTokenWriteLiveAndDown(Keyspace keyspace, Token token)
+    public static ReplicaLayout.ForTokenWrite forTokenWriteLiveAndDown(Keyspace ks, Token token)
     {
-        // TODO: these should be cached, not the natural replicas
-        // TODO: race condition to fetch these. implications??
-        AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
-        EndpointsForToken natural = EndpointsForToken.natural(replicationStrategy, token);
-        EndpointsForToken pending = EndpointsForToken.pending(keyspace, token);
+        return forTokenWriteLiveAndDown(ks.getMetadata(), token);
+    }
+
+    public static ReplicaLayout.ForTokenWrite forTokenWriteLiveAndDown(KeyspaceMetadata ks, Token token)
+    {
+        ClusterMetadata metadata = ClusterMetadata.current();
+        return forTokenWriteLiveAndDown(metadata, ks, token);
+    }
+
+    // TODO: cleanup/remove Keyspace overloads
+    public static ReplicaLayout.ForTokenWrite forTokenWriteLiveAndDown(ClusterMetadata metadata, Keyspace ks, Token token)
+    {
+        return forTokenWriteLiveAndDown(metadata, ks.getMetadata(), token);
+    }
+
+    public static ReplicaLayout.ForTokenWrite forTokenWriteLiveAndDown(ClusterMetadata metadata, KeyspaceMetadata ks, Token token)
+    {
+        AbstractReplicationStrategy replicationStrategy = ks.replicationStrategy;
+        EndpointsForToken natural;
+        EndpointsForToken pending;
+        if (ks.params.replication.isLocal())
+        {
+            natural = forLocalStrategyToken(metadata, replicationStrategy, token);
+            pending = EndpointsForToken.empty(token);
+        }
+        else
+        {
+            // todo deduplicate so that "pending" contains "read - write",
+            // which is a hack until we revisit how consistency level handles pending
+            natural = forNonLocalStrategyTokenRead(metadata, ks, token);
+            pending = forNonLocalStrategyTokenWrite(metadata, ks, token).without(natural.endpoints());
+        }
         return forTokenWrite(replicationStrategy, natural, pending);
     }
 
@@ -326,9 +355,11 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
      * @return the read layout for a token - this includes only live natural replicas, i.e. those that are not pending
      * and not marked down by the failure detector. these are reverse sorted by the badness score of the configured snitch
      */
-    public static ReplicaLayout.ForTokenRead forTokenReadLiveSorted(AbstractReplicationStrategy replicationStrategy, Token token)
+    static ReplicaLayout.ForTokenRead forTokenReadLiveSorted(ClusterMetadata metadata, Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, Token token)
     {
-        EndpointsForToken replicas = replicationStrategy.getNaturalReplicasForToken(token);
+        EndpointsForToken replicas = keyspace.getMetadata().params.replication.isLocal()
+                                     ? forLocalStrategyToken(metadata, replicationStrategy, token)
+                                     : forNonLocalStrategyTokenRead(metadata, keyspace.getMetadata(), token);
         replicas = DatabaseDescriptor.getEndpointSnitch().sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), replicas);
         replicas = replicas.filter(FailureDetector.isReplicaAlive);
         return new ReplicaLayout.ForTokenRead(replicationStrategy, replicas);
@@ -339,11 +370,39 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
      * @return the read layout for a range - this includes only live natural replicas, i.e. those that are not pending
      * and not marked down by the failure detector. these are reverse sorted by the badness score of the configured snitch
      */
-    static ReplicaLayout.ForRangeRead forRangeReadLiveSorted(AbstractReplicationStrategy replicationStrategy, AbstractBounds<PartitionPosition> range)
+    static ReplicaLayout.ForRangeRead forRangeReadLiveSorted(ClusterMetadata metadata, Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, AbstractBounds<PartitionPosition> range)
     {
-        EndpointsForRange replicas = replicationStrategy.getNaturalReplicas(range.right);
+        EndpointsForRange replicas = keyspace.getMetadata().params.replication.isLocal()
+                                     ? forLocalStrategyRange(metadata, replicationStrategy, range)
+                                     : forNonLocalStategyRangeRead(metadata, keyspace.getMetadata(), range);
+
         replicas = DatabaseDescriptor.getEndpointSnitch().sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), replicas);
         replicas = replicas.filter(FailureDetector.isReplicaAlive);
         return new ReplicaLayout.ForRangeRead(replicationStrategy, range, replicas);
+    }
+
+    static EndpointsForRange forNonLocalStategyRangeRead(ClusterMetadata metadata, KeyspaceMetadata keyspace, AbstractBounds<PartitionPosition> range)
+    {
+        return metadata.placements.get(keyspace.params.replication).reads.forRange(range.right.getToken()).get();
+    }
+
+    static EndpointsForToken forNonLocalStrategyTokenRead(ClusterMetadata metadata, KeyspaceMetadata keyspace, Token token)
+    {
+        return metadata.placements.get(keyspace.params.replication).reads.forToken(token).get();
+    }
+
+    static EndpointsForToken forNonLocalStrategyTokenWrite(ClusterMetadata metadata, KeyspaceMetadata keyspace, Token token)
+    {
+        return metadata.placements.get(keyspace.params.replication).writes.forToken(token).get();
+    }
+
+    static EndpointsForRange forLocalStrategyRange(ClusterMetadata metadata, AbstractReplicationStrategy replicationStrategy, AbstractBounds<PartitionPosition> range)
+    {
+        return replicationStrategy.calculateNaturalReplicas(range.right.getToken(), metadata);
+    }
+
+    static EndpointsForToken forLocalStrategyToken(ClusterMetadata metadata, AbstractReplicationStrategy replicationStrategy, Token t)
+    {
+        return replicationStrategy.calculateNaturalReplicas(t, metadata).forToken(t);
     }
 }

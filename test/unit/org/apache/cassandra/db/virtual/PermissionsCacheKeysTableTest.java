@@ -51,13 +51,12 @@ public class PermissionsCacheKeysTableTest extends CQLTester
     private PermissionsCacheKeysTable table;
 
     @BeforeClass
-    public static void setUpClass()
+    public static void setUpAuth()
     {
         ServerTestUtils.daemonInitialization();
         // high value is used for convenient debugging
         DatabaseDescriptor.setPermissionsValidity(20_000);
 
-        CQLTester.setUpClass();
         CQLTester.requireAuthentication();
 
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();

@@ -34,6 +34,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.Clustering;
@@ -56,22 +57,22 @@ import org.apache.cassandra.dht.ExcludingBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.IncludingExcludingBounds;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
+import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeUtil;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.inject.InvokePointBuilder;
-import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.MEMTABLE_SHARD_COUNT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -85,7 +86,7 @@ public class VectorMemoryIndexTest extends SAITester
                                                                            .build();
 
     private ColumnFamilyStore cfs;
-    private IndexContext indexContext;
+    private StorageAttachedIndex index;
     private VectorMemoryIndex memtableIndex;
     private IPartitioner partitioner;
     private Map<DecoratedKey, Integer> keyMap;
@@ -93,25 +94,26 @@ public class VectorMemoryIndexTest extends SAITester
     private int dimensionCount;
 
     @BeforeClass
-    public static void setShardCount()
+    public static void setUpClass()
     {
+        // Because this test wants to explicitly set tokens for the local node, we override SAITester::setUpClass, as
+        // that calls CQLTester::setUpClass, which is opinionated about the locally owned tokens.
         MEMTABLE_SHARD_COUNT.setInt(8);
+        ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
+        ServerTestUtils.prepareServerNoRegister();
+        ServerTestUtils.registerLocal(BootStrapper.getRandomTokens(ClusterMetadata.current(), 10));
+        ServerTestUtils.markCMS();
+        // Ensure that the on-disk format statics are loaded before the test run
+        Version.LATEST.onDiskFormat();
     }
 
     @Before
     public void setup() throws Throwable
     {
-        TokenMetadata metadata = StorageService.instance.getTokenMetadata();
-        metadata.updateNormalTokens(BootStrapper.getRandomTokens(metadata, 10), FBUtilities.getBroadcastAddressAndPort());
-
-        TableMetadata tableMetadata = TableMetadata.builder("ks", "tb")
-                                                   .addPartitionKeyColumn("pk", Int32Type.instance)
-                                                   .addRegularColumn("val", Int32Type.instance)
-                                                   .build();
-        cfs = MockSchema.newCFS(tableMetadata);
-        partitioner = cfs.getPartitioner();
         dimensionCount = getRandom().nextIntBetween(2, 2048);
-        indexContext = SAITester.createIndexContext("index", VectorType.getInstance(FloatType.instance, dimensionCount));
+        index = SAITester.createMockIndex("index", VectorType.getInstance(FloatType.instance, dimensionCount));
+        cfs = index.baseCfs();
+        partitioner = cfs.getPartitioner();
         indexSearchCounter.reset();
         keyMap = new TreeMap<>();
         rowMap = new HashMap<>();
@@ -119,10 +121,14 @@ public class VectorMemoryIndexTest extends SAITester
         Injections.inject(indexSearchCounter);
     }
 
+    public static void reassignLocalTokens()
+    {
+    }
+
     @Test
     public void randomQueryTest() throws Exception
     {
-        memtableIndex = new VectorMemoryIndex(indexContext);
+        memtableIndex = new VectorMemoryIndex(index);
 
         for (int row = 0; row < getRandom().nextIntBetween(1000, 5000); row++)
         {
@@ -186,7 +192,7 @@ public class VectorMemoryIndexTest extends SAITester
 
     private Expression generateRandomExpression()
     {
-        Expression expression = new Expression(indexContext);
+        Expression expression = Expression.create(index);
         expression.add(Operator.ANN, randomVector());
         return expression;
     }
