@@ -361,20 +361,21 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
             for (PrimaryKey primaryKey : keysInRange)
             {
                 long sstableRowId = primaryKeyMap.exactRowIdForPrimaryKey(primaryKey);
-                // skip rows that are not in our segment (or more preciesely, have no vectors that were indexed)
-                // or are not in this segment (exactRowIdForPrimaryKey returns a negative value for not found)
-                if (sstableRowId < metadata.minSSTableRowId)
+                if (sstableRowId < 0)
                     continue;
 
-                // if sstable row id has exceeded current ANN segment, stop
-                if (sstableRowId > metadata.maxSSTableRowId)
-                    break;
+                // these should still be true based on our computation of keysInRange
+                assert sstableRowId >= metadata.minSSTableRowId : String.format("sstableRowId %d < minSSTableRowId %d", sstableRowId, metadata.minSSTableRowId);
+                assert sstableRowId <= metadata.maxSSTableRowId : String.format("sstableRowId %d > maxSSTableRowId %d", sstableRowId, metadata.maxSSTableRowId);
 
+                // add it to the list of rows to search if it has a vector associated with it
                 int segmentRowId = metadata.toSegmentRowId(sstableRowId);
-                rowIds.add(segmentRowId);
                 int ordinal = ordinalsView.getOrdinalForRowId(segmentRowId);
                 if (ordinal >= 0)
+                {
+                    rowIds.add(segmentRowId);
                     bits.set(ordinal);
+                }
             }
         }
 
