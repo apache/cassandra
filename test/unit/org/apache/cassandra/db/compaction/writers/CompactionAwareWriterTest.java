@@ -24,6 +24,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
@@ -37,6 +38,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -66,6 +69,9 @@ public class CompactionAwareWriterTest extends CQLTester
     @BeforeClass
     public static void setUpClass()
     {
+        DatabaseDescriptor.daemonInitialization();
+        // we assert that we create a single sstable in populate(..) below - always use STCS
+        DatabaseDescriptor.getRawConfig().default_compaction = new ParameterizedClass("SizeTieredCompactionStrategy", new HashMap<>());
         // Don't register/join the local node so that DiskBoundaries are empty (testMultiDatadirCheck depends on this)
         ServerTestUtils.prepareServerNoRegister();
         // Disabling durable write since we don't care
