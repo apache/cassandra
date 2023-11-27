@@ -25,7 +25,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -53,12 +52,6 @@ import static org.apache.cassandra.db.lifecycle.Helpers.select;
 public class LifecycleTransactionTest extends AbstractTransactionalTest
 {
     private boolean incrementalBackups;
-
-    @BeforeClass
-    public static void setUp()
-    {
-        MockSchema.cleanup();
-    }
 
     @Before
     public void disableIncrementalBackup()
