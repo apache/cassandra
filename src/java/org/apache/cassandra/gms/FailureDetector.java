@@ -306,7 +306,15 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         // it's worth being defensive here so minor bugs don't cause disproportionate
         // badness.  (See CASSANDRA-1463 for an example).
         if (epState == null)
-            logger.error("Unknown endpoint: " + ep, new IllegalArgumentException("Unknown endpoint: " + ep));
+        {
+            // An endpoint may be known by other means, for example it may be present in cluster metadata as a CMS
+            // member but we have not yet seen anything which causes it to be added to the endpoint state map (i.e. its
+            // registration via the metadata log, or a full gossip round). This is perfectly harmless, so no need to log
+            // an error in that case.
+            ClusterMetadata metadata = ClusterMetadata.current();
+            if (!metadata.directory.allJoinedEndpoints().contains(ep) && !metadata.fullCMSMembers().contains(ep))
+                logger.error("Unknown endpoint: " + ep, new IllegalArgumentException("Unknown endpoint: " + ep));
+        }
         return epState != null && epState.isAlive();
     }
 
