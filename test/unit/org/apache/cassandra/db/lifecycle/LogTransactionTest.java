@@ -37,7 +37,6 @@ import java.util.stream.Stream;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
@@ -80,12 +79,6 @@ import static org.junit.Assert.fail;
 public class LogTransactionTest extends AbstractTransactionalTest
 {
     private static final String KEYSPACE = "TransactionLogsTest";
-
-    @BeforeClass
-    public static void setUp()
-    {
-        MockSchema.cleanup();
-    }
 
     protected AbstractTransactionalTest.TestableTransaction newTest() throws Exception
     {

@@ -51,7 +51,6 @@ public class HelpersTest
     {
         ServerTestUtils.prepareServerNoRegister();
         CommitLog.instance.start();
-        MockSchema.cleanup();
     }
 
     static Set<Integer> a = set(1, 2, 3);

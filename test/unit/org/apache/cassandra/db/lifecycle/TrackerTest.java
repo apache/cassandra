@@ -89,7 +89,6 @@ public class TrackerTest
     {
         ServerTestUtils.prepareServerNoRegister();
         CommitLog.instance.start();
-        MockSchema.cleanup();
     }
 
     @Test

@@ -55,7 +55,6 @@ public class ViewTest
     {
         ServerTestUtils.prepareServerNoRegister();
         CommitLog.instance.start();
-        MockSchema.cleanup();
     }
 
     @Test

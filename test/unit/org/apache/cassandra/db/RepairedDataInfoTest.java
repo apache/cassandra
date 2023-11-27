@@ -69,7 +69,6 @@ public class RepairedDataInfoTest
     {
         ServerTestUtils.prepareServerNoRegister();
         CommitLog.instance.start();
-        MockSchema.cleanup();
         String ks = "repaired_data_info_test";
         cfs = MockSchema.newCFS(ks, metadata -> metadata.addStaticColumn("s", UTF8Type.instance));
         metadata = cfs.metadata();
