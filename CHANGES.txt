@@ -1,4 +1,5 @@
 5.0-beta1
+ * SAI indexes are marked queryable during truncation (CASSANDRA-19032)
  * Enable Direct-IO feature for CommitLog files using Java native API's. (CASSANDRA-18464)
  * SAI fixes for composite partitions, and static and non-static rows intersections (CASSANDRA-19034)
  * Improve SAI IndexContext handling of indexed and non-indexed columns in queries (CASSANDRA-18166)
