@@ -349,20 +349,15 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
             return new ListRangeIterator(metadata.minKey, metadata.maxKey, keysInRange);
 
         int topK = topKFor(limit);
-        var maxBruteForceRows = min(globalBruteForceRows, maxBruteForceRows(topK, numRows));
         try (PrimaryKeyMap primaryKeyMap = primaryKeyMapFactory.newPerSSTablePrimaryKeyMap())
         {
             var maxSegmentRowId = metadata.toSegmentRowId(metadata.maxSSTableRowId);
 
             // if we are brute forcing, we want to build a list of segment row ids, but if not,
-            // we want to build a bitset of ordinals corresponding to the rows
-            SparseFixedBitSet bits = null;
-            IntArrayList rowIds = null;
-            if (numRows <= maxBruteForceRows)
-                rowIds = new IntArrayList();
-            else
-                bits = bitSetForSearch();
-
+            // we want to build a bitset of ordinals corresponding to the rows.  We won't know which
+            // path to take until we have an accurate key count.
+            SparseFixedBitSet bits = bitSetForSearch();
+            IntArrayList rowIds = new IntArrayList();
             try (var ordinalsView = graph.getOrdinalsView())
             {
                 for (PrimaryKey primaryKey : keysInRange)
@@ -378,29 +373,24 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
                         break;
 
                     int segmentRowId = metadata.toSegmentRowId(sstableRowId);
-                    if (numRows <= maxBruteForceRows)
-                    {
-                        rowIds.add(segmentRowId);
-                    }
-                    else
-                    {
-                        int ordinal = ordinalsView.getOrdinalForRowId(segmentRowId);
-                        if (ordinal >= 0)
-                            bits.set(ordinal);
-                    }
+                    rowIds.add(segmentRowId);
+                    int ordinal = ordinalsView.getOrdinalForRowId(segmentRowId);
+                    if (ordinal >= 0)
+                        bits.set(ordinal);
                 }
             }
 
-            numRows = rowIds == null ? bits.cardinality() : rowIds.size();
+            numRows = rowIds.size();
+            var maxBruteForceRows = min(globalBruteForceRows, maxBruteForceRows(topK, numRows));
             logAndTrace("{} rows relevant to current sstable; max brute force rows is {} for index with {} nodes, LIMIT {}",
                         numRows, maxBruteForceRows, graph.size(), limit);
             if (numRows == 0) {
                 return RangeIterator.empty();
             }
 
-            if (rowIds != null)
+            if (numRows <= maxBruteForceRows)
             {
-                // brute force in-memory
+                // brute force using the in-memory compressed vectors to cut down the number of results returned
                 var queryVector = exp.lower.value.vector;
                 var postings = findTopApproximatePostings(queryVector, rowIds, topK);
                 return toPrimaryKeyIterator(new ArrayPostingList(postings), context);
