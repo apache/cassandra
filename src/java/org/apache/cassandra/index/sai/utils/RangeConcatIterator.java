@@ -44,28 +44,43 @@ public class RangeConcatIterator extends RangeIterator
     {
         super(statistics);
 
+        if (ranges.isEmpty())
+            throw new IllegalArgumentException("Cannot concatenate empty list of ranges");
         this.ranges = ranges.iterator();
+        currentRange = this.ranges.next();
         this.toRelease = ranges;
     }
 
     @Override
-    @SuppressWarnings("resource")
     protected void performSkipTo(PrimaryKey primaryKey)
     {
-        if (currentRange != null && currentRange.getMaximum().compareTo(primaryKey) >= 0)
+        while (true)
         {
-            currentRange.skipTo(primaryKey);
-            return;
-        }
-        while (ranges.hasNext())
-        {
-            currentRange = ranges.next();
             if (currentRange.getMaximum().compareTo(primaryKey) >= 0)
             {
                 currentRange.skipTo(primaryKey);
                 return;
             }
+            if (!ranges.hasNext())
+            {
+                currentRange.skipTo(primaryKey);
+                return;
+            }
+            currentRange = ranges.next();
         }
+    }
+
+    @Override
+    protected PrimaryKey computeNext()
+    {
+        while (!currentRange.hasNext())
+        {
+            if (!ranges.hasNext())
+                return endOfData();
+
+            currentRange = ranges.next();
+        }
+        return currentRange.next();
     }
 
     @Override
@@ -73,22 +88,6 @@ public class RangeConcatIterator extends RangeIterator
     {
         // due to lazy key fetching, we cannot close iterator immediately
         toRelease.forEach(FileUtils::closeQuietly);
-    }
-
-    @Override
-    @SuppressWarnings("resource")
-    protected PrimaryKey computeNext()
-    {
-        if (currentRange == null || !currentRange.hasNext())
-        {
-            do
-            {
-                if (!ranges.hasNext())
-                    return endOfData();
-                currentRange = ranges.next();
-            } while (!currentRange.hasNext());
-        }
-        return currentRange.next();
     }
 
     public static Builder builder()
@@ -128,7 +127,7 @@ public class RangeConcatIterator extends RangeIterator
             if (range == null)
                 return this;
 
-            if (range.getCount() > 0)
+            if (range.getMaxKeys() > 0)
             {
                 rangeIterators.add(range);
                 statistics.update(range);
@@ -151,6 +150,8 @@ public class RangeConcatIterator extends RangeIterator
 
         protected RangeIterator buildIterator()
         {
+            if (rangeCount() == 0)
+                return empty();
             if (rangeCount() == 1)
                 return rangeIterators.get(0);
             return new RangeConcatIterator(statistics, rangeIterators);

@@ -64,13 +64,11 @@ public class RangeIntersectionIterator extends RangeIterator
 
     protected PrimaryKey computeNext()
     {
-        // Range iterator that has been advanced in the previous cycle of the outer loop.
-        // Initially there hasn't been the previous cycle, so set to null.
-        int alreadyAvanced = -1;
-
         // The highest primary key seen on any range iterator so far.
         // It can become null when we reach the end of the iterator.
-        PrimaryKey highestKey = getCurrent();
+        PrimaryKey highestKey = ranges.get(0).hasNext() ? ranges.get(0).next() : null;
+        // Index of the range iterator that has advanced beyond the others
+        int alreadyAvanced = 0;
 
         outer:
         while (highestKey != null && highestKey.compareTo(getMaximum()) <= 0)
@@ -109,9 +107,11 @@ public class RangeIntersectionIterator extends RangeIterator
 
     protected void performSkipTo(PrimaryKey nextToken)
     {
+        // Resist the temptation to call range.hasNext before skipTo: this is a pessimisation, hasNext will invoke
+        // computeNext under the hood, which is an expensive operation to produce a value that we plan to throw away.
+        // Instead, it is the responsibility of the child iterators to make skipTo fast when the iterator is exhausted.
         for (var range : ranges)
-            if (range.hasNext())
-                range.skipTo(nextToken);
+            range.skipTo(nextToken);
     }
 
     /**
@@ -174,7 +174,7 @@ public class RangeIntersectionIterator extends RangeIterator
             if (range == null)
                 return this;
 
-            if (range.getCount() > 0)
+            if (range.getMaxKeys() > 0)
                 rangeIterators.add(range);
             else
                 FileUtils.closeQuietly(range);
@@ -199,7 +199,7 @@ public class RangeIntersectionIterator extends RangeIterator
 
         protected RangeIterator buildIterator()
         {
-            rangeIterators.sort(Comparator.comparingLong(RangeIterator::getCount));
+            rangeIterators.sort(Comparator.comparingLong(RangeIterator::getMaxKeys));
             int initialSize = rangeIterators.size();
             // all ranges will be included
             if (limit >= rangeIterators.size() || limit <= 0)
@@ -217,7 +217,7 @@ public class RangeIntersectionIterator extends RangeIterator
                 Tracing.trace("Selecting {} {} of {} out of {} indexes",
                               rangeIterators.size(),
                               rangeIterators.size() > 1 ? "indexes with cardinalities" : "index with cardinality",
-                              rangeIterators.stream().map(RangeIterator::getCount).map(Object::toString).collect(Collectors.joining(", ")),
+                              rangeIterators.stream().map(RangeIterator::getMaxKeys).map(Object::toString).collect(Collectors.joining(", ")),
                               initialSize);
 
             return buildIterator(selectiveStatistics, rangeIterators);

@@ -28,9 +28,8 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.io.util.FileUtils;
 
 /**
- * Modified from {@link org.apache.cassandra.index.sasi.utils.RangeIterator} to support:
- * 1. no generic type to reduce allocation
- * 2. CONCAT iterator type
+ * Range iterators contain primary keys, in sorted order, with no duplicates.  They also
+ * know their minimum and maximum keys, and an upper bound on the number of keys they contain.
  */
 public abstract class RangeIterator extends AbstractIterator<PrimaryKey> implements Closeable
 {
@@ -38,7 +37,6 @@ public abstract class RangeIterator extends AbstractIterator<PrimaryKey> impleme
 
     private final PrimaryKey min, max;
     private final long count;
-    private PrimaryKey current;
 
     protected RangeIterator(Builder.Statistics statistics)
     {
@@ -53,10 +51,12 @@ public abstract class RangeIterator extends AbstractIterator<PrimaryKey> impleme
     public RangeIterator(PrimaryKey min, PrimaryKey max, long count)
     {
         if (min == null || max == null || count == 0)
+        {
             assert min == null && max == null && (count == 0 || count == -1) : min + " - " + max + " " + count;
+            endOfData();
+        }
 
         this.min = min;
-        this.current = min;
         this.max = max;
         this.count = count;
     }
@@ -66,74 +66,50 @@ public abstract class RangeIterator extends AbstractIterator<PrimaryKey> impleme
         return min;
     }
 
-    public final PrimaryKey getCurrent()
-    {
-        return current;
-    }
-
     public final PrimaryKey getMaximum()
     {
         return max;
     }
 
-    public final long getCount()
+    /**
+     * @return an upper bound on the number of keys that can be returned by this iterator.
+     */
+    public final long getMaxKeys()
     {
         return count;
     }
 
     /**
-     * When called, this iterators current position should
+     * When called, this iterators current position will
      * be skipped forwards until finding either:
      *   1) an element equal to or bigger than next
      *   2) the end of the iterator
      *
      * @param nextToken value to skip the iterator forward until matching
-     *
-     * @return The next current key after the skip was performed.
-     * This key will also be the next key returned by next(), i.e.,
-     * we are "peeking" at the next key as part of the skip.
      */
-    public final PrimaryKey skipTo(PrimaryKey nextToken)
+    public final void skipTo(PrimaryKey nextToken)
     {
-        if (min == null || max == null)
-            return endOfData();
+        if (state == State.DONE)
+            return;
 
-        // In the case of deferred iterators the current value may not accurately
-        // reflect the next value so we need to check that as well
-        if (current.compareTo(nextToken) >= 0)
-        {
-            next = next == null ? recomputeNext() : next;
-            if (next == null)
-                return endOfData();
-            else if (next.compareTo(nextToken) >= 0)
-                return next;
-        }
+        if (state == State.READY && next.compareTo(nextToken) >= 0)
+            return;
 
         if (max.compareTo(nextToken) < 0)
-            return endOfData();
+        {
+            endOfData();
+            return;
+        }
 
         performSkipTo(nextToken);
-        return recomputeNext();
+        state = State.NOT_READY;
     }
 
     /**
-     * Skip up to nextKey, but leave your internal state in a position where
+     * Skip up to nextKey, but leave the internal state in a position where
      * calling computeNext() will return nextKey or the first one after it.
      */
-    protected abstract void performSkipTo(PrimaryKey nextToken);
-
-    // protected because inherited from Guava. We don't want to expose this method.
-    protected PrimaryKey recomputeNext()
-    {
-        return tryToComputeNext() ? peek() : endOfData();
-    }
-
-    protected boolean tryToComputeNext()
-    {
-        boolean hasNext = super.tryToComputeNext();
-        current = hasNext ? next : getMaximum();
-        return hasNext;
-    }
+    protected abstract void performSkipTo(PrimaryKey nextKey);
 
     public static RangeIterator empty()
     {
@@ -146,7 +122,7 @@ public abstract class RangeIterator extends AbstractIterator<PrimaryKey> impleme
         {
             CONCAT,
             UNION,
-            INTERSECTION;
+            INTERSECTION
         }
 
         @VisibleForTesting
@@ -158,7 +134,7 @@ public abstract class RangeIterator extends AbstractIterator<PrimaryKey> impleme
         public Builder(IteratorType type)
         {
             statistics = new Statistics(type);
-            ranges = new PriorityQueue<>(16, Comparator.comparing(RangeIterator::getCurrent));
+            ranges = new PriorityQueue<>(16, Comparator.comparing(rangeIterator -> rangeIterator.peek()));
         }
 
         public PrimaryKey getMinimum()
@@ -191,7 +167,7 @@ public abstract class RangeIterator extends AbstractIterator<PrimaryKey> impleme
             if (range == null)
                 return this;
 
-            if (range.getCount() > 0)
+            if (range.getMaxKeys() > 0)
                 ranges.add(range);
             else
                 FileUtils.closeQuietly(range);
@@ -264,7 +240,7 @@ public abstract class RangeIterator extends AbstractIterator<PrimaryKey> impleme
                 {
                     case CONCAT:
                         // range iterators should be sorted, but previous max must not be greater than next min.
-                        if (range.getCount() > 0)
+                        if (range.getMaxKeys() > 0)
                         {
                             if (tokenCount == 0)
                             {
@@ -277,13 +253,13 @@ public abstract class RangeIterator extends AbstractIterator<PrimaryKey> impleme
 
                             max = range.getMaximum();
                         }
-                        tokenCount += range.getCount();
+                        tokenCount += range.getMaxKeys();
                         break;
 
                     case UNION:
                         min = nullSafeMin(min, range.getMinimum());
                         max = nullSafeMax(max, range.getMaximum());
-                        tokenCount += range.getCount();
+                        tokenCount += range.getMaxKeys();
                         break;
 
                     case INTERSECTION:
@@ -292,9 +268,9 @@ public abstract class RangeIterator extends AbstractIterator<PrimaryKey> impleme
                         // maximum of the intersection is the smallest maximum of individual iterators
                         max = nullSafeMin(max, range.getMaximum());
                         if (hasRange)
-                            tokenCount = Math.min(tokenCount, range.getCount());
+                            tokenCount = Math.min(tokenCount, range.getMaxKeys());
                         else
-                            tokenCount = range.getCount();
+                            tokenCount = range.getMaxKeys();
                         break;
 
                     default:
@@ -313,12 +289,12 @@ public abstract class RangeIterator extends AbstractIterator<PrimaryKey> impleme
 
             private RangeIterator min(RangeIterator a, RangeIterator b)
             {
-                return a.getCount() > b.getCount() ? b : a;
+                return a.getMaxKeys() > b.getMaxKeys() ? b : a;
             }
 
             private RangeIterator max(RangeIterator a, RangeIterator b)
             {
-                return a.getCount() > b.getCount() ? a : b;
+                return a.getMaxKeys() > b.getMaxKeys() ? a : b;
             }
 
             public boolean isDisjoint()
@@ -328,7 +304,7 @@ public abstract class RangeIterator extends AbstractIterator<PrimaryKey> impleme
 
             public double sizeRatio()
             {
-                return minRange.getCount() * 1d / maxRange.getCount();
+                return minRange.getMaxKeys() * 1d / maxRange.getMaxKeys();
             }
         }
     }
@@ -336,7 +312,7 @@ public abstract class RangeIterator extends AbstractIterator<PrimaryKey> impleme
     @VisibleForTesting
     protected static <U extends Comparable<U>> boolean isOverlapping(RangeIterator a, RangeIterator b)
     {
-        return isOverlapping(a.getCurrent(), a.getMaximum(), b);
+        return isOverlapping(a.peek(), a.getMaximum(), b);
     }
 
     /**
@@ -360,8 +336,7 @@ public abstract class RangeIterator extends AbstractIterator<PrimaryKey> impleme
     protected static boolean isOverlapping(PrimaryKey min, PrimaryKey max, RangeIterator b)
     {
         return (min != null && max != null) &&
-               b.getCount() != 0 &&
-               (min.compareTo(b.getMaximum()) <= 0 && b.getCurrent().compareTo(max) <= 0);
+               b.hasNext() && min.compareTo(b.getMaximum()) <= 0 && b.peek().compareTo(max) <= 0;
     }
 
     @SuppressWarnings("unchecked")

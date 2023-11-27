@@ -19,7 +19,6 @@ package org.apache.cassandra.index.sai.utils;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 import java.util.function.LongFunction;
 
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -29,12 +28,6 @@ public class LongIterator extends RangeIterator
 {
     private final List<PrimaryKey> keys;
     private int currentIdx = 0;
-
-    /**
-     * whether LongIterator should throw exception during iteration.
-     */
-    private boolean shouldThrow = false;
-    private final Random random = new Random();
 
     public LongIterator(long[] tokens)
     {
@@ -50,19 +43,9 @@ public class LongIterator extends RangeIterator
             this.keys.add(fromTokenAndRowId(token, toOffset.apply(token)));
     }
 
-    public LongIterator throwsException()
-    {
-        this.shouldThrow = true;
-        return this;
-    }
-
     @Override
     protected PrimaryKey computeNext()
     {
-        // throws exception if it's last element or chosen 1 out of n
-        if (shouldThrow && (currentIdx >= keys.size() - 1 || random.nextInt(keys.size()) == 0))
-            throw new RuntimeException("injected exception");
-
         if (currentIdx >= keys.size())
             return endOfData();
 
@@ -72,14 +55,11 @@ public class LongIterator extends RangeIterator
     @Override
     protected void performSkipTo(PrimaryKey nextToken)
     {
-        for (int i = currentIdx == 0 ? 0 : currentIdx - 1; i < keys.size(); i++)
+        for ( ; currentIdx < keys.size(); currentIdx++)
         {
-            PrimaryKey token = keys.get(i);
+            PrimaryKey token = keys.get(currentIdx);
             if (token.compareTo(nextToken) >= 0)
-            {
-                currentIdx = i;
                 break;
-            }
         }
     }
 

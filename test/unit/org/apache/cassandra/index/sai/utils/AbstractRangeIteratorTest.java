@@ -18,8 +18,12 @@
 package org.apache.cassandra.index.sai.utils;
 
 import java.util.Arrays;
+import java.util.Set;
+import java.util.stream.Collectors;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.junit.Assert;
+
+import org.apache.cassandra.utils.Pair;
 
 public class AbstractRangeIteratorTest extends SaiRandomizedTest
 {
@@ -31,11 +35,6 @@ public class AbstractRangeIteratorTest extends SaiRandomizedTest
     protected long[] arr(int... intArray)
     {
         return Arrays.stream(intArray).mapToLong(i -> i).toArray();
-    }
-
-    void assertOnError(RangeIterator range)
-    {
-        assertThatThrownBy(() -> LongIterator.convert(range)).isInstanceOf(RuntimeException.class);
     }
 
     final RangeIterator buildIntersection(RangeIterator... ranges)
@@ -58,70 +57,40 @@ public class AbstractRangeIteratorTest extends SaiRandomizedTest
         return buildSelectiveIntersection(limit, toRangeIterator(ranges));
     }
 
-    final RangeIterator buildUnion(RangeIterator... ranges)
+    static RangeIterator buildUnion(RangeIterator... ranges)
     {
         return RangeUnionIterator.<PrimaryKey>builder().add(Arrays.asList(ranges)).build();
     }
 
-    final RangeIterator buildUnion(long[]... ranges)
+    static RangeIterator buildUnion(long[]... ranges)
     {
         return buildUnion(toRangeIterator(ranges));
     }
 
-    final RangeIterator buildConcat(RangeIterator... ranges)
+    static RangeIterator buildConcat(RangeIterator... ranges)
     {
         return RangeConcatIterator.builder(ranges.length).add(Arrays.asList(ranges)).build();
     }
 
-    final RangeIterator buildConcat(long[]... ranges)
+    static RangeIterator buildConcat(long[]... ranges)
     {
         return buildConcat(toRangeIterator(ranges));
     }
 
-    private RangeIterator[] toRangeIterator(long[]... ranges)
+    private static RangeIterator[] toRangeIterator(long[]... ranges)
     {
-        return Arrays.stream(ranges).map(this::build).toArray(RangeIterator[]::new);
+        return Arrays.stream(ranges).map(AbstractRangeIteratorTest::build).toArray(RangeIterator[]::new);
     }
 
-    protected LongIterator build(long... tokens)
+    protected static LongIterator build(long... tokens)
     {
-        return build(tokens, false);
-    }
-
-    protected LongIterator build(long[] tokensA, boolean onErrorA)
-    {
-        LongIterator rangeA = new LongIterator(tokensA);
-
-        if (onErrorA)
-            rangeA.throwsException();
-
-        return rangeA;
-    }
-
-    protected RangeIterator buildOnError(RangeIterator.Builder.IteratorType type, long[] tokensA, long[] tokensB)
-    {
-        return build(type, tokensA, true, tokensB, true);
-    }
-
-    protected RangeIterator buildOnErrorA(RangeIterator.Builder.IteratorType type, long[] tokensA, long[] tokensB)
-    {
-        return build(type, tokensA, true, tokensB, false);
-    }
-
-    protected RangeIterator buildOnErrorB(RangeIterator.Builder.IteratorType type, long[] tokensA, long[] tokensB)
-    {
-        return build(type, tokensA, false, tokensB, true);
+        return new LongIterator(tokens);
     }
 
     protected RangeIterator build(RangeIterator.Builder.IteratorType type, long[] tokensA, long[] tokensB)
     {
-        return build(type, tokensA, false, tokensB, false);
-    }
-
-    protected RangeIterator build(RangeIterator.Builder.IteratorType type, long[] tokensA, boolean onErrorA, long[] tokensB, boolean onErrorB)
-    {
-        RangeIterator rangeA = build(tokensA, onErrorA);
-        RangeIterator rangeB = build(tokensB, onErrorB);
+        RangeIterator rangeA = new LongIterator(tokensA);
+        RangeIterator rangeB = new LongIterator(tokensB);
 
         switch (type)
         {
@@ -133,6 +102,59 @@ public class AbstractRangeIteratorTest extends SaiRandomizedTest
                 return buildConcat(rangeA, rangeB);
             default:
                 throw new IllegalArgumentException("unknown type: " + type);
+        }
+    }
+
+    static void validateWithSkipping(RangeIterator ri, long[] totalOrdering)
+    {
+        int count = 0;
+        while (ri.hasNext())
+        {
+            // make sure hasNext plays nice with skipTo
+            if (randomBoolean())
+                ri.hasNext();
+
+            // skipping to the same element should also be a no-op
+            if (randomBoolean())
+                ri.skipTo(LongIterator.fromToken(totalOrdering[count]));
+
+            // skip a few elements
+            if (nextDouble() < 0.1)
+            {
+                int n = nextInt(1, 3);
+                if (count + n < totalOrdering.length)
+                {
+                    count += n;
+                    ri.skipTo(LongIterator.fromToken(totalOrdering[count]));
+                }
+            }
+            Assert.assertEquals(totalOrdering[count++], ri.next().token().getLongValue());
+        }
+        Assert.assertEquals(totalOrdering.length, count);
+    }
+
+    static Set<Long> toSet(long[] tokens)
+    {
+        return Arrays.stream(tokens).boxed().collect(Collectors.toSet());
+    }
+
+    /**
+     * @return a random {Concat,Intersection, Union} iterator, and a long[] of the elements in the iterator.
+     *         elements will range from 0..1024.
+     */
+    static Pair<RangeIterator, long[]> createRandomIterator()
+    {
+        var n = randomIntBetween(0, 3);
+        switch (n)
+        {
+            case 0:
+                return RangeConcatIteratorTest.createRandom();
+            case 1:
+                return RangeIntersectionIteratorTest.createRandom(nextInt(1, 16));
+            case 2:
+                return RangeUnionIteratorTest.createRandom(nextInt(1, 16));
+            default:
+                throw new AssertionError();
         }
     }
 }

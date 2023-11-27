@@ -171,7 +171,6 @@ public class KDTreeIndexSearcherTest extends SaiRandomizedTest
             lower = upper = new Bound(rawType.decompose(rawValueProducer.apply(EQ_TEST_LOWER_BOUND_INCLUSIVE)), encodedType, true);
         }}, null, new QueryContext(), false, LIMIT))
         {
-            assertEquals(results.getMinimum(), results.getCurrent());
             assertTrue(results.hasNext());
 
             assertEquals(0L, results.next().token().getLongValue());
@@ -209,7 +208,6 @@ public class KDTreeIndexSearcherTest extends SaiRandomizedTest
             upper = new Bound(rawType.decompose(rawValueProducer.apply((short)7)), encodedType, true);
         }}, null, new QueryContext(), false, LIMIT))
         {
-            assertEquals(results.getMinimum(), results.getCurrent());
             assertTrue(results.hasNext());
 
             List<Long> actualTokenList = Lists.newArrayList(Iterators.transform(results, key -> key.token().getLongValue()));

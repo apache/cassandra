@@ -70,56 +70,7 @@ public interface PostingList extends Closeable
         return new PeekablePostingList(this);
     }
 
-    class DeferredPostingList implements PostingList
-    {
-        private Supplier<PostingList> supplier;
-        private PostingList postingList;
-        private boolean opened = false;
-
-        public DeferredPostingList(Supplier<PostingList> supplier)
-        {
-            this.supplier = supplier;
-        }
-
-        @Override
-        public long nextPosting() throws IOException
-        {
-            open();
-            return postingList == null ? END_OF_STREAM : postingList.nextPosting();
-        }
-
-        @Override
-        public long size()
-        {
-            open();
-            return postingList == null ? 0 : postingList.size();
-        }
-
-        @Override
-        public long advance(long targetRowID) throws IOException
-        {
-            open();
-            return postingList == null ? END_OF_STREAM : postingList.advance(targetRowID);
-        }
-
-        @Override
-        public void close() throws IOException
-        {
-            if (opened && (postingList != null))
-                postingList.close();
-        }
-
-        private void open()
-        {
-            if (!opened)
-            {
-                postingList = supplier.get();
-                opened = true;
-            }
-        }
-    }
-
-    public static class PeekablePostingList implements PostingList
+    class PeekablePostingList implements PostingList
     {
         private final PostingList wrapped;
 

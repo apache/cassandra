@@ -133,6 +133,11 @@ public class SaiRandomizedTest extends RandomizedTest
         return between(min, max - 1);
     }
 
+    public static double nextDouble()
+    {
+        return randomDoubleBetween(0, 1);
+    }
+
     public static long between(long min, long max)
     {
         return randomLongBetween(min, max);

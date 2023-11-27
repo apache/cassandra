@@ -19,18 +19,17 @@ package org.apache.cassandra.index.sai.utils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 
 import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.index.sai.utils.LongIterator.convert;
-import static org.apache.cassandra.index.sai.utils.RangeIterator.Builder.IteratorType.CONCAT;
-import static org.apache.cassandra.index.sai.utils.RangeIterator.Builder.IteratorType.INTERSECTION;
-import static org.apache.cassandra.index.sai.utils.RangeIterator.Builder.IteratorType.UNION;
 
 public class RangeUnionIteratorTest extends AbstractRangeIteratorTest
 {
@@ -108,50 +107,38 @@ public class RangeUnionIteratorTest extends AbstractRangeIteratorTest
     @Test
     public void testRandomSequences()
     {
-        ThreadLocalRandom random = ThreadLocalRandom.current();
-
-        long[][] values = new long[random.nextInt(1, 20)][];
-        int numTests = random.nextInt(10, 20);
-
-        for (int tests = 0; tests < numTests; tests++)
+        for (int testIteration = 0; testIteration < 16; testIteration++)
         {
-            RangeUnionIterator.Builder builder = RangeUnionIterator.builder();
-            int totalCount = 0;
-
-            for (int i = 0; i < values.length; i++)
-            {
-                long[] part = new long[random.nextInt(1, 500)];
-                for (int j = 0; j < part.length; j++)
-                    part[j] = random.nextLong();
-
-                // all of the parts have to be sorted to mimic SSTable
-                Arrays.sort(part);
-
-                values[i] = part;
-                builder.add(new LongIterator(part));
-                totalCount += part.length;
-            }
-
-            long[] totalOrdering = new long[totalCount];
-            int index = 0;
-
-            for (long[] part : values)
-            {
-                for (long value : part)
-                    totalOrdering[index++] = value;
-            }
-
-            Arrays.sort(totalOrdering);
-
-            int count = 0;
-            RangeIterator tokens = builder.build();
-
-            Assert.assertNotNull(tokens);
-            while (tokens.hasNext())
-                Assert.assertEquals(totalOrdering[count++], tokens.next().token().getLongValue());
-
-            Assert.assertEquals(totalCount, count);
+            var p = createRandom(nextInt(1, 20));
+            validateWithSkipping(p.left, p.right);
         }
+    }
+
+    static Pair<RangeIterator, long[]> createRandom(int nRanges)
+    {
+        long[][] values = new long[nRanges][];
+        RangeUnionIterator.Builder builder = RangeUnionIterator.builder();
+
+        var allValues = new HashSet<Long>();
+        // add a random number of random values
+        for (int i = 0; i < values.length; i++)
+        {
+            int partLength = nextInt(1, 500);
+            var part = new HashSet<Long>(partLength);
+            for (int j = 0; j < partLength; j++)
+            {
+                long m = nextLong(0, 1024);
+                part.add(m);
+                allValues.add(m);
+            }
+
+            // all of the parts have to be sorted to mimic SSTable
+            builder.add(new LongIterator(part.stream().mapToLong(Long::longValue).sorted().toArray()));
+        }
+
+        long[] totalOrdering = allValues.stream().mapToLong(Long::longValue).sorted().toArray();
+        RangeIterator tokens = builder.build();
+        return Pair.create(tokens, totalOrdering);
     }
 
     @Test
@@ -171,7 +158,7 @@ public class RangeUnionIteratorTest extends AbstractRangeIteratorTest
         Assert.assertNotNull(tokens);
         Assert.assertEquals(1L, tokens.getMinimum().token().getLongValue());
         Assert.assertEquals(9L, tokens.getMaximum().token().getLongValue());
-        Assert.assertEquals(9L, tokens.getCount());
+        Assert.assertEquals(9L, tokens.getMaxKeys());
 
         for (long i = 1; i < 10; i++)
         {
@@ -218,7 +205,7 @@ public class RangeUnionIteratorTest extends AbstractRangeIteratorTest
         FileUtils.closeQuietly(tokens);
 
         var emptyTokens = RangeUnionIterator.builder().build();
-        Assert.assertEquals(0, emptyTokens.getCount());
+        Assert.assertEquals(0, emptyTokens.getMaxKeys());
 
         builder = RangeUnionIterator.builder();
         Assert.assertEquals(0L, builder.add((RangeIterator) null).rangeCount());
@@ -286,25 +273,25 @@ public class RangeUnionIteratorTest extends AbstractRangeIteratorTest
         for (int i = 0; i <= 3; i++)
         {
             Assert.assertTrue(tokens.hasNext());
-            Assert.assertEquals(i, tokens.getCurrent().token().getLongValue());
+            Assert.assertEquals(i, tokens.peek().token().getLongValue());
             Assert.assertEquals(i, tokens.next().token().getLongValue());
         }
 
         tokens = new LongIterator(new long[] { 0L, 1L, 3L, 5L });
 
-        Assert.assertEquals(3L, tokens.skipTo(LongIterator.fromToken(2L)).token().getLongValue());
+        tokens.skipTo(LongIterator.fromToken(2L));
         Assert.assertTrue(tokens.hasNext());
-        Assert.assertEquals(3L, tokens.getCurrent().token().getLongValue());
+        Assert.assertEquals(3L, tokens.peek().token().getLongValue());
         Assert.assertEquals(3L, tokens.next().token().getLongValue());
 
-        Assert.assertEquals(5L, tokens.skipTo(LongIterator.fromToken(5L)).token().getLongValue());
+        tokens.skipTo(LongIterator.fromToken(5L));
         Assert.assertTrue(tokens.hasNext());
-        Assert.assertEquals(5L, tokens.getCurrent().token().getLongValue());
+        Assert.assertEquals(5L, tokens.peek().token().getLongValue());
         Assert.assertEquals(5L, tokens.next().token().getLongValue());
 
         LongIterator empty = new LongIterator(new long[0]);
 
-        Assert.assertNull(empty.skipTo(LongIterator.fromToken(3L)));
+        empty.skipTo(LongIterator.fromToken(3L));
         Assert.assertFalse(empty.hasNext());
     }
 
@@ -321,7 +308,7 @@ public class RangeUnionIteratorTest extends AbstractRangeIteratorTest
         Assert.assertEquals(10L, range.getMinimum().token().getLongValue());
         Assert.assertEquals(19L, range.getMaximum().token().getLongValue());
         Assert.assertTrue(range.hasNext());
-        Assert.assertEquals(10, range.getCount());
+        Assert.assertEquals(10, range.getMaxKeys());
 
         builder = RangeUnionIterator.builder();
         builder.add(new LongIterator(new long[] {}));
@@ -330,7 +317,7 @@ public class RangeUnionIteratorTest extends AbstractRangeIteratorTest
         Assert.assertEquals(10L, range.getMinimum().token().getLongValue());
         Assert.assertEquals(10L, range.getMaximum().token().getLongValue());
         Assert.assertTrue(range.hasNext());
-        Assert.assertEquals(1, range.getCount());
+        Assert.assertEquals(1, range.getMaxKeys());
 
         // non-empty, then empty
         builder = RangeUnionIterator.builder();
@@ -341,7 +328,7 @@ public class RangeUnionIteratorTest extends AbstractRangeIteratorTest
         Assert.assertEquals(10, range.getMinimum().token().getLongValue());
         Assert.assertEquals(19, range.getMaximum().token().getLongValue());
         Assert.assertTrue(range.hasNext());
-        Assert.assertEquals(10, range.getCount());
+        Assert.assertEquals(10, range.getMaxKeys());
 
         builder = RangeUnionIterator.builder();
         builder.add(new LongIterator(new long[] {10}));
@@ -350,7 +337,7 @@ public class RangeUnionIteratorTest extends AbstractRangeIteratorTest
         Assert.assertEquals(10L, range.getMinimum().token().getLongValue());
         Assert.assertEquals(10L, range.getMaximum().token().getLongValue());
         Assert.assertTrue(range.hasNext());
-        Assert.assertEquals(1, range.getCount());
+        Assert.assertEquals(1, range.getMaxKeys());
 
         // empty, then non-empty then empty again
         builder = RangeUnionIterator.builder();
@@ -362,7 +349,7 @@ public class RangeUnionIteratorTest extends AbstractRangeIteratorTest
         Assert.assertEquals(10L, range.getMinimum().token().getLongValue());
         Assert.assertEquals(19L, range.getMaximum().token().getLongValue());
         Assert.assertTrue(range.hasNext());
-        Assert.assertEquals(10, range.getCount());
+        Assert.assertEquals(10, range.getMaxKeys());
 
         // non-empty, empty, then non-empty again
         builder = RangeUnionIterator.builder();
@@ -375,7 +362,7 @@ public class RangeUnionIteratorTest extends AbstractRangeIteratorTest
         Assert.assertEquals(10L, range.getMinimum().token().getLongValue());
         Assert.assertEquals(19L, range.getMaximum().token().getLongValue());
         Assert.assertTrue(range.hasNext());
-        Assert.assertEquals(10, range.getCount());
+        Assert.assertEquals(10, range.getMaxKeys());
     }
 
     // SAI specific tests
@@ -406,46 +393,20 @@ public class RangeUnionIteratorTest extends AbstractRangeIteratorTest
     }
 
     @Test
-    public void testUnionOnError()
+    public void testUnionOfRandom()
     {
-        assertOnError(buildOnError(UNION, arr(1L, 3L, 4L ), arr(7L, 8L)));
-        assertOnError(buildOnErrorA(UNION, arr(1L, 3L, 4L ), arr(4L, 5L)));
-        assertOnError(buildOnErrorB(UNION, arr(1L), arr(2)));
-    }
-
-    @Test
-    public void testUnionOfIntersectionsOnError()
-    {
-        RangeIterator intersectionA = buildIntersection(arr(1L, 2L, 3L, 6L), arr(2L, 3L, 6L));
-        RangeIterator intersectionB = buildOnErrorA(INTERSECTION, arr(2L, 4L, 6L), arr(5L, 6L, 7L, 9L));
-        assertOnError(buildUnion(intersectionA, intersectionB));
-
-        intersectionA = buildOnErrorB(INTERSECTION, arr(1L, 2L, 3L, 4L, 5L), arr(2L, 3L, 5L));
-        intersectionB = buildIntersection(arr(2L, 4L, 5L), arr(5L, 6L, 7L));
-        assertOnError(buildUnion(intersectionA, intersectionB));
-    }
-
-    @Test
-    public void testUnionOfUnionsOnError()
-    {
-        RangeIterator unionA = buildUnion(arr(1L, 2L, 3L, 6L), arr(6L, 7L, 8L));
-        RangeIterator unionB = buildOnErrorA(UNION, arr(2L, 4L, 6L), arr (6L, 7L, 9L));
-        assertOnError(buildUnion(unionA, unionB));
-
-        unionA = buildOnErrorB(UNION, arr(1L, 2L, 3L), arr(3L, 7L, 8L));
-        unionB = buildUnion(arr(2L, 4L, 5L), arr (5L, 7L, 9L));
-        assertOnError(buildUnion(unionA, unionB));
-    }
-
-    @Test
-    public void testUnionOfMergingOnError()
-    {
-        RangeIterator mergingA = buildConcat(arr(1L, 2L, 3L, 6L), arr(6L, 7L, 8L));
-        RangeIterator mergingB = buildOnErrorA(CONCAT, arr(2L, 4L, 6L), arr (6L, 7L, 9L));
-        assertOnError(buildUnion(mergingA, mergingB));
-
-        mergingA = buildOnErrorB(CONCAT, arr(1L, 2L, 3L), arr(3L, 7L, 8L));
-        mergingB = buildConcat(arr(2L, 4L, 5L), arr (5L, 7L, 9L));
-        assertOnError(buildUnion(mergingA, mergingB));
+        for (int testIteration = 0; testIteration < 16; testIteration++)
+        {
+            var allValues = new HashSet<Long>();
+            var builder = RangeUnionIterator.builder();
+            for (int i = 0; i < nextInt(2, 3); i++)
+            {
+                var p = createRandomIterator();
+                builder.add(p.left);
+                allValues.addAll(Arrays.stream(p.right).boxed().collect(Collectors.toList()));
+            }
+            long[] totalOrdered = allValues.stream().mapToLong(Long::longValue).sorted().toArray();
+            validateWithSkipping(builder.build(), totalOrdered);
+        }
     }
 }

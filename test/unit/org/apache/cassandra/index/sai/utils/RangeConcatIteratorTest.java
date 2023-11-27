@@ -17,15 +17,15 @@
  */
 package org.apache.cassandra.index.sai.utils;
 
+import java.util.ArrayList;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import org.junit.Test;
 
+import org.apache.cassandra.utils.Pair;
+
 import static org.apache.cassandra.index.sai.utils.LongIterator.convert;
-import static org.apache.cassandra.index.sai.utils.RangeIterator.Builder.IteratorType.CONCAT;
-import static org.apache.cassandra.index.sai.utils.RangeIterator.Builder.IteratorType.INTERSECTION;
-import static org.apache.cassandra.index.sai.utils.RangeIterator.Builder.IteratorType.UNION;
 
 public class RangeConcatIteratorTest extends AbstractRangeIteratorTest
 {
@@ -123,7 +123,7 @@ public class RangeConcatIteratorTest extends AbstractRangeIteratorTest
         assertNotNull(tokens);
         assertEquals(1L, tokens.getMinimum().token().getLongValue());
         assertEquals(9L, tokens.getMaximum().token().getLongValue());
-        assertEquals(9L, tokens.getCount());
+        assertEquals(9L, tokens.getMaxKeys());
 
         for (long i = 1; i < 10; i++)
         {
@@ -213,7 +213,7 @@ public class RangeConcatIteratorTest extends AbstractRangeIteratorTest
         assertEquals(10L, range.getMinimum().token().getLongValue());
         assertEquals(19L, range.getMaximum().token().getLongValue());
         assertTrue(range.hasNext());
-        assertEquals(10, range.getCount());
+        assertEquals(10, range.getMaxKeys());
     }
 
     @Test
@@ -228,7 +228,7 @@ public class RangeConcatIteratorTest extends AbstractRangeIteratorTest
         assertEquals(10L, range.getMinimum().token().getLongValue());
         assertEquals(10L, range.getMaximum().token().getLongValue());
         assertTrue(range.hasNext());
-        assertEquals(1, range.getCount());
+        assertEquals(1, range.getMaxKeys());
     }
 
     @Test
@@ -243,7 +243,7 @@ public class RangeConcatIteratorTest extends AbstractRangeIteratorTest
         assertEquals(10L, range.getMinimum().token().getLongValue());
         assertEquals(19L, range.getMaximum().token().getLongValue());
         assertTrue(range.hasNext());
-        assertEquals(10, range.getCount());
+        assertEquals(10, range.getMaxKeys());
     }
 
     @Test
@@ -258,7 +258,7 @@ public class RangeConcatIteratorTest extends AbstractRangeIteratorTest
         assertEquals(10L, range.getMinimum().token().getLongValue());
         assertEquals(10L, range.getMaximum().token().getLongValue());
         assertTrue(range.hasNext());
-        assertEquals(1, range.getCount());
+        assertEquals(1, range.getMaxKeys());
     }
 
     @Test
@@ -274,7 +274,7 @@ public class RangeConcatIteratorTest extends AbstractRangeIteratorTest
         assertEquals(10L, range.getMinimum().token().getLongValue());
         assertEquals(19L, range.getMaximum().token().getLongValue());
         assertTrue(range.hasNext());
-        assertEquals(10, range.getCount());
+        assertEquals(10, range.getMaxKeys());
     }
 
     @Test
@@ -290,7 +290,7 @@ public class RangeConcatIteratorTest extends AbstractRangeIteratorTest
         assertEquals(10L, range.getMinimum().token().getLongValue());
         assertEquals(19L, range.getMaximum().token().getLongValue());
         assertTrue(range.hasNext());
-        assertEquals(10, range.getCount());
+        assertEquals(10, range.getMaxKeys());
     }
 
     @Test
@@ -333,37 +333,6 @@ public class RangeConcatIteratorTest extends AbstractRangeIteratorTest
         RangeIterator concatB = buildConcat(rangeA, rangeB);
 
         assertEquals(convert(1L, 3L, 5L, 7L, 9L), convert(buildIntersection(concatA, concatB)));
-    }
-
-    @Test
-    public void testConcatOnError()
-    {
-        assertOnError(buildOnErrorA(CONCAT, arr(1L, 2L, 3L), arr(4L, 5L, 6L)));
-        assertOnError(buildOnErrorB(CONCAT, arr( 1L, 2L, 3L), arr(4L)));
-    }
-
-    @Test
-    public void testConcatOfUnionsOnError()
-    {
-        RangeIterator unionA = buildUnion(arr( 1L, 2L, 3L), arr( 4L));
-        RangeIterator unionB = buildOnErrorB(UNION, arr( 6L), arr( 8L, 9L));
-        assertOnError(buildConcat(unionA, unionB));
-
-        unionA = buildOnErrorA(UNION, arr( 1L, 2L, 3L), arr( 4L));
-        unionB = buildUnion(arr( 5L), arr( 5L, 6L));
-        assertOnError(buildConcat(unionA, unionB));
-    }
-
-    @Test
-    public void testConcatOfIntersectionsOnError()
-    {
-        RangeIterator intersectionA = buildOnErrorA(INTERSECTION, arr( 1L, 2L, 3L), arr( 2L, 3L, 4L));
-        RangeIterator intersectionB = buildIntersection(arr( 6L, 7L, 8L), arr( 7L, 8L, 9L));
-        assertOnError(buildConcat(intersectionA, intersectionB));
-
-        intersectionA = buildIntersection(arr( 1L, 2L, 3L), arr( 2L, 3L, 4L));
-        intersectionB = buildOnErrorB(INTERSECTION, arr( 6L, 7L, 8L, 9L, 10L), arr(  7L, 8L, 9L));
-        assertOnError(buildConcat(intersectionA, intersectionB));
     }
 
     @Test
@@ -428,6 +397,42 @@ public class RangeConcatIteratorTest extends AbstractRangeIteratorTest
         rangeA = build(1L, 2L, 3L, 3L);
         rangeB = build(3L, 3L, 4L, 5L);
         assertEquals(convert(1L, 2L, 3L, 3L, 3L, 3L, 4L, 5L), convert(buildConcat(rangeA, rangeB)));
+    }
+
+    @Test
+    public void testRandom()
+    {
+        for (int testIteration = 0; testIteration < 16; testIteration++)
+        {
+            var p = createRandom();
+            validateWithSkipping(p.left, p.right);
+        }
+    }
+
+    static Pair<RangeIterator, long[]> createRandom()
+    {
+        var ranges = new ArrayList<RangeIterator>();
+        var current = new ArrayList<Long>();
+        var allValues = new ArrayList<Long>();
+        int maxValue = 1024;
+        for (int i = 0; i < maxValue; i++)
+        {
+            allValues.add((long) i);
+            current.add((long) i);
+            if (randomDouble() < 0.05)
+            {
+                ranges.add(build(current.stream().mapToLong(Long::longValue).toArray()));
+                current.clear();
+            }
+            if (randomDouble() < 0.1)
+                i += nextInt(5);
+        }
+        ranges.add(build(current.stream().mapToLong(Long::longValue).toArray()));
+
+        long[] totalOrdered = allValues.stream().mapToLong(Long::longValue).toArray();
+        RangeIterator it = buildConcat(ranges.toArray(RangeIterator[]::new));
+        assertEquals(totalOrdered.length, it.getMaxKeys());
+        return Pair.create(it, totalOrdered);
     }
 
     private RangeIterator.Builder getConcatBuilder()

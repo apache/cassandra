@@ -18,9 +18,10 @@
 package org.apache.cassandra.index.sai.utils;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.IntStream;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -28,10 +29,9 @@ import org.junit.Test;
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.index.sai.utils.LongIterator.convert;
-import static org.apache.cassandra.index.sai.utils.RangeIterator.Builder.IteratorType.INTERSECTION;
-import static org.apache.cassandra.index.sai.utils.RangeIterator.Builder.IteratorType.UNION;
 
 public class RangeIntersectionIteratorTest extends AbstractRangeIteratorTest
 {
@@ -113,23 +113,23 @@ public class RangeIntersectionIteratorTest extends AbstractRangeIteratorTest
         Assert.assertNotNull(range);
 
         // first let's skipTo something before range
-        Assert.assertEquals(4L, range.skipTo(LongIterator.fromToken(3L)).token().getLongValue());
-        Assert.assertEquals(4L, range.getCurrent().token().getLongValue());
+        range.skipTo(LongIterator.fromToken(3L));
+        Assert.assertEquals(4L, range.peek().token().getLongValue());
 
         // now let's skip right to the send value
-        Assert.assertEquals(6L, range.skipTo(LongIterator.fromToken(5L)).token().getLongValue());
-        Assert.assertEquals(6L, range.getCurrent().token().getLongValue());
+        range.skipTo(LongIterator.fromToken(5L));
+        Assert.assertEquals(6L, range.peek().token().getLongValue());
 
         // now right to the element
-        Assert.assertEquals(7L, range.skipTo(LongIterator.fromToken(7L)).token().getLongValue());
-        Assert.assertEquals(7L, range.getCurrent().token().getLongValue());
+        range.skipTo(LongIterator.fromToken(7L));
+        Assert.assertEquals(7L, range.peek().token().getLongValue());
         Assert.assertEquals(7L, range.next().token().getLongValue());
 
         Assert.assertTrue(range.hasNext());
-        Assert.assertEquals(10L, range.getCurrent().token().getLongValue());
+        Assert.assertEquals(10L, range.peek().token().getLongValue());
 
         // now right after the last element
-        Assert.assertNull(range.skipTo(LongIterator.fromToken(11L)));
+        range.skipTo(LongIterator.fromToken(11L));
         Assert.assertFalse(range.hasNext());
     }
 
@@ -150,7 +150,7 @@ public class RangeIntersectionIteratorTest extends AbstractRangeIteratorTest
         assertNotNull(tokens);
         assertEquals(7L, tokens.getMinimum().token().getLongValue());
         assertEquals(9L, tokens.getMaximum().token().getLongValue());
-        assertEquals(3L, tokens.getCount());
+        assertEquals(3L, tokens.getMaxKeys());
 
         Assert.assertEquals(convert(9L), convert(builder.build()));
     }
@@ -196,7 +196,7 @@ public class RangeIntersectionIteratorTest extends AbstractRangeIteratorTest
         FileUtils.closeQuietly(tokens);
 
         var emptyTokens = RangeIntersectionIterator.builder().build();
-        Assert.assertEquals(0, emptyTokens.getCount());
+        Assert.assertEquals(0, emptyTokens.getMaxKeys());
 
         builder = RangeIntersectionIterator.builder();
         Assert.assertEquals(0L, builder.add((RangeIterator) null).rangeCount());
@@ -216,7 +216,7 @@ public class RangeIntersectionIteratorTest extends AbstractRangeIteratorTest
         builder.add(single);
         Assert.assertEquals(1L, builder.rangeCount());
         range = builder.build();
-        Assert.assertEquals(0, range.getCount());
+        Assert.assertEquals(0, range.getMaxKeys());
 
         // disjoint case
         builder = RangeIntersectionIterator.builder();
@@ -296,7 +296,7 @@ public class RangeIntersectionIteratorTest extends AbstractRangeIteratorTest
         Assert.assertNull(range.getMinimum());
         Assert.assertNull(range.getMaximum());
         Assert.assertFalse(range.hasNext());
-        Assert.assertEquals(0, range.getCount());
+        Assert.assertEquals(0, range.getMaxKeys());
     }
 
     @Test
@@ -341,46 +341,36 @@ public class RangeIntersectionIteratorTest extends AbstractRangeIteratorTest
     {
         for (int attempt = 0; attempt < 16; attempt++)
         {
-            final int maxRanges = nextInt(2, 16);
-
-            // generate randomize ranges
-            long[][] ranges = new long[maxRanges][];
-            for (int i = 0; i < ranges.length; i++)
-            {
-                int rangeSize = nextInt(16, 512);
-                LongSet range = new LongHashSet(rangeSize);
-
-                for (int j = 0; j < rangeSize; j++)
-                    range.add(nextLong(0, 100));
-
-                ranges[i] = range.toArray();
-                Arrays.sort(ranges[i]);
-            }
-
-            List<Long> expected = new ArrayList<>();
-            // determine unique tokens which intersect every range
-            for (long token : ranges[0])
-            {
-                boolean intersectsAll = true;
-                for (int i = 1; i < ranges.length; i++)
-                {
-                    if (Arrays.binarySearch(ranges[i], token) < 0)
-                    {
-                        intersectsAll = false;
-                        break;
-                    }
-                }
-
-                if (intersectsAll)
-                    expected.add(token);
-            }
-
-            var builder = RangeIntersectionIterator.<PrimaryKey>builder();
-            for (long[] range : ranges)
-                builder.add(new LongIterator(range));
-
-            Assert.assertEquals(expected, convert(builder.build()));
+            var p = createRandom(nextInt(2, 16));
+            validateWithSkipping(p.left, p.right);
         }
+    }
+
+    /**
+     * @return a long[][] of random elements, and a long[] of the intersection of those elements
+     */
+    static Pair<RangeIterator, long[]> createRandom(int nRanges)
+    {
+        // generate randomize ranges
+        long[][] ranges = new long[nRanges][];
+        for (int i = 0; i < ranges.length; i++)
+        {
+            int rangeSize = nextInt(16, 512);
+            LongSet range = new LongHashSet(rangeSize);
+
+            for (int j = 0; j < rangeSize; j++)
+                range.add(nextInt(1024));
+
+            ranges[i] = range.toArray();
+            Arrays.sort(ranges[i]);
+        }
+        var builder = RangeIntersectionIterator.builder();
+        for (long[] range : ranges)
+            builder.add(new LongIterator(range));
+
+        Set<Long> expectedSet = toSet(ranges[0]);
+        IntStream.range(1, ranges.length).forEach(i -> expectedSet.retainAll(toSet(ranges[i])));
+        return Pair.create(builder.build(), expectedSet.stream().mapToLong(Long::longValue).sorted().toArray());
     }
 
     // SAI specific tests
@@ -388,9 +378,9 @@ public class RangeIntersectionIteratorTest extends AbstractRangeIteratorTest
     public void testSelectiveIntersection()
     {
         var intersection = buildSelectiveIntersection(2,
-                                                                arr(1L, 4L, 6L, 7L),
-                                                                arr(1L, 4L, 5L, 6L),
-                                                                arr(4L, 6L, 8L, 9L, 10L)); // skipped
+                                                      arr(1L, 4L, 6L, 7L),
+                                                      arr(1L, 4L, 5L, 6L),
+                                                      arr(4L, 6L, 8L, 9L, 10L)); // skipped
 
         assertEquals(convert(1L, 4L, 6L), convert(intersection));
 
@@ -400,35 +390,5 @@ public class RangeIntersectionIteratorTest extends AbstractRangeIteratorTest
                                                   arr(4L, 6L, 8L, 9L, 10L)); // skipped
 
         assertEquals(convert(2L, 4L, 6L), convert(intersection));
-    }
-
-    @Test
-    public void testIntersectionOfUnionsOnError()
-    {
-        // intersection of two unions
-        RangeIterator unionA = buildOnErrorB(UNION, arr(1L, 2L, 3L), arr(5L, 6L, 7L));
-        RangeIterator unionB = buildUnion(arr(2L, 4L, 6L), arr(5L, 7L, 9L));
-        assertOnError(buildIntersection(unionA, unionB));
-
-        // intersection of union and intersection
-        RangeIterator unionC = buildOnErrorB(UNION, arr(2L, 4L, 6L), arr(5L, 6L, 9L));
-        RangeIterator intersectionA = buildIntersection(arr(3L, 4L, 6L, 9L), arr(2L, 3L, 6L, 9L));
-        assertOnError(buildIntersection(unionC, intersectionA));
-    }
-
-    @Test
-    public void testIntersectionOfIntersectionsOnError()
-    {
-        RangeIterator intersectionA = buildIntersection(arr(1L, 2L, 3L, 6L), arr(2L, 3L, 6L));
-        RangeIterator intersectionB = buildOnErrorA(INTERSECTION, arr(2L, 4L, 6L), arr(5L, 6L, 7L, 9L));
-        assertOnError(buildIntersection(intersectionA, intersectionB));
-
-        intersectionA = buildOnErrorB(INTERSECTION, arr(1L, 2L, 3L, 4L, 5L), arr(2L, 3L, 4L));
-        intersectionB = buildIntersection(arr(1L, 2L, 3L, 4L, 6L), arr(2L, 3L, 4L, 7L, 9L));
-        assertOnError(buildIntersection(intersectionA, intersectionB));
-
-        intersectionA = buildOnError(INTERSECTION, arr(1L, 2L, 3L, 5L), arr( 3L, 4L));
-        intersectionB = buildIntersection(arr(1L, 2L, 3L, 4L, 6L), arr(2L, 3L, 4L, 7L, 9L));
-        assertOnError(buildIntersection(intersectionA, intersectionB));
     }
 }
