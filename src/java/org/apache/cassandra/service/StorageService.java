@@ -792,7 +792,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         if (ClusterMetadataService.state() == ClusterMetadataService.State.REMOTE)
             Gossiper.instance.triggerRoundWithCMS();
-
+        // Has to be called after the host id has potentially changed
+        try
+        {
+            CacheService.instance.counterCache.loadSavedAsync().get();
+        }
+        catch (Throwable t)
+        {
+            JVMStabilityInspector.inspectThrowable(t);
+            logger.warn("Error loading counter cache", t);
+        }
         Gossiper.waitToSettle();
 
         NodeId self;
