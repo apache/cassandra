@@ -18,49 +18,30 @@
 
 package org.apache.cassandra.distributed.upgrade;
 
-import java.util.UUID;
-
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.Feature;
-import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.distributed.shared.ClusterUtils;
-import org.apache.cassandra.tcm.membership.NodeId;
 
-import static org.junit.Assert.assertFalse;
-import static org.psjava.util.AssertStatus.assertTrue;
-
-public class ClusterMetadataUpgradeTest extends UpgradeTestBase
+public class ClusterMetadataSingleNodeUpgradeTest extends UpgradeTestBase
 {
-
     @Test
-    public void simpleUpgradeTest() throws Throwable
+    public void testSingleNodeUpgrade() throws Throwable
     {
         new TestCase()
-        .nodes(3)
-        .nodesToUpgrade(1, 2, 3)
+        .nodes(1)
+        .nodesToUpgrade(1)
         .withConfig((cfg) -> cfg.with(Feature.NETWORK, Feature.GOSSIP)
                                 .set(Constants.KEY_DTEST_FULL_STARTUP, true))
         .upgradesToCurrentFrom(v41)
         .setup((cluster) -> {
-            cluster.schemaChange(withKeyspace("ALTER KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor':2}"));
+            cluster.schemaChange(withKeyspace("ALTER KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor':1}"));
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
         })
         .runAfterClusterUpgrade((cluster) -> {
             cluster.get(1).nodetoolResult("initializecms").asserts().success();
-            cluster.forEach(i ->
-            {
-                // The cast is unpleasant, but safe to do so as the upgraded instance is running the current version.
-                assertFalse("node " + i.config().num() + " is still in MIGRATING STATE",
-                            ClusterUtils.isMigrating((IInvokableInstance) i));
-            });
-            cluster.get(2).nodetoolResult("reconfigurecms", "--sync", "3").asserts().success();
-            cluster.schemaChange(withKeyspace("create table %s.xyz (id int primary key)"));
-            cluster.forEach(i -> {
-                Object [][] res = i.executeInternal("select host_id from system.local");
-                assertTrue(NodeId.isValidNodeId(UUID.fromString(res[0][0].toString())));
-            });
+            // make sure we can execute transformations:
+            cluster.schemaChange(withKeyspace("ALTER TABLE %s.tbl with comment = 'hello123'"));
         }).run();
     }
 }

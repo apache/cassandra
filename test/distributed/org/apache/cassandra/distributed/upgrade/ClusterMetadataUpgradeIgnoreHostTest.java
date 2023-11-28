@@ -18,24 +18,15 @@
 
 package org.apache.cassandra.distributed.upgrade;
 
-import java.util.UUID;
-
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.Feature;
-import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.distributed.shared.ClusterUtils;
-import org.apache.cassandra.tcm.membership.NodeId;
 
-import static org.junit.Assert.assertFalse;
-import static org.psjava.util.AssertStatus.assertTrue;
-
-public class ClusterMetadataUpgradeTest extends UpgradeTestBase
+public class ClusterMetadataUpgradeIgnoreHostTest extends UpgradeTestBase
 {
-
     @Test
-    public void simpleUpgradeTest() throws Throwable
+    public void upgradeIgnoreHostsTest() throws Throwable
     {
         new TestCase()
         .nodes(3)
@@ -48,19 +39,12 @@ public class ClusterMetadataUpgradeTest extends UpgradeTestBase
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
         })
         .runAfterClusterUpgrade((cluster) -> {
-            cluster.get(1).nodetoolResult("initializecms").asserts().success();
-            cluster.forEach(i ->
-            {
-                // The cast is unpleasant, but safe to do so as the upgraded instance is running the current version.
-                assertFalse("node " + i.config().num() + " is still in MIGRATING STATE",
-                            ClusterUtils.isMigrating((IInvokableInstance) i));
-            });
-            cluster.get(2).nodetoolResult("reconfigurecms", "--sync", "3").asserts().success();
-            cluster.schemaChange(withKeyspace("create table %s.xyz (id int primary key)"));
-            cluster.forEach(i -> {
-                Object [][] res = i.executeInternal("select host_id from system.local");
-                assertTrue(NodeId.isValidNodeId(UUID.fromString(res[0][0].toString())));
-            });
+            // todo; isolate node 3 - actually shutting it down makes us throw exceptions when test finishes
+            cluster.filters().allVerbs().to(3).drop();
+            cluster.filters().allVerbs().from(3).drop();
+            cluster.get(1).nodetoolResult("initializecms").asserts().failure(); // node3 unreachable
+            cluster.get(1).nodetoolResult("initializecms", "--ignore", "127.0.0.1").asserts().failure(); // can't ignore localhost
+            cluster.get(1).nodetoolResult("initializecms", "--ignore", "127.0.0.3").asserts().success();
         }).run();
     }
 }
