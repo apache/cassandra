@@ -464,8 +464,8 @@ UCS accepts these compaction strategy parameters:
   The default value is 1 GiB.
 * `base_shard_count` The minimum number of shards $b$, used for levels with the smallest density. This gives the
   minimum compaction concurrency for the lowest levels. A low number would result in larger L0 sstables but may limit
-  the overall maximum write throughput (as every piece of data has to go through L0).  
-  The default value is 4 (1 for system tables, or when multiple data locations are defined).
+  the overall maximum write throughput (as every piece of data has to go through L0). The base shard count only applies after `min_sstable_size` is reached.  
+  The default value is 4 for all tables.
 * `sstable_growth` The sstable growth component $\lambda$, applied as a factor in the shard exponent calculation.
   This is a number between 0 and 1 that controls what part of the density growth should apply to individual sstable
   size and what part should increase the number of shards. Using a value of 1 has the effect of fixing the shard
@@ -479,12 +479,11 @@ UCS accepts these compaction strategy parameters:
   manageable both as memory overhead and individual compaction duration and space overhead. The balance between the
   two can be further tweaked by increasing $\lambda$ to get fewer but bigger sstables on the top level, and decreasing
   it to favour a higher count of smaller sstables.  
-  The default value is 0, corresponding to a fixed sstable target size.
-* `sstable_size_min` The minimum sstable size $m$, applicable when the base shard count will result is sstables
+  The default value is 0.333 meaning the sstable size grows with the square root of the growth of the shard count.
+* `min_sstable_size` The minimum sstable size $m$, applicable when the base shard count will result is sstables
   that are considered too small. If set, the strategy will split the space into fewer than the base count shards, to
-  make the estimated sstables size at least as large as this value.  
-  The default value is 0, which disables this feature. A value of `auto` sets the minimum sstable size to the size
-  of sstables resulting from flushes.
+  make the estimated sstables size at least as large as this value. A value of 0 disables this feature. A value of `auto` sets the minimum sstable size to the size
+  of sstables resulting from flushes. The default value is 100MiB.
 * `reserved_threads` Specifies the number of threads to reserve per level. Any remaining threads will take
   work according to the prioritization mechanism (i.e. higher overlap first). Higher reservations mean better
   responsiveness of the compaction strategy to new work, or smoother performance, at the expense of reducing the

@@ -118,7 +118,7 @@ public abstract class Controller
     static final String MIN_SSTABLE_SIZE_OPTION_MB = "min_sstable_size_in_mb";
     static final String MIN_SSTABLE_SIZE_OPTION_AUTO = "auto";
 
-    static final long DEFAULT_MIN_SSTABLE_SIZE = FBUtilities.parseHumanReadableBytes(System.getProperty(PREFIX + MIN_SSTABLE_SIZE_OPTION, "0B"));
+    static final long DEFAULT_MIN_SSTABLE_SIZE = FBUtilities.parseHumanReadableBytes(System.getProperty(PREFIX + MIN_SSTABLE_SIZE_OPTION, "100MiB"));
     /**
      * Value to use to set the min sstable size from the flush size.
      */
@@ -173,21 +173,23 @@ public abstract class Controller
      * applied as an exponent in the number of split points. In other words, the given value applies as a negative
      * exponent in the calculation of the number of split points.
      * <p>
-     * Using 0 (the default) applies no correction to the number of split points, resulting in SSTables close to the
+     * Using 0 applies no correction to the number of split points, resulting in SSTables close to the
      * target size. Setting this number to 1 will make UCS never split beyong the base shard count. Using 0.5 will
      * make the number of split points a square root of the required number for the target SSTable size, making
-     * the number of split points and the size of SSTables grow in lockstep as the density grows.
+     * the number of split points and the size of SSTables grow in lockstep as the density grows. Using
+     * 0.333 (the default) makes the sstable growth the cubic root of the density growth, i.e. the sstable size
+     * grows with the square root of the growth of the shard count.
      * <p>
      * For example, given a data size of 1TiB on the top density level and 1GiB target size with base shard count of 1,
-     * growth 0 would result in 1024 SSTables of ~1GiB each, 0.5 would yield 32 SSTables of ~32GiB each, and 1 would
-     * yield 1 SSTable of 1TiB.
+     * growth 0 would result in 1024 SSTables of ~1GiB each, 0.333 would result in 128 SSTables of ~8 GiB each,
+     * 0.5 would yield 32 SSTables of ~32GiB each, and 1 would yield 1 SSTable of 1TiB.
      * <p>
      * Note that this correction only applies after the base shard count is reached, so for the above example with
-     * base count of 4, the number of SSTables will be 4 (~256GiB each) for a growth value of 1, and 64 (~16GiB each)
-     * for 0.5.
+     * base count of 4, the number of SSTables will be 4 (~256GiB each) for a growth value of 1, 128 (~8GiB each) for
+     * a growth value of 0.333, and 64 (~16GiB each) for a growth value of 0.5.
      */
     static final String SSTABLE_GROWTH_OPTION = "sstable_growth";
-    static final double DEFAULT_SSTABLE_GROWTH = FBUtilities.parsePercent(System.getProperty(PREFIX + SSTABLE_GROWTH_OPTION, "0"));
+    static final double DEFAULT_SSTABLE_GROWTH = FBUtilities.parsePercent(System.getProperty(PREFIX + SSTABLE_GROWTH_OPTION, "0.333"));
 
     /**
      * Number of reserved threads to keep for each compaction level. This is used to ensure that there are always
@@ -275,6 +277,7 @@ public abstract class Controller
      * Higher indexes will use the value of the last index with a W specified.
      */
     static final String SCALING_PARAMETERS_OPTION = "scaling_parameters";
+    @Deprecated
     static final String STATIC_SCALING_FACTORS_OPTION = "static_scaling_factors";
 
     protected final MonotonicClock clock;
@@ -442,13 +445,15 @@ public abstract class Controller
         if (minSize > 0)
         {
             double count = localDensity / minSize;
-            // Minimum size only applies if it is smaller than the base count.
+            // Minimum size only applies if the base count would result in smaller sstables.
+            // We also want to use the min size if we don't yet know the flush size (density is NaN).
             // Note: the minimum size cannot be larger than the target size's minimum.
-            if (count < baseShardCount)
+            if (!(count >= baseShardCount)) // also true for count == NaN
             {
                 // Make it a power of two, rounding down so that sstables are greater in size than the min.
                 // Setting the bottom bit to 1 ensures the result is at least 1.
-                shards = Integer.highestOneBit((int) count | 1);
+                // If baseShardCount is not a power of 2, split only to powers of two that are divisors of baseShardCount so boundaries match higher levels
+                shards = Math.min(Integer.highestOneBit((int) count | 1), baseShardCount & -baseShardCount);
                 if (logger.isDebugEnabled())
                     logger.debug("Shard count {} for density {}, {} times min size {}",
                                  shards,
@@ -842,10 +847,7 @@ public abstract class Controller
         }
         else
         {
-            if (SchemaConstants.isSystemKeyspace(realm.getKeyspaceName()) || realm.getDiskBoundaries().getNumBoundaries() > 1)
-                baseShardCount = 1;
-            else
-                baseShardCount = DEFAULT_BASE_SHARD_COUNT;
+            baseShardCount = DEFAULT_BASE_SHARD_COUNT;
         }
 
         long targetSStableSize = options.containsKey(TARGET_SSTABLE_SIZE_OPTION)
@@ -1246,7 +1248,7 @@ public abstract class Controller
                                                  e);
         }
 
-        if (sizeInBytes <= 0)
+        if (sizeInBytes < 0)
             throw new ConfigurationException(String.format("Invalid configuration, %s should be positive: %s",
                                                            opt,
                                                            s));

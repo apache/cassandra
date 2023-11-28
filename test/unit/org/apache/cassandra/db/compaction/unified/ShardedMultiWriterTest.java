@@ -76,7 +76,7 @@ public class ShardedMultiWriterTest extends CQLTester
     private void testShardedCompactionWriter(int numShards, long totSizeBytes, int numOutputSSTables) throws Throwable
     {
         createTable(String.format("CREATE TABLE %%s (k int, t int, v blob, PRIMARY KEY (k, t)) with compaction = " +
-                                  "{'class':'UnifiedCompactionStrategy', 'base_shard_count' : '%d'} ", numShards));
+                                  "{'class':'UnifiedCompactionStrategy', 'base_shard_count' : '%d', 'min_sstable_size' : '0B'} ", numShards));
 
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.disableAutoCompaction();

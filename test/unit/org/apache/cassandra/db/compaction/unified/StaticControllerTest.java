@@ -353,7 +353,7 @@ public class StaticControllerTest extends ControllerTest
         {
             keyspaceName = SchemaConstants.SYSTEM_KEYSPACE_NAME;
             controller = controller.fromOptions(cfs, options);
-            assertEquals(1, controller.baseShardCount);
+            assertEquals(4, controller.baseShardCount);
         }
         finally
         {
@@ -362,7 +362,7 @@ public class StaticControllerTest extends ControllerTest
 
         numDirectories = 3;
         controller = controller.fromOptions(cfs, options);
-        assertEquals(1, controller.baseShardCount);
+        assertEquals(4, controller.baseShardCount);
 
         numDirectories = 1;
         controller = controller.fromOptions(cfs, options);

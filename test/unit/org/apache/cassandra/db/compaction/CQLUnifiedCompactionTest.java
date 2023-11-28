@@ -309,7 +309,7 @@ public class CQLUnifiedCompactionTest extends CQLTester
 
         createTable("create table %s (id int primary key, val blob) with compression = { 'enabled' : false } AND " +
                     "compaction = {'class':'UnifiedCompactionStrategy', 'adaptive' : 'false', " +
-                    String.format("'scaling_parameters' : '%s', 'min_sstable_size_in_mb' : '1', 'base_shard_count': '%d', 'log_all' : 'true'}",
+                    String.format("'scaling_parameters' : '%s', 'min_sstable_size' : '0B', 'base_shard_count': '%d', 'log_all' : 'true'}",
                                   scalingParamsStr, numShards));
 
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
