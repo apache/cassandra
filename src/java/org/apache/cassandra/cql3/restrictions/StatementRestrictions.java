@@ -780,7 +780,11 @@ public final class StatementRestrictions
         if (filterRestrictions.isEmpty())
             return RowFilter.none();
 
-        RowFilter filter = RowFilter.create();
+        // If there is only one replica, we don't need reconciliation at any consistency level. 
+        boolean needsReconciliation = options.getConsistency().needsReconciliation()
+                                      && Keyspace.open(table.keyspace).getReplicationStrategy().getReplicationFactor().allReplicas > 1;
+
+        RowFilter filter = RowFilter.create(needsReconciliation);
         for (Restrictions restrictions : filterRestrictions.getRestrictions())
             restrictions.addToRowFilter(filter, indexRegistry, options);
 
