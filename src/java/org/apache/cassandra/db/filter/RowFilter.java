@@ -19,12 +19,13 @@ package org.apache.cassandra.db.filter;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import com.google.common.base.Objects;
 import org.slf4j.Logger;
@@ -32,14 +33,36 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.context.*;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionPurger;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.context.CounterContext;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.rows.BaseRowIterator;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.ComplexColumnData;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -60,32 +83,37 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNu
  * be handled by a 2ndary index, and the rest is simply filtered out from the
  * result set (the later can only happen if the query was using ALLOW FILTERING).
  */
-public abstract class RowFilter implements Iterable<RowFilter.Expression>
+public class RowFilter implements Iterable<RowFilter.Expression>
 {
     private static final Logger logger = LoggerFactory.getLogger(RowFilter.class);
 
     public static final Serializer serializer = new Serializer();
+    private static final RowFilter NONE = new RowFilter(Collections.emptyList(), false);
 
     protected final List<Expression> expressions;
 
-    protected RowFilter(List<Expression> expressions)
+    private final boolean needsReconciliation;
+
+    protected RowFilter(List<Expression> expressions, boolean needsReconciliation)
     {
         this.expressions = expressions;
+        this.needsReconciliation = needsReconciliation;
     }
 
-    public static RowFilter create()
+    /**
+     * 
+     * @param needsReconciliation whether or not this filter belongs to a read that requires coordinator reconciliation 
+     * 
+     * @return a new {@link RowFilter} with an empty {@link Expression} list
+     */
+    public static RowFilter create(boolean needsReconciliation)
     {
-        return new CQLFilter(new ArrayList<>());
-    }
-
-    public static RowFilter create(int capacity)
-    {
-        return new CQLFilter(new ArrayList<>(capacity));
+        return new RowFilter(new ArrayList<>(), needsReconciliation);
     }
 
     public static RowFilter none()
     {
-        return CQLFilter.NONE;
+        return NONE;
     }
 
     public SimpleExpression add(ColumnMetadata def, Operator op, ByteBuffer value)
@@ -111,14 +139,33 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         expressions.add(expression);
     }
 
-    public void addUserExpression(UserExpression e)
-    {
-        expressions.add(e);
-    }
-
     public List<Expression> getExpressions()
     {
         return expressions;
+    }
+
+    /**
+     * @return true if this filter belongs to a read that requires reconciliation at the coordinator
+     * @see StatementRestrictions#getRowFilter(IndexRegistry, QueryOptions)
+     */
+    public boolean needsReconciliation()
+    {
+        return needsReconciliation;
+    }
+
+    /**
+     * If this filter belongs to a read that requires reconciliation at the coordinator, and it contains an intersection
+     * on two or more non-key (and therefore mutable) columns, we cannot strictly apply it to local, unrepaired rows.
+     * When this occurs, we must downgrade the intersection of expressions to a union and leave the coordinator to 
+     * filter strictly before sending results to the client.
+     * 
+     * @return true if strict filtering is safe
+     *
+     * @see <a href="https://issues.apache.org/jira/browse/CASSANDRA-19018">CASSANDRA-19018</a>
+     */
+    public boolean isStrict()
+    {
+        return !needsReconciliation || expressions.stream().filter(e -> !e.column.isPrimaryKeyColumn()).count() <= 1;
     }
 
     /**
@@ -136,7 +183,74 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         return false;
     }
 
-    protected abstract Transformation<BaseRowIterator<?>> filter(TableMetadata metadata, long nowInSec);
+    /**
+     * Note that the application of this transformation does not yet take {@link #isStrict()} into account. This means
+     * that even when strict filtering is not safe, expressions will be applied as intersections rather than unions.
+     * The filter will always be evaluated strictly in conjunction with replica filtering protection at the 
+     * coordinator, however, even after CASSANDRA-19007 is addressed.
+     * 
+     * @see <a href="https://issues.apache.org/jira/browse/CASSANDRA-190007">CASSANDRA-19007</a>
+     */
+    protected Transformation<BaseRowIterator<?>> filter(TableMetadata metadata, long nowInSec)
+    {
+        List<Expression> partitionLevelExpressions = new ArrayList<>();
+        List<Expression> rowLevelExpressions = new ArrayList<>();
+        for (Expression e: expressions)
+        {
+            if (e.column.isStatic() || e.column.isPartitionKey())
+                partitionLevelExpressions.add(e);
+            else
+                rowLevelExpressions.add(e);
+        }
+
+        long numberOfRegularColumnExpressions = rowLevelExpressions.size();
+        final boolean filterNonStaticColumns = numberOfRegularColumnExpressions > 0;
+
+        return new Transformation<>()
+        {
+            DecoratedKey pk;
+
+            @Override
+            protected BaseRowIterator<?> applyToPartition(BaseRowIterator<?> partition)
+            {
+                pk = partition.partitionKey();
+
+                // Short-circuit all partitions that won't match based on static and partition keys
+                for (Expression e : partitionLevelExpressions)
+                    if (!e.isSatisfiedBy(metadata, partition.partitionKey(), partition.staticRow()))
+                    {
+                        partition.close();
+                        return null;
+                    }
+
+                BaseRowIterator<?> iterator = partition instanceof UnfilteredRowIterator
+                                              ? Transformation.apply((UnfilteredRowIterator) partition, this)
+                                              : Transformation.apply((RowIterator) partition, this);
+
+                if (filterNonStaticColumns && !iterator.hasNext())
+                {
+                    iterator.close();
+                    return null;
+                }
+
+                return iterator;
+            }
+
+            @Override
+            public Row applyToRow(Row row)
+            {
+                Row purged = row.purge(DeletionPurger.PURGE_ALL, nowInSec, metadata.enforceStrictLiveness());
+                if (purged == null)
+                    return null;
+
+                for (Expression e : rowLevelExpressions)
+                    if (!e.isSatisfiedBy(metadata, pk, purged))
+                        return null;
+
+                return row;
+            }
+        };
+    }
 
     /**
      * Filters the provided iterator so that only the row satisfying the expression of this filter
@@ -267,12 +381,10 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         return withNewExpressions(Collections.emptyList());
     }
 
-    public RowFilter restrict(Predicate<Expression> filter)
+    protected RowFilter withNewExpressions(List<Expression> expressions)
     {
-        return withNewExpressions(expressions.stream().filter(filter).collect(Collectors.toList()));
+        return new RowFilter(expressions, needsReconciliation);
     }
-
-    protected abstract RowFilter withNewExpressions(List<Expression> expressions);
 
     public boolean isEmpty()
     {
@@ -310,80 +422,6 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             sb.append(expressions.get(i).toString(cql));
         }
         return sb.toString();
-    }
-
-    private static class CQLFilter extends RowFilter
-    {
-        static CQLFilter NONE = new CQLFilter(Collections.emptyList());
-
-        private CQLFilter(List<Expression> expressions)
-        {
-            super(expressions);
-        }
-
-        protected Transformation<BaseRowIterator<?>> filter(TableMetadata metadata, long nowInSec)
-        {
-            List<Expression> partitionLevelExpressions = new ArrayList<>();
-            List<Expression> rowLevelExpressions = new ArrayList<>();
-            for (Expression e: expressions)
-            {
-                if (e.column.isStatic() || e.column.isPartitionKey())
-                    partitionLevelExpressions.add(e);
-                else
-                    rowLevelExpressions.add(e);
-            }
-
-            long numberOfRegularColumnExpressions = rowLevelExpressions.size();
-            final boolean filterNonStaticColumns = numberOfRegularColumnExpressions > 0;
-
-            return new Transformation<BaseRowIterator<?>>()
-            {
-                DecoratedKey pk;
-
-                protected BaseRowIterator<?> applyToPartition(BaseRowIterator<?> partition)
-                {
-                    pk = partition.partitionKey();
-
-                    // Short-circuit all partitions that won't match based on static and partition keys
-                    for (Expression e : partitionLevelExpressions)
-                        if (!e.isSatisfiedBy(metadata, partition.partitionKey(), partition.staticRow()))
-                        {
-                            partition.close();
-                            return null;
-                        }
-
-                    BaseRowIterator<?> iterator = partition instanceof UnfilteredRowIterator
-                                                  ? Transformation.apply((UnfilteredRowIterator) partition, this)
-                                                  : Transformation.apply((RowIterator) partition, this);
-
-                    if (filterNonStaticColumns && !iterator.hasNext())
-                    {
-                        iterator.close();
-                        return null;
-                    }
-
-                    return iterator;
-                }
-
-                public Row applyToRow(Row row)
-                {
-                    Row purged = row.purge(DeletionPurger.PURGE_ALL, nowInSec, metadata.enforceStrictLiveness());
-                    if (purged == null)
-                        return null;
-
-                    for (Expression e : rowLevelExpressions)
-                        if (!e.isSatisfiedBy(metadata, pk, purged))
-                            return null;
-
-                    return row;
-                }
-            };
-        }
-
-        protected RowFilter withNewExpressions(List<Expression> expressions)
-        {
-            return new CQLFilter(expressions);
-        }
     }
 
     public static abstract class Expression
@@ -1058,7 +1096,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
         }
 
-        public RowFilter deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
+        public RowFilter deserialize(DataInputPlus in, int version, TableMetadata metadata, boolean needsReconciliation) throws IOException
         {
             in.readBoolean(); // Unused
             int size = in.readUnsignedVInt32();
@@ -1066,7 +1104,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             for (int i = 0; i < size; i++)
                 expressions.add(Expression.serializer.deserialize(in, version, metadata));
 
-            return new CQLFilter(expressions);
+            return new RowFilter(expressions, needsReconciliation);
         }
 
         public long serializedSize(RowFilter filter, int version)

@@ -80,9 +80,9 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
     // For each source, record if there is an open range to send as repair, and from where.
     private final ClusteringBound<?>[] markerToRepair;
 
-    private final ReadRepair readRepair;
+    private final ReadRepair<E, ?> readRepair;
 
-    public RowIteratorMergeListener(DecoratedKey partitionKey, RegularAndStaticColumns columns, boolean isReversed, ReplicaPlan.ForRead<E, ?> readPlan, ReadCommand command, ReadRepair readRepair)
+    public RowIteratorMergeListener(DecoratedKey partitionKey, RegularAndStaticColumns columns, boolean isReversed, ReplicaPlan.ForRead<E, ?> readPlan, ReadCommand command, ReadRepair<E, ?> readRepair)
     {
         this.partitionKey = partitionKey;
         this.columns = columns;
@@ -204,13 +204,13 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
         }
     }
 
-    public Row onMergedRows(Row merged, Row[] versions)
+    public void onMergedRows(Row merged, Row[] versions)
     {
         // If a row was shadowed post merged, it must be by a partition level or range tombstone, and we handle
         // those case directly in their respective methods (in other words, it would be inefficient to send a row
         // deletion as repair when we know we've already send a partition level or range tombstone that covers it).
         if (merged.isEmpty())
-            return merged;
+            return;
 
         Rows.diff(diffListener, merged, versions);
         for (int i = 0; i < currentRows.length; i++)
@@ -222,8 +222,6 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
             }
         }
         Arrays.fill(currentRows, null);
-
-        return merged;
     }
 
     private DeletionTime currentDeletion()

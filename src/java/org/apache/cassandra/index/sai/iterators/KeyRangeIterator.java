@@ -54,7 +54,7 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
     {
         boolean isComplete = min != null && max != null && count != 0;
         boolean isEmpty = min == null && max == null && (count == 0 || count == -1);
-        Preconditions.checkArgument(isComplete || isEmpty, "Range: [" + min + ',' + max + "], Count: " + count);
+        Preconditions.checkArgument(isComplete || isEmpty, "Range: [%s,%s], Count: %d", min, max, count);
 
         this.min = min;
         this.current = min;

@@ -265,30 +265,23 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
                 return new UnfilteredRowIterators.MergeListener()
                 {
-                    public void onMergedPartitionLevelDeletion(DeletionTime mergedDeletion, DeletionTime[] versions)
-                    {
-                    }
+                    @Override
+                    public void onMergedPartitionLevelDeletion(DeletionTime mergedDeletion, DeletionTime[] versions) {}
 
-                    public Row onMergedRows(Row merged, Row[] versions)
+                    @Override
+                    public void onMergedRows(Row merged, Row[] versions)
                     {
                         indexTransaction.start();
                         indexTransaction.onRowMerge(merged, versions);
                         indexTransaction.commit();
-                        return merged;
                     }
 
-                    public void onMergedRangeTombstoneMarkers(RangeTombstoneMarker mergedMarker, RangeTombstoneMarker[] versions)
-                    {
-                    }
+                    @Override
+                    public void onMergedRangeTombstoneMarkers(RangeTombstoneMarker mergedMarker, RangeTombstoneMarker[] versions) {}
 
-                    public void close()
-                    {
-                    }
+                    @Override
+                    public void close() {}
                 };
-            }
-
-            public void close()
-            {
             }
         };
     }
@@ -426,8 +419,8 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         DeletionTime openDeletionTime = DeletionTime.LIVE;
         DeletionTime partitionDeletionTime;
         DeletionTime activeDeletionTime;
-        Unfiltered tombNext = null;
-        Unfiltered dataNext = null;
+        Unfiltered tombNext;
+        Unfiltered dataNext;
         Unfiltered next = null;
 
         /**
@@ -530,7 +523,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                                                                     tombOpenDeletionTime);
                         boolean supersededBefore = openDeletionTime.isLive();
                         boolean supersededAfter = !dataOpenDeletionTime.supersedes(activeDeletionTime);
-                        // If a range open was not issued because it was superseded and the deletion isn't superseded any more, we need to open it now.
+                        // If a range open was not issued because it was superseded and the deletion isn't superseded anymore, we need to open it now.
                         if (supersededBefore && !supersededAfter)
                             next = new RangeTombstoneBoundMarker(((RangeTombstoneMarker) tombNext).closeBound(false).invert(), dataOpenDeletionTime);
                         // If the deletion begins to be superseded, we don't close the range yet. This can save us a close/open pair if it ends after the superseding range.

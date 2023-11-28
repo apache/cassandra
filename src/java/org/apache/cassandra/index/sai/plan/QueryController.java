@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.plan;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -44,6 +45,7 @@ import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
@@ -69,10 +71,11 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_VECTOR
 
 public class QueryController
 {
+    final QueryContext queryContext;
+
     private final ColumnFamilyStore cfs;
     private final ReadCommand command;
-    private final QueryContext queryContext;
-    private final RowFilter filterOperation;
+    private final RowFilter indexFilter;
     private final List<DataRange> ranges;
     private final AbstractBounds<PartitionPosition> mergeRange;
     private final PrimaryKey.Factory keyFactory;
@@ -82,13 +85,13 @@ public class QueryController
 
     public QueryController(ColumnFamilyStore cfs,
                            ReadCommand command,
-                           RowFilter filterOperation,
+                           RowFilter indexFilter,
                            QueryContext queryContext)
     {
         this.cfs = cfs;
         this.command = command;
         this.queryContext = queryContext;
-        this.filterOperation = filterOperation;
+        this.indexFilter = indexFilter;
         this.ranges = dataRanges(command);
         DataRange first = ranges.get(0);
         DataRange last = ranges.get(ranges.size() - 1);
@@ -119,9 +122,14 @@ public class QueryController
         return command.metadata();
     }
 
-    public RowFilter filterOperation()
+    public RowFilter indexFilter()
     {
-        return this.filterOperation;
+        return this.indexFilter;
+    }
+    
+    public boolean usesStrictFiltering()
+    {
+        return command.rowFilter().isStrict();
     }
 
     /**
@@ -167,33 +175,84 @@ public class QueryController
      * the {@link SSTableIndex}s that will satisfy the expression.
      * <p>
      * Each (expression, SSTable indexes) pair is then passed to
-     * {@link IndexSearchResultIterator#build(Expression, Collection, AbstractBounds, QueryContext)}
+     * {@link IndexSearchResultIterator#build(Expression, Collection, AbstractBounds, QueryContext, boolean)}
      * to search the in-memory index associated with the expression and the SSTable indexes, the results of
      * which are unioned and returned.
      * <p>
-     * The results from each call to {@link IndexSearchResultIterator#build(Expression, Collection, AbstractBounds, QueryContext)}
-     * are added to a {@link KeyRangeIntersectionIterator} and returned.
+     * The results from each call to {@link IndexSearchResultIterator#build(Expression, Collection, AbstractBounds, QueryContext, boolean)}
+     * are added to a {@link KeyRangeIntersectionIterator} and returned if strict filtering is allowed.
+     * <p>
+     * If strict filtering is not allowed, indexes are split into two groups according to the repaired status of their 
+     * backing SSTables. Results from searches over the repaired group are added to a 
+     * {@link KeyRangeIntersectionIterator}, which is then added, along with results from searches on the unrepaired
+     * set, to a top-level {@link KeyRangeUnionIterator}, and returned. This is done to ensure that AND queries do not
+     * prematurely filter out matches on un-repaired partial updates. Post-filtering must also take this into
+     * account. (see {@link FilterTree#isSatisfiedBy(DecoratedKey, Row, Row)}) Note that Memtable-attached 
+     * indexes are treated as part of the unrepaired set.
      */
     public KeyRangeIterator.Builder getIndexQueryResults(Collection<Expression> expressions)
     {
         // VSTODO move ANN out of expressions and into its own abstraction? That will help get generic ORDER BY support
         expressions = expressions.stream().filter(e -> e.getIndexOperator() != Expression.IndexOperator.ANN).collect(Collectors.toList());
 
-        KeyRangeIterator.Builder builder = KeyRangeIntersectionIterator.builder(expressions.size());
-
-        QueryViewBuilder queryViewBuilder = new QueryViewBuilder(expressions, mergeRange);
-
-        QueryViewBuilder.QueryView queryView = queryViewBuilder.build();
+        KeyRangeIterator.Builder builder = command.rowFilter().isStrict()
+                                           ? KeyRangeIntersectionIterator.builder(expressions.size())
+                                           : KeyRangeUnionIterator.builder(expressions.size());
+        QueryViewBuilder.QueryView queryView = new QueryViewBuilder(expressions, mergeRange).build();
 
         try
         {
             maybeTriggerGuardrails(queryView);
 
-            for (Pair<Expression, Collection<SSTableIndex>> queryViewPair : queryView.view)
+            if (command.rowFilter().isStrict())
             {
-                KeyRangeIterator indexIterator = IndexSearchResultIterator.build(queryViewPair.left, queryViewPair.right, mergeRange, queryContext);
+                // If strict filtering is enabled, evaluate indexes for both repaired and un-repaired SSTables together.
+                // This usually means we are making this local index query in the context of a user query that reads 
+                // from a single replica and thus can safely perform local intersections.
+                for (Pair<Expression, Collection<SSTableIndex>> queryViewPair : queryView.view)
+                    builder.add(IndexSearchResultIterator.build(queryViewPair.left, queryViewPair.right, mergeRange, queryContext, true));
+            }
+            else
+            {
+                KeyRangeIterator.Builder repairedBuilder = KeyRangeIntersectionIterator.builder(expressions.size());
 
-                builder.add(indexIterator);
+                for (Pair<Expression, Collection<SSTableIndex>> queryViewPair : queryView.view)
+                {
+                    // The initial sizes here reflect little more than an effort to avoid resizing for 
+                    // partition-restricted searches w/ LCS:
+                    List<SSTableIndex> repaired = new ArrayList<>(5);
+                    List<SSTableIndex> unrepaired = new ArrayList<>(5);
+
+                    // Split SSTable indexes into repaired and un-reparired:
+                    for (SSTableIndex index : queryViewPair.right)
+                        if (index.getSSTable().isRepaired())
+                            repaired.add(index);
+                        else
+                            unrepaired.add(index);
+
+                    // Always build an iterator for the un-repaired set, given this must include Memtable indexes...  
+                    IndexSearchResultIterator unrepairedIterator =
+                            IndexSearchResultIterator.build(queryViewPair.left, unrepaired, mergeRange, queryContext, true);
+
+                    // ...but ignore it if our combined results are empty.
+                    if (unrepairedIterator.getCount() > 0)
+                    {
+                        builder.add(unrepairedIterator);
+                        queryContext.hasUnrepairedMatches = true;
+                    }
+                    else
+                    {
+                        // We're not going to use this, so release the resources it holds.
+                        unrepairedIterator.close();
+                    }
+
+                    // ...then only add an iterator to the repaired intersection if repaired SSTable indexes exist. 
+                    if (!repaired.isEmpty())
+                        repairedBuilder.add(IndexSearchResultIterator.build(queryViewPair.left, repaired, mergeRange, queryContext, false));
+                }
+
+                if (repairedBuilder.rangeCount() > 0)
+                    builder.add(repairedBuilder.build());
             }
         }
         catch (Throwable t)
