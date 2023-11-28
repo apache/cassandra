@@ -47,7 +47,7 @@ import org.apache.cassandra.utils.Throwables;
  *     <li>A block-packed structure for rowId to token lookups using {@link BlockPackedReader}.
  *     Uses the {@link IndexComponent#TOKEN_VALUES} component</li>
  *     <li>A monotonic block packed structure for rowId to partitionId lookups using {@link MonotonicBlockPackedReader}.
- *     Uses the {@link IndexComponent#PARTITION_SIZES} component</li>
+ *     Uses the {@link IndexComponent#PARTITION_ROWS} component</li>
  *     <li>A key store for rowId to {@link PrimaryKey} and {@link PrimaryKey} to rowId lookups using
  *     {@link KeyLookup}. Uses the {@link IndexComponent#PARTITION_KEY_BLOCKS} and
  *     {@link IndexComponent#PARTITION_KEY_BLOCK_OFFSETS} components</li>
@@ -64,19 +64,19 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
     {
         protected final MetadataSource metadataSource;
         protected final LongArray.Factory tokenReaderFactory;
-        protected final LongArray.Factory partitionReaderFactory;
+        protected final LongArray.Factory partitionRowReaderFactory;
         protected final KeyLookup partitionKeyReader;
         protected final PrimaryKey.Factory primaryKeyFactory;
 
         private final FileHandle tokensFile;
-        private final FileHandle partitionsFile;
+        private final FileHandle partitionRowsFile;
         private final FileHandle partitionKeyBlockOffsetsFile;
         private final FileHandle partitionKeyBlocksFile;
 
         public Factory(IndexDescriptor indexDescriptor, SSTableReader sstable)
         {
             this.tokensFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.TOKEN_VALUES, this::close);
-            this.partitionsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_SIZES, this::close);
+            this.partitionRowsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_ROWS, this::close);
             this.partitionKeyBlockOffsetsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS, this::close);
             this.partitionKeyBlocksFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCKS, this::close);
             try
@@ -84,8 +84,8 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
                 this.metadataSource = MetadataSource.loadGroupMetadata(indexDescriptor);
                 NumericValuesMeta tokensMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.TOKEN_VALUES)));
                 this.tokenReaderFactory = new BlockPackedReader(tokensFile, tokensMeta);
-                NumericValuesMeta partitionsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_SIZES)));
-                this.partitionReaderFactory = new MonotonicBlockPackedReader(partitionsFile, partitionsMeta);
+                NumericValuesMeta partitionsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_ROWS)));
+                this.partitionRowReaderFactory = new MonotonicBlockPackedReader(partitionRowsFile, partitionsMeta);
                 NumericValuesMeta partitionKeyBlockOffsetsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS)));
                 KeyLookupMeta partitionKeysMeta = new KeyLookupMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS)));
                 this.partitionKeyReader = new KeyLookup(partitionKeyBlocksFile, partitionKeyBlockOffsetsFile, partitionKeysMeta, partitionKeyBlockOffsetsMeta);
@@ -102,7 +102,7 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
         public PrimaryKeyMap newPerSSTablePrimaryKeyMap() throws IOException
         {
             LongArray rowIdToToken = new LongArray.DeferredLongArray(tokenReaderFactory::open);
-            LongArray rowIdToPartitionId = new LongArray.DeferredLongArray(partitionReaderFactory::open);
+            LongArray rowIdToPartitionId = new LongArray.DeferredLongArray(partitionRowReaderFactory::open);
             return new SkinnyPrimaryKeyMap(rowIdToToken,
                                            rowIdToPartitionId,
                                            partitionKeyReader.openCursor(),
@@ -112,7 +112,7 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
         @Override
         public void close()
         {
-            FileUtils.closeQuietly(Arrays.asList(tokensFile, partitionsFile, partitionKeyBlocksFile, partitionKeyBlockOffsetsFile));
+            FileUtils.closeQuietly(Arrays.asList(tokensFile, partitionRowsFile, partitionKeyBlocksFile, partitionKeyBlockOffsetsFile));
         }
     }
 

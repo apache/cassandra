@@ -42,18 +42,21 @@ public class SSTableComponentsWriter implements PerSSTableIndexWriter
     private final IndexDescriptor indexDescriptor;
     private final MetadataWriter metadataWriter;
     private final NumericValuesWriter partitionSizeWriter;
+    private final NumericValuesWriter partitionRowsWriter;
     private final NumericValuesWriter tokenWriter;
     private final KeyStoreWriter partitionKeysWriter;
     private final KeyStoreWriter clusteringKeysWriter;
 
     private long partitionId = -1;
+    private long partitionSizeCount = 0;
 
     public SSTableComponentsWriter(IndexDescriptor indexDescriptor) throws IOException
     {
         this.indexDescriptor = indexDescriptor;
         this.metadataWriter = new MetadataWriter(indexDescriptor.openPerSSTableOutput(IndexComponent.GROUP_META));
         this.tokenWriter = new NumericValuesWriter(indexDescriptor, IndexComponent.TOKEN_VALUES, metadataWriter, false);
-        this.partitionSizeWriter = new NumericValuesWriter(indexDescriptor, IndexComponent.PARTITION_SIZES, metadataWriter, true);
+        this.partitionRowsWriter = new NumericValuesWriter(indexDescriptor, IndexComponent.PARTITION_ROWS, metadataWriter, true);
+        this.partitionSizeWriter = new NumericValuesWriter(indexDescriptor, IndexComponent.PARTITION_SIZES, metadataWriter, false);
         IndexOutputWriter partitionKeyBlocksWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.PARTITION_KEY_BLOCKS);
         NumericValuesWriter partitionKeyBlockOffsetWriter = new NumericValuesWriter(indexDescriptor, IndexComponent.PARTITION_KEY_BLOCK_OFFSETS, metadataWriter, true);
         this.partitionKeysWriter = new KeyStoreWriter(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS),
@@ -82,7 +85,11 @@ public class SSTableComponentsWriter implements PerSSTableIndexWriter
     @Override
     public void startPartition(DecoratedKey partitionKey) throws IOException
     {
+        if (partitionId >= 0)
+            partitionSizeWriter.add(partitionSizeCount);
+
         partitionId++;
+        partitionSizeCount = 0;
         partitionKeysWriter.add(v -> ByteSource.of(partitionKey.getKey(), v));
         if (indexDescriptor.hasClustering())
             clusteringKeysWriter.startPartition();
@@ -92,7 +99,8 @@ public class SSTableComponentsWriter implements PerSSTableIndexWriter
     public void nextRow(PrimaryKey primaryKey) throws IOException
     {
         tokenWriter.add(primaryKey.token().getLongValue());
-        partitionSizeWriter.add(partitionId);
+        partitionRowsWriter.add(partitionId);
+        partitionSizeCount++;
         if (indexDescriptor.hasClustering())
             clusteringKeysWriter.add(indexDescriptor.clusteringComparator.asByteComparable(primaryKey.clustering()));
     }
@@ -102,11 +110,12 @@ public class SSTableComponentsWriter implements PerSSTableIndexWriter
     {
         try
         {
+            partitionSizeWriter.add(partitionSizeCount);
             indexDescriptor.createComponentOnDisk(IndexComponent.GROUP_COMPLETION_MARKER);
         }
         finally
         {
-            FileUtils.close(tokenWriter, partitionSizeWriter, partitionKeysWriter, clusteringKeysWriter, metadataWriter);
+            FileUtils.close(tokenWriter, partitionSizeWriter, partitionRowsWriter, partitionKeysWriter, clusteringKeysWriter, metadataWriter);
         }
     }
 

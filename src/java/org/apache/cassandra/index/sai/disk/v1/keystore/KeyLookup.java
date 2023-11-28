@@ -197,42 +197,33 @@ public class KeyLookup
             updateCurrentBlockIndex(startingPointId);
             resetToCurrentBlock();
 
-            if (compareKeys(currentKey, skipKey) == 0)
-                return startingPointId;
+            // We can return straightaway if the currentPointId is within the requested partition range and the keys match
+            if (currentPointId >= startingPointId && currentPointId < endingPointId && compareKeys(currentKey, skipKey) == 0)
+                return currentPointId;
 
-            if (notInCurrentBlock(startingPointId, skipKey))
+            long splitStartId = startingPointId;
+            long splitEndId = endingPointId;
+
+            while ((splitEndId - splitStartId) >>> blockShift > 0)
             {
-                long split = (endingPointId - startingPointId) >>> blockShift;
-                long splitPointId = startingPointId;
-                while (split > 0)
+                long midPointId = splitStartId + (splitEndId - splitStartId) / 2;
+
+                int position = keyInBlockComparison(midPointId, skipKey);
+
+                if (position == 0)
                 {
-                    updateCurrentBlockIndex(Math.min((splitPointId >>> blockShift) + split, blockOffsets.length() - 1));
-                    resetToCurrentBlock();
-
-                    if (currentPointId >= endingPointId)
-                    {
-                        updateCurrentBlockIndex((endingPointId - 1));
-                        resetToCurrentBlock();
-                    }
-
-                    int cmp = compareKeys(currentKey, skipKey);
-
-                    if (cmp == 0)
-                        return currentPointId;
-
-                    if (cmp < 0)
-                        splitPointId = currentPointId;
-
-                    split /= 2;
+                    splitStartId = currentPointId;
+                    break;
                 }
-                // After we finish the binary search we need to move the block back till we hit a block that has
-                // a starting key that is less than or equal to the skip key
-                while (currentBlockIndex > 0 && compareKeys(currentKey, skipKey) > 0)
-                {
-                    currentBlockIndex--;
-                    resetToCurrentBlock();
-                }
+
+                if (position < 0)
+                    splitEndId = midPointId;
+                else
+                    splitStartId = midPointId;
             }
+
+            updateCurrentBlockIndex(splitStartId);
+            resetToCurrentBlock();
 
             // Depending on where we are in the block we may need to move forwards to the starting point ID
             while (currentPointId < startingPointId)
@@ -247,9 +238,11 @@ public class KeyLookup
             {
                 if (compareKeys(currentKey, skipKey) >= 0)
                     return currentPointId;
+
                 currentPointId++;
                 if (currentPointId == keyLookupMeta.keyCount)
                     return -1;
+
                 readCurrentKey();
                 updateCurrentBlockIndex(currentPointId);
             }
@@ -265,11 +258,27 @@ public class KeyLookup
             readCurrentKey();
         }
 
-
         @Override
         public void close()
         {
             keysInput.close();
+        }
+
+        private int keyInBlockComparison(long pointId, BytesRef key)
+        {
+            updateCurrentBlockIndex(pointId);
+            resetToCurrentBlock();
+            if (compareKeys(key, currentKey) < 0)
+                return -1;
+
+            if (currentBlockIndex == blockOffsets.length() -1)
+                return 0;
+
+            long currentFp = keysInput.getFilePointer();
+            keysInput.seek(blockOffsets.get(currentBlockIndex + 1) + keysFilePointer);
+            readKey((currentBlockIndex + 1) << blockShift, nextBlockKey);
+            keysInput.seek(currentFp);
+            return compareKeys(key, nextBlockKey) < 0 ? 0 : 1;
         }
 
         private void updateCurrentBlockIndex(long pointId)
@@ -277,30 +286,11 @@ public class KeyLookup
             currentBlockIndex = pointId >>> blockShift;
         }
 
-        private boolean notInCurrentBlock(long pointId, BytesRef key)
-        {
-            if (inLastBlock(pointId))
-                return false;
-
-            // Load the starting value of the next block into nextBlockKey.
-            long blockIndex = (pointId >>> blockShift) + 1;
-            long currentFp = keysInput.getFilePointer();
-            keysInput.seek(blockOffsets.get(blockIndex) + keysFilePointer);
-            readKey(blockIndex << blockShift, nextBlockKey);
-            keysInput.seek(currentFp);
-
-            return compareKeys(key, nextBlockKey) >= 0;
-        }
-
-        private boolean inLastBlock(long pointId)
-        {
-            return pointId >>> blockShift == blockOffsets.length() - 1;
-        }
-
         // Reset currentPointId and currentKey to be at the start of the block
         // pointed to by currentBlockIndex.
         private void resetToCurrentBlock()
         {
+
             keysInput.seek(blockOffsets.get(currentBlockIndex) + keysFilePointer);
             currentPointId = currentBlockIndex << blockShift;
             readCurrentKey();
