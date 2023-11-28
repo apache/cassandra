@@ -61,16 +61,17 @@ public class V1OnDiskFormat implements OnDiskFormat
     @VisibleForTesting
     public static final Set<IndexComponent> SKINNY_PER_SSTABLE_COMPONENTS = EnumSet.of(IndexComponent.GROUP_COMPLETION_MARKER,
                                                                                        IndexComponent.GROUP_META,
-                                                                                       IndexComponent.TOKEN_VALUES,
-                                                                                       IndexComponent.PARTITION_SIZES,
+                                                                                       IndexComponent.ROW_TO_TOKEN,
+                                                                                       IndexComponent.ROW_TO_PARTITION,
                                                                                        IndexComponent.PARTITION_KEY_BLOCKS,
                                                                                        IndexComponent.PARTITION_KEY_BLOCK_OFFSETS);
 
     @VisibleForTesting
     public static final Set<IndexComponent> WIDE_PER_SSTABLE_COMPONENTS = EnumSet.of(IndexComponent.GROUP_COMPLETION_MARKER,
                                                                                      IndexComponent.GROUP_META,
-                                                                                     IndexComponent.TOKEN_VALUES,
-                                                                                     IndexComponent.PARTITION_SIZES,
+                                                                                     IndexComponent.ROW_TO_TOKEN,
+                                                                                     IndexComponent.ROW_TO_PARTITION,
+                                                                                     IndexComponent.PARTITION_TO_SIZE,
                                                                                      IndexComponent.PARTITION_KEY_BLOCKS,
                                                                                      IndexComponent.PARTITION_KEY_BLOCK_OFFSETS,
                                                                                      IndexComponent.CLUSTERING_KEY_BLOCKS,
@@ -132,7 +133,7 @@ public class V1OnDiskFormat implements OnDiskFormat
     public PrimaryKeyMap.Factory newPrimaryKeyMapFactory(IndexDescriptor indexDescriptor, SSTableReader sstable)
     {
         return indexDescriptor.hasClustering() ? new WidePrimaryKeyMap.Factory(indexDescriptor, sstable)
-                                               : new SkinnyPrimaryKeyMap.Factory(indexDescriptor, sstable);
+                                               : new SkinnyPrimaryKeyMap.Factory(indexDescriptor);
     }
 
     @Override

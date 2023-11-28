@@ -29,6 +29,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.v1.bitpack.BlockPackedReader;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesMeta;
 import org.apache.cassandra.index.sai.disk.v1.keystore.KeyLookupMeta;
 import org.apache.cassandra.index.sai.disk.v1.keystore.KeyLookup;
@@ -43,6 +44,8 @@ import org.apache.cassandra.utils.Throwables;
  * <p>
  * This used the following additional on-disk structures to the {@link SkinnyPrimaryKeyMap}
  * <ul>
+ *     <li>A block-packed structure for partitionId to partition size (number of rows in the partition) lookups using
+ *     {@link BlockPackedReader}. Uses the {@link IndexComponent#PARTITION_TO_SIZE} component</li>
  *     <li>A key store for rowId to {@link Clustering} and {@link Clustering} to rowId lookups using
  *     {@link KeyLookup}. Uses the {@link IndexComponent#CLUSTERING_KEY_BLOCKS} and
  *     {@link IndexComponent#CLUSTERING_KEY_BLOCK_OFFSETS} components</li>
@@ -58,19 +61,24 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
     {
         private final ClusteringComparator clusteringComparator;
         private final KeyLookup clusteringKeyReader;
+        private final LongArray.Factory partitionToSizeReaderFactory;
         private final FileHandle clusteringKeyBlockOffsetsFile;
         private final FileHandle clustingingKeyBlocksFile;
+        private final FileHandle partitionToSizeFile;
 
         public Factory(IndexDescriptor indexDescriptor, SSTableReader sstable)
         {
-            super(indexDescriptor, sstable);
+            super(indexDescriptor);
 
             this.clusteringKeyBlockOffsetsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.CLUSTERING_KEY_BLOCK_OFFSETS, this::close);
             this.clustingingKeyBlocksFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.CLUSTERING_KEY_BLOCKS, this::close);
+            this.partitionToSizeFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_TO_SIZE, this::close);
 
             try
             {
                 this.clusteringComparator = indexDescriptor.clusteringComparator;
+                NumericValuesMeta partitionSizeMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_TO_SIZE)));
+                this.partitionToSizeReaderFactory = new BlockPackedReader(partitionToSizeFile, partitionSizeMeta);
                 NumericValuesMeta clusteringKeyBlockOffsetsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.CLUSTERING_KEY_BLOCK_OFFSETS)));
                 KeyLookupMeta clusteringKeyMeta = new KeyLookupMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.CLUSTERING_KEY_BLOCKS)));
                 this.clusteringKeyReader = new KeyLookup(clustingingKeyBlocksFile, clusteringKeyBlockOffsetsFile, clusteringKeyMeta, clusteringKeyBlockOffsetsMeta);
@@ -85,11 +93,13 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
         @SuppressWarnings({ "resource", "RedundantSuppression" }) // deferred long arrays and cursors are closed in the WidePrimaryKeyMap#close method
         public PrimaryKeyMap newPerSSTablePrimaryKeyMap() throws IOException
         {
-            LongArray rowIdToToken = new LongArray.DeferredLongArray(tokenReaderFactory::open);
-            LongArray partitionIdToToken = new LongArray.DeferredLongArray(partitionReaderFactory::open);
+            LongArray rowIdToToken = new LongArray.DeferredLongArray(rowToTokenReaderFactory::open);
+            LongArray partitionIdToToken = new LongArray.DeferredLongArray(rowToPartitionReaderFactory::open);
+            LongArray partitionIdToSize = new LongArray.DeferredLongArray(partitionToSizeReaderFactory::open);
 
             return new WidePrimaryKeyMap(rowIdToToken,
                                          partitionIdToToken,
+                                         partitionIdToSize,
                                          partitionKeyReader.openCursor(),
                                          clusteringKeyReader.openCursor(),
                                          primaryKeyFactory,
@@ -100,22 +110,25 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
         public void close()
         {
             super.close();
-            FileUtils.closeQuietly(Arrays.asList(clustingingKeyBlocksFile, clusteringKeyBlockOffsetsFile));
+            FileUtils.closeQuietly(Arrays.asList(clustingingKeyBlocksFile, clusteringKeyBlockOffsetsFile, partitionToSizeFile));
         }
     }
 
+    private final LongArray partitionIdToSizeArray;
     private final ClusteringComparator clusteringComparator;
     private final KeyLookup.Cursor clusteringKeyCursor;
 
-    private WidePrimaryKeyMap(LongArray tokenArray,
-                              LongArray partitionArray,
+    private WidePrimaryKeyMap(LongArray rowIdToTokenArray,
+                              LongArray rowIdToPartitionIdArray,
+                              LongArray partitionIdToSizeArray,
                               KeyLookup.Cursor partitionKeyCursor,
                               KeyLookup.Cursor clusteringKeyCursor,
                               PrimaryKey.Factory primaryKeyFactory,
                               ClusteringComparator clusteringComparator)
     {
-        super(tokenArray, partitionArray, partitionKeyCursor, primaryKeyFactory);
+        super(rowIdToTokenArray, rowIdToPartitionIdArray, partitionKeyCursor, primaryKeyFactory);
 
+        this.partitionIdToSizeArray = partitionIdToSizeArray;
         this.clusteringComparator = clusteringComparator;
         this.clusteringKeyCursor = clusteringKeyCursor;
     }
@@ -129,11 +142,11 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
     @Override
     public long rowIdFromPrimaryKey(PrimaryKey primaryKey)
     {
-        long rowId = tokenArray.indexOf(primaryKey.token().getLongValue());
+        long rowId = rowIdToTokenArray.indexOf(primaryKey.token().getLongValue());
 
         // If the key only has a token (initial range skip in the query), the token is out of range,
         // or we have skipped a token, return the rowId from the token array.
-        if (primaryKey.kind() == PrimaryKey.Kind.TOKEN || rowId < 0 || tokenArray.get(rowId) != primaryKey.token().getLongValue())
+        if (primaryKey.kind() == PrimaryKey.Kind.TOKEN || rowId < 0 || rowIdToTokenArray.get(rowId) != primaryKey.token().getLongValue())
             return rowId;
 
         rowId = tokenCollisionDetection(primaryKey, rowId);
@@ -147,7 +160,7 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
     {
         if (token.isMinimum())
             return Long.MIN_VALUE;
-        long rowId = tokenArray.indexOf(token.getLongValue());
+        long rowId = rowIdToTokenArray.indexOf(token.getLongValue());
         return rowId < 0 ? rowId : startOfNextPartition(rowId) - 1;
     }
 
@@ -166,10 +179,7 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
     // Returns the rowId of the next partition or the number of rows if supplied rowId is in the last partition
     private long startOfNextPartition(long rowId)
     {
-        long partitionId = partitionArray.get(rowId);
-        long nextPartitionRowId = partitionArray.indexOf(++partitionId);
-        if (nextPartitionRowId == -1)
-            nextPartitionRowId = partitionArray.length();
-        return nextPartitionRowId;
+        long partitionSize = partitionIdToSizeArray.get(rowIdToPartitionIdArray.get(rowId));
+        return partitionSize == -1 ? rowIdToPartitionIdArray.length() : rowId + partitionSize;
     }
 }
