@@ -89,7 +89,12 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
     @Override
     public void abort(Throwable cause)
     {
-        logger.warn(indexIdentifier.logMessage("Aborting index memtable flush for {}..."), indexDescriptor.sstableDescriptor, cause);
+        if (cause == null)
+            // This commonly occurs when a Memtable has no rows to flush, and is harmless:
+            logger.debug(indexIdentifier.logMessage("Aborting index memtable flush for {}..."), indexDescriptor.sstableDescriptor);
+        else
+            logger.warn(indexIdentifier.logMessage("Aborting index memtable flush for {}..."), indexDescriptor.sstableDescriptor, cause);
+
         indexDescriptor.deleteColumnIndex(indexTermType, indexIdentifier);
     }
 
