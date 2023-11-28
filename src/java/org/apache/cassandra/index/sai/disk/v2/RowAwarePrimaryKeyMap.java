@@ -180,6 +180,12 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
     }
 
     @Override
+    public long nextAfter(PrimaryKey key)
+    {
+        return cursor.nextAfter(v -> key.asComparableBytesMinPrefix(v));
+    }
+
+    @Override
     public long ceiling(PrimaryKey key)
     {
         return cursor.ceiling(v -> key.asComparableBytesMinPrefix(v));

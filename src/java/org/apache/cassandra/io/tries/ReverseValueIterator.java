@@ -17,15 +17,24 @@
  */
 package org.apache.cassandra.io.tries;
 
+import javax.annotation.concurrent.NotThreadSafe;
+
 import org.apache.cassandra.io.util.Rebufferer;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 /**
- * Thread-unsafe reverse value iterator for on-disk tries. Uses the assumptions of Walker.
+ * Thread-unsafe reverse value iterator for on-disk tries. Uses the assumptions of {@link Walker}.
+ * <p>
+ * The main utility of this class is the {@link #nextPayloadedNode()} method, which lists all nodes that contain a
+ * payload within the requested bounds. The treatment of the bounds is non-standard (see
+ * {@link #ReverseValueIterator(Rebufferer, long, ByteComparable, ByteComparable, boolean)}), necessary to properly walk
+ * tries of prefixes and separators.
  */
+@NotThreadSafe
 public class ReverseValueIterator<Concrete extends ReverseValueIterator<Concrete>> extends Walker<Concrete>
 {
+    static final int NOT_AT_LIMIT = Integer.MIN_VALUE;
     private final ByteSource limit;
     private IterationPosition stack;
     private long next;
@@ -33,10 +42,10 @@ public class ReverseValueIterator<Concrete extends ReverseValueIterator<Concrete
 
     static class IterationPosition
     {
-        long node;
+        final long node;
+        final int limit;
+        final IterationPosition prev;
         int childIndex;
-        int limit;
-        IterationPosition prev;
 
         public IterationPosition(long node, int childIndex, int limit, IterationPosition prev)
         {
@@ -51,18 +60,36 @@ public class ReverseValueIterator<Concrete extends ReverseValueIterator<Concrete
     protected ReverseValueIterator(Rebufferer source, long root)
     {
         super(source, root);
-        stack = new IterationPosition(root, -1, 256, null);
         limit = null;
-        next = advanceNode();
+        initializeNoRightBound(root, NOT_AT_LIMIT, false);
     }
 
+    /**
+     * Constrained iterator. The end position is always treated as inclusive, and we have two possible treatments for
+     * the start:
+     * <ul>
+     *   <li> When {@code admitPrefix=false}, exact matches and any prefixes of the start are excluded.
+     *   <li> When {@code admitPrefix=true}, the longest prefix of the start present in the trie is also included,
+     *        provided that there is no entry in the trie between that prefix and the start. An exact match also
+     *        satisfies this and is included.
+     * </ul>
+     * This behaviour is shared with the forward counterpart {@link ValueIterator}.
+     */
     protected ReverseValueIterator(Rebufferer source, long root, ByteComparable start, ByteComparable end, boolean admitPrefix)
     {
         super(source, root);
-        limit = start.asComparableBytes(BYTE_COMPARABLE_VERSION);
-        ByteSource endStream = end.asComparableBytes(BYTE_COMPARABLE_VERSION);
+        limit = start != null ? start.asComparableBytes(BYTE_COMPARABLE_VERSION) : null;
+
+        if (end != null)
+            initializeWithRightBound(root, end.asComparableBytes(BYTE_COMPARABLE_VERSION), admitPrefix, limit != null);
+        else
+            initializeNoRightBound(root, limit != null ? limit.next() : NOT_AT_LIMIT, admitPrefix);
+    }
+
+    void initializeWithRightBound(long root, ByteSource endStream, boolean admitPrefix, boolean hasLimit)
+    {
         IterationPosition prev = null;
-        boolean atLimit = true;
+        boolean atLimit = hasLimit;
         int childIndex;
         int limitByte;
         reportingPrefixes = admitPrefix;
@@ -74,7 +101,7 @@ public class ReverseValueIterator<Concrete extends ReverseValueIterator<Concrete
             int s = endStream.next();
             childIndex = search(s);
 
-            limitByte = -1;
+            limitByte = NOT_AT_LIMIT;
             if (atLimit)
             {
                 limitByte = limit.next();
@@ -85,7 +112,7 @@ public class ReverseValueIterator<Concrete extends ReverseValueIterator<Concrete
                 break;
 
             prev = new IterationPosition(position, childIndex, limitByte, prev);
-            go(transition(childIndex));
+            go(transition(childIndex)); // childIndex is positive, this transition must exist
         }
 
         // Advancing now gives us first match.
@@ -94,10 +121,20 @@ public class ReverseValueIterator<Concrete extends ReverseValueIterator<Concrete
         next = advanceNode();
     }
 
+    private void initializeNoRightBound(long root, int limitByte, boolean admitPrefix)
+    {
+        go(root);
+        stack = new IterationPosition(root, -1 - search(256), limitByte, null);
+        next = advanceNode();
+        reportingPrefixes = admitPrefix;
+    }
+
+
+
     /**
-     * This method must be async-read-safe.
+     * Returns the position of the next node with payload contained in the iterated span.
      */
-    protected long nextPayloadedNode()     // returns payloaded node position
+    protected long nextPayloadedNode()
     {
         long toReturn = next;
         if (next != -1)
@@ -105,9 +142,6 @@ public class ReverseValueIterator<Concrete extends ReverseValueIterator<Concrete
         return toReturn;
     }
 
-    /**
-     * This method must be async-read-safe.
-     */
     long advanceNode()
     {
         if (stack == null)
@@ -143,28 +177,36 @@ public class ReverseValueIterator<Concrete extends ReverseValueIterator<Concrete
 
                 // Report payloads on the way up
                 // unless we are at limit and there has been a smaller child
-                if (reportingPrefixes && payloadFlags() != 0)
+                if (payloadFlags() != 0)
                 {
-                    if (stackTop.limit >= 0)    // if we are at limit position only report the closest prefix
-                        reportingPrefixes = false;
-                    return stackTop.node;
+                    // If we are fully inside the covered space, report.
+                    // Note that on the exact match of the limit, stackTop.limit would be END_OF_STREAM.
+                    // This comparison rejects the exact match; if we wanted to include it, we could test < 0 instead.
+                    if (stackTop.limit == NOT_AT_LIMIT)
+                        return stackTop.node;
+                    else if (reportingPrefixes)
+                    {
+                        reportingPrefixes = false; // if we are at limit position only report one prefix, the closest
+                        return stackTop.node;
+                    }
+                    // else skip this payload
                 }
 
                 if (stack == null)        // exhausted whole trie
-                    return -1;
+                    return NONE;
                 go(stack.node);
                 continue;
             }
 
             child = transition(childIdx);
-            if (child != -1)
+            if (child != NONE)
             {
                 go(child);
 
                 stack.childIndex = childIdx;
 
                 // descend, stack up position
-                int l = -1;
+                int l = NOT_AT_LIMIT;
                 if (transitionByte == stack.limit)
                     l = limit.next();
 

@@ -90,6 +90,8 @@ public interface PrimaryKeyMap extends Closeable
      */
     long floor(PrimaryKey key);
 
+    long nextAfter(PrimaryKey key);
+
     @Override
     default void close() throws IOException
     {

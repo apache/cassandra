@@ -158,7 +158,7 @@ public class PostingListRangeIterator extends RangeIterator
         long segmentRowId;
         if (needsSkipping)
         {
-            long targetRowID = primaryKeyMap.ceiling(skipToToken);
+            long targetRowID = primaryKeyMap.nextAfter(skipToToken);
             // skipToToken is larger than max token in token file
             if (targetRowID < 0)
             {

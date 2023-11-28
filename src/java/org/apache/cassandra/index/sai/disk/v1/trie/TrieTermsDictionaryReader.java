@@ -19,38 +19,34 @@ package org.apache.cassandra.index.sai.disk.v1.trie;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.Iterator;
 import javax.annotation.concurrent.NotThreadSafe;
-
-import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.io.tries.SerializationNode;
 import org.apache.cassandra.io.tries.TrieNode;
 import org.apache.cassandra.io.tries.TrieSerializer;
-import org.apache.cassandra.io.tries.Walker;
+import org.apache.cassandra.io.tries.ValueIterator;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.Rebufferer;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.SizedInts;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.apache.lucene.util.ArrayUtil;
 
 /**
  * Page-aware random access reader for a trie terms dictionary written by {@link TrieTermsDictionaryWriter}.
  */
 @NotThreadSafe
-public class TrieTermsDictionaryReader extends Walker<TrieTermsDictionaryReader>
+public class TrieTermsDictionaryReader extends ValueIterator<TrieTermsDictionaryReader> implements Iterator<Pair<ByteComparable, Long>>
 {
     public static final long NOT_FOUND = -1;
 
     public TrieTermsDictionaryReader(Rebufferer rebufferer, long root)
     {
-        super(rebufferer, root);
+        super(rebufferer, root, true);
     }
 
-    public static final TrieSerializer<Long, DataOutputPlus> trieSerializer = new TrieSerializer<Long, DataOutputPlus>()
+    public static final TrieSerializer<Long, DataOutputPlus> trieSerializer = new TrieSerializer<>()
     {
         @Override
         public int sizeofNode(SerializationNode<Long> node, long nodePosition)
@@ -95,6 +91,34 @@ public class TrieTermsDictionaryReader extends Walker<TrieTermsDictionaryReader>
         return getCurrentPayload();
     }
 
+    public long nextAfter(ByteComparable key)
+    {
+        skipTo(key, LeftBoundTreatment.ADMIT_EXACT);
+        return nextAsLong();
+    }
+
+    public long nextAsLong()
+    {
+        return nextValueAsLong(this::getCurrentPayload, NOT_FOUND);
+    }
+
+    @Override
+    public boolean hasNext()
+    {
+        return super.hasNext();
+    }
+
+    @Override
+    public Pair<ByteComparable, Long> next()
+    {
+        return nextValue(this::getKeyAndPayload);
+    }
+
+    private Pair<ByteComparable, Long> getKeyAndPayload()
+    {
+        return Pair.create(collectedKey(), getCurrentPayload());
+    }
+
     /**
      * Returns the position associated with the least term greater than or equal to the given key, or
      * a negative value if there is no such term.
@@ -134,77 +158,9 @@ public class TrieTermsDictionaryReader extends Walker<TrieTermsDictionaryReader>
         return getCurrentPayload();
     }
 
-    public Iterator<Pair<ByteComparable, Long>> iterator()
-    {
-        return new AbstractIterator<Pair<ByteComparable, Long>>()
-        {
-            final TransitionBytesCollector collector = new TransitionBytesCollector();
-            IterationPosition stack = new IterationPosition(root, -1, null);
-
-            @Override
-            protected Pair<ByteComparable, Long> computeNext()
-            {
-                final long node = advanceNode();
-                if (node == -1)
-                {
-                    return endOfData();
-                }
-                return Pair.create(collector.toByteComparable(), getCurrentPayload());
-            }
-
-            private long advanceNode()
-            {
-                long child;
-                int transitionByte;
-
-                go(stack.node);
-                while (true)
-                {
-                    int childIndex = stack.childIndex + 1;
-                    transitionByte = transitionByte(childIndex);
-
-                    if (transitionByte > 256)
-                    {
-                        // ascend
-                        stack = stack.prev;
-                        collector.pop();
-                        if (stack == null)
-                        {
-                            // exhausted whole trie
-                            return -1;
-                        }
-                        go(stack.node);
-                        continue;
-                    }
-
-                    child = transition(childIndex);
-
-                    if (child != -1)
-                    {
-                        assert child >= 0 : String.format("Expected value >= 0 but got %d - %s", child, this);
-
-                        // descend
-                        go(child);
-
-                        stack.childIndex = childIndex;
-                        stack = new IterationPosition(child, -1, stack);
-                        collector.add(transitionByte);
-
-                        if (payloadFlags() != 0)
-                            return child;
-                    }
-                    else
-                    {
-                        stack.childIndex = childIndex;
-                    }
-                }
-            }
-        };
-    }
-
     public ByteComparable getMaxTerm()
     {
-        final TransitionBytesCollector collector = new ImmutableTransitionBytesCollector();
+        final TransitionBytesCollector collector = new TransitionBytesCollector();
         go(root);
         while (true)
         {
@@ -221,7 +177,7 @@ public class TrieTermsDictionaryReader extends Walker<TrieTermsDictionaryReader>
 
     public ByteComparable getMinTerm()
     {
-        final TransitionBytesCollector collector = new ImmutableTransitionBytesCollector();
+        final TransitionBytesCollector collector = new TransitionBytesCollector();
         go(root);
         while (true)
         {
@@ -245,84 +201,11 @@ public class TrieTermsDictionaryReader extends Walker<TrieTermsDictionaryReader>
         return getPayload(buf, payloadPos, bits);
     }
 
-    private long getPayload(ByteBuffer contents, int payloadPos, int bytes)
+    private static long getPayload(ByteBuffer contents, int payloadPos, int bytes)
     {
         if (bytes == 0)
-        {
             return NOT_FOUND;
-        }
+
         return SizedInts.read(contents, payloadPos, bytes);
-    }
-
-    public static class ImmutableTransitionBytesCollector extends TransitionBytesCollector
-    {
-        @Override
-        public ByteComparable toByteComparable()
-        {
-            assert pos > 0;
-            final int length = pos;
-            return v -> ByteSource.fixedLength(bytes, 0, length);
-        }
-
-        @Override
-        public void pop()
-        {
-            throw new UnsupportedOperationException();
-        }
-    }
-
-    public static class TransitionBytesCollector
-    {
-        protected byte[] bytes = new byte[32];
-        protected int pos = 0;
-
-        public void add(int b)
-        {
-            if (pos == bytes.length)
-            {
-                bytes = ArrayUtil.grow(bytes, pos + 1);
-            }
-            bytes[pos++] = (byte) b;
-        }
-
-        public void pop()
-        {
-            assert pos >= 0;
-            pos--;
-        }
-
-        public ByteComparable toByteComparable()
-        {
-            assert pos > 0;
-            final byte[] value = new byte[pos];
-            System.arraycopy(bytes, 0, value, 0, pos);
-            return v -> ByteSource.fixedLength(value, 0, value.length);
-        }
-
-        @Override
-        public String toString()
-        {
-            return String.format("[Bytes %s, pos %d]", Arrays.toString(bytes), pos);
-        }
-    }
-
-    private static class IterationPosition
-    {
-        final long node;
-        final IterationPosition prev;
-        int childIndex;
-
-        IterationPosition(long node, int childIndex, IterationPosition prev)
-        {
-            this.node = node;
-            this.childIndex = childIndex;
-            this.prev = prev;
-        }
-
-        @Override
-        public String toString()
-        {
-            return String.format("[Node %d, child %d]", node, childIndex);
-        }
     }
 }

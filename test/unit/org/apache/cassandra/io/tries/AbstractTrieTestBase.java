@@ -18,23 +18,57 @@
 
 package org.apache.cassandra.io.tries;
 
-import java.io.DataOutput;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.function.BiFunction;
 
 import org.junit.Before;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.Rebufferer;
 import org.apache.cassandra.utils.PageAware;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
+@RunWith(Parameterized.class)
 abstract public class AbstractTrieTestBase
 {
+    @Parameterized.Parameter(0)
+    public TestClass writerClass;
+
+    enum TestClass
+    {
+        SIMPLE(IncrementalTrieWriterSimple::new),
+        PAGE_AWARE(IncrementalTrieWriterPageAware::new),
+        PAGE_AWARE_DEEP_ON_STACK((serializer, dest) -> new IncrementalDeepTrieWriterPageAware<>(serializer, dest, 256)),
+        PAGE_AWARE_DEEP_ON_HEAP((serializer, dest) -> new IncrementalDeepTrieWriterPageAware<>(serializer, dest, 0)),
+        PAGE_AWARE_DEEP_MIXED((serializer, dest) -> new IncrementalDeepTrieWriterPageAware<>(serializer, dest, 2));
+
+        final BiFunction<TrieSerializer<Integer, DataOutputPlus>, DataOutputPlus, IncrementalTrieWriter<Integer>> constructor;
+        TestClass(BiFunction<TrieSerializer<Integer, DataOutputPlus>, DataOutputPlus, IncrementalTrieWriter<Integer>> constructor)
+        {
+            this.constructor = constructor;
+        }
+    }
+
+    @Parameterized.Parameters(name = "{index}: trie writer class={0}")
+    public static Collection<Object[]> data()
+    {
+        return Arrays.asList(new Object[]{ TestClass.SIMPLE },
+                             new Object[]{ TestClass.PAGE_AWARE },
+                             new Object[]{ TestClass.PAGE_AWARE_DEEP_ON_STACK },
+                             new Object[]{ TestClass.PAGE_AWARE_DEEP_ON_HEAP },
+                             new Object[]{ TestClass.PAGE_AWARE_DEEP_MIXED });
+    }
+
     protected final static Logger logger = LoggerFactory.getLogger(TrieBuilderTest.class);
     protected final static int BASE = 80;
 
@@ -48,18 +82,28 @@ abstract public class AbstractTrieTestBase
         payloadSize = 0;
     }
 
-    protected final TrieSerializer<Integer, DataOutput> serializer = new TrieSerializer<Integer, DataOutput>()
+    IncrementalTrieWriter<Integer> newTrieWriter(TrieSerializer<Integer, DataOutputPlus> serializer, DataOutputPlus out)
     {
+        return writerClass.constructor.apply(serializer, out);
+    }
+
+    protected final TrieSerializer<Integer, DataOutputPlus> serializer = new TrieSerializer<Integer, DataOutputPlus>()
+    {
+        @Override
         public int sizeofNode(SerializationNode<Integer> node, long nodePosition)
         {
             return TrieNode.typeFor(node, nodePosition).sizeofNode(node) + payloadSize;
         }
 
-        public void write(DataOutput dataOutput, SerializationNode<Integer> node, long nodePosition) throws IOException
+        @Override
+        public void write(DataOutputPlus dataOutput, SerializationNode<Integer> node, long nodePosition) throws IOException
         {
             if (dump)
                 logger.info("Writing at {} type {} size {}: {}", Long.toHexString(nodePosition), TrieNode.typeFor(node, nodePosition), TrieNode.typeFor(node, nodePosition).sizeofNode(node), node);
+            // Our payload value is an integer of four bits.
+            // We use the payload bits in the trie node header to fully store it.
             TrieNode.typeFor(node, nodePosition).serialize(dataOutput, node, node.payload() != null ? node.payload() : 0, nodePosition);
+            // and we also add some padding if a test needs it
             dataOutput.write(new byte[payloadSize]);
         }
     };
@@ -72,6 +116,8 @@ abstract public class AbstractTrieTestBase
 
     protected ByteComparable source(String s)
     {
+        if (s == null)
+            return null;
         ByteBuffer buf = ByteBuffer.allocate(s.length());
         for (int i = 0; i < s.length(); ++i)
             buf.put((byte) s.charAt(i));
@@ -87,16 +133,19 @@ abstract public class AbstractTrieTestBase
     // In-memory buffer with added paging parameters, to make sure the code below does the proper layout
     protected static class DataOutputBufferPaged extends DataOutputBuffer
     {
+        @Override
         public int maxBytesInPage()
         {
             return PageAware.PAGE_SIZE;
         }
 
+        @Override
         public void padToPageBoundary() throws IOException
         {
             PageAware.pad(this);
         }
 
+        @Override
         public int bytesLeftInPage()
         {
             long position = position();
@@ -104,22 +153,10 @@ abstract public class AbstractTrieTestBase
             return (int) bytesLeft;
         }
 
+        @Override
         public long paddedPosition()
         {
             return PageAware.padded(position());
-        }
-    }
-
-    protected static class InternalIterator extends ValueIterator<InternalIterator>
-    {
-        public InternalIterator(Rebufferer source, long root)
-        {
-            super(source, root);
-        }
-
-        public InternalIterator(Rebufferer source, long root, ByteComparable start, ByteComparable end, boolean admitPrefix)
-        {
-            super(source, root, start, end, admitPrefix);
         }
     }
 

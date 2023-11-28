@@ -145,7 +145,7 @@ public class SortedTermsTest extends SaiRandomizedTest
         {
             for (int x = 0; x < terms.size(); x++)
             {
-                long pointId = reader.ceiling(ByteComparable.fixedLength(terms.get(x)));
+                long pointId = reader.nextAfter(ByteComparable.fixedLength(terms.get(x)));
                 assertEquals(x, pointId);
             }
         });

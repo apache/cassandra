@@ -368,9 +368,6 @@ public class PartitionIndex implements Closeable
      */
     public static class IndexPosIterator extends ValueIterator<IndexPosIterator>
     {
-        static final long INVALID = -1;
-        long pos = INVALID;
-
         /**
          * @param index PartitionIndex to use for the iteration.
          *
@@ -379,12 +376,12 @@ public class PartitionIndex implements Closeable
          */
         public IndexPosIterator(PartitionIndex index)
         {
-            super(index.instantiateRebufferer(), index.root, index.filterFirst, index.filterLast, true);
+            super(index.instantiateRebufferer(), index.root, index.filterFirst, index.filterLast, LeftBoundTreatment.ADMIT_PREFIXES);
         }
 
         IndexPosIterator(PartitionIndex index, PartitionPosition start, PartitionPosition end)
         {
-            super(index.instantiateRebufferer(), index.root, start, end, true);
+            super(index.instantiateRebufferer(), index.root, start, end, LeftBoundTreatment.ADMIT_PREFIXES);
         }
 
         /**
@@ -392,18 +389,12 @@ public class PartitionIndex implements Closeable
          */
         protected long nextIndexPos()
         {
-            // without missing positions, we save and reuse the unreturned position.
-            if (pos == INVALID)
-            {
-                pos = nextPayloadedNode();
-                if (pos == INVALID)
-                    return NOT_FOUND;
-            }
+            return nextValueAsLong(this::getCurrentIndexPos, NOT_FOUND);
+        }
 
-            go(pos);
-
-            pos = INVALID; // make sure next time we call nextPayloadedNode() again
-            return getIndexPos(buf, payloadPosition(), payloadFlags()); // this should not throw
+        private long getCurrentIndexPos()
+        {
+            return getIndexPos(buf, payloadPosition(), payloadFlags());
         }
     }
 
@@ -419,7 +410,7 @@ public class PartitionIndex implements Closeable
         }
         catch (Throwable t)
         {
-            logger.warn("Failed to dump trie to {} due to exception {}", fileName, t);
+            logger.warn("Failed to dump trie to {} due to exception", fileName, t);
         }
     }
 

@@ -22,9 +22,11 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.io.util.Rebufferer;
 import org.apache.cassandra.io.util.Rebufferer.BufferHolder;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.PageAware;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.lucene.util.ArrayUtil;
 
 /**
  * Thread-unsafe trie walking helper. This is analogous to RandomAccessReader for tries -- takes an on-disk trie
@@ -35,7 +37,10 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 // TODO STAR-247: unit test are insufficient - they did not catch a problem fixed in STAR-247
 public class Walker<VALUE extends Walker<VALUE>> implements AutoCloseable
 {
-    private final Rebufferer source;
+    /** Value used to indicate a branch (e.g. lesser/greaterBranch) does not exist. */
+    public static int NONE = -1;
+
+    protected final Rebufferer source;
     protected final long root;
 
     // State relating to current node.
@@ -100,6 +105,11 @@ public class Walker<VALUE extends Walker<VALUE>> implements AutoCloseable
         return nodeType.payloadFlags(buf, offset);
     }
 
+    protected final boolean hasPayload()
+    {
+        return payloadFlags() != 0;
+    }
+
     protected final int payloadPosition()
     {
         return nodeType.payloadPosition(buf, offset);
@@ -151,7 +161,7 @@ public class Walker<VALUE extends Walker<VALUE>> implements AutoCloseable
         while (true)
         {
             long lastChild = lastTransition();
-            if (lastChild == -1)
+            if (lastChild == NONE)
                 return;
             go(lastChild);
         }
@@ -205,7 +215,7 @@ public class Walker<VALUE extends Walker<VALUE>> implements AutoCloseable
      */
     public int followWithGreater(ByteComparable key)
     {
-        greaterBranch = -1;
+        greaterBranch = NONE;
 
         ByteSource stream = key.asComparableBytes(BYTE_COMPARABLE_VERSION);
         go(root);
@@ -231,7 +241,7 @@ public class Walker<VALUE extends Walker<VALUE>> implements AutoCloseable
      */
     public int followWithLesser(ByteComparable key)
     {
-        lesserBranch = -1;
+        lesserBranch = NONE;
 
         ByteSource stream = key.asComparableBytes(BYTE_COMPARABLE_VERSION);
         go(root);
@@ -297,8 +307,8 @@ public class Walker<VALUE extends Walker<VALUE>> implements AutoCloseable
     public <RESULT> RESULT prefixAndNeighbours(ByteComparable key, Extractor<RESULT, VALUE> extractor)
     {
         RESULT payload = null;
-        greaterBranch = -1;
-        lesserBranch = -1;
+        greaterBranch = NONE;
+        lesserBranch = NONE;
 
         ByteSource stream = key.asComparableBytes(BYTE_COMPARABLE_VERSION);
         go(root);
@@ -364,7 +374,7 @@ public class Walker<VALUE extends Walker<VALUE>> implements AutoCloseable
         for (int i = 0; i < range; ++i)
         {
             long child = transition(i);
-            if (child == -1)
+            if (child == NONE)
                 continue;
             out.format("%s%02x %s>", indent, transitionByte(i), PageAware.pageStart(position) == PageAware.pageStart(child) ? "--" : "==");
             dumpTrie(out, payloadReader, child, indent + "  ");
@@ -377,5 +387,41 @@ public class Walker<VALUE extends Walker<VALUE>> implements AutoCloseable
     {
         return String.format("[Trie Walker - NodeType: %s, source: %s, buffer: %s, buffer file offset: %d, Node buffer offset: %d, Node file position: %d]",
                              nodeType, source, buf, bh.offset(), offset, position);
+    }
+
+    public static class TransitionBytesCollector
+    {
+        protected byte[] bytes = new byte[32];
+        protected int pos = 0;
+
+        public void add(int b)
+        {
+            if (pos == bytes.length)
+            {
+                bytes = ArrayUtil.grow(bytes, pos + 1);
+            }
+            bytes[pos++] = (byte) b;
+        }
+
+        public void pop()
+        {
+            assert pos >= 0;
+            pos--;
+        }
+
+        public ByteComparable toByteComparable()
+        {
+            if (pos <= 0)
+                return null;
+            byte[] value = new byte[pos];
+            System.arraycopy(bytes, 0, value, 0, pos);
+            return v -> ByteSource.fixedLength(value, 0, value.length);
+        }
+
+        @Override
+        public String toString()
+        {
+            return ByteBufferUtil.bytesToHex(ByteBuffer.wrap(bytes, 0, pos));
+        }
     }
 }

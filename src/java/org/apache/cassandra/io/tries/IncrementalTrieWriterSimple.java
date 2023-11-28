@@ -17,8 +17,9 @@
  */
 package org.apache.cassandra.io.tries;
 
-import java.io.DataOutput;
 import java.io.IOException;
+
+import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -33,15 +34,17 @@ import org.apache.cassandra.io.util.DataOutputPlus;
  * (this pointer will be discarded too when the parent node is completed). This ensures that a very limited amount of
  * data is kept in memory at all times.
  * <p>
- * Note: This class is currently unused and stands only as form of documentation for {@link IncrementalTrieWriterPageAware}.
+ * Note: This class is currently unused (but tested) and stands only as form of documentation for
+ * {@link IncrementalTrieWriterPageAware}.
  */
+@NotThreadSafe
 public class IncrementalTrieWriterSimple<VALUE>
-        extends IncrementalTrieWriterBase<VALUE, DataOutput, IncrementalTrieWriterSimple.Node<VALUE>>
+        extends IncrementalTrieWriterBase<VALUE, DataOutputPlus, IncrementalTrieWriterSimple.Node<VALUE>>
         implements IncrementalTrieWriter<VALUE>
 {
     private long position = 0;
 
-    public IncrementalTrieWriterSimple(TrieSerializer<VALUE, ? super DataOutput> trieSerializer, DataOutputPlus dest)
+    public IncrementalTrieWriterSimple(TrieSerializer<VALUE, ? super DataOutputPlus> trieSerializer, DataOutputPlus dest)
     {
         super(trieSerializer, dest, new Node<>((byte) 0));
     }
@@ -52,12 +55,6 @@ public class IncrementalTrieWriterSimple<VALUE>
         long nodePos = position;
         position += write(node, dest, position);
         node.finalizeWithPosition(nodePos);
-    }
-
-    @Override
-    public void close()
-    {
-        super.close();
     }
 
     @Override
@@ -93,7 +90,7 @@ public class IncrementalTrieWriterSimple<VALUE>
         }
     }
 
-    private long write(Node<VALUE> node, DataOutput dest, long nodePosition) throws IOException
+    private long write(Node<VALUE> node, DataOutputPlus dest, long nodePosition) throws IOException
     {
         long size = serializer.sizeofNode(node, nodePosition);
         serializer.write(dest, node, nodePosition);

@@ -293,9 +293,8 @@ public class TrieTermsDictionaryTest extends SaiRandomizedTest
         }
 
         try (FileHandle input = indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexContext);
-             TrieTermsDictionaryReader reader = new TrieTermsDictionaryReader(input.instantiateRebufferer(), fp))
+             TrieTermsDictionaryReader iterator = new TrieTermsDictionaryReader(input.instantiateRebufferer(), fp))
         {
-            final Iterator<Pair<ByteComparable, Long>> iterator = reader.iterator();
             final Iterator<ByteComparable> expected = byteComparables.iterator();
             int offset = 0;
             while (iterator.hasNext())

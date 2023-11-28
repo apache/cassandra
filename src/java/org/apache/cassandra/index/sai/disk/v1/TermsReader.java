@@ -21,7 +21,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.nio.ByteBuffer;
-import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -208,17 +207,14 @@ public class TermsReader implements Closeable
     {
         private final long segmentOffset;
         private final TrieTermsDictionaryReader termsDictionaryReader;
-        private final Iterator<Pair<ByteComparable, Long>> iterator;
         private final ByteBuffer minTerm, maxTerm;
         private Pair<ByteComparable, Long> entry;
 
         private TermsScanner(long segmentOffset)
         {
             this.termsDictionaryReader = new TrieTermsDictionaryReader(termDictionaryFile.instantiateRebufferer(), termDictionaryRoot);
-
             this.minTerm = ByteBuffer.wrap(ByteSourceInverse.readBytes(termsDictionaryReader.getMinTerm().asComparableBytes(ByteComparable.Version.OSS41)));
             this.maxTerm = ByteBuffer.wrap(ByteSourceInverse.readBytes(termsDictionaryReader.getMaxTerm().asComparableBytes(ByteComparable.Version.OSS41)));
-            this.iterator = termsDictionaryReader.iterator();
             this.segmentOffset = segmentOffset;
         }
 
@@ -252,9 +248,9 @@ public class TermsReader implements Closeable
         @Override
         public ByteComparable next()
         {
-            if (iterator.hasNext())
+            if (termsDictionaryReader.hasNext())
             {
-                entry = iterator.next();
+                entry = termsDictionaryReader.next();
                 return entry.left;
             }
             return null;
@@ -263,7 +259,7 @@ public class TermsReader implements Closeable
         @Override
         public boolean hasNext()
         {
-            return iterator.hasNext();
+            return termsDictionaryReader.hasNext();
         }
     }
 

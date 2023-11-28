@@ -67,7 +67,7 @@ public class TrieBuilderTest extends AbstractTrieTestBase
 
     public void verifyContent(long count, Rebufferer source, long root, long... resets)
     {
-        InternalIterator iter = new InternalIterator(source, root);
+        ValueIterator<?> iter = new ValueIterator<>(source, root);
         long found = 0;
         long ofs = 0;
         int rpos = 0;

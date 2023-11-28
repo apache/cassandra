@@ -144,6 +144,12 @@ public class PartitionAwarePrimaryKeyMap implements PrimaryKeyMap
     }
 
     @Override
+    public long nextAfter(PrimaryKey key)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public long ceiling(PrimaryKey key)
     {
         throw new UnsupportedOperationException();
