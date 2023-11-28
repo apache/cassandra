@@ -94,7 +94,8 @@ public class DecommissionTest extends TestBaseImpl
     }
 
     @Test
-    public void testDecomDirectoryMinMaxVersions() throws IOException {
+    public void testDecomDirectoryMinMaxVersions() throws IOException
+    {
         try (Cluster cluster = builder().withNodes(3)
                 .start())
         {

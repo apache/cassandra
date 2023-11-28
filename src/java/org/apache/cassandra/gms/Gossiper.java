@@ -39,6 +39,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -464,7 +465,21 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
             return;
         }
         FutureTask<?> task = new FutureTask<>(runnable);
-        Stage.GOSSIP.execute(task);
+        try
+        {
+            Stage.GOSSIP.execute(task);
+
+        }
+        catch (RejectedExecutionException e)
+        {
+            if (e.getMessage() != null && e.getMessage().contains("GossipStage has shut down"))
+            {
+                logger.warn("Not executing task on GossipStage - it has shut down", e);
+                return;
+            }
+            else
+                throw e;
+        }
         try
         {
             task.get();
