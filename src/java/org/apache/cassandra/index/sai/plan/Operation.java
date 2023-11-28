@@ -36,6 +36,7 @@ import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
@@ -46,7 +47,8 @@ public class Operation
 {
     public enum BooleanOperator
     {
-        AND((a, b) -> a & b);
+        AND((a, b) -> a & b),
+        OR((a, b) -> a | b);
 
         private final BiFunction<Boolean, Boolean, Boolean> func;
 
@@ -256,13 +258,13 @@ public class Operation
      */
     static KeyRangeIterator buildIterator(QueryController controller)
     {
-        var orderings = controller.filterOperation().getExpressions()
+        var orderings = controller.indexFilter().getExpressions()
                                   .stream().filter(e -> e.operator() == Operator.ANN).collect(Collectors.toList());
         assert orderings.size() <= 1;
-        if (controller.filterOperation().getExpressions().size() == 1 && orderings.size() == 1)
+        if (controller.indexFilter().getExpressions().size() == 1 && orderings.size() == 1)
             // If we only have one expression, we just use the ANN index to order and limit.
             return controller.getTopKRows(orderings.get(0));
-        var iterator = Node.buildTree(controller.filterOperation()).analyzeTree(controller).rangeIterator(controller);
+        var iterator = Node.buildTree(controller.indexFilter()).analyzeTree(controller).rangeIterator(controller);
         if (orderings.isEmpty())
             return iterator;
         return controller.getTopKRows(iterator, orderings.get(0));
@@ -277,9 +279,9 @@ public class Operation
      *
      * @return root of the filter tree.
      */
-    static FilterTree buildFilter(QueryController controller)
+    static FilterTree buildFilter(QueryController controller, boolean strict)
     {
-        return Node.buildTree(controller.filterOperation()).buildFilter(controller);
+        return Node.buildTree(controller.indexFilter()).buildFilter(controller, strict);
     }
 
     static abstract class Node
@@ -308,7 +310,7 @@ public class Operation
 
         abstract void analyze(List<RowFilter.Expression> expressionList, QueryController controller);
 
-        abstract FilterTree filterTree();
+        abstract FilterTree filterTree(boolean strict, QueryContext context);
 
         abstract KeyRangeIterator rangeIterator(QueryController controller);
 
@@ -347,13 +349,13 @@ public class Operation
             }
         }
 
-        FilterTree buildFilter(QueryController controller)
+        FilterTree buildFilter(QueryController controller, boolean isStrict)
         {
             analyzeTree(controller);
-            FilterTree tree = filterTree();
+            FilterTree tree = filterTree(isStrict, controller.queryContext);
             for (Node child : children())
                 if (child.canFilter())
-                    tree.addChild(child.buildFilter(controller));
+                    tree.addChild(child.buildFilter(controller, isStrict));
             return tree;
         }
     }
@@ -384,9 +386,9 @@ public class Operation
         }
 
         @Override
-        FilterTree filterTree()
+        FilterTree filterTree(boolean isStrict, QueryContext context)
         {
-            return new FilterTree(BooleanOperator.AND, expressionMap);
+            return new FilterTree(BooleanOperator.AND, expressionMap, isStrict, context);
         }
 
         @Override
@@ -411,12 +413,14 @@ public class Operation
         public void analyze(List<RowFilter.Expression> expressionList, QueryController controller)
         {
             expressionMap = buildIndexExpressions(controller, expressionList);
+            assert expressionMap.size() == 1 : "Expression nodes should only have a single expression!";
         }
 
         @Override
-        FilterTree filterTree()
+        FilterTree filterTree(boolean isStrict, QueryContext context)
         {
-            return new FilterTree(BooleanOperator.AND, expressionMap);
+            // There should only be one expression, so AND/OR would both work here. 
+            return new FilterTree(BooleanOperator.AND, expressionMap, isStrict, context);
         }
 
         public ExpressionNode(RowFilter.Expression expression)
