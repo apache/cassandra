@@ -76,17 +76,6 @@ public class RowMapping
 
     private boolean complete = false;
 
-    public PrimaryKey minKey;
-    public PrimaryKey maxKey;
-    public PrimaryKey minStaticKey;
-    public PrimaryKey maxStaticKey;
-
-    public long maxSSTableRowId = -1;
-    public long maxStaticSSTableRowId = -1;
-
-    public int rowCount;
-    public int staticRowCount;
-
     private RowMapping()
     {}
 
@@ -165,29 +154,8 @@ public class RowMapping
      */
     public void add(PrimaryKey key, long sstableRowId) throws InMemoryTrie.SpaceExhaustedException
     {
-        assert !complete : "Cannot modify built RowMapping.";
-
+        assert !complete : "Cannot modify and already built RowMapping.";
         rowMapping.putSingleton(key, sstableRowId, OVERWRITE_TRANSFORMER);
-
-        // Data is written in primary key order. If a schema contains clustering keys, it may also contain static
-        // columns. We track min, max, and count for static keys separately here so that we can pass them to the segment
-        // metadata for indexes on static columns.
-        if (key.kind() == PrimaryKey.Kind.STATIC)
-        {
-            if (minStaticKey == null)
-                minStaticKey = key;
-            maxStaticKey = key;
-            staticRowCount++;
-            maxStaticSSTableRowId = Math.max(maxStaticSSTableRowId, sstableRowId);
-        }
-        else
-        {
-            if (minKey == null)
-                minKey = key;
-            maxKey = key;
-            rowCount++;
-            maxSSTableRowId = Math.max(maxSSTableRowId, sstableRowId);
-        }
     }
 
     /**
@@ -201,10 +169,5 @@ public class RowMapping
     {
         Long sstableRowId = rowMapping.get(key);
         return sstableRowId == null ? -1 : Math.toIntExact(sstableRowId);
-    }
-
-    public boolean hasRows()
-    {
-        return maxSSTableRowId >= 0 || maxStaticSSTableRowId >= 0;
     }
 }
