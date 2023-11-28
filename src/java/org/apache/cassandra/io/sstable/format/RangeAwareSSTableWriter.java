@@ -165,6 +165,12 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
     }
 
     @Override
+    public long getOnDiskBytesWritten()
+    {
+        return currentWriter != null ? currentWriter.getOnDiskBytesWritten() : 0L;
+    }
+
+    @Override
     public TableId getTableId()
     {
         return cfs.metadata.id;

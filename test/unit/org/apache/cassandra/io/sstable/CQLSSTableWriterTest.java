@@ -47,13 +47,11 @@ import org.apache.cassandra.cql3.functions.UDHelper;
 import org.apache.cassandra.cql3.functions.types.*;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadataRef;
-import org.apache.cassandra.serializers.SimpleDateSerializer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.*;
@@ -62,6 +60,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.psjava.util.AssertStatus.assertNotNull;
 
 public class CQLSSTableWriterTest
 {
@@ -844,6 +843,80 @@ public class CQLSSTableWriterTest
         assertEquals(0, filtered.size());
         filtered = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + " where k='2' and c={" + other + ", " + uuid1 + "};");
         assertEquals(0, filtered.size());
+    }
+
+    @Test
+    public void testWriteWithSorted() throws Exception
+    {
+        String schema = "CREATE TABLE " + qualifiedTable + " ("
+                        + "  k int PRIMARY KEY,"
+                        + "  v blob )";
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using("INSERT INTO " + qualifiedTable +
+                                                         " (k, v) VALUES (?, textAsBlob(?))" )
+                                                  .sorted()
+                                                  .build();
+        int rowCount = 10_000;
+        for (int i = 0; i < rowCount; i++)
+        {
+            writer.addRow(i, UUID.randomUUID().toString());
+        }
+        writer.close();
+        loadSSTables(dataDir, keyspace);
+
+        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
+        assertEquals(rowCount, resultSet.size());
+        Iterator<UntypedResultSet.Row> iter = resultSet.iterator();
+        for (int i = 0; i < rowCount; i++)
+        {
+            UntypedResultSet.Row row = iter.next();
+            assertEquals(i, row.getInt("k"));
+        }
+    }
+
+    @Test
+    public void testWriteWithSortedAndMaxSize() throws Exception
+    {
+        String schema = "CREATE TABLE " + qualifiedTable + " ("
+                        + "  k int PRIMARY KEY,"
+                        + "  v blob )";
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using("INSERT INTO " + qualifiedTable +
+                                                         " (k, v) VALUES (?, textAsBlob(?))")
+                                                  .sorted()
+                                                  .withMaxSSTableSizeInMiB(1)
+                                                  .build();
+        int rowCount = 30_000;
+        // Max SSTable size is 1 MiB
+        // 30_000 rows should take 30_000 * (4 + 37) = 1.17 MiB > 1 MiB
+        for (int i = 0; i < rowCount; i++)
+        {
+            writer.addRow(i, UUID.randomUUID().toString());
+        }
+        writer.close();
+
+        File[] dataFiles = dataDir.listFiles(f -> f.getName().endsWith(Component.DATA.type.repr));
+        assertNotNull(dataFiles);
+        assertEquals("The sorted writer should produce 2 sstables when max sstable size is configured",
+                     2, dataFiles.length);
+        long closeTo1MiBFileSize = Math.max(dataFiles[0].length(), dataFiles[1].length());
+        assertTrue("The file size should be close to 1MiB (with at most 50KiB error rate for the test)",
+                   Math.abs(1024 * 1024 - closeTo1MiBFileSize) < 50 * 1024);
+
+        loadSSTables(dataDir, keyspace);
+
+        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
+        assertEquals(rowCount, resultSet.size());
+        Iterator<UntypedResultSet.Row> iter = resultSet.iterator();
+        for (int i = 0; i < rowCount; i++)
+        {
+            UntypedResultSet.Row row = iter.next();
+            assertEquals(i, row.getInt("k"));
+        }
     }
 
     private static void loadSSTables(File dataDir, String ks) throws ExecutionException, InterruptedException
