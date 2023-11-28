@@ -29,6 +29,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.v1.bitpack.BlockPackedReader;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesMeta;
 import org.apache.cassandra.index.sai.disk.v1.keystore.KeyLookupMeta;
 import org.apache.cassandra.index.sai.disk.v1.keystore.KeyLookup;
@@ -58,8 +59,10 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
     {
         private final ClusteringComparator clusteringComparator;
         private final KeyLookup clusteringKeyReader;
+        private final LongArray.Factory partitionSizeReaderFactory;
         private final FileHandle clusteringKeyBlockOffsetsFile;
         private final FileHandle clustingingKeyBlocksFile;
+        private final FileHandle partitionSizeFile;
 
         public Factory(IndexDescriptor indexDescriptor, SSTableReader sstable)
         {
@@ -67,10 +70,13 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
 
             this.clusteringKeyBlockOffsetsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.CLUSTERING_KEY_BLOCK_OFFSETS, this::close);
             this.clustingingKeyBlocksFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.CLUSTERING_KEY_BLOCKS, this::close);
+            this.partitionSizeFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_SIZES, this::close);
 
             try
             {
                 this.clusteringComparator = indexDescriptor.clusteringComparator;
+                NumericValuesMeta partitionSizeMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_SIZES)));
+                this.partitionSizeReaderFactory = new BlockPackedReader(partitionSizeFile, partitionSizeMeta);
                 NumericValuesMeta clusteringKeyBlockOffsetsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.CLUSTERING_KEY_BLOCK_OFFSETS)));
                 KeyLookupMeta clusteringKeyMeta = new KeyLookupMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.CLUSTERING_KEY_BLOCKS)));
                 this.clusteringKeyReader = new KeyLookup(clustingingKeyBlocksFile, clusteringKeyBlockOffsetsFile, clusteringKeyMeta, clusteringKeyBlockOffsetsMeta);
@@ -86,10 +92,12 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
         public PrimaryKeyMap newPerSSTablePrimaryKeyMap() throws IOException
         {
             LongArray rowIdToToken = new LongArray.DeferredLongArray(tokenReaderFactory::open);
-            LongArray partitionIdToToken = new LongArray.DeferredLongArray(partitionReaderFactory::open);
+            LongArray partitionIdToToken = new LongArray.DeferredLongArray(partitionRowReaderFactory::open);
+            LongArray partitionToPartitionSize = new LongArray.DeferredLongArray(partitionSizeReaderFactory::open);
 
             return new WidePrimaryKeyMap(rowIdToToken,
                                          partitionIdToToken,
+                                         partitionToPartitionSize,
                                          partitionKeyReader.openCursor(),
                                          clusteringKeyReader.openCursor(),
                                          primaryKeyFactory,
@@ -100,15 +108,17 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
         public void close()
         {
             super.close();
-            FileUtils.closeQuietly(Arrays.asList(clustingingKeyBlocksFile, clusteringKeyBlockOffsetsFile));
+            FileUtils.closeQuietly(Arrays.asList(clustingingKeyBlocksFile, clusteringKeyBlockOffsetsFile, partitionSizeFile));
         }
     }
 
+    private final LongArray partitionSizeArray;
     private final ClusteringComparator clusteringComparator;
     private final KeyLookup.Cursor clusteringKeyCursor;
 
     private WidePrimaryKeyMap(LongArray tokenArray,
                               LongArray partitionArray,
+                              LongArray partitionSizeArray,
                               KeyLookup.Cursor partitionKeyCursor,
                               KeyLookup.Cursor clusteringKeyCursor,
                               PrimaryKey.Factory primaryKeyFactory,
@@ -116,6 +126,7 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
     {
         super(tokenArray, partitionArray, partitionKeyCursor, primaryKeyFactory);
 
+        this.partitionSizeArray = partitionSizeArray;
         this.clusteringComparator = clusteringComparator;
         this.clusteringKeyCursor = clusteringKeyCursor;
     }
@@ -166,10 +177,7 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
     // Returns the rowId of the next partition or the number of rows if supplied rowId is in the last partition
     private long startOfNextPartition(long rowId)
     {
-        long partitionId = partitionArray.get(rowId);
-        long nextPartitionRowId = partitionArray.indexOf(++partitionId);
-        if (nextPartitionRowId == -1)
-            nextPartitionRowId = partitionArray.length();
-        return nextPartitionRowId;
+        long partitionSize = partitionSizeArray.get(partitionArray.get(rowId));
+        return partitionSize == -1 ? partitionArray.length() : rowId + partitionSize;
     }
 }

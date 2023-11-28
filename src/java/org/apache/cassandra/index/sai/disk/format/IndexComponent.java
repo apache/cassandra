@@ -73,7 +73,12 @@ public enum IndexComponent
     TOKEN_VALUES("TokenValues"),
 
     /**
-     * An on-disk block packed index containing the starting and ending rowIds for each partition.
+     * An on-disk block packed index mapping rowIds to partitionIds.
+     */
+    PARTITION_ROWS("PartitionRows"),
+
+    /**
+     * An on-disk block packed index containing the partition size for each partition keyed by partitionId.
      */
     PARTITION_SIZES("PartitionSizes"),
 

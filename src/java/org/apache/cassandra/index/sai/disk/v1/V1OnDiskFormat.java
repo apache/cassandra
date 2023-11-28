@@ -62,7 +62,7 @@ public class V1OnDiskFormat implements OnDiskFormat
     public static final Set<IndexComponent> SKINNY_PER_SSTABLE_COMPONENTS = EnumSet.of(IndexComponent.GROUP_COMPLETION_MARKER,
                                                                                        IndexComponent.GROUP_META,
                                                                                        IndexComponent.TOKEN_VALUES,
-                                                                                       IndexComponent.PARTITION_SIZES,
+                                                                                       IndexComponent.PARTITION_ROWS,
                                                                                        IndexComponent.PARTITION_KEY_BLOCKS,
                                                                                        IndexComponent.PARTITION_KEY_BLOCK_OFFSETS);
 
@@ -70,6 +70,7 @@ public class V1OnDiskFormat implements OnDiskFormat
     public static final Set<IndexComponent> WIDE_PER_SSTABLE_COMPONENTS = EnumSet.of(IndexComponent.GROUP_COMPLETION_MARKER,
                                                                                      IndexComponent.GROUP_META,
                                                                                      IndexComponent.TOKEN_VALUES,
+                                                                                     IndexComponent.PARTITION_ROWS,
                                                                                      IndexComponent.PARTITION_SIZES,
                                                                                      IndexComponent.PARTITION_KEY_BLOCKS,
                                                                                      IndexComponent.PARTITION_KEY_BLOCK_OFFSETS,
