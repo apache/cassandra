@@ -192,47 +192,41 @@ public class KeyLookup
         {
             assert clustering : "Cannot do a clustered seek to a key on non-clustered keys";
 
-            BytesRef skipKey = asBytesRef(key);
+            BytesRef searchKey = asBytesRef(key);
 
             updateCurrentBlockIndex(startingPointId);
             resetToCurrentBlock();
 
-            if (compareKeys(currentKey, skipKey) == 0)
-                return startingPointId;
+            // We can return immediately if the currentPointId is within the requested partition range and the keys match
+            if (currentPointId >= startingPointId && currentPointId < endingPointId && compareKeys(currentKey, searchKey) == 0)
+                return currentPointId;
 
-            if (notInCurrentBlock(startingPointId, skipKey))
+            // Now do a binary search over the range if points between [lowSearchId, highSearchId)
+            long lowSearchId = startingPointId;
+            long highSearchId = endingPointId;
+
+            // We will keep going with the binary shift while the search consists of at least one block
+            while ((highSearchId - lowSearchId) >>> blockShift > 0)
             {
-                long split = (endingPointId - startingPointId) >>> blockShift;
-                long splitPointId = startingPointId;
-                while (split > 0)
+                long midSearchId = lowSearchId + (highSearchId - lowSearchId) / 2;
+
+                // See if the searchkey exists in the block containing the midSearchId or is above or below it
+                int position = moveToBlockAndCompareTo(midSearchId, searchKey);
+
+                if (position == 0)
                 {
-                    updateCurrentBlockIndex(Math.min((splitPointId >>> blockShift) + split, blockOffsets.length() - 1));
-                    resetToCurrentBlock();
-
-                    if (currentPointId >= endingPointId)
-                    {
-                        updateCurrentBlockIndex((endingPointId - 1));
-                        resetToCurrentBlock();
-                    }
-
-                    int cmp = compareKeys(currentKey, skipKey);
-
-                    if (cmp == 0)
-                        return currentPointId;
-
-                    if (cmp < 0)
-                        splitPointId = currentPointId;
-
-                    split /= 2;
+                    lowSearchId = currentPointId;
+                    break;
                 }
-                // After we finish the binary search we need to move the block back till we hit a block that has
-                // a starting key that is less than or equal to the skip key
-                while (currentBlockIndex > 0 && compareKeys(currentKey, skipKey) > 0)
-                {
-                    currentBlockIndex--;
-                    resetToCurrentBlock();
-                }
+
+                if (position < 0)
+                    highSearchId = midSearchId;
+                else
+                    lowSearchId = midSearchId;
             }
+
+            updateCurrentBlockIndex(lowSearchId);
+            resetToCurrentBlock();
 
             // Depending on where we are in the block we may need to move forwards to the starting point ID
             while (currentPointId < startingPointId)
@@ -245,11 +239,13 @@ public class KeyLookup
             // Move forward to the ending point ID, returning the point ID if we find our key
             while (currentPointId < endingPointId)
             {
-                if (compareKeys(currentKey, skipKey) >= 0)
+                if (compareKeys(currentKey, searchKey) >= 0)
                     return currentPointId;
+
                 currentPointId++;
                 if (currentPointId == keyLookupMeta.keyCount)
                     return -1;
+
                 readCurrentKey();
                 updateCurrentBlockIndex(currentPointId);
             }
@@ -265,11 +261,32 @@ public class KeyLookup
             readCurrentKey();
         }
 
-
         @Override
         public void close()
         {
             keysInput.close();
+        }
+
+        // Move to a block and see if the key is in the block using compareTo logic to indicate the keys position
+        // relative to the block.
+        // Note: It is down to the caller to position the block after a call to this method.
+        private int moveToBlockAndCompareTo(long pointId, BytesRef key)
+        {
+            updateCurrentBlockIndex(pointId);
+            resetToCurrentBlock();
+
+            if (compareKeys(key, currentKey) < 0)
+                return -1;
+
+            // If we are in the last block we will assume for now that the key is in the last block and defer
+            // the final decision to later (if we can't find it).
+            if (currentBlockIndex == blockOffsets.length() -1)
+                return 0;
+
+            // Finish by getting the starting key of the next block and comparing that with the key.
+            keysInput.seek(blockOffsets.get(currentBlockIndex + 1) + keysFilePointer);
+            readKey((currentBlockIndex + 1) << blockShift, nextBlockKey);
+            return compareKeys(key, nextBlockKey) < 0 ? 0 : 1;
         }
 
         private void updateCurrentBlockIndex(long pointId)
@@ -277,30 +294,10 @@ public class KeyLookup
             currentBlockIndex = pointId >>> blockShift;
         }
 
-        private boolean notInCurrentBlock(long pointId, BytesRef key)
-        {
-            if (inLastBlock(pointId))
-                return false;
-
-            // Load the starting value of the next block into nextBlockKey.
-            long blockIndex = (pointId >>> blockShift) + 1;
-            long currentFp = keysInput.getFilePointer();
-            keysInput.seek(blockOffsets.get(blockIndex) + keysFilePointer);
-            readKey(blockIndex << blockShift, nextBlockKey);
-            keysInput.seek(currentFp);
-
-            return compareKeys(key, nextBlockKey) >= 0;
-        }
-
-        private boolean inLastBlock(long pointId)
-        {
-            return pointId >>> blockShift == blockOffsets.length() - 1;
-        }
-
-        // Reset currentPointId and currentKey to be at the start of the block
-        // pointed to by currentBlockIndex.
+        // Reset currentPointId and currentKey to be at the start of the block pointed to by currentBlockIndex.
         private void resetToCurrentBlock()
         {
+
             keysInput.seek(blockOffsets.get(currentBlockIndex) + keysFilePointer);
             currentPointId = currentBlockIndex << blockShift;
             readCurrentKey();

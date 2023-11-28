@@ -23,6 +23,7 @@ package org.apache.cassandra.index.sai.cql;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -122,6 +123,12 @@ public class StorageAttachedIndexDDLTest extends SAITester
                                                                          .add(ActionBuilder.newActionBuilder().actions().doThrow(RuntimeException.class, Expression.quote("Injected failure!")))
                                                                          .build();
 
+    private static final EnumSet<IndexComponent> PER_SSTABLE_COMPONENTS = EnumSet.of(IndexComponent.ROW_TO_PARTITION,
+                                                                                     IndexComponent.PARTITION_TO_SIZE,
+                                                                                     IndexComponent.PARTITION_KEY_BLOCKS,
+                                                                                     IndexComponent.PARTITION_KEY_BLOCK_OFFSETS,
+                                                                                     IndexComponent.CLUSTERING_KEY_BLOCKS,
+                                                                                     IndexComponent.CLUSTERING_KEY_BLOCK_OFFSETS);
     @Before
     public void setup() throws Throwable
     {
@@ -952,9 +959,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
         // that are encryptable unless they have been removed because encrypted components aren't
         // checksum validated.
 
-        if (component == IndexComponent.PARTITION_SIZES || component == IndexComponent.PARTITION_KEY_BLOCKS ||
-            component == IndexComponent.PARTITION_KEY_BLOCK_OFFSETS || component == IndexComponent.CLUSTERING_KEY_BLOCKS ||
-            component == IndexComponent.CLUSTERING_KEY_BLOCK_OFFSETS)
+        if (PER_SSTABLE_COMPONENTS.contains(component))
             return;
 
         if (((component == IndexComponent.GROUP_COMPLETION_MARKER) ||
