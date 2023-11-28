@@ -1,4 +1,5 @@
 4.0.12
+ * Support max SSTable size in sorted CQLSSTableWriter (CASSANDRA-18941)
  * Fix nodetool repair_admin summarize-pending command to not throw exception (CASSANDRA-19014)
  * Fix cassandra-stress in simplenative mode with prepared statements (CASSANDRA-18744)
  * Fix filtering system ks sstables for relocation on startup (CASSANDRA-18963)
