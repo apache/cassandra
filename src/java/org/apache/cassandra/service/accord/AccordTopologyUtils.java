@@ -51,7 +51,7 @@ import org.apache.cassandra.tcm.ownership.DataPlacements;
 
 public class AccordTopologyUtils
 {
-    static Node.Id tcmIdToAccord(NodeId nodeId)
+    public static Node.Id tcmIdToAccord(NodeId nodeId)
     {
         return new Node.Id(nodeId.id());
     }

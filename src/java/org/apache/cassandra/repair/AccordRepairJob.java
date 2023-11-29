@@ -21,6 +21,9 @@ package org.apache.cassandra.repair;
 import java.math.BigInteger;
 import javax.annotation.Nullable;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.api.BarrierType;
 import accord.api.RoutingKey;
 import accord.primitives.Ranges;
@@ -36,6 +39,7 @@ import org.apache.cassandra.tcm.Epoch;
 
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.Collections.emptyList;
+import static org.apache.cassandra.config.CassandraRelevantProperties.ACCORD_REPAIR_RANGE_STEP_UPDATE_INTERVAL;
 
 /*
  * Accord repair consists of creating a barrier transaction for all the ranges which ensure that all Accord transactions
@@ -43,6 +47,8 @@ import static java.util.Collections.emptyList;
  */
 public class AccordRepairJob extends AbstractRepairJob
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordRepairJob.class);
+
     public static final BigInteger TWO = BigInteger.valueOf(2);
 
     private final Ranges ranges;
@@ -88,10 +94,14 @@ public class AccordRepairJob extends AbstractRepairJob
 
     private void repairRange(TokenRange range)
     {
+        int rangeStepUpdateInterval = ACCORD_REPAIR_RANGE_STEP_UPDATE_INTERVAL.getInt();
         RoutingKey remainingStart = range.start();
         BigInteger rangeSize = splitter.sizeOf(range);
         if (rangeStep == null)
-            rangeStep = BigInteger.ONE.max(splitter.divide(rangeSize, 1000));
+        {
+            BigInteger divide = splitter.divide(rangeSize, 1000);
+            rangeStep = divide.equals(BigInteger.ZERO) ? rangeSize : BigInteger.ONE.max(divide);
+        }
 
         BigInteger offset = BigInteger.ZERO;
 
@@ -100,7 +110,7 @@ public class AccordRepairJob extends AbstractRepairJob
         while (true)
         {
             iteration++;
-            if (iteration % 100 == 0)
+            if (iteration % rangeStepUpdateInterval == 0)
                 rangeStep = rangeStep.multiply(TWO);
 
             BigInteger remaining = rangeSize.subtract(offset);
@@ -115,7 +125,10 @@ public class AccordRepairJob extends AbstractRepairJob
                 if (splitter.compare(offset, rangeSize) >= 0)
                 {
                     if (remainingStart.equals(range.end()))
+                    {
+                        logger.info("Completed barriers for {} in {} iterations", range, iteration - 1);
                         return;
+                    }
 
                     // Final repair is whatever remains
                     toRepair = range.newRange(remainingStart, range.end());
