@@ -18,6 +18,7 @@
  * Remove deprecated code in Cassandra 1.x and 2.x (CASSANDRA-18959)
  * ClientRequestSize metrics should not treat CONTAINS restrictions as being equality-based (CASSANDRA-18896)
 Merged from 4.0:
+ * Fix cassandra-stress in simplenative mode with prepared statements (CASSANDRA-18744)
  * Fix filtering system ks sstables for relocation on startup (CASSANDRA-18963)
  * Remove completed coordinator sessions (CASSANDRA-18903)
 Merged from 3.0:
