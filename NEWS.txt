@@ -261,6 +261,9 @@ New features
     - Added snitch for Microsoft Azure of name AzureSnitch (CASSANDRA-18646)
     - legacy command line options from cassandra-stress were removed
     - `-mode` option in cassandra-stress has `native` and `cql3` as defaults and they do not need to be specified
+    - Allow to write the commitlog using direct I/O. Direct I/O is a new feature that minimizes cache effects and
+      memory-mapping overhead by using user-space buffers. This helps in transferring data from/to disk at high speed.
+      Java enabled support for the direct I/O feature from version 10 onwards - see JDK-8164900 for reference. (CASSANDRA-18464)
 
 Upgrading
 ---------

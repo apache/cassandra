@@ -18,7 +18,12 @@
 package org.apache.cassandra.db.commitlog;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -32,11 +37,11 @@ import com.codahale.metrics.Timer.Context;
 import net.nicoulaj.compilecommand.annotations.DontInline;
 import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.concurrent.Interruptible.TerminateException;
+import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SimpleCachedBufferPool;
@@ -44,7 +49,11 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.concurrent.*;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon.NON_DAEMON;
@@ -95,9 +104,11 @@ public abstract class AbstractCommitLogSegmentManager
 
     @VisibleForTesting
     Interruptible executor;
-    protected final CommitLog commitLog;
+    private final CommitLog commitLog;
     private final BooleanSupplier managerThreadWaitCondition = () -> (availableSegment == null && !atSegmentBufferLimit());
     private final WaitQueue managerThreadWaitQueue = newWaitQueue();
+
+    private volatile CommitLogSegment.Builder segmentBuilder;
 
     private volatile SimpleCachedBufferPool bufferPool;
 
@@ -107,18 +118,41 @@ public abstract class AbstractCommitLogSegmentManager
         this.storageDirectory = storageDirectory;
     }
 
+    private CommitLogSegment.Builder createSegmentBuilder(CommitLog.Configuration config)
+    {
+        if (config.useEncryption())
+        {
+            assert config.diskAccessMode == DiskAccessMode.standard;
+            return new EncryptedSegment.EncryptedSegmentBuilder(this);
+        }
+        else if (config.useCompression())
+        {
+            assert config.diskAccessMode == DiskAccessMode.standard;
+            return new CompressedSegment.CompressedSegmentBuilder(this);
+        }
+        else if (config.diskAccessMode == DiskAccessMode.direct)
+        {
+            return new DirectIOSegment.DirectIOSegmentBuilder(this);
+        }
+        else if (config.diskAccessMode == DiskAccessMode.mmap)
+        {
+            return new MemoryMappedSegment.MemoryMappedSegmentBuilder(this);
+        }
+
+        throw new AssertionError("Unsupported disk access mode: " + config.diskAccessMode);
+    }
+
+    CommitLog.Configuration getConfiguration()
+    {
+        return commitLog.configuration;
+    }
+
     void start()
     {
-        // For encrypted segments we want to keep the compression buffers on-heap as we need those bytes for encryption,
-        // and we want to avoid copying from off-heap (compression buffer) to on-heap encryption APIs
-        BufferType bufferType = commitLog.configuration.useEncryption() || !commitLog.configuration.useCompression()
-                                ? BufferType.ON_HEAP
-                                : commitLog.configuration.getCompressor().preferredBufferType();
-
-        this.bufferPool = new SimpleCachedBufferPool(DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool(),
-                                                     DatabaseDescriptor.getCommitLogSegmentSize(),
-                                                     bufferType);
-
+        assert this.segmentBuilder == null;
+        assert this.bufferPool == null;
+        this.segmentBuilder = createSegmentBuilder(commitLog.configuration);
+        this.bufferPool = segmentBuilder.createBufferPool();
 
         AllocatorRunnable allocator = new AllocatorRunnable();
         executor = executorFactory().infiniteLoop("COMMIT-LOG-ALLOCATOR", allocator, SAFE, NON_DAEMON, SYNCHRONIZED);
@@ -206,7 +240,7 @@ public abstract class AbstractCommitLogSegmentManager
 
     private boolean atSegmentBufferLimit()
     {
-        return CommitLogSegment.usesBufferPool(commitLog) && bufferPool.atLimit();
+        return bufferPool != null && bufferPool.atLimit();
     }
 
     private void maybeFlushToReclaim()
@@ -238,7 +272,10 @@ public abstract class AbstractCommitLogSegmentManager
      * Hook to allow segment managers to track state surrounding creation of new segments. Onl perform as task submit
      * to segment manager so it's performed on segment management thread.
      */
-    abstract CommitLogSegment createSegment();
+    protected CommitLogSegment createSegment()
+    {
+        return this.segmentBuilder.build();
+    }
 
     /**
      * Indicates that a segment file has been flushed and is no longer needed. Only perform as task submit to segment
@@ -556,6 +593,9 @@ public abstract class AbstractCommitLogSegmentManager
 
         if (bufferPool != null)
             bufferPool.emptyBufferPool();
+
+        this.segmentBuilder = null;
+        this.bufferPool = null;
 
         return res;
     }

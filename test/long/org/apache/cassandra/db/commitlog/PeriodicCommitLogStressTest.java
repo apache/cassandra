@@ -29,9 +29,9 @@ import org.apache.cassandra.security.EncryptionContext;
 @RunWith(Parameterized.class)
 public class PeriodicCommitLogStressTest extends CommitLogStressTest
 {
-    public PeriodicCommitLogStressTest(ParameterizedClass commitLogCompression, EncryptionContext encryptionContext)
+    public PeriodicCommitLogStressTest(ParameterizedClass commitLogCompression, EncryptionContext encryptionContext, Config.DiskAccessMode accessMode)
     {
-        super(commitLogCompression, encryptionContext);
+        super(commitLogCompression, encryptionContext, accessMode);
         DatabaseDescriptor.setCommitLogSync(Config.CommitLogSync.periodic);
         DatabaseDescriptor.setCommitLogSyncPeriod(30);
     }
