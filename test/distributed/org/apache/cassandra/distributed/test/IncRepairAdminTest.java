@@ -42,6 +42,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static java.util.Arrays.stream;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.repair.consistent.ConsistentSession.State.REPAIRING;
@@ -51,6 +52,27 @@ import static org.junit.Assert.assertTrue;
 
 public class IncRepairAdminTest extends TestBaseImpl
 {
+    @Test
+    public void testRepairAdminSummarizePending() throws IOException
+    {
+        try (Cluster cluster = init(Cluster.build(1)
+                                           .withConfig(config -> config.with(GOSSIP).with(NETWORK))
+                                           .start()))
+        {
+            // given a cluster with a table
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (k INT PRIMARY KEY, v INT)");
+            // when running repair_admin summarize-pending
+            NodeToolResult res = cluster.get(1).nodetoolResult("repair_admin", "summarize-pending");
+            // then the table info should be present in the output
+            res.asserts().success();
+            String outputLine = stream(res.getStdout().split("\n"))
+                    .filter(l -> l.contains(KEYSPACE) && l.contains("tbl"))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("should find tbl table in output of repair_admin summarize-pending"));
+            assertTrue("should contain information about zero pending bytes", outputLine.contains("0 bytes (0 sstables / 0 sessions)"));
+        }
+    }
+
     @Test
     public void testManualSessionFail() throws IOException
     {
