@@ -442,9 +442,9 @@
       <dependency>
         <groupId>com.fasterxml.jackson.dataformat</groupId>
         <artifactId>jackson-dataformat-yaml</artifactId>
-        <!-- CASSANDRA-20848 2.19.x would bring snakeyaml 2.4 which is for now incompatible with rest of the codebase -->
-        <version>2.13.2</version>
+        <version>2.19.2</version>
         <scope>test</scope>
+        <!-- CASSANDRA-20848 2.19.x would bring snakeyaml 2.4 which is for now incompatible with rest of the codebase -->
         <exclusions>
           <exclusion>
             <artifactId>snakeyaml</artifactId>
@@ -465,7 +465,7 @@
       <dependency>
         <groupId>org.yaml</groupId>
         <artifactId>snakeyaml</artifactId>
-        <version>1.26</version>
+        <version>2.1</version>
       </dependency>
       <dependency>
         <groupId>junit</groupId>
@@ -514,6 +514,16 @@
         <artifactId>harry-core</artifactId>
         <version>0.0.1</version>
         <scope>test</scope>
+        <exclusions>
+          <exclusion>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+          </exclusion>
+        </exclusions>
       </dependency>
       <dependency>
         <groupId>org.reflections</groupId>
@@ -532,6 +542,12 @@
         <artifactId>wiremock-jre8</artifactId>
         <version>2.35.0</version>
         <scope>test</scope>
+        <exclusions>
+          <exclusion>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+          </exclusion>
+        </exclusions>
       </dependency>
       <dependency>
         <groupId>com.puppycrawl.tools</groupId>
