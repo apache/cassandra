@@ -8,6 +8,7 @@ memtable_allocation_type: offheap_objects
 commitlog_sync: batch
 commitlog_segment_size: 5MiB
 commitlog_directory: build/test/cassandra/commitlog
+commitlog_disk_access_mode: legacy
 # commitlog_compression:
 # - class_name: LZ4Compressor
 cdc_raw_directory: build/test/cassandra/cdc_raw

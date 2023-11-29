@@ -112,7 +112,8 @@ public class InstanceConfig implements IInstanceConfig
                 // capacities that are based on `totalMemory` that should be fixed size
                 .set("index_summary_capacity", "50MiB")
                 .set("counter_cache_size", "50MiB")
-                .set("key_cache_size", "50MiB");
+                .set("key_cache_size", "50MiB")
+                .set("commitlog_disk_access_mode", "legacy");
         this.featureFlags = EnumSet.noneOf(Feature.class);
         this.jmxPort = jmx_port;
     }
