@@ -41,6 +41,8 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
     protected IterationPosition stack;
     private long next;
 
+    private static final long NOT_PREPARED = -2;
+
     protected enum LeftBoundTreatment
     {
         ADMIT_PREFIXES,
@@ -136,7 +138,7 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
             if (hasPayload())
                 next = root;
             else
-                next = advanceNode();
+                next = NOT_PREPARED;
         }
         catch (Throwable t)
         {
@@ -152,35 +154,39 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
      */
     protected long nextPayloadedNode()
     {
-        long toReturn = next;
-        if (next != NONE)
-            next = advanceNode();
-        return toReturn;
+        if (next != NOT_PREPARED)
+        {
+            long toReturn = next;
+            next = NOT_PREPARED;
+            return toReturn;
+        }
+        else
+            return advanceNode();
     }
 
     protected boolean hasNext()
     {
+        if (next == NOT_PREPARED)
+            next = advanceNode();
         return next != NONE;
     }
 
     protected <VALUE> VALUE nextValue(Supplier<VALUE> supplier)
     {
-        if (next == NONE)
+        long node = nextPayloadedNode();
+        if (node == NONE)
             return null;
-        go(next);
-        VALUE result = supplier.get();
-        next = advanceNode();
-        return result;
+        go(node);
+        return supplier.get();
     }
 
     protected long nextValueAsLong(LongSupplier supplier, long valueIfNone)
     {
-        if (next == NONE)
+        long node = nextPayloadedNode();
+        if (node == NONE)
             return valueIfNone;
-        go(next);
-        long result = supplier.getAsLong();
-        next = advanceNode();
-        return result;
+        go(node);
+        return supplier.getAsLong();
     }
 
     protected ByteComparable collectedKey()
@@ -232,7 +238,7 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
     private void descendWith(int skipToFirstByte, ByteSource skipToRest, int limitByte, IterationPosition stackPrev, long startNode, LeftBoundTreatment admitPrefix)
     {
         int childIndex;
-        long payloadedNode = NONE;
+        long payloadedNode = NOT_PREPARED;
         // Follow start position while we still have a prefix, stacking path and saving prefixes.
         go(startNode);
         while (true)
@@ -270,11 +276,7 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
         stack = new IterationPosition(position, childIndex, limitByte, stackPrev);
 
         // Advancing now gives us first match if we didn't find one already.
-        payloadedNode = maybeAcceptPayloadedNode(admitPrefix, skipToFirstByte, payloadedNode);
-        if (payloadedNode != NONE)
-            next = payloadedNode;
-        else
-            next = advanceNode();
+        next = maybeAcceptPayloadedNode(admitPrefix, skipToFirstByte, payloadedNode);
     }
 
     private long maybeAcceptPayloadedNode(LeftBoundTreatment admitPrefix, int trailingByte, long payloadedNode)
@@ -289,7 +291,7 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
                 // else fall through
             case GREATER:
             default:
-                return NONE;
+                return NOT_PREPARED;
         }
     }
 
@@ -304,7 +306,7 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
             }
             else
             {
-                payloadedNode = NONE;
+                payloadedNode = NOT_PREPARED;
             }
         }
         return payloadedNode;
