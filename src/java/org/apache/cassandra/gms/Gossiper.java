@@ -2205,7 +2205,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
             logger.info("Announcing shutdown");
             addLocalApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.shutdown(true));
             addLocalApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.shutdown(true));
-            Message<GossipShutdown> message = Message.out(Verb.GOSSIP_SHUTDOWN, new GossipShutdown(mystate));
+            // clone endpointstate to avoid it changing between serializedSize and serialize calls
+            EndpointState clone = new EndpointState(mystate);
+            Message<GossipShutdown> message = Message.out(Verb.GOSSIP_SHUTDOWN, new GossipShutdown(clone));
             for (InetAddressAndPort ep : liveEndpoints)
                 MessagingService.instance().send(message, ep);
             Uninterruptibles.sleepUninterruptibly(SHUTDOWN_ANNOUNCE_DELAY_IN_MS.getInt(), TimeUnit.MILLISECONDS);
