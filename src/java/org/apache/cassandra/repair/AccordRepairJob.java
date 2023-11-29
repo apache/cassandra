@@ -39,7 +39,6 @@ import org.apache.cassandra.tcm.Epoch;
 
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.Collections.emptyList;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /*
  * Accord repair consists of creating a barrier transaction for all the ranges which ensure that all Accord transactions
@@ -114,7 +113,7 @@ public class AccordRepairJob extends AbstractRepairJob
             BigInteger remaining = rangeSize.subtract(offset);
             BigInteger length = remaining.min(rangeStep);
 
-            long start = nanoTime();
+            long start = ctx.clock().nanoTime();
             boolean dependencyOverflow = false;
             try
             {
