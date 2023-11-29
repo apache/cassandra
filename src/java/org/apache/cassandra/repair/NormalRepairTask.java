@@ -36,6 +36,6 @@ public class NormalRepairTask extends AbstractRepairTask
     @Override
     public Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor, Scheduler validationScheduler)
     {
-        return runRepair(coordinator.state.id, false, executor, validationScheduler, commonRanges, coordinator.neighborsAndRanges.excludedDeadParticipants, coordinator.columnFamilyNames.toArray(new String[0]));
+        return runRepair(coordinator.state.id, false, executor, validationScheduler, commonRanges, coordinator.neighborsAndRanges.excludedDeadParticipants, coordinator.getColumnFamilyNames().toArray(new String[0]));
     }
 }

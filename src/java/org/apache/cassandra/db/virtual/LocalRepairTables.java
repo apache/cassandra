@@ -134,7 +134,7 @@ public class LocalRepairTables
         {
             result.row(state.id);
             addState(result, state);
-            result.column("type", getType(state));
+            result.column("type", state.getType());
             result.column("keyspace_name", state.keyspace);
             result.column("command_id", state.cmd);
 
@@ -165,30 +165,6 @@ public class LocalRepairTables
 
             ranges = state.getCommonRanges();
             result.column("unfiltered_ranges", ranges == null ? null : ranges.stream().map(c -> c.ranges).map(LocalRepairTables::toStringList).collect(Collectors.toList()));
-        }
-
-        private String getType(CoordinatorState state)
-        {
-            if (state.options.isPreview())
-            {
-                switch (state.options.getPreviewKind())
-                {
-                    case ALL: return "preview full";
-                    case REPAIRED: return "preview repaired";
-                    case UNREPAIRED: return "preview unrepaired";
-                    case NONE: throw new AssertionError("NONE preview kind not expected when preview repair is set");
-                    default: throw new AssertionError("Unknown preview kind: " + state.options.getPreviewKind());
-                }
-            }
-            else if (state.options.accordRepair())
-            {
-                return "accord repair";
-            }
-            else if (state.options.isIncremental())
-            {
-                return "incremental";
-            }
-            return "full";
         }
     }
 
