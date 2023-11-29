@@ -61,7 +61,7 @@ public class PreviewRepairTask extends AbstractRepairTask
     @Override
     public Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor, Scheduler validationScheduler)
     {
-        Future<CoordinatedRepairResult> f = runRepair(coordinator.state.id, false, executor, validationScheduler, commonRanges, coordinator.neighborsAndRanges.excludedDeadParticipants, coordinator.columnFamilyNames.toArray(new String[0]));
+        Future<CoordinatedRepairResult> f = runRepair(coordinator.state.id, false, executor, validationScheduler, commonRanges, coordinator.neighborsAndRanges.excludedDeadParticipants, coordinator.getColumnFamilyNames().toArray(new String[0]));
         return f.map(result -> {
             if (result.hasFailed())
                 return result;

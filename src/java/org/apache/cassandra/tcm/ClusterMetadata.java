@@ -202,6 +202,16 @@ public class ClusterMetadata
         this.hashCode = computeHashCode();
     }
 
+    public ClusterMetadata withDirectory(Directory directory)
+    {
+        return new ClusterMetadata(epoch, period, lastInPeriod, partitioner, schema, directory, tokenMap, placements, accordKeyspaces, lockedRanges, inProgressSequences, consensusMigrationState, extensions);
+    }
+
+    public ClusterMetadata withPlacements(DataPlacements placements)
+    {
+        return new ClusterMetadata(epoch, period, lastInPeriod, partitioner, schema, directory, tokenMap, placements, accordKeyspaces, lockedRanges, inProgressSequences, consensusMigrationState, extensions);
+    }
+
     public Set<InetAddressAndPort> fullCMSMembers()
     {
         if (fullCMSEndpoints == null)

@@ -50,11 +50,11 @@ public class IncrementalRepairTask extends AbstractRepairTask
                                                   .build();
 
         // Not necessary to include self for filtering. The common ranges only contains neighbhor node endpoints.
-        List<CommonRange> allRanges = coordinator.neighborsAndRanges.filterCommonRanges(keyspace, coordinator.columnFamilyNames);
+        List<CommonRange> allRanges = coordinator.neighborsAndRanges.filterCommonRanges(keyspace, coordinator.getColumnFamilyNames());
 
         CoordinatorSession coordinatorSession = coordinator.ctx.repair().consistent.coordinated.registerSession(coordinator.state.id, allParticipants, coordinator.neighborsAndRanges.excludedDeadParticipants);
 
-        return coordinatorSession.execute(() -> runRepair(coordinator.state.id, true, executor, validationScheduler, allRanges, coordinator.neighborsAndRanges.excludedDeadParticipants, coordinator.columnFamilyNames.toArray(new String[0])));
+        return coordinatorSession.execute(() -> runRepair(coordinator.state.id, true, executor, validationScheduler, allRanges, coordinator.neighborsAndRanges.excludedDeadParticipants, coordinator.getColumnFamilyNames().toArray(new String[0])));
 
     }
 }

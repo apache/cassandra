@@ -28,7 +28,7 @@ import org.apache.cassandra.utils.concurrent.AsyncFuture;
 
 public abstract class AbstractRepairJob extends AsyncFuture<RepairResult> implements Runnable
 {
-    private final SharedContext ctx;
+    protected final SharedContext ctx;
     public final JobState state;
     protected final RepairJobDesc desc;
     protected final RepairSession session;
