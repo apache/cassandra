@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -30,6 +31,7 @@ import java.util.stream.Collectors;
 import com.google.common.collect.Sets;
 
 import accord.local.Node;
+import accord.primitives.Ranges;
 import accord.topology.Shard;
 import accord.topology.Topology;
 import accord.utils.Invariants;
@@ -93,6 +95,15 @@ public class AccordTopologyUtils
         Token minToken = range.left.minValue();
         return new TokenRange(range.left.equals(minToken) ? SentinelKey.min(keyspace) : new TokenKey(keyspace, range.left),
                               range.right.equals(minToken) ? SentinelKey.max(keyspace) : new TokenKey(keyspace, range.right));
+    }
+
+    public static accord.primitives.Ranges toAccordRanges(String keyspace, Collection<Range<Token>> ranges)
+    {
+        List<Range<Token>> normalizedRanges = Range.normalize(ranges);
+        TokenRange[] tokenRanges = new TokenRange[normalizedRanges.size()];
+        for (int i = 0; i < normalizedRanges.size(); i++)
+            tokenRanges[i] = range(keyspace, normalizedRanges.get(i));
+        return Ranges.of(tokenRanges);
     }
 
     public static List<Shard> createShards(KeyspaceMetadata keyspace, DataPlacements placements, Directory directory)

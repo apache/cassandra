@@ -503,6 +503,10 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
 
     private static RepairOption repairOption(RandomSource rs, Cluster.Node coordinator, String ks, Gen<List<String>> tablesGen, Gen<RepairType> repairTypeGen, Gen<PreviewType> previewTypeGen, Gen<RepairParallelism> repairParallelismGen)
     {
+        RepairType type = repairTypeGen.next(rs);
+        PreviewType previewType = previewTypeGen.next(rs);
+//        boolean accordRepair = type == RepairType.FULL && previewType == PreviewType.NONE ? rs.nextBoolean() : false;
+        boolean accordRepair = false;
         List<String> args = new ArrayList<>();
         args.add(ks);
         args.addAll(tablesGen.next(rs));

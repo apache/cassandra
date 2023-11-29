@@ -19,7 +19,6 @@
 package org.apache.cassandra.repair;
 
 import java.math.BigInteger;
-import java.util.List;
 import javax.annotation.Nullable;
 
 import accord.api.BarrierType;
@@ -28,11 +27,9 @@ import accord.primitives.Ranges;
 import accord.primitives.Seekables;
 import org.apache.cassandra.dht.AccordSplitter;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.AccordTopologyUtils;
 import org.apache.cassandra.service.accord.TokenRange;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationRepairResult;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -59,13 +56,9 @@ public class AccordRepairJob extends AbstractRepairJob
     public AccordRepairJob(RepairSession repairSession, String cfname)
     {
         super(repairSession, cfname);
-        List<Range<Token>> normalizedRanges = Range.normalize(desc.ranges);
-        IPartitioner partitioner = normalizedRanges.get(0).left.getPartitioner();
-        TokenRange[] tokenRanges = new TokenRange[normalizedRanges.size()];
-        for (int i = 0; i < normalizedRanges.size(); i++)
-            tokenRanges[i] = new TokenRange(new TokenKey(ks.getName(), normalizedRanges.get(i).left), new TokenKey(ks.getName(), normalizedRanges.get(i).right));
-        this.ranges = Ranges.of(tokenRanges);
-        this.splitter = partitioner.accordSplitter().apply(Ranges.of(tokenRanges));
+        IPartitioner partitioner = desc.ranges.iterator().next().left.getPartitioner();
+        this.ranges = AccordTopologyUtils.toAccordRanges(desc.keyspace, desc.ranges);
+        this.splitter = partitioner.accordSplitter().apply(ranges);
     }
 
     @Override
