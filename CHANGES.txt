@@ -1,9 +1,12 @@
 5.1
+ * Upgrade jackson to 2.15.3 and snakeyaml to 2.1 (CASSANDRA-18875)
  * Transactional Cluster Metadata [CEP-21] (CASSANDRA-18330)
  * Add ELAPSED command to cqlsh (CASSANDRA-18861)
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * SAI indexes are marked queryable during truncation (CASSANDRA-19032)
+ * Enable Direct-IO feature for CommitLog files using Java native API's. (CASSANDRA-18464)
  * SAI fixes for composite partitions, and static and non-static rows intersections (CASSANDRA-19034)
  * Improve SAI IndexContext handling of indexed and non-indexed columns in queries (CASSANDRA-18166)
  * Fixed bug where UnifiedCompactionTask constructor was calling the wrong base constructor of CompactionTask (CASSANDRA-18757)
@@ -48,6 +51,9 @@ Merged from 4.1:
  * Internode legacy SSL storage port certificate is not hot reloaded on update (CASSANDRA-18681)
  * Nodetool paxos-only repair is no longer incremental (CASSANDRA-18466)
 Merged from 4.0:
+ * Fix nodetool repair_admin summarize-pending command to not throw exception (CASSANDRA-19014)
+ * Fix cassandra-stress in simplenative mode with prepared statements (CASSANDRA-18744)
+ * Fix filtering system ks sstables for relocation on startup (CASSANDRA-18963)
  * Remove completed coordinator sessions (CASSANDRA-18903)
  * Gossip NPE due to shutdown event corrupting empty statuses (CASSANDRA-18913)
  * Update hdrhistogram to 2.1.12 (CASSANDRA-18893)
@@ -57,6 +63,7 @@ Merged from 4.0:
 Merged from 3.11:
  * Revert CASSANDRA-18543 (CASSANDRA-18854)
 Merged from 3.0:
+ * Do not set RPC_READY to false on transports shutdown in order to not fail counter updates for deployments with coordinator and storage nodes with transports turned off (CASSANDRA-18935)
  * Suppress CVE-2023-44487 (CASSANDRA-18943)
  * Implement the logic in bin/stop-server (CASSANDRA-18838)
  * Fix nodetool enable/disablebinary to correctly set rpc readiness in gossip (CASSANDRA-18935)

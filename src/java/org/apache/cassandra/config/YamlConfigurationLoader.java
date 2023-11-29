@@ -52,6 +52,8 @@ import org.yaml.snakeyaml.introspector.MissingProperty;
 import org.yaml.snakeyaml.introspector.Property;
 import org.yaml.snakeyaml.introspector.PropertyUtils;
 import org.yaml.snakeyaml.nodes.Node;
+import org.yaml.snakeyaml.parser.ParserImpl;
+import org.yaml.snakeyaml.resolver.Resolver;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_DUPLICATE_CONFIG_KEYS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_NEW_OLD_CONFIG_KEYS;
@@ -195,7 +197,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
     private static void verifyReplacements(Map<Class<?>, Map<String, Replacement>> replacements, byte[] configBytes)
     {
-        LoaderOptions loaderOptions = new LoaderOptions();
+        LoaderOptions loaderOptions = getDefaultLoaderOptions();
         loaderOptions.setAllowDuplicateKeys(ALLOW_DUPLICATE_CONFIG_KEYS.getBoolean());
         Yaml rawYaml = new Yaml(loaderOptions);
 
@@ -222,14 +224,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         constructor.setPropertyUtils(propertiesChecker);
         Yaml yaml = new Yaml(constructor);
         Node node = yaml.represent(map);
-        constructor.setComposer(new Composer(null, null)
-        {
-            @Override
-            public Node getSingleNode()
-            {
-                return node;
-            }
-        });
+        constructor.setComposer(getDefaultComposer(node));
         T value = (T) constructor.getSingleData(klass);
         if (shouldCheck)
             propertiesChecker.check();
@@ -256,18 +251,23 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         constructor.setPropertyUtils(propertiesChecker);
         Yaml yaml = new Yaml(constructor);
         Node node = yaml.represent(map);
-        constructor.setComposer(new Composer(null, null)
+        constructor.setComposer(getDefaultComposer(node));
+        T value = (T) constructor.getSingleData(klass);
+        if (shouldCheck)
+            propertiesChecker.check();
+        return value;
+    }
+
+    private static Composer getDefaultComposer(Node node)
+    {
+        return new Composer(new ParserImpl(null), new Resolver(), getDefaultLoaderOptions())
         {
             @Override
             public Node getSingleNode()
             {
                 return node;
             }
-        });
-        T value = (T) constructor.getSingleData(klass);
-        if (shouldCheck)
-            propertiesChecker.check();
-        return value;
+        };
     }
 
     @VisibleForTesting
@@ -275,7 +275,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     {
         CustomConstructor(Class<?> theRoot, ClassLoader classLoader)
         {
-            super(theRoot, classLoader);
+            super(theRoot, classLoader, getDefaultLoaderOptions());
 
             TypeDescription seedDesc = new TypeDescription(ParameterizedClass.class);
             seedDesc.putMapPropertyType("parameters", String.class, String.class);
@@ -425,6 +425,13 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             if (!deprecationWarnings.isEmpty())
                 logger.warn("{} parameters have been deprecated. They have new names and/or value format; For more information, please refer to NEWS.txt", deprecationWarnings);
         }
+    }
+
+    public static LoaderOptions getDefaultLoaderOptions()
+    {
+        LoaderOptions loaderOptions = new LoaderOptions();
+        loaderOptions.setCodePointLimit(64 * 1024 * 1024); // 64 MiB
+        return loaderOptions;
     }
 }
 

@@ -40,6 +40,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.Mutation;
@@ -104,7 +105,8 @@ public class CommitLog implements CommitLogMBean
     CommitLog(CommitLogArchiver archiver, Function<CommitLog, AbstractCommitLogSegmentManager> segmentManagerProvider)
     {
         this.configuration = new Configuration(DatabaseDescriptor.getCommitLogCompression(),
-                                               DatabaseDescriptor.getEncryptionContext());
+                                               DatabaseDescriptor.getEncryptionContext(),
+                                               DatabaseDescriptor.getCommitLogWriteDiskAccessMode());
         DatabaseDescriptor.createAllDirectories();
 
         this.archiver = archiver;
@@ -521,7 +523,8 @@ public class CommitLog implements CommitLogMBean
     synchronized public void resetConfiguration()
     {
         configuration = new Configuration(DatabaseDescriptor.getCommitLogCompression(),
-                                          DatabaseDescriptor.getEncryptionContext());
+                                          DatabaseDescriptor.getEncryptionContext(),
+                                          DatabaseDescriptor.getCommitLogWriteDiskAccessMode());
     }
 
     /**
@@ -610,6 +613,11 @@ public class CommitLog implements CommitLogMBean
     public static final class Configuration
     {
         /**
+         * Flag used to shows user configured Direct-IO status.
+         */
+        public final Config.DiskAccessMode diskAccessMode;
+
+        /**
          * The compressor class.
          */
         private final ParameterizedClass compressorClass;
@@ -622,17 +630,18 @@ public class CommitLog implements CommitLogMBean
         /**
          * The encryption context used to encrypt the segments.
          */
-        private EncryptionContext encryptionContext;
+        private final EncryptionContext encryptionContext;
 
-        public Configuration(ParameterizedClass compressorClass, EncryptionContext encryptionContext)
+        public Configuration(ParameterizedClass compressorClass, EncryptionContext encryptionContext,
+                             Config.DiskAccessMode diskAccessMode)
         {
             this.compressorClass = compressorClass;
             this.compressor = compressorClass != null ? CompressionParams.createCompressor(compressorClass) : null;
             this.encryptionContext = encryptionContext;
+            this.diskAccessMode = diskAccessMode;
         }
 
         /**
-         * Checks if the segments must be compressed.
          * @return <code>true</code> if the segments must be compressed, <code>false</code> otherwise.
          */
         public boolean useCompression()
@@ -641,7 +650,6 @@ public class CommitLog implements CommitLogMBean
         }
 
         /**
-         * Checks if the segments must be encrypted.
          * @return <code>true</code> if the segments must be encrypted, <code>false</code> otherwise.
          */
         public boolean useEncryption()
@@ -650,7 +658,6 @@ public class CommitLog implements CommitLogMBean
         }
 
         /**
-         * Returns the compressor used to compress the segments.
          * @return the compressor used to compress the segments
          */
         public ICompressor getCompressor()
@@ -659,7 +666,6 @@ public class CommitLog implements CommitLogMBean
         }
 
         /**
-         * Returns the compressor class.
          * @return the compressor class
          */
         public ParameterizedClass getCompressorClass()
@@ -668,7 +674,6 @@ public class CommitLog implements CommitLogMBean
         }
 
         /**
-         * Returns the compressor name.
          * @return the compressor name.
          */
         public String getCompressorName()
@@ -677,12 +682,27 @@ public class CommitLog implements CommitLogMBean
         }
 
         /**
-         * Returns the encryption context used to encrypt the segments.
          * @return the encryption context used to encrypt the segments
          */
         public EncryptionContext getEncryptionContext()
         {
             return encryptionContext;
+        }
+
+        /**
+         * @return Direct-IO used for CommitLog IO
+         */
+        public boolean isDirectIOEnabled()
+        {
+            return diskAccessMode == Config.DiskAccessMode.direct;
+        }
+
+        /**
+         * @return Standard or buffered I/O used for CommitLog IO
+         */
+        public boolean isStandardModeEnable()
+        {
+            return diskAccessMode == Config.DiskAccessMode.standard;
         }
     }
 }
