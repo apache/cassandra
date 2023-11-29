@@ -396,7 +396,7 @@ public class JMXTool
 
             public CustomConstructor()
             {
-                super(new LoaderOptions());
+                super(getLoaderOptions());
                 this.rootTag = new Tag(ROOT);
                 this.addTypeDescription(INFO_TYPE);
             }
@@ -418,6 +418,13 @@ public class JMXTool
                 {
                     return super.constructObject(node);
                 }
+            }
+
+            private static LoaderOptions getLoaderOptions()
+            {
+                LoaderOptions loaderOptions = new LoaderOptions();
+                loaderOptions.setCodePointLimit(64 * 1024 * 1024); // 64 MiB
+                return loaderOptions;
             }
         }
     }
