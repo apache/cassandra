@@ -141,34 +141,43 @@ public class SortedTermsTest extends SaiRandomizedTest
         writeTerms(descriptor, terms);
 
         // iterate on terms ascending
-        withSortedTermsCursor(descriptor, reader ->
+        withSortedTermsReader(descriptor, reader ->
         {
             for (int x = 0; x < terms.size(); x++)
             {
-                long pointId = reader.nextAfter(ByteComparable.fixedLength(terms.get(x)));
-                assertEquals(x, pointId);
+                try (SortedTermsReader.Cursor cursor = reader.openCursor())
+                {
+                    long pointId = cursor.ceiling(ByteComparable.fixedLength(terms.get(x)));
+                    assertEquals(x, pointId);
+                }
             }
         });
 
         // iterate on terms descending
-        withSortedTermsCursor(descriptor, reader ->
+        withSortedTermsReader(descriptor, reader ->
         {
             for (int x = terms.size() - 1; x >= 0; x--)
             {
-                long pointId = reader.ceiling(ByteComparable.fixedLength(terms.get(x)));
-                assertEquals(x, pointId);
+                try (SortedTermsReader.Cursor cursor = reader.openCursor())
+                {
+                    long pointId = cursor.ceiling(ByteComparable.fixedLength(terms.get(x)));
+                    assertEquals(x, pointId);
+                }
             }
         });
 
         // iterate randomly
-        withSortedTermsCursor(descriptor, reader ->
+        withSortedTermsReader(descriptor, reader ->
         {
             for (int x = 0; x < terms.size(); x++)
             {
                 int target = nextInt(0, terms.size());
 
-                long pointId = reader.ceiling(ByteComparable.fixedLength(terms.get(target)));
-                assertEquals(target, pointId);
+                try (SortedTermsReader.Cursor cursor = reader.openCursor())
+                {
+                    long pointId = cursor.ceiling(ByteComparable.fixedLength(terms.get(target)));
+                    assertEquals(target, pointId);
+                }
             }
         });
     }
@@ -185,17 +194,20 @@ public class SortedTermsTest extends SaiRandomizedTest
 
         var countEndOfData = new AtomicInteger();
         // iterate on terms ascending
-        withSortedTermsCursor(descriptor, reader ->
+        withSortedTermsReader(descriptor, reader ->
         {
             for (int x = 0; x < termsMaxPrefixNoMatch.size(); x++)
             {
-                int index = x;
-                long pointIdEnd = reader.ceiling(v -> termsMinPrefixNoMatch.get(index));
-                long pointIdStart = reader.floor(v -> termsMaxPrefixNoMatch.get(index));
-                if (pointIdStart >= 0 && pointIdEnd >= 0)
-                    assertTrue(pointIdEnd > pointIdStart);
-                else
-                    countEndOfData.incrementAndGet();
+                try (SortedTermsReader.Cursor cursor = reader.openCursor())
+                {
+                    int index = x;
+                    long pointIdEnd = cursor.ceiling(v -> termsMinPrefixNoMatch.get(index));
+                    long pointIdStart = cursor.floor(v -> termsMaxPrefixNoMatch.get(index));
+                    if (pointIdStart >= 0 && pointIdEnd >= 0)
+                        assertTrue(pointIdEnd > pointIdStart);
+                    else
+                        countEndOfData.incrementAndGet();
+                }
             }
         });
         // ceiling reaches the end of the data because we call writeTerms with matchesData false, which means that
@@ -215,15 +227,18 @@ public class SortedTermsTest extends SaiRandomizedTest
         writeTerms(descriptor, termsMinPrefix, termsMaxPrefix, valuesPerPrefix, true);
 
         // iterate on terms ascending
-        withSortedTermsCursor(descriptor, reader ->
+        withSortedTermsReader(descriptor, reader ->
         {
             for (int x = 0; x < termsMaxPrefix.size(); x++)
             {
-                int index = x;
-                long pointIdEnd = reader.ceiling(v -> termsMinPrefix.get(index));
-                long pointIdStart = reader.floor(v -> termsMaxPrefix.get(index));
-                assertEquals(pointIdEnd, x / valuesPerPrefix * valuesPerPrefix);
-                assertEquals(pointIdEnd + valuesPerPrefix - 1, pointIdStart);
+                try (SortedTermsReader.Cursor cursor = reader.openCursor())
+                {
+                    int index = x;
+                    long pointIdEnd = cursor.ceiling(v -> termsMinPrefix.get(index));
+                    long pointIdStart = cursor.floor(v -> termsMaxPrefix.get(index));
+                    assertEquals(pointIdEnd, x / valuesPerPrefix * valuesPerPrefix);
+                    assertEquals(pointIdEnd + valuesPerPrefix - 1, pointIdStart);
+                }
             }
         });
     }
@@ -432,6 +447,21 @@ public class SortedTermsTest extends SaiRandomizedTest
             {
                 testCode.accept(cursor);
             }
+        }
+    }
+
+    private void withSortedTermsReader(IndexDescriptor indexDescriptor,
+                                       ThrowingConsumer<SortedTermsReader> testCode) throws IOException
+    {
+        MetadataSource metadataSource = MetadataSource.loadGroupMetadata(indexDescriptor);
+        NumericValuesMeta blockPointersMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS)));
+        SortedTermsMeta sortedTermsMeta = new SortedTermsMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PRIMARY_KEY_BLOCKS)));
+        try (FileHandle trieHandle = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PRIMARY_KEY_TRIE);
+             FileHandle termsData = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PRIMARY_KEY_BLOCKS);
+             FileHandle blockOffsets = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS))
+        {
+            SortedTermsReader reader = new SortedTermsReader(termsData, blockOffsets, trieHandle, sortedTermsMeta, blockPointersMeta);
+            testCode.accept(reader);
         }
     }
 

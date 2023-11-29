@@ -162,18 +162,6 @@ public class SortedTermsReader
          * @param term
          * @return
          */
-        public long nextAfter(@Nonnull ByteComparable term)
-        {
-            Preconditions.checkNotNull(term, "term null");
-            return reader.nextAfter(term);
-        }
-
-        /**
-         * Returns the point id (ordinal) associated with the least term greater than or equal to the given term, or
-         * a negative value if there is no such term.
-         * @param term
-         * @return
-         */
         public long ceiling(@Nonnull ByteComparable term)
         {
             Preconditions.checkNotNull(term, "term null");

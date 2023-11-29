@@ -81,11 +81,11 @@ public abstract class AbstractBlockPackedReader implements LongArray
     {
         // already out of range
         if (lastIndex >= valueCount)
-            return -1;
+            return Long.MIN_VALUE;
 
         long rowId = findBlockRowId(targetValue);
         lastIndex = rowId >= 0 ? rowId : -rowId - 1;
-        return rowId >= valueCount ? -1 : rowId;
+        return rowId >= valueCount ? Long.MIN_VALUE : rowId;
     }
 
     private long findBlockRowId(long targetValue)

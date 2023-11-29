@@ -47,7 +47,8 @@ public interface LongArray extends Closeable
     /**
      * @param targetToken Token to look up.  Must not be smaller than previous value queried
      *                    (the method is stateful)
-     * @return The row ID of the target token, or negative if not present
+     * @return The row ID of the target token, or `-(insertion point) - 1` if the target token is not found where
+     *        `insertion point` is the index of the first element greater than the targetToken
      */
     long exactRowId(long targetToken);
 

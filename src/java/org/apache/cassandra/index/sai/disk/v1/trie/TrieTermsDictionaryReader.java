@@ -91,7 +91,16 @@ public class TrieTermsDictionaryReader extends ValueIterator<TrieTermsDictionary
         return getCurrentPayload();
     }
 
-    public long nextAfter(ByteComparable key)
+    /**
+     * Returns the position associated with the least term greater than or equal to the given key, or
+     * a negative value if there is no such term. In order to optimize the search, the trie is traversed
+     * statefully. Therefore, this method only returns correct results when called for increasing keys.
+     * Warning: ceiling is not idempotent. Calling ceiling() twice for the same key will return successive
+     * values instead of the same value. This is acceptable for the current usage of the method.
+     * @param key the prefix to traverse in the trie
+     * @return a position, if found, or a negative value if there is no such position
+     */
+    public long ceiling(ByteComparable key)
     {
         skipTo(key, LeftBoundTreatment.ADMIT_EXACT);
         return nextAsLong();
@@ -117,28 +126,6 @@ public class TrieTermsDictionaryReader extends ValueIterator<TrieTermsDictionary
     private Pair<ByteComparable, Long> getKeyAndPayload()
     {
         return Pair.create(collectedKey(), getCurrentPayload());
-    }
-
-    /**
-     * Returns the position associated with the least term greater than or equal to the given key, or
-     * a negative value if there is no such term.
-     * @param key the prefix to traverse in the trie
-     * @return a position, if found, or a negative value if there is no such position
-     */
-    public long ceiling(ByteComparable key)
-    {
-        int b = followWithGreater(key);
-        // We use initialResult to save a call to getCurrentPayload(). This happens when the current node
-        // is equal to the key we're looking for.
-        long initialResult;
-        if (b != ByteSource.END_OF_STREAM || (initialResult = getCurrentPayload()) == NOT_FOUND)
-        {
-            if (greaterBranch == -1)
-                return NOT_FOUND;
-            goMin(greaterBranch);
-            return getCurrentPayload();
-        }
-        return initialResult;
     }
 
     /**

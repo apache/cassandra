@@ -29,6 +29,8 @@ import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.SlidingWindowReservoir;
 import io.github.jbellis.jvector.graph.SearchResult;
 import io.github.jbellis.jvector.pq.BinaryQuantization;
 import io.github.jbellis.jvector.util.Bits;
@@ -57,6 +59,7 @@ import org.apache.cassandra.index.sai.utils.RangeUtil;
 import org.apache.cassandra.index.sai.utils.SegmentOrdering;
 import org.apache.cassandra.tracing.Tracing;
 
+import static java.lang.Math.ceil;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.lang.Math.pow;
@@ -179,7 +182,7 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
             PrimaryKey firstPrimaryKey = keyFactory.createTokenOnly(keyRange.left.getToken());
 
             // it will return the next row id if given key is not found.
-            long minSSTableRowId = primaryKeyMap.nextAfter(firstPrimaryKey);
+            long minSSTableRowId = primaryKeyMap.ceiling(firstPrimaryKey);
             // If we didn't find the first key, we won't find the last primary key either
             if (minSSTableRowId < 0)
                 return new BitsOrPostingList(PostingList.EMPTY);
@@ -350,25 +353,74 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
             return new ListRangeIterator(metadata.minKey, metadata.maxKey, keysInRange);
 
         int topK = topKFor(limit);
-        // if we are brute forcing, we want to build a list of segment row ids, but if not,
-        // we want to build a bitset of ordinals corresponding to the rows.  We won't know which
-        // path to take until we have an accurate key count.
+        // if we are brute forcing the similarity search, we want to build a list of segment row ids,
+        // but if not, we want to build a bitset of ordinals corresponding to the rows.
+        // We won't know which path to take until we have an accurate key count.
         SparseFixedBitSet bits = bitSetForSearch();
         IntArrayList rowIds = new IntArrayList();
         try (var primaryKeyMap = primaryKeyMapFactory.newPerSSTablePrimaryKeyMap();
              var ordinalsView = graph.getOrdinalsView())
         {
-            for (PrimaryKey primaryKey : keysInRange)
+            // track whether we are saving comparisons by using binary search to skip ahead
+            // (if most of the keys belong to this sstable, bsearch will actually be slower)
+            var comparisonsSavedByBsearch = new Histogram(new SlidingWindowReservoir(10));
+            boolean preferSeqScanToBsearch = false;
+
+            for (int i = 0; i < keysInRange.size(); i++)
             {
-                long sstableRowId = primaryKeyMap.exactRowIdForPrimaryKey(primaryKey);
+                var primaryKey = keysInRange.get(i);
+                long sstableRowId = primaryKeyMap.exactRowIdOrInvertedCeiling(primaryKey);
+
+                // The current primary key is not in this sstable. Use ceiling to search for the row id
+                // of the next closest primary key in this sstable and skip to that primary key.
                 if (sstableRowId < 0)
+                {
+                    long ceilingRowId = - sstableRowId - 1;
+                    if (ceilingRowId > metadata.maxSSTableRowId)
+                    {
+                        // The next greatest primary key is greater than all the primary keys in this sstable
+                        break;
+                    }
+                    var ceilingPrimaryKey = primaryKeyMap.primaryKeyFromRowId(ceilingRowId);
+
+                    // adaptively choose either seq scan or bsearch to skip ahead in keysInRange until
+                    // we find one at least as large as the ceiling key
+                    if (preferSeqScanToBsearch)
+                    {
+                        int j = 0;
+                        for ( ; i + j < keysInRange.size(); j++)
+                        {
+                            var nextPrimaryKey = primaryKeyMap.primaryKeyFromRowId(j);
+                            if (nextPrimaryKey.compareTo(ceilingPrimaryKey) >= 0)
+                                break;
+                        }
+                        comparisonsSavedByBsearch.update(j - (int) ceil(logBase2(keysInRange.size() - i)));
+                        i += j - 1; // -1 because loop will increment next
+                    }
+                    else
+                    {
+                        // Use a sublist to only search the remaining primary keys in range.
+                        var keysRemaining = keysInRange.subList(i, keysInRange.size());
+                        int nextIndexForCeiling = Collections.binarySearch(keysRemaining, ceilingPrimaryKey);
+                        if (nextIndexForCeiling < 0)
+                            // We got: -(insertion point) - 1. Invert it so we get the insertion point.
+                            nextIndexForCeiling = -nextIndexForCeiling - 1;
+
+                        comparisonsSavedByBsearch.update(nextIndexForCeiling - (int) ceil(logBase2(keysRemaining.size())));
+                        i += nextIndexForCeiling - 1; // -1 because loop will increment next
+                    }
+
+                    // update our estimate
+                    preferSeqScanToBsearch = comparisonsSavedByBsearch.getCount() >= 10
+                                             && comparisonsSavedByBsearch.getSnapshot().getMean() < 0;
                     continue;
+                }
 
                 // these should still be true based on our computation of keysInRange
                 assert sstableRowId >= metadata.minSSTableRowId : String.format("sstableRowId %d < minSSTableRowId %d", sstableRowId, metadata.minSSTableRowId);
                 assert sstableRowId <= metadata.maxSSTableRowId : String.format("sstableRowId %d > maxSSTableRowId %d", sstableRowId, metadata.maxSSTableRowId);
 
-                // add it to the list of rows to search if it has a vector associated with it
+                // convert the global row id to segment row id and from segment row id to graph ordinal
                 int segmentRowId = metadata.toSegmentRowId(sstableRowId);
                 int ordinal = ordinalsView.getOrdinalForRowId(segmentRowId);
                 if (ordinal >= 0)
@@ -399,6 +451,10 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
         var results = graph.search(queryVector, topK, limit, bits, context);
         updateExpectedNodes(results.getVisitedCount(), getRawExpectedNodes(topK, numRows));
         return toPrimaryKeyIterator(results, context);
+    }
+
+    public static double logBase2(double number) {
+        return Math.log(number) / Math.log(2);
     }
 
     private int getRawExpectedNodes(int topK, int nPermittedOrdinals)
