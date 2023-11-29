@@ -197,7 +197,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
     private static void verifyReplacements(Map<Class<?>, Map<String, Replacement>> replacements, byte[] configBytes)
     {
-        LoaderOptions loaderOptions = new LoaderOptions();
+        LoaderOptions loaderOptions = getDefaultLoaderOptions();
         loaderOptions.setAllowDuplicateKeys(ALLOW_DUPLICATE_CONFIG_KEYS.getBoolean());
         Yaml rawYaml = new Yaml(loaderOptions);
 
@@ -260,7 +260,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
     private static Composer getDefaultComposer(Node node)
     {
-        return new Composer(new ParserImpl(null), new Resolver(), new LoaderOptions())
+        return new Composer(new ParserImpl(null), new Resolver(), getDefaultLoaderOptions())
         {
             @Override
             public Node getSingleNode()
@@ -275,7 +275,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     {
         CustomConstructor(Class<?> theRoot, ClassLoader classLoader)
         {
-            super(theRoot, classLoader, new LoaderOptions());
+            super(theRoot, classLoader, getDefaultLoaderOptions());
 
             TypeDescription seedDesc = new TypeDescription(ParameterizedClass.class);
             seedDesc.putMapPropertyType("parameters", String.class, String.class);
@@ -425,6 +425,13 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             if (!deprecationWarnings.isEmpty())
                 logger.warn("{} parameters have been deprecated. They have new names and/or value format; For more information, please refer to NEWS.txt", deprecationWarnings);
         }
+    }
+
+    public static LoaderOptions getDefaultLoaderOptions()
+    {
+        LoaderOptions loaderOptions = new LoaderOptions();
+        loaderOptions.setCodePointLimit(64 * 1024 * 1024); // 64 MiB
+        return loaderOptions;
     }
 }
 
