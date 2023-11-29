@@ -192,6 +192,16 @@ public class ClusterMetadata
         this.extensions = ImmutableMap.copyOf(extensions);
     }
 
+    public ClusterMetadata withDirectory(Directory directory)
+    {
+        return new ClusterMetadata(epoch, partitioner, schema, directory, tokenMap, placements, accordKeyspaces, lockedRanges, inProgressSequences, consensusMigrationState, extensions);
+    }
+
+    public ClusterMetadata withPlacements(DataPlacements placements)
+    {
+        return new ClusterMetadata(epoch, partitioner, schema, directory, tokenMap, placements, accordKeyspaces, lockedRanges, inProgressSequences, consensusMigrationState, extensions);
+    }
+
     public Set<InetAddressAndPort> fullCMSMembers()
     {
         if (fullCMSEndpoints == null)

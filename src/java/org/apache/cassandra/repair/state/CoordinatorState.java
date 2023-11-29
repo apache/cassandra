@@ -64,6 +64,30 @@ public class CoordinatorState extends AbstractState<CoordinatorState.State, Time
         this.options = Objects.requireNonNull(options);
     }
 
+    public String getType()
+    {
+        if (options.isPreview())
+        {
+            switch (options.getPreviewKind())
+            {
+                case ALL: return "preview full";
+                case REPAIRED: return "preview repaired";
+                case UNREPAIRED: return "preview unrepaired";
+                case NONE: throw new AssertionError("NONE preview kind not expected when preview repair is set");
+                default: throw new AssertionError("Unknown preview kind: " + options.getPreviewKind());
+            }
+        }
+        else if (options.accordRepair())
+        {
+            return "accord repair";
+        }
+        else if (options.isIncremental())
+        {
+            return "incremental";
+        }
+        return "full";
+    }
+
     public Collection<SessionState> getSessions()
     {
         return sessions.values();
