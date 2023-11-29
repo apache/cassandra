@@ -301,6 +301,7 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
         this.traceState = maybeCreateTraceState(columnFamilies);
         notifyStarting();
         NeighborsAndRanges neighborsAndRanges = getNeighborsAndRanges();
+
         // We test to validate the start JMX notification is seen before we compute neighbors and ranges
         // but in state (vtable) tracking, we rely on getNeighborsAndRanges to know where we are running repair...
         // JMX start != state start, its possible we fail in getNeighborsAndRanges and state start is never reached

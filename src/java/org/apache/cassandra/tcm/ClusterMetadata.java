@@ -198,6 +198,16 @@ public class ClusterMetadata
         this.locator = Locator.usingDirectory(directory);
     }
 
+    public ClusterMetadata withDirectory(Directory directory)
+    {
+        return new ClusterMetadata(epoch, partitioner, schema, directory, tokenMap, placements, accordKeyspaces, lockedRanges, inProgressSequences, consensusMigrationState, extensions);
+    }
+
+    public ClusterMetadata withPlacements(DataPlacements placements)
+    {
+        return new ClusterMetadata(epoch, partitioner, schema, directory, tokenMap, placements, accordKeyspaces, lockedRanges, inProgressSequences, consensusMigrationState, extensions);
+    }
+
     public Set<InetAddressAndPort> fullCMSMembers()
     {
         if (fullCMSEndpoints == null)
