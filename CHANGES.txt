@@ -9,7 +9,7 @@ Merged from 4.0:
  * Update commons-lang3 to 3.18.0 (CASSANDRA-20849)
  * Add NativeTransportMaxConcurrentConnectionsPerIp to StorageProxyMBean (CASSANDRA-20642)
  * Make secondary index implementations notified about rows in fully expired SSTables in compaction (CASSANDRA-20829)
-
+ * Upgrade jackson to 2.15.3 and snakeyaml to 2.1 (CASSANDRA-18875)
 
 5.0.5
  * Do not source cassandra-env.sh unnecessarily in nodetool and other tooling (CASSANDRA-20745)
