@@ -79,6 +79,10 @@ public class OrderingFilterRangeIterator extends RangeIterator
     protected void performSkipTo(PrimaryKey nextToken)
     {
         input.skipTo(nextToken);
+        // VSTODO is it valid to skipTo() on this iterator after nextIterator has been initialized? It seems like it
+        // could result in missing a relevant local maxima within nextIterator because the iterator becomes
+        // top k minus n where n is the number of skipped PKs. I'm not sure that this method is called when
+        // nextIterator != null.
         if (nextIterator != null)
             nextIterator.skipTo(nextToken);
     }

@@ -54,6 +54,60 @@ public class VectorLocalTest extends VectorTester
     }
 
     @Test
+    public void skipToAssertRegressionTest()
+    {
+        createTable("CREATE TABLE %s (\n" +
+                  "    lat_low_precision smallint,\n" +
+                  "    lon_low_precision smallint,\n" +
+                  "    lat_high_precision tinyint,\n" +
+                  "    lon_high_precision tinyint,\n" +
+                  "    id int,\n" +
+                  "    lat_exact decimal,\n" +
+                  "    lat_lon_embedding vector<float, 2>,\n" +
+                  "    lon_exact decimal,\n" +
+                  "    name text,\n" +
+                  "    proximity_edge tinyint,\n" +
+                  "    PRIMARY KEY ((lat_low_precision, lon_low_precision), lat_high_precision, lon_high_precision, id)\n" +
+                  ") WITH CLUSTERING ORDER BY (lat_high_precision ASC, lon_high_precision ASC, id ASC);");
+        createIndex("CREATE CUSTOM INDEX lat_high_precision_index ON %s (lat_high_precision) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex';");
+        createIndex("CREATE CUSTOM INDEX lat_lon_embedding_index ON %s (lat_lon_embedding) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex' WITH OPTIONS = {'similarity_function': 'EUCLIDEAN'};");
+        createIndex("CREATE CUSTOM INDEX lon_high_precision_index ON %s (lon_high_precision) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex';");
+        waitForIndexQueryable();
+
+        int vectorCount = getRandom().nextIntBetween(500, 1000);
+        List<Vector<Float>> vectors = IntStream.range(0, vectorCount).mapToObj(s -> randomVector(2)).collect(Collectors.toList());
+
+        int pk = 0;
+        for (Vector<Float> vector : vectors)
+            execute("INSERT INTO %s (lat_low_precision, lon_low_precision, lat_high_precision, lon_high_precision, id, lat_exact, lat_lon_embedding, lon_exact, name, proximity_edge) "
+                    + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (short)(pk % 3), (short)(pk % 5), (byte)(pk % 7), (byte)(pk % 11), pk++, 1.2 * pk, vector, 1.3 * pk, Integer.toString(pk), (byte)(pk % 2));
+
+        flush();
+
+        var queryVector = randomVector(2);
+
+        final int limit = 10;
+        UntypedResultSet result;
+
+        result = execute("SELECT name, id, lat_exact, lon_exact, proximity_edge "
+                      + "FROM %s WHERE lat_low_precision = ? AND lon_low_precision = ? AND lat_high_precision = ? AND lon_high_precision = ? "
+                      + "ORDER BY lat_lon_embedding ANN OF ? LIMIT ?",
+                      (short)0, (short)3, (byte)3, (byte)3,
+                      queryVector, limit);
+
+        assertThat(result).hasSize(1);
+
+        result = execute("SELECT name, id, lat_exact, lon_exact, proximity_edge "
+                      + "FROM %s WHERE lat_low_precision = ? AND lon_low_precision = ? AND lat_high_precision = ? AND lon_high_precision = ? "
+                      + "ORDER BY lat_lon_embedding ANN OF ? LIMIT ?",
+                      (short)0, (short)0, (byte)0, (byte)0,
+                      queryVector, limit);
+
+        assertThat(result).hasSize(1);
+    }
+
+    @Test
     public void randomizedTest() throws Throwable
     {
         randomizedTest(word2vec.dimension());

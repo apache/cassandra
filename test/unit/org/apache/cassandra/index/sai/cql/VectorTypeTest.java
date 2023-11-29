@@ -823,6 +823,34 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
+    public void testIntersectionWithMatchingPrimaryKeyDownToClusteringValues() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, a int, b int, c int, vec vector<float, 2>, PRIMARY KEY(pk, a))");
+        createIndex("CREATE CUSTOM INDEX ON %s(b) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(c) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(vec) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        // This row is created so that it matches the query parameters, and so that the PK is before the other PKs.
+        // The token for 5 is -7509452495886106294 and the token for 1 is -4069959284402364209.
+        execute("INSERT INTO %s (pk, a, b, c, vec) VALUES (?, ?, ?, ?, ?)", 5, 1, 1, 2, vector(1, 1));
+        // This row is created so that it matches one, but not both, predicates, and so that it has the same token
+        // as the third row, but is technically before it when sorting using clustering columns.
+        execute("INSERT INTO %s (pk, a, b, c, vec) VALUES (?, ?, ?, ?, ?)", 1, 1, 1, 0, vector(1, 1));
+        // This row is the only valid match and is the final row in the sstable.
+        execute("INSERT INTO %s (pk, a, b, c, vec) VALUES (?, ?, ?, ?, ?)", 1, 2, 1, 2, vector(1, 1));
+
+        beforeAndAfterFlush(
+        () -> {
+            // Query has three important details. First, we restrict by the partition, then we have an intersection
+            // on b and c. It is a vector query because there is a separate code path for it.
+            assertRows(execute("SELECT a FROM %s WHERE b = 1 AND c = 2 AND pk = 1 ORDER BY vec ANN OF [1,1] LIMIT 3"), row(2));
+            // Verify this works for the non vector code path as well, which was also broken.
+            assertRows(execute("SELECT a FROM %s WHERE b = 1 AND c = 2 AND pk = 1"), row(2));
+        });
+    }
+
+    @Test
     public void testHybridSearchWithPrimaryKeyHoles() throws Throwable
     {
         setMaxBruteForceRows(0);
