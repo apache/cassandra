@@ -52,9 +52,9 @@ public class CqlCounterGetter extends CqlOperation<Integer>
     }
 
     @Override
-    protected CqlRunOp<Integer> buildRunOp(ClientWrapper client, String query, Object queryId, List<Object> params, ByteBuffer key)
+    protected CqlRunOp<Integer> buildRunOp(QueryExecutor<?> queryExecutor, List<Object> params, ByteBuffer key)
     {
-        return new CqlRunOpTestNonEmpty(client, query, queryId, params, key);
+        return new CqlRunOpTestNonEmpty(queryExecutor, params, key);
     }
 
 }

@@ -36,7 +36,6 @@ public abstract class PredefinedOperation extends PartitionOperation
     public static final byte[] EMPTY_BYTE_ARRAY = {};
     public final Command type;
     private final Distribution columnCount;
-    private Object cqlCache;
 
     public PredefinedOperation(Command type, Timer timer, PartitionGenerator generator, SeedManager seedManager, StressSettings settings)
     {
@@ -53,14 +52,6 @@ public abstract class PredefinedOperation extends PartitionOperation
     public boolean isCql3()
     {
         return settings.mode.cqlVersion == CqlVersion.CQL3;
-    }
-    public Object getCqlCache()
-    {
-        return cqlCache;
-    }
-    public void storeCqlCache(Object val)
-    {
-        cqlCache = val;
     }
 
     protected ByteBuffer getKey()
