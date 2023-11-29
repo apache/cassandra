@@ -860,7 +860,6 @@ public class CassandraDaemon
     {
         if (nativeTransportService != null)
         {
-            StorageService.instance.setRpcReady(false);
             nativeTransportService.stop();
         }
     }
