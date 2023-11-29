@@ -52,7 +52,7 @@ public abstract class AbstractRepairTask implements RepairTask
         this.broadcastAddressAndPort = coordinator.ctx.broadcastAddressAndPort();
         this.options = Objects.requireNonNull(coordinator.state.options);
         this.keyspace = Objects.requireNonNull(coordinator.state.keyspace);
-        this.commonRanges = coordinator.neighborsAndRanges.filterCommonRanges(keyspace, coordinator.columnFamilyNames);
+        this.commonRanges = coordinator.neighborsAndRanges.filterCommonRanges(keyspace, coordinator.getColumnFamilyNames());
     }
 
     private List<RepairSession> submitRepairSessions(TimeUUID parentSession,

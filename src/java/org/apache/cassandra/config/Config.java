@@ -1115,21 +1115,6 @@ public class Config
     public LWTStrategy lwt_strategy = LWTStrategy.migration;
     public NonSerialWriteStrategy non_serial_write_strategy = NonSerialWriteStrategy.normal;
 
-    /**
-     * When a barrier transaction is requested how many times to repeat attempting the barrier before giving up
-     */
-    public int accord_barrier_retry_attempts = 5;
-
-    /**
-     * When a barrier transaction fails how long the initial backoff should be before being increased
-     * as part of exponential backoff on each attempt
-     */
-    public DurationSpec.IntMillisecondsBound accord_barrier_retry_inital_backoff_millis = new DurationSpec.IntMillisecondsBound("1s");
-
-    public DurationSpec.IntMillisecondsBound accord_barrier_max_backoff = new DurationSpec.IntMillisecondsBound("10m");
-
-    public DurationSpec.IntMillisecondsBound accord_range_barrier_timeout = new DurationSpec.IntMillisecondsBound("2m");
-
     public volatile int max_top_size_partition_count = 10;
     public volatile int max_top_tombstone_partition_count = 10;
     public volatile DataStorageSpec.LongBytesBound min_tracked_partition_size = new DataStorageSpec.LongBytesBound("1MiB");

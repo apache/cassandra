@@ -95,6 +95,7 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.RangesAtEndpoint;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -110,6 +111,7 @@ import org.apache.cassandra.repair.state.SessionState;
 import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableId;
@@ -117,6 +119,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordConfigurationService;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.streaming.StreamEventHandler;
 import org.apache.cassandra.streaming.StreamReceiveException;
 import org.apache.cassandra.streaming.StreamSession;
@@ -124,11 +128,20 @@ import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.StreamingDataInputPlus;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.listeners.ChangeListener;
+import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
+import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tools.nodetool.Repair;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Closeable;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FailingBiConsumer;
 import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.MBeanWrapper;
@@ -142,6 +155,7 @@ import org.assertj.core.api.Assertions;
 import org.mockito.Mockito;
 import org.quicktheories.impl.JavaRandom;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.ACCORD_REPAIR_RANGE_STEP_UPDATE_INTERVAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_GLOBAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 import static org.apache.cassandra.simulator.RandomSource.Choices.choose;
@@ -162,6 +176,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
     public static void setUpClass()
     {
         ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
+        ACCORD_REPAIR_RANGE_STEP_UPDATE_INTERVAL.setInt(1);
         CLOCK_GLOBAL.setString(ClockAccess.class.getName());
         // when running in CI an external actor will replace the test configs based off the test type (such as trie, cdc, etc.), this could then have failing tests
         // that do not repo with the same seed!  To fix that, go to UnitConfigOverride and update the config type to match the one that failed in CI, this should then
@@ -263,8 +278,12 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         // so don't want to deal with unlucky histories...
         DatabaseDescriptor.setRepairRpcTimeout(TimeUnit.DAYS.toMillis(1));
 
+        // make sure accord is enabled as accord has custom repair steps
+        DatabaseDescriptor.setAccordTransactionsEnabled(true);
 
         InMemory.setUpClass();
+
+        MessagingService.instance().listen();
     }
 
     public static void setupSchema()
@@ -371,14 +390,26 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             for (JobState job : session.getJobs())
             {
                 EnumSet<JobState.State> expected = EnumSet.allOf(JobState.State.class);
-                if (!shouldSnapshot)
+                if (repair.state.options.accordRepair())
                 {
+                    // accord doesn't do snapshot, validation, or streaming
                     expected.remove(JobState.State.SNAPSHOT_START);
                     expected.remove(JobState.State.SNAPSHOT_COMPLETE);
-                }
-                if (!shouldSync)
-                {
+                    expected.remove(JobState.State.VALIDATION_START);
+                    expected.remove(JobState.State.VALIDATION_COMPLETE);
                     expected.remove(JobState.State.STREAM_START);
+                }
+                else
+                {
+                    if (!shouldSnapshot)
+                    {
+                        expected.remove(JobState.State.SNAPSHOT_START);
+                        expected.remove(JobState.State.SNAPSHOT_COMPLETE);
+                    }
+                    if (!shouldSync)
+                    {
+                        expected.remove(JobState.State.STREAM_START);
+                    }
                 }
                 Set<JobState.State> actual = job.getStateTimesMillis().keySet();
                 Assertions.assertThat(actual).isEqualTo(expected);
@@ -503,11 +534,29 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
 
     private static RepairOption repairOption(RandomSource rs, Cluster.Node coordinator, String ks, Gen<List<String>> tablesGen, Gen<RepairType> repairTypeGen, Gen<PreviewType> previewTypeGen, Gen<RepairParallelism> repairParallelismGen)
     {
+        RepairType type = repairTypeGen.next(rs);
+        PreviewType previewType = previewTypeGen.next(rs);
+        boolean accordRepair = type == RepairType.FULL && previewType == PreviewType.NONE ? rs.nextBoolean() : false;
         List<String> args = new ArrayList<>();
         args.add(ks);
-        args.addAll(tablesGen.next(rs));
-        args.add("-pr");
-        RepairType type = repairTypeGen.next(rs);
+        List<String> tables = tablesGen.next(rs);
+        args.addAll(tables);
+        if (accordRepair)
+        {
+            List<Range<Token>> ranges = new ArrayList<>(StorageService.instance.getReplicas(ks, coordinator.broadcastAddressAndPort()).ranges());
+            ranges.sort(Comparator.naturalOrder());
+            Range<Token> range = ranges.get(rs.nextInt(0, ranges.size()));
+            args.add("--start-token");
+            args.add(range.left.toString());
+            args.add("--end-token");
+            Murmur3Partitioner.LongToken left = (Murmur3Partitioner.LongToken) range.left;
+            Token right = rs.nextBoolean() ? new Murmur3Partitioner.LongToken(left.token + 100) : range.right;
+            args.add(right.toString());
+        }
+        else
+        {
+            args.add("-pr");
+        }
         switch (type)
         {
             case IR:
@@ -519,7 +568,6 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             default:
                 throw new AssertionError("Unsupported repair type: " + type);
         }
-        PreviewType previewType = previewTypeGen.next(rs);
         switch (previewType)
         {
             case NONE:
@@ -550,6 +598,8 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         }
         if (rs.nextBoolean()) args.add("--optimise-streams");
         RepairOption options = RepairOption.parse(Repair.parseOptionMap(() -> "test", args), DatabaseDescriptor.getPartitioner());
+        if (accordRepair)
+            options = options.withAccordRepair(true);
         if (options.getRanges().isEmpty())
         {
             if (options.isPrimaryRange())
@@ -696,7 +746,69 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                 ClusterMetadataTestHelper.register(inst.broadcastAddressAndPort());
                 ClusterMetadataTestHelper.join(inst.broadcastAddressAndPort(), inst.tokens());
             }
+            List<InetAddressAndPort> addresses = new ArrayList<>(nodes.keySet());
+            addresses.sort(Comparator.naturalOrder());
+            NodeId tcmid = ClusterMetadata.current().directory.peerId(addresses.get(rs.nextInt(0, addresses.size())));
+            ServerTestUtils.recreateAccord(tcmid);
+            interceptTCMNotifications(tcmid);
+
             setupSchema();
+        }
+
+        private void interceptTCMNotifications(NodeId tcmid)
+        {
+            AccordService as = (AccordService) AccordService.instance();
+            AccordConfigurationService config = as.configurationService();
+            ClusterMetadataService.instance().log().removeListener(config);
+            ClusterMetadataService.instance().log().addListener(new ChangeListener()
+            {
+                @Override
+                public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
+                {
+                    config.notifyPostCommit(sanitize(prev, tcmid), sanitize(next, tcmid), fromSnapshot);
+                }
+            });
+        }
+
+        private ClusterMetadata sanitize(ClusterMetadata metadata, NodeId tcmid)
+        {
+            if (metadata.directory.isEmpty())
+                return metadata;
+            ClusterMetadata sanitized = metadata.withDirectory(sanitize(metadata.directory, tcmid))
+                                                .withPlacements(sanitize(metadata.placements, FBUtilities.getBroadcastAddressAndPort()));
+            return sanitized;
+        }
+
+        private Directory sanitize(Directory directory, NodeId tcmid)
+        {
+            if (directory.getNodeAddresses(tcmid) == null)
+                throw new AssertionError("Expected node " + tcmid + " but not found in " + directory);
+            for (NodeId peer : directory.peerIds())
+            {
+                if (peer.equals(tcmid))
+                    continue;
+                directory = directory.without(peer);
+            }
+            directory = directory.withNodeAddresses(tcmid, NodeAddresses.current());
+            return directory;
+        }
+
+        private DataPlacements sanitize(DataPlacements placements, InetAddressAndPort endpoint)
+        {
+            DataPlacements.Builder builder = DataPlacements.builder(placements.size());
+            for (Map.Entry<ReplicationParams, DataPlacement> e : placements)
+                builder.with(e.getKey(), sanitize(placements.lastModified(), e.getValue(), endpoint));
+            return builder.build();
+        }
+
+        private DataPlacement sanitize(Epoch epoch, DataPlacement value, InetAddressAndPort endpoint)
+        {
+            DataPlacement.Builder builder = DataPlacement.builder();
+            for (Range<Token> e : value.writes.ranges())
+                builder.withWriteReplica(epoch, new Replica(endpoint, e, true));
+            for (Range<Token> e : value.reads.ranges())
+                builder.withReadReplica(epoch, new Replica(endpoint, e, true));
+            return builder.build();
         }
 
         public Closeable addListener(MessageListener listener)
@@ -1125,6 +1237,8 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                             failures.add(new AssertionError(event.getMessage()));
                     });
                 }
+                if (repair.state.options.accordRepair())
+                    AccordService.instance().ensureKeyspaceIsAccordManaged(repair.state.keyspace);
                 return repair;
             }
 
@@ -1260,7 +1374,10 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                         next = it.next();
                     }
                     if (FuzzTestBase.class.getName().equals(next.getClassName())) return Access.MAIN_THREAD_ONLY;
-                    if (next.getClassName().startsWith("org.apache.cassandra.db.") ||
+                    if (next.getClassName().startsWith("org.apache.cassandra.accord.") ||
+                        next.getClassName().startsWith("org.apache.cassandra.journal.") ||
+                        next.getClassName().startsWith("org.apache.cassandra.service.accord.") ||
+                        next.getClassName().startsWith("org.apache.cassandra.db.") ||
                         next.getClassName().startsWith("org.apache.cassandra.gms.") ||
                         next.getClassName().startsWith("org.apache.cassandra.cql3.") ||
                         next.getClassName().startsWith("org.apache.cassandra.metrics.") ||

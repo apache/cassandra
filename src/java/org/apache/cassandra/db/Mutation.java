@@ -630,7 +630,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
             {
                 if (version >= VERSION_50)
                     size += ALLOW_OUT_OF_RANGE_MUTATIONS_FLAG; // flags
-                size = TypeSizes.sizeofUnsignedVInt(mutation.modifications.size());
+                size += TypeSizes.sizeofUnsignedVInt(mutation.modifications.size());
                 for (PartitionUpdate partitionUpdate : mutation.modifications.values())
                     size += serializer.serializedSize(partitionUpdate, version);
                 this.size = size;

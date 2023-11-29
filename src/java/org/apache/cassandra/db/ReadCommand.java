@@ -1198,7 +1198,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                 }
                 throw e;
             }
-            int nowInSec = in.readInt();
+            long nowInSec = version >= MessagingService.VERSION_50 ? CassandraUInt.toLong(in.readInt()) : in.readInt();
             ColumnFilter columnFilter = ColumnFilter.serializer.deserialize(in, version, tableMetadata);
             RowFilter rowFilter = RowFilter.serializer.deserialize(in, version, tableMetadata);
             DataLimits limits = DataLimits.serializer.deserialize(in, version,  tableMetadata);
