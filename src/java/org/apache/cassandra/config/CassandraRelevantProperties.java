@@ -35,6 +35,7 @@ import org.apache.cassandra.utils.StorageCompatibilityMode;
 /** A class that extracts system properties for the cassandra node it runs within. */
 public enum CassandraRelevantProperties
 {
+    ACCORD_REPAIR_RANGE_STEP_UPDATE_INTERVAL("cassandra.accord.repair.range_step_update_interval", "100"),
     ACQUIRE_RETRY_SECONDS("cassandra.acquire_retry_seconds", "60"),
     ACQUIRE_SLEEP_MS("cassandra.acquire_sleep_ms", "1000"),
     ALLOCATE_TOKENS_FOR_KEYSPACE("cassandra.allocate_tokens_for_keyspace"),

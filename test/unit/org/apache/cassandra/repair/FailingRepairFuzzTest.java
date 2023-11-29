@@ -34,6 +34,7 @@ import accord.utils.Gens;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.RetrySpec;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.state.Completable;
 import org.apache.cassandra.streaming.StreamEventHandler;
 import org.apache.cassandra.streaming.StreamState;
@@ -64,7 +65,14 @@ public class FailingRepairFuzzTest extends FuzzTestBase
             {
                 Cluster.Node coordinator = coordinatorGen.next(rs);
 
-                RepairCoordinator repair = coordinator.repair(KEYSPACE, repairOption(rs, coordinator, KEYSPACE, TABLES), false);
+                // exclude accord repair as this test breaks validation/sync; which accord doesn't have
+                RepairOption options;
+                do
+                {
+                    options = repairOption(rs, coordinator, KEYSPACE, TABLES);
+                }
+                while (options.accordRepair());
+                RepairCoordinator repair = coordinator.repair(KEYSPACE, options, false);
                 repair.run();
                 InetAddressAndPort failingAddress = pickParticipant(rs, coordinator, repair);
                 Cluster.Node failingNode = cluster.nodes.get(failingAddress);

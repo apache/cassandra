@@ -3316,22 +3316,22 @@ public class DatabaseDescriptor
 
     public static int getAccordBarrierRetryAttempts()
     {
-        return conf.accord_barrier_retry_attempts;
+        return conf.accord.barrier_retry_attempts;
     }
 
     public static long getAccordBarrierRetryInitialBackoffMillis()
     {
-        return conf.accord_barrier_retry_inital_backoff_millis.toMilliseconds();
+        return conf.accord.barrier_retry_inital_backoff_millis.toMilliseconds();
     }
 
     public static long getAccordBarrierRetryMaxBackoffMillis()
     {
-        return conf.accord_barrier_max_backoff.toMilliseconds();
+        return conf.accord.barrier_max_backoff.toMilliseconds();
     }
 
     public static long getAccordRangeBarrierTimeoutNanos()
     {
-        return conf.accord_range_barrier_timeout.to(TimeUnit.NANOSECONDS);
+        return conf.accord.range_barrier_timeout.to(TimeUnit.NANOSECONDS);
     }
 
     public static void setNativeTransportMaxRequestDataInFlightPerIpInBytes(long maxRequestDataInFlightInBytes)

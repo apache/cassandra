@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -84,6 +84,7 @@ import org.apache.cassandra.utils.progress.ProgressEventNotifier;
 import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.apache.cassandra.utils.progress.ProgressListener;
 
+import static com.google.common.collect.ImmutableList.toImmutableList;
 import static org.apache.cassandra.repair.state.AbstractState.COMPLETE;
 import static org.apache.cassandra.repair.state.AbstractState.INIT;
 import static org.apache.cassandra.service.QueryState.forInternalCalls;
@@ -103,12 +104,16 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
     private final AtomicReference<Throwable> firstError = new AtomicReference<>(null);
 
     public volatile NeighborsAndRanges neighborsAndRanges;
-    public final List<ColumnFamilyStore> columnFamilies;
-    public final List<String> columnFamilyNames;
 
     final SharedContext ctx;
 
     private TraceState traceState;
+
+    // These will be null before `runMayThrow` populates them
+    @Nullable
+    private List<ColumnFamilyStore> columnFamilies;
+    @Nullable
+    private List<String> columnFamilyNames;
 
     public RepairCoordinator(StorageService storageService, int cmd, RepairOption options, String keyspace)
     {
@@ -128,8 +133,6 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
         this.tag = "repair:" + cmd;
         this.validColumnFamilies = validColumnFamilies;
         this.getLocalReplicas = getLocalReplicas;
-        this.columnFamilies = getColumnFamilies();
-        this.columnFamilyNames = getColumnFamilyNames();
         ctx.repair().register(state);
     }
 
@@ -282,11 +285,11 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
         state.phase.setup();
         ctx.repair().recordRepairStatus(state.cmd, ParentRepairStatus.IN_PROGRESS, ImmutableList.of());
 
+        populateColumnFamilies();
+
         this.traceState = maybeCreateTraceState(columnFamilies);
         notifyStarting();
         NeighborsAndRanges neighborsAndRanges = getNeighborsAndRanges();
-        // Memoi
-        getColumnFamilyNames();
 
         // We test to validate the start JMX notification is seen before we compute neighbors and ranges
         // but in state (vtable) tracking, we rely on getNeighborsAndRanges to know where we are running repair...
@@ -321,19 +324,25 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
         });
     }
 
-    private List<ColumnFamilyStore> getColumnFamilies()
+    private void populateColumnFamilies()
     {
         String[] columnFamilyNames = state.options.getColumnFamilies().toArray(new String[state.options.getColumnFamilies().size()]);
         Iterable<ColumnFamilyStore> validColumnFamilies = this.validColumnFamilies.apply(state.keyspace, columnFamilyNames);
 
         if (Iterables.isEmpty(validColumnFamilies))
             throw new SkipRepairException(String.format("%s Empty keyspace, skipping repair: %s", state.id, state.keyspace));
-        return Lists.newArrayList(validColumnFamilies);
+        columnFamilies = Lists.newArrayList(validColumnFamilies);
+        this.columnFamilyNames = columnFamilies.stream().map(cfs -> cfs.name).collect(toImmutableList());
     }
 
-    public List<String> getColumnFamilyNames()
+    public @Nullable List<ColumnFamilyStore> getColumnFamilies()
     {
-        return columnFamilies.stream().map(cfs -> cfs.name).collect(Collectors.toList());
+        return columnFamilies;
+    }
+
+    public @Nullable List<String> getColumnFamilyNames()
+    {
+        return columnFamilyNames;
     }
 
     private TraceState maybeCreateTraceState(Iterable<ColumnFamilyStore> columnFamilyStores)

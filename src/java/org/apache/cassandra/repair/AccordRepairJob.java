@@ -19,8 +19,10 @@
 package org.apache.cassandra.repair;
 
 import java.math.BigInteger;
-import java.util.List;
 import javax.annotation.Nullable;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import accord.api.BarrierType;
 import accord.api.RoutingKey;
@@ -28,18 +30,16 @@ import accord.primitives.Ranges;
 import accord.primitives.Seekables;
 import org.apache.cassandra.dht.AccordSplitter;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.AccordTopologyUtils;
 import org.apache.cassandra.service.accord.TokenRange;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationRepairResult;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.Collections.emptyList;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.config.CassandraRelevantProperties.ACCORD_REPAIR_RANGE_STEP_UPDATE_INTERVAL;
 
 /*
  * Accord repair consists of creating a barrier transaction for all the ranges which ensure that all Accord transactions
@@ -47,6 +47,8 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  */
 public class AccordRepairJob extends AbstractRepairJob
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordRepairJob.class);
+
     public static final BigInteger TWO = BigInteger.valueOf(2);
 
     private final Ranges ranges;
@@ -57,16 +59,14 @@ public class AccordRepairJob extends AbstractRepairJob
 
     private Epoch minEpoch = ClusterMetadata.current().epoch;
 
+    private volatile Throwable shouldAbort = null;
+
     public AccordRepairJob(RepairSession repairSession, String cfname)
     {
         super(repairSession, cfname);
-        List<Range<Token>> normalizedRanges = Range.normalize(desc.ranges);
-        IPartitioner partitioner = normalizedRanges.get(0).left.getPartitioner();
-        TokenRange[] tokenRanges = new TokenRange[normalizedRanges.size()];
-        for (int i = 0; i < normalizedRanges.size(); i++)
-            tokenRanges[i] = new TokenRange(new TokenKey(ks.getName(), normalizedRanges.get(i).left), new TokenKey(ks.getName(), normalizedRanges.get(i).right));
-        this.ranges = Ranges.of(tokenRanges);
-        this.splitter = partitioner.accordSplitter().apply(Ranges.of(tokenRanges));
+        IPartitioner partitioner = desc.ranges.iterator().next().left.getPartitioner();
+        this.ranges = AccordTopologyUtils.toAccordRanges(desc.keyspace, desc.ranges);
+        this.splitter = partitioner.accordSplitter().apply(ranges);
     }
 
     @Override
@@ -91,15 +91,19 @@ public class AccordRepairJob extends AbstractRepairJob
     @Override
     void abort(@Nullable Throwable reason)
     {
-        throw new UnsupportedOperationException("Have not implemented this yet, and the job runs synchronously so it isn't abortable");
+        shouldAbort = reason == null ? new RuntimeException("Abort") : reason;
     }
 
-    private void repairRange(TokenRange range)
+    private void repairRange(TokenRange range) throws Throwable
     {
+        int rangeStepUpdateInterval = ACCORD_REPAIR_RANGE_STEP_UPDATE_INTERVAL.getInt();
         RoutingKey remainingStart = range.start();
         BigInteger rangeSize = splitter.sizeOf(range);
         if (rangeStep == null)
-            rangeStep = BigInteger.ONE.max(splitter.divide(rangeSize, 1000));
+        {
+            BigInteger divide = splitter.divide(rangeSize, 1000);
+            rangeStep = divide.equals(BigInteger.ZERO) ? rangeSize : BigInteger.ONE.max(divide);
+        }
 
         BigInteger offset = BigInteger.ZERO;
 
@@ -107,14 +111,16 @@ public class AccordRepairJob extends AbstractRepairJob
         int iteration = 0;
         while (true)
         {
+            if (shouldAbort != null)
+                throw shouldAbort;
             iteration++;
-            if (iteration % 100 == 0)
+            if (iteration % rangeStepUpdateInterval == 0)
                 rangeStep = rangeStep.multiply(TWO);
 
             BigInteger remaining = rangeSize.subtract(offset);
             BigInteger length = remaining.min(rangeStep);
 
-            long start = nanoTime();
+            long start = ctx.clock().nanoTime();
             boolean dependencyOverflow = false;
             try
             {
@@ -123,7 +129,10 @@ public class AccordRepairJob extends AbstractRepairJob
                 if (splitter.compare(offset, rangeSize) >= 0)
                 {
                     if (remainingStart.equals(range.end()))
+                    {
+                        logger.info("Completed barriers for {} in {} iterations", range, iteration - 1);
                         return;
+                    }
 
                     // Final repair is whatever remains
                     toRepair = range.newRange(remainingStart, range.end());
