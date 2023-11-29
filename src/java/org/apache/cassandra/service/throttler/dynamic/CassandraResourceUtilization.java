@@ -207,7 +207,7 @@ public class CassandraResourceUtilization
             {
                 resetThrottlingParams();
             }
-            else if (lastThrottlingIndicatorTimeInMS != 0)
+            else if (lastThrottlingIndicatorTimeInMS != 0 && lastThrottlingIndicatorTimeInMS > lastThrottlingCheckPointTimeInMS)
             {
                 lastThrottlingCheckPointTimeInMS = lastThrottlingIndicatorTimeInMS;
                 if (currentThrottlingPercentage < MAX_THROTTLING)

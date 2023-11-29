@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-26016] Fix a bug where current throttling percentage can grow too fast
  * [SO-25750] Segregate read vs. write replication throttling
  * [SO-25736] Fix jvm dtests failures caused by rate limiter code
  * [SO-25485] Make OSS memory-based throttling configurable

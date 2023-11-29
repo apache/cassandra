@@ -353,6 +353,40 @@ public class CassandraResourceUtilizationTest extends CQLTester
     }
 
     @Test
+    public void testDoNotIncreaseThrottlingPercentageIfNoIndicatorUpdateSinceLastCheckpoint()
+    {
+        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
+        cassandraResourceUtilization.setup(false);
+        Assert.assertEquals(0.1, cassandraResourceUtilization.currentThrottlingPercentage, 0.0);
+
+        long lastThrottlingIndicatorTime = System.currentTimeMillis();
+        long oldestThrottlingIndicatorTimeInMS = System.currentTimeMillis() - SECONDS.toMillis(cassandraResourceUtilization.throttlingOptions.getMoreAggressiveThrottlingAfterInSec() + 1);
+        cassandraResourceUtilization.lastThrottlingCheckPointTimeInMS = oldestThrottlingIndicatorTimeInMS;
+        cassandraResourceUtilization.lastThrottlingIndicatorTimeInMS = lastThrottlingIndicatorTime;
+
+        // this should increase the throttling
+        cassandraResourceUtilization.adjustThrottling();
+        Assert.assertEquals(lastThrottlingIndicatorTime, cassandraResourceUtilization.lastThrottlingIndicatorTimeInMS);
+        Assert.assertEquals(lastThrottlingIndicatorTime, cassandraResourceUtilization.lastThrottlingCheckPointTimeInMS);
+        Assert.assertEquals(0.2, cassandraResourceUtilization.currentThrottlingPercentage, 0.0);
+
+        // this should not increase the throttling
+        cassandraResourceUtilization.adjustThrottling();
+        Assert.assertEquals(lastThrottlingIndicatorTime, cassandraResourceUtilization.lastThrottlingCheckPointTimeInMS);
+        Assert.assertEquals(lastThrottlingIndicatorTime, cassandraResourceUtilization.lastThrottlingIndicatorTimeInMS);
+        Assert.assertEquals(0.2, cassandraResourceUtilization.currentThrottlingPercentage, 0.0);
+
+        // this should not increase the throttling
+        lastThrottlingIndicatorTime = System.currentTimeMillis() - SECONDS.toMillis(cassandraResourceUtilization.throttlingOptions.getMoreAggressiveThrottlingAfterInSec() + 1);;
+        cassandraResourceUtilization.lastThrottlingCheckPointTimeInMS = lastThrottlingIndicatorTime;
+        cassandraResourceUtilization.lastThrottlingIndicatorTimeInMS = lastThrottlingIndicatorTime;
+        cassandraResourceUtilization.adjustThrottling();
+        Assert.assertEquals(lastThrottlingIndicatorTime, cassandraResourceUtilization.lastThrottlingIndicatorTimeInMS);
+        Assert.assertEquals(lastThrottlingIndicatorTime, cassandraResourceUtilization.lastThrottlingCheckPointTimeInMS);
+        Assert.assertEquals(0.2, cassandraResourceUtilization.currentThrottlingPercentage, 0.0);
+    }
+
+    @Test
     public void testValidateCpuThrottlingCalculation()
     {
         long originalCpuThresholdOneMinute = CassandraResourceUtilization.instance.throttlingOptions.getCpuThresholdOneMinute();
