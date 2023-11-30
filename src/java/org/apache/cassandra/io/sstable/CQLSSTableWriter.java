@@ -69,6 +69,8 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JavaDriverUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -376,19 +378,22 @@ public class CQLSSTableWriter implements Closeable
      */
     public static class Builder
     {
-        private File directory;
+        private static final Logger logger = LoggerFactory.getLogger(Builder.class);
+        private static final long DEFAULT_BUFFER_SIZE_IN_MIB_FOR_UNSORTED = 128L;
 
         protected SSTableFormat<?, ?> format = null;
 
-        private CreateTableStatement.Raw schemaStatement;
         private final List<CreateTypeStatement.Raw> typeStatements;
+
+        private File directory;
+        private CreateTableStatement.Raw schemaStatement;
         private ModificationStatement.Parsed modificationStatement;
         private IPartitioner partitioner;
-
         private boolean sorted = false;
-        private long bufferSizeInMiB = 128;
+        private long maxSSTableSizeInMiB = -1L;
 
-        protected Builder() {
+        protected Builder()
+        {
             this.typeStatements = new ArrayList<>();
         }
 
@@ -495,21 +500,21 @@ public class CQLSSTableWriter implements Closeable
         }
 
         /**
-         * The size of the buffer to use.
-         * <p>
-         * This defines how much data will be buffered before being written as
-         * a new SSTable. This correspond roughly to the data size that will have the created
-         * sstable.
-         * <p>
-         * The default is 128MiB, which should be reasonable for a 1GiB heap. If you experience
-         * OOM while using the writer, you should lower this value.
+         * Defines the maximum SSTable size in mebibytes when using the sorted writer.
+         * By default, i.e. not specified, there is no maximum size limit for the produced SSTable
          *
-         * @param size the size to use in MiB.
-         * @return this builder.
+         * @param size the maximum sizein mebibytes of each individual SSTable allowed
+         * @return this builder
          */
-        public Builder withBufferSizeInMiB(int size)
+        public Builder withMaxSSTableSizeInMiB(int size)
         {
-            this.bufferSizeInMiB = size;
+            if (size <= 0)
+            {
+                logger.warn("A non-positive value for maximum SSTable size is specified, " +
+                            "which disables the size limiting effectively. Please supply a positive value in order " +
+                            "to enforce size limiting for the produced SSTables.");
+            }
+            this.maxSSTableSizeInMiB = size;
             return this;
         }
 
@@ -517,7 +522,27 @@ public class CQLSSTableWriter implements Closeable
          * The size of the buffer to use.
          * <p>
          * This defines how much data will be buffered before being written as
-         * a new SSTable. This correspond roughly to the data size that will have the created
+         * a new SSTable. This corresponds roughly to the data size that will have the created
+         * sstable.
+         * <p>
+         * The default is 128MiB, which should be reasonable for a 1GiB heap. If you experience
+         * OOM while using the writer, you should lower this value.
+         *
+         * @deprecated This method is deprecated in favor of the new withMaxSSTableSizeInMiB(int size)
+         * @param size the size to use in MiB.
+         * @return this builder.
+         */
+        @Deprecated(since = "5.0")
+        public Builder withBufferSizeInMiB(int size)
+        {
+            return withMaxSSTableSizeInMiB(size);
+        }
+
+        /**
+         * The size of the buffer to use.
+         * <p>
+         * This defines how much data will be buffered before being written as
+         * a new SSTable. This corresponds roughly to the data size that will have the created
          * sstable.
          * <p>
          * The default is 128MiB, which should be reasonable for a 1GiB heap. If you experience
@@ -568,6 +593,13 @@ public class CQLSSTableWriter implements Closeable
             Preconditions.checkState(Sets.difference(SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES, Schema.instance.getKeyspaces()).isEmpty(),
                                      "Local keyspaces were not loaded. If this is running as a client, please make sure to add %s=true system property.",
                                      CassandraRelevantProperties.FORCE_LOAD_LOCAL_KEYSPACES.getKey());
+
+            // Assign the default max SSTable size if not defined in builder
+            if (isMaxSSTableSizeUnset())
+            {
+                maxSSTableSizeInMiB = sorted ? -1L : DEFAULT_BUFFER_SIZE_IN_MIB_FOR_UNSORTED;
+            }
+
             synchronized (CQLSSTableWriter.class)
             {
                 String keyspaceName = schemaStatement.keyspace();
@@ -599,14 +631,19 @@ public class CQLSSTableWriter implements Closeable
 
                 TableMetadataRef ref = tableMetadata.ref;
                 AbstractSSTableSimpleWriter writer = sorted
-                                                     ? new SSTableSimpleWriter(directory, ref, preparedModificationStatement.updatedColumns())
-                                                     : new SSTableSimpleUnsortedWriter(directory, ref, preparedModificationStatement.updatedColumns(), bufferSizeInMiB);
+                                                     ? new SSTableSimpleWriter(directory, ref, preparedModificationStatement.updatedColumns(), maxSSTableSizeInMiB)
+                                                     : new SSTableSimpleUnsortedWriter(directory, ref, preparedModificationStatement.updatedColumns(), maxSSTableSizeInMiB);
 
                 if (format != null)
                     writer.setSSTableFormatType(format);
 
                 return new CQLSSTableWriter(writer, preparedModificationStatement, preparedModificationStatement.getBindVariables());
             }
+        }
+
+        private boolean isMaxSSTableSizeUnset()
+        {
+            return maxSSTableSizeInMiB <= 0;
         }
 
         private Types createTypes(String keyspace)
