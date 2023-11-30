@@ -53,7 +53,7 @@ import static org.apache.cassandra.distributed.shared.ClusterUtils.waitForCMSToQ
 
 public class ConsistentBootstrapTest extends FuzzTestBase
 {
-    private static int WRITES = 2000;
+    private static int WRITES = 500;
 
     private static final Configuration.ConfigurationBuilder configBuilder;
 

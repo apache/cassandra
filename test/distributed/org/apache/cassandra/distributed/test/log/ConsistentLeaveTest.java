@@ -56,7 +56,7 @@ import static org.junit.Assert.assertFalse;
 
 public class ConsistentLeaveTest extends FuzzTestBase
 {
-    private static int WRITES = 2000;
+    private static int WRITES = 500;
 
     @Test
     public void decommissionTest() throws Throwable

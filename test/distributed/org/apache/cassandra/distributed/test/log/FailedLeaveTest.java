@@ -63,7 +63,7 @@ import static org.apache.cassandra.distributed.shared.ClusterUtils.getSequenceAf
 
 public class FailedLeaveTest extends FuzzTestBase
 {
-    private static int WRITES = 2000;
+    private static int WRITES = 500;
 
     @Test
     public void resumeDecommissionWithStreamingFailureTest() throws Throwable

@@ -42,7 +42,7 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
  * See CASSANDRA-15924.
  */
 @RunWith(Parameterized.class)
-public class ReadRepairEmptyRangeTombstonesTest extends TestBaseImpl
+public abstract class ReadRepairEmptyRangeTombstonesTestBase extends TestBaseImpl
 {
     private static final int NUM_NODES = 2;
 
@@ -59,37 +59,32 @@ public class ReadRepairEmptyRangeTombstonesTest extends TestBaseImpl
     public int coordinator;
 
     /**
-     * Whether to flush data after mutations
-     */
-    @Parameterized.Parameter(2)
-    public boolean flush;
-
-    /**
      * Whether paging is used for the distributed queries
      */
-    @Parameterized.Parameter(3)
+    @Parameterized.Parameter(2)
     public boolean paging;
 
     /**
      * Whether the clustering order is reverse
      */
-    @Parameterized.Parameter(4)
+    @Parameterized.Parameter(3)
     public boolean reverse;
 
-    @Parameterized.Parameters(name = "{index}: strategy={0} coordinator={1} flush={2} paging={3} reverse={4}")
+    @Parameterized.Parameters(name = "{index}: strategy={0} coordinator={1} paging={2} reverse={3}")
     public static Collection<Object[]> data()
     {
         List<Object[]> result = new ArrayList<>();
         for (int coordinator = 1; coordinator <= NUM_NODES; coordinator++)
-            for (boolean flush : BOOLEANS)
-                for (boolean paging : BOOLEANS)
-                    for (boolean reverse : BOOLEANS)
-                        result.add(new Object[]{ ReadRepairStrategy.BLOCKING, coordinator, flush, paging, reverse });
-        result.add(new Object[]{ ReadRepairStrategy.NONE, 1, false, false, false });
+            for (boolean paging : BOOLEANS)
+                for (boolean reverse : BOOLEANS)
+                    result.add(new Object[]{ ReadRepairStrategy.BLOCKING, coordinator, paging, reverse });
+        result.add(new Object[]{ ReadRepairStrategy.NONE, 1, false, false });
         return result;
     }
 
     private static Cluster cluster;
+
+    protected abstract boolean flush();
 
     @BeforeClass
     public static void setupCluster() throws IOException
@@ -255,7 +250,7 @@ public class ReadRepairEmptyRangeTombstonesTest extends TestBaseImpl
 
     private Tester tester()
     {
-        return new Tester(cluster, strategy, coordinator, flush, paging, reverse);
+        return new Tester(cluster, strategy, coordinator, flush(), paging, reverse);
     }
 
     private static class Tester extends ReadRepairTester<Tester>
