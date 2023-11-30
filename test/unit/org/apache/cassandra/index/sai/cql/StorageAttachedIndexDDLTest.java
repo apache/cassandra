@@ -123,8 +123,8 @@ public class StorageAttachedIndexDDLTest extends SAITester
                                                                          .add(ActionBuilder.newActionBuilder().actions().doThrow(RuntimeException.class, Expression.quote("Injected failure!")))
                                                                          .build();
 
-    private static final EnumSet<IndexComponent> PER_SSTABLE_COMPONENTS = EnumSet.of(IndexComponent.PARTITION_ROWS,
-                                                                                     IndexComponent.PARTITION_SIZES,
+    private static final EnumSet<IndexComponent> PER_SSTABLE_COMPONENTS = EnumSet.of(IndexComponent.ROW_TO_PARTITION,
+                                                                                     IndexComponent.PARTITION_TO_SIZE,
                                                                                      IndexComponent.PARTITION_KEY_BLOCKS,
                                                                                      IndexComponent.PARTITION_KEY_BLOCK_OFFSETS,
                                                                                      IndexComponent.CLUSTERING_KEY_BLOCKS,
