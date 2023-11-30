@@ -27,4 +27,19 @@ public class AccordSpec
     public volatile OptionaldPositiveInt shard_count = OptionaldPositiveInt.UNDEFINED;
 
     public volatile DurationSpec.IntSecondsBound progress_log_schedule_delay = new DurationSpec.IntSecondsBound(1);
+
+    /**
+     * When a barrier transaction is requested how many times to repeat attempting the barrier before giving up
+     */
+    public int barrier_retry_attempts = 5;
+
+    /**
+     * When a barrier transaction fails how long the initial backoff should be before being increased
+     * as part of exponential backoff on each attempt
+     */
+    public DurationSpec.IntMillisecondsBound barrier_retry_inital_backoff_millis = new DurationSpec.IntMillisecondsBound("1s");
+
+    public DurationSpec.IntMillisecondsBound barrier_max_backoff = new DurationSpec.IntMillisecondsBound("10m");
+
+    public DurationSpec.IntMillisecondsBound range_barrier_timeout = new DurationSpec.IntMillisecondsBound("2m");
 }
