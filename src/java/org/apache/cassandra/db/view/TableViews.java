@@ -67,6 +67,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSet;
@@ -172,7 +173,7 @@ public class TableViews extends AbstractCollection<View>
     {
         assert update.metadata().id.equals(baseTableMetadata.id);
 
-        Collection<View> views = updatedViews(update);
+        Collection<View> views = updatedViews(update, ClusterMetadata.currentNullable());
         if (views.isEmpty())
             return;
 
@@ -391,7 +392,7 @@ public class TableViews extends AbstractCollection<View>
      * @param updates the updates applied to the base table.
      * @return the views affected by {@code updates}.
      */
-    public Collection<View> updatedViews(PartitionUpdate updates)
+    public Collection<View> updatedViews(PartitionUpdate updates, ClusterMetadata metadata)
     {
         List<View> matchingViews = new ArrayList<>(views.size());
 
@@ -400,7 +401,8 @@ public class TableViews extends AbstractCollection<View>
             ReadQuery selectQuery = view.getReadQuery();
             if (!selectQuery.selectsKey(updates.partitionKey()))
                 continue;
-
+            if (metadata != null && !metadata.schema.getKeyspaceMetadata(view.getDefinition().keyspace()).hasView(view.name))
+                continue;
             matchingViews.add(view);
         }
         return matchingViews;

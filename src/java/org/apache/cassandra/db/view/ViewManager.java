@@ -32,6 +32,7 @@ import org.apache.cassandra.schema.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.MV_ENABLE_COORDINATOR_BATCHLOG;
 
@@ -72,6 +73,7 @@ public class ViewManager
         if (!enableCoordinatorBatchlog && coordinatorBatchlog)
             return false;
 
+        ClusterMetadata metadata = ClusterMetadata.currentNullable();
         for (IMutation mutation : mutations)
         {
             for (PartitionUpdate update : mutation.getPartitionUpdates())
@@ -81,7 +83,7 @@ public class ViewManager
                 if (coordinatorBatchlog && keyspace.getReplicationStrategy().getReplicationFactor().allReplicas == 1)
                     continue;
 
-                if (!forTable(update.metadata()).updatedViews(update).isEmpty())
+                if (!forTable(update.metadata()).updatedViews(update, metadata).isEmpty())
                     return true;
             }
         }
