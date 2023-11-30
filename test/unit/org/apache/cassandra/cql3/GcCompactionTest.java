@@ -49,24 +49,24 @@ public class GcCompactionTest extends CQLTester
     @Override
     protected String createTable(String query)
     {
-        return super.createTable(KEYSPACE_PER_TEST, query);
+        return super.createTable(KEYSPACE, query);
     }
 
     @Override
     protected UntypedResultSet execute(String query, Object... values) throws Throwable
     {
-        return executeFormattedQuery(formatQuery(KEYSPACE_PER_TEST, query), values);
+        return executeFormattedQuery(formatQuery(KEYSPACE, query), values);
     }
 
     @Override
     public ColumnFamilyStore getCurrentColumnFamilyStore()
     {
-        return super.getCurrentColumnFamilyStore(KEYSPACE_PER_TEST);
+        return super.getCurrentColumnFamilyStore(KEYSPACE);
     }
 
     public void flush()
     {
-        flush(KEYSPACE_PER_TEST);
+        flush(KEYSPACE);
     }
 
     @Test
@@ -158,7 +158,7 @@ public class GcCompactionTest extends CQLTester
 
         for (int i = 0; i < KEY_COUNT; ++i)
             for (int j = 0; j < CLUSTERING_COUNT; ++j)
-                execute("INSERT INTO %s (key, column, data, extra) VALUES (?, ?, ?, ?)", i, j, i+j, "" + i + ":" + j);
+                execute("INSERT INTO %s (key, column, data, extra) VALUES (?, ?, ?, ?)", i, j, i+j, i + ":" + j);
 
         Set<SSTableReader> readers = new HashSet<>();
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
@@ -269,7 +269,7 @@ public class GcCompactionTest extends CQLTester
 
         for (int i = 0; i < KEY_COUNT; ++i)
             for (int j = 0; j < CLUSTERING_COUNT; ++j)
-                execute("INSERT INTO %s (key, column, data, extra) VALUES (?, ?, ?, ?)", i, j, i+j, "" + i + ":" + j);
+                execute("INSERT INTO %s (key, column, data, extra) VALUES (?, ?, ?, ?)", i, j, i+j, i + ":" + j);
 
 
         Set<SSTableReader> readers = new HashSet<>();
@@ -334,7 +334,7 @@ public class GcCompactionTest extends CQLTester
 
         for (int i = 0; i < KEY_COUNT; ++i)
             for (int j = 0; j < CLUSTERING_COUNT; ++j)
-                execute("INSERT INTO %s (key, column, data, extra) VALUES (?, ?, ?, ?)", i, j, i+j, "" + i + ":" + j);
+                execute("INSERT INTO %s (key, column, data, extra) VALUES (?, ?, ?, ?)", i, j, i+j, i + ":" + j);
 
         Set<SSTableReader> readers = new HashSet<>();
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
@@ -374,7 +374,7 @@ public class GcCompactionTest extends CQLTester
 
         for (int i = 0; i < KEY_COUNT; ++i)
             for (int j = 0; j < CLUSTERING_COUNT; ++j)
-                execute("INSERT INTO %s (key, column, data, extra) VALUES (?, ?, ?, ?)", i, j, i+j, "" + i + ":" + j);
+                execute("INSERT INTO %s (key, column, data, extra) VALUES (?, ?, ?, ?)", i, j, i+j, i + ":" + j);
 
         Set<SSTableReader> readers = new HashSet<>();
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();

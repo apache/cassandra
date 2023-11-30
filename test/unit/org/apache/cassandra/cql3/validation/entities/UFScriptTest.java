@@ -52,19 +52,19 @@ public class UFScriptTest extends CQLTester
     {
         createTable("CREATE TABLE %s (key int primary key, lst list<double>, st set<text>, mp map<int, boolean>)");
 
-        String fName1 = createFunction(KEYSPACE_PER_TEST, "list<double>",
+        String fName1 = createFunction(KEYSPACE, "list<double>",
                                        "CREATE FUNCTION %s( lst list<double> ) " +
                                        "RETURNS NULL ON NULL INPUT " +
                                        "RETURNS list<double> " +
                                        "LANGUAGE javascript\n" +
                                        "AS 'lst;';");
-        String fName2 = createFunction(KEYSPACE_PER_TEST, "set<text>",
+        String fName2 = createFunction(KEYSPACE, "set<text>",
                                        "CREATE FUNCTION %s( st set<text> ) " +
                                        "RETURNS NULL ON NULL INPUT " +
                                        "RETURNS set<text> " +
                                        "LANGUAGE javascript\n" +
                                        "AS 'st;';");
-        String fName3 = createFunction(KEYSPACE_PER_TEST, "map<int, boolean>",
+        String fName3 = createFunction(KEYSPACE, "map<int, boolean>",
                                        "CREATE FUNCTION %s( mp map<int, boolean> ) " +
                                        "RETURNS NULL ON NULL INPUT " +
                                        "RETURNS map<int, boolean> " +
@@ -97,7 +97,7 @@ public class UFScriptTest extends CQLTester
     {
         createTable("CREATE TABLE %s (key int primary key, tup frozen<tuple<double, text, int, boolean>>)");
 
-        String fName = createFunction(KEYSPACE_PER_TEST, "tuple<double, text, int, boolean>",
+        String fName = createFunction(KEYSPACE, "tuple<double, text, int, boolean>",
                                       "CREATE FUNCTION %s( tup tuple<double, text, int, boolean> ) " +
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS tuple<double, text, int, boolean> " +

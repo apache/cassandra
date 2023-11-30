@@ -109,25 +109,19 @@ public class KeyCacheCqlTest extends CQLTester
     @Override
     protected String createTable(String query)
     {
-        return super.createTable(KEYSPACE_PER_TEST, query + " WITH caching = { 'keys' : 'ALL', 'rows_per_partition' : '0' }");
+        return super.createTable(KEYSPACE, query + " WITH caching = { 'keys' : 'ALL', 'rows_per_partition' : '0' }");
     }
 
     @Override
     protected UntypedResultSet execute(String query, Object... values) throws Throwable
     {
-        return executeFormattedQuery(formatQuery(KEYSPACE_PER_TEST, query), values);
+        return executeFormattedQuery(formatQuery(KEYSPACE, query), values);
     }
 
     @Override
     protected String createIndex(String query)
     {
-        return createFormattedIndex(formatQuery(KEYSPACE_PER_TEST, query));
-    }
-
-    @Override
-    protected void dropTable(String query)
-    {
-        dropFormattedTable(String.format(query, KEYSPACE_PER_TEST + "." + currentTable()));
+        return createFormattedIndex(formatQuery(KEYSPACE, query));
     }
 
     @Test
@@ -161,7 +155,7 @@ public class KeyCacheCqlTest extends CQLTester
             }
         }
 
-        StorageService.instance.forceKeyspaceFlush(KEYSPACE_PER_TEST);
+        StorageService.instance.forceKeyspaceFlush(KEYSPACE);
 
         for (int pkInt = 0; pkInt < 20; pkInt++)
         {
@@ -543,8 +537,8 @@ public class KeyCacheCqlTest extends CQLTester
         prepareTable(table);
         if (index != null)
         {
-            StorageService.instance.disableAutoCompaction(KEYSPACE_PER_TEST, table + '.' + index);
-            triggerBlockingFlush(Keyspace.open(KEYSPACE_PER_TEST).getColumnFamilyStore(table).indexManager.getIndexByName(index));
+            StorageService.instance.disableAutoCompaction(KEYSPACE, table + '.' + index);
+            triggerBlockingFlush(Keyspace.open(KEYSPACE).getColumnFamilyStore(table).indexManager.getIndexByName(index));
         }
 
         for (int i = 0; i < 100; i++)
@@ -567,18 +561,18 @@ public class KeyCacheCqlTest extends CQLTester
 
             if (i % 10 == 9)
             {
-                Keyspace.open(KEYSPACE_PER_TEST).getColumnFamilyStore(table).forceFlush().get();
+                Keyspace.open(KEYSPACE).getColumnFamilyStore(table).forceFlush().get();
                 if (index != null)
-                    triggerBlockingFlush(Keyspace.open(KEYSPACE_PER_TEST).getColumnFamilyStore(table).indexManager.getIndexByName(index));
+                    triggerBlockingFlush(Keyspace.open(KEYSPACE).getColumnFamilyStore(table).indexManager.getIndexByName(index));
             }
         }
     }
 
     private static void prepareTable(String table) throws IOException, InterruptedException, java.util.concurrent.ExecutionException
     {
-        StorageService.instance.disableAutoCompaction(KEYSPACE_PER_TEST, table);
-        Keyspace.open(KEYSPACE_PER_TEST).getColumnFamilyStore(table).forceFlush().get();
-        Keyspace.open(KEYSPACE_PER_TEST).getColumnFamilyStore(table).truncateBlocking();
+        StorageService.instance.disableAutoCompaction(KEYSPACE, table);
+        Keyspace.open(KEYSPACE).getColumnFamilyStore(table).forceFlush().get();
+        Keyspace.open(KEYSPACE).getColumnFamilyStore(table).truncateBlocking();
     }
 
     private static List<String> makeList(String value)
@@ -612,6 +606,6 @@ public class KeyCacheCqlTest extends CQLTester
 
     private long recentBloomFilterFalsePositives()
     {
-        return getCurrentColumnFamilyStore(KEYSPACE_PER_TEST).metric.recentBloomFilterFalsePositives.getValue();
+        return getCurrentColumnFamilyStore(KEYSPACE).metric.recentBloomFilterFalsePositives.getValue();
     }
 }

@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import com.google.common.collect.Lists;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -59,32 +60,30 @@ public class JMXCompatabilityTest extends CQLTester
     @ClassRule
     public static TemporaryFolder TMP = new TemporaryFolder();
 
-    private static boolean CREATED_TABLE = false;
+    private static final String TABLE = "table_00";
 
     @BeforeClass
     public static void setup() throws Exception
     {
         startJMXServer();
-    }
-
-    private void setupStandardTables() throws Throwable
-    {
-        if (CREATED_TABLE)
-            return;
 
         // force loading mbean which CassandraDaemon creates
         GCInspector.register();
         CassandraDaemon.registerNativeAccess();
+    }
 
-        String name = KEYSPACE + "." + createTable("CREATE TABLE %s (pk int PRIMARY KEY)");
+    @Before
+    public void setupStandardTables() throws Throwable
+    {
+        String name = KEYSPACE + "." + createTable(KEYSPACE, "CREATE TABLE %s (pk int PRIMARY KEY)", TABLE);
 
         // use net to register everything like storage proxy
         executeNet(ProtocolVersion.CURRENT, new SimpleStatement("INSERT INTO " + name + " (pk) VALUES (?)", 42));
         executeNet(ProtocolVersion.CURRENT, new SimpleStatement("SELECT * FROM " + name + " WHERE pk=?", 42));
+        flush(KEYSPACE);
 
         String script = "tools/bin/jmxtool dump -f yaml --url service:jmx:rmi:///jndi/rmi://" + jmxHost + ":" + jmxPort + "/jmxrmi > " + TMP.getRoot().getAbsolutePath() + "/out.yaml";
         ToolRunner.invoke("bash", "-c", script).assertOnCleanExit();
-        CREATED_TABLE = true;
     }
 
     @Test
@@ -162,8 +161,6 @@ public class JMXCompatabilityTest extends CQLTester
 
     private void diff(List<String> excludeObjects, List<String> excludeAttributes, List<String> excludeOperations, String original) throws Throwable
     {
-        setupStandardTables();
-
         List<String> args = Lists.newArrayList("tools/bin/jmxtool", "diff",
                                                "-f", "yaml",
                                                "--ignore-missing-on-left",

@@ -257,14 +257,6 @@ public class ViewFilteringTest extends ViewFilteringTester
         assertRowCount(execute("SELECT * FROM mv_test4"), 0);
         assertRowCount(execute("SELECT * FROM mv_test5"), 0);
         assertRowCount(execute("SELECT * FROM mv_test6"), 0);
-
-        dropView("mv_test1");
-        dropView("mv_test2");
-        dropView("mv_test3");
-        dropView("mv_test4");
-        dropView("mv_test5");
-        dropView("mv_test6");
-        dropTable("DROP TABLE %s");
     }
 
     // TODO will revise the non-pk filter condition in MV, see CASSANDRA-11500

@@ -51,6 +51,13 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
         SSTableReader.resetTidying();
     }
 
+    @Override
+    public void afterTest()
+    {
+        // no-op
+        // this test stops the server before each case, so we shouldn't try to drop the keyspaces as it would fail
+    }
+
     @Test
     public void testMinFileSizeCheck() throws Throwable
     {

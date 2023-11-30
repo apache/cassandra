@@ -77,8 +77,10 @@ public class ViewLongTest extends CQLTester
     @After
     public void end() throws Throwable
     {
-        for (String viewName : views)
-            executeNet(version, "DROP MATERIALIZED VIEW " + viewName);
+        unsafeDrop(() -> {
+            for (String viewName : views)
+                executeNet(version, "DROP MATERIALIZED VIEW " + viewName);
+        });
     }
 
     private void createView(String name, String query) throws Throwable
