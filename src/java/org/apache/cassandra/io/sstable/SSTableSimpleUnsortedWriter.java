@@ -56,7 +56,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     private static final Buffer SENTINEL = new Buffer();
 
     private Buffer buffer = new Buffer();
-    private final long bufferSize;
+    private final long maxSStableSizeInBytes;
     private long currentSize;
 
     // Used to compute the row serialized size
@@ -66,15 +66,16 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     private final BlockingQueue<Buffer> writeQueue = newBlockingQueue(0);
     private final DiskWriter diskWriter = new DiskWriter();
 
-    SSTableSimpleUnsortedWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, long bufferSizeInMB)
+    SSTableSimpleUnsortedWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, long maxSSTableSizeInMiB)
     {
         super(directory, metadata, columns);
-        this.bufferSize = bufferSizeInMB * 1024L * 1024L;
+        this.maxSStableSizeInBytes = maxSSTableSizeInMiB * 1024L * 1024L;
         this.header = new SerializationHeader(true, metadata.get(), columns, EncodingStats.NO_STATS);
         this.helper = new SerializationHelper(this.header);
         diskWriter.start();
     }
 
+    @Override
     PartitionUpdate.Builder getUpdateFor(DecoratedKey key)
     {
         assert key != null;
@@ -95,7 +96,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         // Note that the accounting of a row is a bit inaccurate (it doesn't take some of the file format optimization into account)
         // and the maintaining of the bufferSize is in general not perfect. This has always been the case for this class but we should
         // improve that. In particular, what we count is closer to the serialized value, but it's debatable that it's the right thing
-        // to count since it will take a lot more space in memory and the bufferSize if first and foremost used to avoid OOM when
+        // to count since it will take a lot more space in memory and the bufferSize is first and foremost used to avoid OOM when
         // using this writer.
         currentSize += UnfilteredSerializer.serializer.serializedSize(row, helper, 0, format.getLatestVersion().correspondingMessagingVersion());
     }
@@ -104,7 +105,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     {
         try
         {
-            if (currentSize > bufferSize)
+            if (currentSize > maxSStableSizeInBytes)
                 sync();
         }
         catch (IOException e)
