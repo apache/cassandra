@@ -168,6 +168,12 @@ public class BigTableZeroCopyWriter extends SSTable implements SSTableMultiWrite
     }
 
     @Override
+    public long getOnDiskBytesWritten()
+    {
+        return 0;
+    }
+
+    @Override
     public TableId getTableId()
     {
         return metadata.id;
