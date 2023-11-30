@@ -401,7 +401,6 @@ public enum CassandraRelevantProperties
     PRINT_HEAP_HISTOGRAM_ON_OUT_OF_MEMORY_ERROR("cassandra.printHeapHistogramOnOutOfMemoryError"),
     READS_THRESHOLDS_COORDINATOR_DEFENSIVE_CHECKS_ENABLED("cassandra.reads.thresholds.coordinator.defensive_checks_enabled"),
     RELEASE_VERSION("cassandra.releaseVersion"),
-    RELOCATED_SHADED_IO_NETTY_TRANSPORT_NONATIVE("relocated.shaded.io.netty.transport.noNative"),
     REPAIR_CLEANUP_INTERVAL_SECONDS("cassandra.repair_cleanup_interval_seconds", convertToString(Ints.checkedCast(TimeUnit.MINUTES.toSeconds(10)))),
     REPAIR_DELETE_TIMEOUT_SECONDS("cassandra.repair_delete_timeout_seconds", convertToString(Ints.checkedCast(TimeUnit.DAYS.toSeconds(1)))),
     REPAIR_FAIL_TIMEOUT_SECONDS("cassandra.repair_fail_timeout_seconds", convertToString(Ints.checkedCast(TimeUnit.DAYS.toSeconds(1)))),
