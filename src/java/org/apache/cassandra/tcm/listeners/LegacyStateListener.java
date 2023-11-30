@@ -129,6 +129,8 @@ public class LegacyStateListener implements ChangeListener.Async
             {
                 // legacy log messages for tests
                 logger.debug("Node {} state MOVING, tokens {}", next.directory.endpoint(change), prev.tokenMap.tokens(change));
+                Gossiper.instance.mergeNodeToGossip(change, next);
+                PeersTable.updateLegacyPeerTable(change, prev, next);
             }
             else if (NodeState.isBootstrap(next.directory.peerState(change)))
             {
