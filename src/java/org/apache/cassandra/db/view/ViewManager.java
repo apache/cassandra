@@ -28,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.db.*;
@@ -166,7 +167,11 @@ public class ViewManager
         view.stopBuild();
         forTable(view.getDefinition().baseTableId).removeByName(name);
         SystemKeyspace.setViewRemoved(keyspace.getName(), view.name);
-        SystemDistributedKeyspace.setViewRemoved(keyspace.getName(), view.name);
+
+        // in unit tests, we often start Cassandra without initailizing distributed keyspaces, so we need to have this
+        // condition to avoid test errors
+        if (Schema.instance.getKeyspaces().contains(SystemDistributedKeyspace.metadata().name))
+            SystemDistributedKeyspace.setViewRemoved(keyspace.getName(), view.name);
     }
 
     public View getByName(String name)

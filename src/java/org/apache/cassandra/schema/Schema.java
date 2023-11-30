@@ -26,6 +26,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.*;
@@ -811,7 +812,8 @@ public final class Schema implements SchemaProvider
         CompactionManager.instance.interruptCompactionFor(Collections.singleton(metadata), (sstable) -> true, true);
         if (DatabaseDescriptor.isAutoSnapshot())
             cfs.snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(cfs.name, ColumnFamilyStore.SNAPSHOT_DROP_PREFIX));
-        CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
+        if (!CassandraRelevantProperties.SKIP_FORCE_RECYCLE_COMMITLOG_SEGMENTS_ON_DROP_TABLE.getBoolean())
+            CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
         Keyspace.open(metadata.keyspace).dropCf(metadata.id);
         SchemaDiagnostics.tableDropped(this, metadata);
     }
