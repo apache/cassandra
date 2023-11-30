@@ -65,6 +65,17 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
         return writer.getBytesWritten();
     }
 
+    /**
+     * Get the amount of data written to disk. Unlike {@link #getFilePointer()}, which returns the position in the
+     * _uncompressed_ data, this method returns the actual file pointer position of the on disk file.
+     *
+     * @return the amount of data already written to disk
+     */
+    public long getOnDiskBytesWritten()
+    {
+        return writer.getOnDiskBytesWritten();
+    }
+
     protected Throwable doCommit(Throwable accumulate)
     {
         return writer.commit(txn.commit(accumulate));
