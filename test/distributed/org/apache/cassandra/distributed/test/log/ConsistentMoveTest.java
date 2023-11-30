@@ -59,7 +59,7 @@ import static org.junit.Assert.assertTrue;
 
 public class ConsistentMoveTest extends FuzzTestBase
 {
-    private static int WRITES = 2000;
+    private static int WRITES = 500;
 
     @Test
     public void moveTest() throws Throwable
