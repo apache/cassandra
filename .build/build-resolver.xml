@@ -267,10 +267,6 @@
 
         <delete file="${build.lib}/netty-tcnative-boringssl-static-2.0.61.Final-windows-x86_64.jar" failonerror="false"/>
         <delete file="${build.dir.lib}/jars/netty-tcnative-boringssl-static-2.0.61.Final-windows-x86_64.jar" failonerror="false"/>
-
-        <copy todir="${test.lib}/jars" quiet="false">
-            <file file="${build.lib}/harry-core-0.0.2-CASSANDRA-18768.jar"/>
-       </copy>
     </target>
 
     <target name="_resolver-dist-lib_get_files">
