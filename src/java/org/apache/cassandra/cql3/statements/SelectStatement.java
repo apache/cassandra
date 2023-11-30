@@ -252,7 +252,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     {
         ConsistencyLevel cl = options.getConsistency();
         checkNotNull(cl, "Invalid empty consistency level");
-        BadQuery.checkForCLSettings(this.table, options.getConsistency());
+        BadQuery.checkForCLSettings(this.table, options.getConsistency(), false);
         BadQuery.checkForMV(this.table);
         cl.validateForRead();
         Guardrails.readConsistencyLevels.guard(EnumSet.of(cl), state.getClientState());

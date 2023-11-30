@@ -263,12 +263,11 @@ public class BadQuery
      * @param tableMetadata table metadata.
      * @param cl  consistency level for query.
      */
-    public static void checkForCLSettings(TableMetadata tableMetadata,
-                                          ConsistencyLevel cl)
+    public static void checkForCLSettings(TableMetadata tableMetadata, ConsistencyLevel cl, boolean isWritePath)
     {
         if (shouldTrace(tableMetadata.keyspace))
         {
-            InvalidConfiguration.checkForInvalidConsistency(tableMetadata, cl);
+            InvalidConfiguration.checkForInvalidConsistency(tableMetadata, cl, isWritePath);
         }
     }
 

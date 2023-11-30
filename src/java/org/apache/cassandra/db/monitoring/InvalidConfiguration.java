@@ -28,14 +28,22 @@ import org.apache.cassandra.schema.TableMetadata;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class InvalidConfiguration extends BadQueryTypes
 {
+    protected static final Logger logger = LoggerFactory.getLogger(InvalidConfiguration.class);
     private static Map<ConsistencyLevel, ConsistencyLevel> incorrectConsistencyLevelMap = new HashMap<>();
     static {
         incorrectConsistencyLevelMap.put(ConsistencyLevel.QUORUM, ConsistencyLevel.LOCAL_QUORUM);
         incorrectConsistencyLevelMap.put(ConsistencyLevel.EACH_QUORUM, ConsistencyLevel.LOCAL_QUORUM);
         incorrectConsistencyLevelMap.put(ConsistencyLevel.SERIAL, ConsistencyLevel.LOCAL_SERIAL);
         incorrectConsistencyLevelMap.put(ConsistencyLevel.ONE, ConsistencyLevel.LOCAL_ONE);
+        incorrectConsistencyLevelMap.put(ConsistencyLevel.TWO, ConsistencyLevel.LOCAL_QUORUM);
+        incorrectConsistencyLevelMap.put(ConsistencyLevel.THREE, ConsistencyLevel.LOCAL_QUORUM);
+        incorrectConsistencyLevelMap.put(ConsistencyLevel.ALL, ConsistencyLevel.LOCAL_QUORUM);
+        incorrectConsistencyLevelMap.put(ConsistencyLevel.ANY, ConsistencyLevel.LOCAL_QUORUM);
     }
     String problemText;
     private static final Map<String, Integer> visitedTablesInvalidCompactionType = new ConcurrentHashMap<>();
@@ -95,18 +103,45 @@ public class InvalidConfiguration extends BadQueryTypes
         }
     }
 
-    static void checkForInvalidConsistency(TableMetadata tableMetadata,
-                                           ConsistencyLevel cl)
+    static void checkForInvalidConsistency(TableMetadata tableMetadata, ConsistencyLevel cl, boolean isWritePath)
     {
         Keyspace ks = Schema.instance.getKeyspaceInstance(tableMetadata.keyspace);
-        if (ks !=null && ks.getReplicationStrategy().getClass() == NetworkTopologyStrategy.class && INCORRECT_CONSISTENCY_LEVELS.containsKey(cl))
+        if (ks == null)
         {
-            if (!visitedTablesInvalidConsistency.containsKey(tableMetadata.name))
-            {
-                visitedTablesInvalidConsistency.put(tableMetadata.name, 0);
-                BadQuery.report(BadQuery.BadQueryCategory.INCORRECT_CONSISTENCY_LEVEL,
-                        new InvalidConfiguration(tableMetadata.keyspace, tableMetadata.name, String.format("found %s, it should have been %s", cl.name(), INCORRECT_CONSISTENCY_LEVELS.get(cl).name())));
-            }
+            return;
+        }
+
+        String visitedKey = tableMetadata.keyspace + "." + tableMetadata.name;
+        visitedKey += (isWritePath ? "_write_" : "_read_");
+        visitedKey += String.valueOf(cl);
+        if (visitedTablesInvalidConsistency.containsKey(visitedKey))
+        {
+            return;
+        }
+
+        // For read path, only local_one, local_quorum, local_serial is preferred.
+        // For write path, only local_quorum, local_serial is preferred.
+        if (isWritePath && (cl == ConsistencyLevel.ONE || cl == ConsistencyLevel.LOCAL_ONE)) {
+            visitedTablesInvalidConsistency.put(visitedKey, 0);
+            BadQuery.report(
+                BadQuery.BadQueryCategory.INCORRECT_CONSISTENCY_LEVEL,
+                new InvalidConfiguration(tableMetadata.keyspace, tableMetadata.name,
+                                         String.format("found %s in write path, it should have been %s", cl.name(),
+                                                       ConsistencyLevel.LOCAL_QUORUM.name())));
+        } else if ((cl == ConsistencyLevel.ANY ||
+                    cl == ConsistencyLevel.TWO ||
+                    cl == ConsistencyLevel.THREE ||
+                    cl == ConsistencyLevel.ALL) ||
+                    (ks.getReplicationStrategy().getClass() ==
+                      NetworkTopologyStrategy.class && INCORRECT_CONSISTENCY_LEVELS.containsKey(cl)))
+        {
+            visitedTablesInvalidConsistency.put(visitedKey, 0);
+            BadQuery.report(
+                BadQuery.BadQueryCategory.INCORRECT_CONSISTENCY_LEVEL,
+                new InvalidConfiguration(tableMetadata.keyspace, tableMetadata.name,
+                                         String.format("found %s in %s path, it should have been %s", cl.name(),
+                                                       isWritePath ? "write" : "read",
+                                                       INCORRECT_CONSISTENCY_LEVELS.get(cl).name())));
         }
     }
 }

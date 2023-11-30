@@ -482,7 +482,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     throws RequestExecutionException, RequestValidationException
     {
         BadQuery.checkForCompactionStrategySettings(this.metadata(), this.attrs);
-        BadQuery.checkForCLSettings(this.metadata(), options.getConsistency());
+        BadQuery.checkForCLSettings(this.metadata(), options.getConsistency(), true);
 
         if (options.getConsistency() == null)
             throw new InvalidRequestException("Invalid empty consistency level");
