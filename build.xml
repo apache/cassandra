@@ -187,6 +187,25 @@
         <os family="windows" />
     </condition>
 
+    <condition property="withoutMethods">
+        <and>
+            <equals arg1="${test.methods}" arg2=""/>
+            <not>
+                <contains string="${test.name}" substring="*"/>
+            </not>
+        </and>
+    </condition>
+    <condition property="withMethods">
+        <and>
+            <not>
+                <equals arg1="${test.methods}" arg2=""/>
+            </not>
+            <not>
+                <contains string="${test.name}" substring="*"/>
+            </not>
+        </and>
+    </condition>
+
     <!-- Check if all tests are being run or just one (check testclasslist target). If it's all tests don't spam the
          console with test output.
          If it's an individual test print the output from the test under the assumption someone is debugging the test
@@ -1748,8 +1767,8 @@
   -->
   <target name="long-testsome" depends="maybe-build-test" description="Execute specific long unit tests" >
     <testmacro inputdir="${test.long.src}" timeout="${test.long.timeout}">
-      <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}"/>
-      <test if:blank="${test.methods}" name="${test.name}"/>
+      <test if="withMethods" name="${test.name}" methods="${test.methods}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}-${test.methods}"/>
+      <test if="withoutMethods" name="${test.name}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
     </testmacro>
@@ -1761,8 +1780,8 @@
   -->
   <target name="burn-testsome" depends="maybe-build-test" description="Execute specific burn unit tests" >
     <testmacro inputdir="${test.burn.src}" timeout="${test.burn.timeout}">
-      <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}"/>
-      <test if:blank="${test.methods}" name="${test.name}"/>
+      <test if="withMethods" name="${test.name}" methods="${test.methods}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}-${test.methods}"/>
+      <test if="withoutMethods" name="${test.name}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}"/>
       <jvmarg value="-Dlogback.configurationFile=test/conf/logback-burntest.xml"/>
     </testmacro>
   </target>
