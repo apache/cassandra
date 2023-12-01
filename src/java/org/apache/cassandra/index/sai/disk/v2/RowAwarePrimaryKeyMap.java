@@ -162,34 +162,42 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
         return primaryKeyFactory.createDeferred(partitioner.getTokenFactory().fromByteArray(tokenBuffer), () -> supplier(sstableRowId));
     }
 
+    private long skinnyExactRowIdOrInvertedCeiling(PrimaryKey key)
+    {
+        // Fast path when there is no clustering, i.e., there is one row per partition.
+        // (The reason we don't just make the Factory return a PartitionAware map for this case
+        // is that it reads partition keys directly from the sstable using the offsets file.
+        // While this worked in BDP, it was not efficient and caused problems because the
+        // sstable reader was using 64k page sizes, and this caused page cache thrashing.
+        long rowId = rowIdToToken.indexOf(key.token().getLongValue());
+        if (rowId < 0)
+            // No match found, return the inverted ceiling
+            return rowId;
+        // The first index might not have been the correct match in the case of token collisions.
+        return tokenCollisionDetection(key, rowId);
+    }
+
     @Override
     public long exactRowIdForPrimaryKey(PrimaryKey key)
     {
         if (clusteringComparator.size() == 0)
-        {
-            // Fast path when there is no clustering, i.e., there is one row per partition.
-            // (The reason we don't just make the Factory return a PartitionAware map for this case
-            // is that it reads partition keys directly from the sstable using the offsets file.
-            // While this worked in BDP, it was not efficient and caused problems because the
-            // sstable reader was using 64k page sizes, and this caused page cache thrashing.
-            return rowIdToToken.indexOf(key.token().getLongValue());
-        }
+            return skinnyExactRowIdOrInvertedCeiling(key);
 
         return cursor.getExactPointId(v -> key.asComparableBytes(v));
     }
 
+    /**
+     * Returns a row Id for a {@link PrimaryKey}. If there is no such term, returns the `-(next row id) - 1` where
+     * `next row id` is the row id of the next greatest {@link PrimaryKey} in the map. For {@link PrimaryKey} with
+     * no clustering columns, this method is equivalent to {@link #exactRowIdForPrimaryKey(PrimaryKey)}.
+     * @param key the {@link PrimaryKey} to lookup
+     * @return a row id
+     */
     @Override
     public long exactRowIdOrInvertedCeiling(PrimaryKey key)
     {
         if (clusteringComparator.size() == 0)
-        {
-            // Fast path when there is no clustering, i.e., there is one row per partition.
-            // (The reason we don't just make the Factory return a PartitionAware map for this case
-            // is that it reads partition keys directly from the sstable using the offsets file.
-            // While this worked in BDP, it was not efficient and caused problems because the
-            // sstable reader was using 64k page sizes, and this caused page cache thrashing.
-            return rowIdToToken.indexOf(key.token().getLongValue());
-        }
+            return skinnyExactRowIdOrInvertedCeiling(key);
 
         long pointId = cursor.getExactPointId(v -> key.asComparableBytes(v));
         if (pointId >= 0)
@@ -204,12 +212,7 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
     {
         if (clusteringComparator.size() == 0)
         {
-            // Fast path when there is no clustering, i.e., there is one row per partition.
-            // (The reason we don't just make the Factory return a PartitionAware map for this case
-            // is that it reads partition keys directly from the sstable using the offsets file.
-            // While this worked in BDP, it was not efficient and caused problems because the
-            // sstable reader was using 64k page sizes, and this caused page cache thrashing.
-            long rowId = rowIdToToken.indexOf(key.token().getLongValue());
+            long rowId = skinnyExactRowIdOrInvertedCeiling(key);
             if (rowId >= 0)
                 return rowId;
             else
@@ -262,5 +265,22 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
         {
             throw Throwables.cleaned(e);
         }
+    }
+
+    // Look for token collision by if the ajacent token in the token array matches the
+    // current token. If we find a collision we need to compare the partition key instead.
+    protected long tokenCollisionDetection(PrimaryKey primaryKey, long rowId)
+    {
+        // Look for collisions while we haven't reached the end of the tokens and the tokens don't collide
+        while (rowId + 1 < rowIdToToken.length() && primaryKey.token().getLongValue() == rowIdToToken.get(rowId + 1))
+        {
+            // If we had a collision then see if the partition key for this row is >= to the lookup partition key
+            if (primaryKeyFromRowId(rowId).compareTo(primaryKey) >= 0)
+                return rowId;
+
+            rowId++;
+        }
+        // Note: We would normally expect to get here without going into the while loop
+        return rowId;
     }
 }
