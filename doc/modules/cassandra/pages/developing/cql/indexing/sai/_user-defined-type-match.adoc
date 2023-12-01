@@ -1,6 +1,6 @@
 = User-defined type
 
-SAI can index either a single field of a user-defined type (UDT) or a list of UDTs.
+SAI can index either a user-defined type (UDT) or a list of UDTs.
 This example shows how to index a list of UDTs.
 
 This example uses the following user-defined type (UDT), table and index:
