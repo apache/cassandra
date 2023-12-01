@@ -105,8 +105,8 @@ public class RandomIntersectionTest extends SAIRandomizedTester
             for (int queryCount = 0; queryCount < nextInt(10, 100); queryCount++)
             {
                 int pk = testRowMap.keySet().stream().skip(nextInt(0, testRowMap.size())).findFirst().orElseThrow();
-                int v1 = nextInt(10, numRows/10);
-                int v2 = nextInt(10, numRows/50);
+                int v1 = nextV1();
+                int v2 = nextV2();
 
                 List<Object[]> expected = testRowMap.get(pk)
                                                     .stream()
