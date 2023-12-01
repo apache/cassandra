@@ -1734,10 +1734,11 @@ public class NodeProbe implements AutoCloseable
     // JMX getters for the o.a.c.metrics API below.
     /**
      * Retrieve cache metrics based on the cache type (KeyCache, RowCache, or CounterCache)
-     * @param cacheType KeyCach, RowCache, or CounterCache
+     * @param type type, like Cache or UnweightedCache
+     * @param scope KeyCach, RowCache, or CounterCache
      * @param metricName Capacity, Entries, HitRate, Size, Requests or Hits.
      */
-    public Object getCacheMetric(String cacheType, String metricName)
+    public Object getCacheMetric(String type, String scope, String metricName)
     {
         try
         {
@@ -1748,22 +1749,22 @@ public class NodeProbe implements AutoCloseable
                 case "HitRate":
                 case "Size":
                     return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=" + metricName),
-                            CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
+                                             new ObjectName("org.apache.cassandra.metrics:type=" + type + ",scope=" + scope + ",name=" + metricName),
+                                             CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
                 case "Requests":
                 case "Hits":
                 case "Misses":
                     return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=" + metricName),
-                            CassandraMetricsRegistry.JmxMeterMBean.class).getCount();
+                                             new ObjectName("org.apache.cassandra.metrics:type=" + type + ",scope=" + scope + ",name=" + metricName),
+                                             CassandraMetricsRegistry.JmxMeterMBean.class).getCount();
                 case "MissLatency":
                     return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=" + metricName),
-                            CassandraMetricsRegistry.JmxTimerMBean.class).getMean();
+                                             new ObjectName("org.apache.cassandra.metrics:type=" + type + ",scope=" + scope + ",name=" + metricName),
+                                             CassandraMetricsRegistry.JmxTimerMBean.class).getMean();
                 case "MissLatencyUnit":
                     return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=MissLatency"),
-                            CassandraMetricsRegistry.JmxTimerMBean.class).getDurationUnit();
+                                             new ObjectName("org.apache.cassandra.metrics:type=" + type + ",scope=" + scope + ",name=MissLatency"),
+                                             CassandraMetricsRegistry.JmxTimerMBean.class).getDurationUnit();
                 default:
                     throw new RuntimeException("Unknown Cache metric name " + metricName);
 

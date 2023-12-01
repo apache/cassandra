@@ -118,7 +118,7 @@ public class InternalNodeProbe extends NodeProbe
 
     // The below methods are only used by the commands (i.e. Info, TableHistogram, TableStats, etc.) that display informations. Not useful for dtest, so disable it.
     @Override
-    public Object getCacheMetric(String cacheType, String metricName)
+    public Object getCacheMetric(String type, String scope, String metricName)
     {
         throw new UnsupportedOperationException();
     }

@@ -31,6 +31,7 @@ import javax.management.InstanceNotFoundException;
 
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
@@ -87,52 +88,23 @@ public class Info extends NodeToolCmd
 
         CacheServiceMBean cacheService = probe.getCacheServiceMBean();
 
-        // Key Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
-        out.printf("%-23s: entries %d, size %s, capacity %s, %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
-                "Key Cache",
-                probe.getCacheMetric("KeyCache", "Entries"),
-                FileUtils.stringifyFileSize((long) probe.getCacheMetric("KeyCache", "Size")),
-                FileUtils.stringifyFileSize((long) probe.getCacheMetric("KeyCache", "Capacity")),
-                probe.getCacheMetric("KeyCache", "Hits"),
-                probe.getCacheMetric("KeyCache", "Requests"),
-                probe.getCacheMetric("KeyCache", "HitRate"),
-                cacheService.getKeyCacheSavePeriodInSeconds());
-
-        // Row Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
-        out.printf("%-23s: entries %d, size %s, capacity %s, %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
-                "Row Cache",
-                probe.getCacheMetric("RowCache", "Entries"),
-                FileUtils.stringifyFileSize((long) probe.getCacheMetric("RowCache", "Size")),
-                FileUtils.stringifyFileSize((long) probe.getCacheMetric("RowCache", "Capacity")),
-                probe.getCacheMetric("RowCache", "Hits"),
-                probe.getCacheMetric("RowCache", "Requests"),
-                probe.getCacheMetric("RowCache", "HitRate"),
-                cacheService.getRowCacheSavePeriodInSeconds());
-
-        // Counter Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
-        out.printf("%-23s: entries %d, size %s, capacity %s, %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
-                "Counter Cache",
-                probe.getCacheMetric("CounterCache", "Entries"),
-                FileUtils.stringifyFileSize((long) probe.getCacheMetric("CounterCache", "Size")),
-                FileUtils.stringifyFileSize((long) probe.getCacheMetric("CounterCache", "Capacity")),
-                probe.getCacheMetric("CounterCache", "Hits"),
-                probe.getCacheMetric("CounterCache", "Requests"),
-                probe.getCacheMetric("CounterCache", "HitRate"),
-                cacheService.getCounterCacheSavePeriodInSeconds());
+        printAutoSavingCacheStats(probe, out, "Key Cache", CacheService.CacheType.KEY_CACHE, cacheService.getKeyCacheSavePeriodInSeconds());
+        printAutoSavingCacheStats(probe, out, "Row Cache", CacheService.CacheType.ROW_CACHE, cacheService.getRowCacheSavePeriodInSeconds());
+        printAutoSavingCacheStats(probe, out, "Counter Cache", CacheService.CacheType.COUNTER_CACHE, cacheService.getCounterCacheSavePeriodInSeconds());
 
         // Chunk Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
         try
         {
             out.printf("%-23s: entries %d, size %s, capacity %s, %d misses, %d requests, %.3f recent hit rate, %.3f %s miss latency%n",
                     "Chunk Cache",
-                    probe.getCacheMetric("ChunkCache", "Entries"),
-                    FileUtils.stringifyFileSize((long) probe.getCacheMetric("ChunkCache", "Size")),
-                    FileUtils.stringifyFileSize((long) probe.getCacheMetric("ChunkCache", "Capacity")),
-                    probe.getCacheMetric("ChunkCache", "Misses"),
-                    probe.getCacheMetric("ChunkCache", "Requests"),
-                    probe.getCacheMetric("ChunkCache", "HitRate"),
-                    probe.getCacheMetric("ChunkCache", "MissLatency"),
-                    probe.getCacheMetric("ChunkCache", "MissLatencyUnit"));
+                    probe.getCacheMetric("Cache", "ChunkCache", "Entries"),
+                    FileUtils.stringifyFileSize((long) probe.getCacheMetric("Cache", "ChunkCache", "Size")),
+                    FileUtils.stringifyFileSize((long) probe.getCacheMetric("Cache", "ChunkCache", "Capacity")),
+                    probe.getCacheMetric("Cache", "ChunkCache", "Misses"),
+                    probe.getCacheMetric("Cache", "ChunkCache", "Requests"),
+                    probe.getCacheMetric("Cache", "ChunkCache", "HitRate"),
+                    probe.getCacheMetric("Cache", "ChunkCache", "MissLatency"),
+                    probe.getCacheMetric("Cache", "ChunkCache", "MissLatencyUnit"));
         }
         catch (RuntimeException e)
         {
@@ -182,6 +154,19 @@ public class Info extends NodeToolCmd
         out.printf("%-23s: %s%n", "Bootstrap failed", probe.getStorageService().isBootstrapFailed());
         out.printf("%-23s: %s%n", "Decommissioning", probe.getStorageService().isDecommissioning());
         out.printf("%-23s: %s%n", "Decommission failed", probe.getStorageService().isDecommissionFailed());
+    }
+
+    private void printAutoSavingCacheStats(NodeProbe probe, PrintStream out, String cacheName, CacheService.CacheType cacheType, int savePeriodInSeconds)
+    {
+        out.printf("%-23s: entries %d, size %s, capacity %s, %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
+                   cacheName,
+                   probe.getCacheMetric("Cache", cacheType.toString(), "Entries"),
+                   FileUtils.stringifyFileSize((long) probe.getCacheMetric("Cache", cacheType.toString(), "Size")),
+                   FileUtils.stringifyFileSize((long) probe.getCacheMetric("Cache", cacheType.toString(), "Capacity")),
+                   probe.getCacheMetric("Cache", cacheType.toString(), "Hits"),
+                   probe.getCacheMetric("Cache", cacheType.toString(), "Requests"),
+                   probe.getCacheMetric("Cache", cacheType.toString(), "HitRate"),
+                   savePeriodInSeconds);
     }
 
     /**

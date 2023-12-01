@@ -19,7 +19,6 @@
 package org.apache.cassandra.auth;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
@@ -33,16 +32,23 @@ import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
+import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.Uninterruptibles;
+import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.github.benmanes.caffeine.cache.Policy;
+import com.github.benmanes.caffeine.cache.RemovalCause;
+import org.apache.cassandra.cache.UnweightedCacheSize;
+import com.github.benmanes.caffeine.cache.stats.CacheStats;
+import com.github.benmanes.caffeine.cache.stats.StatsCounter;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Shutdownable;
+import org.apache.cassandra.metrics.UnweightedCacheMetrics;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.MBeanWrapper;
 
@@ -52,16 +58,17 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.AUTH_CACHE
 import static org.apache.cassandra.config.CassandraRelevantProperties.AUTH_CACHE_WARMING_RETRY_INTERVAL_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_AUTH_CACHES_REMOTE_CONFIGURATION;
 
-public class AuthCache<K, V> implements AuthCacheMBean, Shutdownable
+public class AuthCache<K, V> implements AuthCacheMBean, UnweightedCacheSize, Shutdownable
 {
     private static final Logger logger = LoggerFactory.getLogger(AuthCache.class);
 
     public static final String MBEAN_NAME_BASE = "org.apache.cassandra.auth:type=";
 
+    @SuppressWarnings("rawtypes")
     private volatile ScheduledFuture cacheRefresher = null;
 
     // Keep a handle on created instances so their executors can be terminated cleanly
-    private static final Set<Shutdownable> REGISTRY = new HashSet<>(4);
+    private static final Set<Shutdownable> REGISTRY = Sets.newHashSetWithExpectedSize(5);
 
     public static void shutdownAllAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
@@ -92,6 +99,8 @@ public class AuthCache<K, V> implements AuthCacheMBean, Shutdownable
     // credentials for a role couldn't be loaded without throwing an exception or serving stale
     // values until the natural expiry time.
     private final BiPredicate<K, V> invalidateCondition;
+
+    private final UnweightedCacheMetrics metrics;
 
     /**
      * @param name Used for MBean
@@ -176,6 +185,7 @@ public class AuthCache<K, V> implements AuthCacheMBean, Shutdownable
         this.bulkLoadFunction = checkNotNull(bulkLoadFunction);
         this.enableCache = checkNotNull(cacheEnabledDelegate);
         this.invalidateCondition = checkNotNull(invalidationCondition);
+        this.metrics = new UnweightedCacheMetrics(name, this);
         init();
     }
 
@@ -215,7 +225,7 @@ public class AuthCache<K, V> implements AuthCacheMBean, Shutdownable
     /**
      * Retrieve a value from the cache. Will call {@link LoadingCache#get(Object)} which will
      * "load" the value if it's not present, thus populating the key.
-     * @param k
+     * @param k key
      * @return The current value of {@code K} if cached or loaded.
      *
      * See {@link LoadingCache#get(Object)} for possible exceptions.
@@ -225,6 +235,7 @@ public class AuthCache<K, V> implements AuthCacheMBean, Shutdownable
         if (cache == null)
             return loadFunction.apply(k);
 
+        metrics.requests.mark();
         return cache.get(k);
     }
 
@@ -284,7 +295,7 @@ public class AuthCache<K, V> implements AuthCacheMBean, Shutdownable
 
     /**
      * Set maximum number of entries in the cache.
-     * @param maxEntries
+     * @param maxEntries max number of entries
      */
     public synchronized void setMaxEntries(int maxEntries)
     {
@@ -319,6 +330,11 @@ public class AuthCache<K, V> implements AuthCacheMBean, Shutdownable
         return cache == null ? 0L : cache.estimatedSize();
     }
 
+    public UnweightedCacheMetrics getMetrics()
+    {
+        return metrics;
+    }
+
     /**
      * (Re-)initialise the underlying cache. Will update validity, max entries, and update interval if
      * any have changed. The underlying {@link LoadingCache} will be initiated based on the provided {@code loadFunction}.
@@ -345,6 +361,7 @@ public class AuthCache<K, V> implements AuthCacheMBean, Shutdownable
                                    .expireAfterWrite(getValidity(), TimeUnit.MILLISECONDS)
                                    .maximumSize(getMaxEntries())
                                    .executor(cacheRefreshExecutor)
+                                   .recordStats(MetricsUpdater::new)
                                    .build(loadFunction::apply);
         }
         else
@@ -437,6 +454,48 @@ public class AuthCache<K, V> implements AuthCacheMBean, Shutdownable
         default Supplier<Map<K, V>> bulkLoader()
         {
             return Collections::emptyMap;
+        }
+    }
+
+    @Override
+    public int maxEntries()
+    {
+        return getMaxEntries();
+    }
+
+    @Override
+    public int entries()
+    {
+        return Ints.checkedCast(getEstimatedSize());
+    }
+
+    private class MetricsUpdater implements StatsCounter
+    {
+        @Override
+        public void recordHits(int i)
+        {
+            metrics.hits.mark(i);
+        }
+
+        @Override
+        public void recordMisses(int i)
+        {
+            metrics.misses.mark(i);
+        }
+
+        @Override
+        public void recordLoadSuccess(long l) {}
+
+        @Override
+        public void recordLoadFailure(long l) {}
+
+        @Override
+        public void recordEviction(int i, RemovalCause removalCause) {}
+
+        @Override
+        public CacheStats snapshot()
+        {
+            return CacheStats.empty();
         }
     }
 }

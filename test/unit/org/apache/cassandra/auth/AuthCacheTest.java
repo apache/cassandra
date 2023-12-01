@@ -322,6 +322,41 @@ public class AuthCacheTest
         assertEquals(1, loadCounter);
     }
 
+    @Test
+    public void testMetricsOnCacheEnabled()
+    {
+        TestCache authCache = new TestCache(this::countingLoader, this::emptyBulkLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+        authCache.get("10");
+        authCache.get("11");
+
+        assertThat(authCache.getMetrics().requests.getCount()).isEqualTo(2L);
+        assertThat(authCache.getMetrics().hits.getCount()).isEqualTo(0L);
+        assertThat(authCache.getMetrics().misses.getCount()).isEqualTo(2L);
+        assertEquals(2, loadCounter);
+
+        authCache.get("10");
+        authCache.get("11");
+
+        assertThat(authCache.getMetrics().requests.getCount()).isEqualTo(4L);
+        assertThat(authCache.getMetrics().hits.getCount()).isEqualTo(2L);
+        assertThat(authCache.getMetrics().misses.getCount()).isEqualTo(2L);
+        assertEquals(2, loadCounter);
+    }
+
+    @Test
+    public void testMetricsOnCacheDisabled()
+    {
+        isCacheEnabled = false;
+        TestCache authCache = new TestCache(this::countingLoader, this::emptyBulkLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+        authCache.get("10");
+        authCache.get("11");
+
+        assertThat(authCache.getMetrics().requests.getCount()).isEqualTo(0L);
+        assertThat(authCache.getMetrics().hits.getCount()).isEqualTo(0L);
+        assertThat(authCache.getMetrics().misses.getCount()).isEqualTo(0L);
+        assertEquals(2, loadCounter);
+    }
+
     private void setValidity(int validity)
     {
         this.validity = validity;

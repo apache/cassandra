@@ -63,8 +63,10 @@ The following table describes the virtual tables:
 |===
 |Virtual Table |Description
 
-|caches |Displays the general cache information including cache name, capacity_bytes, entry_count, hit_count, hit_ratio double,
+|caches |Displays the general weighted cache information including cache name, capacity_bytes, entry_count, hit_count, hit_ratio,
 recent_hit_rate_per_second, recent_request_rate_per_second, request_count, and size_bytes.
+
+|unweighted_caches | Displays the general unweighted cache information including cache name, capacity, entry_count, hit_count, hit_ratio, recent_hit_rate_per_second, recent_request_rate_per_second, and request_count
 
 |cidr_filtering_metrics_counts |Counts metrics specific to CIDR filtering.
 
@@ -231,7 +233,7 @@ VIRTUAL TABLE system_views.clients (
 
 === Caches Virtual Table
 
-The `caches` virtual table lists information about the caches. The four
+The `caches` virtual table lists information about weighted caches. The four
 caches presently created are chunks, counters, keys and rows. A query on
 the `caches` virtual table returns the following details:
 
@@ -247,6 +249,35 @@ counters |       26214400 |           0 |         0 |       NaN |               
 
 (4 rows)
 ----
+
+[NOTE]
+.Note
+====
+Chunk cache is only available if it is enabled.
+====
+
+==== Unweighted Caches Virtual Table
+The ``unweighted_caches`` virtual table lists information about unweighted caches. The five caches presently created are credentials, jmx_permissions, network_permissions, permissions and roles. A query on the ``unweighted_caches`` virtual table returns the following details:
+
+[source, console]
+----
+ cqlsh:system_views> SELECT * FROM system_views.unweighted_caches;
+ name                | capacity | entry_count | hit_count | hit_ratio | recent_hit_rate_per_second | recent_request_rate_per_second | request_count
+ --------------------+----------+-------------+-----------+-----------+----------------------------+--------------------------------+---------------
+         credentials |     1000 |           1 |         2 |         1 |                          0 |                              0 |             2
+     jmx_permissions |     1000 |           0 |         0 |       NaN |                          0 |                              0 |             0
+ network_permissions |     1000 |           1 |        18 |         1 |                          2 |                              2 |            18
+         permissions |     1000 |           1 |         1 |         1 |                          0 |                              0 |             1
+               roles |     1000 |           1 |         9 |         1 |                          0 |                              0 |             9
+
+ (5 rows)
+----
+
+[NOTE]
+.Note
+====
+Auth caches are only available if corresponding authorizers and authenticators are enabled.
+====
 
 === CIDR filtering metrics Virtual Tables
 The `cidr_filtering_metrics_counts` virtual table lists counts metrics specific to CIDR filtering. A query on `cidr_filtering_metrics_counts` virtual table lists metrics similar to below.
@@ -468,9 +499,9 @@ Find tables with most disk usage:
 cqlsh> SELECT * FROM disk_usage WHERE mebibytes > 1 ALLOW FILTERING;
 
 keyspace_name | table_name | mebibytes
----------------+------------+-----------
-   keyspace1 |  standard1 |       288
-  tlp_stress |   keyvalue |      3211
+--------------+------------+-----------
+    keyspace1 |  standard1 |       288
+   tlp_stress |   keyvalue |      3211
 ----
 
 Find queries on table/s with greatest read latency:
@@ -480,8 +511,8 @@ Find queries on table/s with greatest read latency:
 cqlsh> SELECT * FROM  local_read_latency WHERE per_second > 1 ALLOW FILTERING;
 
 keyspace_name | table_name | p50th_ms | p99th_ms | count    | max_ms  | per_second
----------------+------------+----------+----------+----------+---------+------------
-  tlp_stress |   keyvalue |    0.043 |    0.152 | 49785158 | 186.563 |  11418.356
+--------------+------------+----------+----------+----------+---------+------------
+   tlp_stress |   keyvalue |    0.043 |    0.152 | 49785158 | 186.563 |  11418.356
 ----
 
 
@@ -500,44 +531,70 @@ system_auth    system_traces   system_views
 [source, cql]
 ----
 cqlsh> USE system_virtual_schema;
-cqlsh> SELECT * FROM tables;
+cqlsh> SELECT keyspace_name, table_name FROM tables;
 ----
 +
 results in:
 +
 [source, cql]
 ----
- keyspace_name         | table_name                | comment
------------------------+---------------------------+--------------------------------------
-          system_views |                    caches |                        system caches
-          system_views |                   clients |          currently connected clients
-          system_views |  coordinator_read_latency |
-          system_views |  coordinator_scan_latency |
-          system_views | coordinator_write_latency |
-          system_views |                disk_usage |
-          system_views |         internode_inbound |
-          system_views |        internode_outbound |
-          system_views |        local_read_latency |
-          system_views |        local_scan_latency |
-          system_views |       local_write_latency |
-          system_views |        max_partition_size |
-          system_views |             rows_per_read |
-          system_views |                  settings |                     current settings
-          system_views |             sstable_tasks |                current sstable tasks
-          system_views |         system_properties | Cassandra relevant system properties
-          system_views |              thread_pools |
-          system_views |       tombstones_per_read |
- system_virtual_schema |                   columns |           virtual column definitions
- system_virtual_schema |                 keyspaces |         virtual keyspace definitions
- system_virtual_schema |                    tables |            virtual table definitions
+ keyspace_name         | table_name
+-----------------------+----------------------------------
+          system_views |                    batch_metrics
+          system_views |                           caches
+          system_views |    cidr_filtering_metrics_counts
+          system_views | cidr_filtering_metrics_latencies
+          system_views |                          clients
+          system_views |         coordinator_read_latency
+          system_views |         coordinator_scan_latency
+          system_views |        coordinator_write_latency
+          system_views |                      cql_metrics
+          system_views |           credentials_cache_keys
+          system_views |                       disk_usage
+          system_views |                      gossip_info
+          system_views |                internode_inbound
+          system_views |               internode_outbound
+          system_views |       jmx_permissions_cache_keys
+          system_views |               local_read_latency
+          system_views |               local_scan_latency
+          system_views |              local_write_latency
+          system_views |               max_partition_size
+          system_views |             max_sstable_duration
+          system_views |                 max_sstable_size
+          system_views |   network_permissions_cache_keys
+          system_views |                    pending_hints
+          system_views |           permissions_cache_keys
+          system_views |                          queries
+          system_views |                      repair_jobs
+          system_views |              repair_participates
+          system_views |                  repair_sessions
+          system_views |               repair_validations
+          system_views |                          repairs
+          system_views |                 roles_cache_keys
+          system_views |                    rows_per_read
+          system_views |               sai_column_indexes
+          system_views |       sai_sstable_index_segments
+          system_views |              sai_sstable_indexes
+          system_views |                         settings
+          system_views |                        snapshots
+          system_views |                    sstable_tasks
+          system_views |                        streaming
+          system_views |                      system_logs
+          system_views |                system_properties
+          system_views |                     thread_pools
+          system_views |              tombstones_per_read
+          system_views |                unweighted_caches
+ system_virtual_schema |                          columns
+ system_virtual_schema |                        keyspaces
+ system_virtual_schema |                           tables
 
-(21 rows)
+(47 rows)
 ----
 . To view the virtual tables, run the CQL commands ``USE system_view`` and ``DESCRIBE tables``:
 +
 [source, cql]
 ----
-cqlsh> USE system_view;;
+cqlsh> USE system_view;
 cqlsh> DESCRIBE tables;
 ----
 +
@@ -545,18 +602,34 @@ results in:
 +
 [source, cql]
 ----
-sstable_tasks       clients                   coordinator_write_latency
-disk_usage          local_write_latency       tombstones_per_read
-thread_pools        internode_outbound        settings
-local_scan_latency  coordinator_scan_latency  system_properties
-internode_inbound   coordinator_read_latency  max_partition_size
-local_read_latency  rows_per_read             caches
+batch_metrics                     pending_hints
+caches                            permissions_cache_keys
+cidr_filtering_metrics_counts     queries
+cidr_filtering_metrics_latencies  repair_jobs
+clients                           repair_participates
+coordinator_read_latency          repair_sessions
+coordinator_scan_latency          repair_validations
+coordinator_write_latency         repairs
+cql_metrics                       roles_cache_keys
+credentials_cache_keys            rows_per_read
+disk_usage                        sai_column_indexes
+gossip_info                       sai_sstable_index_segments
+internode_inbound                 sai_sstable_indexes
+internode_outbound                settings
+jmx_permissions_cache_keys        snapshots
+local_read_latency                sstable_tasks
+local_scan_latency                streaming
+local_write_latency               system_logs
+max_partition_size                system_properties
+max_sstable_duration              thread_pools
+max_sstable_size                  tombstones_per_read
+network_permissions_cache_keys    unweighted_caches
 ----
 . To look at any table data, run the CQL command ``SELECT``:
 +
 [source, cql]
 ----
-cqlsh> USE system_view;;
+cqlsh> USE system_view;
 cqlsh> SELECT * FROM clients LIMIT 2;
 ----
 +
@@ -564,10 +637,38 @@ results in:
 +
 [source, cql]
 ----
- address   | port  | connection_stage | driver_name            | driver_version | hostname  | protocol_version | request_count | ssl_cipher_suite | ssl_enabled | ssl_protocol | username
------------+-------+------------------+------------------------+----------------+-----------|||+------------------+---------------+------------------+-------------+--------------+-----------
- 127.0.0.1 | 37308 |            ready | DataStax Python Driver |   3.21.0.post0 | localhost |                4 |            17 |             null |       False |         null | anonymous
- 127.0.0.1 | 37310 |            ready | DataStax Python Driver |   3.21.0.post0 | localhost |                4 |             8 |             null |       False |         null | anonymous
+@ Row 1
+------------------+---------------------------------------------------------------------------------------------------------------------
+ address          | 127.0.0.1
+ port             | 51218
+ client_options   | {'COMPRESSION': 'lz4', 'CQL_VERSION': '3.4.7', 'DRIVER_NAME': 'DataStax Python Driver', 'DRIVER_VERSION': '3.25.0'}
+ connection_stage | ready
+ driver_name      | DataStax Python Driver
+ driver_version   | 3.25.0
+ hostname         | localhost
+ keyspace_name    | null
+ protocol_version | 5
+ request_count    | 16
+ ssl_cipher_suite | null
+ ssl_enabled      | False
+ ssl_protocol     | null
+ username         | anonymous
 
-(2 rows)
+@ Row 2
+------------------+---------------------------------------------------------------------------------------------------------------------
+ address          | 127.0.0.1
+ port             | 51226
+ client_options   | {'COMPRESSION': 'lz4', 'CQL_VERSION': '3.4.7', 'DRIVER_NAME': 'DataStax Python Driver', 'DRIVER_VERSION': '3.25.0'}
+ connection_stage | ready
+ driver_name      | DataStax Python Driver
+ driver_version   | 3.25.0
+ hostname         | localhost
+ keyspace_name    | null
+ protocol_version | 5
+ request_count    | 3
+ ssl_cipher_suite | null
+ ssl_enabled      | False
+ ssl_protocol     | null
+ username         | anonymous
+
 ----

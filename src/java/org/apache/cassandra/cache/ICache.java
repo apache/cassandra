@@ -23,6 +23,8 @@ import java.util.Iterator;
  * This is similar to the Map interface, but requires maintaining a given capacity
  * and does not require put or remove to return values, which lets SerializingCache
  * be more efficient by avoiding deserialize except on get.
+ *
+ * This class represents a weighted cache.
  */
 public interface ICache<K, V> extends CacheSize
 {
