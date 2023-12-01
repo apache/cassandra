@@ -64,7 +64,6 @@ public class RangeIntersectionIterator extends RangeIterator
         super(statistics);
         this.ranges = ranges;
         this.rangeStats = new int[ranges.size()];
-        Arrays.fill(rangeStats, 0);
     }
 
     protected PrimaryKey computeNext()
