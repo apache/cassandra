@@ -3459,11 +3459,11 @@ commands:
                   fi
 
                   # move the log files
-                  source=build/test/logs/${testtag}
+                  source="build/test/logs"
                   dest=/tmp/results/repeated_utests/logs/${status}/${i}
                   mkdir -p $dest
-                  if [[ -d $source && -n "$(ls $source)" ]]; then
-                    mv $source/* $dest/
+                  if [[ -d $source && -n "$(ls $source)" && -n "$(ls ${source}/${testtag}*)" ]]; then
+                    mv $source/${testtag}*/* $dest/
                   fi
                   
                   # maybe stop iterations on test failure
