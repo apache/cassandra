@@ -6,6 +6,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Fix SAI intersection queries (CASSANDRA-19011)
  * Clone EndpointState before sending GossipShutdown message (CASSANDRA-19115)
  * SAI indexes are marked queryable during truncation (CASSANDRA-19032)
  * Enable Direct-IO feature for CommitLog files using Java native API's. (CASSANDRA-18464)
