@@ -100,12 +100,6 @@ public abstract class RangeIterator extends AbstractIterator<PrimaryKey> impleme
         if (state == State.READY && next.compareTo(nextToken) >= 0)
             return;
 
-        if (max.compareTo(nextToken) < 0)
-        {
-            endOfData();
-            return;
-        }
-
         performSkipTo(nextToken);
         state = State.NOT_READY;
     }

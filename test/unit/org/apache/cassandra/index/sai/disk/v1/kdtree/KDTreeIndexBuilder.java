@@ -56,6 +56,7 @@ import org.apache.cassandra.index.sai.utils.AbstractIterator;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.disk.v1.PartitionAwarePrimaryKeyFactory;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
+import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
@@ -72,6 +73,12 @@ public class KDTreeIndexBuilder
     public static final PrimaryKeyMap TEST_PRIMARY_KEY_MAP = new PrimaryKeyMap()
     {
         private final PrimaryKey.Factory primaryKeyFactory = new PartitionAwarePrimaryKeyFactory();
+
+        @Override
+        public SSTableId<?> getSSTableId()
+        {
+            return null;
+        }
 
         @Override
         public PrimaryKey primaryKeyFromRowId(long sstableRowId)

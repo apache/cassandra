@@ -42,6 +42,7 @@ import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
+import org.apache.cassandra.index.sai.disk.PrimaryKeyWithSource;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.IndexSearcher;
 import org.apache.cassandra.index.sai.disk.v1.PerIndexFiles;
@@ -368,13 +369,20 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
 
             for (int i = 0; i < keysInRange.size(); i++)
             {
+                // turn the pk back into a row id, with a fast path for the case where the pk is from this sstable
                 var primaryKey = keysInRange.get(i);
-                long sstableRowId = primaryKeyMap.exactRowIdOrInvertedCeiling(primaryKey);
+                assert primaryKey instanceof PrimaryKeyWithSource : "Expected PrimaryKeyWithSource, got " + primaryKey;
+                var pkws = (PrimaryKeyWithSource) primaryKey;
+                long sstableRowId;
+                if (pkws.getSourceSstableId().equals(primaryKeyMap.getSSTableId()))
+                    sstableRowId = pkws.getSourceRowId();
+                else
+                    sstableRowId = primaryKeyMap.exactRowIdOrInvertedCeiling(primaryKey);
 
-                // The current primary key is not in this sstable. Use ceiling to search for the row id
-                // of the next closest primary key in this sstable and skip to that primary key.
                 if (sstableRowId < 0)
                 {
+                    // The given PK doesn't exist in this sstable, so sstableRowId represents the negation
+                    // of the next-highest.  Turn that back into a PK so we can skip ahead in keysInRange.
                     long ceilingRowId = - sstableRowId - 1;
                     if (ceilingRowId > metadata.maxSSTableRowId)
                     {
