@@ -172,7 +172,7 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
             // is that it reads partition keys directly from the sstable using the offsets file.
             // While this worked in BDP, it was not efficient and caused problems because the
             // sstable reader was using 64k page sizes, and this caused page cache thrashing.
-            return rowIdToToken.exactRowId(key.token().getLongValue());
+            return rowIdToToken.indexOf(key.token().getLongValue());
         }
 
         return cursor.getExactPointId(v -> key.asComparableBytes(v));
@@ -188,7 +188,7 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
             // is that it reads partition keys directly from the sstable using the offsets file.
             // While this worked in BDP, it was not efficient and caused problems because the
             // sstable reader was using 64k page sizes, and this caused page cache thrashing.
-            return rowIdToToken.exactRowId(key.token().getLongValue());
+            return rowIdToToken.indexOf(key.token().getLongValue());
         }
 
         long pointId = cursor.getExactPointId(v -> key.asComparableBytes(v));
@@ -209,7 +209,7 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
             // is that it reads partition keys directly from the sstable using the offsets file.
             // While this worked in BDP, it was not efficient and caused problems because the
             // sstable reader was using 64k page sizes, and this caused page cache thrashing.
-            long rowId = rowIdToToken.exactRowId(key.token().getLongValue());
+            long rowId = rowIdToToken.indexOf(key.token().getLongValue());
             if (rowId >= 0)
                 return rowId;
             else

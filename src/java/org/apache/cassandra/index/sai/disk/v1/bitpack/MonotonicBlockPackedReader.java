@@ -117,7 +117,7 @@ public class MonotonicBlockPackedReader implements LongArray.Factory
             }
 
             @Override
-            public long exactRowId(long targetToken)
+            public long indexOf(long targetToken)
             {
                 throw new UnsupportedOperationException();
             }
