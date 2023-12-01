@@ -1,5 +1,6 @@
 5.1
  * Make nodetool tablestats use number of significant digits for time and average values consistently (CASSANDRA-19015)
+ * Upgrade jackson to 2.15.3 and snakeyaml to 2.1 (CASSANDRA-18875)
  * Transactional Cluster Metadata [CEP-21] (CASSANDRA-18330)
  * Add ELAPSED command to cqlsh (CASSANDRA-18861)
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)

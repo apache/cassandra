@@ -37,6 +37,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import com.datastax.driver.core.*;
 import com.datastax.driver.core.exceptions.AlreadyExistsException;
 import org.antlr.runtime.RecognitionException;
+import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.cql3.CQLFragmentParser;
 import org.apache.cassandra.cql3.CqlParser;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
@@ -809,7 +810,7 @@ public class StressProfile implements Serializable
     {
         try
         {
-            Constructor constructor = new Constructor(StressYaml.class);
+            Constructor constructor = new Constructor(StressYaml.class, YamlConfigurationLoader.getDefaultLoaderOptions());
 
             Yaml yaml = new Yaml(constructor);
 
