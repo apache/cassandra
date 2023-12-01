@@ -54,7 +54,6 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.JsonUtils;
 
-import static org.apache.cassandra.net.MessagingService.VERSION_51;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 
 /**
@@ -70,6 +69,7 @@ final class HintsDescriptor
     static final int VERSION_30 = 1;
     static final int VERSION_40 = 2;
     static final int VERSION_50 = 3;
+    static final int VERSION_51 = 4;
     static final int CURRENT_VERSION = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? VERSION_40 : VERSION_51;
 
     static final String COMPRESSION = "compression";
