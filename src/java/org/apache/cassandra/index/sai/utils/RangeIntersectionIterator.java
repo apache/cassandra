@@ -20,6 +20,8 @@ package org.apache.cassandra.index.sai.utils;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -55,11 +57,14 @@ public class RangeIntersectionIterator extends RangeIterator
     }
 
     private final List<RangeIterator> ranges;
+    private final int[] rangeStats;
 
     private RangeIntersectionIterator(Builder.Statistics statistics, List<RangeIterator> ranges)
     {
         super(statistics);
         this.ranges = ranges;
+        this.rangeStats = new int[ranges.size()];
+        Arrays.fill(rangeStats, 0);
     }
 
     protected PrimaryKey computeNext()
@@ -69,6 +74,7 @@ public class RangeIntersectionIterator extends RangeIterator
         PrimaryKey highestKey = ranges.get(0).hasNext() ? ranges.get(0).next() : null;
         // Index of the range iterator that has advanced beyond the others
         int alreadyAvanced = 0;
+        rangeStats[0]++;
 
         outer:
         while (highestKey != null && highestKey.compareTo(getMaximum()) <= 0)
@@ -81,6 +87,7 @@ public class RangeIntersectionIterator extends RangeIterator
                 {
                     RangeIterator range = ranges.get(index);
                     PrimaryKey nextKey = nextOrNull(range, highestKey);
+                    rangeStats[index]++;
                     int comparisonResult;
                     if (nextKey == null || (comparisonResult = nextKey.compareTo(highestKey)) > 0)
                     {
@@ -101,9 +108,37 @@ public class RangeIntersectionIterator extends RangeIterator
             }
             // If we reached here, next() has been called at least once on each range iterator and
             // the last call to next() on each iterator returned a value equal to the highestKey.
+
+            // Move the iterator that was called the least times to the start of the list.
+            // This is an optimisation assuming that iterator is likely a more selective one.
+            // E.g.if the first range produces (1, 2, 3, ... 100) and the second one (10, 20, 30, .. 100)
+            // we'd want to start with the second.
+            int idxOfSmallest = getIdxOfSmallest(rangeStats);
+
+            if (idxOfSmallest != 0)
+            {
+                Collections.swap(ranges, 0, idxOfSmallest);
+                // swap stats as well
+                int a = rangeStats[0];
+                int b = rangeStats[idxOfSmallest];
+                rangeStats[0] = b;
+                rangeStats[idxOfSmallest] = a;
+            }
+
             return highestKey;
         }
         return endOfData();
+    }
+
+    private static int getIdxOfSmallest(int[] rangeStats)
+    {
+        int idxOfSmallest = 0;
+        for (int i = 1; i < rangeStats.length; i++)
+        {
+            if (rangeStats[i] < rangeStats[idxOfSmallest])
+                idxOfSmallest = i;
+        }
+        return idxOfSmallest;
     }
 
     protected void performSkipTo(PrimaryKey nextToken)
