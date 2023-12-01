@@ -1132,8 +1132,8 @@ public abstract class ReadCommand extends AbstractReadQuery
             int digestVersion = isDigest ? (int)in.readUnsignedVInt() : 0;
             TableId tableId = TableId.deserialize(in);
 
-            Epoch schemaVersion = null;
-            if (version >= MessagingService.VERSION_50)
+            Epoch schemaVersion = Epoch.EMPTY;
+            if (version >= MessagingService.VERSION_51)
                 schemaVersion = Epoch.serializer.deserialize(in);
             TableMetadata tableMetadata;
             try
