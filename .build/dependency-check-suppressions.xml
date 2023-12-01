@@ -107,4 +107,13 @@
         <cve>CVE-2019-17267</cve>
     </suppress>
 
+    <!-- https://issues.apache.org/jira/browse/CASSANDRA-19142 -->
+    <suppress>
+        <packageUrl regex="true">^pkg:maven/ch\.qos\.logback/logback\-core@.*$</packageUrl>
+        <cve>CVE-2023-6378</cve>
+    </suppress>
+    <suppress>
+        <packageUrl regex="true">^pkg:maven/ch\.qos\.logback/logback\-classic@.*$</packageUrl>
+        <cve>CVE-2023-6378</cve>
+    </suppress>
 </suppressions>
