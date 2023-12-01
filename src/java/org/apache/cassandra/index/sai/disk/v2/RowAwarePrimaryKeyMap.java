@@ -21,7 +21,6 @@ package org.apache.cassandra.index.sai.disk.v2;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
-
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -203,6 +202,23 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
     @Override
     public long ceiling(PrimaryKey key)
     {
+        if (clusteringComparator.size() == 0)
+        {
+            // Fast path when there is no clustering, i.e., there is one row per partition.
+            // (The reason we don't just make the Factory return a PartitionAware map for this case
+            // is that it reads partition keys directly from the sstable using the offsets file.
+            // While this worked in BDP, it was not efficient and caused problems because the
+            // sstable reader was using 64k page sizes, and this caused page cache thrashing.
+            long rowId = rowIdToToken.exactRowId(key.token().getLongValue());
+            if (rowId >= 0)
+                return rowId;
+            else
+                if (rowId == Long.MIN_VALUE)
+                    return -1;
+                else
+                    return -rowId - 1;
+        }
+
         return cursor.ceiling(v -> key.asComparableBytesMinPrefix(v));
     }
 
