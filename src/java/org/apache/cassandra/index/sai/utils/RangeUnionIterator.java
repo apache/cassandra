@@ -33,8 +33,6 @@ public class RangeUnionIterator extends RangeIterator
 {
     private final List<RangeIterator> ranges;
 
-    private final List<RangeIterator> candidates = new ArrayList<>();
-
     private RangeUnionIterator(Builder.Statistics statistics, List<RangeIterator> ranges)
     {
         super(statistics);
@@ -43,10 +41,9 @@ public class RangeUnionIterator extends RangeIterator
 
     public PrimaryKey computeNext()
     {
-        // the design is to find the next best value from all the ranges,
-        // and then advance all the ranges that have the same value.
-        candidates.clear();
-        PrimaryKey candidate = null;
+        // Keep track of the next best candidate. If another candidate has the same value, advance it to prevent
+        // duplicate results. This design avoids unnecessary list operations.
+        RangeIterator candidate = null;
         for (RangeIterator range : ranges)
         {
             if (!range.hasNext())
@@ -54,30 +51,20 @@ public class RangeUnionIterator extends RangeIterator
 
             if (candidate == null)
             {
-                candidate = range.peek();
-                candidates.add(range);
+                candidate = range;
             }
             else
             {
-                int cmp = candidate.compareTo(range.peek());
+                int cmp = candidate.peek().compareTo(range.peek());
                 if (cmp == 0)
-                {
-                    candidates.add(range);
-                }
+                    range.next();
                 else if (cmp > 0)
-                {
-                    // we found a new best candidate, throw away the old ones
-                    candidates.clear();
-                    candidate = range.peek();
-                    candidates.add(range);
-                }
-                // else, existing candidate is less than the next in this range
+                    candidate = range;
             }
         }
-        if (candidates.isEmpty())
+        if (candidate == null)
             return endOfData();
-        candidates.forEach(RangeIterator::next);
-        return candidate;
+        return candidate.next();
     }
 
     protected void performSkipTo(PrimaryKey nextKey)
