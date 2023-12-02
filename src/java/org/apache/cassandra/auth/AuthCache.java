@@ -48,6 +48,7 @@ import com.github.benmanes.caffeine.cache.stats.StatsCounter;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Shutdownable;
+import org.apache.cassandra.metrics.CacheMetricsRegister;
 import org.apache.cassandra.metrics.UnweightedCacheMetrics;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.MBeanWrapper;
@@ -196,6 +197,7 @@ public class AuthCache<K, V> implements AuthCacheMBean, UnweightedCacheSize, Shu
     {
         this.cacheRefreshExecutor = executorFactory().sequential(name + "Refresh");
         cache = initCache(null);
+        CacheMetricsRegister.getInstance().register(this.metrics);
         MBeanWrapper.instance.registerMBean(this, getObjectName());
         REGISTRY.add(this);
     }

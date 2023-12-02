@@ -33,6 +33,7 @@ import com.github.benmanes.caffeine.cache.RemovalCause;
 import com.github.benmanes.caffeine.cache.RemovalListener;
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.metrics.CacheMetricsRegister;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.ChunkReader;
@@ -147,6 +148,7 @@ public class ChunkCache implements CacheLoader<ChunkCache.Key, ChunkCache.Buffer
     {
         bufferPool = pool;
         metrics = new ChunkCacheMetrics(this);
+        CacheMetricsRegister.getInstance().register(metrics);
         cache = Caffeine.newBuilder()
                         .maximumWeight(cacheSize)
                         .executor(ImmediateExecutor.INSTANCE)

@@ -45,11 +45,6 @@ public class CassandraCIDRAuthorizer extends AbstractCIDRAuthorizer
     protected static CIDRPermissionsCache cidrPermissionsCache;
     protected static CIDRGroupsMappingCache cidrGroupsMappingCache;
 
-    public CIDRPermissionsCache getCIDRPermissionsCache()
-    {
-        return cidrPermissionsCache;
-    }
-
     @Override
     public void setup()
     {

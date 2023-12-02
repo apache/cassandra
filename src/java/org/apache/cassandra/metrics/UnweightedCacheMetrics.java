@@ -45,7 +45,7 @@ public class UnweightedCacheMetrics extends AbstractCacheMetrics
      */
     public UnweightedCacheMetrics(String type, UnweightedCacheSize cache)
     {
-        super(new DefaultNameFactory("UnweightedCache", type));
+        super(new DefaultNameFactory("UnweightedCache", type), type);
 
         maxEntries = Metrics.register(factory.createMetricName("Capacity"), cache::maxEntries);
         entries = Metrics.register(factory.createMetricName("Entries"), cache::entries);

@@ -17,48 +17,24 @@
  */
 package org.apache.cassandra.db.virtual;
 
-import java.util.Collection;
-import java.util.Optional;
-import java.util.Set;
-import java.util.function.Supplier;
-
-import com.google.common.annotations.VisibleForTesting;
-
-import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.db.marshal.DoubleType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.metrics.CacheMetrics;
+import org.apache.cassandra.metrics.CacheMetricsRegister;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.CacheService;
-import org.apache.cassandra.utils.Pair;
 
-final class CachesTable extends AbstractCacheTable<CacheMetrics>
+final class CacheMetricsTable extends AbstractCacheMetricsTable<CacheMetrics>
 {
     public static final String TABLE_NAME = "caches";
     public static final String TABLE_DESCRIPTION = "system caches";
 
-    public static final String NAME_COLUMN = "name";
     public static final String CAPACITY_BYTES_COLUMN = "capacity_bytes";
     public static final String SIZE_BYTES_COLUMN = "size_bytes";
-    public static final String ENTRY_COUNT_COLUMN = "entry_count";
-    public static final String REQUEST_COUNT_COLUMN = "request_count";
-    public static final String HIT_COUNT_COLUMN = "hit_count";
-    public static final String HIT_RATIO_COLUMN = "hit_ratio";
-    public static final String RECENT_REQUEST_RATE_PER_SECOND_COLUMN = "recent_request_rate_per_second";
-    public static final String RECENT_HIT_RATE_PER_SECOND_COLUMN = "recent_hit_rate_per_second";
 
-    private static final Collection<Supplier<Optional<Pair<String, CacheMetrics>>>> DEFAULT_METRICS_SUPPLIERS = Set.of(
-    () -> Optional.ofNullable(ChunkCache.instance).map(instance -> Pair.create("chunks", instance.metrics)),
-    () -> Optional.of(Pair.create("counters", CacheService.instance.counterCache.getMetrics())),
-    () -> Optional.of(Pair.create("keys", CacheService.instance.keyCache.getMetrics())),
-    () -> Optional.of(Pair.create("rows", CacheService.instance.rowCache.getMetrics()))
-    );
-
-    @VisibleForTesting
-    CachesTable(String keyspace, Collection<Supplier<Optional<Pair<String, CacheMetrics>>>> metricsSuppliers)
+    CacheMetricsTable(String keyspace)
     {
         super(TableMetadata.builder(keyspace, TABLE_NAME)
                            .comment(TABLE_DESCRIPTION)
@@ -74,13 +50,7 @@ final class CachesTable extends AbstractCacheTable<CacheMetrics>
                            .addRegularColumn(RECENT_REQUEST_RATE_PER_SECOND_COLUMN, LongType.instance)
                            .addRegularColumn(RECENT_HIT_RATE_PER_SECOND_COLUMN, LongType.instance)
                            .build(),
-              metricsSuppliers);
-    }
-
-
-    CachesTable(String keyspace)
-    {
-        this(keyspace, DEFAULT_METRICS_SUPPLIERS);
+              () -> CacheMetricsRegister.getInstance().getCacheMetrics());
     }
 
     @Override

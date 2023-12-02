@@ -19,18 +19,24 @@
 package org.apache.cassandra.db.virtual;
 
 import java.util.Collection;
-import java.util.Optional;
 import java.util.function.Supplier;
 
 import org.apache.cassandra.metrics.AbstractCacheMetrics;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.utils.Pair;
 
-abstract class AbstractCacheTable<METRICS_TYPE extends AbstractCacheMetrics> extends AbstractVirtualTable
+abstract class AbstractCacheMetricsTable<T extends AbstractCacheMetrics> extends AbstractVirtualTable
 {
-    protected final Collection<Supplier<Optional<Pair<String, METRICS_TYPE>>>> metricsSuppliers;
+    public static final String NAME_COLUMN = "name";
+    public static final String ENTRY_COUNT_COLUMN = "entry_count";
+    public static final String HIT_COUNT_COLUMN = "hit_count";
+    public static final String HIT_RATIO_COLUMN = "hit_ratio";
+    public static final String REQUEST_COUNT_COLUMN = "request_count";
+    public static final String RECENT_REQUEST_RATE_PER_SECOND_COLUMN = "recent_request_rate_per_second";
+    public static final String RECENT_HIT_RATE_PER_SECOND_COLUMN = "recent_hit_rate_per_second";
 
-    protected AbstractCacheTable(TableMetadata metadata, Collection<Supplier<Optional<Pair<String, METRICS_TYPE>>>> metricsSuppliers)
+    private final Supplier<Collection<T>> metricsSuppliers;
+
+    protected AbstractCacheMetricsTable(TableMetadata metadata, Supplier<Collection<T>> metricsSuppliers)
     {
         super(metadata);
         this.metricsSuppliers = metricsSuppliers;
@@ -40,17 +46,12 @@ abstract class AbstractCacheTable<METRICS_TYPE extends AbstractCacheMetrics> ext
     public DataSet data()
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
-        for (Supplier<Optional<Pair<String, METRICS_TYPE>>> metricsSupplier : metricsSuppliers)
-        {
-            Optional<Pair<String, METRICS_TYPE>> optionalPair = metricsSupplier.get();
-            if (optionalPair.isPresent())
-            {
-                Pair<String, METRICS_TYPE> pair = optionalPair.get();
-                addRow(result, pair.left, pair.right);
-            }
-        }
+
+        for (T metrics : metricsSuppliers.get())
+            addRow(result, metrics.type, metrics);
+
         return result;
     }
 
-    protected abstract void addRow(SimpleDataSet result, String name, METRICS_TYPE metrics);
+    protected abstract void addRow(SimpleDataSet result, String name, T metrics);
 }

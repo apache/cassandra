@@ -54,6 +54,7 @@ import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.partitions.CachedBTreePartition;
 import org.apache.cassandra.db.partitions.CachedPartition;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.metrics.CacheMetricsRegister;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableId;
@@ -111,6 +112,10 @@ public class CacheService implements CacheServiceMBean
         keyCache = initKeyCache();
         rowCache = initRowCache();
         counterCache = initCounterCache();
+
+        CacheMetricsRegister.getInstance().register(keyCache.getMetrics());
+        CacheMetricsRegister.getInstance().register(rowCache.getMetrics());
+        CacheMetricsRegister.getInstance().register(counterCache.getMetrics());
     }
 
     /**

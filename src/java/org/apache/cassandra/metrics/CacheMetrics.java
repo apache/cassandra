@@ -44,7 +44,7 @@ public class CacheMetrics extends AbstractCacheMetrics
      */
     public CacheMetrics(String type, CacheSize cache)
     {
-        super(new DefaultNameFactory("Cache", type));
+        super(new DefaultNameFactory("Cache", type), type);
         capacity = Metrics.register(factory.createMetricName("Capacity"), cache::capacity);
         size = Metrics.register(factory.createMetricName("Size"), cache::weightedSize);
         entries = Metrics.register(factory.createMetricName("Entries"), cache::size);

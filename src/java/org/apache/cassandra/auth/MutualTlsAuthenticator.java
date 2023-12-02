@@ -64,7 +64,7 @@ public class MutualTlsAuthenticator implements IAuthenticator
     private static final Logger logger = LoggerFactory.getLogger(MutualTlsAuthenticator.class);
     private static final NoSpamLogger nospamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.MINUTES);
     private static final String VALIDATOR_CLASS_NAME = "validator_class_name";
-    public static final String CACHE_NAME = "IdentitiesCache";
+    private static final String CACHE_NAME = "IdentitiesCache";
     private final IdentityCache identityCache = new IdentityCache();
     private final MutualTlsCertificateValidator certificateValidator;
 
@@ -81,11 +81,6 @@ public class MutualTlsAuthenticator implements IAuthenticator
                                                               Arrays.asList("", AuthConfig.class.getPackage().getName()));
         checkMtlsConfigurationIsValid(DatabaseDescriptor.getRawConfig());
         AuthCacheService.instance.register(identityCache);
-    }
-
-    public IdentityCache getIdentityCache()
-    {
-        return identityCache;
     }
 
     @Override
@@ -191,7 +186,7 @@ public class MutualTlsAuthenticator implements IAuthenticator
         }
     }
 
-    public static class IdentityCache extends AuthCache<String, String>
+    static class IdentityCache extends AuthCache<String, String>
     {
         IdentityCache()
         {

@@ -33,6 +33,11 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 public abstract class AbstractCacheMetrics
 {
     /**
+     * Type of the cache, basically its name
+     */
+    public final String type;
+
+    /**
      * Total number of cache hits
      */
     public final Meter hits;
@@ -64,18 +69,9 @@ public abstract class AbstractCacheMetrics
 
     protected final MetricNameFactory factory;
 
-    /**
-     * Create metrics for given cache.
-     *
-     * @param type  Type of Cache to identify metrics
-     */
-    public AbstractCacheMetrics(String type)
+    protected AbstractCacheMetrics(MetricNameFactory metricNameFactory, String type)
     {
-        this(new DefaultNameFactory("UnweightedCache", type));
-    }
-
-    protected AbstractCacheMetrics(MetricNameFactory metricNameFactory)
-    {
+        this.type = type;
         factory = metricNameFactory;
         hits = Metrics.meter(factory.createMetricName("Hits"));
         misses = Metrics.meter(factory.createMetricName("Misses"));
