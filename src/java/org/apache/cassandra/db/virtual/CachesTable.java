@@ -17,17 +17,29 @@
  */
 package org.apache.cassandra.db.virtual;
 
+import java.util.Collection;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Supplier;
+
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.cache.ChunkCache;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.DoubleType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.metrics.CacheMetrics;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.CacheService;
+import org.apache.cassandra.utils.Pair;
 
-class CachesTable extends AbstractVirtualTable
+final class CachesTable extends AbstractCacheTable<CacheMetrics>
 {
+    public static final String TABLE_NAME = "caches";
+    public static final String TABLE_DESCRIPTION = "system caches";
+
     public static final String NAME_COLUMN = "name";
     public static final String CAPACITY_BYTES_COLUMN = "capacity_bytes";
     public static final String SIZE_BYTES_COLUMN = "size_bytes";
@@ -38,10 +50,18 @@ class CachesTable extends AbstractVirtualTable
     public static final String RECENT_REQUEST_RATE_PER_SECOND_COLUMN = "recent_request_rate_per_second";
     public static final String RECENT_HIT_RATE_PER_SECOND_COLUMN = "recent_hit_rate_per_second";
 
-    CachesTable(String keyspace)
+    private static final Collection<Supplier<Optional<Pair<String, CacheMetrics>>>> DEFAULT_METRICS_SUPPLIERS = Set.of(
+    () -> Optional.ofNullable(ChunkCache.instance).map(instance -> Pair.create("chunks", instance.metrics)),
+    () -> Optional.of(Pair.create("counters", CacheService.instance.counterCache.getMetrics())),
+    () -> Optional.of(Pair.create("keys", CacheService.instance.keyCache.getMetrics())),
+    () -> Optional.of(Pair.create("rows", CacheService.instance.rowCache.getMetrics()))
+    );
+
+    @VisibleForTesting
+    CachesTable(String keyspace, Collection<Supplier<Optional<Pair<String, CacheMetrics>>>> metricsSuppliers)
     {
-        super(TableMetadata.builder(keyspace, "caches")
-                           .comment("system caches")
+        super(TableMetadata.builder(keyspace, TABLE_NAME)
+                           .comment(TABLE_DESCRIPTION)
                            .kind(TableMetadata.Kind.VIRTUAL)
                            .partitioner(new LocalPartitioner(UTF8Type.instance))
                            .addPartitionKeyColumn(NAME_COLUMN, UTF8Type.instance)
@@ -53,10 +73,18 @@ class CachesTable extends AbstractVirtualTable
                            .addRegularColumn(HIT_RATIO_COLUMN, DoubleType.instance)
                            .addRegularColumn(RECENT_REQUEST_RATE_PER_SECOND_COLUMN, LongType.instance)
                            .addRegularColumn(RECENT_HIT_RATE_PER_SECOND_COLUMN, LongType.instance)
-                           .build());
+                           .build(),
+              metricsSuppliers);
     }
 
-    private void addRow(SimpleDataSet result, String name, CacheMetrics metrics)
+
+    CachesTable(String keyspace)
+    {
+        this(keyspace, DEFAULT_METRICS_SUPPLIERS);
+    }
+
+    @Override
+    protected void addRow(SimpleDataSet result, String name, CacheMetrics metrics)
     {
         result.row(name)
               .column(CAPACITY_BYTES_COLUMN, metrics.capacity.getValue())
@@ -67,43 +95,5 @@ class CachesTable extends AbstractVirtualTable
               .column(HIT_RATIO_COLUMN, metrics.hitRate.getValue())
               .column(RECENT_REQUEST_RATE_PER_SECOND_COLUMN, (long) metrics.requests.getFifteenMinuteRate())
               .column(RECENT_HIT_RATE_PER_SECOND_COLUMN, (long) metrics.hits.getFifteenMinuteRate());
-    }
-
-    public DataSet data()
-    {
-        SimpleDataSet result = new SimpleDataSet(metadata());
-
-        if (ChunkCache.instance != null)
-            addRow(result, "chunks", getChunkCacheMetrics());
-
-        addRow(result, "counters", getCounterCacheMetrics());
-        addRow(result, "keys", getKeyCacheMetrics());
-        addRow(result, "rows", getRowCacheMetrics());
-
-        return result;
-    }
-
-    @VisibleForTesting
-    CacheMetrics getChunkCacheMetrics()
-    {
-        return ChunkCache.instance.metrics;
-    }
-
-    @VisibleForTesting
-    CacheMetrics getCounterCacheMetrics()
-    {
-        return CacheService.instance.counterCache.getMetrics();
-    }
-
-    @VisibleForTesting
-    CacheMetrics getKeyCacheMetrics()
-    {
-        return CacheService.instance.keyCache.getMetrics();
-    }
-
-    @VisibleForTesting
-    CacheMetrics getRowCacheMetrics()
-    {
-        return CacheService.instance.rowCache.getMetrics();
     }
 }

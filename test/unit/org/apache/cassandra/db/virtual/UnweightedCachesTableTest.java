@@ -19,148 +19,89 @@
 package org.apache.cassandra.db.virtual;
 
 import java.util.Optional;
+import java.util.Set;
 
 import com.google.common.collect.ImmutableList;
-import org.junit.Before;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.auth.AuthenticatedUser;
-import org.apache.cassandra.auth.CIDRPermissionsCache;
-import org.apache.cassandra.auth.NetworkPermissionsCacheMBean;
-import org.apache.cassandra.auth.PasswordAuthenticator;
-import org.apache.cassandra.auth.PermissionsCacheMBean;
-import org.apache.cassandra.auth.Roles;
-import org.apache.cassandra.auth.RolesCacheMBean;
-import org.apache.cassandra.auth.jmx.AuthorizationProxy;
 import org.apache.cassandra.cache.UnweightedCacheSize;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.metrics.UnweightedCacheMetrics;
 import org.apache.cassandra.utils.Pair;
 
-import static org.junit.Assert.assertEquals;
+import static java.lang.String.format;
 
 public class UnweightedCachesTableTest extends CQLTester
 {
     private static final String KS_NAME = "vts";
-    private UnweightedCachesTable table;
+    private static final String CACHE_NAME = "mycache";
 
     @BeforeClass
     public static void setUpClass()
     {
         CQLTester.setUpClass();
-        CQLTester.requireAuthentication();
     }
 
-    @Before
-    public void config()
+    private final UnweightedCacheMetrics metrics = new UnweightedCacheMetrics(CACHE_NAME, new UnweightedCacheSize()
     {
-        table = new TestingUnweightedCachesTable(KS_NAME);
+        @Override
+        public int maxEntries()
+        {
+            return 123;
+        }
+
+        @Override
+        public void setMaxEntries(int maxEntries)
+        {
+
+        }
+
+        @Override
+        public int entries()
+        {
+            return 58;
+        }
+    });
+
+    @Test
+    public void testCacheTableUpdating()
+    {
+        UnweightedCachesTable table = new UnweightedCachesTable(KS_NAME, Set.of(() -> Optional.of(Pair.create(CACHE_NAME, metrics))));
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
+
+        assertRows(execute(getSelectQuery()), row(CACHE_NAME, 123, 58, 0L, Double.NaN, 0L, 0L, 0L));
+
+        metrics.hits.mark(10);
+        metrics.requests.mark(40);
+
+        assertRows(execute(getSelectQuery()), row(CACHE_NAME, 123, 58, 10L, 0.25d, 40L, 0L, 0L));
+
+        metrics.reset();
+
+        assertRows(execute(getSelectQuery()), row(CACHE_NAME, 123, 58, 0L, Double.NaN, 0L, 0L, 0L));
     }
 
     @Test
-    public void testSelectAllWhenMetricsAreZeroed()
+    public void testDefaultTableQuerying()
     {
-        resetAllCaches();
-
-        assertRows(execute(getSelectQuery()),
-                   row(CIDRPermissionsCache.CACHE_NAME, 1000, 0, 0L, Double.NaN, 0L, 0L, 0L),
-                   row(PasswordAuthenticator.CredentialsCache.CACHE_NAME, 123, 58, 0L, Double.NaN, 0L, 0L, 0L),
-                   row(AuthorizationProxy.JmxPermissionsCache.CACHE_NAME, 1000, 0, 0L, Double.NaN, 0L, 0L, 0L),
-                   row(NetworkPermissionsCacheMBean.CACHE_NAME, 1000, 0, 0L, Double.NaN, 0L, 0L, 0L),
-                   row(PermissionsCacheMBean.CACHE_NAME, 1000, 0, 0L, Double.NaN, 0L, 0L, 0L),
-                   row(RolesCacheMBean.CACHE_NAME, 1000, 0, 0L, Double.NaN, 0L, 0L, 0L));
-
-        table.getAuthenticatorMetrics().ifPresent(p -> {
-            p.right.hits.mark(10);
-            p.right.requests.mark(40);
-        });
-
-        assertRows(execute(getSelectQuery()),
-                   row(CIDRPermissionsCache.CACHE_NAME, 1000, 0, 0L, Double.NaN, 0L, 0L, 0L),
-                   row(PasswordAuthenticator.CredentialsCache.CACHE_NAME, 123, 58, 10L, 0.25d, 40L, 0L, 0L),
-                   row(AuthorizationProxy.JmxPermissionsCache.CACHE_NAME, 1000, 0, 0L, Double.NaN, 0L, 0L, 0L),
-                   row(NetworkPermissionsCacheMBean.CACHE_NAME, 1000, 0, 0L, Double.NaN, 0L, 0L, 0L),
-                   row(PermissionsCacheMBean.CACHE_NAME, 1000, 0, 0L, Double.NaN, 0L, 0L, 0L),
-                   row(RolesCacheMBean.CACHE_NAME, 1000, 0, 0L, Double.NaN, 0L, 0L, 0L));
-    }
-
-    @Test
-    public void testSelectAllAfterSuperUserOperation() throws Throwable
-    {
-        resetAllCaches();
-
-        // trigger loading auth caches by a read
-        useSuperUser();
-
-        int rows = execute("SELECT name, capacity, entry_count, hit_count, hit_ratio, request_count FROM vts." + table.name()).size();
-        assertEquals(6, rows);
-    }
-
-    private void resetAllCaches()
-    {
-        PasswordAuthenticator.CredentialsCache credentialsCache = ((PasswordAuthenticator) DatabaseDescriptor.getAuthenticator()).getCredentialsCache();
-        credentialsCache.invalidate();
-        credentialsCache.getMetrics().reset();
-        AuthorizationProxy.jmxPermissionsCache.invalidate();
-        AuthorizationProxy.jmxPermissionsCache.getMetrics().reset();
-        AuthenticatedUser.networkPermissionsCache.invalidate();
-        AuthenticatedUser.networkPermissionsCache.getMetrics().reset();
-        AuthenticatedUser.permissionsCache.invalidate();
-        AuthenticatedUser.permissionsCache.getMetrics().reset();
-        Roles.cache.invalidate();
-        Roles.cache.getMetrics().reset();
+        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(new UnweightedCachesTable(KS_NAME))));
+        Assert.assertEquals(4, execute(getSelectQuery()).size());
     }
 
     private String getSelectQuery()
     {
-        return String.format("SELECT %s, %s, %s, %s, %s, %s, %s, %s FROM %s.%s",
-                             UnweightedCachesTable.NAME_COLUMN,
-                             UnweightedCachesTable.CAPACITY_COLUMN,
-                             UnweightedCachesTable.ENTRY_COUNT_COLUMN,
-                             UnweightedCachesTable.HIT_COUNT_COLUMN,
-                             UnweightedCachesTable.HIT_RATIO_COLUMN,
-                             UnweightedCachesTable.REQUEST_COUNT_COLUMN,
-                             UnweightedCachesTable.RECENT_REQUEST_RATE_PER_SECOND_COLUMN,
-                             UnweightedCachesTable.RECENT_HIT_RATE_PER_SECOND_COLUMN,
-                             KS_NAME,
-                             table.name());
-    }
-
-    private static class TestingUnweightedCachesTable extends UnweightedCachesTable
-    {
-        private final UnweightedCacheMetrics metrics = new UnweightedCacheMetrics("cache", new UnweightedCacheSize()
-        {
-            @Override
-            public int maxEntries()
-            {
-                return 123;
-            }
-
-            @Override
-            public void setMaxEntries(int maxEntries)
-            {
-
-            }
-
-            @Override
-            public int entries()
-            {
-                return 58;
-            }
-        });
-
-        TestingUnweightedCachesTable(String keyspace)
-        {
-            super(keyspace);
-        }
-
-        @Override
-        Optional<Pair<String, UnweightedCacheMetrics>> getAuthenticatorMetrics()
-        {
-            return Optional.of(Pair.create(PasswordAuthenticator.CredentialsCacheMBean.CACHE_NAME, metrics));
-        }
+        return format("SELECT %s, %s, %s, %s, %s, %s, %s, %s FROM %s.%s",
+                      UnweightedCachesTable.NAME_COLUMN,
+                      UnweightedCachesTable.CAPACITY_COLUMN,
+                      UnweightedCachesTable.ENTRY_COUNT_COLUMN,
+                      UnweightedCachesTable.HIT_COUNT_COLUMN,
+                      UnweightedCachesTable.HIT_RATIO_COLUMN,
+                      UnweightedCachesTable.REQUEST_COUNT_COLUMN,
+                      UnweightedCachesTable.RECENT_REQUEST_RATE_PER_SECOND_COLUMN,
+                      UnweightedCachesTable.RECENT_HIT_RATE_PER_SECOND_COLUMN,
+                      KS_NAME,
+                      UnweightedCachesTable.TABLE_NAME);
     }
 }

@@ -18,126 +18,96 @@
 
 package org.apache.cassandra.db.virtual;
 
+import java.util.Optional;
+import java.util.Set;
+
 import com.google.common.collect.ImmutableList;
-import org.junit.Before;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cache.CacheSize;
-import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.metrics.CacheMetrics;
-import org.apache.cassandra.service.CacheService;
+import org.apache.cassandra.utils.Pair;
+
+import static java.lang.String.format;
 
 public class CachesTableTest extends CQLTester
 {
     private static final String KS_NAME = "vts";
-    private CachesTable table;
+    private static final String CACHE_NAME = "mycache";
 
     @BeforeClass
     public static void setUpClass()
     {
         CQLTester.setUpClass();
-        CQLTester.requireAuthentication();
     }
 
-    @Before
-    public void config()
+    private final CacheMetrics metrics = new CacheMetrics(CACHE_NAME, new CacheSize()
     {
-        table = new TestingCachesTable(KS_NAME);
-        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
-    }
+        @Override
+        public long capacity()
+        {
+            return 125;
+        }
+
+        @Override
+        public void setCapacity(long capacity)
+        {
+
+        }
+
+        @Override
+        public int size()
+        {
+            return 30;
+        }
+
+        @Override
+        public long weightedSize()
+        {
+            return 65;
+        }
+    });
 
     @Test
     public void testCachesTable()
     {
-        resetAllCaches();
+        CachesTable table = new CachesTable(KS_NAME, Set.of(() -> Optional.of(Pair.create(CACHE_NAME, metrics))));
+        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
 
-        table.getChunkCacheMetrics().hits.mark(6);
-        table.getChunkCacheMetrics().requests.mark(12);
+        metrics.hits.mark(6);
+        metrics.requests.mark(12);
 
-        assertRows(execute(getSelectQuery()),
-                   row("chunks", ChunkCache.instance.capacity(), 123, 6L, 0.5d, 12L, 0L, 0L, 0L),
-                   row("counters", CacheService.instance.counterCache.getCapacity(), 0, 0L, Double.NaN, 0L, 0L, 0L, 0L),
-                   row("keys", CacheService.instance.keyCache.getCapacity(), 0, 0L, Double.NaN, 0L, 0L, 0L, 0L),
-                   row("rows", CacheService.instance.rowCache.getCapacity(), 0, 0L, Double.NaN, 0L, 0L, 0L, 0L));
+        assertRows(execute(getSelectQuery()), row(CACHE_NAME, 125L, 30, 6L, 0.5d, 12L, 65L, 0L, 0L));
 
-        table.getChunkCacheMetrics().hits.mark(12);
-        table.getChunkCacheMetrics().requests.mark(12);
+        metrics.hits.mark(12);
+        metrics.requests.mark(12);
 
-        assertRows(execute(getSelectQuery()),
-                   row("chunks", ChunkCache.instance.capacity(), 123, 18L, 0.75d, 24L, 0L, 0L, 0L),
-                   row("counters", CacheService.instance.counterCache.getCapacity(), 0, 0L, Double.NaN, 0L, 0L, 0L, 0L),
-                   row("keys", CacheService.instance.keyCache.getCapacity(), 0, 0L, Double.NaN, 0L, 0L, 0L, 0L),
-                   row("rows", CacheService.instance.rowCache.getCapacity(), 0, 0L, Double.NaN, 0L, 0L, 0L, 0L));
+        assertRows(execute(getSelectQuery()), row(CACHE_NAME, 125L, 30, 18L, 0.75d, 24L, 65L, 0L, 0L));
     }
 
-    private void resetAllCaches()
+    @Test
+    public void testDefaultTableQuerying()
     {
-        CacheService.instance.counterCache.clear();
-        CacheService.instance.counterCache.getMetrics().reset();
-        CacheService.instance.keyCache.clear();
-        CacheService.instance.keyCache.getMetrics().reset();
-        CacheService.instance.rowCache.clear();
-        CacheService.instance.rowCache.getMetrics().reset();
+        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(new CachesTable(KS_NAME))));
+        Assert.assertEquals(4, execute(getSelectQuery()).size());
     }
 
     private String getSelectQuery()
     {
-        return String.format("SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s FROM %s.%s",
-                             CachesTable.NAME_COLUMN,
-                             CachesTable.CAPACITY_BYTES_COLUMN,
-                             CachesTable.ENTRY_COUNT_COLUMN,
-                             CachesTable.HIT_COUNT_COLUMN,
-                             CachesTable.HIT_RATIO_COLUMN,
-                             CachesTable.REQUEST_COUNT_COLUMN,
-                             CachesTable.SIZE_BYTES_COLUMN,
-                             CachesTable.RECENT_HIT_RATE_PER_SECOND_COLUMN,
-                             CachesTable.RECENT_REQUEST_RATE_PER_SECOND_COLUMN,
-                             KS_NAME,
-                             table.name());
-    }
-
-    private static class TestingCachesTable extends CachesTable
-    {
-        private final CacheMetrics cacheMetrics = new CacheMetrics("chunks", new CacheSize()
-        {
-            @Override
-            public long capacity()
-            {
-                return ChunkCache.cacheSize;
-            }
-
-            @Override
-            public void setCapacity(long capacity)
-            {
-
-            }
-
-            @Override
-            public int size()
-            {
-                return 123;
-            }
-
-            @Override
-            public long weightedSize()
-            {
-                return 0;
-            }
-        })
-        {
-        };
-
-        TestingCachesTable(String keyspace)
-        {
-            super(keyspace);
-        }
-
-        @Override
-        protected CacheMetrics getChunkCacheMetrics()
-        {
-            return cacheMetrics;
-        }
+        return format("SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s FROM %s.%s",
+                      CachesTable.NAME_COLUMN,
+                      CachesTable.CAPACITY_BYTES_COLUMN,
+                      CachesTable.ENTRY_COUNT_COLUMN,
+                      CachesTable.HIT_COUNT_COLUMN,
+                      CachesTable.HIT_RATIO_COLUMN,
+                      CachesTable.REQUEST_COUNT_COLUMN,
+                      CachesTable.SIZE_BYTES_COLUMN,
+                      CachesTable.RECENT_HIT_RATE_PER_SECOND_COLUMN,
+                      CachesTable.RECENT_REQUEST_RATE_PER_SECOND_COLUMN,
+                      KS_NAME,
+                      CachesTable.TABLE_NAME);
     }
 }
