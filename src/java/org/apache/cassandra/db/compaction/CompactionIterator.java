@@ -31,7 +31,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Ordering;
 
-import accord.local.Commands;
+import accord.local.Cleanup;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
 import accord.local.SaveStatus;
@@ -90,8 +90,8 @@ import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 
-import static accord.local.Commands.Cleanup.TRUNCATE_WITH_OUTCOME;
-import static accord.local.Status.Durability.Universal;
+import static accord.local.Cleanup.TRUNCATE_WITH_OUTCOME;
+import static accord.local.Cleanup.shouldCleanup;
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
@@ -810,7 +810,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
             // When commands end up being sliced by compaction we need this to discard tombstones and slices
             // without enough information to run the rest of the cleanup logic
-            if (durableBefore.min(txnId) == Universal)
+            if (Cleanup.isSafeToCleanup(durableBefore, txnId))
                 return null;
 
             Cell durabilityCell = row.getCell(CommandsColumns.durability);
@@ -828,9 +828,10 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             if (executeAt == null || durability == null || saveStatus == null || route == null)
                 return row;
 
-            Commands.Cleanup cleanup = Commands.shouldCleanup(txnId, saveStatus.status,
-                                                              durability, executeAt, route,
-                                                              redundantBefore, durableBefore);
+            Cleanup cleanup = shouldCleanup(txnId, saveStatus.status,
+                                            durability, executeAt, route,
+                                            redundantBefore, durableBefore,
+                                            false);
             switch (cleanup)
             {
                 default: throw new AssertionError(String.format("Unexpected cleanup task: %s", cleanup));
