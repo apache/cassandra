@@ -705,7 +705,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         {
             propagateMessagingVersions(cluster); // fake messaging needs to know messaging version for filters
         }
-        internodeMessagingStarted = true;
 
         CassandraDaemon.disableAutoCompaction(Schema.instance.localKeyspaces().names());
         Startup.initialize(DatabaseDescriptor.getSeeds(),
@@ -728,6 +727,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                     // instance here so that we start the static event loop state
                                      registerMockMessaging(cluster);
                                 }
+                                internodeMessagingStarted = true;
                                 registerInboundFilter(cluster);
                                 registerOutboundFilter(cluster);
         });
