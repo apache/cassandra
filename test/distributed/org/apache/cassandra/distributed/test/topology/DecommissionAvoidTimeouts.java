@@ -90,7 +90,7 @@ public abstract class DecommissionAvoidTimeouts extends TestBaseImpl
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'NetworkTopologyStrategy', 'datacenter1': 3, 'datacenter2': 3}");
             String table = KEYSPACE + ".tbl";
             cluster.schemaChange("CREATE TABLE " + table + " (pk blob PRIMARY KEY)");
-
+            cluster.forEach(i -> i.runOnInstance(() -> Undead.State.enabled = true));
             List<IInvokableInstance> dc1 = cluster.get(1, 2, 3, 4);
             List<IInvokableInstance> dc2 = cluster.get(5, 6, 7, 8);
             IInvokableInstance toDecom = dc2.get(1);

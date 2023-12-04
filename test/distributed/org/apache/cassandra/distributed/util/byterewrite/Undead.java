@@ -45,7 +45,7 @@ public class Undead
     @Shared
     public static class State
     {
-        public static volatile boolean enabled = true;
+        public static volatile boolean enabled = false;
     }
 
     public static class BB
