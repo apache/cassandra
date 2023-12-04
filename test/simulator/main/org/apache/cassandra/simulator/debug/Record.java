@@ -18,32 +18,40 @@
 
 package org.apache.cassandra.simulator.debug;
 
-import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
-import org.apache.cassandra.io.util.DataOutputStreamPlus;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.simulator.ClusterSimulation;
-import org.apache.cassandra.simulator.RandomSource;
-import org.apache.cassandra.simulator.SimulationRunner.RecordOption;
-import org.apache.cassandra.simulator.systems.SimulatedTime;
-import org.apache.cassandra.utils.Closeable;
-import org.apache.cassandra.utils.CloseableIterator;
-import org.apache.cassandra.utils.concurrent.Threads;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.channels.Channels;
-import java.util.*;
+import java.util.Arrays;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
+import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.simulator.ClusterSimulation;
+import org.apache.cassandra.simulator.RandomSource;
+import org.apache.cassandra.simulator.Simulation;
+import org.apache.cassandra.simulator.SimulationRunner.RecordOption;
+import org.apache.cassandra.simulator.systems.SimulatedTime;
+import org.apache.cassandra.utils.Closeable;
+import org.apache.cassandra.utils.CloseableIterator;
+import org.apache.cassandra.utils.concurrent.Threads;
+
 import static org.apache.cassandra.io.util.File.WriteMode.OVERWRITE;
-import static org.apache.cassandra.simulator.SimulationRunner.RecordOption.*;
+import static org.apache.cassandra.simulator.SimulationRunner.RecordOption.NONE;
+import static org.apache.cassandra.simulator.SimulationRunner.RecordOption.VALUE;
+import static org.apache.cassandra.simulator.SimulationRunner.RecordOption.WITH_CALLSITES;
 import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
 
 public class Record
@@ -149,9 +157,10 @@ public class Record
             flusher.setDaemon(true);
             flusher.start();
 
-            try (ClusterSimulation<?> cluster = builder.create(seed))
+            try (ClusterSimulation<?> clusterSimulation = builder.create(seed))
             {
-                try (CloseableIterator<?> iter = cluster.simulation.iterator();)
+                try (Simulation simulation = clusterSimulation.simulation();
+                     CloseableIterator<?> iter = simulation.iterator())
                 {
                     while (iter.hasNext())
                         eventOut.println(normaliseRecordingOut(iter.next().toString()));

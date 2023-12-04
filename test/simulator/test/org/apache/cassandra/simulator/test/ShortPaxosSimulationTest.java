@@ -34,7 +34,7 @@ import org.apache.cassandra.simulator.paxos.PaxosSimulationRunner;
  *
           -Dstorage-config=$MODULE_DIR$/test/conf
           -Djava.awt.headless=true
-          -javaagent:$MODULE_DIR$/lib/jamm-0.3.2.jar
+          -javaagent:$MODULE_DIR$/lib/jamm-0.4.0.jar
           -ea
           -Dcassandra.debugrefcount=true
           -Xss384k
@@ -56,7 +56,7 @@ import org.apache.cassandra.simulator.paxos.PaxosSimulationRunner;
           -Dcassandra.test.messagingService.nonGracefulShutdown=true
           -Dcassandra.use_nix_recursive_delete=true
           -Dcie-cassandra.disable_schema_drop_log=true
-          -Dlog4j2.configurationFile=$MODULE_DIR$/test/conf/log4j2-simulator.xml
+          -Dlogback.configurationFile=file://$MODULE_DIR$/test/conf/logback-simulator.xml
           -Dcassandra.ring_delay_ms=10000
           -Dcassandra.tolerate_sstable_size=true
           -Dcassandra.skip_sync=true

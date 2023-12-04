@@ -34,6 +34,7 @@ import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.simulator.ClusterSimulation;
 import org.apache.cassandra.simulator.OrderOn;
 import org.apache.cassandra.simulator.RandomSource;
+import org.apache.cassandra.simulator.Simulation;
 import org.apache.cassandra.simulator.SimulationRunner.RecordOption;
 import org.apache.cassandra.simulator.systems.InterceptedExecution;
 import org.apache.cassandra.simulator.systems.InterceptedWait;
@@ -256,7 +257,8 @@ public class SelfReconcile
                 reconciler.verifyUninterceptedRng = true;
 
                 Future<?> f1 = executor.submit(() -> {
-                    try (CloseableIterator<?> iter = cluster1.simulation.iterator())
+                    try (Simulation simulation = cluster1.simulation();
+                         CloseableIterator<?> iter = simulation.iterator())
                     {
                         while (iter.hasNext())
                         {
@@ -264,16 +266,25 @@ public class SelfReconcile
                             reconciler.verify(Pair.create(normalise(o.toString()), o));
                         }
                     }
+                    catch (Exception e)
+                    {
+                        throw new RuntimeException(e);
+                    }
                     reconciler.verify("done");
                 });
                 Future<?> f2 = executor.submit(() -> {
-                    try (CloseableIterator<?> iter = cluster2.simulation.iterator())
+                    try (Simulation simulation = cluster2.simulation();
+                         CloseableIterator<?> iter = simulation.iterator())
                     {
                         while (iter.hasNext())
                         {
                             Object o = iter.next();
                             reconciler.verify(Pair.create(normalise(o.toString()), o));
                         }
+                    }
+                    catch (Exception e)
+                    {
+                        throw new RuntimeException(e);
                     }
                     reconciler.verify("done");
                 });
