@@ -45,16 +45,17 @@ DTEST_SPLIT_CHUNK="$2"
 [ "x${CASSANDRA_DTEST_DIR}" != "x" ] || CASSANDRA_DTEST_DIR="${CASSANDRA_DIR}/../cassandra-dtest"
 [ "x${DIST_DIR}" != "x" ] || DIST_DIR="${CASSANDRA_DIR}/build"
 
+export TMPDIR="$(mktemp -d ${DIST_DIR}/run-python-dtest.XXXXXX)"
 export PYTHONIOENCODING="utf-8"
 export PYTHONUNBUFFERED=true
 export CASS_DRIVER_NO_EXTENSIONS=true
 export CASS_DRIVER_NO_CYTHON=true
 export CCM_MAX_HEAP_SIZE="1024M"
 export CCM_HEAP_NEWSIZE="512M"
+export CCM_CONFIG_DIR="${TMPDIR}/.ccm"
 export NUM_TOKENS="16"
 #Have Cassandra skip all fsyncs to improve test performance and reliability
 export CASSANDRA_SKIP_SYNC=true
-export TMPDIR="$(mktemp -d ${DIST_DIR}/run-python-dtest.XXXXXX)"
 unset CASSANDRA_HOME
 
 # pre-conditions
