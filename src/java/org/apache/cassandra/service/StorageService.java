@@ -283,6 +283,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private final JMXProgressSupport progressSupport = new JMXProgressSupport(this);
 
+    public String setBooleanValueForConfig(String configName, boolean value)
+    {
+        return DatabaseDescriptor.setBooleanValueForConfig(configName, value);
+    }
+
+    public Boolean getBooleanValueForConfig(String configName)
+    {
+        return DatabaseDescriptor.getBooleanValueForConfig(configName);
+    }
+
     private static int getRingDelay()
     {
         String newdelay = CassandraRelevantProperties.RING_DELAY.getString();

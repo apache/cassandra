@@ -24,6 +24,7 @@ import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.lang.reflect.Field;
 import java.nio.file.FileStore;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -4589,6 +4590,43 @@ public class DatabaseDescriptor
             logger.info("Setting streaming_state_expires to {}", duration);
             conf.streaming_state_expires = duration;
         }
+    }
+
+    public static String setBooleanValueForConfig(String configName, boolean value)
+    {
+        String rst;
+        try
+        {
+            Field field = Config.class.getField(configName);
+            field.set(conf, value);
+            rst = String.format("Successfully set the value for %s to %s", configName, value);
+        }
+        catch (NoSuchFieldException | IllegalAccessException e)
+        {
+            e.printStackTrace();
+            StringBuilder sb = new StringBuilder();
+            for (StackTraceElement stackTraceElement : e.getStackTrace())
+            {
+                sb.append(stackTraceElement);
+                sb.append("\n");
+            }
+            rst = String.format("Failed to set value for %s, error: %s", configName, sb);
+        }
+        return rst;
+    }
+
+    public static Boolean getBooleanValueForConfig(String configName)
+    {
+        try
+        {
+            Field field = Config.class.getField(configName);
+            return (boolean) field.get(conf);
+        }
+        catch (NoSuchFieldException | IllegalAccessException e)
+        {
+            e.printStackTrace();
+        }
+        return null;
     }
 
     public static DataStorageSpec.LongBytesBound getStreamingStateSize()

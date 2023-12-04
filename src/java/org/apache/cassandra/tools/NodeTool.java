@@ -204,6 +204,8 @@ public class NodeTool
                 Ring.class,
                 Scrub.class,
                 SetAuthCacheConfig.class,
+                SetBooleanValueForConfig.class,
+                GetBooleanValueForConfig.class,
                 SetBadQueryThreshold.class,
                 SetAutoRepairConfig.class,
                 RunAutoRepairOnce.class,

@@ -1246,6 +1246,16 @@ public class NodeProbe implements AutoCloseable
         ssProxy.startNativeTransport();
     }
 
+    public String setBooleanValueForConfig(String configName, boolean value)
+    {
+        return ssProxy.setBooleanValueForConfig(configName, value);
+    }
+
+    public Boolean getBooleanValueForConfig(String configName)
+    {
+        return ssProxy.getBooleanValueForConfig(configName);
+    }
+
     public boolean isNativeTransportRunning()
     {
         return ssProxy.isNativeTransportRunning();
