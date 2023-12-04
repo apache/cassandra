@@ -34,15 +34,6 @@ public class SimulatorUtils
         List<long[]> oom = new ArrayList<>();
         for (int i = 0 ; i < 1024 ; ++i)
             oom.add(new long[0x7fffffff]);
-        try
-        {
-            Thread.sleep(1_000);
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
-        }
-        System.exit(1);
         throw new AssertionError();
     }
 

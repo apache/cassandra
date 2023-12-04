@@ -194,9 +194,9 @@ public class SimulationTestBase
         configure.accept(factory);
         try (ClusterSimulation<?> cluster = factory.create(seed))
         {
-            try
+            try (Simulation simulation = cluster.simulation())
             {
-                cluster.simulation.run();
+                simulation.run();
             }
             catch (Throwable t)
             {
