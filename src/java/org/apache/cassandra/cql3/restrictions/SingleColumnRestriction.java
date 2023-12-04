@@ -20,7 +20,9 @@ package org.apache.cassandra.cql3.restrictions;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -422,6 +424,138 @@ public abstract class SingleColumnRestriction implements SingleRestriction
 
     }
 
+    /**
+     * One or more slice restrictions on a column's map entries.
+     * For a map column of type map&lt;text,int&gt; with name m, here are some examples of valid restrictions:
+     * One restriction:                m['a'] > 1
+     * Restrictions on different keys: m['a'] > 1 AND m['b'] < 2
+     * Restrictions on same key:       m['a'] > 0 AND m['a'] < 2
+     */
+    public static class MapSliceRestriction extends SingleColumnRestriction
+    {
+        // Left is the map's key and right is the slice on the map's value.
+        private final List<Pair<Term, TermSlice>> slices;
+
+        public MapSliceRestriction(ColumnMetadata columnDef, Bound bound, boolean inclusive, Term key, Term value)
+        {
+            super(columnDef);
+            slices = new ArrayList<>();
+            slices.add(Pair.create(key, TermSlice.newInstance(bound, inclusive, value)));
+        }
+
+        private MapSliceRestriction(ColumnMetadata columnDef, List<Pair<Term, TermSlice>> slices)
+        {
+            super(columnDef);
+            this.slices = slices;
+        }
+
+        @Override
+        public void addFunctionsTo(List<Function> functions)
+        {
+            slices.forEach(slice -> {
+                slice.left.addFunctionsTo(functions);
+                slice.right.addFunctionsTo(functions);
+            });
+        }
+
+        @Override
+        MultiColumnRestriction toMultiColumnRestriction()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public MultiClusteringBuilder appendTo(MultiClusteringBuilder builder, QueryOptions options)
+        {
+            // MapSliceRestrictions are not supported on clustering columns.
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean hasBound(Bound b)
+        {
+            // Because a MapSliceRestriction can have multiple slices, we cannot implement this method.
+            throw new UnsupportedOperationException("Bounds not well defined for map slice restrictions");
+        }
+
+        @Override
+        public boolean isInclusive(Bound b)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public SingleRestriction doMergeWith(SingleRestriction otherRestriction)
+        {
+            checkTrue(otherRestriction instanceof SingleColumnRestriction.MapSliceRestriction,
+                      "Column \"%s\" cannot be restricted by both an inequality relation and \"%s\"",
+                      columnDef.name, otherRestriction);
+
+            var otherMapSlice = ((SingleColumnRestriction.MapSliceRestriction) otherRestriction);
+            // Because the keys are not necessarily bound, we defer on making assertions about boundary violations
+            // until we create the row filter.
+            var newSlices = new ArrayList<>(slices);
+            newSlices.addAll(otherMapSlice.slices);
+            return new MapSliceRestriction(columnDef, newSlices);
+        }
+
+        @Override
+        public void addToRowFilter(RowFilter.Builder filter, IndexRegistry indexRegistry, QueryOptions options)
+        {
+            var map = new HashMap<ByteBuffer, TermSlice>();
+            // First, we iterate through to verify that none of the slices create invalid ranges.
+            // We can only do this now because this is the point when we can bind the map's key and
+            // correctly compare them.
+            for (Pair<Term, TermSlice> pair : slices)
+            {
+                final ByteBuffer key = pair.left.bindAndGet(options);
+                final TermSlice otherSlice = pair.right();
+                map.compute(key, (k, slice) -> {
+                    if (slice == null)
+                        return otherSlice;
+
+                    // Validate that the bounds do not conflict
+                    checkFalse(slice.hasBound(Bound.START) && otherSlice.hasBound(Bound.START),
+                               "More than one restriction was found for the start bound on %s", columnDef.name);
+                    checkFalse(slice.hasBound(Bound.END) && otherSlice.hasBound(Bound.END),
+                               "More than one restriction was found for the end bound on %s", columnDef.name);
+                    return slice.merge(otherSlice);
+                });
+            }
+            // Now we can add the filters.
+            for (Map.Entry<ByteBuffer, TermSlice> entry : map.entrySet())
+            {
+                var slice = entry.getValue();
+                var start = slice.bound(Bound.START);
+                if (start != null)
+                    filter.addMapComparison(columnDef,
+                                            entry.getKey(),
+                                            slice.isInclusive(Bound.START) ? Operator.GTE : Operator.GT,
+                                            start.bindAndGet(options));
+                var end = slice.bound(Bound.END);
+                if (end != null)
+                    filter.addMapComparison(columnDef,
+                                            entry.getKey(),
+                                            slice.isInclusive(Bound.END) ? Operator.LTE : Operator.LT,
+                                            end.bindAndGet(options));
+            }
+        }
+
+        @Override
+        protected boolean isSupportedBy(Index index)
+        {
+            for (Pair<Term, TermSlice> slice : slices)
+                if (!slice.right().isSupportedBy(columnDef, index))
+                    return false;
+            return true;
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("MAP_SLICE %s", slices);
+        }
+    }
 
     // This holds CONTAINS, CONTAINS_KEY, NOT CONTAINS, NOT CONTAINS KEY and map[key] = value restrictions because we might want to have any combination of them.
     public static final class ContainsRestriction extends SingleColumnRestriction
@@ -528,13 +662,13 @@ public abstract class SingleColumnRestriction implements SingleRestriction
             List<ByteBuffer> evs = bindAndGet(entryValues, options);
             assert eks.size() == evs.size();
             for (int i = 0; i < eks.size(); i++)
-                filter.addMapEquality(columnDef, eks.get(i), Operator.EQ, evs.get(i));
+                filter.addMapComparison(columnDef, eks.get(i), Operator.EQ, evs.get(i));
 
             List<ByteBuffer> neks = bindAndGet(negativeEntryKeys, options);
             List<ByteBuffer> nevs = bindAndGet(negativeEntryValues, options);
             assert neks.size() == nevs.size();
             for (int i = 0; i < neks.size(); i++)
-                filter.addMapEquality(columnDef, neks.get(i), Operator.NEQ, nevs.get(i));
+                filter.addMapComparison(columnDef, neks.get(i), Operator.NEQ, nevs.get(i));
 
         }
 

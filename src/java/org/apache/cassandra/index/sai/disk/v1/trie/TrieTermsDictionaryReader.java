@@ -46,6 +46,18 @@ public class TrieTermsDictionaryReader extends ValueIterator<TrieTermsDictionary
         super(rebufferer, root, true);
     }
 
+    /**
+     * Creates a reader for a trie terms dictionary range. See {@link ValueIterator} for details.
+     */
+    public TrieTermsDictionaryReader(Rebufferer source,
+                                     long root,
+                                     ByteComparable start,
+                                     ByteComparable end,
+                                     boolean inclStart)
+    {
+        super(source, root, start, end, inclStart ? LeftBoundTreatment.ADMIT_EXACT : LeftBoundTreatment.GREATER, true);
+    }
+
     public static final TrieSerializer<Long, DataOutputPlus> trieSerializer = new TrieSerializer<>()
     {
         @Override

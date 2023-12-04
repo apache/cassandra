@@ -302,9 +302,9 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             return expression;
         }
 
-        public void addMapEquality(ColumnMetadata def, ByteBuffer key, Operator op, ByteBuffer value)
+        public void addMapComparison(ColumnMetadata def, ByteBuffer key, Operator op, ByteBuffer value)
         {
-            add(new MapEqualityExpression(def, key, op, value));
+            add(new MapComparisonExpression(def, key, op, value));
         }
 
         public void addGeoDistanceExpression(ColumnMetadata def, ByteBuffer point, Operator op, ByteBuffer distance)
@@ -615,7 +615,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         // the trouble for now)
         // VECTOR
         protected enum Kind {
-            SIMPLE(0), MAP_EQUALITY(1), UNUSED1(2), CUSTOM(3), USER(4), VECTOR_RADIUS(100);
+            SIMPLE(0), MAP_COMPARISON(1), UNUSED1(2), CUSTOM(3), USER(4), VECTOR_RADIUS(100);
             private final int val;
             Kind(int v) { val = v; }
             public int getVal() { return val; }
@@ -624,7 +624,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                 switch (val)
                 {
                     case 0: return SIMPLE;
-                    case 1: return MAP_EQUALITY;
+                    case 1: return MAP_COMPARISON;
                     case 2: return UNUSED1;
                     case 3: return CUSTOM;
                     case 4: return USER;
@@ -790,8 +790,8 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                     case SIMPLE:
                         ByteBufferUtil.writeWithShortLength(expression.value, out);
                         break;
-                    case MAP_EQUALITY:
-                        MapEqualityExpression mexpr = (MapEqualityExpression)expression;
+                    case MAP_COMPARISON:
+                        MapComparisonExpression mexpr = (MapComparisonExpression)expression;
                         ByteBufferUtil.writeWithShortLength(mexpr.key, out);
                         ByteBufferUtil.writeWithShortLength(mexpr.value, out);
                         break;
@@ -832,10 +832,10 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                 {
                     case SIMPLE:
                         return new SimpleExpression(column, operator, ByteBufferUtil.readWithShortLength(in));
-                    case MAP_EQUALITY:
+                    case MAP_COMPARISON:
                         ByteBuffer key = ByteBufferUtil.readWithShortLength(in);
                         ByteBuffer value = ByteBufferUtil.readWithShortLength(in);
-                        return new MapEqualityExpression(column, key, operator, value);
+                        return new MapComparisonExpression(column, key, operator, value);
                     case VECTOR_RADIUS:
                         Operator boundaryOperator = Operator.readFrom(in);
                         ByteBuffer distance = ByteBufferUtil.readWithShortLength(in);
@@ -860,8 +860,8 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                     case SIMPLE:
                         size += ByteBufferUtil.serializedSizeWithShortLength(((SimpleExpression)expression).value);
                         break;
-                    case MAP_EQUALITY:
-                        MapEqualityExpression mexpr = (MapEqualityExpression)expression;
+                    case MAP_COMPARISON:
+                        MapComparisonExpression mexpr = (MapComparisonExpression)expression;
                         size += ByteBufferUtil.serializedSizeWithShortLength(mexpr.key)
                               + ByteBufferUtil.serializedSizeWithShortLength(mexpr.value);
                         break;
@@ -1051,17 +1051,19 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
     }
 
     /**
-     * An expression of the form 'column' ['key'] = 'value' (which is only
-     * supported when 'column' is a map).
+     * An expression of the form 'column' ['key'] OPERATOR 'value' (which is only
+     * supported when 'column' is a map) and where the operator can be {@link Operator#EQ}, {@link Operator#NEQ},
+     * {@link Operator#LT}, {@link Operator#LTE}, {@link Operator#GT}, or {@link Operator#GTE}.
      */
-    public static class MapEqualityExpression extends Expression
+    public static class MapComparisonExpression extends Expression
     {
         private final ByteBuffer key;
+        private ByteBuffer indexValue = null;
 
-        public MapEqualityExpression(ColumnMetadata column, ByteBuffer key, Operator operator, ByteBuffer value)
+        public MapComparisonExpression(ColumnMetadata column, ByteBuffer key, Operator operator, ByteBuffer value)
         {
             super(column, operator, value);
-            assert column.type instanceof MapType && (operator == Operator.EQ || operator == Operator.NEQ);
+            assert column.type instanceof MapType && (operator == Operator.EQ || operator == Operator.NEQ || operator.isSlice());
             this.key = key;
         }
 
@@ -1077,9 +1079,21 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         @Override
         public ByteBuffer getIndexValue()
         {
-            return CompositeType.build(ByteBufferAccessor.instance, key, value);
+            if (indexValue == null)
+                indexValue = CompositeType.build(ByteBufferAccessor.instance, key, value);
+            return indexValue;
         }
 
+        /**
+         * Returns whether the provided row satisfies this expression. For equality, it validates that the row contains
+         * the exact key/value pair. For inequalities, it validates that the row contains the key, then that the value
+         * satisfies the inequality.
+         * @param metadata
+         * @param partitionKey the partition key for row to check.
+         * @param row the row to check. It should *not* contain deleted cells
+         * (i.e. it should come from a RowIterator).
+         * @return whether the row is satisfied by this expression.
+         */
         public boolean isSatisfiedBy(TableMetadata metadata, DecoratedKey partitionKey, Row row)
         {
             return isSatisfiedByEq(metadata, partitionKey, row) ^ (operator == Operator.NEQ);
@@ -1095,11 +1109,14 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             if (row.isStatic() != column.isStatic())
                 return true;
 
+            int comp;
             MapType<?, ?> mt = (MapType<?, ?>)column.type;
             if (column.isComplex())
             {
                 Cell<?> cell = row.getCell(column, CellPath.create(key));
-                return cell != null && mt.valueComparator().compare(cell.buffer(), value) == 0;
+                if (cell == null)
+                    return false;
+                comp = mt.valueComparator().compare(cell.buffer(), value);
             }
             else
             {
@@ -1108,7 +1125,24 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                     return false;
 
                 ByteBuffer foundValue = mt.getSerializer().getSerializedValue(serializedMap, key, mt.getKeysType());
-                return foundValue != null && mt.valueComparator().compare(foundValue, value) == 0;
+                if (foundValue == null)
+                    return false;
+                comp = mt.valueComparator().compare(foundValue, value);
+            }
+            switch (operator) {
+                case EQ:
+                case NEQ: // NEQ is inverted in calling method. We do this to simplify handling of null cells.
+                    return comp == 0;
+                case LT:
+                    return comp < 0;
+                case LTE:
+                    return comp <= 0;
+                case GT:
+                    return comp > 0;
+                case GTE:
+                    return comp >= 0;
+                default:
+                    throw new AssertionError("Unsupported operator: " + operator);
             }
         }
 
@@ -1125,10 +1159,10 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             if (this == o)
                 return true;
 
-            if (!(o instanceof MapEqualityExpression))
+            if (!(o instanceof MapComparisonExpression))
                 return false;
 
-            MapEqualityExpression that = (MapEqualityExpression)o;
+            MapComparisonExpression that = (MapComparisonExpression)o;
 
             return Objects.equal(this.column.name, that.column.name)
                 && Objects.equal(this.operator, that.operator)
@@ -1145,7 +1179,49 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         @Override
         protected Kind kind()
         {
-            return Kind.MAP_EQUALITY;
+            return Kind.MAP_COMPARISON;
+        }
+
+        /**
+         * Get the lower bound for this expression. When the expression is EQ, GT, or GTE, the lower bound is the
+         * expression itself. When the expression is LT or LTE, the lower bound is the map's key becuase
+         * {@link ByteBuffer} comparisons will work correctly.
+         * @return the lower bound for this expression.
+         */
+        public ByteBuffer getLowerBound()
+        {
+            switch (operator) {
+                case EQ:
+                case GT:
+                case GTE:
+                    return this.getIndexValue();
+                case LT:
+                case LTE:
+                    return CompositeType.extractFirstComponentAsTrieSearchPrefix(getIndexValue(), true);
+                default:
+                    throw new AssertionError("Unsupported operator: " + operator);
+            }
+        }
+
+        /**
+         * Get the upper bound for this expression. When the expression is EQ, LT, or LTE, the upper bound is the
+         * expression itself. When the expression is GT or GTE, the upper bound is the map's key with the last byte
+         * set to 1 so that {@link ByteBuffer} comparisons will work correctly.
+         * @return the upper bound for this express
+         */
+        public ByteBuffer getUpperBound()
+        {
+            switch (operator) {
+                case GT:
+                case GTE:
+                    return CompositeType.extractFirstComponentAsTrieSearchPrefix(getIndexValue(), false);
+                case EQ:
+                case LT:
+                case LTE:
+                    return this.getIndexValue();
+                default:
+                    throw new AssertionError("Unsupported operator: " + operator);
+            }
         }
     }
 

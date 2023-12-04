@@ -270,8 +270,15 @@ public final class SingleColumnRelation extends Relation
             throw invalidRequest("Slice restrictions are not supported on duration columns");
         }
 
-        Term term = toTerm(toReceivers(columnDef), value, table.keyspace, boundNames);
-        return SingleColumnRestriction.SliceRestriction.fromBound(columnDef, bound, inclusive, term);
+        if (mapKey == null)
+        {
+            Term term = toTerm(toReceivers(columnDef), value, table.keyspace, boundNames);
+            return SingleColumnRestriction.SliceRestriction.fromBound(columnDef, bound, inclusive, term);
+        }
+        List<? extends ColumnSpecification> receivers = toReceivers(columnDef);
+        Term entryKey = toTerm(Collections.singletonList(receivers.get(0)), mapKey, table.keyspace, boundNames);
+        Term entryValue = toTerm(Collections.singletonList(receivers.get(1)), value, table.keyspace, boundNames);
+        return new SingleColumnRestriction.MapSliceRestriction(columnDef, bound, inclusive, entryKey, entryValue);
     }
 
     @Override
@@ -358,7 +365,7 @@ public final class SingleColumnRelation extends Relation
             checkFalse(receiver.type instanceof ListType, "Indexes on list entries (%s[index] = value) are not currently supported.", receiver.name);
             checkTrue(receiver.type instanceof MapType, "Column %s cannot be used as a map", receiver.name);
             checkTrue(receiver.type.isMultiCell(), "Map-entry equality predicates on frozen map column %s are not supported", receiver.name);
-            checkTrue(isEQ() || isNEQ(), "Only EQ and NEQ relations are supported on map entries");
+            checkTrue(isEQ() || isNEQ() || isSlice(), "Only EQ, NEQ, and SLICE relations are supported on map entries");
         }
 
         // Non-frozen UDTs don't support any operator
@@ -380,7 +387,7 @@ public final class SingleColumnRelation extends Relation
             {
                 receiver = makeCollectionReceiver(receiver, isContainsKey() || isNotContainsKey());
             }
-            else if (receiver.type.isMultiCell() && mapKey != null && (isEQ() || isNEQ()))
+            else if (receiver.type.isMultiCell() && isMapEntryComparison())
             {
                 List<ColumnSpecification> receivers = new ArrayList<>(2);
                 receivers.add(makeCollectionReceiver(receiver, true));
@@ -399,12 +406,12 @@ public final class SingleColumnRelation extends Relation
 
     private boolean isLegalRelationForNonFrozenCollection()
     {
-        return isContainsKey() || isContains() || isNotContains() || isNotContainsKey() || isMapEntryEquality();
+        return isContainsKey() || isContains() || isNotContains() || isNotContainsKey() || isMapEntryComparison();
     }
 
-    private boolean isMapEntryEquality()
+    private boolean isMapEntryComparison()
     {
-        return mapKey != null && (isEQ() || isNEQ());
+        return mapKey != null && (isEQ() || isNEQ() || isSlice());
     }
 
     private boolean canHaveOnlyOneValue()

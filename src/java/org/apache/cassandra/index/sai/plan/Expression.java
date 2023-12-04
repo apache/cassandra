@@ -40,6 +40,7 @@ import org.slf4j.LoggerFactory;
 import io.github.jbellis.jvector.vector.VectorUtil;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
@@ -250,6 +251,7 @@ public class Expression
         return this;
     }
 
+    // VSTODO seems like we could optimize for CompositeType here since we know we have a key match
     public boolean isSatisfiedBy(ByteBuffer columnValue)
     {
         if (columnValue == null)
@@ -332,6 +334,26 @@ public class Expression
         }
 
         return true;
+    }
+
+    public ByteBuffer getLowerBound()
+    {
+        return getBound(lower, true);
+    }
+
+    public ByteBuffer getUpperBound()
+    {
+        return getBound(upper, false);
+    }
+
+    private ByteBuffer getBound(Bound bound, boolean isLowerBound)
+    {
+        if (bound == null)
+            return null;
+        // TODO verify other usages of CompositeType, and possibly consider using a different type.
+        if (validator instanceof CompositeType)
+            return CompositeType.extractFirstComponentAsTrieSearchPrefix(bound.value.encoded, isLowerBound);
+        return bound.value.encoded;
     }
 
     public boolean isSatisfiedBy(Iterator<ByteBuffer> values)

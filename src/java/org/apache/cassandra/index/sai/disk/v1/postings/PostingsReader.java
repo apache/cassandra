@@ -50,6 +50,7 @@ public class PostingsReader implements OrdinalPostingList
     private static final Logger logger = LoggerFactory.getLogger(PostingsReader.class);
 
     protected final IndexInput input;
+    protected final InputCloser runOnClose;
     private final int blockSize;
     private final long numPostings;
     private final LongArray blockOffsets;
@@ -72,10 +73,24 @@ public class PostingsReader implements OrdinalPostingList
     @VisibleForTesting
     public PostingsReader(IndexInput input, long summaryOffset, QueryEventListener.PostingListEventListener listener) throws IOException
     {
-        this(input, new BlocksSummary(input, summaryOffset, () -> {}), listener);
+        this(input, new BlocksSummary(input, summaryOffset, InputCloser.NOOP), listener);
     }
 
     public PostingsReader(IndexInput input, BlocksSummary summary, QueryEventListener.PostingListEventListener listener) throws IOException
+    {
+        this(input, summary, listener, () -> {
+            try
+            {
+                input.close();
+            }
+            finally
+            {
+                summary.close();
+            }
+        });
+    }
+
+    public PostingsReader(IndexInput input, BlocksSummary summary, QueryEventListener.PostingListEventListener listener, InputCloser runOnClose) throws IOException
     {
         assert input instanceof IndexInputReader;
         logger.trace("Opening postings reader for {}", input);
@@ -88,6 +103,7 @@ public class PostingsReader implements OrdinalPostingList
         this.listener = listener;
 
         this.summary = summary;
+        this.runOnClose = runOnClose;
 
         reBuffer();
     }
@@ -98,8 +114,9 @@ public class PostingsReader implements OrdinalPostingList
         return totalPostingsRead;
     }
 
-    interface InputCloser
+    public interface InputCloser
     {
+        InputCloser NOOP = () -> {};
         void close() throws IOException;
     }
 
@@ -197,14 +214,7 @@ public class PostingsReader implements OrdinalPostingList
     public void close() throws IOException
     {
         listener.postingDecoded(postingsDecoded);
-        try
-        {
-            input.close();
-        }
-        finally
-        {
-            summary.close();
-        }
+        runOnClose.close();
     }
 
     @Override

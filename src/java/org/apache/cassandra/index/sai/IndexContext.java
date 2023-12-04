@@ -621,7 +621,7 @@ public class IndexContext
                 return operator == Expression.Op.CONTAINS_VALUE
                        || operator == Expression.Op.NOT_CONTAINS_VALUE;
             return indexType == IndexTarget.Type.KEYS_AND_VALUES &&
-                   (operator == Expression.Op.EQ || operator == Expression.Op.NOT_EQ);
+                   (operator == Expression.Op.EQ || operator == Expression.Op.NOT_EQ || operator == Expression.Op.RANGE);
         }
 
         if (indexType == IndexTarget.Type.FULL)

@@ -94,12 +94,18 @@ public class InvertedIndexSearcher extends IndexSearcher
         if (logger.isTraceEnabled())
             logger.trace(indexContext.logMessage("Searching on expression '{}'..."), exp);
 
-        if (!exp.getOp().isEquality() && exp.getOp() != Expression.Op.MATCH)
-            throw new IllegalArgumentException(indexContext.logMessage("Unsupported expression: " + exp));
-
-        final ByteComparable term = ByteComparable.fixedLength(exp.lower.value.encoded);
-        QueryEventListener.TrieIndexEventListener listener = MulticastQueryEventListeners.of(context, perColumnEventListener);
-        return reader.exactMatch(term, listener, context);
+        if (exp.getOp().isEquality() || exp.getOp() == Expression.Op.MATCH)
+        {
+            final ByteComparable term = ByteComparable.fixedLength(exp.lower.value.encoded);
+            QueryEventListener.TrieIndexEventListener listener = MulticastQueryEventListeners.of(context, perColumnEventListener);
+            return reader.exactMatch(term, listener, context);
+        }
+        else if (exp.getOp() == Expression.Op.RANGE)
+        {
+            QueryEventListener.TrieIndexEventListener listener = MulticastQueryEventListeners.of(context, perColumnEventListener);
+            return reader.rangeMatch(exp, listener, context);
+        }
+        throw new IllegalArgumentException(indexContext.logMessage("Unsupported expression: " + exp));
     }
 
     @Override

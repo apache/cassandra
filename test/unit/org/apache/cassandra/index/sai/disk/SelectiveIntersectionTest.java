@@ -28,8 +28,10 @@ import org.junit.Test;
 import com.datastax.driver.core.Session;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.v1.postings.PostingsReader;
+import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.utils.RangeIntersectionIterator;
 import org.apache.cassandra.inject.Injections;
+import org.apache.lucene.store.IndexInput;
 
 import static org.apache.cassandra.inject.InvokePointBuilder.newInvokePoint;
 import static org.junit.Assert.assertEquals;
@@ -40,8 +42,14 @@ public class SelectiveIntersectionTest extends SAITester
                                                                             .add(newInvokePoint().onClass("org.apache.cassandra.index.sai.utils.RangeIntersectionIterator").onMethod("<init>"))
                                                                             .build();
 
+    // Only count opening the main constructor. This is a brittle test.
     private static Injections.Counter POSTINGS_READER_OPEN_COUNTER = Injections.newCounter("PostingsReaderOpenCounter")
-                                                                               .add(newInvokePoint().onClass(PostingsReader.class).onMethod("<init>"))
+                                                                               .add(newInvokePoint().onClass(PostingsReader.class)
+                                                                                                    .onMethod("<init>",
+                                                                                                              IndexInput.class,
+                                                                                                              PostingsReader.BlocksSummary.class,
+                                                                                                              QueryEventListener.PostingListEventListener.class,
+                                                                                                              PostingsReader.InputCloser.class))
                                                                                .build();
 
     private static Injections.Counter POSTINGS_READER_CLOSE_COUNTER = Injections.newCounter("PostingsReaderCloseCounter")
