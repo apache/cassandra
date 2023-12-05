@@ -102,6 +102,8 @@ public class TrieMemoryIndex extends MemoryIndex
             while (analyzer.hasNext())
             {
                 final ByteBuffer term = analyzer.next();
+                if (!indexContext.validateMaxTermSize(key, term, false))
+                    continue;
 
                 setMinMaxTerm(term.duplicate());
 

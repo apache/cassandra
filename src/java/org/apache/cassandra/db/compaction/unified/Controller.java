@@ -342,7 +342,7 @@ public abstract class Controller
         this.maxSpaceOverhead = maxSpaceOverhead;
 
         if (maxSSTablesToCompact <= 0)  // use half the maximum permitted compaction size as upper bound by default
-            maxSSTablesToCompact = (int) (dataSetSize * this.maxSpaceOverhead * 0.5 / minSSTableSize);
+            maxSSTablesToCompact = (int) (dataSetSize * this.maxSpaceOverhead * 0.5 / getMinSstableSizeBytes());
 
         this.maxSSTablesToCompact = maxSSTablesToCompact;
 

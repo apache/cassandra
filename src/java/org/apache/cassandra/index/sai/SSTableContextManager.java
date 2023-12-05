@@ -128,6 +128,12 @@ public class SSTableContextManager
     }
 
     @VisibleForTesting
+    public boolean contains(SSTableReader sstable)
+    {
+        return sstableContexts.containsKey(sstable);
+    }
+
+    @VisibleForTesting
     public int size()
     {
         return sstableContexts.size();

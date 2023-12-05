@@ -30,13 +30,16 @@ import org.apache.cassandra.utils.btree.BTree;
 
 public class ComplexColumnDataTest extends TestCase
 {
-    private ColumnMetadata column = ColumnMetadata.regularColumn("ks", "tab", "col",
-                                                                 MapType.getInstance(Int32Type.instance, Int32Type.instance, true));
+    private ColumnMetadata complexColumn = ColumnMetadata.regularColumn("ks", "tab", "col0",
+                                                                        MapType.getInstance(Int32Type.instance, Int32Type.instance, true));
+
+    private ColumnMetadata simpleColumn = ColumnMetadata.regularColumn("ks", "tab", "col1",
+                                                                       Int32Type.instance);
 
     @Test
     public void testEmptyComplexColumn()
     {
-        ComplexColumnData data = new ComplexColumnData(column,
+        ComplexColumnData data = new ComplexColumnData(complexColumn,
                                                        BTree.empty(),
                                                        DeletionTime.LIVE);
         Assert.assertFalse(data.hasCells());
@@ -46,9 +49,27 @@ public class ComplexColumnDataTest extends TestCase
     public void testNonEmptyComplexColumn()
     {
 
-        ComplexColumnData data = new ComplexColumnData(column,
+        ComplexColumnData data = new ComplexColumnData(complexColumn,
                                                        BTree.singleton("ignored value"),
                                                        DeletionTime.LIVE);
         Assert.assertTrue(data.hasCells());
+    }
+
+    @Test
+    public void testComplexColumnMinTimestampWithDeletion()
+    {
+        ComplexColumnData data = new ComplexColumnData(complexColumn,
+                                                       BTree.empty(),
+                                                       new DeletionTime(500, 1000));
+        Assert.assertEquals("Min timestamp must be equal to deletion timestamp", 500, data.minTimestamp());
+    }
+
+    @Test
+    public void testComplexColumnMinTimestampWithCells()
+    {
+        ComplexColumnData data = new ComplexColumnData(complexColumn,
+                                                       new Cell[]{ new BufferCell(simpleColumn, 100, 0, 200, null, null) },
+                                                       new DeletionTime(500, 1000));
+        Assert.assertEquals("Min timestamp must be equal to min cell timestamp", 100, data.minTimestamp());
     }
 }

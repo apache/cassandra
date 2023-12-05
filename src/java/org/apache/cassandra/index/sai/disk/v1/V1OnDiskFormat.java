@@ -166,7 +166,7 @@ public class V1OnDiskFormat implements OnDiskFormat
                                             RowMapping rowMapping)
     {
         // If we're not flushing or we haven't yet started the initialization build, flush from SSTable contents.
-        if (tracker.opType() != OperationType.FLUSH || !index.isInitBuildStarted())
+        if (tracker.opType() != OperationType.FLUSH || !index.canFlushFromMemtableIndex())
         {
             NamedMemoryLimiter limiter = SEGMENT_BUILD_MEMORY_LIMITER;
             logger.info(index.getIndexContext().logMessage("Starting a compaction index build. Global segment memory usage: {}"),

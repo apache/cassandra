@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -318,28 +319,26 @@ public abstract class Splitter
     }
 
     /**
-     * Splits the specified token range in at least {@code minParts} subranges, unless the range has not enough tokens
-     * in which case the range will be returned without splitting.
+     * Splits the specified token range in {@code parts} subranges, unless the range has not enough tokens in which case
+     * the range will be returned without splitting.
      *
      * @param range a token range
      * @param parts the number of subranges
-     * @return {@code parts} even subranges of {@code range}
+     * @return {@code parts} even subranges of {@code range}, or {@code range} if it is too small to be splitted
      */
     private Set<Range<Token>> split(Range<Token> range, int parts)
     {
-        // the range might not have enough tokens to split
-        BigInteger numTokens = tokensInRange(range);
-        if (BigInteger.valueOf(parts).compareTo(numTokens) > 0)
-            return Collections.singleton(range);
-
         Token left = range.left;
-        Set<Range<Token>> subranges = new HashSet<>(parts);
-        for (double i = 1; i <= parts; i++)
+        Set<Range<Token>> subranges = new LinkedHashSet<>(parts);
+
+        for (double i = 1; i < parts; i++)
         {
             Token right = partitioner.split(range.left, range.right, i / parts);
-            subranges.add(new Range<>(left, right));
+            if (!left.equals(right))
+                subranges.add(new Range<>(left, right));
             left = right;
         }
+        subranges.add(new Range<>(left, range.right));
         return subranges;
     }
 

@@ -83,4 +83,16 @@ public interface Unfiltered extends Clusterable
     {
         return kind() == Kind.RANGE_TOMBSTONE_MARKER;
     }
+
+    /**
+     * Minimum the timestamps of all data in the row or marker.
+     * Note: deletion times are timestamps too, e.g. the min and max timestamp of a range marker is its deletion time.
+     */
+    public long minTimestamp();
+
+    /**
+     * Maximum the timestamps of all data in the row or marker.
+     * Note: deletion times are timestamps too, e.g. the min and max timestamp of a range marker is its deletion time.
+     */
+    public long maxTimestamp();
 }

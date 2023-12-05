@@ -299,7 +299,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         {
             try
             {
-                initialBuildTask = IndexBuildDecider.instance.onInitialBuild().skipped() ? null : index.getInitializationTask();
+                initialBuildTask = index.shouldSkipInitialization() ? null : index.getInitializationTask();
             }
             catch (Throwable t)
             {
@@ -311,8 +311,9 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         // if there's no initialization, just mark as built (if it should be queryable) and return:
         if (initialBuildTask == null)
         {
-            if (!IndexBuildDecider.instance.onInitialBuild().skipped() || IndexBuildDecider.instance.isIndexQueryableWithoutInitialBuild(baseCfs))
+            if (IndexBuildDecider.instance.isIndexQueryableAfterInitialBuild(baseCfs))
                 markIndexBuilt(index, true);
+
             return Futures.immediateFuture(null);
         }
 
@@ -330,7 +331,9 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             @Override
             public void onSuccess(Object o)
             {
-                markIndexBuilt(index, true);
+                if (IndexBuildDecider.instance.isIndexQueryableAfterInitialBuild(baseCfs))
+                    markIndexBuilt(index, true);
+
                 initialization.set(o);
             }
         }, MoreExecutors.directExecutor());

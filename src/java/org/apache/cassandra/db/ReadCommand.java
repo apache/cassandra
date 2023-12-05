@@ -18,12 +18,16 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
-import java.util.function.LongPredicate;
 import java.util.function.Function;
-
+import java.util.function.LongPredicate;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -33,22 +37,30 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.filter.*;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.guardrails.DefaultGuardrail;
-import org.apache.cassandra.guardrails.Guardrail;
-import org.apache.cassandra.guardrails.Guardrails;
-import org.apache.cassandra.guardrails.Threshold;
-import org.apache.cassandra.net.MessageFlag;
-import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.db.partitions.*;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.filter.ClusteringIndexFilter;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
+import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.partitions.PurgeFunction;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.RangeTombstoneMarker;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.db.transform.RTBoundCloser;
 import org.apache.cassandra.db.transform.RTBoundValidator;
 import org.apache.cassandra.db.transform.RTBoundValidator.Stage;
 import org.apache.cassandra.db.transform.StoppingTransformation;
 import org.apache.cassandra.db.transform.Transformation;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnknownIndexException;
+import org.apache.cassandra.guardrails.DefaultGuardrail;
+import org.apache.cassandra.guardrails.Guardrails;
+import org.apache.cassandra.guardrails.Threshold;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -57,20 +69,22 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageFlag;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.filter;
-import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 import static org.apache.cassandra.db.partitions.UnfilteredPartitionIterators.MergeListener.NOOP;
+import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 
 /**
  * General interface for storage-engine read commands (common to both range and
@@ -393,6 +407,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         try
         {
             iterator = withStateTracking(iterator);
+            iterator = withReadObserver(iterator);
             iterator = RTBoundValidator.validate(withoutPurgeableTombstones(iterator, cfs, executionController), Stage.PURGED, false);
             iterator = withMetricsRecording(iterator, cfs.metric, startTimeNanos);
 
@@ -435,6 +450,55 @@ public abstract class ReadCommand extends AbstractReadQuery
             iterator.close();
             throw e;
         }
+    }
+
+    public UnfilteredPartitionIterator withReadObserver(UnfilteredPartitionIterator partitions)
+    {
+        ReadObserver observer = ReadObserverFactory.instance.create(this.metadata());
+
+        // skip if observer is disabled
+        if (observer == ReadObserver.NO_OP)
+            return partitions;
+
+        class ReadObserverTransformation extends Transformation<UnfilteredRowIterator>
+        {
+            @Override
+            protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
+            {
+                observer.onPartition(partition.partitionKey(), partition.partitionLevelDeletion());
+                return Transformation.apply(partition, this);
+            }
+
+            @Override
+            protected Row applyToStatic(Row row)
+            {
+                if (!row.isEmpty())
+                    observer.onStaticRow(row);
+                return row;
+            }
+
+            @Override
+            protected Row applyToRow(Row row)
+            {
+                observer.onUnfiltered(row);
+                return row;
+            }
+
+            @Override
+            protected RangeTombstoneMarker applyToMarker(RangeTombstoneMarker marker)
+            {
+                observer.onUnfiltered(marker);
+                return marker;
+            }
+
+            @Override
+            protected void onClose()
+            {
+                observer.onComplete();
+            }
+        }
+
+        return Transformation.apply(partitions, new ReadObserverTransformation());
     }
 
     public UnfilteredPartitionIterator searchStorage(Index.Searcher searcher, ReadExecutionController executionController)

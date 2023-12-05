@@ -242,6 +242,16 @@ public interface Index
     }
 
     /**
+     * Returns true if index initialization should be skipped, false if it should run
+     * (via {@link #getInitializationTask()}); defaults to skipping based on {@link IndexBuildDecider#onInitialBuild()}
+     * decision.
+     */
+    default boolean shouldSkipInitialization()
+    {
+        return IndexBuildDecider.instance.onInitialBuild().skipped();
+    }
+
+    /**
      * Return a task to perform any initialization work when a new index instance is created.
      * This may involve costly operations such as (re)building the index, and is performed asynchronously
      * by SecondaryIndexManager

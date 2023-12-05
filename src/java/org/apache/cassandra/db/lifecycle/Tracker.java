@@ -17,33 +17,50 @@
  */
 package org.apache.cassandra.db.lifecycle;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
-import com.google.common.collect.*;
-
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.compaction.CompactionSSTable;
-import org.apache.cassandra.db.memtable.Memtable;
-import org.apache.cassandra.db.commitlog.CommitLogPosition;
-import org.apache.cassandra.io.util.File;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.db.compaction.CompactionSSTable;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.StorageMetrics;
-import org.apache.cassandra.notifications.*;
+import org.apache.cassandra.notifications.INotification;
+import org.apache.cassandra.notifications.INotificationConsumer;
+import org.apache.cassandra.notifications.InitialSSTableAddedNotification;
+import org.apache.cassandra.notifications.MemtableDiscardedNotification;
+import org.apache.cassandra.notifications.MemtableRenewedNotification;
+import org.apache.cassandra.notifications.MemtableSwitchedNotification;
+import org.apache.cassandra.notifications.SSTableAddedNotification;
+import org.apache.cassandra.notifications.SSTableAddingNotification;
+import org.apache.cassandra.notifications.SSTableDeletingNotification;
+import org.apache.cassandra.notifications.SSTableListChangedNotification;
+import org.apache.cassandra.notifications.SSTableRepairStatusChanged;
+import org.apache.cassandra.notifications.TruncationNotification;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
@@ -54,7 +71,11 @@ import static com.google.common.collect.ImmutableSet.copyOf;
 import static com.google.common.collect.Iterables.filter;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
-import static org.apache.cassandra.db.lifecycle.Helpers.*;
+import static org.apache.cassandra.db.lifecycle.Helpers.abortObsoletion;
+import static org.apache.cassandra.db.lifecycle.Helpers.markObsolete;
+import static org.apache.cassandra.db.lifecycle.Helpers.notIn;
+import static org.apache.cassandra.db.lifecycle.Helpers.prepareForObsoletion;
+import static org.apache.cassandra.db.lifecycle.Helpers.setupOnline;
 import static org.apache.cassandra.db.lifecycle.View.permitCompacting;
 import static org.apache.cassandra.db.lifecycle.View.updateCompacting;
 import static org.apache.cassandra.db.lifecycle.View.updateLiveSet;
@@ -250,6 +271,7 @@ public class Tracker
                                      boolean maybeIncrementallyBackup,
                                      boolean updateSize)
     {
+        notifyAdding(sstables, operationType);
         if (!isDummy())
             setupOnline(cfstore, sstables);
         apply(updateLiveSet(emptySet(), sstables));
@@ -464,10 +486,12 @@ public class Tracker
         // back up before creating a new Snapshot (which makes the new one eligible for compaction)
         maybeIncrementallyBackup(sstables);
 
+        Throwable fail;
+        fail = notifyAdding(sstables, memtable, null, OperationType.FLUSH, operationId);
+
         apply(View.replaceFlushed(memtable, sstables));
 
-        Throwable fail;
-        fail = updateSizeTracking(emptySet(), sstables, null);
+        fail = updateSizeTracking(emptySet(), sstables, fail);
 
         notifyDiscarded(memtable);
 
@@ -561,6 +585,28 @@ public class Tracker
             }
         }
         return accumulate;
+    }
+
+    Throwable notifyAdding(Iterable<SSTableReader> added, @Nullable Memtable memtable, Throwable accumulate, OperationType type, Optional<UUID> operationId)
+    {
+        INotification notification = new SSTableAddingNotification(added, memtable, type, operationId);
+        for (INotificationConsumer subscriber : subscribers)
+        {
+            try
+            {
+                subscriber.handleNotification(notification, this);
+            }
+            catch (Throwable t)
+            {
+                accumulate = merge(accumulate, t);
+            }
+        }
+        return accumulate;
+    }
+
+    public void notifyAdding(Iterable<SSTableReader> added, OperationType operationType)
+    {
+        maybeFail(notifyAdding(added, null, null, operationType, Optional.empty()));
     }
 
     @VisibleForTesting

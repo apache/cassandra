@@ -163,6 +163,11 @@ public abstract class AbstractCell<V> extends Cell<V>
         return timestamp();
     }
 
+    public long minTimestamp()
+    {
+        return timestamp();
+    }
+
     public static <V1, V2> boolean equals(Cell<V1> left, Cell<V2> right)
     {
         return left.column().equals(right.column())

@@ -33,8 +33,17 @@ public interface IndexBuildDecider
 
     enum Decision
     {
+        /**
+         * index will be built synchronously
+         */
         SYNC,
+        /**
+         * index will be built asynchronously
+         */
         ASYNC,
+        /**
+         * index build will be skipped
+         */
         NONE;
 
         public boolean skipped()
@@ -44,6 +53,8 @@ public interface IndexBuildDecider
     }
 
     /**
+     * CNDB overrides this method to skip building indexes for sstables.
+     *
      * @return decision for index initial build {@link Index#getInitializationTask()}
      */
     default Decision onInitialBuild()
@@ -52,18 +63,30 @@ public interface IndexBuildDecider
     }
 
     /**
-     * @return true if index should be queryable when initial build is skipped by {@link #onInitialBuild()}
+     * CNDB overrides this method to mark index queryable if there is no sstables on writer.
+     *
+     * @return true if index should be queryable after {@link Index#getInitializationTask()}
      */
-    default boolean isIndexQueryableWithoutInitialBuild(ColumnFamilyStore cfs)
+    default boolean isIndexQueryableAfterInitialBuild(ColumnFamilyStore cfs)
     {
-        return false;
+        return true;
     }
 
+    /**
+     * CNDB overrides this method to skip building indexes on writer when sstables are reloaded from remote storage
+     *
+     * @return decision for index initial build when receiving {@link SSTableListChangedNotification}
+     */
     default Decision onSSTableListChanged(SSTableListChangedNotification notification)
     {
         return notification.operationType.equals(OperationType.REMOTE_RELOAD) ? Decision.ASYNC : Decision.NONE;
     }
 
+    /**
+     * CNDB overrides this method to skip building indexes on writer when sstables are reloaded from remote storage
+     *
+     * @return decision for index initial build when receiving {@link SSTableAddedNotification}
+     */
     default Decision onSSTableAdded(SSTableAddedNotification notification)
     {
         // SSTables associated to a memtable come from a flush, so their contents have already been indexed

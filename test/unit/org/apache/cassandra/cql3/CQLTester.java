@@ -63,7 +63,6 @@ import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
-
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -85,8 +84,6 @@ import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.NettyOptions;
 import com.datastax.driver.core.PoolingOptions;
 import com.datastax.driver.core.ResultSet;
-
-import com.datastax.shaded.netty.channel.EventLoopGroup;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
@@ -1796,6 +1793,13 @@ public abstract class CQLTester
                 assertMessageContains(errorMessage, e);
             }
         }
+    }
+
+    public static List<String> warningsFromResultSet(List<String> ignoredWarnings, ResultSet rs)
+    {
+        return rs.getExecutionInfo().getWarnings()
+                 .stream().filter(w -> ignoredWarnings.stream().noneMatch(w::contains))
+                 .collect(Collectors.toList());
     }
 
     private static String queryInfo(String query, Object[] values)

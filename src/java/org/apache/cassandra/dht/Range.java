@@ -70,7 +70,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         }
     }
 
-    public boolean contains(Range<T> that)
+    public boolean contains(AbstractBounds<T> that)
     {
         if (this.left.equals(this.right))
         {

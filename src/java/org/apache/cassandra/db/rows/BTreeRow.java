@@ -204,6 +204,34 @@ public class BTreeRow extends AbstractRow
         BTree.apply(btree, function, arg);
     }
 
+    /**
+     * Computes the maximum timestamp for any data (deletion info, PK liveness or cell) in this row.
+     */
+    public long maxTimestamp()
+    {
+        long maxTs = Math.max(primaryKeyLivenessInfo().timestamp(), deletion().time().markedForDeleteAt());
+        return reduce(maxTs, (ts, cd) -> Math.max(ts, cd.maxTimestamp()));
+    }
+
+    /**
+     * Computes the minimum timestamp for any data (deletion info, PK liveness or cell) in this row.
+     */
+    public long minTimestamp()
+    {
+        long minTs = Long.MAX_VALUE;
+        if (!primaryKeyLivenessInfo().isEmpty())
+            minTs = Math.min(minTs, primaryKeyLivenessInfo().timestamp());
+        if (!deletion().isLive())
+            minTs = Math.min(minTs, deletion().time().markedForDeleteAt());
+
+        return reduce(minTs, (ts, cd) -> Math.min(ts, cd.minTimestamp()));
+    }
+
+    public <R> R reduce(R seed, BTree.ReduceFunction<R, ColumnData> reducer)
+    {
+        return BTree.reduce(btree, seed, reducer);
+    }
+
     public long accumulate(LongAccumulator<ColumnData> accumulator, long initialValue)
     {
         return BTree.accumulate(btree, accumulator, initialValue);

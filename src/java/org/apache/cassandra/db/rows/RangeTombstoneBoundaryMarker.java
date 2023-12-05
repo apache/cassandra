@@ -188,6 +188,18 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker<C
         startDeletion.digest(digest);
     }
 
+    @Override
+    public long minTimestamp()
+    {
+        return Math.min(startDeletion.markedForDeleteAt(), endDeletion.markedForDeleteAt());
+    }
+
+    @Override
+    public long maxTimestamp()
+    {
+        return Math.max(startDeletion.markedForDeleteAt(), endDeletion.markedForDeleteAt());
+    }
+
     public String toString(TableMetadata metadata)
     {
         return String.format("Marker %s@%d/%d-%d/%d",
