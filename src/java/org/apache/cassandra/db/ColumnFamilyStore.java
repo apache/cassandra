@@ -1495,9 +1495,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public VersionedLocalRanges localRangesWeighted()
     {
-        ClusterMetadata metadata = ClusterMetadata.current();
         if (!SchemaConstants.isLocalSystemKeyspace(getKeyspaceName())
-            && getPartitioner() == metadata.partitioner)
+            && getPartitioner() == ClusterMetadata.current().partitioner)
         {
             DiskBoundaryManager.VersionedRangesAtEndpoint versionedLocalRanges = DiskBoundaryManager.getVersionedLocalRanges(this);
             Set<Range<Token>> localRanges = versionedLocalRanges.rangesAtEndpoint.ranges();
