@@ -330,14 +330,8 @@ public class PreV5Handlers
                 logger.debug("Excluding client exception for {}; address contained in client_error_reporting_exclusions", ctx.channel().remoteAddress(), cause);
                 return;
             }
-
-            if (Throwables.anyCauseMatches(cause, t -> t instanceof SSLException))
-            {
-                logger.warn("SSLException in client networking with peer {} {}", ctx.channel().remoteAddress(), cause.getMessage());
-                return;
-            }
             
-            ExceptionHandlers.logClientNetworkingExceptions(cause);
+            ExceptionHandlers.logClientNetworkingExceptions(cause, ctx.channel().remoteAddress());
             JVMStabilityInspector.inspectThrowable(cause);
         }
 
