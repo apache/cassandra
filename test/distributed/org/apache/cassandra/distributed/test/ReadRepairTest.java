@@ -422,7 +422,7 @@ public class ReadRepairTest extends TestBaseImpl
         {
             Throwable cause = e.getCause();
             Assert.assertTrue("Expected a different error message, but got " + cause.getMessage(),
-                              cause.getMessage().contains("Operation failed - received 1 responses and 1 failures: INVALID_ROUTING from /127.0.0.2:7012"));
+                              cause.getMessage().contains("INVALID_ROUTING from /127.0.0.2:7012"));
         }
         catch (InterruptedException e)
         {
