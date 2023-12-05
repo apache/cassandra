@@ -94,7 +94,7 @@ fi
 # Allow execution of supported Java versions, and newer if CASSANDRA_JDK_UNSUPPORTED is set
 supported_version=$(echo "$java_versions_supported" | tr "," '\n' | grep -F -x "$short")
 if [ -z "$supported_version" ] ; then
-    if [ -z "$CASSANDRA_JDK_UNSUPPORTED" ] ; then
+   if [ -z "$CASSANDRA_JDK_UNSUPPORTED" ] || [ "$CASSANDRA_JDK_UNSUPPORTED" = "false" ] ; then
         echo "Unsupported Java $JVM_VERSION. Supported are $java_versions_supported"
         echo "If you would like to test with newer Java versions set CASSANDRA_JDK_UNSUPPORTED=true"
         exit 1;
