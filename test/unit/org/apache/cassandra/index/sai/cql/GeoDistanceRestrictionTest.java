@@ -29,19 +29,80 @@ public class GeoDistanceRestrictionTest extends VectorTester
         createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'euclidean'}");
         waitForIndexQueryable();
 
-        // Distances computed using https://www.nhc.noaa.gov/gccalc.shtml
-        execute("INSERT INTO %s (pk, v) VALUES (0, [1, 2])"); // distance is 555 km from [5,5]
-        execute("INSERT INTO %s (pk, v) VALUES (1, [4, 4])"); // distance is 157 km from [5,5]
-        execute("INSERT INTO %s (pk, v) VALUES (2, [5, 5])"); // distance is 0 km from [5,5]
-        execute("INSERT INTO %s (pk, v) VALUES (3, [6, 6])"); // distance is 157 km from [5,5]
-        execute("INSERT INTO %s (pk, v) VALUES (4, [8, 9])"); // distance is 553 from [5,5]
-        execute("INSERT INTO %s (pk, v) VALUES (5, [10, 10])"); // distance is 782 km from [5,5]
+        // Distances computed using GeoDistanceAccuracyTest#strictHaversineDistance
+        execute("INSERT INTO %s (pk, v) VALUES (0, [1, 2])"); // distance is 555661 m from [5,5]
+        execute("INSERT INTO %s (pk, v) VALUES (1, [4, 4])"); // distance is 157010 m from [5,5]
+        execute("INSERT INTO %s (pk, v) VALUES (2, [5, 5])"); // distance is 0 m from [5,5]
+        execute("INSERT INTO %s (pk, v) VALUES (3, [6, 6])"); // distance is 156891 m from [5,5]
+        execute("INSERT INTO %s (pk, v) VALUES (4, [8, 9])"); // distance is 553647 m from [5,5]
+        execute("INSERT INTO %s (pk, v) VALUES (5, [10, 10])"); // distance is 782780 m from [5,5]
 
         beforeAndAfterFlush(() -> {
             assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE GEO_DISTANCE(v, [5,5]) < 157000"),
+                                    row(2), row(3));
+            assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE GEO_DISTANCE(v, [5,5]) < 157011"),
                                     row(1), row(2), row(3));
             assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE GEO_DISTANCE(v, [5,5]) <= 600000"),
                                     row(0), row(1), row(2), row(3), row(4));
+        });
+    }
+
+    @Test
+    public void testPointCloseToBondaryAt1DegreeLatitude() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, v vector<float, 2>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'euclidean'}");
+        waitForIndexQueryable();
+
+        // Points chosen to be close to the boundary of the search radius. The assertion failed based on earlier
+        // versions of the math used to determine whether the square distance was sufficient to short circuit
+        // the logic and skip performing the haversine distance calculation.
+        execute("INSERT INTO %s (pk, v) VALUES (0, [0.99, 0])"); // distance is 110.1 km from [0,0]
+        execute("INSERT INTO %s (pk, v) VALUES (1, [0.998, 0])"); // distance is 110.9 km from [0,0]
+        execute("INSERT INTO %s (pk, v) VALUES (2, [0.9982, 0])"); // distance is 110995 m from [0,0]
+        execute("INSERT INTO %s (pk, v) VALUES (3, [0.9983, 0])"); // distance is 111006.05 m from [0,0]
+        execute("INSERT INTO %s (pk, v) VALUES (4, [0.999, 0])"); // distance is 111.1 km from [0,0]
+
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT pk FROM %s WHERE GEO_DISTANCE(v, [0,0]) < 111000"),
+                       row(1), row(0), row(2));
+            assertRows(execute("SELECT pk FROM %s WHERE GEO_DISTANCE(v, [0,0]) <= 111006"),
+                       row(1), row(0), row(2));
+            assertRows(execute("SELECT pk FROM %s WHERE GEO_DISTANCE(v, [0,0]) < 111007"),
+                       row(1), row(0), row(2), row(3));
+        });
+    }
+
+
+    @Test
+    public void testPointCloseToBondaryAtOneTenthDegreeLatitude() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, v vector<float, 2>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'euclidean'}");
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (pk, v) VALUES (0, [0.10999, 0])"); // distance is 12230.3 m from [0,0]
+        execute("INSERT INTO %s (pk, v) VALUES (1, [0.11000, 0])"); // distance is 12231.4 m from [0,0]
+
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT pk FROM %s WHERE GEO_DISTANCE(v, [0,0]) < 12231"), row(0));
+            assertRows(execute("SELECT pk FROM %s WHERE GEO_DISTANCE(v, [0,0]) <= 12231"), row(0));
+        });
+    }
+
+    @Test
+    public void testPointCloseToBondaryAtOneTenThousandthsDegreeLatitude() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, v vector<float, 2>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'euclidean'}");
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (pk, v) VALUES (0, [0.00009, 0])"); // distance is 10.007 m from [0,0]
+        execute("INSERT INTO %s (pk, v) VALUES (1, [0.00010, 0])"); // distance is 11.120 m from [0,0]
+
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT pk FROM %s WHERE GEO_DISTANCE(v, [0,0]) < 11"), row(0));
+            assertRows(execute("SELECT pk FROM %s WHERE GEO_DISTANCE(v, [0,0]) <= 11"), row(0));
         });
     }
 
@@ -53,13 +114,12 @@ public class GeoDistanceRestrictionTest extends VectorTester
         createIndex("CREATE CUSTOM INDEX ON %s(num) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
-        // Distances computed using https://www.nhc.noaa.gov/gccalc.shtml
-        execute("INSERT INTO %s (pk, num, v) VALUES (0, 0, [1, 2])"); // distance is 555 km from [5,5]
-        execute("INSERT INTO %s (pk, num, v) VALUES (1, 1, [4, 4])"); // distance is 157 km from [5,5]
-        execute("INSERT INTO %s (pk, num, v) VALUES (2, 2, [5, 5])"); // distance is 0 km from [5,5]
-        execute("INSERT INTO %s (pk, num, v) VALUES (3, 3, [6, 6])"); // distance is 157 km from [5,5]
-        execute("INSERT INTO %s (pk, num, v) VALUES (4, 4, [8, 9])"); // distance is 553 from [5,5]
-        execute("INSERT INTO %s (pk, num, v) VALUES (5, 5, [10, 10])"); // distance is 782 km from [5,5]
+        execute("INSERT INTO %s (pk, num, v) VALUES (0, 0, [1, 2])"); // distance is 555661 m from [5,5]
+        execute("INSERT INTO %s (pk, num, v) VALUES (1, 1, [4, 4])"); // distance is 157010 m from [5,5]
+        execute("INSERT INTO %s (pk, num, v) VALUES (2, 2, [5, 5])"); // distance is 0 m from [5,5]
+        execute("INSERT INTO %s (pk, num, v) VALUES (3, 3, [6, 6])"); // distance is 156891 m from [5,5]
+        execute("INSERT INTO %s (pk, num, v) VALUES (4, 4, [8, 9])"); // distance is 553647 m from [5,5]
+        execute("INSERT INTO %s (pk, num, v) VALUES (5, 5, [10, 10])"); // distance is 782780 m from [5,5]
 
         beforeAndAfterFlush(() -> {
             assertRows(execute("SELECT pk FROM %s WHERE GEO_DISTANCE(v, [5,5]) < 200000 AND num < 2"), row(1));
@@ -76,13 +136,12 @@ public class GeoDistanceRestrictionTest extends VectorTester
         createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
-        // Distances computed using https://www.nhc.noaa.gov/gccalc.shtml
-        execute("INSERT INTO %s (pk, point, v) VALUES (0, [1, 2], [1, 2, 1])"); // distance is 555 km from [5,5]
-        execute("INSERT INTO %s (pk, point, v) VALUES (1, [4, 4], [4, 4, 1])"); // distance is 157 km from [5,5]
-        execute("INSERT INTO %s (pk, point, v) VALUES (2, [5, 5], [5, 5, 1])"); // distance is 0 km from [5,5]
-        execute("INSERT INTO %s (pk, point, v) VALUES (3, [6, 6], [6, 6, 1])"); // distance is 157 km from [5,5]
-        execute("INSERT INTO %s (pk, point, v) VALUES (4, [8, 9], [8, 9, 1])"); // distance is 553 from [5,5]
-        execute("INSERT INTO %s (pk, point, v) VALUES (5, [10, 10], [10, 10, 1])"); // distance is 782 km from [5,5]
+        execute("INSERT INTO %s (pk, point, v) VALUES (0, [1, 2], [1, 2, 1])"); // distance is 555661 m from [5,5]
+        execute("INSERT INTO %s (pk, point, v) VALUES (1, [4, 4], [4, 4, 1])"); // distance is 157010 m from [5,5]
+        execute("INSERT INTO %s (pk, point, v) VALUES (2, [5, 5], [5, 5, 1])"); // distance is 0 m from [5,5]
+        execute("INSERT INTO %s (pk, point, v) VALUES (3, [6, 6], [6, 6, 1])"); // distance is 156891 m from [5,5]
+        execute("INSERT INTO %s (pk, point, v) VALUES (4, [8, 9], [8, 9, 1])"); // distance is 553647 m from [5,5]
+        execute("INSERT INTO %s (pk, point, v) VALUES (5, [10, 10], [10, 10, 1])"); // distance is 782780 m from [5,5]
 
         beforeAndAfterFlush(() -> {
             assertRows(execute("SELECT pk FROM %s WHERE GEO_DISTANCE(point, [0,0]) < 400000 ORDER BY v ANN OF [0, 1, 2] LIMIT 1"), row(0));
@@ -97,13 +156,12 @@ public class GeoDistanceRestrictionTest extends VectorTester
         createIndex("CREATE CUSTOM INDEX ON %s(num) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
-        // Distances computed using https://www.nhc.noaa.gov/gccalc.shtml
-        execute("INSERT INTO %s (pk, num, v) VALUES (0, 0, [1, 2])"); // distance is 555 km from [5,5]
-        execute("INSERT INTO %s (pk, num, v) VALUES (1, 1, [4, 4])"); // distance is 157 km from [5,5]
-        execute("INSERT INTO %s (pk, num, v) VALUES (2, 2, [5, 5])"); // distance is 0 km from [5,5]
-        execute("INSERT INTO %s (pk, num, v) VALUES (3, 3, [6, 6])"); // distance is 157 km from [5,5]
-        execute("INSERT INTO %s (pk, num, v) VALUES (4, 4, [8, 9])"); // distance is 553 from [5,5]
-        execute("INSERT INTO %s (pk, num, v) VALUES (5, 5, [10, 10])"); // distance is 782 km from [5,5]
+        execute("INSERT INTO %s (pk, num, v) VALUES (0, 0, [1, 2])"); // distance is 555661 m from [5,5]
+        execute("INSERT INTO %s (pk, num, v) VALUES (1, 1, [4, 4])"); // distance is 157010 m from [5,5]
+        execute("INSERT INTO %s (pk, num, v) VALUES (2, 2, [5, 5])"); // distance is 0 m from [5,5]
+        execute("INSERT INTO %s (pk, num, v) VALUES (3, 3, [6, 6])"); // distance is 156891 m from [5,5]
+        execute("INSERT INTO %s (pk, num, v) VALUES (4, 4, [8, 9])"); // distance is 553647 m from [5,5]
+        execute("INSERT INTO %s (pk, num, v) VALUES (5, 5, [10, 10])"); // distance is 782780 m from [5,5]
 
         var query = "SELECT pk FROM %s WHERE GEO_DISTANCE(v, ?) < ? AND num < ?";
         prepare(query);
@@ -122,13 +180,12 @@ public class GeoDistanceRestrictionTest extends VectorTester
         createIndex("CREATE CUSTOM INDEX ON %s(num) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
-        // Distances computed using https://www.nhc.noaa.gov/gccalc.shtml
-        execute("INSERT INTO %s (pk, v) VALUES (0, [1, 2])"); // distance is 555 km from [5,5]
-        execute("INSERT INTO %s (pk, v) VALUES (1, [4, 4])"); // distance is 157 km from [5,5]
-        execute("INSERT INTO %s (pk, v) VALUES (2, [5, 5])"); // distance is 0 km from [5,5]
-        execute("INSERT INTO %s (pk, v) VALUES (3, [6, 6])"); // distance is 157 km from [5,5]
-        execute("INSERT INTO %s (pk, v) VALUES (4, [8, 9])"); // distance is 553 from [5,5]
-        execute("INSERT INTO %s (pk, v) VALUES (5, [10, 10])"); // distance is 782 km from [5,5]
+        execute("INSERT INTO %s (pk, v) VALUES (0, [1, 2])"); // distance is 555661 m from [5,5]
+        execute("INSERT INTO %s (pk, v) VALUES (1, [4, 4])"); // distance is 157010 m from [5,5]
+        execute("INSERT INTO %s (pk, v) VALUES (2, [5, 5])"); // distance is 0 m from [5,5]
+        execute("INSERT INTO %s (pk, v) VALUES (3, [6, 6])"); // distance is 156891 m from [5,5]
+        execute("INSERT INTO %s (pk, v) VALUES (4, [8, 9])"); // distance is 553647 m from [5,5]
+        execute("INSERT INTO %s (pk, v) VALUES (5, [10, 10])"); // distance is 782780 m from [5,5]
 
         beforeAndAfterFlush(() -> {
             assertRows(execute("SELECT pk FROM %s WHERE GEO_DISTANCE(v, [10,10]) < 1 OR GEO_DISTANCE(v, [1,2]) < 1"),

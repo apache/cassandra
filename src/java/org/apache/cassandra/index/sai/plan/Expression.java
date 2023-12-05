@@ -241,7 +241,6 @@ public class Expression
                 lower = new Bound(value, validator, true);
                 assert upper != null;
                 searchRadiusMeters = FloatType.instance.compose(upper.value.raw);
-                searchRadiusDegreesSquared = GeoUtil.maximumSquareDistanceForCorrectLatLongSimilarity(searchRadiusMeters);
                 boundedAnnEuclideanDistanceThreshold = GeoUtil.amplifiedEuclideanSimilarityThreshold(lower.value.vector, searchRadiusMeters);
                 break;
         }
@@ -271,13 +270,6 @@ public class Expression
 
         if (operation == Op.BOUNDED_ANN)
         {
-            double squareDistance = VectorUtil.squareDistance(lower.value.vector, value.vector);
-            // If we are within the search radius degrees, then we are within the search radius meters.
-            // This relies on the fact that lat/long distort distance by making close points further apart.
-            if (squareDistance <= searchRadiusDegreesSquared)
-                return true;
-            // Otherwise, we need to compute the more expensive haversine distance to determine if we are within the
-            // search radius meters.
             double haversineDistance = SloppyMath.haversinMeters(lower.value.vector[0], lower.value.vector[1], value.vector[0], value.vector[1]);
             return upperInclusive ? haversineDistance <= searchRadiusMeters : haversineDistance < searchRadiusMeters;
         }

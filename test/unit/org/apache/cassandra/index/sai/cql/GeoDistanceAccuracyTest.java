@@ -23,20 +23,26 @@ import java.util.stream.IntStream;
 
 import org.junit.Test;
 
+import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.utils.Pair;
 import org.apache.lucene.geo.GeoUtils;
+import org.apache.lucene.util.SloppyMath;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.junit.Assert.assertTrue;
 
 public class GeoDistanceAccuracyTest extends VectorTester
 {
+    private static final Logger logger = LoggerFactory.getLogger(GeoDistanceAccuracyTest.class.getName());
+
     // Number represents the number of results that are within the search radius divided by the number of expected results
     // Note that this recall number is just for random vectors in a box around NYC. These vectors might not
     // be representative of real data, so this test mostly serves to verify the status quo.
     private final static float MIN_EXPECTED_RECALL = 0.85f;
 
     // Number represents the percent of actual results that are incorrect (i.e. outside the search radius)
-    private final static float MAX_EXPECTED_FALSE_POSITIVE_RATE = 0.01f;
+    private final static float MAX_EXPECTED_FALSE_POSITIVE_RATE = 0.0001f;
 
     @Test
     public void testRandomVectorsAgainstHaversineDistance()
@@ -92,6 +98,39 @@ public class GeoDistanceAccuracyTest extends VectorTester
                    observedRecall > MIN_EXPECTED_RECALL);
         assertTrue("False positive rate should be less than " + MAX_EXPECTED_FALSE_POSITIVE_RATE + " but found " + observedFalsePositiveAccuracy,
                    observedFalsePositiveAccuracy < MAX_EXPECTED_FALSE_POSITIVE_RATE);
+    }
+
+    @Test
+    public void haversineBenchmark()
+    {
+        // Run 1 million iterations
+        int iterations = 1000000;
+        double strictHaversineDuration = 0;
+        double sloppyHaversineDuration = 0;
+        for (int i = 0; i < iterations; i++)
+        {
+            float searchLat = SAITester.getRandom().nextFloatBetween(-90, 90);
+            float searchLon = SAITester.getRandom().nextFloatBetween(-180, 180);
+            float pointLat = SAITester.getRandom().nextFloatBetween(-90, 90);
+            float pointLon = SAITester.getRandom().nextFloatBetween(-180, 180);
+
+            // Get the haversine distance using a strict algorithm
+            var nowStrict = System.nanoTime();
+            GeoDistanceAccuracyTest.strictHaversineDistance(searchLat, searchLon, pointLat, pointLon);
+            strictHaversineDuration += System.nanoTime() - nowStrict;
+
+            // Calculate the sloppy distance (the one used in the code)
+            var nowSloppy = System.nanoTime();
+            SloppyMath.haversinMeters(searchLat, searchLon, pointLat, pointLon);
+            sloppyHaversineDuration += System.nanoTime() - nowSloppy;
+        }
+
+        double strictHaversineAverage = strictHaversineDuration / iterations;
+        double sloppyHaversineAverage = sloppyHaversineDuration / iterations;
+        logger.info("Average duration for strict haversine: " + strictHaversineAverage);
+        logger.info("Average duration for sloppy haversine: " + sloppyHaversineAverage);
+        assertTrue("Sloppy haversine distance should be at least as fast as strict haversine distance.",
+                   sloppyHaversineAverage <= strictHaversineAverage);
     }
 
     public static boolean isWithinDistance(float[] vector, float[] searchVector, float distanceInMeters)

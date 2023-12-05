@@ -1231,7 +1231,6 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         private final ByteBuffer distance;
         private final Operator distanceOperator;
         private final float searchRadiusMeters;
-        private final float searchRadiusDegreesSquared;
         private final float searchLat;
         private final float searchLon;
 
@@ -1242,7 +1241,6 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             this.distanceOperator = operator;
             this.distance = distance;
             searchRadiusMeters = FloatType.instance.compose(distance);
-            searchRadiusDegreesSquared = GeoUtil.maximumSquareDistanceForCorrectLatLongSimilarity(searchRadiusMeters);
             var pointVector = TypeUtil.decomposeVector(column.type, point);
             // This is validated earlier in the parser because the column requires size 2, so only assert on it
             assert pointVector.length == 2 : "GEO_DISTANCE requires search vector to have 2 dimensions.";
@@ -1282,11 +1280,6 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             ByteBuffer foundValue = getValue(metadata, partitionKey, row);
             if (foundValue == null)
                 return false;
-            double squareDistance = VectorUtil.squareDistance(foundValue.array(), value.array());
-            // If we are within the search radius degrees, then we are within the search radius meters.
-            // This relies on the fact that lat/long distort distance by making close points further apart.
-            if (squareDistance <= searchRadiusDegreesSquared)
-                return true;
             var foundVector = TypeUtil.decomposeVector(column.type, foundValue);
             double haversineDistance = SloppyMath.haversinMeters(foundVector[0], foundVector[1], searchLat, searchLon);
             switch (distanceOperator)
