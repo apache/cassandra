@@ -371,11 +371,10 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
             {
                 // turn the pk back into a row id, with a fast path for the case where the pk is from this sstable
                 var primaryKey = keysInRange.get(i);
-                assert primaryKey instanceof PrimaryKeyWithSource : "Expected PrimaryKeyWithSource, got " + primaryKey;
-                var pkws = (PrimaryKeyWithSource) primaryKey;
                 long sstableRowId;
-                if (pkws.getSourceSstableId().equals(primaryKeyMap.getSSTableId()))
-                    sstableRowId = pkws.getSourceRowId();
+                if (primaryKey instanceof PrimaryKeyWithSource
+                    && ((PrimaryKeyWithSource) primaryKey).getSourceSstableId().equals(primaryKeyMap.getSSTableId()))
+                    sstableRowId = ((PrimaryKeyWithSource) primaryKey).getSourceRowId();
                 else
                     sstableRowId = primaryKeyMap.exactRowIdOrInvertedCeiling(primaryKey);
 

@@ -190,6 +190,41 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
+    public void testTwoPredicatesWithBruteForce() throws Throwable
+    {
+        // Note: the PKs in this test are chosen intentionally to ensure their tokens overlap so that
+        // we can test the brute force path.
+        setMaxBruteForceRows(0);
+        createTable("CREATE TABLE %s (pk int, b boolean, v vector<float, 3>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(b) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (pk, b, v) VALUES (1, true, [1.0, 2.0, 3.0])");
+        execute("INSERT INTO %s (pk, b, v) VALUES (2, true, [2.0, 3.0, 4.0])");
+        execute("INSERT INTO %s (pk, b, v) VALUES (3, false, [3.0, 4.0, 5.0])");
+
+        // the vector given is closest to row 2, but we exclude that row because b=false
+        var result = execute("SELECT * FROM %s WHERE b=true ORDER BY v ANN OF [3.1, 4.1, 5.1] LIMIT 2");
+        // VSTODO assert specific row keys
+        assertThat(result).hasSize(2);
+
+        flush();
+        compact();
+
+        result = execute("SELECT * FROM %s WHERE b=true ORDER BY v ANN OF [3.1, 4.1, 5.1] LIMIT 2");
+        assertThat(result).hasSize(2);
+
+        // Add 3 rows to memtable. Need number of rows to be greater than both maxBruteForceRows and the LIMIT
+        execute("INSERT INTO %s (pk, b, v) VALUES (4, true, [4.0, 5.0, 6.0])");
+        execute("INSERT INTO %s (pk, b, v) VALUES (5, true, [5.0, 6.0, 7.0])");
+        execute("INSERT INTO %s (pk, b, v) VALUES (6, true, [6.0, 7.0, 8.0])");
+
+        result = execute("SELECT * FROM %s WHERE b=true ORDER BY v ANN OF [3.1, 4.1, 5.1] LIMIT 2");
+        assertThat(result).hasSize(2);
+    }
+
+    @Test
     public void testTwoPredicatesWithUnnecessaryAllowFiltering() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, b int, v vector<float, 3>, PRIMARY KEY(pk, b))");
@@ -868,12 +903,13 @@ public class VectorTypeTest extends VectorTester
         execute("INSERT INTO %s (pk, val, vec) VALUES (5, 'A', [1, 5])"); // -7509452495886106294
         execute("INSERT INTO %s (pk, val, vec) VALUES (4, 'A', [1, 4])"); // -2729420104000364805
         execute("INSERT INTO %s (pk, val, vec) VALUES (6, 'A', [1, 6])"); // 2705480034054113608
-        flush();
 
         // Get all rows using first predicate, then filter to get top 1
         // Use a small limit to ensure we do not use brute force
-        assertRows(execute("SELECT pk FROM %s WHERE val = 'A' ORDER BY vec ANN OF [1,1] LIMIT 1"),
-                   row(3));
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT pk FROM %s WHERE val = 'A' ORDER BY vec ANN OF [1,1] LIMIT 1"),
+                       row(3));
+        });
     }
 
     // Clustering columns hit a different code path, we need both sets of tests, even though queries
@@ -896,11 +932,12 @@ public class VectorTypeTest extends VectorTester
         execute("INSERT INTO %s (pk, a, val, vec) VALUES (5, 1, 'A', [1, 5])"); // -7509452495886106294
         execute("INSERT INTO %s (pk, a, val, vec) VALUES (4, 1, 'A', [1, 4])"); // -2729420104000364805
         execute("INSERT INTO %s (pk, a, val, vec) VALUES (6, 1, 'A', [1, 6])"); // 2705480034054113608
-        flush();
 
         // Get all rows using first predicate, then filter to get top 1
         // Use a small limit to ensure we do not use brute force
-        assertRows(execute("SELECT pk FROM %s WHERE val = 'A' ORDER BY vec ANN OF [1,1] LIMIT 1"),
-                   row(3));
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT pk FROM %s WHERE val = 'A' ORDER BY vec ANN OF [1,1] LIMIT 1"),
+                       row(3));
+        });
     }
 }
