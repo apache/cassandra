@@ -1,4 +1,5 @@
 4.1.4
+ * Memoize Cassandra verion and add a backoff interval for failed schema pulls (CASSANDRA-18902)
  * Fix StackOverflowError on ALTER after many previous schema changes (CASSANDRA-19166)
  * Fixed the inconsistency between distributedKeyspaces and distributedAndLocalKeyspaces (CASSANDRA-18747)
  * Internode legacy SSL storage port certificate is not hot reloaded on update (CASSANDRA-18681)
