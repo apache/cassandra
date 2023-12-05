@@ -476,8 +476,11 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             // Don't allow user to alter comapction option on the fly
             // This will start recompaction in all nodes immediately
             attrs.validate();
-            if (attrs.hasOption(TableParams.Option.COMPACTION))
-            {
+            if (attrs.hasOption(TableParams.Option.COMPACTION)) {
+                logger.error(String.format("LCS enforcement is enabled (level=%s). Trying to mutate compaction strategy for %s.%s",
+                                           DatabaseDescriptor.getLCSEnforcementLevel().toString(),
+                                           keyspaceName,
+                                           tableName));
                 throw ire("LCS enforcement is enabled. You're trying to mutate compaction strategy for %s.%s, which " +
                           "is not allowed.", keyspaceName, tableName);
             }

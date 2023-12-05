@@ -176,6 +176,8 @@ Merged from 3.0:
  * Remove unused suppressions (CASSANDRA-18724)
 
 Unreleased
+ * [SO-26193] CREATE IF NOT EXISTS should not be rejected by LCS enforcement if it's no-op
+4.0.6.10
  * [SO-26041] This is a temp fix for CASSANDRA-19120, will revert this one once we have a final solution for that bug
  * [SO-26273] Create a generic command to set boolean value for Cassandra config
  * [SO-26272] Add debug log for blocking read repair and add table level read repair metrics

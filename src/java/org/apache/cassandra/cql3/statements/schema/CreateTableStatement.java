@@ -115,6 +115,17 @@ public final class CreateTableStatement extends AlterSchemaStatement
         }
 
         // LCS enforcement
+        // Check if schema exists for IF NOT EXISTS query.
+        // if this schema already exists and no new schema will be created, we simply skip the enforcement
+        // to avoid crash loop for some hard-coded schema creation at startup
+        Keyspaces keyspaces = Schema.instance.distributedAndLocalKeyspaces();
+        KeyspaceMetadata keyspace = keyspaces.getNullable(keyspaceName);
+        if (keyspace != null && keyspace.hasTable(tableName) && ifNotExists) {
+            logger.info(String.format("LCS enforcement level=%s. Skip enforcement for %s.%s because it already exists.",
+                                      DatabaseDescriptor.getLCSEnforcementLevel().name(), keyspaceName, tableName));
+            return super.execute(state, locally);
+        }
+
         // should not affect any system schema behavior
         if (SchemaConstants.isSystemKeyspace(keyspaceName) ||
             DatabaseDescriptor.getLCSEnforcementLevel() == Config.LCSEnforcementLevel.none) {
@@ -134,6 +145,11 @@ public final class CreateTableStatement extends AlterSchemaStatement
                    !Objects.equals(attrs.getCompactionStrategy(), LeveledCompactionStrategy.class.getName()))
         {
             if (DatabaseDescriptor.getLCSEnforcementLevel() == Config.LCSEnforcementLevel.hard) {
+                logger.error(String.format("LCS enforcement is enabled (level=%s). Trying to create %s.%s using %s",
+                                           DatabaseDescriptor.getLCSEnforcementLevel().toString(),
+                                           keyspaceName,
+                                           tableName,
+                                           attrs.getCompactionStrategy()));
                 // throw exception hard flag is used for LCS enforcement
                 throw ire("LCS enforcement is enabled. You're trying to create schema with %s for %s.%s. Please use " +
                           "LeveledCompactionStrategy for your schema, or contact Cassandra " +

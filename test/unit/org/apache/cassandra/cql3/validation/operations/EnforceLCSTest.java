@@ -126,6 +126,36 @@ public class EnforceLCSTest extends CQLTester
         Assert.assertTrue(isCurrentSystemSchemaCompactionStrategiesUnchanged());
     }
 
+    @Test
+    public void testSkipEnforcementWhenSchemaExists() throws Throwable
+    {
+        Assert.assertEquals(Config.LCSEnforcementLevel.none, DatabaseDescriptor.getLCSEnforcementLevel());
+
+        String table1 = createTable("CREATE TABLE %s (id text PRIMARY KEY, content text) WITH " +
+                                    "compaction={'class': 'SizeTieredCompactionStrategy'};");
+
+        // should skip enforcement check if already exist, and existed schema unchanged
+        schemaChange(String.format("CREATE TABLE IF NOT EXISTS %s.%s (id text PRIMARY KEY, content text) WITH " +
+                                   "compaction={'class': 'SizeTieredCompactionStrategy'};", keyspace(), table1));
+        assertCompactionStrategy(SizeTieredCompactionStrategy.class.getSimpleName(), keyspace(), table1);
+
+        DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.hard);
+        try {
+            schemaChange(String.format("CREATE TABLE IF NOT EXISTS %s.%s (id text PRIMARY KEY, content text) WITH " +
+                                       "compaction={'class': 'SizeTieredCompactionStrategy'};", keyspace(), table1));
+        }
+        catch (Exception e) {
+            // should not see exception
+            Assert.fail("unexpected Exception");
+        }
+        assertCompactionStrategy(SizeTieredCompactionStrategy.class.getSimpleName(), keyspace(), table1);
+
+        DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.soft);
+        schemaChange(String.format("CREATE TABLE IF NOT EXISTS %s.%s (id text PRIMARY KEY, content text) WITH " +
+                                   "compaction={'class': 'SizeTieredCompactionStrategy'};", keyspace(), table1));
+        assertCompactionStrategy(SizeTieredCompactionStrategy.class.getSimpleName(), keyspace(), table1);
+    }
+
     private void assertCompactionStrategy(String expected) throws Throwable
     {
         assertCompactionStrategy(expected, KEYSPACE, currentTable());
