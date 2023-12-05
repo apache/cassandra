@@ -17,19 +17,19 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import org.apache.cassandra.auth.AuthKeyspace;
-import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.schema.SchemaKeyspace;
-import org.apache.cassandra.schema.SystemDistributedKeyspace;
-import org.apache.cassandra.tracing.TraceKeyspace;
-
 import org.apache.commons.lang3.StringUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SchemaKeyspace;
+import org.apache.cassandra.schema.SystemDistributedKeyspace;
+import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.tools.ToolRunner;
+import org.apache.cassandra.tracing.TraceKeyspace;
 
 import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -44,6 +44,7 @@ public class TableHistogramsTest extends CQLTester
                                        TraceKeyspace.TABLE_NAMES.size() +
                                        AuthKeyspace.TABLE_NAMES.size() +
                                        SystemDistributedKeyspace.TABLE_NAMES.size() +
+                                       AccordKeyspace.tables().size() +
                                        1; // DistributedMetadataLogKeyspace contains a single table
 
     @BeforeClass

@@ -524,9 +524,9 @@ public class AccordJournal implements Shutdownable
         APPLY_MAXIMAL             (71, APPLY_MAXIMAL_REQ,        ApplySerializers.request,              TXN  ),
 
         INTEROP_COMMIT_MINIMAL    (90, INTEROP_COMMIT_MINIMAL_REQ, COMMIT_MINIMAL_REQ, AccordInteropCommit.serializer, TXN),
-        INTEROP_COMMIT_MAXIMAL    (91, INTEROP_COMMIT_MAXIMAL_REQ, COMMIT_MINIMAL_REQ, AccordInteropCommit.serializer, TXN),
-        INTEROP_APPLY_MINIMAL     (92, INTEROP_APPLY_MINIMAL_REQ,  COMMIT_MINIMAL_REQ, AccordInteropApply.serializer,  TXN),
-        INTEROP_APPLY_MAXIMAL     (93, INTEROP_APPLY_MAXIMAL_REQ,  COMMIT_MINIMAL_REQ, AccordInteropApply.serializer,  TXN),
+        INTEROP_COMMIT_MAXIMAL    (91, INTEROP_COMMIT_MAXIMAL_REQ, COMMIT_MAXIMAL_REQ, AccordInteropCommit.serializer, TXN),
+        INTEROP_APPLY_MINIMAL     (92, INTEROP_APPLY_MINIMAL_REQ,  APPLY_MINIMAL_REQ, AccordInteropApply.serializer,  TXN),
+        INTEROP_APPLY_MAXIMAL     (93, INTEROP_APPLY_MAXIMAL_REQ,  APPLY_MAXIMAL_REQ, AccordInteropApply.serializer,  TXN),
 
         BEGIN_RECOVER             (72, BEGIN_RECOVER_REQ,        RecoverySerializers.request,           TXN  ),
         BEGIN_INVALIDATE          (73, BEGIN_INVALIDATE_REQ,     BeginInvalidationSerializers.request,  EPOCH),

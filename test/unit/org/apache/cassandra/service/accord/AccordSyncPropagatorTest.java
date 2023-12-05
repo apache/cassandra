@@ -82,7 +82,7 @@ public class AccordSyncPropagatorTest
     @BeforeClass
     public static void setup() throws NoSuchFieldException, IllegalAccessException
     {
-        DatabaseDescriptor.clientInitialization();
+        DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         ClusterMetadataService.unsetInstance();
         ClusterMetadataService.setInstance(StubClusterMetadataService.forTesting());

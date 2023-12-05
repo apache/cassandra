@@ -36,11 +36,11 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.CassandraTestBase;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.dht.OrderPreservingPartitioner.StringToken;
@@ -49,6 +49,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.WithPartitioner;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
@@ -68,7 +69,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DIS
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class StorageServiceServerTest extends CassandraTestBase
+public class StorageServiceServerTest
 {
     static final String DC1 = "DC1";
     static final String DC2 = "DC2";
@@ -93,6 +94,7 @@ public class StorageServiceServerTest extends CassandraTestBase
         id4 = InetAddressAndPort.getByName("127.0.0.4");
         id5 = InetAddressAndPort.getByName("127.0.0.5");
         registerNodes();
+        ServerTestUtils.markCMS();
     }
 
     private static void registerNodes()
@@ -157,7 +159,6 @@ public class StorageServiceServerTest extends CassandraTestBase
     }
 
     @Test
-    @UseOrderPreservingPartitioner
     public void testLocalPrimaryRangeForEndpointWithNetworkTopologyStrategy() throws Exception
     {
         setupDefaultPlacements();
@@ -189,7 +190,6 @@ public class StorageServiceServerTest extends CassandraTestBase
     }
 
     @Test
-    @UseOrderPreservingPartitioner
     public void testPrimaryRangeForEndpointWithinDCWithNetworkTopologyStrategy() throws Exception
     {
         setupDefaultPlacements();
@@ -225,7 +225,6 @@ public class StorageServiceServerTest extends CassandraTestBase
     }
 
     @Test
-    @UseOrderPreservingPartitioner
     public void testPrimaryRangesWithNetworkTopologyStrategy() throws Exception
     {
         setupDefaultPlacements();
@@ -256,7 +255,6 @@ public class StorageServiceServerTest extends CassandraTestBase
     }
 
     @Test
-    @UseOrderPreservingPartitioner
     public void testPrimaryRangesWithNetworkTopologyStrategyOneDCOnly() throws Exception
     {
         setupDefaultPlacements();
@@ -288,7 +286,6 @@ public class StorageServiceServerTest extends CassandraTestBase
     }
 
     @Test
-    @UseOrderPreservingPartitioner
     public void testPrimaryRangeForEndpointWithinDCWithNetworkTopologyStrategyOneDCOnly() throws Exception
     {
         setupDefaultPlacements();
@@ -320,7 +317,6 @@ public class StorageServiceServerTest extends CassandraTestBase
     }
 
     @Test
-    @UseOrderPreservingPartitioner
     public void testPrimaryRangesWithVnodes() throws Exception
     {
         // DC1
@@ -371,7 +367,6 @@ public class StorageServiceServerTest extends CassandraTestBase
     }
 
     @Test
-    @UseOrderPreservingPartitioner
     public void testPrimaryRangeForEndpointWithinDCWithVnodes() throws Exception
     {
         // DC1
@@ -436,7 +431,6 @@ public class StorageServiceServerTest extends CassandraTestBase
     }
 
     @Test
-    @UseOrderPreservingPartitioner
     public void testPrimaryRangesWithSimpleStrategy() throws Exception
     {
         ClusterMetadataTestHelper.join(id1, new StringToken("A"));
@@ -462,7 +456,6 @@ public class StorageServiceServerTest extends CassandraTestBase
 
     /* Does not make much sense to use -local and -pr with simplestrategy, but just to prevent human errors */
     @Test
-    @UseOrderPreservingPartitioner
     public void testPrimaryRangeForEndpointWithinDCWithSimpleStrategy() throws Exception
     {
         ClusterMetadataTestHelper.join(id1, new StringToken("A"));
@@ -490,43 +483,46 @@ public class StorageServiceServerTest extends CassandraTestBase
     }
 
     @Test
-    @UseMurmur3Partitioner
     public void testCreateRepairRangeFrom() throws Exception
     {
-        ClusterMetadataTestHelper.join(id1, new LongToken(1000L));
-        ClusterMetadataTestHelper.join(id2, new LongToken(2000L));
-        ClusterMetadataTestHelper.join(id3, new LongToken(3000L));
-        ClusterMetadataTestHelper.join(id4, new LongToken(4000L));
+        try (WithPartitioner m3p = new WithPartitioner(Murmur3Partitioner.instance))
+        {
+            registerNodes();
+            ClusterMetadataTestHelper.join(id1, new LongToken(1000L));
+            ClusterMetadataTestHelper.join(id2, new LongToken(2000L));
+            ClusterMetadataTestHelper.join(id3, new LongToken(3000L));
+            ClusterMetadataTestHelper.join(id4, new LongToken(4000L));
 
-        Collection<Range<Token>> repairRangeFrom = StorageService.instance.createRepairRangeFrom("1500", "3700");
-        Assertions.assertThat(repairRangeFrom.size()).as(repairRangeFrom.toString()).isEqualTo(3);
-        Assertions.assertThat(repairRangeFrom).contains(new Range<>(new LongToken(1500L), new LongToken(2000L)));
-        Assertions.assertThat(repairRangeFrom).contains(new Range<>(new LongToken(2000L), new LongToken(3000L)));
-        Assertions.assertThat(repairRangeFrom).contains(new Range<>(new LongToken(3000L), new LongToken(3700L)));
+            Collection<Range<Token>> repairRangeFrom = StorageService.instance.createRepairRangeFrom("1500", "3700");
+            Assertions.assertThat(repairRangeFrom.size()).as(repairRangeFrom.toString()).isEqualTo(3);
+            Assertions.assertThat(repairRangeFrom).contains(new Range<>(new LongToken(1500L), new LongToken(2000L)));
+            Assertions.assertThat(repairRangeFrom).contains(new Range<>(new LongToken(2000L), new LongToken(3000L)));
+            Assertions.assertThat(repairRangeFrom).contains(new Range<>(new LongToken(3000L), new LongToken(3700L)));
 
-        repairRangeFrom = StorageService.instance.createRepairRangeFrom("500", "700");
-        Assertions.assertThat(repairRangeFrom.size()).as(repairRangeFrom.toString()).isEqualTo(1);
-        Assertions.assertThat(repairRangeFrom).contains(new Range<>(new LongToken(500L), new LongToken(700L)));
+            repairRangeFrom = StorageService.instance.createRepairRangeFrom("500", "700");
+            Assertions.assertThat(repairRangeFrom.size()).as(repairRangeFrom.toString()).isEqualTo(1);
+            Assertions.assertThat(repairRangeFrom).contains(new Range<>(new LongToken(500L), new LongToken(700L)));
 
-        repairRangeFrom = StorageService.instance.createRepairRangeFrom("500", "1700");
-        Assertions.assertThat(repairRangeFrom.size()).as(repairRangeFrom.toString()).isEqualTo(2);
-        Assertions.assertThat(repairRangeFrom).contains(new Range<>(new LongToken(500L), new LongToken(1000L)));
-        Assertions.assertThat(repairRangeFrom).contains(new Range<>(new LongToken(1000L), new LongToken(1700L)));
+            repairRangeFrom = StorageService.instance.createRepairRangeFrom("500", "1700");
+            Assertions.assertThat(repairRangeFrom.size()).as(repairRangeFrom.toString()).isEqualTo(2);
+            Assertions.assertThat(repairRangeFrom).contains(new Range<>(new LongToken(500L), new LongToken(1000L)));
+            Assertions.assertThat(repairRangeFrom).contains(new Range<>(new LongToken(1000L), new LongToken(1700L)));
 
-        repairRangeFrom = StorageService.instance.createRepairRangeFrom("2500", "2300");
-        Assertions.assertThat(repairRangeFrom.size()).as(repairRangeFrom.toString()).isEqualTo(5);
-        Assertions.assertThat(repairRangeFrom).contains(new Range<>(new LongToken(2500L), new LongToken(3000L)));
-        Assertions.assertThat(repairRangeFrom).contains(new Range<>(new LongToken(3000L), new LongToken(4000L)));
-        Assertions.assertThat(repairRangeFrom).contains(new Range<>(new LongToken(4000L), new LongToken(1000L)));
-        Assertions.assertThat(repairRangeFrom).contains(new Range<>(new LongToken(1000L), new LongToken(2000L)));
-        Assertions.assertThat(repairRangeFrom).contains(new Range<>(new LongToken(2000L), new LongToken(2300L)));
+            repairRangeFrom = StorageService.instance.createRepairRangeFrom("2500", "2300");
+            Assertions.assertThat(repairRangeFrom.size()).as(repairRangeFrom.toString()).isEqualTo(5);
+            Assertions.assertThat(repairRangeFrom).contains(new Range<>(new LongToken(2500L), new LongToken(3000L)));
+            Assertions.assertThat(repairRangeFrom).contains(new Range<>(new LongToken(3000L), new LongToken(4000L)));
+            Assertions.assertThat(repairRangeFrom).contains(new Range<>(new LongToken(4000L), new LongToken(1000L)));
+            Assertions.assertThat(repairRangeFrom).contains(new Range<>(new LongToken(1000L), new LongToken(2000L)));
+            Assertions.assertThat(repairRangeFrom).contains(new Range<>(new LongToken(2000L), new LongToken(2300L)));
 
-        repairRangeFrom = StorageService.instance.createRepairRangeFrom("2000", "3000");
-        Assertions.assertThat(repairRangeFrom.size()).as(repairRangeFrom.toString()).isEqualTo(1);
-        Assertions.assertThat(repairRangeFrom).contains(new Range<>(new LongToken(2000L), new LongToken(3000L)));
+            repairRangeFrom = StorageService.instance.createRepairRangeFrom("2000", "3000");
+            Assertions.assertThat(repairRangeFrom.size()).as(repairRangeFrom.toString()).isEqualTo(1);
+            Assertions.assertThat(repairRangeFrom).contains(new Range<>(new LongToken(2000L), new LongToken(3000L)));
 
-        repairRangeFrom = StorageService.instance.createRepairRangeFrom("2000", "2000");
-        Assertions.assertThat(repairRangeFrom).isEmpty();
+            repairRangeFrom = StorageService.instance.createRepairRangeFrom("2000", "2000");
+            Assertions.assertThat(repairRangeFrom).isEmpty();
+        }
     }
 
     /**
