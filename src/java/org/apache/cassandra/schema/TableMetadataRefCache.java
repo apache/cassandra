@@ -48,7 +48,7 @@ class TableMetadataRefCache
     // (keyspace name, index name) -> mutable metadata ref map. We have to update these in place every time an index changes.
     private final Map<Pair<String, String>, TableMetadataRef> indexMetadataRefs;
 
-    public TableMetadataRefCache(Map<TableId, TableMetadataRef> metadataRefs,
+    private TableMetadataRefCache(Map<TableId, TableMetadataRef> metadataRefs,
                                  Map<Pair<String, String>, TableMetadataRef> metadataRefsByName,
                                  Map<Pair<String, String>, TableMetadataRef> indexMetadataRefs)
     {
