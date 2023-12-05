@@ -37,6 +37,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -45,6 +46,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
+import com.google.common.base.Suppliers;
 
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -419,14 +421,11 @@ public class FBUtilities
         return previousReleaseVersionString;
     }
 
-    public static String getReleaseVersionString()
-    {
+    private static final Supplier<String> loadedVersionString = Suppliers.memoize(() -> {
         try (InputStream in = FBUtilities.class.getClassLoader().getResourceAsStream("org/apache/cassandra/config/version.properties"))
         {
             if (in == null)
-            {
-                return System.getProperty("cassandra.releaseVersion", UNKNOWN_RELEASE_VERSION);
-            }
+                return null;
             Properties props = new Properties();
             props.load(in);
             return props.getProperty("CassandraVersion");
@@ -437,6 +436,12 @@ public class FBUtilities
             logger.warn("Unable to load version.properties", e);
             return "debug version";
         }
+    });
+
+    public static String getReleaseVersionString()
+    {
+        String v = loadedVersionString.get();
+        return v != null ? v : System.getProperty("cassandra.releaseVersion", UNKNOWN_RELEASE_VERSION);
     }
 
     public static String getReleaseVersionMajor()
