@@ -68,15 +68,6 @@ public interface PrimaryKeyMap extends Closeable
     PrimaryKey primaryKeyFromRowId(long sstableRowId);
 
     /**
-     * Returns a row Id for a {@link PrimaryKey}. If there is no such term, returns a negative value.
-     *
-     * @param key the {@link PrimaryKey} to lookup
-     * @return the row Id associated with the {@link PrimaryKey}
-     */
-    long exactRowIdForPrimaryKey(PrimaryKey key);
-
-
-    /**
      * Returns a row Id for a {@link PrimaryKey}. If there is no such term, returns the `-(next row id) - 1` where
      * `next row id` is the row id of the next greatest {@link PrimaryKey} in the map.
      *

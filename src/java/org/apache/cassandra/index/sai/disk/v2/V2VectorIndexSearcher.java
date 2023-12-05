@@ -53,7 +53,7 @@ import org.apache.cassandra.index.sai.disk.vector.VectorMemtableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.ArrayPostingList;
 import org.apache.cassandra.index.sai.utils.AtomicRatio;
-import org.apache.cassandra.index.sai.utils.ListRangeIterator;
+import org.apache.cassandra.index.sai.utils.CollectionRangeIterator;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.RangeUtil;
@@ -178,7 +178,7 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
         {
             // not restricted
             if (RangeUtil.coversFullRing(keyRange))
-                return new BitsOrPostingList(context.bitsetForShadowedPrimaryKeys(metadata, primaryKeyMap, graph));
+                return BitsOrPostingList.ALL_BITS;
 
             PrimaryKey firstPrimaryKey = keyFactory.createTokenOnly(keyRange.left.getToken());
 
@@ -194,7 +194,7 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
 
             // if it covers entire segment, skip bit set
             if (minSSTableRowId <= metadata.minSSTableRowId && maxSSTableRowId >= metadata.maxSSTableRowId)
-                return new BitsOrPostingList(context.bitsetForShadowedPrimaryKeys(metadata, primaryKeyMap, graph));
+                return BitsOrPostingList.ALL_BITS;
 
             minSSTableRowId = Math.max(minSSTableRowId, metadata.minSSTableRowId);
             maxSSTableRowId = min(maxSSTableRowId, metadata.maxSSTableRowId);
@@ -351,7 +351,7 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
 
         logAndTrace("SAI predicates produced {} rows out of limit {}", keysInRange.size(), limit);
         if (keysInRange.size() <= limit)
-            return new ListRangeIterator(metadata.minKey, metadata.maxKey, keysInRange);
+            return new CollectionRangeIterator(metadata.minKey, metadata.maxKey, keysInRange);
 
         int topK = topKFor(limit);
         // if we are brute forcing the similarity search, we want to build a list of segment row ids,
@@ -491,6 +491,7 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
 
     private static class BitsOrPostingList
     {
+        public static final BitsOrPostingList ALL_BITS = new BitsOrPostingList(Bits.ALL, -1);
         private final Bits bits;
         private final int rawExpectedNodes;
         private final PostingList postingList;
@@ -500,13 +501,6 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
             this.bits = bits;
             this.rawExpectedNodes = rawExpectedNodes;
             this.postingList = null;
-        }
-
-        public BitsOrPostingList(Bits bits)
-        {
-            this.bits = bits;
-            this.postingList = null;
-            this.rawExpectedNodes = -1;
         }
 
         public BitsOrPostingList(PostingList postingList)

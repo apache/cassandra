@@ -533,6 +533,67 @@ public class VectorUpdateDeleteTest extends VectorTester
     }
 
     @Test
+    public void rangeRestrictedTestWithDuplicateVectorsAndADelete() throws Throwable
+    {
+        setMaxBruteForceRows(0);
+        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val vector<float, %d>, PRIMARY KEY(pk))", 2));
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (pk, val) VALUES (0, [1.0, 2.0])"); // -3485513579396041028
+        execute("INSERT INTO %s (pk, val) VALUES (1, [1.0, 2.0])"); // -4069959284402364209
+        execute("INSERT INTO %s (pk, val) VALUES (2, [1.0, 2.0])"); // -3248873570005575792
+        execute("INSERT INTO %s (pk, val) VALUES (3, [1.0, 2.0])"); // 9010454139840013625
+
+        flush();
+
+        // Show the result set is as expected
+        assertRows(execute("SELECT pk FROM %s WHERE token(pk) <= -3248873570005575792 AND " +
+                           "token(pk) >= -3485513579396041028 ORDER BY val ann of [1,2] LIMIT 1000"), row(0), row(2));
+
+        // Delete one of the rows
+        execute("DELETE FROM %s WHERE pk = 0");
+
+        flush();
+        assertRows(execute("SELECT pk FROM %s WHERE token(pk) <= -3248873570005575792 AND " +
+                           "token(pk) >= -3485513579396041028 ORDER BY val ann of [1,2] LIMIT 1000"), row(2));
+    }
+
+    @Test
+    public void rangeRestrictedTestWithDuplicateVectorsAndAddNullVector() throws Throwable
+    {
+        setMaxBruteForceRows(0);
+        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val vector<float, %d>, PRIMARY KEY(pk))", 2));
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+
+        execute("INSERT INTO %s (pk, val) VALUES (0, [1.0, 2.0])");
+        execute("INSERT INTO %s (pk, val) VALUES (1, [1.0, 2.0])");
+        execute("INSERT INTO %s (pk, val) VALUES (2, [1.0, 2.0])");
+        // Add a str_val to make sure pk has a row id in the sstable
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (3, 'a', null)");
+        // Add another row to test a different part of the code
+        execute("INSERT INTO %s (pk, val) VALUES (4, [1.0, 2.0])");
+        execute("DELETE FROM %s WHERE pk = 2");
+        flush();
+
+        // Delete one of the rows to trigger a shadowed primary key
+        execute("DELETE FROM %s WHERE pk = 0");
+        execute("INSERT INTO %s (pk, val) VALUES (2, [2.0, 2.0])");
+        flush();
+
+        // Delete more rows.
+        execute("DELETE FROM %s WHERE pk = 2");
+        execute("DELETE FROM %s WHERE pk = 3");
+
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT pk FROM %s ORDER BY val ann of [1,2] LIMIT 1000"),
+                       row(1), row(4));
+        });
+    }
+
+    @Test
     public void testVectorRowWhereUpdateMakesRowMatchNonOrderingPredicates()
     {
         createTable(KEYSPACE, "CREATE TABLE %s (pk int, val text, vec vector<float, 2>, PRIMARY KEY(pk))");

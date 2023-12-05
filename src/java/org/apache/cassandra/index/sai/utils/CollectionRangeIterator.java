@@ -19,26 +19,37 @@
 package org.apache.cassandra.index.sai.utils;
 
 import java.util.List;
+import java.util.SortedSet;
 
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
 
 /**
- * A {@link RangeIterator} that iterates over a list of {@link PrimaryKey}s without modifying the underlying list.
+ * A {@link RangeIterator} that iterates over a collection of {@link PrimaryKey}s without modifying the underlying list.
  */
-public class ListRangeIterator extends RangeIterator
+public class CollectionRangeIterator extends RangeIterator
 {
     private final PeekingIterator<PrimaryKey> keyQueue;
 
     /**
-     * Create a new {@link ListRangeIterator} that iterates over the provided list of keys.
+     * Create a new {@link CollectionRangeIterator} that iterates over the provided list of keys.
      * @param minimumKey the minimum key for the provided list of keys
      * @param maximumKey the maximum key for the provided list of keys
      * @param keys the list of keys to iterate over
      */
-    public ListRangeIterator(PrimaryKey minimumKey, PrimaryKey maximumKey, List<PrimaryKey> keys)
+    public CollectionRangeIterator(PrimaryKey minimumKey, PrimaryKey maximumKey, List<PrimaryKey> keys)
     {
         super(minimumKey, maximumKey, keys.size());
+        this.keyQueue = Iterators.peekingIterator(keys.iterator());
+    }
+
+    /**
+     * Create a new {@link CollectionRangeIterator} that iterates over the provided set of keys.
+     * @param keys the sorted set of keys to iterate over
+     */
+    public CollectionRangeIterator(SortedSet<PrimaryKey> keys)
+    {
+        super(keys.first(), keys.last(), keys.size());
         this.keyQueue = Iterators.peekingIterator(keys.iterator());
     }
 

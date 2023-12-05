@@ -87,12 +87,6 @@ public class KDTreeIndexBuilder
         }
 
         @Override
-        public long exactRowIdForPrimaryKey(PrimaryKey key)
-        {
-            return key.token().getLongValue();
-        }
-
-        @Override
         public long exactRowIdOrInvertedCeiling(PrimaryKey key)
         {
             return key.token().getLongValue();

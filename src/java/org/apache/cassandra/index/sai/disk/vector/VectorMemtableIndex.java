@@ -48,7 +48,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
-import org.apache.cassandra.index.sai.utils.ListRangeIterator;
+import org.apache.cassandra.index.sai.utils.CollectionRangeIterator;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.RangeUtil;
@@ -225,7 +225,7 @@ public class VectorMemtableIndex implements MemtableIndex
         {
             if (results.isEmpty())
                 return RangeIterator.empty();
-            return new ListRangeIterator(minimumKey, maximumKey, results);
+            return new CollectionRangeIterator(minimumKey, maximumKey, results);
         }
 
         float[] qv = exp.lower.value.vector;

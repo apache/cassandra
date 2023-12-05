@@ -21,7 +21,6 @@ package org.apache.cassandra.index.sai.utils;
 import java.io.IOException;
 
 import org.apache.cassandra.io.util.FileUtils;
-import org.mortbay.util.IO;
 
 /**
  * An iterator wrapper that wraps two iterators (left and right) and returns the primary keys from the left iterator
