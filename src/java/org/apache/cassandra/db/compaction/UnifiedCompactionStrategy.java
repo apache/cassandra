@@ -302,10 +302,15 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         synchronized (this)
         {
             // Recheck after entering critical section, another thread may have beaten us to it.
-            while (shardManager == null || shardManager.isOutOfDate(ClusterMetadata.current().epoch.getEpoch()))
+            while (shardManager == null ||
+                   // Short circuit for local keyspaces which may be initialised before ClusterMetadata
+                   (cfs.localRangesWeighted().ringVersion != ColumnFamilyStore.RING_VERSION_IRRELEVANT
+                    && shardManager.isOutOfDate(ClusterMetadata.current().epoch.getEpoch())))
+            {
                 shardManager = ShardManager.create(cfs);
-            // Note: this can just as well be done without the synchronization (races would be benign, just doing some
-            // redundant work). For the current usages of this blocking is fine and expected to perform no worse.
+                // Note: this can just as well be done without the synchronization (races would be benign, just doing some
+                // redundant work). For the current usages of this blocking is fine and expected to perform no worse.
+            }
         }
     }
 
