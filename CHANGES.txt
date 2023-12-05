@@ -1,4 +1,5 @@
 4.1.4
+ * Fix StackOverflowError on ALTER after many previous schema changes (CASSANDRA-19166)
  * Fixed the inconsistency between distributedKeyspaces and distributedAndLocalKeyspaces (CASSANDRA-18747)
  * Internode legacy SSL storage port certificate is not hot reloaded on update (CASSANDRA-18681)
  * Nodetool paxos-only repair is no longer incremental (CASSANDRA-18466)
