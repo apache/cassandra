@@ -120,12 +120,17 @@ public class PostingListRangeIterator extends RangeIterator
         }
         catch (Throwable t)
         {
-            //TODO We aren't tidying up resources here
             if (!(t instanceof AbortedOperationException))
                 logger.error(indexContext.logMessage("Unable to provide next token!"), t);
 
+            closeOnException(t);
             throw Throwables.cleaned(t);
         }
+    }
+
+    private void closeOnException(Throwable t)
+    {
+        FileUtils.closeQuietly(this);
     }
 
     @Override

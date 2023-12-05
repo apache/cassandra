@@ -314,7 +314,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             try (UnfilteredRowIterator partition = controller.executePartitionReadCommand(command, executionController))
             {
                 queryContext.addPartitionsRead(1);
-
+                queryContext.checkpoint();
                 return applyIndexFilter(key, partition, filterTree, queryContext);
             }
         }
@@ -506,7 +506,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             try (UnfilteredRowIterator partition = controller.getPartition(key, executionController))
             {
                 queryContext.addPartitionsRead(1);
-
+                queryContext.checkpoint();
                 return applyIndexFilter(key, partition, filterTree, queryContext);
             }
         }

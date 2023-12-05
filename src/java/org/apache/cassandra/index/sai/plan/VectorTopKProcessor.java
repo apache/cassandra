@@ -30,6 +30,7 @@ import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
@@ -60,6 +61,7 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
+import org.apache.cassandra.index.sai.utils.AbortedOperationException;
 import org.apache.cassandra.index.sai.utils.InMemoryPartitionIterator;
 import org.apache.cassandra.index.sai.utils.InMemoryUnfilteredPartitionIterator;
 import org.apache.cassandra.index.sai.utils.PartitionInfo;
@@ -168,7 +170,17 @@ public class VectorTopKProcessor
             }
 
             for (CompletableFuture<PartitionResults> triplesFuture: results) {
-                PartitionResults pr = triplesFuture.join();
+                PartitionResults pr;
+                try
+                {
+                    pr = triplesFuture.join();
+                }
+                catch (CompletionException t)
+                {
+                    if (t.getCause() instanceof AbortedOperationException)
+                        throw (AbortedOperationException) t.getCause();
+                    throw t;
+                }
                 if (pr == null)
                     continue;
                 topK.addAll(pr.rows);

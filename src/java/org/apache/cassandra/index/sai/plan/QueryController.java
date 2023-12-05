@@ -213,14 +213,7 @@ public class QueryController
 
     public UnfilteredRowIterator executePartitionReadCommand(SinglePartitionReadCommand command, ReadExecutionController executionController)
     {
-        try
-        {
-            return command.queryMemtableAndDisk(cfs, executionController);
-        }
-        finally
-        {
-            queryContext.checkpoint();
-        }
+        return command.queryMemtableAndDisk(cfs, executionController);
     }
 
     /**
