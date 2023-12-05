@@ -156,6 +156,9 @@ import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CONSISTENT_RANGE_MOVEMENT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CONSISTENT_SIMULTANEOUS_MOVES_ALLOW;
+import static org.apache.cassandra.config.CassandraRelevantProperties.RING_DELAY;
 import static org.apache.cassandra.distributed.api.Feature.BLANK_GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.JMX;
@@ -589,12 +592,20 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 // org.apache.cassandra.distributed.impl.AbstractCluster.startup sets the exception handler for the thread
                 // so extract it to populate ExecutorFactory.Global
                 ExecutorFactory.Global.tryUnsafeSet(new ExecutorFactory.Default(Thread.currentThread().getContextClassLoader(), null, Thread.getDefaultUncaughtExceptionHandler()));
+
+                assert !FBUtilities.getReleaseVersionString().equals(FBUtilities.UNKNOWN_RELEASE_VERSION) : "Unknown version";
+                assert !FBUtilities.getReleaseVersionString().isEmpty() : "Empty version";
+                assert FBUtilities.getReleaseVersionString().contains(".") : "Invalid version: " + FBUtilities.getReleaseVersionString();
+
                 if (config.has(GOSSIP))
                 {
                     // TODO: hacky
-                    System.setProperty("cassandra.ring_delay_ms", "15000");
-                    System.setProperty("cassandra.consistent.rangemovement", "false");
-                    System.setProperty("cassandra.consistent.simultaneousmoves.allow", "true");
+                    if (!RING_DELAY.isPresent())
+                        RING_DELAY.setLong(15000);
+                    if (!CONSISTENT_RANGE_MOVEMENT.isPresent())
+                        CONSISTENT_RANGE_MOVEMENT.setBoolean(false);
+                    if (!CONSISTENT_SIMULTANEOUS_MOVES_ALLOW.isPresent())
+                        CONSISTENT_SIMULTANEOUS_MOVES_ALLOW.setBoolean(true);
                 }
 
                 mkdirs();

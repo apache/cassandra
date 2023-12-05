@@ -344,6 +344,11 @@ public enum CassandraRelevantProperties
      */
     GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED("cassandra.gossip_settle_poll_success_required", "3"),
 
+    CONSISTENT_RANGE_MOVEMENT("cassandra.consistent.rangemovement", "true"),
+    CONSISTENT_SIMULTANEOUS_MOVES_ALLOW("cassandra.consistent.simultaneousmoves.allow"),
+    REPLACE_ADDRESS("cassandra.replace_address"),
+    BROADCAST_INTERVAL_MS("cassandra.broadcast_interval_ms", "60000"),
+
     ;
 
     CassandraRelevantProperties(String key, String defaultVal)
@@ -451,6 +456,14 @@ public enum CassandraRelevantProperties
             return overrideDefaultValue;
 
         return BOOLEAN_CONVERTER.convert(value);
+    }
+
+    /**
+     * Clears the value set in the system property.
+     */
+    public void clearValue()
+    {
+        System.clearProperty(key);
     }
 
     /**
