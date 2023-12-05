@@ -225,11 +225,10 @@ public class TrieMemtableIndexTest extends SAITester
         for (int executionCount = 0; executionCount < 1000; executionCount++)
         {
             // These keys have midrange tokens that select 3 of the 8 range indexes
-            DecoratedKey minimum = makeKey(cfs.metadata(), getRandom().nextIntBetween(0, 20000));
-            DecoratedKey temp = makeKey(cfs.metadata(), getRandom().nextIntBetween(0, 20000));
-            while (temp.compareTo(minimum) <= 0)
-                temp = makeKey(cfs.metadata(), getRandom().nextIntBetween(0, 20000));
-            DecoratedKey maximum = temp;
+            DecoratedKey temp1 = makeKey(cfs.metadata(), getRandom().nextIntBetween(0, 20000));
+            DecoratedKey temp2 = makeKey(cfs.metadata(), getRandom().nextIntBetween(0, 20000));
+            DecoratedKey minimum = temp1.compareTo(temp2) <= 0 ? temp1 : temp2;
+            DecoratedKey maximum = temp1.compareTo(temp2) <= 0 ? temp2 : temp1;
 
             Iterator<Pair<ByteComparable, Iterator<PrimaryKey>>> iterator = memtableIndex.iterator(minimum, maximum);
 
