@@ -71,19 +71,19 @@ public class GeoDistanceInvalidQueryTest extends VectorTester
 
         assertThatThrownBy(() -> execute("SELECT pk FROM %s WHERE GEO_DISTANCE(v, [1, 1]) < 0"))
         .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("GEO_DISTANCE radius must be non-negative, got 0.0");
+        .hasMessage("GEO_DISTANCE radius must be positive, got 0.0");
 
         assertThatThrownBy(() -> execute("SELECT pk FROM %s WHERE GEO_DISTANCE(v, [1, 1]) <= 0"))
         .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("GEO_DISTANCE radius must be non-negative, got 0.0");
+        .hasMessage("GEO_DISTANCE radius must be positive, got 0.0");
 
         assertThatThrownBy(() -> execute("SELECT pk FROM %s WHERE GEO_DISTANCE(v, [1, 1]) < -1"))
         .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("GEO_DISTANCE radius must be non-negative, got -1.0");
+        .hasMessage("GEO_DISTANCE radius must be positive, got -1.0");
 
         assertThatThrownBy(() -> execute("SELECT pk FROM %s WHERE GEO_DISTANCE(v, [1, 1]) <= -1"))
         .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("GEO_DISTANCE radius must be non-negative, got -1.0");
+        .hasMessage("GEO_DISTANCE radius must be positive, got -1.0");
     }
 
     @Test
