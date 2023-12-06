@@ -66,6 +66,11 @@ Merged from 4.0:
  * Enable 3rd party JDK installations for Debian package (CASSANDRA-18844)
 Merged from 3.11:
 Merged from 3.0:
+<<<<<<< HEAD
+=======
+ * Suppress CVE-2023-6378 (CASSANDRA-19142) 
+ * Do not set RPC_READY to false on transports shutdown in order to not fail counter updates for deployments with coordinator and storage nodes with transports turned off (CASSANDRA-18935)
+>>>>>>> cassandra-4.1
  * Suppress CVE-2023-44487 (CASSANDRA-18943)
  * Implement the logic in bin/stop-server (CASSANDRA-18838)
  * Fix nodetool enable/disablebinary to correctly set rpc readiness in gossip (CASSANDRA-18935)
