@@ -34,7 +34,6 @@ import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesMeta;
 import org.apache.cassandra.index.sai.disk.v1.keystore.KeyLookupMeta;
 import org.apache.cassandra.index.sai.disk.v1.keystore.KeyLookup;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Throwables;
@@ -44,10 +43,10 @@ import org.apache.cassandra.utils.Throwables;
  * <p>
  * This uses the following on-disk structures:
  * <ul>
- *     <li>A block-packed structure for rowId to token lookups using {@link BlockPackedReader}.
- *     Uses the {@link IndexComponent#TOKEN_VALUES} component</li>
+ *     <li>A block-packed structure for rowId to token value lookups using {@link BlockPackedReader}.
+ *     Uses the {@link IndexComponent#ROW_TO_TOKEN} component</li>
  *     <li>A monotonic block packed structure for rowId to partitionId lookups using {@link MonotonicBlockPackedReader}.
- *     Uses the {@link IndexComponent#PARTITION_SIZES} component</li>
+ *     Uses the {@link IndexComponent#ROW_TO_PARTITION} component</li>
  *     <li>A key store for rowId to {@link PrimaryKey} and {@link PrimaryKey} to rowId lookups using
  *     {@link KeyLookup}. Uses the {@link IndexComponent#PARTITION_KEY_BLOCKS} and
  *     {@link IndexComponent#PARTITION_KEY_BLOCK_OFFSETS} components</li>
@@ -63,29 +62,29 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
     public static class Factory implements PrimaryKeyMap.Factory
     {
         protected final MetadataSource metadataSource;
-        protected final LongArray.Factory tokenReaderFactory;
-        protected final LongArray.Factory partitionReaderFactory;
+        protected final LongArray.Factory rowToTokenReaderFactory;
+        protected final LongArray.Factory rowToPartitionReaderFactory;
         protected final KeyLookup partitionKeyReader;
         protected final PrimaryKey.Factory primaryKeyFactory;
 
-        private final FileHandle tokensFile;
-        private final FileHandle partitionsFile;
+        private final FileHandle rowToTokenFile;
+        private final FileHandle rowToPartitionFile;
         private final FileHandle partitionKeyBlockOffsetsFile;
         private final FileHandle partitionKeyBlocksFile;
 
-        public Factory(IndexDescriptor indexDescriptor, SSTableReader sstable)
+        public Factory(IndexDescriptor indexDescriptor)
         {
-            this.tokensFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.TOKEN_VALUES, this::close);
-            this.partitionsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_SIZES, this::close);
+            this.rowToTokenFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.ROW_TO_TOKEN, this::close);
+            this.rowToPartitionFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.ROW_TO_PARTITION, this::close);
             this.partitionKeyBlockOffsetsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS, this::close);
             this.partitionKeyBlocksFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCKS, this::close);
             try
             {
                 this.metadataSource = MetadataSource.loadGroupMetadata(indexDescriptor);
-                NumericValuesMeta tokensMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.TOKEN_VALUES)));
-                this.tokenReaderFactory = new BlockPackedReader(tokensFile, tokensMeta);
-                NumericValuesMeta partitionsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_SIZES)));
-                this.partitionReaderFactory = new MonotonicBlockPackedReader(partitionsFile, partitionsMeta);
+                NumericValuesMeta tokensMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.ROW_TO_TOKEN)));
+                this.rowToTokenReaderFactory = new BlockPackedReader(rowToTokenFile, tokensMeta);
+                NumericValuesMeta partitionsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.ROW_TO_PARTITION)));
+                this.rowToPartitionReaderFactory = new MonotonicBlockPackedReader(rowToPartitionFile, partitionsMeta);
                 NumericValuesMeta partitionKeyBlockOffsetsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS)));
                 KeyLookupMeta partitionKeysMeta = new KeyLookupMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS)));
                 this.partitionKeyReader = new KeyLookup(partitionKeyBlocksFile, partitionKeyBlockOffsetsFile, partitionKeysMeta, partitionKeyBlockOffsetsMeta);
@@ -101,8 +100,8 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
         @SuppressWarnings({"resource", "RedundantSuppression"}) // rowIdToToken, rowIdToPartitionId and cursor are closed by the SkinnyPrimaryKeyMap#close method
         public PrimaryKeyMap newPerSSTablePrimaryKeyMap() throws IOException
         {
-            LongArray rowIdToToken = new LongArray.DeferredLongArray(tokenReaderFactory::open);
-            LongArray rowIdToPartitionId = new LongArray.DeferredLongArray(partitionReaderFactory::open);
+            LongArray rowIdToToken = new LongArray.DeferredLongArray(rowToTokenReaderFactory::open);
+            LongArray rowIdToPartitionId = new LongArray.DeferredLongArray(rowToPartitionReaderFactory::open);
             return new SkinnyPrimaryKeyMap(rowIdToToken,
                                            rowIdToPartitionId,
                                            partitionKeyReader.openCursor(),
@@ -112,22 +111,22 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
         @Override
         public void close()
         {
-            FileUtils.closeQuietly(Arrays.asList(tokensFile, partitionsFile, partitionKeyBlocksFile, partitionKeyBlockOffsetsFile));
+            FileUtils.closeQuietly(Arrays.asList(rowToTokenFile, rowToPartitionFile, partitionKeyBlocksFile, partitionKeyBlockOffsetsFile));
         }
     }
 
-    protected final LongArray tokenArray;
-    protected final LongArray partitionArray;
+    protected final LongArray rowIdToTokenArray;
+    protected final LongArray rowIdToPartitionIdArray;
     protected final KeyLookup.Cursor partitionKeyCursor;
     protected final PrimaryKey.Factory primaryKeyFactory;
 
-    protected SkinnyPrimaryKeyMap(LongArray tokenArray,
-                                  LongArray partitionArray,
+    protected SkinnyPrimaryKeyMap(LongArray rowIdToTokenArray,
+                                  LongArray rowIdToPartitionIdArray,
                                   KeyLookup.Cursor partitionKeyCursor,
                                   PrimaryKey.Factory primaryKeyFactory)
     {
-        this.tokenArray = tokenArray;
-        this.partitionArray = partitionArray;
+        this.rowIdToTokenArray = rowIdToTokenArray;
+        this.rowIdToPartitionIdArray = rowIdToPartitionIdArray;
         this.partitionKeyCursor = partitionKeyCursor;
         this.primaryKeyFactory = primaryKeyFactory;
     }
@@ -141,12 +140,12 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
     @Override
     public long rowIdFromPrimaryKey(PrimaryKey primaryKey)
     {
-        long rowId = tokenArray.indexOf(primaryKey.token().getLongValue());
+        long rowId = rowIdToTokenArray.indexOf(primaryKey.token().getLongValue());
         // If the key is token only, the token is out of range, we are at the end of our keys, or we have skipped a token
         // we can return straight away.
         if (primaryKey.kind() == PrimaryKey.Kind.TOKEN ||
             rowId < 0 ||
-            rowId + 1 == tokenArray.length() || tokenArray.get(rowId) != primaryKey.token().getLongValue())
+            rowId + 1 == rowIdToTokenArray.length() || rowIdToTokenArray.get(rowId) != primaryKey.token().getLongValue())
             return rowId;
         // Otherwise we need to check for token collision.
         return tokenCollisionDetection(primaryKey, rowId);
@@ -155,7 +154,7 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
     @Override
     public long ceiling(Token token)
     {
-        return tokenArray.indexOf(token.getLongValue());
+        return rowIdToTokenArray.indexOf(token.getLongValue());
     }
 
     @Override
@@ -164,14 +163,13 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
         if (token.isMinimum())
             return Long.MIN_VALUE;
 
-        long rowId = tokenArray.indexOf(token.getLongValue());
-        return rowId < 0 ? rowId : rowId;
+        return rowIdToTokenArray.indexOf(token.getLongValue());
     }
 
     @Override
     public void close()
     {
-        FileUtils.closeQuietly(Arrays.asList(partitionKeyCursor, tokenArray, partitionArray));
+        FileUtils.closeQuietly(Arrays.asList(partitionKeyCursor, rowIdToTokenArray, rowIdToPartitionIdArray));
     }
 
     // Look for token collision by if the ajacent token in the token array matches the
@@ -179,7 +177,7 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
     protected long tokenCollisionDetection(PrimaryKey primaryKey, long rowId)
     {
         // Look for collisions while we haven't reached the end of the tokens and the tokens don't collide
-        while (rowId + 1 < tokenArray.length() && primaryKey.token().getLongValue() == tokenArray.get(rowId + 1))
+        while (rowId + 1 < rowIdToTokenArray.length() && primaryKey.token().getLongValue() == rowIdToTokenArray.get(rowId + 1))
         {
             // If we had a collision then see if the partition key for this row is >= to the lookup partition key
             if (readPartitionKey(rowId).compareTo(primaryKey.partitionKey()) >= 0)
@@ -193,6 +191,6 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
 
     protected DecoratedKey readPartitionKey(long sstableRowId)
     {
-        return primaryKeyFactory.partitionKeyFromComparableBytes(partitionKeyCursor.seekToPointId(partitionArray.get(sstableRowId)));
+        return primaryKeyFactory.partitionKeyFromComparableBytes(partitionKeyCursor.seekToPointId(rowIdToPartitionIdArray.get(sstableRowId)));
     }
 }

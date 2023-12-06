@@ -68,14 +68,19 @@ public enum IndexComponent
 
     // per-sstable components
     /**
-     * Partition key token value for rows including row tombstone and static row. (access key is rowId)
+     * An on-disk block packed index mapping rowIds to token values.
      */
-    TOKEN_VALUES("TokenValues"),
+    ROW_TO_TOKEN("RowToToken"),
 
     /**
-     * An on-disk block packed index containing the starting and ending rowIds for each partition.
+     * An on-disk block packed index mapping rowIds to partitionIds.
      */
-    PARTITION_SIZES("PartitionSizes"),
+    ROW_TO_PARTITION("RowToPartition"),
+
+    /**
+     * An on-disk block packed index mapping partitionIds to the number of rows for the partition.
+     */
+    PARTITION_TO_SIZE("PartitionToSize"),
 
     /**
      * Prefix-compressed blocks of partition keys used for rowId to partition key lookups

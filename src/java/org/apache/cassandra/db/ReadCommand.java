@@ -1099,7 +1099,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             if (command.isDigestQuery())
                 out.writeUnsignedVInt32(command.digestVersion());
             command.metadata().id.serialize(out);
-            if (version >= MessagingService.VERSION_50)
+            if (version >= MessagingService.VERSION_51)
                 Epoch.serializer.serialize(command.serializedAtEpoch, out);
             out.writeInt(version >= MessagingService.VERSION_50 ? CassandraUInt.fromLong(command.nowInSec()) : (int) command.nowInSec());
             ColumnFilter.serializer.serialize(command.columnFilter(), out, version);
@@ -1132,8 +1132,8 @@ public abstract class ReadCommand extends AbstractReadQuery
             int digestVersion = isDigest ? (int)in.readUnsignedVInt() : 0;
             TableId tableId = TableId.deserialize(in);
 
-            Epoch schemaVersion = null;
-            if (version >= MessagingService.VERSION_50)
+            Epoch schemaVersion = Epoch.EMPTY;
+            if (version >= MessagingService.VERSION_51)
                 schemaVersion = Epoch.serializer.deserialize(in);
             TableMetadata tableMetadata;
             try
@@ -1189,7 +1189,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             return 2 // kind + flags
                    + (command.isDigestQuery() ? TypeSizes.sizeofUnsignedVInt(command.digestVersion()) : 0)
                    + command.metadata().id.serializedSize()
-                   + (version >= MessagingService.VERSION_50 ? Epoch.serializer.serializedSize(command.metadata().epoch) : 0)
+                   + (version >= MessagingService.VERSION_51 ? Epoch.serializer.serializedSize(command.metadata().epoch) : 0)
                    + TypeSizes.INT_SIZE // command.nowInSec() is serialized as uint
                    + ColumnFilter.serializer.serializedSize(command.columnFilter(), version)
                    + RowFilter.serializer.serializedSize(command.rowFilter(), version)

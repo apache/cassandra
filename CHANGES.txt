@@ -1,10 +1,13 @@
 5.1
+ * Make nodetool tablestats use number of significant digits for time and average values consistently (CASSANDRA-19015)
  * Upgrade jackson to 2.15.3 and snakeyaml to 2.1 (CASSANDRA-18875)
  * Transactional Cluster Metadata [CEP-21] (CASSANDRA-18330)
  * Add ELAPSED command to cqlsh (CASSANDRA-18861)
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Fix SAI intersection queries (CASSANDRA-19011)
+ * Clone EndpointState before sending GossipShutdown message (CASSANDRA-19115)
  * SAI indexes are marked queryable during truncation (CASSANDRA-19032)
  * Enable Direct-IO feature for CommitLog files using Java native API's. (CASSANDRA-18464)
  * SAI fixes for composite partitions, and static and non-static rows intersections (CASSANDRA-19034)
@@ -51,6 +54,7 @@ Merged from 4.1:
  * Internode legacy SSL storage port certificate is not hot reloaded on update (CASSANDRA-18681)
  * Nodetool paxos-only repair is no longer incremental (CASSANDRA-18466)
 Merged from 4.0:
+ * Support max SSTable size in sorted CQLSSTableWriter (CASSANDRA-18941)
  * Fix nodetool repair_admin summarize-pending command to not throw exception (CASSANDRA-19014)
  * Fix cassandra-stress in simplenative mode with prepared statements (CASSANDRA-18744)
  * Fix filtering system ks sstables for relocation on startup (CASSANDRA-18963)

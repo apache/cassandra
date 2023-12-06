@@ -65,9 +65,9 @@ public class NumericValuesTest extends SAIRandomizedTester
 
         final MetadataSource source = MetadataSource.loadGroupMetadata(indexDescriptor);
 
-        NumericValuesMeta tokensMeta = new NumericValuesMeta(source.get(indexDescriptor.componentName(IndexComponent.TOKEN_VALUES)));
+        NumericValuesMeta tokensMeta = new NumericValuesMeta(source.get(indexDescriptor.componentName(IndexComponent.ROW_TO_TOKEN)));
 
-        try (FileHandle fileHandle = indexDescriptor.createPerSSTableFileHandle(IndexComponent.TOKEN_VALUES, null);
+        try (FileHandle fileHandle = indexDescriptor.createPerSSTableFileHandle(IndexComponent.ROW_TO_TOKEN, null);
              LongArray reader = monotonic ? new MonotonicBlockPackedReader(fileHandle, tokensMeta).open()
                                           : new BlockPackedReader(fileHandle, tokensMeta).open())
         {
@@ -85,9 +85,9 @@ public class NumericValuesTest extends SAIRandomizedTester
         writeTokens(monotonic, indexDescriptor, array, prev -> monotonic ? prev + nextInt(100) : nextLong(0, Long.MAX_VALUE));
 
         final MetadataSource source = MetadataSource.loadGroupMetadata(indexDescriptor);
-        NumericValuesMeta tokensMeta = new NumericValuesMeta(source.get(indexDescriptor.componentName(IndexComponent.TOKEN_VALUES)));
+        NumericValuesMeta tokensMeta = new NumericValuesMeta(source.get(indexDescriptor.componentName(IndexComponent.ROW_TO_TOKEN)));
 
-        try (FileHandle fileHandle = indexDescriptor.createPerSSTableFileHandle(IndexComponent.TOKEN_VALUES, null);
+        try (FileHandle fileHandle = indexDescriptor.createPerSSTableFileHandle(IndexComponent.ROW_TO_TOKEN, null);
              LongArray reader = (monotonic ? new MonotonicBlockPackedReader(fileHandle, tokensMeta)
                                            : new BlockPackedReader(fileHandle, tokensMeta)).open())
         {
@@ -107,7 +107,7 @@ public class NumericValuesTest extends SAIRandomizedTester
         long current = 0;
         try (MetadataWriter metadataWriter = new MetadataWriter(indexDescriptor.openPerSSTableOutput(IndexComponent.GROUP_META));
              final NumericValuesWriter numericWriter = new NumericValuesWriter(indexDescriptor,
-                                                                               IndexComponent.TOKEN_VALUES,
+                                                                               IndexComponent.ROW_TO_TOKEN,
                                                                                metadataWriter,
                                                                                monotonic,
                                                                                blockSize))

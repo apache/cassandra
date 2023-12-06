@@ -128,7 +128,8 @@ docker exec --user root ${container_name} bash -c "\${CASSANDRA_DIR}/.build/dock
 docker exec --user build ${container_name} bash -c "${docker_command}"
 RETURN=$?
 
-docker stop ${container_name} >/dev/null
+# docker stop in background, ignore errors
+( nohup docker stop ${container_name} >/dev/null 2>/dev/null & )
 popd >/dev/null
 [ $RETURN -eq 0 ] && echo "Build directory found at ${build_dir}"
 exit $RETURN

@@ -38,7 +38,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.LOG4J2_DIS
 import static org.apache.cassandra.config.CassandraRelevantProperties.LOG4J2_DISABLE_JMX_LEGACY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.LOG4J_SHUTDOWN_HOOK_ENABLED;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
-import static org.apache.cassandra.config.CassandraRelevantProperties.RELOCATED_SHADED_IO_NETTY_TRANSPORT_NONATIVE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.IO_NETTY_TRANSPORT_NONATIVE;
 
 public class HarryHelper
 {
@@ -51,7 +51,7 @@ public class HarryHelper
         CASSANDRA_ALLOW_SIMPLE_STRATEGY.setBoolean(true); // makes easier to share OSS tests without RF limits
         CASSANDRA_MINIMUM_REPLICATION_FACTOR.setInt(0); // makes easier to share OSS tests without RF limits
         DISABLE_TCACTIVE_OPENSSL.setBoolean(true);
-        RELOCATED_SHADED_IO_NETTY_TRANSPORT_NONATIVE.setBoolean(true);
+        IO_NETTY_TRANSPORT_NONATIVE.setBoolean(true);
         ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
 
         InJvmSut.init();

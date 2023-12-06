@@ -891,6 +891,37 @@ public class FBUtilities
     }
 
     /**
+     * Formats a latency value in milliseconds for display, appending an "ms" suffix.
+     * The formatted output is rounded to three decimal places.
+     * For example, "5000.000 ms", "100.000 ms", "0.050 ms", "0.000 ms", "NaN ms".
+     * @param latency   Latency in milliseconds to print.
+     */
+    public static String prettyPrintLatency(double latency)
+    {
+        return String.format("%.3f ms", latency);
+    }
+
+    /**
+     * Formats a ratio value for display, rounds it to three decimal places.
+     * For example, "10.000", "1.000", "0.050", "0.001", "0.000", "NaN".
+     * @param ratio   Ratio to print.
+     */
+    public static String prettyPrintRatio(double ratio)
+    {
+        return String.format("%.3f", ratio);
+    }
+
+    /**
+     * Formats an average value for display, rounds it to two decimal places.
+     * For example, "100500.00", "1.50", "0.05", "0.00", "NaN".
+     * @param average   Average value to print.
+     */
+    public static String prettyPrintAverage(double average)
+    {
+        return String.format("%.2f", average);
+    }
+
+    /**
      * Convert the given size in bytes to a human-readable value using binary (i.e. 2^10-based) modifiers.
      * For example, 1.000KiB, 2.100GiB etc., up to 8.000 EiB.
      * @param size      Number to convert.
