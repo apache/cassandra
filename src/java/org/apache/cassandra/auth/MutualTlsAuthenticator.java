@@ -91,6 +91,12 @@ public class MutualTlsAuthenticator implements IAuthenticator
     }
 
     @Override
+    public boolean supportsEarlyCertificateAuthentication()
+    {
+        return true;
+    }
+
+    @Override
     public Set<? extends IResource> protectedResources()
     {
         return ImmutableSet.of(DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES));
@@ -150,6 +156,12 @@ public class MutualTlsAuthenticator implements IAuthenticator
         }
 
         @Override
+        public boolean requiresCertificateAuthentication()
+        {
+            return true;
+        }
+
+        @Override
         public boolean isComplete()
         {
             return true;
@@ -158,6 +170,11 @@ public class MutualTlsAuthenticator implements IAuthenticator
         @Override
         public AuthenticatedUser getAuthenticatedUser() throws AuthenticationException
         {
+            if (clientCertificateChain == null || clientCertificateChain.length == 0)
+            {
+                throw new AuthenticationException("No certificate present on connection");
+            }
+
             if (!certificateValidator.isValidCertificate(clientCertificateChain))
             {
                 String message = "Invalid or not supported certificate";

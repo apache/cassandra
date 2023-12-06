@@ -63,6 +63,7 @@ import com.google.common.base.Objects;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import org.apache.cassandra.auth.*;
 import org.apache.commons.lang3.ArrayUtils;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -91,10 +92,6 @@ import com.datastax.shaded.netty.channel.EventLoopGroup;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.auth.AuthCacheService;
-import org.apache.cassandra.auth.AuthSchemaChangeListener;
-import org.apache.cassandra.auth.AuthTestUtils;
-import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DataStorageSpec;
@@ -503,9 +500,13 @@ public abstract class CQLTester
         return allArgs;
     }
 
-    protected static void requireAuthentication()
+    protected static void requireAuthentication() {
+        requireAuthentication(new AuthTestUtils.LocalPasswordAuthenticator());
+    }
+
+    protected static void requireAuthentication(final IAuthenticator authenticator)
     {
-        DatabaseDescriptor.setAuthenticator(new AuthTestUtils.LocalPasswordAuthenticator());
+        DatabaseDescriptor.setAuthenticator(authenticator);
         DatabaseDescriptor.setAuthorizer(new AuthTestUtils.LocalCassandraAuthorizer());
         DatabaseDescriptor.setNetworkAuthorizer(new AuthTestUtils.LocalCassandraNetworkAuthorizer());
         DatabaseDescriptor.setCIDRAuthorizer(new AuthTestUtils.LocalCassandraCIDRAuthorizer());
@@ -517,6 +518,7 @@ public abstract class CQLTester
             public void setup()
             {
                 loadRoleStatement();
+                loadIdentityStatement();
                 QueryProcessor.executeInternal(createDefaultRoleQuery());
             }
         };
@@ -533,6 +535,27 @@ public abstract class CQLTester
 
         AuthCacheService.initializeAndRegisterCaches();
     }
+
+    /**
+     * Configures the server to require client encryption for CQL.  Useful for tests which exercise TLS specific
+     * behavior.
+     * <p>
+     * Note to use this appropriately, {@link #requireNetwork} should be given a server configurator configured
+     * with {@link Server.Builder#withTlsEncryptionPolicy(EncryptionOptions.TlsEncryptionPolicy)} using
+     * {@link org.apache.cassandra.config.EncryptionOptions.TlsEncryptionPolicy#ENCRYPTED}.
+     */
+    protected static void requireNativeProtocolClientEncryption()
+    {
+        DatabaseDescriptor.updateNativeProtocolEncryptionOptions((encryptionOptions ->
+                encryptionOptions.withEnabled(true)
+                        .withKeyStore("test/conf/cassandra_ssl_test.keystore")
+                        .withKeyStorePassword("cassandra")
+                        .withTrustStore("test/conf/cassandra_ssl_test.truststore")
+                        .withTrustStorePassword("cassandra")
+                        .withRequireEndpointVerification(false)
+                        .withRequireClientAuth(EncryptionOptions.ClientAuth.OPTIONAL)));
+    }
+
 
     /**
      *  Initialize Native Transport for test that need it.

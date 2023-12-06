@@ -28,10 +28,32 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 public interface IAuthenticator
 {
     /**
-     * Whether or not the authenticator requires explicit login.
+     * Whether the authenticator requires explicit login.
      * If false will instantiate user with AuthenticatedUser.ANONYMOUS_USER.
      */
     boolean requireAuthentication();
+
+    /**
+     * Whether the authenticator supports early certificate authentication, meaning a client-provided certificate can
+     * be evaluated as part of handling a STARTUP request instead of sending an AUTHENTICATE to client and waiting
+     * for an AUTH_RESPONSE.
+     * <p>
+     * The advantage of returning <code>true</code> here is that a client is not prompted for authentication,
+     * so if an authenticator can authenticate solely with a client certificate, there is no need to ask the client
+     * for authentication.
+     * <p>
+     * If an authenticator implementation requires certificate authentication, this should be <code>true</code>;
+     * otherwise if a client does not provide a certificate, an AUTHENTICATE will be sent to the client. This may
+     * confuse a driver implementation into thinking an authenticator is needed, when instead the real issue is
+     * that no client certificate was provided.
+     * <p>
+     * If <code>false</code>, certificate authentication can still be done when handling AUTH_RESPONSE if the
+     * authenticator needs to.
+     */
+    default boolean supportsEarlyCertificateAuthentication()
+    {
+        return false;
+    }
 
      /**
      * Set of resources that should be made inaccessible to users and only accessible internally.
@@ -145,5 +167,18 @@ public interface IAuthenticator
          * @throws AuthenticationException
          */
         public AuthenticatedUser getAuthenticatedUser() throws AuthenticationException;
+
+        /**
+         * Whether its determined if this negotiator requires certificates.  This is used in conjunction with
+         * {@link #supportsEarlyCertificateAuthentication()} in determining if authentication can be done with
+         * client certificates when handling a Startup message.
+         *
+         * If <code>true</code>, will attempt to authenticate while handling a Startup, otherwise will not attempt
+         * there and defer authentication to when handling an AuthResponse message.
+         */
+        default boolean requiresCertificateAuthentication()
+        {
+            return false;
+        }
     }
 }
