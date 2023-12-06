@@ -554,4 +554,32 @@ public class ControllerTest
         controller = Controller.fromOptions(cfs, options);
         assertEquals(Controller.DEFAULT_BASE_SHARD_COUNT, controller.baseShardCount);
     }
+
+    @Test
+    public void testMinSSTableSize()
+    {
+        Map<String, String> options = new HashMap<>();
+        // test min < default target sstable size
+        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, String.format("%sB",Controller.DEFAULT_TARGET_SSTABLE_SIZE-1));
+        try
+        {
+            Controller.validateOptions(options);
+            fail("Should have thrown a ConfigurationException");
+        } catch (ConfigurationException expected)
+        {
+            assertTrue( expected.getMessage().contains("Invalid configuration, min_sstable_size should be greater than or equal to"));
+        }
+
+        // test min < configured target table size
+        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, String.format("%sB",Controller.MIN_TARGET_SSTABLE_SIZE+10));
+        options.put(Controller.TARGET_SSTABLE_SIZE_OPTION, String.format("%sB",Controller.MIN_TARGET_SSTABLE_SIZE*2));
+        try
+        {
+            Controller.validateOptions(options);
+            fail("Should have thrown a ConfigurationException");
+        } catch (ConfigurationException expected)
+        {
+            assertTrue( expected.getMessage().contains("Invalid configuration, min_sstable_size should be greater than or equal to"));
+        }
+    }
 }
