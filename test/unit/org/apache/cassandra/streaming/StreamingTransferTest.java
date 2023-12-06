@@ -39,6 +39,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -88,6 +89,7 @@ public class StreamingTransferTest
     public static void defineSchema() throws Exception
     {
         SchemaLoader.prepareServer();
+        MessagingService.instance().waitUntilListeningUnchecked();
         StorageService.instance.initServer();
 
         createKeyspace(KEYSPACE1,

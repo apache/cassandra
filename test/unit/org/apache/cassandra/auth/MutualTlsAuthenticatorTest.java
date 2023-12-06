@@ -39,6 +39,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.MBeanWrapper;
@@ -72,6 +73,7 @@ public class MutualTlsAuthenticatorTest
     public static void setup()
     {
         SchemaLoader.prepareServer();
+        MessagingService.instance().waitUntilListeningUnchecked();
         StorageService.instance.initServer();
         ((CassandraRoleManager)DatabaseDescriptor.getRoleManager()).loadIdentityStatement();
         final Config config = DatabaseDescriptor.getRawConfig();
