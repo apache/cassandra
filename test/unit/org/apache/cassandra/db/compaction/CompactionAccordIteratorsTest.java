@@ -90,6 +90,7 @@ import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
+import static accord.impl.TimestampsForKey.NO_LAST_EXECUTED_HLC;
 import static accord.local.PreLoadContext.contextFor;
 import static accord.utils.async.AsyncChains.getUninterruptibly;
 import static org.apache.cassandra.Util.spinAssertEquals;
@@ -98,12 +99,8 @@ import static org.apache.cassandra.db.compaction.CompactionAccordIteratorsTest.D
 import static org.apache.cassandra.db.compaction.CompactionAccordIteratorsTest.DurableBeforeType.NOT_DURABLE;
 import static org.apache.cassandra.db.compaction.CompactionAccordIteratorsTest.DurableBeforeType.UNIVERSAL;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
-import static org.apache.cassandra.service.accord.AccordKeyspace.COMMANDS;
-import static org.apache.cassandra.service.accord.AccordKeyspace.DEPS_COMMANDS_FOR_KEY;
-import static org.apache.cassandra.service.accord.AccordKeyspace.DepsCommandsForKeysAccessor;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.apache.cassandra.service.accord.AccordKeyspace.*;
+import static org.junit.Assert.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -127,7 +124,9 @@ public class CompactionAccordIteratorsTest
     private static final TxnId GT_SECOND_TXN_ID = AccordTestUtils.txnId(EPOCH, SECOND_TXN_ID.hlc() + 1, NODE);
 
     static ColumnFamilyStore commands;
+    static ColumnFamilyStore timestampsForKey;
     static ColumnFamilyStore depsCommandsForKey;
+    static ColumnFamilyStore allCommandsForKey;
     static TableMetadata table;
     static FullRoute<?> route;
     Random random;
@@ -146,10 +145,19 @@ public class CompactionAccordIteratorsTest
         SchemaLoader.createKeyspace("ks", KeyspaceParams.simple(1),
                                     parse("CREATE TABLE tbl (k int, c int, v int, primary key (k, c))", "ks"));
         StorageService.instance.initServer();
+
         commands = ColumnFamilyStore.getIfExists(SchemaConstants.ACCORD_KEYSPACE_NAME, COMMANDS);
         commands.disableAutoCompaction();
+
+        timestampsForKey = ColumnFamilyStore.getIfExists(SchemaConstants.ACCORD_KEYSPACE_NAME, TIMESTAMPS_FOR_KEY);
+        timestampsForKey.disableAutoCompaction();
+
         depsCommandsForKey = ColumnFamilyStore.getIfExists(SchemaConstants.ACCORD_KEYSPACE_NAME, DEPS_COMMANDS_FOR_KEY);
         depsCommandsForKey.disableAutoCompaction();
+
+        allCommandsForKey = ColumnFamilyStore.getIfExists(SchemaConstants.ACCORD_KEYSPACE_NAME, ALL_COMMANDS_FOR_KEY);
+        allCommandsForKey.disableAutoCompaction();
+
         table = ColumnFamilyStore.getIfExists("ks", "tbl").metadata();
         route = AccordTestUtils.keys(table, 42).toRoute(AccordTestUtils.key(table, 42).toUnseekable());
     }
@@ -210,12 +218,6 @@ public class CompactionAccordIteratorsTest
     }
 
     @Test
-    public void testAccordTimestampsForKeyPurger()
-    {
-        throw new AssertionError("TODO -> see commented out parts of CFK tests");
-    }
-
-    @Test
     public void testAccordCommandsForKeyPurgerSingleCompaction() throws Throwable
     {
         testAccordCommandsForKeyPurger(true);
@@ -230,11 +232,33 @@ public class CompactionAccordIteratorsTest
     private void testAccordCommandsForKeyPurger(boolean singleCompaction) throws Throwable
     {
         this.singleCompaction = singleCompaction;
+        testAccordTimestampsForKeyPurger(null, expectedAccordTimestampsForKeyNoChange());
         testAccordCommandsForKeyPurger(null, expectedAccordCommandsForKeyNoChange());
+        testAccordTimestampsForKeyPurger(redundantBefore(LT_TXN_ID), expectedAccordTimestampsForKeyNoChange());
         testAccordCommandsForKeyPurger(redundantBefore(LT_TXN_ID), expectedAccordCommandsForKeyNoChange());
+        testAccordTimestampsForKeyPurger(redundantBefore(TXN_ID), expectedAccordTimestampsForKeyNoChange());
         testAccordCommandsForKeyPurger(redundantBefore(TXN_ID), expectedAccordCommandsForKeyNoChange());
+        testAccordTimestampsForKeyPurger(redundantBefore(GT_TXN_ID), expectedAccordTimestampsForKeyEraseOne());
         testAccordCommandsForKeyPurger(redundantBefore(GT_TXN_ID), expectedAccordCommandsForKeyEraseOne());
+        testAccordTimestampsForKeyPurger(redundantBefore(GT_SECOND_TXN_ID), expectedAccordTimestampsForKeyEraseAll());
         testAccordCommandsForKeyPurger(redundantBefore(GT_SECOND_TXN_ID), expectedAccordCommandsForKeyEraseAll());
+    }
+
+    private static Consumer<List<Partition>> expectedAccordTimestampsForKeyNoChange()
+    {
+        return partitions -> {
+            assertEquals(1, partitions.size());
+            Partition partition = partitions.get(0);
+            Row row = partition.getRow(Clustering.EMPTY);
+
+            assertEquals(SECOND_TXN_ID, TimestampsForKeyRows.getMaxTimestamp(row));
+            assertEquals(TXN_ID, TimestampsForKeyRows.getLastExecutedTimestamp(row));
+            assertEquals(TXN_ID, TimestampsForKeyRows.getLastWriteTimestamp(row));
+
+            // last_executed_micros is only persisted if it doesn't match txnId.hlc, which only happens in the
+            // case of an hlc collision. Each txnId in this test has a unique hlc
+            assertEquals(NO_LAST_EXECUTED_HLC, TimestampsForKeyRows.getLastExecutedMicros(row));
+        };
     }
 
     private static Consumer<List<Partition>> expectedAccordCommandsForKeyNoChange()
@@ -242,18 +266,26 @@ public class CompactionAccordIteratorsTest
         return partitions -> {
             assertEquals(1, partitions.size());
             Partition partition = partitions.get(0);
-            Row staticRow = partition.getRow(Clustering.STATIC_CLUSTERING);
-            assertEquals(4, Iterables.size(staticRow));
-//            assertEquals(SECOND_TXN_ID, CommandsForKeyRows.getMaxTimestamp(staticRow));
-//            assertEquals(TXN_ID, CommandsForKeyRows.getLastExecutedTimestamp(staticRow));
-//            assertEquals(TXN_ID, CommandsForKeyRows.getLastWriteTimestamp(staticRow));
-//            assertEquals(TXN_ID.hlc(), CommandsForKeyRows.getLastExecutedMicros(staticRow));
-            assertEquals(4, Iterators.size(partition.unfilteredIterator()));
+            assertEquals(2, Iterators.size(partition.unfilteredIterator()));
             UnfilteredRowIterator rows = partition.unfilteredIterator();
             // One row per txn per series
-            for (int i = 0; i < 2; i++)
-                for (TxnId txnId : TXN_IDS)
-                    assertEquals(txnId, DepsCommandsForKeysAccessor.getTimestamp((Row)rows.next()));
+            for (TxnId txnId : TXN_IDS)
+                assertEquals(txnId, DepsCommandsForKeysAccessor.getTimestamp((Row)rows.next()));
+        };
+    }
+
+    private static Consumer<List<Partition>> expectedAccordTimestampsForKeyEraseOne()
+    {
+        return partitions -> {
+            assertEquals(1, partitions.size());
+            Partition partition = partitions.get(0);
+            Row row = partition.getRow(Clustering.EMPTY);
+            // Only expect one column to remain because the second transaction is a read
+            assertEquals(1, Iterables.size(row));
+            assertEquals(SECOND_TXN_ID, AccordKeyspace.TimestampsForKeyRows.getMaxTimestamp(row));
+            assertNull(AccordKeyspace.TimestampsForKeyRows.getLastExecutedTimestamp(row));
+            assertNull(AccordKeyspace.TimestampsForKeyRows.getLastWriteTimestamp(row));
+            assertEquals(NO_LAST_EXECUTED_HLC, AccordKeyspace.TimestampsForKeyRows.getLastExecutedMicros(row));
         };
     }
 
@@ -262,23 +294,30 @@ public class CompactionAccordIteratorsTest
         return partitions -> {
             assertEquals(1, partitions.size());
             Partition partition = partitions.get(0);
-            Row staticRow = partition.getRow(Clustering.STATIC_CLUSTERING);
-            // Only expect one column to remain because the second transaction is a read
-            assertEquals(1, Iterables.size(staticRow));
-//            assertEquals(SECOND_TXN_ID, CommandsForKeyRows.getMaxTimestamp(staticRow));
-//            assertNull(CommandsForKeyRows.getLastExecutedTimestamp(staticRow));
-//            assertNull(CommandsForKeyRows.getLastWriteTimestamp(staticRow));
-//            assertEquals(NO_LAST_EXECUTED_HLC, CommandsForKeyRows.getLastExecutedMicros(staticRow));
-            assertEquals(2, Iterators.size(partition.unfilteredIterator()));
+            assertEquals(1, Iterators.size(partition.unfilteredIterator()));
             UnfilteredRowIterator rows = partition.unfilteredIterator();
             assertEquals(TXN_IDS[1], DepsCommandsForKeysAccessor.getTimestamp((Row)rows.next()));
-            assertEquals(TXN_IDS[1], DepsCommandsForKeysAccessor.getTimestamp((Row)rows.next()));
         };
+    }
+
+    private static Consumer<List<Partition>> expectedAccordTimestampsForKeyEraseAll()
+    {
+        return partitions -> assertEquals(0, partitions.size());
     }
 
     private static Consumer<List<Partition>> expectedAccordCommandsForKeyEraseAll()
     {
         return partitions -> assertEquals(0, partitions.size());
+    }
+
+    private void testAccordTimestampsForKeyPurger(RedundantBefore redundantBefore, Consumer<List<Partition>> expectedResult) throws Throwable
+    {
+        testWithCommandStore((commandStore) -> {
+            IAccordService mockAccordService = mockAccordService(commandStore, redundantBefore, DurableBefore.EMPTY);
+            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(ACCORD_KEYSPACE_NAME, TIMESTAMPS_FOR_KEY);
+            List<Partition> result = compactCFS(mockAccordService, cfs);
+            expectedResult.accept(result);
+        }, true);
     }
 
     private void testAccordCommandsForKeyPurger(RedundantBefore redundantBefore, Consumer<List<Partition>> expectedResult) throws Throwable
@@ -409,7 +448,9 @@ public class CompactionAccordIteratorsTest
             commandStore.cache().awaitSaveResults();
         });
         commands.forceBlockingFlush(FlushReason.UNIT_TESTS);
+        timestampsForKey.forceBlockingFlush(FlushReason.UNIT_TESTS);
         depsCommandsForKey.forceBlockingFlush(FlushReason.UNIT_TESTS);
+        allCommandsForKey.forceBlockingFlush(FlushReason.UNIT_TESTS);
     }
 
     private void testWithCommandStore(TestWithCommandStore test, boolean additionalCommand) throws Throwable
@@ -470,7 +511,7 @@ public class CompactionAccordIteratorsTest
             assertEquals(txnId, AccordKeyspace.deserializeTimestampOrNull(commandsTableIterator.next().getBytes("txn_id"), TxnId::fromBits));
         UntypedResultSet commandsForKeyTable = QueryProcessor.executeInternal("SELECT * FROM " + ACCORD_KEYSPACE_NAME + "." + DEPS_COMMANDS_FOR_KEY + ";");
         logger.info(commandsForKeyTable.toStringUnsafe());
-        assertEquals(txnIds.length * 2, commandsForKeyTable.size());
+        assertEquals(txnIds.length, commandsForKeyTable.size());
         Iterator<UntypedResultSet.Row> commandsForKeyTableIterator = commandsTable.iterator();
         for (TxnId txnId : txnIds)
             assertEquals(txnId, AccordKeyspace.deserializeTimestampOrNull(commandsForKeyTableIterator.next().getBytes("txn_id"), TxnId::fromBits));
