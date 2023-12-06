@@ -30,6 +30,7 @@ import com.google.common.collect.Sets;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.tracing.TraceKeyspace;
 
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
@@ -166,6 +167,7 @@ public final class SchemaConstants
                            .addAll(TraceKeyspace.TABLE_NAMES)
                            .addAll(AuthKeyspace.TABLE_NAMES)
                            .addAll(SystemDistributedKeyspace.TABLE_NAMES)
+                           .addAll(AccordKeyspace.TABLE_NAMES)
                            .build();
     }
 }

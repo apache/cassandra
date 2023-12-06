@@ -59,6 +59,7 @@ import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.SharedExecutorPool;
@@ -504,7 +505,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     @Override
     public void receiveMessage(IMessage message)
     {
-        async(receiveMessageRunnable(message)).apply(false);
+        sync(receiveMessageRunnable(message)).accept(false);
     }
 
     @Override
@@ -554,6 +555,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     inInstancelogger.warn("Dropping message {} due to stage {} being shutdown", messageIn, header.verb.stage);
                     return;
                 }
+                // This can cause deadlocks when sending messages to self so use Stage.MISC.executor() just to have a
+                // place for it to run
+                if ( executor == ImmediateExecutor.INSTANCE)
+                    executor = Stage.MISC.executor();
                 executor.execute(ExecutorLocals.create(state), () -> MessagingService.instance().inboundSink.accept(messageIn));
             }
         };
