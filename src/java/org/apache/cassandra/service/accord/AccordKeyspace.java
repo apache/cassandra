@@ -708,29 +708,31 @@ public class AccordKeyspace
         return prev != value;
     }
 
-    private static <C, V> void addCellIfModified(ColumnMetadata column, Function<C, V> get, SerializeFunction<V> serialize, Row.Builder builder, long timestampMicros, int nowInSeconds, C original, C current) throws IOException
+    private static <C, V> int addCellIfModified(ColumnMetadata column, Function<C, V> get, SerializeFunction<V> serialize, Row.Builder builder, long timestampMicros, int nowInSeconds, C original, C current) throws IOException
     {
         if (valueModified(get, original, current))
         {
             V newValue = get.apply(current);
             if (newValue == null) builder.addCell(tombstone(column, timestampMicros, nowInSeconds));
             else builder.addCell(live(column, timestampMicros, serialize.apply(newValue)));
+            return 1;
         }
+        return 0;
     }
 
-    private static <C extends Command, V> void addCellIfModified(ColumnMetadata column, Function<C, V> get, LocalVersionedSerializer<V> serializer, Row.Builder builder, long timestampMicros, int nowInSeconds, C original, C command) throws IOException
+    private static <C extends Command, V> int addCellIfModified(ColumnMetadata column, Function<C, V> get, LocalVersionedSerializer<V> serializer, Row.Builder builder, long timestampMicros, int nowInSeconds, C original, C command) throws IOException
     {
-        addCellIfModified(column, get, v -> serializeOrNull(v, serializer), builder, timestampMicros, nowInSeconds, original, command);
+        return addCellIfModified(column, get, v -> serializeOrNull(v, serializer), builder, timestampMicros, nowInSeconds, original, command);
     }
 
-    private static <C extends Command, V extends Enum<V>> void addEnumCellIfModified(ColumnMetadata column, Function<C, V> get, Row.Builder builder, long timestampMicros, int nowInSeconds, C original, C command) throws IOException
+    private static <C extends Command, V extends Enum<V>> int addEnumCellIfModified(ColumnMetadata column, Function<C, V> get, Row.Builder builder, long timestampMicros, int nowInSeconds, C original, C command) throws IOException
     {
         // TODO: convert to byte arrays
         ValueAccessor<ByteBuffer> accessor = ByteBufferAccessor.instance;
-        addCellIfModified(column, get, v -> accessor.valueOf(v.ordinal()), builder, timestampMicros, nowInSeconds, original, command);
+        return addCellIfModified(column, get, v -> accessor.valueOf(v.ordinal()), builder, timestampMicros, nowInSeconds, original, command);
     }
 
-    private static <C, V> void addSetChanges(ColumnMetadata column, Function<C, Set<V>> get, SerializeFunction<V> serialize, Row.Builder builder, long timestampMicros, int nowInSec, C original, C command) throws IOException
+    private static <C, V> int addSetChanges(ColumnMetadata column, Function<C, Set<V>> get, SerializeFunction<V> serialize, Row.Builder builder, long timestampMicros, int nowInSec, C original, C command) throws IOException
     {
         Set<V> prev = original != null ? get.apply(original) : Collections.emptySet();
         if (prev == null) prev = Collections.emptySet();
@@ -740,14 +742,22 @@ public class AccordKeyspace
         if (value.isEmpty() && !prev.isEmpty())
         {
             builder.addComplexDeletion(column, DeletionTime.build(timestampMicros, nowInSec));
-            return;
+            return 1;
         }
 
+        int updates = 0;
         for (V item : Sets.difference(value, prev))
+        {
             builder.addCell(live(column, timestampMicros, EMPTY_BYTE_BUFFER, CellPath.create(serialize.apply(item))));
+            updates++;
+        }
 
         for (V item : Sets.difference(prev, value))
+        {
             builder.addCell(tombstone(column, timestampMicros, nowInSec, CellPath.create(serialize.apply(item))));
+            updates++;
+        }
+        return updates;
     }
 
     private static <C, K, V> void addMapChanges(ColumnMetadata column, Function<C, Map<K, V>> get, SerializeFunction<K> serializeKey, SerializeFunction<V> serializeVal, Row.Builder builder, long timestampMicros, int nowInSec, C original, C command) throws IOException
@@ -805,13 +815,14 @@ public class AccordKeyspace
             int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
             builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(timestampMicros, nowInSeconds));
 
-            addEnumCellIfModified(CommandsColumns.durability, Command::durability, builder, timestampMicros, nowInSeconds, original, command);
-            addCellIfModified(CommandsColumns.route, Command::route, LocalVersionedSerializers.route, builder, timestampMicros, nowInSeconds, original, command);
-            addSetChanges(CommandsColumns.listeners, Command::durableListeners, v -> serialize(v, LocalVersionedSerializers.listeners), builder, timestampMicros, nowInSeconds, original, command);
-            addEnumCellIfModified(CommandsColumns.status, Command::saveStatus, builder, timestampMicros, nowInSeconds, original, command);
-            addCellIfModified(CommandsColumns.execute_at, Command::executeAt, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
-            addCellIfModified(CommandsColumns.promised_ballot, Command::promised, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
-            addCellIfModified(CommandsColumns.accepted_ballot, Command::accepted, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
+            int updates = 0;
+            updates += addEnumCellIfModified(CommandsColumns.durability, Command::durability, builder, timestampMicros, nowInSeconds, original, command);
+            updates += addCellIfModified(CommandsColumns.route, Command::route, LocalVersionedSerializers.route, builder, timestampMicros, nowInSeconds, original, command);
+            updates += addSetChanges(CommandsColumns.listeners, Command::durableListeners, v -> serialize(v, LocalVersionedSerializers.listeners), builder, timestampMicros, nowInSeconds, original, command);
+            updates += addEnumCellIfModified(CommandsColumns.status, Command::saveStatus, builder, timestampMicros, nowInSeconds, original, command);
+            updates += addCellIfModified(CommandsColumns.execute_at, Command::executeAt, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
+            updates += addCellIfModified(CommandsColumns.promised_ballot, Command::promised, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
+            updates += addCellIfModified(CommandsColumns.accepted_ballot, Command::accepted, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
 
             // TODO review this is just to work around Truncated not being committed but having a status after committed
             // so status claims it is committed.
@@ -820,13 +831,17 @@ public class AccordKeyspace
                 Command.Committed committed = command.asCommitted();
                 Command.Committed originalCommitted = original != null && original.isCommitted() ? original.asCommitted() : null;
                 if (originalCommitted == null || committed.waitingOn != originalCommitted.waitingOn)
+                {
                     builder.addCell(live(CommandsColumns.waiting_on, timestampMicros, WaitingOnSerializer.serialize(committed.waitingOn)));
+                    updates++;
+                }
             }
 
-            Row row = builder.build();
-            if (row.isEmpty())
+            // row.isEmpty will never return true since we define pk liveness so we count row updates
+            if (updates == 0)
                 return null;
 
+            Row row = builder.build();
             ByteBuffer key = CommandsColumns.keyComparator.make(storeId,
                                                                 command.txnId().domain().ordinal(),
                                                                 serializeTimestamp(command.txnId())).serializeAsPartitionKey();
@@ -1318,15 +1333,17 @@ public class AccordKeyspace
             int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
             LivenessInfo livenessInfo = LivenessInfo.create(timestampMicros, nowInSeconds);
             builder.addPrimaryKeyLivenessInfo(livenessInfo);
-            addCellIfModified(TimestampsForKeyColumns.max_timestamp, TimestampsForKey::max, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, current);
-            addCellIfModified(TimestampsForKeyColumns.last_executed_timestamp, TimestampsForKey::lastExecutedTimestamp, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, current);
-            addCellIfModified(TimestampsForKeyColumns.last_executed_micros, TimestampsForKey::rawLastExecutedHlc, accessor::valueOf, builder, timestampMicros, nowInSeconds, original, current);
-            addCellIfModified(TimestampsForKeyColumns.last_write_timestamp, TimestampsForKey::lastWriteTimestamp, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, current);
+            int updates = 0;
+            updates += addCellIfModified(TimestampsForKeyColumns.max_timestamp, TimestampsForKey::max, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, current);
+            updates += addCellIfModified(TimestampsForKeyColumns.last_executed_timestamp, TimestampsForKey::lastExecutedTimestamp, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, current);
+            updates += addCellIfModified(TimestampsForKeyColumns.last_executed_micros, TimestampsForKey::rawLastExecutedHlc, accessor::valueOf, builder, timestampMicros, nowInSeconds, original, current);
+            updates += addCellIfModified(TimestampsForKeyColumns.last_write_timestamp, TimestampsForKey::lastWriteTimestamp, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, current);
 
-            Row row = builder.build();
-            if (row.isEmpty())
+            // row.isEmpty will never return true since we define pk liveness so we count row updates
+            if (updates == 0)
                 return null;
 
+            Row row = builder.build();
             ByteBuffer key = TimestampsForKeyColumns.makePartitionKey(storeId, current.key());
             PartitionUpdate update = PartitionUpdate.singleRowUpdate(TimestampsForKeys, key, row);
             return new Mutation(update);
