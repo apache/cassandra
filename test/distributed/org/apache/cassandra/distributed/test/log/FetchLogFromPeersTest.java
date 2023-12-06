@@ -165,7 +165,11 @@ public class FetchLogFromPeersTest extends TestBaseImpl
     @Test
     public void catchupCoordinatorBehindTestPlacements() throws Exception
     {
+        // Only runs in non-vnode configuration, because whether node2 is a replica or not before/after
+        // depends on the number of tokens but this is set externally to the test. The actual behaviour
+        // under test is completely orthogonal to the actual number of tokens though.
         try (Cluster cluster = init(builder().withNodes(3)
+                                             .withoutVNodes()
                                              .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(4))
                                              .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
                                              .start()))
@@ -181,7 +185,7 @@ public class FetchLogFromPeersTest extends TestBaseImpl
 
             cluster.get(1).shutdown().get();
 
-            // node2 is behind, reading from it will cause a failure, but it will then catch up
+            // node2 is behind, writing to it will cause a failure, but it will then catch up
             try
             {
                 cluster.coordinator(2).execute(withKeyspace("insert into %s.tbl (id) values (3)"), ConsistencyLevel.QUORUM);
@@ -196,7 +200,11 @@ public class FetchLogFromPeersTest extends TestBaseImpl
     @Test
     public void catchupCoordinatorAheadPlacementsReadTest() throws Exception
     {
+        // Only runs in non-vnode configuration, because whether node2 is a replica or not before/after
+        // depends on the number of tokens but this is set externally to the test. The actual behaviour
+        // under test is completely orthogonal to the actual number of tokens though.
         try (Cluster cluster = init(builder().withNodes(4)
+                                             .withoutVNodes()
                                              .start()))
         {
             cluster.schemaChange(withKeyspace("alter keyspace %s with replication = {'class':'SimpleStrategy', 'replication_factor':3}"));
@@ -221,7 +229,11 @@ public class FetchLogFromPeersTest extends TestBaseImpl
     @Test
     public void catchupCoordinatorAheadPlacementsWriteTest() throws Throwable
     {
+        // Only runs in non-vnode configuration, because whether node2 is a replica or not before/after
+        // depends on the number of tokens but this is set externally to the test. The actual behaviour
+        // under test is completely orthogonal to the actual number of tokens though.
         try (Cluster cluster = init(builder().withNodes(4)
+                                             .withoutVNodes()
                                              .start()))
         {
             cluster.schemaChange(withKeyspace("alter keyspace %s with replication = {'class':'SimpleStrategy', 'replication_factor':3}"));
