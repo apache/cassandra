@@ -246,9 +246,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         {
             try
             {
-                //wait on messaging service to start listening
-                MessagingService.instance().waitUntilListening();
-
                 taskLock.lock();
 
                 /* Update the local heartbeat counter. */

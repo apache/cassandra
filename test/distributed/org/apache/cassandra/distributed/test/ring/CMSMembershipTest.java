@@ -25,6 +25,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.test.log.FuzzTestBase;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -57,7 +58,7 @@ public class CMSMembershipTest extends FuzzTestBase
     @Test
     public void expandCmsTest() throws Throwable
     {
-        try (Cluster cluster = builder().withNodes(3).start())
+        try (Cluster cluster = builder().withNodes(3).withConfig(c -> c.with(Feature.NETWORK)).start())
         {
             cluster.get(1).runOnInstance(() -> {
                 ClusterMetadata metadata = ClusterMetadata.current();
@@ -90,7 +91,8 @@ public class CMSMembershipTest extends FuzzTestBase
     @Test
     public void shrinkCmsTest() throws Throwable
     {
-        try (Cluster cluster = builder().withNodes(3).start())
+        try (Cluster cluster = builder().withNodes(3)
+                                        .appendConfig(c -> c.with(Feature.NETWORK)).start())
         {
             cluster.get(1).runOnInstance(() -> {
                 try

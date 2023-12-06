@@ -739,14 +739,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         Schema.instance.saveSystemKeyspace();
         DatabaseDescriptor.getInternodeAuthenticator().setupInternode();
-        try
-        {
-            MessagingService.instance().waitUntilListening();
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException("Could not finish waiting until listening", e);
-        }
 
         if (ClusterMetadataService.state() == ClusterMetadataService.State.GOSSIP)
         {

@@ -77,7 +77,7 @@ public abstract class DecommissionAvoidTimeouts extends TestBaseImpl
         try (Cluster cluster = Cluster.build(8)
                                       .withRacks(2, 4)
                                       .withInstanceInitializer(new BB())
-                                      .withConfig(c -> c.with(Feature.GOSSIP)
+                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK)
                                                         .set("transfer_hints_on_decommission", false)
                                                         .set("severity_during_decommission", 10000D)
                                                         .set("dynamic_snitch_badness_threshold", 0))
