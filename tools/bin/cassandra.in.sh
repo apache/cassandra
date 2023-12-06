@@ -100,7 +100,7 @@ if [ -z "$supported_version" ] ; then
         exit 1;
     else
         echo "######################################################################"
-        echo "Warning! You are using JDK$short. Cassandra currently only supports $java_versions_supported."
+        echo "Warning! You are using JDK$short. This Cassandra version only supports $java_versions_supported."
         echo "######################################################################"
     fi
 fi
