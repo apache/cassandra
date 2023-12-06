@@ -25,6 +25,8 @@ Merged from 4.0:
  * Fix cassandra-stress in simplenative mode with prepared statements (CASSANDRA-18744)
  * Fix filtering system ks sstables for relocation on startup (CASSANDRA-18963)
  * Remove completed coordinator sessions (CASSANDRA-18903)
+Merged from 4.1:
+ * Fix StackOverflowError on ALTER after many previous schema changes (CASSANDRA-19166)
 Merged from 3.0:
  * Do not set RPC_READY to false on transports shutdown in order to not fail counter updates for deployments with coordinator and storage nodes with transports turned off (CASSANDRA-18935)
 
