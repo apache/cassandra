@@ -302,6 +302,7 @@ Merged from 3.0:
 
 
 4.1.4
+ * Fix StackOverflowError on ALTER after many previous schema changes (CASSANDRA-19166)
 Merged from 4.0:
  * Fix NTS log message when an unrecognized strategy option is passed (CASSANDRA-18679)
  * Fix BulkLoader ignoring cipher suites options (CASSANDRA-18582)
