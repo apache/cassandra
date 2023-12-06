@@ -825,7 +825,7 @@ public class AccordKeyspace
             }
 
             Row row = builder.build();
-            if (row.isEmpty())
+            if (row.columnCount() == 0)
                 return null;
 
             ByteBuffer key = CommandsColumns.keyComparator.make(storeId,
@@ -1325,7 +1325,7 @@ public class AccordKeyspace
             addCellIfModified(TimestampsForKeyColumns.last_write_timestamp, TimestampsForKey::lastWriteTimestamp, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, current);
 
             Row row = builder.build();
-            if (row.isEmpty())
+            if (row.columnCount() == 0)
                 return null;
 
             ByteBuffer key = TimestampsForKeyColumns.makePartitionKey(storeId, current.key());
