@@ -117,7 +117,7 @@ public class PropertyFileSnitchTest
         // Locations of remote peers should not be accessible from this snitch unless
         // they are present in ClusterMetadata
         Random r = new Random(System.nanoTime());
-        InetAddressAndPort peer = MembershipUtils.randomEndpoint(r);
+        InetAddressAndPort peer = MembershipUtils.endpoint(99);
         replaceConfigFile(ImmutableMap.of(localAddress.getHostAddressAndPort(), "DC1:RAC1",
                                           peer.getHostAddressAndPort(), "OTHER_DC1:OTHER_RAC1"));
         PropertyFileSnitch snitch = new PropertyFileSnitch();
