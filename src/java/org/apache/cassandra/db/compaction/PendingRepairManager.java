@@ -465,7 +465,7 @@ class PendingRepairManager
 
     public synchronized boolean hasDataForSession(TimeUUID sessionID)
     {
-        return strategies.keySet().contains(sessionID);
+        return strategies.containsKey(sessionID);
     }
 
     boolean containsSSTable(SSTableReader sstable)

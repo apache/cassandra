@@ -750,7 +750,14 @@ public class CompactionStrategyManager implements INotificationConsumer
     private void handleFlushNotification(Iterable<SSTableReader> added)
     {
         for (SSTableReader sstable : added)
-            compactionStrategyFor(sstable).addSSTable(sstable);
+        {
+            // TODO (now): rewrite to be thread-safe
+            AbstractCompactionStrategy before = compactionStrategyFor(sstable);
+            before.addSSTable(sstable);
+            AbstractCompactionStrategy after = compactionStrategyFor(sstable);
+            if (before != after && !before.getSSTables().isEmpty())
+                throw new AssertionError("CompactionStrategy changed between calls...");
+        }
     }
 
     private int getHolderIndex(SSTableReader sstable)
@@ -1325,6 +1332,8 @@ public class CompactionStrategyManager implements INotificationConsumer
       */
     public void mutateRepaired(Collection<SSTableReader> sstables, long repairedAt, TimeUUID pendingRepair, boolean isTransient) throws IOException
     {
+        if (sstables.isEmpty())
+            return;
         Set<SSTableReader> changed = new HashSet<>();
 
         writeLock.lock();

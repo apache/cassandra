@@ -83,7 +83,7 @@ public class ConcurrentIrWithPreviewFuzzTest extends FuzzTestBase
                 }
                 else
                 {
-                    assertSuccess(example, true, preview);
+                    assertSuccess(cluster, example, true, preview);
                 }
                 closeables.forEach(Closeable::close);
                 closeables.clear();
