@@ -44,6 +44,8 @@ import org.apache.cassandra.utils.Overlaps;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import static java.lang.String.format;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -559,27 +561,22 @@ public class ControllerTest
     public void testMinSSTableSize()
     {
         Map<String, String> options = new HashMap<>();
+
         // test min < default target sstable size
-        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, String.format("%sB",Controller.DEFAULT_TARGET_SSTABLE_SIZE-1));
-        try
-        {
-            Controller.validateOptions(options);
-            fail("Should have thrown a ConfigurationException");
-        } catch (ConfigurationException expected)
-        {
-            assertTrue( expected.getMessage().contains("Invalid configuration, min_sstable_size should be greater than or equal to"));
-        }
+        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, format("%sB", Controller.DEFAULT_TARGET_SSTABLE_SIZE - 1));
+
+        assertThatExceptionOfType(ConfigurationException.class)
+        .describedAs("Should have thrown a ConfigurationException when min_sstable_size is lower than target_sstable_size")
+        .isThrownBy(() -> Controller.validateOptions(options))
+        .withMessage(format("Invalid configuration, min_sstable_size should be greater than or equal to: %sB", Controller.DEFAULT_TARGET_SSTABLE_SIZE));
 
         // test min < configured target table size
-        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, String.format("%sB",Controller.MIN_TARGET_SSTABLE_SIZE+10));
-        options.put(Controller.TARGET_SSTABLE_SIZE_OPTION, String.format("%sB",Controller.MIN_TARGET_SSTABLE_SIZE*2));
-        try
-        {
-            Controller.validateOptions(options);
-            fail("Should have thrown a ConfigurationException");
-        } catch (ConfigurationException expected)
-        {
-            assertTrue( expected.getMessage().contains("Invalid configuration, min_sstable_size should be greater than or equal to"));
-        }
+        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, format("%sB", Controller.MIN_TARGET_SSTABLE_SIZE + 10));
+        options.put(Controller.TARGET_SSTABLE_SIZE_OPTION, format("%sB", Controller.MIN_TARGET_SSTABLE_SIZE * 2));
+
+        assertThatExceptionOfType(ConfigurationException.class)
+        .describedAs("Should have thrown a ConfigurationException when min_sstable_size is lower than target_sstable_size")
+        .isThrownBy(() -> Controller.validateOptions(options))
+        .withMessage(format("Invalid configuration, min_sstable_size should be greater than or equal to: %sB", Controller.MIN_TARGET_SSTABLE_SIZE * 2));
     }
 }
