@@ -38,6 +38,9 @@ public class Compact extends NodeToolCmd
     @Option(title = "split_output", name = {"-s", "--split-output"}, description = "Use -s to not create a single big file")
     private boolean splitOutput = false;
 
+    @Option(title = "no_split_output", name = {"-ns", "--no-split-output"}, description = "Use -ns to force create a single big file")
+    private boolean noSplitOutput = false;
+
     @Option(title = "user-defined", name = {"--user-defined"}, description = "Use --user-defined to submit listed files for user-defined compaction")
     private boolean userDefined = false;
 
@@ -95,6 +98,13 @@ public class Compact extends NodeToolCmd
                 }
                 else
                 {
+                    // if -s is not specified and we are not force creating a big sstable file, we will use by default use splitOutput
+                    if (!splitOutput && !noSplitOutput)
+                    {
+                        splitOutput = true;
+                        System.out.println("Adding -s by default since we don't want one single big sstable file. Use -ns to create one big file.");
+                    }
+
                     probe.forceKeyspaceCompaction(splitOutput, keyspace, tableNames);
                 }
             } catch (Exception e)
