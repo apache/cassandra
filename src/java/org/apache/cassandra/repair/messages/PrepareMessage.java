@@ -89,13 +89,14 @@ public class PrepareMessage extends RepairMessage
     }
 
     private static final String MIXED_MODE_ERROR = "Some nodes involved in repair are on an incompatible major version. " +
-                                                   "Repair is not supported in mixed major version clusters.";
+                                                   "Repair is not supported in mixed major version clusters (%d vs %d).";
 
     public static final IVersionedSerializer<PrepareMessage> serializer = new IVersionedSerializer<PrepareMessage>()
     {
         public void serialize(PrepareMessage message, DataOutputPlus out, int version) throws IOException
         {
-            Preconditions.checkArgument(version == MessagingService.current_version, MIXED_MODE_ERROR);
+            Preconditions.checkArgument(version == MessagingService.current_version,
+                                        String.format(MIXED_MODE_ERROR, version, MessagingService.current_version));
 
             out.writeInt(message.tableIds.size());
             for (TableId tableId : message.tableIds)
@@ -115,7 +116,8 @@ public class PrepareMessage extends RepairMessage
 
         public PrepareMessage deserialize(DataInputPlus in, int version) throws IOException
         {
-            Preconditions.checkArgument(version == MessagingService.current_version, MIXED_MODE_ERROR);
+            Preconditions.checkArgument(version == MessagingService.current_version,
+                                        String.format(MIXED_MODE_ERROR, version, MessagingService.current_version));
 
             int tableIdCount = in.readInt();
             List<TableId> tableIds = new ArrayList<>(tableIdCount);

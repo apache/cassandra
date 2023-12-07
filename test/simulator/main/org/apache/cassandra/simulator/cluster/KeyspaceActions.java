@@ -183,7 +183,7 @@ public class KeyspaceActions extends ClusterActions
         }));
     }
 
-    private PlacementSimulator.ReplicatedRanges placements(NodesByDc nodesByDc, NodeLookup lookup, int[] rfs)
+    private PlacementSimulator.ReplicatedRanges placements(NodesByDc nodesByDc, int[] rfs)
     {
         List<PlacementSimulator.Node> nodes = new ArrayList<>();
         for (int dcIdx = 0; dcIdx < nodesByDc.dcs.length; dcIdx++)
@@ -262,10 +262,10 @@ public class KeyspaceActions extends ClusterActions
                 case JOIN:
                 {
                     Topology before = topology;
-                    PlacementSimulator.ReplicatedRanges placementsBefore = placements(joined, nodeLookup, currentRf);
+                    PlacementSimulator.ReplicatedRanges placementsBefore = placements(joined, currentRf);
                     int join = registered.removeRandom(random, dc);
                     joined.add(join);
-                    PlacementSimulator.ReplicatedRanges placementsAfter = placements(joined, nodeLookup, currentRf);
+                    PlacementSimulator.ReplicatedRanges placementsAfter = placements(joined, currentRf);
                     Topology during = recomputeTopology(placementsBefore, placementsAfter);
                     updateTopology(during);
                     Topology after = recomputeTopology(placementsAfter, placementsAfter);
@@ -275,13 +275,13 @@ public class KeyspaceActions extends ClusterActions
                 case REPLACE:
                 {
                     Topology before = topology;
-                    PlacementSimulator.ReplicatedRanges placementsBefore = placements(joined, nodeLookup, currentRf);
+                    PlacementSimulator.ReplicatedRanges placementsBefore = placements(joined, currentRf);
                     int join = registered.removeRandom(random, dc);
                     int leave = joined.selectRandom(random, dc);
                     joined.add(join);
                     joined.remove(leave);
                     left.add(leave);
-                    PlacementSimulator.ReplicatedRanges placementsAfter = placements(joined, nodeLookup, currentRf);
+                    PlacementSimulator.ReplicatedRanges placementsAfter = placements(joined, currentRf);
                     nodeLookup.setTokenOf(join, nodeLookup.tokenOf(leave));
                     Topology during = recomputeTopology(placementsBefore, placementsAfter);
                     updateTopology(during);
@@ -296,10 +296,10 @@ public class KeyspaceActions extends ClusterActions
                 case LEAVE:
                 {
                     Topology before = topology;
-                    PlacementSimulator.ReplicatedRanges placementsBefore = placements(joined, nodeLookup, currentRf);
+                    PlacementSimulator.ReplicatedRanges placementsBefore = placements(joined, currentRf);
                     int leave = joined.removeRandom(random, dc);
                     left.add(leave);
-                    PlacementSimulator.ReplicatedRanges placementsAfter = placements(joined, nodeLookup, currentRf);
+                    PlacementSimulator.ReplicatedRanges placementsAfter = placements(joined, currentRf);
                     Topology during = recomputeTopology(placementsBefore, placementsAfter);
                     updateTopology(during);
                     Topology after = recomputeTopology(placementsAfter, placementsAfter);
@@ -375,7 +375,7 @@ public class KeyspaceActions extends ClusterActions
 
     private Topology recomputeTopology()
     {
-        PlacementSimulator.ReplicatedRanges ranges = placements(joined, nodeLookup, currentRf);
+        PlacementSimulator.ReplicatedRanges ranges = placements(joined, currentRf);
         return recomputeTopology(ranges, ranges);
     }
 

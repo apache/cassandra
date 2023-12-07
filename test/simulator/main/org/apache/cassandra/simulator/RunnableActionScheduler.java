@@ -26,7 +26,7 @@ import org.apache.cassandra.simulator.utils.KindOfSequence;
 
 public abstract class RunnableActionScheduler implements Consumer<Action>
 {
-    public enum Kind { RANDOM_WALK, UNIFORM, SEQUENTIAL }
+    public enum Kind { RANDOM_WALK, UNIFORM, SEQUENTIAL, IMMEDIATE }
 
     public static class Immediate extends RunnableActionScheduler
     {

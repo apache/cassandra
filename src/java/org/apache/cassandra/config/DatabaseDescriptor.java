@@ -5023,7 +5023,7 @@ public class DatabaseDescriptor
     {
         // Config is null for junits that don't load the config. Get from env var that CI/build.xml sets
         if (conf == null)
-            return CassandraRelevantProperties.JUNIT_STORAGE_COMPATIBILITY_MODE.getEnum(StorageCompatibilityMode.CASSANDRA_4);
+            return CassandraRelevantProperties.JUNIT_STORAGE_COMPATIBILITY_MODE.getEnum(StorageCompatibilityMode.NONE);
         else
             return conf.storage_compatibility_mode;
     }

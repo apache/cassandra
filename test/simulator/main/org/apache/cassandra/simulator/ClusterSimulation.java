@@ -500,6 +500,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                 switch (Choices.random(random, kinds).choose(random))
                 {
                     default: throw new AssertionError();
+                    case IMMEDIATE: return new RunnableActionScheduler.Immediate();
                     case SEQUENTIAL: return new RunnableActionScheduler.Sequential();
                     case UNIFORM: return new RunnableActionScheduler.RandomUniform(random);
                     case RANDOM_WALK: return new RunnableActionScheduler.RandomWalk(random);

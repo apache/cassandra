@@ -75,6 +75,7 @@ class PaxosClusterSimulation extends ClusterSimulation<PaxosSimulation> implemen
     {
         super(random, seed, uniqueNum, builder,
               config -> config.set("paxos_variant", builder.initialPaxosVariant.name())
+                              .set("storage_compatibility_mode", "NONE")
                               .set("paxos_cache_size", (builder.stateCache != null ? builder.stateCache : random.uniformFloat() < 0.5) ? null : "0MiB")
                               .set("paxos_state_purging", "repaired")
                               .set("paxos_on_linearizability_violations", "log")
