@@ -1,3 +1,10 @@
+5.0-beta2
+Merged from 4.1:
+ * Fix StackOverflowError on ALTER after many previous schema changes (CASSANDRA-19166)
+Merged from 4.0:
+Merged from 3.11:
+Merged from 3.0:
+
 5.0-beta1
  * Fix SAI intersection queries (CASSANDRA-19011)
  * Clone EndpointState before sending GossipShutdown message (CASSANDRA-19115)
@@ -25,8 +32,6 @@ Merged from 4.0:
  * Fix cassandra-stress in simplenative mode with prepared statements (CASSANDRA-18744)
  * Fix filtering system ks sstables for relocation on startup (CASSANDRA-18963)
  * Remove completed coordinator sessions (CASSANDRA-18903)
-Merged from 4.1:
- * Fix StackOverflowError on ALTER after many previous schema changes (CASSANDRA-19166)
 Merged from 3.0:
  * Do not set RPC_READY to false on transports shutdown in order to not fail counter updates for deployments with coordinator and storage nodes with transports turned off (CASSANDRA-18935)
 
@@ -68,11 +73,8 @@ Merged from 4.0:
  * Enable 3rd party JDK installations for Debian package (CASSANDRA-18844)
 Merged from 3.11:
 Merged from 3.0:
-<<<<<<< HEAD
-=======
  * Suppress CVE-2023-6378 (CASSANDRA-19142) 
  * Do not set RPC_READY to false on transports shutdown in order to not fail counter updates for deployments with coordinator and storage nodes with transports turned off (CASSANDRA-18935)
->>>>>>> cassandra-4.1
  * Suppress CVE-2023-44487 (CASSANDRA-18943)
  * Implement the logic in bin/stop-server (CASSANDRA-18838)
  * Fix nodetool enable/disablebinary to correctly set rpc readiness in gossip (CASSANDRA-18935)
