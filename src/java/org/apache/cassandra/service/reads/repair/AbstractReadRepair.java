@@ -59,13 +59,13 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
     protected final ReplicaPlan.Shared<E, P> replicaPlan;
     protected final ColumnFamilyStore cfs;
 
-    private volatile DigestRepair<E, P> digestRepair = null;
+    public volatile DigestRepair<E, P> digestRepair = null;
 
-    private static class DigestRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
+    public static class DigestRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
     {
         private final DataResolver<E, P> dataResolver;
-        private final ReadCallback<E, P> readCallback;
         private final Consumer<PartitionIterator> resultConsumer;
+        public final ReadCallback<E, P> readCallback;
 
         public DigestRepair(DataResolver<E, P> dataResolver, ReadCallback<E, P> readCallback, Consumer<PartitionIterator> resultConsumer)
         {
@@ -192,8 +192,23 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
         if (repair == null)
             return;
 
-        if (shouldSpeculate() && !repair.readCallback.awaitUntil(requestTime.startedAtNanos() + MICROSECONDS.toNanos(cfs.sampleReadLatencyMicros)))
+        boolean shouldContactAdditionalReplica = !repair.readCallback.awaitUntil(requestTime.startedAtNanos() + MICROSECONDS.toNanos(cfs.sampleReadLatencyMicros));
+        boolean additionalReadDueToThrottling = false;
+        if (!shouldContactAdditionalReplica && repair.readCallback.throttlingFailures.get() > 0)
         {
+            // With the throttling on; we fail fast by design if a replica is overloaded.
+            // In such a scenario, we should speculate another replica and see if we are lucky, if in case that replica is not overloaded
+            // if shouldContactAdditionalReplica is 'false' and if one of the replicas had failed due to throttling, then
+            // we should retry additional replica
+            shouldContactAdditionalReplica = true;
+            additionalReadDueToThrottling = true;
+        }
+        if (shouldSpeculate() && shouldContactAdditionalReplica)
+        {
+            if (additionalReadDueToThrottling)
+            {
+                cfs.metric.speculativeReadRepairRetriesDueToThrottling.inc();
+            }
             Replica uncontacted = replicaPlan().firstUncontactedCandidate(replica -> true);
             if (uncontacted == null)
                 return;

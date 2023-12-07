@@ -127,7 +127,7 @@ public class RateLimiterTest extends CQLTester {
         catch (OverloadedException e)
         {
             long count1After = casWriteMetrics.rateLimiterThrottles.getCount();
-            long count2After = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.ALL).casWriteMetrics.rateLimiterThrottles.getCount();
+            long count2After = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.SERIAL).casWriteMetrics.rateLimiterThrottles.getCount();
             Assert.assertEquals(1L, count1After - count1Before);
             Assert.assertEquals(1L, count2After - count2Before);
             Assert.assertEquals("from dynamic throttler: 127.0.0.1", e.getMessage());
@@ -229,7 +229,7 @@ public class RateLimiterTest extends CQLTester {
         try
         {
             PartitionRangeReadCommand rangCmd = PartitionRangeReadCommand.create(metadata, 0, null, null, null, null);
-            new RangeCommandIterator(null, rangCmd, 0, 0, 0, Dispatcher.RequestTime.forImmediateExecution()).computeNext();
+            new RangeCommandIterator(null, rangCmd, 0, 0, 0, Dispatcher.RequestTime.forImmediateExecution(), ConsistencyLevel.ALL).computeNext();
         }
         catch (OverloadedException e)
         {

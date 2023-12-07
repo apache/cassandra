@@ -97,7 +97,8 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
         this(replicaPlans, command, concurrencyFactor, maxConcurrencyFactor, totalRangeCount, requestTime, null);
     }
 
-    RangeCommandIterator(CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans,
+    @VisibleForTesting
+    public RangeCommandIterator(CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans,
                          PartitionRangeReadCommand command,
                          int concurrencyFactor,
                          int maxConcurrencyFactor,

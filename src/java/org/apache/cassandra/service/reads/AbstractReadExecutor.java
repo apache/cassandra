@@ -248,6 +248,9 @@ public abstract class AbstractReadExecutor
         boolean shouldSpeculate = !handler.awaitUntil(requestTime.startedAtNanos() + sampleLatencyNanos);
         if (!shouldSpeculate && handler.throttlingFailures.get() > 0)
         {
+            // With the throttling on; we fail fast by design if a replica is overloaded.
+            // In such a scenario, we should speculate another replica and see if we are lucky, if in case that replica is not overloaded
+
             // if speculation is 'false' and if one of the replicas had failed due to throttling, then
             // we should speculate to retry additional replica
             cfs.metric.speculativeRetriesDueToThrottling.inc();

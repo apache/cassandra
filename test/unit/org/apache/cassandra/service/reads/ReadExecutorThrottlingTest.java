@@ -26,23 +26,20 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SimpleBuilders;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.service.reads.repair.AbstractReadRepair;
 
 import static org.apache.cassandra.locator.ReplicaUtils.full;
 import static org.hamcrest.Matchers.containsString;
@@ -52,17 +49,11 @@ import static org.junit.Assert.assertThat;
 public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
 {
     static EndpointsForToken targets;
-    static Token dummy;
 
     @BeforeClass
     public static void setUpClass() throws Throwable
     {
-        SchemaLoader.loadSchema();
-        SchemaLoader.createKeyspace("Foo", KeyspaceParams.simple(3), SchemaLoader.standardCFMD("Foo", "Bar"));
-        ks = Keyspace.open("Foo");
-        cfs = ks.getColumnFamilyStore("Bar");
-        dummy = Murmur3Partitioner.instance.getMinimumToken();
-        targets = EndpointsForToken.of(dummy,
+        targets = EndpointsForToken.of(Murmur3Partitioner.instance.getMinimumToken(),
                                        full(EP1),
                                        full(EP2),
                                        full(EP3)
@@ -100,6 +91,7 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
         try
         {
             long speculativeRetriesDueToThrottlingBefore = cfs.metric.speculativeRetriesDueToThrottling.getCount();
+            long speculativeReadRepairRetriesDueToThrottlingBefore = cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount();
             AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(cfs, command,
                                                                                              new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), ConsistencyLevel.LOCAL_QUORUM, targets, targets.subList(0, 2)), Dispatcher.RequestTime.forImmediateExecution());
             CountDownLatch waitForTwoReplicas = new CountDownLatch(2);
@@ -130,6 +122,7 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
             Assert.assertTrue(executor.digestResolver.isDataPresent());
             Assert.assertTrue(executor.digestResolver.responsesMatch());
             assertEquals(speculativeRetriesDueToThrottlingBefore+1, cfs.metric.speculativeRetriesDueToThrottling.getCount());
+            assertEquals(speculativeReadRepairRetriesDueToThrottlingBefore, cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount());
         }
         finally
         {
@@ -146,6 +139,7 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
         try
         {
             long speculativeRetriesDueToThrottlingBefore = cfs.metric.speculativeRetriesDueToThrottling.getCount();
+            long speculativeReadRepairRetriesDueToThrottlingBefore = cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount();
             AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(cfs, command,
                                                                                              new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), ConsistencyLevel.LOCAL_QUORUM, targets, targets.subList(0, 2)), Dispatcher.RequestTime.forImmediateExecution());
             CountDownLatch waitForTwoReplicas = new CountDownLatch(2);
@@ -161,6 +155,7 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
                          });
             waitForTwoReplicas.await();
             assertEquals(speculativeRetriesDueToThrottlingBefore, cfs.metric.speculativeRetriesDueToThrottling.getCount());
+            assertEquals(speculativeReadRepairRetriesDueToThrottlingBefore, cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount());
 
             executor.awaitResponses();
             Assert.fail("An exception should be thrown");
@@ -184,6 +179,7 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
         try
         {
             long speculativeRetriesDueToThrottlingBefore = cfs.metric.speculativeRetriesDueToThrottling.getCount();
+            long speculativeReadRepairRetriesDueToThrottlingBefore = cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount();
             AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(cfs, command,
                                                                                              new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), ConsistencyLevel.LOCAL_QUORUM, targets, targets.subList(0, 2)), Dispatcher.RequestTime.forImmediateExecution());
             CountDownLatch waitForTwoReplicas = new CountDownLatch(2);
@@ -211,6 +207,7 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
             waitForThirdReplica.await();
 
             assertEquals(speculativeRetriesDueToThrottlingBefore+1, cfs.metric.speculativeRetriesDueToThrottling.getCount());
+            assertEquals(speculativeReadRepairRetriesDueToThrottlingBefore, cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount());
             executor.awaitResponses();
             Assert.fail("An exception should be thrown");
         }
@@ -232,6 +229,7 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
         try
         {
             long speculativeRetriesDueToThrottlingBefore = cfs.metric.speculativeRetriesDueToThrottling.getCount();
+            long speculativeReadRepairRetriesDueToThrottlingBefore = cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount();
             AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(cfs, command,
                                                                                              new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), ConsistencyLevel.LOCAL_QUORUM, targets, targets.subList(0, 2)), Dispatcher.RequestTime.forImmediateExecution());
             CountDownLatch waitForTwoReplicas = new CountDownLatch(2);
@@ -259,6 +257,7 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
             waitForThirdReplica.await();
 
             assertEquals(speculativeRetriesDueToThrottlingBefore+1, cfs.metric.speculativeRetriesDueToThrottling.getCount());
+            assertEquals(speculativeReadRepairRetriesDueToThrottlingBefore, cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount());
             executor.awaitResponses();
             Assert.fail("An exception should be thrown");
         }
@@ -276,11 +275,11 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
     public void oneReplicaSomeOtherErrorNoSpeculativeRetry() throws InterruptedException
     {
         SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(cfm, nowInSec, dk);
-        PartitionUpdate response = update(row(1000, 4, 4), row(1000, 5, 5)).build();
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try
         {
             long speculativeRetriesDueToThrottlingBefore = cfs.metric.speculativeRetriesDueToThrottling.getCount();
+            long speculativeReadRepairRetriesDueToThrottlingBefore = cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount();
             AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(cfs, command,
                                                                                              new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), ConsistencyLevel.LOCAL_QUORUM, targets, targets.subList(0, 2)), Dispatcher.RequestTime.forImmediateExecution());
             CountDownLatch waitForOneReplica = new CountDownLatch(1);
@@ -294,6 +293,7 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
             // Do speculative retry, but it should not trigger any speculative retry
             executor.maybeTryAdditionalReplicas();
             assertEquals(speculativeRetriesDueToThrottlingBefore, cfs.metric.speculativeRetriesDueToThrottling.getCount());
+            assertEquals(speculativeReadRepairRetriesDueToThrottlingBefore, cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount());
             executor.awaitResponses();
             Assert.fail("An exception should be thrown");
         }
@@ -316,6 +316,7 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
         try
         {
             long speculativeRetriesDueToThrottlingBefore = cfs.metric.speculativeRetriesDueToThrottling.getCount();
+            long speculativeReadRepairRetriesDueToThrottlingBefore = cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount();
             AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(cfs, command,
                                                                                              new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), ConsistencyLevel.LOCAL_QUORUM, targets, targets.subList(0, 2)), Dispatcher.RequestTime.forImmediateExecution());
             CountDownLatch waitForTwoReplicas = new CountDownLatch(2);
@@ -331,6 +332,7 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
                          });
             waitForTwoReplicas.await();
             assertEquals(speculativeRetriesDueToThrottlingBefore, cfs.metric.speculativeRetriesDueToThrottling.getCount());
+            assertEquals(speculativeReadRepairRetriesDueToThrottlingBefore, cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount());
             executor.awaitResponses();
             Assert.fail("An exception should be thrown");
         }
@@ -353,6 +355,7 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
         try
         {
             long speculativeRetriesDueToThrottlingBefore = cfs.metric.speculativeRetriesDueToThrottling.getCount();
+            long speculativeReadRepairRetriesDueToThrottlingBefore = cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount();
             AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(cfs, command,
                                                                                              new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), ConsistencyLevel.LOCAL_QUORUM, targets, targets.subList(0, 2)), Dispatcher.RequestTime.forImmediateExecution());
             CountDownLatch waitForTwoReplicas = new CountDownLatch(2);
@@ -368,6 +371,7 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
                          });
             waitForTwoReplicas.await();
             assertEquals(speculativeRetriesDueToThrottlingBefore, cfs.metric.speculativeRetriesDueToThrottling.getCount());
+            assertEquals(speculativeReadRepairRetriesDueToThrottlingBefore, cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount());
             executor.awaitResponses();
             Assert.fail("An exception should be thrown");
         }
@@ -389,9 +393,11 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
         try
         {
             long speculativeRetriesDueToThrottlingBefore = cfs.metric.speculativeRetriesDueToThrottling.getCount();
+            long speculativeReadRepairRetriesDueToThrottlingBefore = cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount();
             AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(cfs, command,
                                                                                              new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), ConsistencyLevel.LOCAL_QUORUM, targets, targets.subList(0, 2)), Dispatcher.RequestTime.forImmediateExecution());
             assertEquals(speculativeRetriesDueToThrottlingBefore, cfs.metric.speculativeRetriesDueToThrottling.getCount());
+            assertEquals(speculativeReadRepairRetriesDueToThrottlingBefore, cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount());
             executor.awaitResponses();
             Assert.fail("An exception should be thrown");
         }
@@ -414,6 +420,7 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
         try
         {
             long speculativeRetriesDueToThrottlingBefore = cfs.metric.speculativeRetriesDueToThrottling.getCount();
+            long speculativeReadRepairRetriesDueToThrottlingBefore = cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount();
             AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(cfs, command,
                                                                                              new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), ConsistencyLevel.LOCAL_QUORUM, targets, targets.subList(0, 2)), Dispatcher.RequestTime.forImmediateExecution());
             CountDownLatch waitForTwoReplicas = new CountDownLatch(1);
@@ -424,6 +431,7 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
                          });
             waitForTwoReplicas.await();
             assertEquals(speculativeRetriesDueToThrottlingBefore, cfs.metric.speculativeRetriesDueToThrottling.getCount());
+            assertEquals(speculativeReadRepairRetriesDueToThrottlingBefore, cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount());
             executor.awaitResponses();
             Assert.fail("An exception should be thrown");
         }
@@ -445,6 +453,7 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
         try
         {
             long speculativeRetriesDueToThrottlingBefore = cfs.metric.speculativeRetriesDueToThrottling.getCount();
+            long speculativeReadRepairRetriesDueToThrottlingBefore = cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount();
             AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(cfs, command,
                                                                                              new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), ConsistencyLevel.LOCAL_QUORUM, targets, targets.subList(0, 2)), Dispatcher.RequestTime.forImmediateExecution());
             CountDownLatch waitForTwoReplicas = new CountDownLatch(1);
@@ -455,6 +464,7 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
                          });
             waitForTwoReplicas.await();
             assertEquals(speculativeRetriesDueToThrottlingBefore, cfs.metric.speculativeRetriesDueToThrottling.getCount());
+            assertEquals(speculativeReadRepairRetriesDueToThrottlingBefore, cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount());
             executor.awaitResponses();
             Assert.fail("An exception should be thrown");
         }
@@ -476,6 +486,7 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
         try
         {
             long speculativeRetriesDueToThrottlingBefore = cfs.metric.speculativeRetriesDueToThrottling.getCount();
+            long speculativeReadRepairRetriesDueToThrottlingBefore = cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount();
             AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(cfs, command,
                                                                                              new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), ConsistencyLevel.LOCAL_QUORUM, targets, targets.subList(0, 2)), Dispatcher.RequestTime.forImmediateExecution());
             CountDownLatch waitForTwoReplicas = new CountDownLatch(1);
@@ -486,6 +497,7 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
                          });
             waitForTwoReplicas.await();
             assertEquals(speculativeRetriesDueToThrottlingBefore, cfs.metric.speculativeRetriesDueToThrottling.getCount());
+            assertEquals(speculativeReadRepairRetriesDueToThrottlingBefore, cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount());
             executor.awaitResponses();
             Assert.fail("An exception should be thrown");
         }
@@ -508,6 +520,7 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
         try
         {
             long speculativeRetriesDueToThrottlingBefore = cfs.metric.speculativeRetriesDueToThrottling.getCount();
+            long speculativeReadRepairRetriesDueToThrottlingBefore = cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount();
             AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(cfs, command,
                                                                                              new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), ConsistencyLevel.LOCAL_QUORUM, targets, targets.subList(0, 2)), Dispatcher.RequestTime.forImmediateExecution());
             CountDownLatch waitForTwoReplicas = new CountDownLatch(2);
@@ -538,6 +551,7 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
             Assert.assertTrue(executor.digestResolver.isDataPresent());
             Assert.assertTrue(executor.digestResolver.responsesMatch());
             assertEquals(speculativeRetriesDueToThrottlingBefore, cfs.metric.speculativeRetriesDueToThrottling.getCount());
+            assertEquals(speculativeReadRepairRetriesDueToThrottlingBefore, cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount());
         }
         finally
         {
@@ -554,6 +568,7 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
         try
         {
             long speculativeRetriesDueToThrottlingBefore = cfs.metric.speculativeRetriesDueToThrottling.getCount();
+            long speculativeReadRepairRetriesDueToThrottlingBefore = cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount();
             AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(cfs, command,
                                                                                              new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), ConsistencyLevel.LOCAL_QUORUM, targets, targets.subList(0, 2)), Dispatcher.RequestTime.forImmediateExecution());
             CountDownLatch waitForTwoReplicas = new CountDownLatch(2);
@@ -572,6 +587,140 @@ public class ReadExecutorThrottlingTest extends AbstractReadResponseTest
             Assert.assertTrue(executor.digestResolver.isDataPresent());
             Assert.assertTrue(executor.digestResolver.responsesMatch());
             assertEquals(speculativeRetriesDueToThrottlingBefore, cfs.metric.speculativeRetriesDueToThrottling.getCount());
+            assertEquals(speculativeReadRepairRetriesDueToThrottlingBefore, cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount());
+        }
+        finally
+        {
+            pool.shutdown();
+        }
+    }
+
+    @Test
+    public void testSpeculativeReadRepairRetrySuccess() throws InterruptedException
+    {
+        SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(cfm, nowInSec, dk);
+        PartitionUpdate response1 = update(row(1000, 4, 4), row(1000, 5, 5)).build();
+        PartitionUpdate response2 = update(row(1000, 4, 41), row(1000, 5, 51)).build();
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try
+        {
+            long speculativeReadRepairRetriesDueToThrottlingBefore = cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount();
+            AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(cfs, command,
+                                                                                             new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), ConsistencyLevel.LOCAL_QUORUM, targets, targets.subList(0, 2)), Dispatcher.RequestTime.forImmediateExecution());
+            CountDownLatch waitForTwoReplicas = new CountDownLatch(2);
+            pool.execute(() ->
+                         {
+                             executor.handler.onResponse(response(command, EP1, iter(response1), true));
+                             waitForTwoReplicas.countDown();
+                         });
+            pool.execute(() ->
+                         {
+                             executor.handler.onResponse(response(command, EP2, iter(response2), true));
+                             waitForTwoReplicas.countDown();
+                         });
+            waitForTwoReplicas.await();
+
+            executor.awaitResponses();
+
+            CountDownLatch rrLatch = new CountDownLatch(2);
+            AbstractReadRepair<EndpointsForToken, ReplicaPlan.ForTokenRead> rr = (AbstractReadRepair<EndpointsForToken, ReplicaPlan.ForTokenRead>) executor.readRepair;
+
+            pool.execute(() ->
+                         {
+                             rr.digestRepair.readCallback.onResponse(response(command, EP1, iter(response1), true));
+                             rrLatch.countDown();
+                         });
+            pool.execute(() ->
+                         {
+                             rr.digestRepair.readCallback.onFailure(EP2, RequestFailureReason.TRAFFIC_THROTTLED);
+                             rrLatch.countDown();
+                         });
+            rrLatch.await();
+
+
+            rr.maybeSendAdditionalReads();
+
+            CountDownLatch waitForThirdReplica = new CountDownLatch(1);
+            pool.execute(() ->
+                         {
+                             rr.digestRepair.readCallback.onResponse(response(command, EP3, iter(response1), true));
+                             waitForThirdReplica.countDown();
+                         });
+
+            waitForThirdReplica.await();
+            assertEquals(speculativeReadRepairRetriesDueToThrottlingBefore+1, cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount());
+            rr.awaitReads();
+        }
+        catch (ReadFailureException e)
+        {
+            Assert.fail("No exception should be thrown");
+        }
+        finally
+        {
+            pool.shutdown();
+        }
+    }
+
+    @Test
+    public void testSpeculativeReadRepairRetryFailre() throws InterruptedException
+    {
+        SinglePartitionReadCommand command = SinglePartitionReadCommand.fullPartitionRead(cfm, nowInSec, dk);
+        PartitionUpdate response1 = update(row(1000, 4, 4), row(1000, 5, 5)).build();
+        PartitionUpdate response2 = update(row(1000, 4, 41), row(1000, 5, 51)).build();
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try
+        {
+            long speculativeReadRepairRetriesDueToThrottlingBefore = cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount();
+            AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(cfs, command,
+                                                                                             new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), ConsistencyLevel.LOCAL_QUORUM, targets, targets.subList(0, 2)), Dispatcher.RequestTime.forImmediateExecution());
+            CountDownLatch waitForTwoReplicas = new CountDownLatch(2);
+            pool.execute(() ->
+                         {
+                             executor.handler.onResponse(response(command, EP1, iter(response1), true));
+                             waitForTwoReplicas.countDown();
+                         });
+            pool.execute(() ->
+                         {
+                             executor.handler.onResponse(response(command, EP2, iter(response2), true));
+                             waitForTwoReplicas.countDown();
+                         });
+            waitForTwoReplicas.await();
+
+            executor.awaitResponses();
+
+            CountDownLatch rrLatch = new CountDownLatch(2);
+            AbstractReadRepair<EndpointsForToken, ReplicaPlan.ForTokenRead> rr = (AbstractReadRepair<EndpointsForToken, ReplicaPlan.ForTokenRead>) executor.readRepair;
+
+            pool.execute(() ->
+                         {
+                             rr.digestRepair.readCallback.onResponse(response(command, EP1, iter(response1), true));
+                             rrLatch.countDown();
+                         });
+            pool.execute(() ->
+                         {
+                             rr.digestRepair.readCallback.onFailure(EP2, RequestFailureReason.TRAFFIC_THROTTLED);
+                             rrLatch.countDown();
+                         });
+            rrLatch.await();
+
+
+            rr.maybeSendAdditionalReads();
+
+            CountDownLatch waitForThirdReplica = new CountDownLatch(1);
+            pool.execute(() ->
+                         {
+                             rr.digestRepair.readCallback.onFailure(EP3, RequestFailureReason.TRAFFIC_THROTTLED);
+                             waitForThirdReplica.countDown();
+                         });
+
+            waitForThirdReplica.await();
+
+            assertEquals(speculativeReadRepairRetriesDueToThrottlingBefore+1, cfs.metric.speculativeReadRepairRetriesDueToThrottling.getCount());
+            rr.awaitReads();
+        }
+        catch (ReadFailureException e)
+        {
+            assertThat(e.getMessage(), containsString("TRAFFIC_THROTTLED from /127.0.0"));
         }
         finally
         {
