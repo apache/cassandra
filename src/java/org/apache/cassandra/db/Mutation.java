@@ -533,7 +533,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
                 boolean allowsOutOfRangeMutations = false;
                 if (version >= VERSION_51)
                 {
-                    int flags = in.readByte();
+                    int flags = teeIn.readByte();
                     allowsOutOfRangeMutations = allowsOutOfRangeMutations(flags);
                 }
                 int size = teeIn.readUnsignedVInt32();
@@ -634,7 +634,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
             if (size == 0L)
             {
                 if (version >= VERSION_51)
-                    size += ALLOW_OUT_OF_RANGE_MUTATIONS_FLAG; // flags
+                    size += TypeSizes.sizeof((byte)ALLOW_OUT_OF_RANGE_MUTATIONS_FLAG); // flags
                 size += TypeSizes.sizeofUnsignedVInt(mutation.modifications.size());
                 for (PartitionUpdate partitionUpdate : mutation.modifications.values())
                     size += serializer.serializedSize(partitionUpdate, version);
