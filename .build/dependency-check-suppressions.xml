@@ -21,16 +21,9 @@
 -->
 <suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
     <suppress>
-        <!--  https://issues.apache.org/jira/browse/CASSANDRA-18608 -->
-        <packageUrl regex="true">^pkg:maven/org\.xerial\.snappy/snappy\-java@.*$</packageUrl>
-        <cve>CVE-2023-34453</cve>
-        <cve>CVE-2023-34454</cve>
-        <cve>CVE-2023-34455</cve>
-    </suppress>
-    <suppress>
         <!--  https://issues.apache.org/jira/browse/CASSANDRA-16150 -->
         <packageUrl regex="true">^pkg:maven/org\.yaml/snakeyaml@.*$</packageUrl>
-        <cve>CVE-2023-2251</cve>
+        <!--        <cve>CVE-2023-2251</cve>-->
         <cve>CVE-2022-38752</cve>
         <cve>CVE-2022-38751</cve>
         <cve>CVE-2022-38750</cve>
@@ -38,8 +31,6 @@
         <cve>CVE-2022-25857</cve>
         <cve>CVE-2022-38749</cve>
         <cve>CVE-2022-1471</cve>
-        <cve>CVE-2022-3064</cve>
-        <cve>CVE-2021-4235</cve>
         <cve>CVE-2017-18640</cve>
     </suppress>
 
@@ -58,7 +49,6 @@
         <cve>CVE-2021-43797</cve>
         <cve>CVE-2022-24823</cve>
         <cve>CVE-2022-41881</cve>
-        <cve>CVE-2022-41915</cve>
         <cve>CVE-2023-34462</cve>
         <cve>CVE-2023-44487</cve>
     </suppress>
@@ -84,27 +74,13 @@
         <packageUrl regex="true">^pkg:maven/com\.thinkaurelius\.thrift/thrift-server@.*$</packageUrl>
         <cve>CVE-2015-3254</cve>
         <cve>CVE-2016-5397</cve>
-        <cve>CVE-2018-1320</cve>
-        <cve>CVE-2018-11798</cve>
         <cve>CVE-2019-0205</cve>
     </suppress>
 
-    <!-- https://issues.apache.org/jira/browse/CASSANDRA-16056 -->
-    <!-- https://issues.apache.org/jira/browse/CASSANDRA-15416 -->
     <suppress>
         <packageUrl regex="true">^pkg:maven/org\.codehaus\.jackson/jackson\-mapper\-asl@.*$</packageUrl>
         <cve>CVE-2017-7525</cve>
-        <cve>CVE-2017-15095</cve>
-        <cve>CVE-2017-17485</cve>
-        <cve>CVE-2018-5968</cve>
-        <cve>CVE-2018-14718</cve>
-        <cve>CVE-2018-1000873</cve>
-        <cve>CVE-2018-7489</cve>
         <cve>CVE-2019-10172</cve>
-        <cve>CVE-2019-14540</cve>
-        <cve>CVE-2019-14893</cve>
-        <cve>CVE-2019-16335</cve>
-        <cve>CVE-2019-17267</cve>
     </suppress>
 
     <!-- https://issues.apache.org/jira/browse/CASSANDRA-19142 -->
