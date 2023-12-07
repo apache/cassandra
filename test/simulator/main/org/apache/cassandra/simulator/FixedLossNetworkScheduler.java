@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.simulator.test;
+package org.apache.cassandra.simulator;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -26,8 +26,6 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.simulator.FutureActionScheduler;
-import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.systems.SimulatedTime;
 import org.apache.cassandra.simulator.utils.ChanceRange;
 import org.apache.cassandra.simulator.utils.KindOfSequence;
@@ -53,7 +51,7 @@ public class FixedLossNetworkScheduler implements FutureActionScheduler
     final KindOfSequence.Decision delayChance;
     final LongRange delayNanos, longDelayNanos;
 
-    FixedLossNetworkScheduler(int nodes, RandomSource random, SimulatedTime time, KindOfSequence kind, float min, float max)
+    public FixedLossNetworkScheduler(int nodes, RandomSource random, SimulatedTime time, KindOfSequence kind, float min, float max)
     {
         this.random = random;
         this.time = time;

@@ -71,8 +71,10 @@ import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.ActionSchedule;
 import org.apache.cassandra.simulator.Actions;
+import org.apache.cassandra.simulator.AlwaysDeliverNetworkScheduler;
 import org.apache.cassandra.simulator.ClusterSimulation;
 import org.apache.cassandra.simulator.Debug;
+import org.apache.cassandra.simulator.FixedLossNetworkScheduler;
 import org.apache.cassandra.simulator.FutureActionScheduler;
 import org.apache.cassandra.simulator.OrderOn;
 import org.apache.cassandra.simulator.RandomSource;
@@ -394,6 +396,11 @@ public class HarrySimulatorTest
             this.schedule = schedule;
         }
 
+        public HarrySimulation withScheduler(RunnableActionScheduler scheduler)
+        {
+            return new HarrySimulation(simulated, scheduler, cluster, harryRun, (ignore) -> nodeState, schedule);
+        }
+
         public HarrySimulation withSchedulers(Function<HarrySimulation, Map<Verb, FutureActionScheduler>> schedulers)
         {
             Map<Verb, FutureActionScheduler> perVerbFutureActionScheduler = schedulers.apply(this);
@@ -523,7 +530,7 @@ public class HarrySimulatorTest
                     {
                         HarrySimulation current = simulation;
                         if (i == 0)
-                            current = current.withSchedulers((s) -> Collections.emptyMap());
+                            current = current.withScheduler(new RunnableActionScheduler.Immediate()).withSchedulers((s) -> Collections.emptyMap());
                         current.withSchedule(phases[i]).run();
                     }
                 }
@@ -534,7 +541,6 @@ public class HarrySimulatorTest
                 }
             }
         }
-        ;
     }
 
     /**

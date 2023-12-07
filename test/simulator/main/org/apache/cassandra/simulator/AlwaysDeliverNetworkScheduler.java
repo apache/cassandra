@@ -16,12 +16,11 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.simulator.test;
+package org.apache.cassandra.simulator;
 
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.simulator.FutureActionScheduler;
-import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.systems.SimulatedTime;
 import org.apache.cassandra.simulator.utils.LongRange;
 
@@ -35,19 +34,16 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 public class AlwaysDeliverNetworkScheduler implements FutureActionScheduler
 {
     private final SimulatedTime time;
-    private final RandomSource randomSource;
-    private final LongRange schedulerDelay = new LongRange(0, 50, MICROSECONDS, NANOSECONDS);
 
     private final long delayNanos;
 
-    AlwaysDeliverNetworkScheduler(SimulatedTime time, RandomSource randomSource)
+    public AlwaysDeliverNetworkScheduler(SimulatedTime time, RandomSource randomSource)
     {
         this(time, randomSource, TimeUnit.MILLISECONDS.toNanos(10));
     }
-    AlwaysDeliverNetworkScheduler(SimulatedTime time, RandomSource randomSource, long dealayNanos)
+    public AlwaysDeliverNetworkScheduler(SimulatedTime time, RandomSource randomSource, long dealayNanos)
     {
         this.time = time;
-        this.randomSource = randomSource;
         this.delayNanos = dealayNanos;
     }
     public Deliver shouldDeliver(int from, int to)
