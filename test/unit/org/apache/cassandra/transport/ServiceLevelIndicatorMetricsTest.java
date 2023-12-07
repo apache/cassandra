@@ -24,8 +24,6 @@ import java.util.Collections;
 import java.util.HashMap;
 
 import org.junit.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.CQLTester;
@@ -54,9 +52,7 @@ import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.transport.messages.ServiceLevelIndicatorMetricsCollection;
 
-import org.junit.AfterClass;
 import org.junit.Assert;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import static org.junit.Assert.fail;
 import static org.junit.Assert.assertEquals;
@@ -87,49 +83,49 @@ public class ServiceLevelIndicatorMetricsTest extends CQLTester
         long serverErrorExceptionCount = ServiceLevelIndicatorMetrics.serverErrorExceptionMetrics.getCount();
         long otherExceptionCount = ServiceLevelIndicatorMetrics.otherExceptionMetrics.getCount();
 
-        ServiceLevelIndicatorMetricsCollection.collectMetrics(new CDCWriteException("CDC write error"));
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new CDCWriteException("CDC write error"));
         assertEquals(ServiceLevelIndicatorMetrics.cdcWriteFailureExceptionMetrics.getCount(), cdcWriteFailureExceptionCount + 1);
 
-        ServiceLevelIndicatorMetricsCollection.collectMetrics(
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(
           new WriteTimeoutException(WriteType.CAS, ConsistencyLevel.LOCAL_QUORUM, 0, 2));
         assertEquals(ServiceLevelIndicatorMetrics.writeTimeoutExceptionMetrics.getCount(), writeTimeoutExceptionCount + 1);
 
-        ServiceLevelIndicatorMetricsCollection.collectMetrics(
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(
           new CasWriteUnknownResultException(ConsistencyLevel.LOCAL_QUORUM, 0, 2));
         assertEquals(ServiceLevelIndicatorMetrics.casWriteUnknownExceptionMetrics.getCount(), casWriteUnknownExceptionCount + 1);
 
-        ServiceLevelIndicatorMetricsCollection.collectMetrics(new FunctionExecutionException(
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new FunctionExecutionException(
         new FunctionName("dummy", "dummy"), new ArrayList<String>(), "failed"));
         assertEquals(ServiceLevelIndicatorMetrics.functionFailureExceptionMetrics.getCount(), functionFailureExceptionCount + 1);
 
-        ServiceLevelIndicatorMetricsCollection.collectMetrics(new IsBootstrappingException());
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new IsBootstrappingException());
         assertEquals(ServiceLevelIndicatorMetrics.isBootstrappingExceptionMetrics.getCount(), isBootstrappingExceptionCount + 1);
 
-        ServiceLevelIndicatorMetricsCollection.collectMetrics(new OverloadedException("overloaded"));
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new OverloadedException("overloaded"));
         assertEquals(ServiceLevelIndicatorMetrics.overloadedExceptionMetrics.getCount(), overloadedExceptionCount + 1);
 
-        ServiceLevelIndicatorMetricsCollection.collectMetrics(new ReadFailureException(
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new ReadFailureException(
         ConsistencyLevel.LOCAL_QUORUM, 0, 2, true, new HashMap<>()));
         assertEquals(ServiceLevelIndicatorMetrics.readFailureExceptionMetrics.getCount(), readFailureExceptionCount + 1);
 
-        ServiceLevelIndicatorMetricsCollection.collectMetrics(new ReadTimeoutException(ConsistencyLevel.LOCAL_QUORUM, 0, 2, true));
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new ReadTimeoutException(ConsistencyLevel.LOCAL_QUORUM, 0, 2, true));
         assertEquals(ServiceLevelIndicatorMetrics.readTimeoutExceptionMetrics.getCount(), readTimeoutExceptionCount + 1);
 
-        ServiceLevelIndicatorMetricsCollection.collectMetrics(new TruncateException("truncte error"));
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new TruncateException("truncte error"));
         assertEquals(ServiceLevelIndicatorMetrics.truncateErrorExceptionMetrics.getCount(), truncateErrorExceptionCount + 1);
 
-        ServiceLevelIndicatorMetricsCollection.collectMetrics(
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(
           new UnavailableException("unavailable", ConsistencyLevel.LOCAL_QUORUM, 2, 1));
         assertEquals(ServiceLevelIndicatorMetrics.unavailableExceptionMetrics.getCount(), unavailableExceptionCount + 1);
 
-        ServiceLevelIndicatorMetricsCollection.collectMetrics(new WriteFailureException(
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new WriteFailureException(
         ConsistencyLevel.LOCAL_QUORUM, 0, 2, WriteType.CAS, new HashMap<>()));
         assertEquals(ServiceLevelIndicatorMetrics.writeFailureExceptionMetrics.getCount(), writeFailureExceptionCount + 1);
 
-        ServiceLevelIndicatorMetricsCollection.collectMetrics(new ServerError("server error"));
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new ServerError("server error"));
         assertEquals(ServiceLevelIndicatorMetrics.serverErrorExceptionMetrics.getCount(), serverErrorExceptionCount + 1);
 
-        ServiceLevelIndicatorMetricsCollection.collectMetrics(new Exception("dummy exception"));
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new Exception("dummy exception"));
         assertEquals(ServiceLevelIndicatorMetrics.otherExceptionMetrics.getCount(), otherExceptionCount + 1);
     }
 

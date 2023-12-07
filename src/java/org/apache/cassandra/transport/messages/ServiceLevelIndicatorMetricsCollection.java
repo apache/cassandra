@@ -18,6 +18,11 @@
 
 package org.apache.cassandra.transport.messages;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.auth.AuthCache;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.metrics.ServiceLevelIndicatorMetrics;
 import org.apache.cassandra.transport.ServerError;
@@ -26,7 +31,9 @@ import org.apache.cassandra.transport.ServerError;
 // BAD_CREDENTIALS (0x0100) and all 2xx errors, because those errors can only be user errors.
 public class ServiceLevelIndicatorMetricsCollection
 {
-    public static void collectMetrics(Exception ex) {
+    private static final Logger logger = LoggerFactory.getLogger(ServiceLevelIndicatorMetricsCollection.class);
+
+    public static void collectMetricsAndLog(Exception ex) {
         if (ex instanceof RequestExecutionException)
         {
             switch (((RequestExecutionException) ex).code())
@@ -83,6 +90,10 @@ public class ServiceLevelIndicatorMetricsCollection
             ServiceLevelIndicatorMetrics.serverErrorExceptionMetrics.mark();
         } else {
             ServiceLevelIndicatorMetrics.otherExceptionMetrics.mark();
+        }
+        if (DatabaseDescriptor.getServiceLevelIndicatorErrorLogEnabled())
+        {
+            logger.error("Service level indicator error", ex);
         }
     }
 }

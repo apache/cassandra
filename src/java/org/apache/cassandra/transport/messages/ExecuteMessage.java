@@ -249,7 +249,7 @@ public class ExecuteMessage extends Message.Request
         }
         catch (Exception e)
         {
-            ServiceLevelIndicatorMetricsCollection.collectMetrics(e);
+            ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(e);
             QueryEvents.instance.notifyExecuteFailure(prepared, options, state, e);
             JVMStabilityInspector.inspectThrowable(e);
             return ErrorMessage.fromException(e);

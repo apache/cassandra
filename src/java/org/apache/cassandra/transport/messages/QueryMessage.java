@@ -162,7 +162,7 @@ public class QueryMessage extends Message.Request
         }
         catch (Exception e)
         {
-            ServiceLevelIndicatorMetricsCollection.collectMetrics(e);
+            ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(e);
             QueryEvents.instance.notifyQueryFailure(statement, query, options, state, e);
             JVMStabilityInspector.inspectThrowable(e);
             if (!((e instanceof RequestValidationException) || (e instanceof RequestExecutionException)))

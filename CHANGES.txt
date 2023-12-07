@@ -176,6 +176,7 @@ Merged from 3.0:
  * Remove unused suppressions (CASSANDRA-18724)
 
 Unreleased
+ * [SO-26369] Add error log feature to enable error log for quries
  * [SO-24205] Cassandra Anti-pattern for non-LOCAL_QUORUM mutations
  * [SO-26193] CREATE IF NOT EXISTS should not be rejected by LCS enforcement if it's no-op
 4.0.6.10
