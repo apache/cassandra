@@ -155,8 +155,8 @@ import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.MonotonicClock;
-import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 import static accord.utils.Invariants.checkArgument;
@@ -666,7 +666,7 @@ public class AccordKeyspace
         return KeyspaceMetadata.create(ACCORD_KEYSPACE_NAME, KeyspaceParams.local(), tables(), Views.none(), Types.none(), UserFunctions.none());
     }
 
-    private static Tables tables()
+    public static Tables tables()
     {
         return Tables.of(Commands, TimestampsForKeys, DepsCommandsForKeys, AllCommandsForKeys, Topologies, EpochMetadata, CommandStoreMetadata);
     }
