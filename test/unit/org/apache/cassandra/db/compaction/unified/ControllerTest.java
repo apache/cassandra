@@ -209,10 +209,12 @@ public class ControllerTest
         Map<String, String> options = new HashMap<>();
         options.putIfAbsent(Controller.BASE_SHARD_COUNT_OPTION, Integer.toString(3));
         options.putIfAbsent(Controller.TARGET_SSTABLE_SIZE_OPTION, FBUtilities.prettyPrintMemory(100 << 20));
-        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, "0B");
         options.put(Controller.SSTABLE_GROWTH_OPTION, "0.0");
         Controller.validateOptions(options);
+        // this is a provably invalid setting but required for this test.
+        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, "0B");
         Controller controller = Controller.fromOptions(cfs, options);
+
 
         // Easy ones
         // x00 MiB = x * 100
