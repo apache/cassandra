@@ -74,18 +74,18 @@ public class TableStatsPrinter<T extends StatsHolder>
 
                 for (StatsTable table : tables)
                 {
-                    printStatsTable(table, table.tableName, "\t\t", out);
+                    printStatsTable(table, table.tableName, "\t\t", data.humanReadable, out);
                 }
                 out.println("----------------");
             }
         }
 
-        protected void printStatsTable(StatsTable table, String tableDisplayName, String indent, PrintStream out)
+        protected void printStatsTable(StatsTable table, String tableDisplayName, String indent, boolean humanReadable, PrintStream out)
         {
             out.println(indent + "Table" + (table.isIndex ? " (index): " : ": ") + tableDisplayName);
             out.println(indent + "SSTable count: " + table.sstableCount);
             out.println(indent + "Old SSTable count: " + table.oldSSTableCount);
-            out.println(indent + "Max SSTable size: " + FBUtilities.prettyPrintMemory(table.maxSSTableSize));
+            out.println(indent + "Max SSTable size: " + formatMemory(table.maxSSTableSize, humanReadable));
             if (table.twcs != null)
                 out.println(indent + "SSTables Time Window: " + table.twcs);
             if (table.isLeveledSstable)
@@ -121,9 +121,9 @@ public class TableStatsPrinter<T extends StatsHolder>
             out.println(indent + "Pending flushes: " + table.pendingFlushes);
             out.println(indent + "Percent repaired: " + table.percentRepaired);
 
-            out.println(indent +"Bytes repaired: " + FBUtilities.prettyPrintMemory(table.bytesRepaired));
-            out.println(indent +"Bytes unrepaired: " + FBUtilities.prettyPrintMemory(table.bytesUnrepaired));
-            out.println(indent +"Bytes pending repair: " + FBUtilities.prettyPrintMemory(table.bytesPendingRepair));
+            out.println(indent +"Bytes repaired: " + formatMemory(table.bytesRepaired, humanReadable));
+            out.println(indent +"Bytes unrepaired: " + formatMemory(table.bytesUnrepaired, humanReadable));
+            out.println(indent +"Bytes pending repair: " + formatMemory(table.bytesPendingRepair, humanReadable));
 
             out.println(indent + "Bloom filter false positives: " + table.bloomFilterFalsePositives);
             out.println(indent + "Bloom filter false ratio: " + FBUtilities.prettyPrintRatio(table.bloomFilterFalseRatio));
@@ -136,9 +136,9 @@ public class TableStatsPrinter<T extends StatsHolder>
             if (table.compressionMetadataOffHeapUsed)
                 out.println(indent + "Compression metadata off heap memory used: " + table.compressionMetadataOffHeapMemoryUsed);
 
-            out.println(indent + "Compacted partition minimum bytes: " + table.compactedPartitionMinimumBytes);
-            out.println(indent + "Compacted partition maximum bytes: " + table.compactedPartitionMaximumBytes);
-            out.println(indent + "Compacted partition mean bytes: " + table.compactedPartitionMeanBytes);
+            out.println(indent + "Compacted partition minimum bytes: " + formatMemory(table.compactedPartitionMinimumBytes, humanReadable));
+            out.println(indent + "Compacted partition maximum bytes: " + formatMemory(table.compactedPartitionMaximumBytes, humanReadable));
+            out.println(indent + "Compacted partition mean bytes: " + formatMemory(table.compactedPartitionMeanBytes, humanReadable));
             out.println(indent + "Average live cells per slice (last five minutes): " +
                         FBUtilities.prettyPrintAverage(table.averageLiveCellsPerSliceLastFiveMinutes));
             out.println(indent + "Maximum live cells per slice (last five minutes): " + table.maximumLiveCellsPerSliceLastFiveMinutes);
@@ -167,6 +167,11 @@ public class TableStatsPrinter<T extends StatsHolder>
             }
             out.println("");
         }
+
+        protected String formatMemory(long bytes, boolean humanReadable)
+        {
+            return humanReadable ? FBUtilities.prettyPrintMemoryShort(bytes) : Long.toString(bytes);
+        }
     }
 
     /**
@@ -192,7 +197,7 @@ public class TableStatsPrinter<T extends StatsHolder>
             out.println("----------------");
             for (StatsTable table : tables)
             {
-                printStatsTable(table, table.keyspaceName + "." + table.tableName, "\t", out);
+                printStatsTable(table, table.keyspaceName + "." + table.tableName, "\t", data.humanReadable, out);
             }
             out.println("----------------");
         }
