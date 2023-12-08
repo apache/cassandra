@@ -1,4 +1,5 @@
 5.0-beta2
+ * Fix storage_compatibility_mode for streaming (CASSANDRA-19126)
  * Add support of vector type to cqlsh COPY command (CASSANDRA-19118)
  * Make CQLSSTableWriter to support building of SAI indexes (CASSANDRA-18714)
  * Append additional JVM options when using JDK17+ (CASSANDRA-19001)
