@@ -39,7 +39,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tTable: %s\n" +
         "\tSSTable count: 60000\n" +
         "\tOld SSTable count: 0\n" +
-        "\tMax SSTable size: 0B\n" +
+        "\tMax SSTable size: 0\n" +
         "\tSpace used (live): 0\n" +
         "\tSpace used (total): 9001\n" +
         "\tSpace used by snapshots (total): 1111\n" +
@@ -56,9 +56,9 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read/write ratio: 0.000\n" +
         "\tPending flushes: 11111\n" +
         "\tPercent repaired: 100.0\n" +
-        "\tBytes repaired: 0B\n" +
-        "\tBytes unrepaired: 0B\n" +
-        "\tBytes pending repair: 0B\n" +
+        "\tBytes repaired: 0\n" +
+        "\tBytes unrepaired: 0\n" +
+        "\tBytes pending repair: 0\n" +
         "\tBloom filter false positives: 30\n" +
         "\tBloom filter false ratio: 0.400\n" +
         "\tBloom filter space used: 789\n" +
@@ -76,7 +76,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tTable: %s\n" +
         "\tSSTable count: 3000\n" +
         "\tOld SSTable count: 0\n" +
-        "\tMax SSTable size: 0B\n" +
+        "\tMax SSTable size: 0\n" +
         "\tSpace used (live): 22\n" +
         "\tSpace used (total): 1024\n" +
         "\tSpace used by snapshots (total): 222\n" +
@@ -95,9 +95,9 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read/write ratio: 0.000\n" +
         "\tPending flushes: 222222\n" +
         "\tPercent repaired: 99.9\n" +
-        "\tBytes repaired: 0B\n" +
-        "\tBytes unrepaired: 0B\n" +
-        "\tBytes pending repair: 0B\n" +
+        "\tBytes repaired: 0\n" +
+        "\tBytes unrepaired: 0\n" +
+        "\tBytes pending repair: 0\n" +
         "\tBloom filter false positives: 600\n" +
         "\tBloom filter false ratio: 0.010\n" +
         "\tBloom filter space used: 161718\n" +
@@ -118,7 +118,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tTable: %s\n" +
         "\tSSTable count: 50000\n" +
         "\tOld SSTable count: 0\n" +
-        "\tMax SSTable size: 0B\n" +
+        "\tMax SSTable size: 0\n" +
         "\tSpace used (live): 0\n" +
         "\tSpace used (total): 512\n" +
         "\tSpace used by snapshots (total): 0\n" +
@@ -135,9 +135,9 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read/write ratio: 0.000\n" +
         "\tPending flushes: 333\n" +
         "\tPercent repaired: 99.8\n" +
-        "\tBytes repaired: 0B\n" +
-        "\tBytes unrepaired: 0B\n" +
-        "\tBytes pending repair: 0B\n" +
+        "\tBytes repaired: 0\n" +
+        "\tBytes unrepaired: 0\n" +
+        "\tBytes pending repair: 0\n" +
         "\tBloom filter false positives: 20\n" +
         "\tBloom filter false ratio: 0.500\n" +
         "\tBloom filter space used: 456\n" +
@@ -155,7 +155,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tTable: %s\n" +
         "\tSSTable count: 2000\n" +
         "\tOld SSTable count: 0\n" +
-        "\tMax SSTable size: 0B\n" +
+        "\tMax SSTable size: 0\n" +
         "\tSpace used (live): 4444\n" +
         "\tSpace used (total): 256\n" +
         "\tSpace used by snapshots (total): 44\n" +
@@ -174,9 +174,9 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read/write ratio: 0.000\n" +
         "\tPending flushes: 4444\n" +
         "\tPercent repaired: 50.0\n" +
-        "\tBytes repaired: 0B\n" +
-        "\tBytes unrepaired: 0B\n" +
-        "\tBytes pending repair: 0B\n" +
+        "\tBytes repaired: 0\n" +
+        "\tBytes unrepaired: 0\n" +
+        "\tBytes pending repair: 0\n" +
         "\tBloom filter false positives: 500\n" +
         "\tBloom filter false ratio: 0.020\n" +
         "\tBloom filter space used: 131415\n" +
@@ -197,7 +197,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tTable: %s\n" +
         "\tSSTable count: 40000\n" +
         "\tOld SSTable count: 0\n" +
-        "\tMax SSTable size: 0B\n" +
+        "\tMax SSTable size: 0\n" +
         "\tSpace used (live): 55555\n" +
         "\tSpace used (total): 64\n" +
         "\tSpace used by snapshots (total): 55555\n" +
@@ -214,9 +214,9 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read/write ratio: 0.000\n" +
         "\tPending flushes: 5\n" +
         "\tPercent repaired: 93.0\n" +
-        "\tBytes repaired: 0B\n" +
-        "\tBytes unrepaired: 0B\n" +
-        "\tBytes pending repair: 0B\n" +
+        "\tBytes repaired: 0\n" +
+        "\tBytes unrepaired: 0\n" +
+        "\tBytes pending repair: 0\n" +
         "\tBloom filter false positives: 10\n" +
         "\tBloom filter false ratio: 0.600\n" +
         "\tBloom filter space used: 123\n" +
@@ -234,7 +234,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tTable: %s\n" +
         "\tSSTable count: 1000\n" +
         "\tOld SSTable count: 0\n" +
-        "\tMax SSTable size: 0B\n" +
+        "\tMax SSTable size: 0\n" +
         "\tSpace used (live): 666666\n" +
         "\tSpace used (total): 0\n" +
         "\tSpace used by snapshots (total): 0\n" +
@@ -253,9 +253,9 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read/write ratio: 0.000\n" +
         "\tPending flushes: 66\n" +
         "\tPercent repaired: 0.0\n" +
-        "\tBytes repaired: 0B\n" +
-        "\tBytes unrepaired: 0B\n" +
-        "\tBytes pending repair: 0B\n" +
+        "\tBytes repaired: 0\n" +
+        "\tBytes unrepaired: 0\n" +
+        "\tBytes pending repair: 0\n" +
         "\tBloom filter false positives: 400\n" +
         "\tBloom filter false ratio: 0.030\n" +
         "\tBloom filter space used: 101112\n" +
