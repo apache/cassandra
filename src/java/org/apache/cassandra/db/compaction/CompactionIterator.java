@@ -96,7 +96,6 @@ import static com.google.common.base.Preconditions.checkState;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosStatePurging;
-import static org.apache.cassandra.service.accord.AccordKeyspace.*;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CommandRows.maybeDropTruncatedCommandColumns;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CommandRows.truncatedApply;
 import static org.apache.cassandra.service.accord.AccordKeyspace.TimestampsForKeyColumns.last_executed_micros;
@@ -104,6 +103,10 @@ import static org.apache.cassandra.service.accord.AccordKeyspace.TimestampsForKe
 import static org.apache.cassandra.service.accord.AccordKeyspace.TimestampsForKeyColumns.last_write_timestamp;
 import static org.apache.cassandra.service.accord.AccordKeyspace.TimestampsForKeyColumns.max_timestamp;
 import static org.apache.cassandra.service.accord.AccordKeyspace.TimestampsForKeyRows.truncateTimestampsForKeyRow;
+import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeDurabilityOrNull;
+import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeRouteOrNull;
+import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeSaveStatusOrNull;
+import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeTimestampOrNull;
 
 /**
  * Merge multiple iterators over the content of sstable into a "compacted" iterator.
