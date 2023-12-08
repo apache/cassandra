@@ -91,11 +91,11 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static accord.local.Commands.Cleanup.TRUNCATE_WITH_OUTCOME;
-import static accord.local.Status.Durability.Universal;
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosStatePurging;
+import static org.apache.cassandra.service.accord.AccordKeyspace.*;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CommandRows.maybeDropTruncatedCommandColumns;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CommandRows.truncatedApply;
 import static org.apache.cassandra.service.accord.AccordKeyspace.TimestampsForKeyColumns.last_executed_micros;
@@ -103,10 +103,6 @@ import static org.apache.cassandra.service.accord.AccordKeyspace.TimestampsForKe
 import static org.apache.cassandra.service.accord.AccordKeyspace.TimestampsForKeyColumns.last_write_timestamp;
 import static org.apache.cassandra.service.accord.AccordKeyspace.TimestampsForKeyColumns.max_timestamp;
 import static org.apache.cassandra.service.accord.AccordKeyspace.TimestampsForKeyRows.truncateTimestampsForKeyRow;
-import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeDurabilityOrNull;
-import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeRouteOrNull;
-import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeSaveStatusOrNull;
-import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeTimestampOrNull;
 
 /**
  * Merge multiple iterators over the content of sstable into a "compacted" iterator.
@@ -202,18 +198,32 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         if (topPartitionCollector != null) // need to count tombstones before they are purged
             merged = Transformation.apply(merged, new TopPartitionTracker.TombstoneCounter(topPartitionCollector, nowInSec));
         merged = Transformation.apply(merged, new GarbageSkipper(controller));
-        Transformation<UnfilteredRowIterator> purger = isPaxos(controller.cfs) && paxosStatePurging() != legacy
-                                                       ? new PaxosPurger()
-                                                       : isAccordCommands(controller.cfs)
-                                                         ? new AccordCommandsPurger(accordService)
-                                                         : isAccordDepsCommandsForKey(controller.cfs)
-                                                           ? new AccordCommandsForKeyPurger(AccordKeyspace.DepsCommandsForKeysAccessor, accordService)
-                                                           : isAccordAllCommandsForKey(controller.cfs)
-                                                             ? new AccordCommandsForKeyPurger(AccordKeyspace.AllCommandsForKeysAccessor, accordService)
-                                                             : new Purger(controller, nowInSec);
+        Transformation<UnfilteredRowIterator> purger = purger(controller.cfs, accordService);
         merged = Transformation.apply(merged, purger);
         merged = DuplicateRowChecker.duringCompaction(merged, type);
         compacted = Transformation.apply(merged, new AbortableUnfilteredPartitionTransformation(this));
+    }
+
+    private Transformation<UnfilteredRowIterator> purger(ColumnFamilyStore cfs, Supplier<IAccordService> accordService)
+    {
+        if (isPaxos(cfs) && paxosStatePurging() != legacy)
+            return new PaxosPurger();
+
+        if (!isAccordTable(cfs))
+            return new Purger(controller, nowInSec);
+
+        if (isAccordCommands(cfs))
+            return new AccordCommandsPurger(accordService);
+        if (isAccordTimestampsForKey(cfs))
+            return new AccordTimestampsForKeyPurger(accordService);
+
+        if (isAccordDepsCommandsForKey(cfs))
+            return new AccordCommandsForKeyPurger(AccordKeyspace.DepsCommandsForKeysAccessor, accordService);
+
+        if (isAccordAllCommandsForKey(cfs))
+            return new AccordCommandsForKeyPurger(AccordKeyspace.AllCommandsForKeysAccessor, accordService);
+
+        throw new IllegalArgumentException("Unhandled accord table: " + cfs.keyspace.getName() + '.' + cfs.name);
     }
 
     public TableMetadata metadata()
@@ -805,7 +815,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
             // When commands end up being sliced by compaction we need this to discard tombstones and slices
             // without enough information to run the rest of the cleanup logic
-            if (durableBefore.min(txnId) == Universal)
+            if (durableBefore.isSafeToPurge(txnId))
                 return null;
 
             Cell durabilityCell = row.getCell(CommandsColumns.durability);
@@ -1031,23 +1041,33 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         return cfs.name.equals(SystemKeyspace.PAXOS) && cfs.getKeyspaceName().equals(SchemaConstants.SYSTEM_KEYSPACE_NAME);
     }
 
-    private static boolean isAccordCommands(ColumnFamilyStore cfs)
+    private static boolean isAccordTable(ColumnFamilyStore cfs)
     {
-        return cfs.name.equals(AccordKeyspace.COMMANDS) && cfs.keyspace.getName().equals(SchemaConstants.ACCORD_KEYSPACE_NAME);
+        return cfs.keyspace.getName().equals(SchemaConstants.ACCORD_KEYSPACE_NAME);
     }
 
-    private static boolean isAccordCommandsForKey(ColumnFamilyStore cfs, String name)
+    private static boolean isAccordTable(ColumnFamilyStore cfs, String name)
     {
-        return cfs.name.equals(name) && cfs.keyspace.getName().equals(SchemaConstants.ACCORD_KEYSPACE_NAME);
+        return cfs.name.equals(name) && isAccordTable(cfs);
+    }
+
+    private static boolean isAccordCommands(ColumnFamilyStore cfs)
+    {
+        return isAccordTable(cfs, AccordKeyspace.COMMANDS);
+    }
+
+    private static boolean isAccordTimestampsForKey(ColumnFamilyStore cfs)
+    {
+        return isAccordTable(cfs, AccordKeyspace.TIMESTAMPS_FOR_KEY);
     }
 
     private static boolean isAccordDepsCommandsForKey(ColumnFamilyStore cfs)
     {
-        return isAccordCommandsForKey(cfs, AccordKeyspace.DEPS_COMMANDS_FOR_KEY);
+        return isAccordTable(cfs, AccordKeyspace.DEPS_COMMANDS_FOR_KEY);
     }
 
     private static boolean isAccordAllCommandsForKey(ColumnFamilyStore cfs)
     {
-        return isAccordCommandsForKey(cfs, AccordKeyspace.ALL_COMMANDS_FOR_KEY);
+        return isAccordTable(cfs, AccordKeyspace.ALL_COMMANDS_FOR_KEY);
     }
 }
