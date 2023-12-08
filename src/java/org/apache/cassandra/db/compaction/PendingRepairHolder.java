@@ -293,4 +293,9 @@ public class PendingRepairHolder extends AbstractStrategyHolder
             tasks += manager.getEstimatedRemainingTasks();
         return tasks;
     }
+
+    public boolean hasPendingRepairSSTable(TimeUUID sessionID, SSTableReader sstable)
+    {
+        return Iterables.any(managers, prm -> prm.hasPendingRepairSSTable(sessionID, sstable));
+    }
 }

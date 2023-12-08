@@ -483,6 +483,14 @@ class PendingRepairManager
         return group.entrySet().stream().map(g -> strategies.get(g.getKey()).getUserDefinedTask(g.getValue(), gcBefore)).collect(Collectors.toList());
     }
 
+    public boolean hasPendingRepairSSTable(TimeUUID sessionID, SSTableReader sstable)
+    {
+        AbstractCompactionStrategy strat = strategies.get(sessionID);
+        if (strat == null)
+            return false;
+        return strat.getSSTables().contains(sstable);
+    }
+
     /**
      * promotes/demotes sstables involved in a consistent repair that has been finalized, or failed
      */

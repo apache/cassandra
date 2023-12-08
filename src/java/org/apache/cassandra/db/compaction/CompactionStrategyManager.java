@@ -444,6 +444,20 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
     }
 
+    @VisibleForTesting
+    public boolean hasPendingRepairSSTable(TimeUUID sessionID, SSTableReader sstable)
+    {
+        readLock.lock();
+        try
+        {
+            return pendingRepairs.hasPendingRepairSSTable(sessionID, sstable) || transientRepairs.hasPendingRepairSSTable(sessionID, sstable);
+        }
+        finally
+        {
+            readLock.unlock();
+        }
+    }
+
     public void shutdown()
     {
         writeLock.lock();
