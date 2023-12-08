@@ -1,0 +1,235 @@
+= Compaction overview
+
+== What is compaction?
+
+Data in {cassandra} is created in xref:cassandra:architecture/storage-engine.adoc#memtables[memtables]. 
+Once a memory threshold is reached, to free up memory again, the data is written to an xref:cassandra:architecture/storage-engine.adoc#SSTables[SSTable], an https://cassandra.apache.org/_/glossary.html#immutable[immutable] file residing on disk.
+
+Because SSTables are immutable, when data is updated or deleted, the old data is not overwritten with inserts or updates, or removed from the SSTable. 
+Instead, a new SSTable is created with the updated data with a new timestamp, and the old SSTable is marked for deletion. 
+The piece of deleted data is known as a https://cassandra.apache.org/_/glossary.html#tombstone[tombstone].
+
+Over time, Cassandra may write many versions of a row in different SSTables. 
+Each version may have a unique set of columns stored with a different timestamp. 
+As SSTables accumulate, the distribution of data can require accessing more and more SSTables to retrieve a complete row.
+
+To keep the database healthy, Cassandra periodically merges SSTables and discards old data. 
+This process is called https://cassandra.apache.org/_/glossary.html#compaction[compaction].
+
+== Why must compaction be run?
+
+Since SSTables are consulted during read operations, it is important to keep the number of SSTables small.
+Write operations will cause the number of SSTables to grow, so compaction is necessary.
+Besides the issue of tombstones, data is deleted for other reasons, too, such as Time-To-Live (TTL) expiration of some data.
+Deleting, updating, or expiring data are all valid triggers for compaction.
+
+== What does compaction accomplish?
+
+Two important factors accomplished by compaction are performance improvement and disk space reclamation.
+If SSTables have duplicate data that must be read, read operations are slower. 
+Once tombstones and duplicates are removed, read operations are faster.
+SSTables use disk space, and reducing the size of SSTables through compaction frees up disk space.
+
+== How does compaction work?
+
+Compaction works on a collection of SSTables. 
+From these SSTables, compaction collects all versions of each unique row and assembles one complete row, using the most up-to-date version (by timestamp) of each of the row's columns. 
+The merge process is performant, because rows are sorted by partition key within each SSTable, and the merge process does not use random I/O. 
+The new versions of each row is written to a new SSTable. 
+The old versions, along with any rows that are ready for deletion, are left in the old SSTables, and are deleted as soon as pending reads are completed.
+
+== Types of compaction
+
+The concept of compaction is used for different kinds of operations in
+{cassandra}, the common thing about these operations is that it takes one
+or more SSTables, merges, and outputs new SSTables. The types of compactions are:
+
+Minor compaction::
+A minor compaction triggered automatically in {cassandra} for several actions:
++
+* When an SSTable is added to the node through flushing
+* When autocompaction is enabled after being disabled (`nodetool enableautocompaction`)
+* When compaction adds new SSTables
+* A check for new minor compactions every 5 minutes
+Major compaction::
+A major compaction is triggered when a user executes a compaction over all SSTables on the node.
+User defined compaction::
+Similar to a major compaction, a user-defined compaction executes when a user triggers a compaction on a given set of SSTables.
+Scrub::
+A scrub triggers a compaction to try to fix any broken SSTables. 
+This can actually remove valid data if that data is corrupted.
+If that happens you will need to run a full repair on the node.
+UpgradeSSTables::
+A compaction occurs when you upgrade SSTables to the latest version. 
+Run this after upgrading to a new major version.
+Cleanup::
+Compaction executes to remove any ranges that a node no longer owns.
+This type of compaction is typically triggered on neighbouring nodes after a node has been bootstrapped, since the bootstrapping node will take ownership of some ranges from those nodes.
+Secondary index rebuild::
+A compaction is triggered if the secondary indexes are rebuilt on a node.
+Anticompaction::
+After repair, the ranges that were actually repaired are split out of the SSTables that existed when repair started. This type of compaction rewrites SSTables to accomplish this task.
+Sub range compaction::
+It is possible to only compact a given sub range - this action is useful if you know a token that has been misbehaving - either gathering many updates or many deletes.
+The command `nodetool compact -st x -et y` will pick all SSTables containing the range between x and y and issue a compaction for those SSTables. 
+For Size Tiered Compaction Strategy, this will most likely include all SSTables, but with Leveled Compaction Strategy, it can issue the compaction for a subset of the SSTables. 
+With LCS the resulting SSTable will end up in L0.
+
+== Strategies
+
+Different compaction strategies are available to optimize for different workloads.
+Picking the right compaction strategy for your workload will ensure the best performance for both querying and for compaction itself.
+
+xref:cassandra:managing/operating/compaction/ucs.adoc[`Unified Compaction Strategy (UCS)`]::
+UCS is a good choice for most workloads and is recommended for new workloads.
+This compaction strategy is designed to handle a wide variety of workloads. 
+It is designed to be able to handle both immutable time-series data and workloads with lots of updates and deletes. 
+It is also designed to be able to handle both spinning disks and SSDs.  
+xref:cassandra:managing/operating/compaction/stcs.adoc[`Size Tiered Compaction Strategy (STCS)`]:: 
+STCS is the default compaction strategy, because it is useful as a fallback when other strategies don't fit the workload. 
+Most useful for not strictly time-series workloads with spinning disks, or when the I/O from `LCS` is too high.
+xref:cassandra:managing/operating/compaction/lcs.adoc[`Leveled Compaction Strategy (LCS)`]::
+Leveled Compaction Strategy (LCS) is optimized for read heavy workloads, or workloads with lots of updates and deletes. 
+It is not a good choice for immutable time-series data.
+xref:cassandra:managing/operating/compaction/twcs.adoc[`Time Window Compaction Strategy (TWCS)`]::
+Time Window Compaction Strategy is designed for TTL'ed, mostly immutable time-series data.
+
+include::tombstones.adoc[leveloffset=+1]
+
+== TTL
+
+Data in Cassandra can have an additional property called time to live -
+this is used to automatically drop data that has expired once the time
+is reached. Once the TTL has expired the data is converted to a
+tombstone which stays around for at least `gc_grace_seconds`. Note that
+if you mix data with TTL and data without TTL (or just different length
+of the TTL) Cassandra will have a hard time dropping the tombstones
+created since the partition might span many SSTables and not all are
+compacted at once.
+
+== Fully expired SSTables
+
+If an SSTable contains only tombstones and it is guaranteed that
+SSTable is not shadowing data in any other SSTable, then the compaction can drop
+that SSTable. If you see SSTables with only tombstones (note that TTL-ed
+data is considered tombstones once the time-to-live has expired), but it
+is not being dropped by compaction, it is likely that other SSTables
+contain older data. There is a tool called `sstableexpiredblockers` that
+will list which SSTables are droppable and which are blocking them from
+being dropped. With `TimeWindowCompactionStrategy` it
+is possible to remove the guarantee (not check for shadowing data) by
+enabling `unsafe_aggressive_sstable_expiration`.
+
+== Repaired/unrepaired data
+
+With incremental repairs Cassandra must keep track of what data is
+repaired and what data is unrepaired. With anticompaction repaired data
+is split out into repaired and unrepaired SSTables. To avoid mixing up
+the data again separate compaction strategy instances are run on the two
+sets of data, each instance only knowing about either the repaired or
+the unrepaired SSTables. This means that if you only run incremental
+repair once and then never again, you might have very old data in the
+repaired SSTables that block compaction from dropping tombstones in the
+unrepaired (probably newer) SSTables.
+
+== Data directories
+
+Since tombstones and data can live in different SSTables it is important
+to realize that losing an SSTable might lead to data becoming live again
+- the most common way of losing SSTables is to have a hard drive break
+down. To avoid making data live tombstones and actual data are always in
+the same data directory. This way, if a disk is lost, all versions of a
+partition are lost and no data can get undeleted. To achieve this a
+compaction strategy instance per data directory is run in addition to
+the compaction strategy instances containing repaired/unrepaired data,
+this means that if you have 4 data directories there will be 8
+compaction strategy instances running. This has a few more benefits than
+just avoiding data getting undeleted:
+
+* It is possible to run more compactions in parallel - leveled
+compaction will have several totally separate levelings and each one can
+run compactions independently from the others.
+* Users can backup and restore a single data directory.
+* Note though that currently all data directories are considered equal,
+so if you have a tiny disk and a big disk backing two data directories,
+the big one will be limited the by the small one. One work around to
+this is to create more data directories backed by the big disk.
+
+== Single SSTable tombstone compaction
+
+When an SSTable is written a histogram with the tombstone expiry times
+is created and this is used to try to find SSTables with very many
+tombstones and run single SSTable compaction on that SSTable in hope of
+being able to drop tombstones in that SSTable. Before starting this it
+is also checked how likely it is that any tombstones will actually will
+be able to be dropped how much this SSTable overlaps with other
+SSTables. To avoid most of these checks the compaction option
+`unchecked_tombstone_compaction` can be enabled.
+
+[[compaction-options]]
+== Common options
+
+There is a number of common options for all the compaction strategies;
+
+`enabled` (default: true)::
+Whether minor compactions should run. Note that you can have 'enabled': true as a compaction option and then do 'nodetool enableautocompaction' to start running compactions.
+`tombstone_threshold` (default: 0.2)::
+How much of the SSTable should be tombstones for us to consider doing a single SSTable compaction of that SSTable.
+`tombstone_compaction_interval` (default: 86400s (1 day))::
+Since it might not be possible to drop any tombstones when doing a single SSTable compaction we need to make sure that one SSTable is not constantly getting recompacted - this option states how often we should try for a given SSTable.
+`log_all` (default: false)::
+New detailed compaction logging, see `below <detailed-compaction-logging>`.
+`unchecked_tombstone_compaction` (default: false)::
+The single SSTable compaction has quite strict checks for whether it should be started, this option disables those checks and for some use cases this might be needed. 
+Note that this does not change anything for the actual compaction, tombstones are only dropped if it is safe to do so - it might just rewrite an SSTable without being able to drop any tombstones.
+`only_purge_repaired_tombstone` (default: false)::
+Option to enable the extra safety of making sure that tombstones are only dropped if the data has been repaired.
+`min_threshold` (default: 4)::
+Lower limit of number of SSTables before a compaction is triggered.
+Not used for `LeveledCompactionStrategy`.
+`max_threshold` (default: 32)::
+Upper limit of number of SSTables before a compaction is triggered.
+Not used for `LeveledCompactionStrategy`.
+
+Further, see the section on each strategy for specific additional options.
+
+== Compaction nodetool commands
+
+The `nodetool <nodetool>` utility provides a number of commands related to compaction:
+
+`enableautocompaction`::
+Enable compaction.
+`disableautocompaction`::
+Disable compaction.
+`setcompactionthroughput`::
+How fast compaction should run at most - defaults to 64MiB/s.
+`compactionstats`::
+Statistics about current and pending compactions.
+`compactionhistory`::
+List details about the last compactions.
+`setcompactionthreshold`::
+Set the min/max SSTable count for when to trigger compaction, defaults to 4/32.
+
+== Switching the compaction strategy and options using JMX
+
+It is possible to switch compaction strategies and its options on just a single node using JMX, this is a great way to experiment with settings without affecting the whole cluster. 
+The mbean is:
+
+[source,console]
+----
+org.apache.cassandra.db:type=ColumnFamilies,keyspace=<keyspace_name>,columnfamily=<table_name>
+----
+
+and the attribute to change is `CompactionParameters` or `CompactionParametersJson` if you use jconsole or jmc. For example, the syntax for the json version is the same as you would use in an `ALTER TABLE <alter-table-statement>` statement:
+
+[source,console]
+----
+{ 'class': 'LeveledCompactionStrategy', 'sstable_size_in_mb': 123, 'fanout_size': 10}
+----
+
+The setting is kept until someone executes an `ALTER TABLE <alter-table-statement>` that touches the compaction settings or restarts the node.
+
+[[detailed-compaction-logging]]
+== More detailed compaction logging
+
+Enable with the compaction option `log_all` and a more detailed compaction log file will be produced in your log directory.
