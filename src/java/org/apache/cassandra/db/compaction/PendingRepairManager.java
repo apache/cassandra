@@ -483,7 +483,8 @@ class PendingRepairManager
         return group.entrySet().stream().map(g -> strategies.get(g.getKey()).getUserDefinedTask(g.getValue(), gcBefore)).collect(Collectors.toList());
     }
 
-    public boolean hasPendingRepairSSTable(TimeUUID sessionID, SSTableReader sstable)
+    @VisibleForTesting
+    public synchronized boolean hasPendingRepairSSTable(TimeUUID sessionID, SSTableReader sstable)
     {
         AbstractCompactionStrategy strat = strategies.get(sessionID);
         if (strat == null)
