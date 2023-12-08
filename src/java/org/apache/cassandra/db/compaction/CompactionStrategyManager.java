@@ -763,16 +763,8 @@ public class CompactionStrategyManager implements INotificationConsumer
      */
     private void handleFlushNotification(Iterable<SSTableReader> added)
     {
-        List<GroupedSSTableContainer> groups = groupSSTables(added);
-        for (int i = 0; i < holders.size(); i++)
-        {
-            GroupedSSTableContainer group = groups.get(i);
-
-            if (group.isEmpty())
-                continue;
-            AbstractStrategyHolder dstHolder = holders.get(i);
-            dstHolder.addSSTables(group);
-        }
+        for (SSTableReader sstable : added)
+            getHolder(sstable).addSSTable(sstable);
     }
 
     private int getHolderIndex(SSTableReader sstable)
