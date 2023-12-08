@@ -228,6 +228,7 @@ public class DatabaseDescriptor
 
     private static ImmutableMap<String, SSTableFormat<?, ?>> sstableFormats;
     private static volatile SSTableFormat<?, ?> selectedSSTableFormat;
+    private static StorageCompatibilityMode storageCompatibilityMode = CassandraRelevantProperties.STORAGE_COMPATIBILITY_MODE.getEnum(true, StorageCompatibilityMode.class);
 
     private static Function<CommitLog, AbstractCommitLogSegmentManager> commitLogSegmentMgrProvider = c -> DatabaseDescriptor.isCDCEnabled()
                                                                                                            ? new CommitLogSegmentManagerCDC(c, DatabaseDescriptor.getCommitLogLocation())
@@ -291,6 +292,8 @@ public class DatabaseDescriptor
 
         setConfig(loadConfig());
 
+        applyCompatibilityMode();
+
         applySSTableFormats();
 
         applySimpleConfig();
@@ -346,6 +349,7 @@ public class DatabaseDescriptor
         setDefaultFailureDetector();
         Config.setClientMode(true);
         conf = configSupplier.get();
+        applyCompatibilityMode();
         diskOptimizationStrategy = new SpinningDiskOptimizationStrategy();
         applySSTableFormats();
     }
@@ -434,7 +438,8 @@ public class DatabaseDescriptor
 
     private static void applyAll() throws ConfigurationException
     {
-        //InetAddressAndPort cares that applySimpleConfig runs first
+        applyCompatibilityMode();
+
         applySSTableFormats();
 
         applyCryptoProvider();
@@ -1519,6 +1524,12 @@ public class DatabaseDescriptor
         getStorageCompatibilityMode().validateSstableFormat(selectedFormat);
 
         return selectedFormat;
+    }
+
+    private static void applyCompatibilityMode()
+    {
+        if (conf != null && conf.storage_compatibility_mode != null)
+            storageCompatibilityMode = conf.storage_compatibility_mode;
     }
 
     private static void applySSTableFormats()
@@ -4968,11 +4979,7 @@ public class DatabaseDescriptor
 
     public static StorageCompatibilityMode getStorageCompatibilityMode()
     {
-        // Config is null for junits that don't load the config. Get from env var that CI/build.xml sets
-        if (conf == null)
-            return CassandraRelevantProperties.JUNIT_STORAGE_COMPATIBILITY_MODE.getEnum(StorageCompatibilityMode.CASSANDRA_4);
-        else
-            return conf.storage_compatibility_mode;
+        return storageCompatibilityMode;
     }
 
     public static ParameterizedClass getDefaultCompaction()
