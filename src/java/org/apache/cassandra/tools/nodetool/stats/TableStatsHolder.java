@@ -34,6 +34,7 @@ import org.apache.cassandra.db.compaction.TimeWindowCompactionStrategyOptions;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.metrics.*;
 import org.apache.cassandra.tools.*;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class TableStatsHolder implements StatsHolder
 {
@@ -419,7 +420,7 @@ public class TableStatsHolder implements StatsHolder
 
     private String format(long bytes, boolean humanReadable)
     {
-        return humanReadable ? FileUtils.stringifyFileSize(bytes) : Long.toString(bytes);
+        return humanReadable ? FBUtilities.prettyPrintMemoryShort(bytes) : Long.toString(bytes);
     }
 
     private Map<String, String> format(Map<String, Long> map, boolean humanReadable)
