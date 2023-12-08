@@ -197,10 +197,13 @@ public class CompactionManager implements CompactionManagerMBean
     {
         for (String keyspace : Schema.instance.getKeyspaces())
         {
-            for ( ColumnFamilyStore cfs : Schema.instance.getKeyspaceInstance(keyspace).getColumnFamilyStores())
+            if (Schema.instance.getKeyspaceInstance(keyspace) != null)
             {
-                CompactionStrategy strat = cfs.getCompactionStrategy();
-                strat.periodicReport();
+                for (ColumnFamilyStore cfs : Schema.instance.getKeyspaceInstance(keyspace).getColumnFamilyStores())
+                {
+                    CompactionStrategy strat = cfs.getCompactionStrategy();
+                    strat.periodicReport();
+                }
             }
         }
     }
@@ -211,15 +214,16 @@ public class CompactionManager implements CompactionManagerMBean
         for (String keyspace : Schema.instance.getKeyspaces())
         {
             //don't store config files for system tables
-            if (SchemaConstants.isSystemKeyspace(keyspace))
-                continue;
-            for ( ColumnFamilyStore cfs : Schema.instance.getKeyspaceInstance(keyspace).getColumnFamilyStores())
+            if (Schema.instance.getKeyspaceInstance(keyspace) != null && !SchemaConstants.isSystemKeyspace(keyspace))
             {
-                CompactionStrategy strat = cfs.getCompactionStrategy();
-                if (strat instanceof UnifiedCompactionContainer)
+                for (ColumnFamilyStore cfs : Schema.instance.getKeyspaceInstance(keyspace).getColumnFamilyStores())
                 {
-                    UnifiedCompactionStrategy ucs = (UnifiedCompactionStrategy) ((UnifiedCompactionContainer) strat).getStrategies().get(0);
-                    ucs.storeControllerConfig();
+                    CompactionStrategy strat = cfs.getCompactionStrategy();
+                    if (strat instanceof UnifiedCompactionContainer)
+                    {
+                        UnifiedCompactionStrategy ucs = (UnifiedCompactionStrategy) ((UnifiedCompactionContainer) strat).getStrategies().get(0);
+                        ucs.storeControllerConfig();
+                    }
                 }
             }
         }
