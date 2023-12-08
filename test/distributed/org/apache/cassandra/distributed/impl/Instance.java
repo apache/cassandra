@@ -489,7 +489,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     @Override
     public void receiveMessage(IMessage message)
     {
-        async(receiveMessageRunnable(message)).apply(false);
+        sync(receiveMessageRunnable(message)).accept(false);
     }
 
     @Override
