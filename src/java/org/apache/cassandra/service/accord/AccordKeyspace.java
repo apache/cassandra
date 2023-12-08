@@ -182,6 +182,10 @@ public class AccordKeyspace
     public static final String EPOCH_METADATA = "epoch_metadata";
     public static final String COMMAND_STORE_METADATA = "command_store_metadata";
 
+    public static final Set<String> TABLE_NAMES = ImmutableSet.of(COMMANDS, TIMESTAMPS_FOR_KEY, DEPS_COMMANDS_FOR_KEY,
+                                                                  ALL_COMMANDS_FOR_KEY, TOPOLOGIES, EPOCH_METADATA,
+                                                                  COMMAND_STORE_METADATA);
+
     private static final TupleType TIMESTAMP_TYPE = new TupleType(Lists.newArrayList(LongType.instance, LongType.instance, Int32Type.instance));
     private static final String TIMESTAMP_TUPLE = TIMESTAMP_TYPE.asCQL3Type().toString();
     private static final TupleType KEY_TYPE = new TupleType(Arrays.asList(UUIDType.instance, BytesType.instance));
