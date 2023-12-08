@@ -1269,5 +1269,5 @@ public class Config
 
     public double severity_during_decommission = 0;
 
-    public StorageCompatibilityMode storage_compatibility_mode = StorageCompatibilityMode.CASSANDRA_4;
+    public StorageCompatibilityMode storage_compatibility_mode;
 }
