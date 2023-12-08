@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.upgrade;
 
+import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -34,6 +35,8 @@ import harry.visitors.QueryLogger;
 import harry.visitors.RandomPartitionValidator;
 import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.fuzz.FixedSchemaProviderConfiguration;
+import org.apache.cassandra.distributed.fuzz.HarryHelper;
 import org.apache.cassandra.distributed.harry.ClusterState;
 import org.apache.cassandra.distributed.harry.ExistingClusterSUT;
 import org.apache.cassandra.distributed.harry.FlaggedRunner;
@@ -70,16 +73,17 @@ public class ClusterMetadataUpgradeHarryTest extends UpgradeTestBase
         .withUpgradeListener(listener)
         .setup((cluster) -> {
             SchemaSpec schema = new SchemaSpec("harry", "test_table",
-                                               asList(pk("pk1", asciiType), pk("pk1", int64Type)),
-                                               asList(ck("ck1", asciiType), ck("ck1", int64Type)),
-                                               asList(regularColumn("regular1", asciiType), regularColumn("regular1", int64Type)),
-                                               asList(staticColumn("static1", asciiType), staticColumn("static1", int64Type)));
+                                               asList(pk("pk1", asciiType), pk("pk2", int64Type)),
+                                               asList(ck("ck1", asciiType), ck("ck2", int64Type)),
+                                               asList(regularColumn("regular1", asciiType), regularColumn("regular2", int64Type)),
+                                               asList(staticColumn("static1", asciiType), staticColumn("static2", int64Type)));
 
-            Configuration config = Configuration.fromFile("conf/harry-example.yaml")
-                                                .unbuild()
-                                                .setKeyspaceDdl(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d};", schema.keyspace, 3))
-                                                .setSUT(new ExistingClusterSUT(cluster, listener))
-                                                .build();
+            Configuration config = HarryHelper.defaultConfiguration()
+                                              .setKeyspaceDdl(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d};", schema.keyspace, 3))
+                                              .setSchemaProvider(new FixedSchemaProviderConfiguration(schema))
+                                              .setDataTracker(new Configuration.LockingDataTrackerConfiguration(-1l, -1l, Collections.emptyList()))
+                                              .setSUT(new ExistingClusterSUT(cluster, listener))
+                                              .build();
 
             Future<?> f = es.submit(() -> {
                 try
