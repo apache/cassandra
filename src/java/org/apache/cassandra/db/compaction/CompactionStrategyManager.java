@@ -763,14 +763,15 @@ public class CompactionStrategyManager implements INotificationConsumer
      */
     private void handleFlushNotification(Iterable<SSTableReader> added)
     {
-        for (SSTableReader sstable : added)
+        List<GroupedSSTableContainer> groups = groupSSTables(added);
+        for (int i = 0; i < holders.size(); i++)
         {
-            // TODO (now): rewrite to be thread-safe
-            AbstractCompactionStrategy before = compactionStrategyFor(sstable);
-            before.addSSTable(sstable);
-            AbstractCompactionStrategy after = compactionStrategyFor(sstable);
-            if (before != after && !before.getSSTables().isEmpty())
-                throw new AssertionError("CompactionStrategy changed between calls...");
+            GroupedSSTableContainer group = groups.get(i);
+
+            if (group.isEmpty())
+                continue;
+            AbstractStrategyHolder dstHolder = holders.get(i);
+            dstHolder.addSSTables(group);
         }
     }
 
