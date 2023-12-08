@@ -154,8 +154,8 @@ import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.MonotonicClock;
-import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 import static accord.utils.Invariants.checkArgument;
@@ -363,6 +363,7 @@ public class AccordKeyspace
             // If durability is not universal we don't want to delete older versions of the row that might have recorded
             // a higher durability value. maybeDropTruncatedCommandColumns will take care of dropping things even if we don't drop via tombstones.
             // durability should be the only column that could have an older value that is insufficient for propagating forward
+            // TODO (now): with UniversalOrInvalidated should this change?
             boolean doDeletion = durability == Durability.Universal;
 
             // We may not have what we need to generate a deletion and include the outcome in the truncated row

@@ -815,7 +815,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
             // When commands end up being sliced by compaction we need this to discard tombstones and slices
             // without enough information to run the rest of the cleanup logic
-            if (durableBefore.isUniversal(txnId))
+            if (durableBefore.isSafeToPurge(txnId))
                 return null;
 
             Cell durabilityCell = row.getCell(CommandsColumns.durability);
