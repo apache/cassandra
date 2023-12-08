@@ -49,6 +49,7 @@ public final class ClientMetrics
     private Meter requestDispatched;
 
     private Meter protocolException;
+    private Meter sslHandshakeException;
     private Meter unknownException;
 
     private ClientMetrics()
@@ -84,6 +85,11 @@ public final class ClientMetrics
     public void markProtocolException()
     {
         protocolException.mark();
+    }
+
+    public void markSslHandshakeException()
+    {
+        sslHandshakeException.mark();
     }
 
     public void markUnknownException()
@@ -124,6 +130,7 @@ public final class ClientMetrics
         requestDispatched = registerMeter("RequestDispatched");
 
         protocolException = registerMeter("ProtocolException");
+        sslHandshakeException = registerMeter("SslHandshakeException");
         unknownException = registerMeter("UnknownException");
 
         initialized = true;

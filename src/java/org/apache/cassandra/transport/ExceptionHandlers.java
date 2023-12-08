@@ -137,7 +137,7 @@ public class ExceptionHandlers
         }
         else if (Throwables.anyCauseMatches(cause, t -> t instanceof SSLException))
         {
-            // logger.warn("SSLException in client networking with peer {} {}", clientAddress, cause.getMessage());
+            ClientMetrics.instance.markSslHandshakeException();
             NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES, "SSLException in client networking with peer {} {}", clientAddress, cause.getMessage());
         }
         else
