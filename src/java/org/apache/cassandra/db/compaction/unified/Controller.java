@@ -598,10 +598,12 @@ public class Controller
             try
             {
                 long sizeInBytes = FBUtilities.parseHumanReadableBytes(s);
-                if (sizeInBytes < targetSSTableSize)
-                    throw new ConfigurationException(String.format("Invalid configuration, %s should be greater than or equal to: %sB",
+                // zero is a valid option to disable featue
+                int limit = (int) Math.ceil(targetSSTableSize * INVERSE_SQRT_2);
+                if (sizeInBytes != 0 && sizeInBytes < limit)
+                    throw new ConfigurationException(String.format("Invalid configuration, %s should be 0 (zero) or greater than or equal to: %sB",
                                                                    MIN_SSTABLE_SIZE_OPTION,
-                                                                   targetSSTableSize));
+                                                                   limit));
             }
             catch (NumberFormatException e)
             {

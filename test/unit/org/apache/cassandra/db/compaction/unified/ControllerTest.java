@@ -210,9 +210,8 @@ public class ControllerTest
         options.putIfAbsent(Controller.BASE_SHARD_COUNT_OPTION, Integer.toString(3));
         options.putIfAbsent(Controller.TARGET_SSTABLE_SIZE_OPTION, FBUtilities.prettyPrintMemory(100 << 20));
         options.put(Controller.SSTABLE_GROWTH_OPTION, "0.0");
-        Controller.validateOptions(options);
-        // this is a provably invalid setting but required for this test.
         options.put(Controller.MIN_SSTABLE_SIZE_OPTION, "0B");
+        Controller.validateOptions(options);
         Controller controller = Controller.fromOptions(cfs, options);
 
 
@@ -564,21 +563,27 @@ public class ControllerTest
     {
         Map<String, String> options = new HashMap<>();
 
-        // test min < default target sstable size
-        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, format("%sB", Controller.DEFAULT_TARGET_SSTABLE_SIZE - 1));
+        // verify 0 is acceptable
+        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, format("%sB", 0));
+        Controller.validateOptions(options);
 
+
+        // test min < default target sstable size * INV_SQRT_2
+        int limit = (int) Math.ceil(Controller.DEFAULT_TARGET_SSTABLE_SIZE  * Controller.INVERSE_SQRT_2);
+        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, format("%sB", limit-1));
         assertThatExceptionOfType(ConfigurationException.class)
         .describedAs("Should have thrown a ConfigurationException when min_sstable_size is lower than target_sstable_size")
         .isThrownBy(() -> Controller.validateOptions(options))
-        .withMessage(format("Invalid configuration, min_sstable_size should be greater than or equal to: %sB", Controller.DEFAULT_TARGET_SSTABLE_SIZE));
+        .withMessageContaining(format("greater than or equal to: %sB", limit));
 
-        // test min < configured target table size
-        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, format("%sB", Controller.MIN_TARGET_SSTABLE_SIZE + 10));
+        // test min < configured target table size * INV_SQRT_2
+        limit = (int) Math.ceil(Controller.MIN_TARGET_SSTABLE_SIZE  * 2 * Controller.INVERSE_SQRT_2);
+        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, format("%sB", limit-1));
         options.put(Controller.TARGET_SSTABLE_SIZE_OPTION, format("%sB", Controller.MIN_TARGET_SSTABLE_SIZE * 2));
 
         assertThatExceptionOfType(ConfigurationException.class)
         .describedAs("Should have thrown a ConfigurationException when min_sstable_size is lower than target_sstable_size")
         .isThrownBy(() -> Controller.validateOptions(options))
-        .withMessage(format("Invalid configuration, min_sstable_size should be greater than or equal to: %sB", Controller.MIN_TARGET_SSTABLE_SIZE * 2));
+        .withMessageContaining(format("greater than or equal to: %sB", limit));
     }
 }
