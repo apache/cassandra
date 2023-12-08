@@ -1264,7 +1264,7 @@ public class Config
     public double severity_during_decommission = 0;
 
     // TODO Revisit MessagingService::current_version
-    public StorageCompatibilityMode storage_compatibility_mode = StorageCompatibilityMode.NONE;
+    public StorageCompatibilityMode storage_compatibility_mode;
 
     /**
      * For the purposes of progress barrier we only support ALL, EACH_QUORUM, QUORUM, LOCAL_QUORUM, ANY, and ONE.

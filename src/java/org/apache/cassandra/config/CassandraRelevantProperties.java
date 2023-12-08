@@ -500,6 +500,14 @@ public enum CassandraRelevantProperties
     SSTABLE_FORMAT_DEFAULT("cassandra.sstable.format.default"),
     START_GOSSIP("cassandra.start_gossip", "true"),
     START_NATIVE_TRANSPORT("cassandra.start_native_transport"),
+    /**
+     * {@link StorageCompatibilityMode} mode sets how the node will behave, sstable or messaging versions to use etc according to a yaml setting.
+     * But many tests don't load the config hence we need to force it otherwise they would run always under the default. Config is null for junits
+     * that don't load the config. Get from env var that CI/build.xml sets.
+     *
+     * This is a dev/CI only property. Do not use otherwise.
+     */
+    STORAGE_COMPATIBILITY_MODE("cassandra.test.storage_compatibility_mode", StorageCompatibilityMode.NONE.toString()),
     STORAGE_DIR("cassandra.storagedir"),
     STORAGE_HOOK("cassandra.storage_hook"),
     STORAGE_PORT("cassandra.storage_port"),
