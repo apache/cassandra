@@ -398,4 +398,14 @@ public class FBUtilitiesTest
         Assert.assertEquals("NaN", FBUtilities.prettyPrintAverage(Double.NaN));
         Assert.assertEquals("Infinity", FBUtilities.prettyPrintAverage(Double.POSITIVE_INFINITY));
     }
+
+    @Test
+    public void testPrettyPrintMemoryShort()
+    {
+        Assert.assertEquals("4.96 KiB", FBUtilities.prettyPrintMemoryShort(5075));
+        Assert.assertEquals("48.8 KiB", FBUtilities.prettyPrintMemoryShort(50000));
+        Assert.assertEquals("477 MiB", FBUtilities.prettyPrintMemoryShort(500000000));
+        Assert.assertEquals("0.422 KiB", FBUtilities.prettyPrintMemoryShort(432));
+        Assert.assertEquals("0.000 KiB", FBUtilities.prettyPrintMemoryShort(0));
+    }
 }

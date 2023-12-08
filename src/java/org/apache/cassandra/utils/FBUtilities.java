@@ -881,16 +881,6 @@ public class FBUtilities
     final static Pattern BINARY_EXPONENT = Pattern.compile("\\*2\\^([+-]?\\d+)");
 
     /**
-     * Convert the given size in bytes to a human-readable value using binary (i.e. 2^10-based) modifiers.
-     * For example, 1.000KiB, 2.100GiB etc., up to 8.000 EiB.
-     * @param size      Number to convert.
-     */
-    public static String prettyPrintMemory(long size)
-    {
-        return prettyPrintMemory(size, "");
-    }
-
-    /**
      * Formats a latency value in milliseconds for display, appending an "ms" suffix.
      * The formatted output is rounded to three decimal places.
      * For example, "5000.000 ms", "100.000 ms", "0.050 ms", "0.000 ms", "NaN ms".
@@ -925,6 +915,16 @@ public class FBUtilities
      * Convert the given size in bytes to a human-readable value using binary (i.e. 2^10-based) modifiers.
      * For example, 1.000KiB, 2.100GiB etc., up to 8.000 EiB.
      * @param size      Number to convert.
+     */
+    public static String prettyPrintMemory(long size)
+    {
+        return prettyPrintMemory(size, "");
+    }
+
+    /**
+     * Convert the given size in bytes to a human-readable value using binary (i.e. 2^10-based) modifiers.
+     * For example, 1.000KiB, 2.100GiB etc., up to 8.000 EiB.
+     * @param size      Number to convert.
      * @param separator Separator between the number and the (modified) unit.
      */
     public static String prettyPrintMemory(long size, String separator)
@@ -937,6 +937,33 @@ public class FBUtilities
                                  Math.scalb(size, -prefixIndex * 10),
                                  separator,
                                  UNIT_PREFIXES.charAt(UNIT_PREFIXES_BASE + prefixIndex));
+    }
+
+    /**
+     * Convert the given size in bytes to a human-readable value using binary (i.e. 2^10-based) modifiers
+     * with only three significant digits.
+     * For example, "4.96 KiB", "48.8 KiB", "477 MiB", "0.422 KiB", "0.000 KiB".
+     * @param size      Number to convert.
+     */
+    public static String prettyPrintMemoryShort(long size)
+    {
+        int prefixIndex = (63 - Long.numberOfLeadingZeros(Math.abs(size))) / 10;
+        if (prefixIndex == 0)
+            prefixIndex = 1; // Kilo is the smallest prefix
+        char prefix = UNIT_PREFIXES.charAt(UNIT_PREFIXES_BASE + prefixIndex);
+        float scaledSize = Math.scalb(size, -prefixIndex * 10);
+        String scaledSizeStr;
+        if (scaledSize > -1 && scaledSize < 1) {
+            scaledSizeStr = String.format("%.3f", scaledSize);
+        } else {
+            int digitsBeforeDecimal = (int) Math.log10(Math.abs(scaledSize)) + 1;
+            int decimalPlaces = Math.max(0, 3 - digitsBeforeDecimal);
+            scaledSizeStr = String.format("%." + decimalPlaces + "f", scaledSize);
+        }
+        return String.format("%s%s%ciB",
+                             scaledSizeStr,
+                             ' ',
+                             prefix);
     }
 
     /**
