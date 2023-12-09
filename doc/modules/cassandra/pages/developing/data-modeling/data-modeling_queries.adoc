@@ -53,7 +53,7 @@ to obtain detailed description of the hotel. The act of booking a room
 creates a reservation record that may be accessed by the guest and hotel
 staff at a later time through various additional queries.
 
-image::cassandra:developing/data-modeling/data-modeling_hotel_queries.png[image]
+image::cassandra:developing/data-modeling/data_modeling_hotel_queries.png[image]
 
 _Material adapted from Cassandra, The Definitive Guide. Published by
 O'Reilly Media, Inc. Copyright © 2020 Jeff Carpenter, Eben Hewitt. All

@@ -30,7 +30,7 @@ underlined. Relationships between entities are represented as diamonds,
 and the connectors between the relationship and each entity show the
 multiplicity of the connection.
 
-image::data-modeling_hotel_erd.png[image]
+image::data_modeling_hotel_erd.png[image]
 
 Obviously, in the real world, there would be many more considerations
 and much more complexity. For example, hotel rates are notoriously
