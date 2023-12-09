@@ -940,4 +940,50 @@ public class VectorTypeTest extends VectorTester
                        row(3));
         });
     }
+
+    @Test
+    public void testHybridSearchSequentialClusteringColumns() throws Throwable
+    {
+        setMaxBruteForceRows(0);
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int, a int, val text, vec vector<float, 2>, PRIMARY KEY(pk, a))");
+        createIndex("CREATE CUSTOM INDEX ON %s(vec) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (pk, a, val, vec) VALUES (1, 1, 'A', [1, 3])");
+        execute("INSERT INTO %s (pk, a, val, vec) VALUES (1, 2, 'A', [1, 2])");
+        execute("INSERT INTO %s (pk, a, val, vec) VALUES (1, 3, 'A', [1, 1])");
+
+        // Get all rows using first predicate, then filter to get top 1
+        // Use a small limit to ensure we do not use brute force
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT a FROM %s WHERE val = 'A' ORDER BY vec ANN OF [1,3] LIMIT 1"), row(1));
+            assertRows(execute("SELECT a FROM %s WHERE val = 'A' ORDER BY vec ANN OF [1,2] LIMIT 1"), row(2));
+            assertRows(execute("SELECT a FROM %s WHERE val = 'A' ORDER BY vec ANN OF [1,1] LIMIT 1"), row(3));
+        });
+    }
+
+    @Test
+    public void testHybridSearchHoleInClusteringColumnOrdering() throws Throwable
+    {
+        setMaxBruteForceRows(0);
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int, a int, val text, vec vector<float, 2>, PRIMARY KEY(pk, a))");
+        createIndex("CREATE CUSTOM INDEX ON %s(vec) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        // Create two sstables. The first needs a hole forcing us to skip.
+        execute("INSERT INTO %s (pk, a, val, vec) VALUES (1, 1, 'A', [1, 3])");
+        execute("INSERT INTO %s (pk, a, val, vec) VALUES (1, 3, 'A', [1, 2])");
+        execute("INSERT INTO %s (pk, a, val, vec) VALUES (1, 4, 'A', [1, 1])");
+        flush();
+        execute("INSERT INTO %s (pk, a, val, vec) VALUES (1, 2, 'A', [1, 4])");
+
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT a FROM %s WHERE val = 'A' ORDER BY vec ANN OF [1,1] LIMIT 1"), row(4));
+            assertRows(execute("SELECT a FROM %s WHERE val = 'A' ORDER BY vec ANN OF [1,2] LIMIT 1"), row(3));
+            assertRows(execute("SELECT a FROM %s WHERE val = 'A' ORDER BY vec ANN OF [1,3] LIMIT 1"), row(1));
+            assertRows(execute("SELECT a FROM %s WHERE val = 'A' ORDER BY vec ANN OF [1,4] LIMIT 1"), row(2));
+        });
+    }
 }

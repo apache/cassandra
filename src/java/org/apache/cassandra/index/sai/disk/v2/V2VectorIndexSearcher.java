@@ -341,14 +341,35 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
         return bits;
     }
 
+    private int findBoundaryIndex(List<PrimaryKey> keys, boolean findMin)
+    {
+        // The minKey and maxKey are sometimes just partition keys (not primary keys), so binarySearch
+        // may not return the index of the least/greatest match.
+        var key = findMin ? metadata.minKey : metadata.maxKey;
+        int index = Collections.binarySearch(keys, key);
+        if (index < 0)
+            return -index - 1;
+        if (findMin)
+        {
+            while (index > 0 && keys.get(index - 1).equals(key))
+                index--;
+        }
+        else
+        {
+            while (index < keys.size() - 1 && keys.get(index + 1).equals(key))
+                index++;
+            // We must include the PrimaryKey at the boundary
+            index++;
+        }
+        return index;
+    }
+
     @Override
     public RangeIterator limitToTopResults(QueryContext context, List<PrimaryKey> keys, Expression exp, int limit) throws IOException
     {
         // create a sublist of the keys within this segment's bounds
-        int minIndex = Collections.binarySearch(keys, metadata.minKey);
-        minIndex = minIndex < 0 ? -minIndex - 1 : minIndex;
-        int maxIndex = Collections.binarySearch(keys, metadata.maxKey);
-        maxIndex = maxIndex < 0 ? -maxIndex - 1 : maxIndex + 1;
+        int minIndex = findBoundaryIndex(keys, true);
+        int maxIndex = findBoundaryIndex(keys, false);
         List<PrimaryKey> keysInRange = keys.subList(minIndex, maxIndex);
         if (keysInRange.isEmpty())
             return RangeIterator.empty();
@@ -401,7 +422,7 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
                         int j = 0;
                         for ( ; i + j < keysInRange.size(); j++)
                         {
-                            var nextPrimaryKey = primaryKeyMap.primaryKeyFromRowId(j);
+                            var nextPrimaryKey = keys.get(i + j);
                             if (nextPrimaryKey.compareTo(ceilingPrimaryKey) >= 0)
                                 break;
                         }
