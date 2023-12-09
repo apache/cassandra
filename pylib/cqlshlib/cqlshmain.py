@@ -1098,7 +1098,7 @@ class Shell(cmd.Cmd):
 
         # print row data
         for row in formatted_values:
-            line = ' | '.join(col.rjust(w, color=self.color) for (col, w) in zip(row, widths))
+            line = ' | '.join(col.ljust(w, color=self.color) for (col, w) in zip(row, widths))
             self.writeresult(' ' + line)
 
         if tty:
