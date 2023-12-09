@@ -162,6 +162,38 @@ public class GossiperTest
     }
 
     @Test
+    public void testAssassinatedNodeWillNotContributeToVersionCalculation() throws Exception
+    {
+        Gossiper.instance.start(0);
+        Gossiper.instance.expireUpgradeFromVersion();
+
+        VersionedValue.VersionedValueFactory factory = new VersionedValue.VersionedValueFactory(null);
+        EndpointState es = new EndpointState(new HeartBeatState((int) ((System.currentTimeMillis() + 60000) / 1000), 1234));
+        es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion(SystemKeyspace.CURRENT_VERSION.toString()));
+        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.1"), es);
+        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.1"));
+
+
+        es = new EndpointState(new HeartBeatState((int) ((System.currentTimeMillis() + 60000) / 1000), 1234));
+        es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion(SystemKeyspace.CURRENT_VERSION.toString()));
+        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.2"), es);
+        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.2"));
+
+        es = new EndpointState(new HeartBeatState((int) ((System.currentTimeMillis() + 60000) / 1000), 1234));
+        es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion(SystemKeyspace.CURRENT_VERSION.toString()));
+        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.3"), es);
+        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.3"));
+
+        // assassinate a non-existing node
+        Gossiper.instance.assassinateEndpoint("127.0.0.4");
+
+        assertEquals(4, Gossiper.instance.endpointStateMap.size());
+        assertNull(Gossiper.instance.upgradeFromVersionSupplier.get().value());
+        assertFalse(Gossiper.instance.hasMajorVersion3Nodes());
+        assertFalse(Gossiper.instance.isUpgradingFromVersionLowerThan(CassandraVersion.CASSANDRA_3_4));
+    }
+
+    @Test
     public void testLargeGenerationJump() throws UnknownHostException, InterruptedException
     {
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
