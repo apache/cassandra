@@ -480,7 +480,6 @@ public class VectorUpdateDeleteTest extends VectorTester
     @Test
     public void shadowedPrimaryKeyWithSharedVector()
     {
-        // FIXME this fails due to shadowed key logic not accounting for multiple rows with the same vector
         createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, str_val text, val vector<float, 3>)");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
@@ -530,6 +529,31 @@ public class VectorUpdateDeleteTest extends VectorTester
         // the shadowed vector has the highest score, but we shouldn't see it
         var result = execute("SELECT pk FROM %s WHERE str_val = 'A' ORDER BY val ann of [1.0, 2.0, 3.0] LIMIT 2");
         assertRowsIgnoringOrder(result, row(2), row(1));
+    }
+
+    @Test
+    public void shadowedPrimaryKeyWithUpdatedPredicateMatchingIntValue() throws Throwable
+    {
+        setMaxBruteForceRows(0);
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, num int, val vector<float, 3>)");
+        createIndex("CREATE CUSTOM INDEX ON %s(num) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+        disableCompaction(KEYSPACE);
+
+        // Same PK, different num, different vectors
+        execute("INSERT INTO %s (pk, num, val) VALUES (0, 1, [1.0, 2.0, 3.0])");
+        execute("INSERT INTO %s (pk, num, val) VALUES (0, 2, [2.0, 2.0, 3.0])");
+        execute("INSERT INTO %s (pk, num, val) VALUES (0, 3, [3.0, 2.0, 3.0])");
+        // Need PKs that wrap 0 when put in PK order
+        execute("INSERT INTO %s (pk, num, val) VALUES (1, 1, [1.0, 2.0, 3.0])");
+        execute("INSERT INTO %s (pk, num, val) VALUES (2, 1, [1.0, 2.0, 3.0])");
+
+        // the shadowed vector has the highest score, but we shouldn't see it
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT pk FROM %s WHERE num < 3 ORDER BY val ann of [1.0, 2.0, 3.0] LIMIT 10"),
+                       row(1), row(2));
+        });
     }
 
     @Test

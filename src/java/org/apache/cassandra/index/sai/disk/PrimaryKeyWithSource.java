@@ -103,4 +103,28 @@ public class PrimaryKeyWithSource implements PrimaryKey
         }
         return primaryKey.compareTo(o);
     }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (o instanceof PrimaryKeyWithSource)
+        {
+            var other = (PrimaryKeyWithSource) o;
+            if (sourceSstableId.equals(other.sourceSstableId))
+                return sourceRowId == other.sourceRowId;
+        }
+        return primaryKey.equals(o);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return primaryKey.hashCode();
+    }
+
+    @Override
+    public String toString()
+    {
+        return String.format("%s (source sstable: %s, %s)", primaryKey, sourceSstableId, sourceRowId);
+    }
 }

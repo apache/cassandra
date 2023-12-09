@@ -25,7 +25,9 @@ import org.junit.Test;
 
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.SAITester;
@@ -38,7 +40,7 @@ import static org.junit.Assert.assertTrue;
 public class RowAwarePrimaryKeyTest extends SAITester
 {
     @Test
-    public void testHashCodeForDeffer()
+    public void testHashCodeForDeferredPrimaryKey()
     {
         var factory = Version.BA.onDiskFormat().primaryKeyFactory(EMPTY_COMPARATOR);
 
@@ -62,5 +64,48 @@ public class RowAwarePrimaryKeyTest extends SAITester
         int hash2 = primaryKey2.hashCode();
         primaryKey2.loadDeferred();
         assertEquals(hash2, primaryKey2.hashCode());
+    }
+
+    @Test
+    public void testHashCodeForLoadedPrimaryKey()
+    {
+        var factory = Version.BA.onDiskFormat().primaryKeyFactory(EMPTY_COMPARATOR);
+
+        // Test relies on this implementation detail
+        assertTrue(factory instanceof RowAwarePrimaryKeyFactory);
+
+        // Set up the primary key
+        Token token1 = new Murmur3Partitioner.LongToken(1);
+        DecoratedKey key1 = new BufferDecoratedKey(token1, ByteBuffer.allocate(1));
+        PrimaryKey primaryKey1 = factory.create(key1, Clustering.EMPTY);
+
+        // Create equivalent PK
+        Token token2 = new Murmur3Partitioner.LongToken(1);
+        DecoratedKey key2 = new BufferDecoratedKey(token2, ByteBuffer.allocate(1));
+        PrimaryKey primaryKey2 = factory.create(key2, Clustering.EMPTY);
+
+        assertEquals(primaryKey1.hashCode(), primaryKey2.hashCode());
+    }
+
+    @Test
+    public void testHashCodeForDeferedPrimaryKeyWithClusteringColumns()
+    {
+        var comparator = new ClusteringComparator(Int32Type.instance);
+        var factory = Version.BA.onDiskFormat().primaryKeyFactory(comparator);
+
+        // Test relies on this implementation detail
+        assertTrue(factory instanceof RowAwarePrimaryKeyFactory);
+
+        // Set up the primary key
+        Token token1 = new Murmur3Partitioner.LongToken(1);
+        DecoratedKey key1 = new BufferDecoratedKey(token1, ByteBuffer.allocate(1));
+        PrimaryKey primaryKey1 = factory.create(key1, Clustering.make(ByteBuffer.allocate(1)));
+
+        // Create equivalent PK
+        Token token2 = new Murmur3Partitioner.LongToken(1);
+        DecoratedKey key2 = new BufferDecoratedKey(token2, ByteBuffer.allocate(1));
+        PrimaryKey primaryKey2 = factory.create(key2, Clustering.make(ByteBuffer.allocate(1)));
+
+        assertEquals(primaryKey1.hashCode(), primaryKey2.hashCode());
     }
 }

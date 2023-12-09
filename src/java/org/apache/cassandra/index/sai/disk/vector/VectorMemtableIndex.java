@@ -376,6 +376,11 @@ public class VectorMemtableIndex implements MemtableIndex
     {
         private final Set<PrimaryKey> results;
 
+        /**
+         * A {@link Bits} implementation that filters out all ordinals that do not correspond to a {@link PrimaryKey}
+         * in the provided list.
+         * @param results - an ordered list of {@link PrimaryKey}s
+         */
         public KeyFilteringBits(List<PrimaryKey> results)
         {
             this.results = new HashSet<>(results);
@@ -384,8 +389,11 @@ public class VectorMemtableIndex implements MemtableIndex
         @Override
         public boolean get(int i)
         {
-            var pk = graph.keysFromOrdinal(i);
-            return results.stream().anyMatch(pk::contains);
+            var pks = graph.keysFromOrdinal(i);
+            for (var pk : pks)
+                if (results.contains(pk))
+                    return true;
+            return false;
         }
 
         @Override

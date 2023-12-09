@@ -39,7 +39,7 @@ import org.apache.cassandra.utils.Throwables;
  * A range iterator based on {@link PostingList}.
  *
  * <ol>
- *   <li> fetch next segment row id from posting list or skip to specific segment row id if {@link #skipTo(PrimaryKey)} is called </li>
+ *   <li> fetch next unique segment row id from posting list or skip to specific segment row id if {@link #skipTo(PrimaryKey)} is called </li>
  *   <li> add segmentRowIdOffset to obtain the sstable row id </li>
  *   <li> produce a {@link PrimaryKey} from {@link PrimaryKeyMap#primaryKeyFromRowId(long)} which is used
  *       to avoid fetching duplicated keys due to partition-level indexing on wide partition schema.
@@ -68,7 +68,7 @@ public class PostingListRangeIterator extends RangeIterator
 
     private boolean needsSkipping = false;
     private PrimaryKey skipToToken = null;
-
+    private long lastSegmentRowId = -1;
 
     /**
      * Create a direct PostingListRangeIterator where the underlying PostingList is materialised
@@ -188,9 +188,13 @@ public class PostingListRangeIterator extends RangeIterator
         }
         else
         {
-            segmentRowId = postingList.nextPosting();
+            do
+            {
+                segmentRowId = postingList.nextPosting();
+                // Do not produce a duplicate segment row id.
+            } while (segmentRowId == lastSegmentRowId && segmentRowId != PostingList.END_OF_STREAM);
         }
-
+        lastSegmentRowId = segmentRowId;
         return segmentRowId != PostingList.END_OF_STREAM
                ? segmentRowId + searcherContext.segmentRowIdOffset
                : PostingList.END_OF_STREAM;
