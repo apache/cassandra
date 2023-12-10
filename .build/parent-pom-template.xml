@@ -514,12 +514,6 @@
         </exclusions>
       </dependency>
       <dependency>
-        <groupId>org.apache.cassandra</groupId>
-        <artifactId>harry-core</artifactId>
-        <version>0.0.2</version>
-        <scope>test</scope>
-      </dependency>
-      <dependency>
         <groupId>org.reflections</groupId>
         <artifactId>reflections</artifactId>
         <version>0.10.2</version>

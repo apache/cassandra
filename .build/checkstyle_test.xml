@@ -56,7 +56,7 @@
       <property name="illegalClasses" value=""/>
     </module>
     <module name="IllegalInstantiation">
-      <property name="classes" value="com.fasterxml.jackson.databind.ObjectMapper"/>
+      <property name="classes" value=""/>
     </module>
 
     <module name="RegexpSinglelineJava">

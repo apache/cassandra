@@ -42,8 +42,6 @@ import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import harry.util.ByteUtils;
-import harry.util.TestRunner;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ExecutorPlus;
@@ -66,6 +64,11 @@ import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.log.PlacementSimulator.Transformations;
 import org.apache.cassandra.gms.GossipDigestAck;
 import org.apache.cassandra.gms.GossipDigestSyn;
+import org.apache.cassandra.harry.sut.TokenPlacementModel;
+import org.apache.cassandra.harry.sut.TokenPlacementModel.Node;
+import org.apache.cassandra.harry.sut.TokenPlacementModel.NodeFactory;
+import org.apache.cassandra.harry.util.ByteUtils;
+import org.apache.cassandra.harry.util.TestRunner;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SimpleSeedProvider;
 import org.apache.cassandra.tcm.*;
@@ -91,7 +94,6 @@ import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.Future;
 
-import static org.apache.cassandra.distributed.test.log.PlacementSimulator.Node;
 import static org.apache.cassandra.distributed.test.log.PlacementSimulator.RefSimulatedPlacementHolder;
 import static org.apache.cassandra.distributed.test.log.PlacementSimulator.SimulatedPlacementHolder;
 import static org.apache.cassandra.distributed.test.log.PlacementSimulator.SimulatedPlacements;
@@ -102,7 +104,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
 {
     private static final Logger logger = LoggerFactory.getLogger(CoordinatorPathTestBase.class);
 
-    public void coordinatorPathTest(PlacementSimulator.ReplicationFactor rf, TestRunner.ThrowingBiConsumer<Cluster, SimulatedCluster> test) throws Throwable
+    public void coordinatorPathTest(TokenPlacementModel.ReplicationFactor rf, TestRunner.ThrowingBiConsumer<Cluster, SimulatedCluster> test) throws Throwable
     {
         coordinatorPathTest(rf, test, true);
     }
@@ -112,7 +114,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
      *
      * CMS node is 127.0.0.10 and is simulated.
      */
-    public void coordinatorPathTest(PlacementSimulator.ReplicationFactor rf, TestRunner.ThrowingBiConsumer<Cluster, SimulatedCluster> test, boolean startCluster) throws Throwable
+    public void coordinatorPathTest(TokenPlacementModel.ReplicationFactor rf, TestRunner.ThrowingBiConsumer<Cluster, SimulatedCluster> test, boolean startCluster) throws Throwable
     {
         ServerTestUtils.daemonInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
@@ -120,8 +122,8 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
         String nodeUnderTest = "127.0.0.1";
         InetAddressAndPort nodeUnderTestAddr = InetAddressAndPort.getByName(nodeUnderTest + ":7012");
 
-        PlacementSimulator.NodeFactory factory = PlacementSimulator.nodeFactory();
-        Node fakeCmsNode = factory.make(10,1,1);
+        NodeFactory factory = TokenPlacementModel.nodeFactory();
+        Node fakeCmsNode = factory.make(10, 1, 1);
         FBUtilities.setBroadcastInetAddressAndPort(fakeCmsNode.addr());
 
         try (Cluster cluster = builder().withNodes(1)
@@ -153,7 +155,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                         .withTokenSupplier(tokenSupplier)
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(10, "dc0", "rack0"))
                                         .createWithoutStarting();
-             SimulatedCluster simulatedCluster = new SimulatedCluster(new PlacementSimulator.SimpleReplicationFactor(3),
+             SimulatedCluster simulatedCluster = new SimulatedCluster(new TokenPlacementModel.SimpleReplicationFactor(3),
                                                                       cluster, tokenSupplier))
         {
             // Note that in case of a CMS node teset we first start a cluster, and then initialize a simulated cluster.
@@ -607,9 +609,9 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
         protected final TokenSupplier tokenSupplier;
         protected final IPartitioner partitioner = Murmur3Partitioner.instance;
         protected ExecutorPlus executor;
-        public final PlacementSimulator.NodeFactory nodeFactory = PlacementSimulator.nodeFactory();
+        public final NodeFactory nodeFactory = TokenPlacementModel.nodeFactory();
 
-        public SimulatedCluster(PlacementSimulator.ReplicationFactor rf, ICluster<IInvokableInstance> realCluster, TokenSupplier tokenSupplier)
+        public SimulatedCluster(TokenPlacementModel.ReplicationFactor rf, ICluster<IInvokableInstance> realCluster, TokenSupplier tokenSupplier)
         {
             this.tokenSupplier = tokenSupplier;
 
@@ -845,9 +847,9 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
     {
         protected final SimulatedPlacementHolder state;
         protected final List<VirtualSimulatedNode> nodes;
-        protected final PlacementSimulator.NodeFactory factory;
+        protected final NodeFactory factory;
 
-        public VirtualSimulatedCluster(SimulatedPlacementHolder state, PlacementSimulator.NodeFactory factory)
+        public VirtualSimulatedCluster(SimulatedPlacementHolder state, NodeFactory factory)
         {
             this.state = state;
             this.factory = factory;

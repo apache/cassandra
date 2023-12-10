@@ -87,6 +87,7 @@
     <property name="test.simulator-asm.src" value="${test.dir}/simulator/asm"/>
     <property name="test.simulator-bootstrap.src" value="${test.dir}/simulator/bootstrap"/>
     <property name="test.simulator-test.src" value="${test.dir}/simulator/test"/>
+    <property name="test.harry.src" value="${test.dir}/fuzz/main"/>
     <property name="test.driver.connection_timeout_ms" value="10000"/>
     <property name="test.driver.read_timeout_ms" value="24000"/>
     <property name="test.jvm.args" value="" />
@@ -1043,6 +1044,7 @@
      <src path="${test.simulator-asm.src}"/>
      <src path="${test.simulator-bootstrap.src}"/>
      <src path="${test.simulator-test.src}"/>
+     <src path="${test.harry.src}"/>
      <compilerarg line="${jdk11plus-javac-exports}"/>
     </javac>
 

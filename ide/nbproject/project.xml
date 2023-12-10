@@ -113,6 +113,18 @@
                     <encoding>UTF-8</encoding>
                 </source-folder>
                 <source-folder>
+                    <label>test/fuzz/main</label>
+                    <type>java</type>
+                    <location>${project.dir}/test/fuzz/main</location>
+                    <encoding>UTF-8</encoding>
+                </source-folder>
+                <source-folder>
+                    <label>test/fuzz/test</label>
+                    <type>java</type>
+                    <location>${project.dir}/test/fuzz/test</location>
+                    <encoding>UTF-8</encoding>
+                </source-folder>
+                <source-folder>
                     <label>apache-cassandra</label>
                     <location>${project.dir}</location>
                     <encoding>UTF-8</encoding>
@@ -259,6 +271,14 @@
                         <label>test/simulator/test</label>
                         <location>${project.dir}/test/simulator/test</location>
                     </source-folder>
+                    <source-folder style="packages">
+                        <label>test/fuzz/main</label>
+                        <location>${project.dir}/test/fuzz/main</location>
+                    </source-folder>
+                    <source-folder style="packages">
+                        <label>test/fuzz/test</label>
+                        <location>${project.dir}/test/fuzz/test</location>
+                    </source-folder>
                     <source-file>
                         <location>${project.dir}/build.xml</location>
                     </source-file>
@@ -300,6 +320,8 @@
                 <package-root>${project.dir}/test/simulator/bootstrap</package-root>
                 <package-root>${project.dir}/test/simulator/main</package-root>
                 <package-root>${project.dir}/test/simulator/test</package-root>
+                <package-root>${project.dir}/test/fuzz/main</package-root>
+                <package-root>${project.dir}/test/fuzz/test</package-root>
                 <unit-tests/>
                 <classpath mode="compile">${cassandra.classpath.jars}:${project.dir}/build/classes/main:${project.dir}/build/classes/fqltool/:${project.dir}/build/classes/stress/</classpath>
                 <built-to>${project.dir}/build/test/classes</built-to>
