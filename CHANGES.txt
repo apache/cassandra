@@ -1,4 +1,5 @@
 4.0.13
+ * Filter remote DC replicas out when constructing the initial replica plan for the local read repair (CASSANDRA-19120)
  * Remove redundant code in StorageProxy#sendToHintedReplicas (CASSANDRA-19412)
  * Remove bashisms for mx4j tool in cassandra-env.sh (CASSANDRA-19416)
  * Add new concurrent_merkle_tree_requests config property to prevent OOM during multi-range and/or multi-table repairs (CASSANDRA-19336)

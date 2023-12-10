@@ -19,7 +19,6 @@
 package org.apache.cassandra.locator;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.cursors.ObjectIntCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
@@ -439,6 +438,7 @@ public class ReplicaPlans
     {
         return new Selector()
         {
+
             @Override
             public <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
             E select(ConsistencyLevel consistencyLevel, L liveAndDown, L live)
@@ -455,7 +455,8 @@ public class ReplicaPlans
                     int add = consistencyLevel.blockForWrite(liveAndDown.replicationStrategy(), liveAndDown.pending()) - contacts.size();
                     if (add > 0)
                     {
-                        for (Replica replica : filter(live.all(), r -> !contacts.contains(r)))
+                        E all = consistencyLevel.isDatacenterLocal() ? live.all().filter(InOurDcTester.replicas()) : live.all();
+                        for (Replica replica : filter(all, r -> !contacts.contains(r)))
                         {
                             contacts.add(replica);
                             if (--add == 0)
