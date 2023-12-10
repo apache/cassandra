@@ -1,4 +1,5 @@
 4.1.5
+* Fix timeout for blocking read repair when there is a pending node (CASSANDRA-19120)
 Merged from 4.0:
 Merged from 3.11:
 Merged from 3.0:
