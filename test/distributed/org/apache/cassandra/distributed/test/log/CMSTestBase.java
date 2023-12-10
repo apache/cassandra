@@ -24,6 +24,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
+import org.apache.cassandra.harry.sut.TokenPlacementModel;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
@@ -87,9 +88,9 @@ public class CMSTestBase
         public final LocalLog log;
         public final ClusterMetadataService service;
         public final SchemaProvider schemaProvider;
-        public final PlacementSimulator.ReplicationFactor rf;
+        public final TokenPlacementModel.ReplicationFactor rf;
 
-        public CMSSut(IIsolatedExecutor.SerializableFunction<LocalLog, Processor> processorFactory, boolean addListeners, PlacementSimulator.ReplicationFactor rf)
+        public CMSSut(IIsolatedExecutor.SerializableFunction<LocalLog, Processor> processorFactory, boolean addListeners, TokenPlacementModel.ReplicationFactor rf)
         {
             partitioner = Murmur3Partitioner.instance;
             this.rf = rf;

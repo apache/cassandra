@@ -24,19 +24,21 @@ import java.util.concurrent.Callable;
 import org.junit.Assert;
 import org.junit.Test;
 
-import harry.core.Configuration;
-import harry.core.Run;
-import harry.model.sut.SystemUnderTest;
-import harry.visitors.GeneratingVisitor;
-import harry.visitors.MutatingRowVisitor;
-import harry.visitors.Visitor;
+import org.apache.cassandra.harry.core.Configuration;
+import org.apache.cassandra.harry.core.Run;
+import org.apache.cassandra.harry.sut.SystemUnderTest;
+import org.apache.cassandra.harry.sut.TokenPlacementModel;
+import org.apache.cassandra.harry.sut.injvm.InJVMTokenAwareVisitExecutor;
+import org.apache.cassandra.harry.sut.injvm.InJvmSut;
+import org.apache.cassandra.harry.sut.injvm.QuiescentLocalStateChecker;
+import org.apache.cassandra.harry.visitors.GeneratingVisitor;
+import org.apache.cassandra.harry.visitors.MutatingRowVisitor;
+import org.apache.cassandra.harry.visitors.Visitor;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.*;
-import org.apache.cassandra.distributed.fuzz.HarryHelper;
-import org.apache.cassandra.distributed.fuzz.InJVMTokenAwareVisitorExecutor;
-import org.apache.cassandra.distributed.fuzz.InJvmSut;
+import org.apache.cassandra.harry.HarryHelper;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -57,11 +59,6 @@ public class ResumableStartupTest extends FuzzTestBase
     @Test
     public void bootstrapWithDeferredJoinTest() throws Throwable
     {
-        Configuration.ConfigurationBuilder configBuilder = HarryHelper.defaultConfiguration()
-                                                                      .setPartitionDescriptorSelector(new Configuration.DefaultPDSelectorConfiguration(1, 1))
-                                                                      .setClusteringDescriptorSelector(HarryHelper.defaultClusteringDescriptorSelectorConfiguration().setMaxPartitionSize(100).build());
-
-
         try (Cluster cluster = builder().withNodes(1)
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(4))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
@@ -69,7 +66,8 @@ public class ResumableStartupTest extends FuzzTestBase
                                         .createWithoutStarting())
         {
             IInvokableInstance cmsInstance = cluster.get(1);
-            configBuilder.setSUT(() -> new InJvmSut(cluster));
+            Configuration.ConfigurationBuilder configBuilder = HarryHelper.defaultConfiguration()
+                                                                          .setSUT(() -> new InJvmSut(cluster));
             Run run = configBuilder.build().createRun();
 
             cmsInstance.config().set("auto_bootstrap", true);
@@ -81,7 +79,10 @@ public class ResumableStartupTest extends FuzzTestBase
             cluster.coordinator(1).execute(run.schemaSpec.compile().cql(), ConsistencyLevel.ALL);
             ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1));
 
-            Visitor visitor = new GeneratingVisitor(run, new InJVMTokenAwareVisitorExecutor(run, MutatingRowVisitor::new, SystemUnderTest.ConsistencyLevel.NODE_LOCAL));
+            TokenPlacementModel.ReplicationFactor rf = new TokenPlacementModel.SimpleReplicationFactor(2);
+            Visitor visitor = new GeneratingVisitor(run, new InJVMTokenAwareVisitExecutor(run, MutatingRowVisitor::new,
+                                                                                          SystemUnderTest.ConsistencyLevel.NODE_LOCAL,
+                                                                                          rf));
             for (int i = 0; i < WRITES; i++)
                 visitor.visit();
 
@@ -92,16 +93,18 @@ public class ResumableStartupTest extends FuzzTestBase
 
             withProperty(CassandraRelevantProperties.TEST_WRITE_SURVEY, true, newInstance::startup);
 
-            // Write with ONE, replicate via pending range mechanism
-            visitor = new GeneratingVisitor(run, new InJVMTokenAwareVisitorExecutor(run, MutatingRowVisitor::new, SystemUnderTest.ConsistencyLevel.ONE));
+            // Write with ALL, replicate via pending range mechanism
+            visitor = new GeneratingVisitor(run, new InJVMTokenAwareVisitExecutor(run,
+                                                                                  MutatingRowVisitor::new,
+                                                                                  SystemUnderTest.ConsistencyLevel.ONE,
+                                                                                  rf));
+
             for (int i = 0; i < WRITES; i++)
                 visitor.visit();
 
             Epoch currentEpoch = getClusterMetadataVersion(cmsInstance);
             // Quick check that schema changes are possible with nodes in write survey mode (i.e. with ranges locked)
-            cluster.coordinator(1).execute("ALTER TABLE " + run.schemaSpec.keyspace + "." + run.schemaSpec.table +
-                                           " WITH comment = 'Schema alterations which do not affect placements should" +
-                                           " not be restricted by in flight operations';",
+            cluster.coordinator(1).execute(String.format("ALTER TABLE %s.%s WITH comment = 'Schema alterations which do not affect placements should not be restricted by in flight operations';", run.schemaSpec.keyspace, run.schemaSpec.table),
                                            ConsistencyLevel.ALL);
 
             final String newAddress = ClusterUtils.getBroadcastAddressHostWithPortString(newInstance);
@@ -144,7 +147,7 @@ public class ResumableStartupTest extends FuzzTestBase
             for (int i = 0; i < WRITES; i++)
                 visitor.visit();
 
-            QuiescentLocalStateChecker model = new QuiescentLocalStateChecker(run);
+            QuiescentLocalStateChecker model = new QuiescentLocalStateChecker(run, new TokenPlacementModel.SimpleReplicationFactor(3));
             model.validateAll();
         }
     }

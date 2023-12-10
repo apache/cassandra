@@ -27,7 +27,7 @@ import org.junit.Test;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.distributed.test.log.CMSTestBase;
-import org.apache.cassandra.distributed.test.log.PlacementSimulator;
+import org.apache.cassandra.harry.sut.TokenPlacementModel;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -50,7 +50,7 @@ public class ClusterMetadataTest
     public void before() throws ExecutionException, InterruptedException
     {
         ClusterMetadataService.unsetInstance();
-        new CMSTestBase.CMSSut(AtomicLongBackedProcessor::new, false, new PlacementSimulator.SimpleReplicationFactor(3));
+        new CMSTestBase.CMSSut(AtomicLongBackedProcessor::new, false, new TokenPlacementModel.SimpleReplicationFactor(3));
     }
 
     @Test
