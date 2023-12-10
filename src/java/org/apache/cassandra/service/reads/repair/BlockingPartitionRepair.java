@@ -23,28 +23,26 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Predicate;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Predicates;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.AbstractFuture;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.locator.InOurDcTester;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.Replicas;
-import org.apache.cassandra.locator.InOurDcTester;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Message;
@@ -53,6 +51,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tracing.Tracing;
 
 import static org.apache.cassandra.net.Verb.*;
+import static com.google.common.collect.Iterables.all;
 
 public class BlockingPartitionRepair
         extends AbstractFuture<Object> implements RequestCallback<Object>
@@ -61,31 +60,30 @@ public class BlockingPartitionRepair
     private final ReplicaPlan.ForTokenWrite writePlan;
     private final Map<Replica, Mutation> pendingRepairs;
     private final CountDownLatch latch;
-    private final Predicate<InetAddressAndPort> shouldBlockOn;
 
     private volatile long mutationsSentTime;
 
     public BlockingPartitionRepair(DecoratedKey key, Map<Replica, Mutation> repairs, ReplicaPlan.ForTokenWrite writePlan)
     {
-        this(key, repairs, writePlan,
-             writePlan.consistencyLevel().isDatacenterLocal() ? InOurDcTester.endpoints() : Predicates.alwaysTrue());
-    }
-    public BlockingPartitionRepair(DecoratedKey key, Map<Replica, Mutation> repairs, ReplicaPlan.ForTokenWrite writePlan, Predicate<InetAddressAndPort> shouldBlockOn)
-    {
         this.key = key;
         this.pendingRepairs = new ConcurrentHashMap<>(repairs);
         this.writePlan = writePlan;
-        this.shouldBlockOn = shouldBlockOn;
+
+        // make sure all the read repair targets are contact of the repair write plan
+        Preconditions.checkState(all(repairs.keySet(), (r) -> writePlan.contacts().contains(r)),
+                                 "All repair targets should be part of contacts of read repair write plan.");
 
         int blockFor = writePlan.blockFor();
         // here we remove empty repair mutations from the block for total, since
         // we're not sending them mutations
         for (Replica participant : writePlan.contacts())
         {
-            // remote dcs can sometimes get involved in dc-local reads. We want to repair
-            // them if they do, but they shouldn't interfere with blocking the client read.
-            if (!repairs.containsKey(participant) && shouldBlockOn.test(participant.endpoint()))
+            if (!repairs.containsKey(participant))
                 blockFor--;
+
+            // make sure for local consistency, all contacts are local replicas
+            Preconditions.checkState(!writePlan.consistencyLevel().isDatacenterLocal() || InOurDcTester.replicas().test(participant),
+                                     "Local consistency blocking read repair is trying to contact remote DC node: " + participant.endpoint());
         }
 
         // there are some cases where logically identical data can return different digests
@@ -110,11 +108,8 @@ public class BlockingPartitionRepair
     @VisibleForTesting
     void ack(InetAddressAndPort from)
     {
-        if (shouldBlockOn.test(from))
-        {
-            pendingRepairs.remove(writePlan.lookup(from));
-            latch.countDown();
-        }
+        pendingRepairs.remove(writePlan.lookup(from));
+        latch.countDown();
     }
 
     @Override
@@ -160,9 +155,6 @@ public class BlockingPartitionRepair
             // use a separate verb here to avoid writing hints on timeouts
             sendRR(Message.out(READ_REPAIR_REQ, mutation), destination.endpoint());
             ColumnFamilyStore.metricsFor(tableId).readRepairRequests.mark();
-
-            if (!shouldBlockOn.test(destination.endpoint()))
-                pendingRepairs.remove(destination);
             ReadRepairDiagnostics.sendInitialRepair(this, destination.endpoint(), mutation);
         }
     }
@@ -205,7 +197,7 @@ public class BlockingPartitionRepair
         if (awaitRepairsUntil(timeout + timeoutUnit.convert(mutationsSentTime, TimeUnit.NANOSECONDS), timeoutUnit))
             return;
 
-        EndpointsForToken newCandidates = writePlan.liveUncontacted();
+        EndpointsForToken newCandidates = writePlan.consistencyLevel().isDatacenterLocal() ? writePlan.liveUncontacted().filter(InOurDcTester.replicas()) : writePlan.liveUncontacted();
         if (newCandidates.isEmpty())
             return;
 
