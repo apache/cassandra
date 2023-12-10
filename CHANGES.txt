@@ -1,4 +1,5 @@
 5.1
+ * Fix timeout for blocking read repair when there is a pending node (CASSANDRA-19120)
  * Make nodetool reconfigurecms sync by default and add --cancel to be able to cancel ongoing reconfigurations (CASSANDRA-19216)
  * Expose auth mode in system_views.clients, nodetool clientstats, metrics (CASSANDRA-19366)
  * Remove sealed_periods and last_sealed_period tables (CASSANDRA-19189)
