@@ -39,7 +39,6 @@ import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.reads.ReadCallback;
 
@@ -50,7 +49,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
     {
         public InstrumentedReadRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForTokenWrite writePlan)
         {
-            super(Util.dk("not a real usable value"), repairs, writePlan, e -> targets.contains(e));
+            super(Util.dk("not a real usable value"), repairs, writePlan);
         }
 
         Map<InetAddressAndPort, Mutation> mutationsSent = new HashMap<>();
@@ -121,10 +120,10 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
     {
         AbstractReplicationStrategy rs = ks.getReplicationStrategy();
         Assert.assertTrue(ConsistencyLevel.QUORUM.satisfies(ConsistencyLevel.QUORUM, rs));
-        Assert.assertTrue(ConsistencyLevel.THREE.satisfies(ConsistencyLevel.QUORUM, rs));
-        Assert.assertTrue(ConsistencyLevel.TWO.satisfies(ConsistencyLevel.QUORUM, rs));
-        Assert.assertFalse(ConsistencyLevel.ONE.satisfies(ConsistencyLevel.QUORUM, rs));
-        Assert.assertFalse(ConsistencyLevel.ANY.satisfies(ConsistencyLevel.QUORUM, rs));
+        Assert.assertTrue(ConsistencyLevel.THREE.satisfies(ConsistencyLevel.LOCAL_QUORUM, rs));
+        Assert.assertTrue(ConsistencyLevel.TWO.satisfies(ConsistencyLevel.LOCAL_QUORUM, rs));
+        Assert.assertFalse(ConsistencyLevel.ONE.satisfies(ConsistencyLevel.LOCAL_QUORUM, rs));
+        Assert.assertFalse(ConsistencyLevel.ANY.satisfies(ConsistencyLevel.LOCAL_QUORUM, rs));
     }
 
 
@@ -253,36 +252,18 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
     }
 
     /**
-     * For dc local consistency levels, noop mutations and responses from remote dcs should not affect effective blockFor
+     * For dc local consistency levels, we will run into assertion error because no remote DC replicas should be contacted
      */
-    @Test
-    public void remoteDCTest() throws Exception
+    @Test(expected = IllegalStateException.class)
+    public void remoteDCSpeculativeRetryTest() throws Exception
     {
         Map<Replica, Mutation> repairs = new HashMap<>();
         repairs.put(replica1, mutation(cell1));
+        repairs.put(remoteReplica1, mutation(cell1));
 
-        Replica remote1 = ReplicaUtils.full(InetAddressAndPort.getByName("10.0.0.1"));
-        Replica remote2 = ReplicaUtils.full(InetAddressAndPort.getByName("10.0.0.2"));
-        repairs.put(remote1, mutation(cell1));
-
-        EndpointsForRange participants = EndpointsForRange.of(replica1, replica2, remote1, remote2);
+        EndpointsForRange participants = EndpointsForRange.of(replica1, replica2, remoteReplica1, remoteReplica2);
         ReplicaPlan.ForTokenWrite writePlan = repairPlan(replicaPlan(ks, ConsistencyLevel.LOCAL_QUORUM, participants));
-        InstrumentedReadRepairHandler handler = createRepairHandler(repairs, writePlan);
-        handler.sendInitialRepairs();
-        Assert.assertEquals(2, handler.mutationsSent.size());
-        Assert.assertTrue(handler.mutationsSent.containsKey(replica1.endpoint()));
-        Assert.assertTrue(handler.mutationsSent.containsKey(remote1.endpoint()));
-
-        Assert.assertEquals(1, handler.waitingOn());
-        Assert.assertFalse(getCurrentRepairStatus(handler));
-
-        handler.ack(remote1.endpoint());
-        Assert.assertEquals(1, handler.waitingOn());
-        Assert.assertFalse(getCurrentRepairStatus(handler));
-
-        handler.ack(replica1.endpoint());
-        Assert.assertEquals(0, handler.waitingOn());
-        Assert.assertTrue(getCurrentRepairStatus(handler));
+        createRepairHandler(repairs, writePlan);
     }
 
     private boolean getCurrentRepairStatus(BlockingPartitionRepair handler)

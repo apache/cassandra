@@ -1,4 +1,5 @@
 4.0.13
+ * Fix timeout for blocking read repair when there is a pending node (CASSANDRA-19120)
  * Add new concurrent_merkle_tree_requests config property to prevent OOM during multi-range and/or multi-table repairs (CASSANDRA-19336)
 Merged from 3.11:
 Merged from 3.0:
