@@ -28,12 +28,16 @@ import java.util.function.BiFunction;
 import org.junit.Assert;
 import org.junit.Test;
 
-import harry.core.Configuration;
-import harry.core.Run;
-import harry.model.sut.SystemUnderTest;
-import harry.visitors.GeneratingVisitor;
-import harry.visitors.MutatingRowVisitor;
-import harry.visitors.Visitor;
+import org.apache.cassandra.harry.core.Configuration;
+import org.apache.cassandra.harry.core.Run;
+import org.apache.cassandra.harry.sut.SystemUnderTest;
+import org.apache.cassandra.harry.sut.TokenPlacementModel;
+import org.apache.cassandra.harry.sut.injvm.InJVMTokenAwareVisitExecutor;
+import org.apache.cassandra.harry.sut.injvm.InJvmSut;
+import org.apache.cassandra.harry.sut.injvm.QuiescentLocalStateChecker;
+import org.apache.cassandra.harry.visitors.GeneratingVisitor;
+import org.apache.cassandra.harry.visitors.MutatingRowVisitor;
+import org.apache.cassandra.harry.visitors.Visitor;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
@@ -42,12 +46,9 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.distributed.fuzz.HarryHelper;
-import org.apache.cassandra.distributed.fuzz.InJVMTokenAwareVisitorExecutor;
-import org.apache.cassandra.distributed.fuzz.InJvmSut;
+import org.apache.cassandra.harry.HarryHelper;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.ClusterUtils.SerializableBiPredicate;
-import org.apache.cassandra.locator.ReplicationFactor;
 import org.apache.cassandra.tcm.Commit;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
@@ -89,11 +90,6 @@ public class FailedLeaveTest extends FuzzTestBase
     throws Exception
     {
         ExecutorService es = Executors.newSingleThreadExecutor();
-        Configuration.ConfigurationBuilder configBuilder = HarryHelper.defaultConfiguration()
-                                                                      .setPartitionDescriptorSelector(new Configuration.DefaultPDSelectorConfiguration(1, 1))
-                                                                      .setClusteringDescriptorSelector(HarryHelper.defaultClusteringDescriptorSelectorConfiguration().setMaxPartitionSize(100).build());
-
-
         try (Cluster cluster = builder().withNodes(3)
                                         .withInstanceInitializer(BB::install)
                                         .appendConfig(c -> c.with(Feature.NETWORK))
@@ -101,7 +97,9 @@ public class FailedLeaveTest extends FuzzTestBase
         {
             IInvokableInstance cmsInstance = cluster.get(1);
             IInvokableInstance leavingInstance = cluster.get(2);
-            configBuilder.setSUT(() -> new InJvmSut(cluster));
+
+            Configuration.ConfigurationBuilder configBuilder = HarryHelper.defaultConfiguration()
+                                                                          .setSUT(() -> new InJvmSut(cluster));
             Run run = configBuilder.build().createRun();
 
             cluster.coordinator(1).execute("CREATE KEYSPACE " + run.schemaSpec.keyspace +
@@ -110,8 +108,12 @@ public class FailedLeaveTest extends FuzzTestBase
             cluster.coordinator(1).execute(run.schemaSpec.compile().cql(), ConsistencyLevel.ALL);
             ClusterUtils.waitForCMSToQuiesce(cluster, cmsInstance);
 
-            QuiescentLocalStateChecker model = new QuiescentLocalStateChecker(run, ReplicationFactor.fullOnly(2));
-            Visitor visitor = new GeneratingVisitor(run, new InJVMTokenAwareVisitorExecutor(run, MutatingRowVisitor::new, SystemUnderTest.ConsistencyLevel.ALL));
+            TokenPlacementModel.ReplicationFactor rf = new TokenPlacementModel.SimpleReplicationFactor(2);
+            QuiescentLocalStateChecker model = new QuiescentLocalStateChecker(run, rf);
+            Visitor visitor = new GeneratingVisitor(run, new InJVMTokenAwareVisitExecutor(run,
+                                                                                          MutatingRowVisitor::new,
+                                                                                          SystemUnderTest.ConsistencyLevel.ALL,
+                                                                                          rf));
             for (int i = 0; i < WRITES; i++)
                 visitor.visit();
 

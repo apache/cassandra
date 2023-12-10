@@ -30,40 +30,36 @@ import java.util.stream.Collectors;
 import org.junit.Assert;
 import org.junit.Test;
 
-import harry.core.Configuration;
-import harry.core.Run;
-import harry.model.OpSelectors;
-import harry.operations.CompiledStatement;
-import harry.operations.WriteHelper;
-import harry.util.ByteUtils;
-import harry.util.TokenUtil;
+import org.apache.cassandra.harry.core.Configuration;
+import org.apache.cassandra.harry.core.Run;
+import org.apache.cassandra.harry.model.OpSelectors;
+import org.apache.cassandra.harry.operations.CompiledStatement;
+import org.apache.cassandra.harry.operations.WriteHelper;
+import org.apache.cassandra.harry.sut.injvm.InJvmSut;
+import org.apache.cassandra.harry.util.ByteUtils;
+import org.apache.cassandra.harry.util.TokenUtil;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.distributed.fuzz.HarryHelper;
-import org.apache.cassandra.distributed.fuzz.InJvmSut;
+import org.apache.cassandra.harry.HarryHelper;
+import org.apache.cassandra.harry.sut.TokenPlacementModel;
+import org.apache.cassandra.harry.sut.TokenPlacementModel.Node;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.concurrent.Future;
 
-import static org.apache.cassandra.distributed.test.log.PlacementSimulator.Node;
-
-
 public class CoordinatorPathTest extends CoordinatorPathTestBase
 {
-    private static final PlacementSimulator.SimpleReplicationFactor RF = new PlacementSimulator.SimpleReplicationFactor(3);
+    private static final TokenPlacementModel.SimpleReplicationFactor RF = new TokenPlacementModel.SimpleReplicationFactor(3);
 
     @Test
     public void writeConsistencyTest() throws Throwable
     {
-        Configuration.ConfigurationBuilder configBuilder = HarryHelper.defaultConfiguration()
-                                                                      .setPartitionDescriptorSelector(new Configuration.DefaultPDSelectorConfiguration(1, 1))
-                                                                      .setClusteringDescriptorSelector(HarryHelper.singleRowPerModification().build());
-
         coordinatorPathTest(RF, (cluster, simulatedCluster) -> {
-            configBuilder.setSUT(() -> new InJvmSut(cluster));
+            Configuration.ConfigurationBuilder configBuilder = HarryHelper.defaultConfiguration()
+                                                                          .setSUT(() -> new InJvmSut(cluster));
             Run run = configBuilder.build().createRun();
 
             for (int ignored : new int[]{ 2, 3, 4, 5 })

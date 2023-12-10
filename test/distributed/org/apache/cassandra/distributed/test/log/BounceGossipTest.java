@@ -27,34 +27,35 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Test;
 
-import harry.core.Configuration;
-import harry.ddl.SchemaSpec;
-import harry.visitors.MutatingVisitor;
-import harry.visitors.QueryLogger;
-import harry.visitors.RandomPartitionValidator;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.Constants;
-import org.apache.cassandra.distributed.harry.ClusterState;
-import org.apache.cassandra.distributed.harry.ExistingClusterSUT;
-import org.apache.cassandra.distributed.harry.FlaggedRunner;
+import org.apache.cassandra.harry.HarryHelper;
+import org.apache.cassandra.harry.runner.FlaggedRunner;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.harry.core.Configuration;
+import org.apache.cassandra.harry.ddl.SchemaSpec;
+import org.apache.cassandra.harry.sut.injvm.InJvmSut;
+import org.apache.cassandra.harry.sut.injvm.InJvmSutBase;
+import org.apache.cassandra.harry.visitors.MutatingVisitor;
+import org.apache.cassandra.harry.visitors.QueryLogger;
+import org.apache.cassandra.harry.visitors.RandomPartitionValidator;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
-import static harry.core.Configuration.VisitorPoolConfiguration.pool;
-import static harry.ddl.ColumnSpec.asciiType;
-import static harry.ddl.ColumnSpec.ck;
-import static harry.ddl.ColumnSpec.int64Type;
-import static harry.ddl.ColumnSpec.pk;
-import static harry.ddl.ColumnSpec.regularColumn;
-import static harry.ddl.ColumnSpec.staticColumn;
 import static java.util.Arrays.asList;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.harry.core.Configuration.VisitorPoolConfiguration.pool;
+import static org.apache.cassandra.harry.ddl.ColumnSpec.asciiType;
+import static org.apache.cassandra.harry.ddl.ColumnSpec.ck;
+import static org.apache.cassandra.harry.ddl.ColumnSpec.int64Type;
+import static org.apache.cassandra.harry.ddl.ColumnSpec.pk;
+import static org.apache.cassandra.harry.ddl.ColumnSpec.regularColumn;
+import static org.apache.cassandra.harry.ddl.ColumnSpec.staticColumn;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.junit.Assert.fail;
 import static org.psjava.util.AssertStatus.assertTrue;
@@ -76,12 +77,10 @@ public class BounceGossipTest extends TestBaseImpl
                                                asList(regularColumn("regular1", asciiType), regularColumn("regular1", int64Type)),
                                                asList(staticColumn("static1", asciiType), staticColumn("static1", int64Type)));
             AtomicInteger down = new AtomicInteger(0);
-            ClusterState clusterState = (i) -> down.get() == i;
-            Configuration config = Configuration.fromYamlString(createHarryConf())
-                                                .unbuild()
-                                                .setKeyspaceDdl(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d};", schema.keyspace, 3))
-                                                .setSUT(new ExistingClusterSUT(cluster, clusterState))
-                                                .build();
+            Configuration config = HarryHelper.defaultConfiguration()
+                                              .setKeyspaceDdl(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d};", schema.keyspace, 3))
+                                              .setSUT(() -> new InJvmSut(cluster, () -> 1, InJvmSutBase.retryOnTimeout()))
+                                              .build();
 
             CountDownLatch stopLatch = CountDownLatch.newCountDownLatch(1);
             Future<?> f = es.submit(() -> {

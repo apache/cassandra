@@ -30,7 +30,24 @@ import java.util.function.Supplier;
 
 import org.junit.Test;
 
-import static org.apache.cassandra.distributed.test.log.PlacementSimulator.*;
+import org.apache.cassandra.harry.sut.TokenPlacementModel;
+
+import static org.apache.cassandra.distributed.test.log.PlacementSimulator.SimulatedPlacements;
+import static org.apache.cassandra.distributed.test.log.PlacementSimulator.Transformations;
+import static org.apache.cassandra.distributed.test.log.PlacementSimulator.assertPlacements;
+import static org.apache.cassandra.distributed.test.log.PlacementSimulator.assertRanges;
+import static org.apache.cassandra.distributed.test.log.PlacementSimulator.filter;
+import static org.apache.cassandra.distributed.test.log.PlacementSimulator.join;
+import static org.apache.cassandra.distributed.test.log.PlacementSimulator.leave;
+import static org.apache.cassandra.distributed.test.log.PlacementSimulator.move;
+import static org.apache.cassandra.distributed.test.log.PlacementSimulator.replace;
+import static org.apache.cassandra.distributed.test.log.PlacementSimulator.split;
+import static org.apache.cassandra.distributed.test.log.PlacementSimulator.superset;
+import static org.apache.cassandra.harry.sut.TokenPlacementModel.Node;
+import static org.apache.cassandra.harry.sut.TokenPlacementModel.NodeFactory;
+import static org.apache.cassandra.harry.sut.TokenPlacementModel.Range;
+import static org.apache.cassandra.harry.sut.TokenPlacementModel.ReplicationFactor;
+import static org.apache.cassandra.harry.sut.TokenPlacementModel.SimpleReplicationFactor;
 import static org.junit.Assert.assertTrue;
 
 public class PlacementSimulatorTest
@@ -50,7 +67,7 @@ public class PlacementSimulatorTest
 
     public void testMove(long t1, long t2, long t3, long t4, long newToken, ReplicationFactor rf)
     {
-        NodeFactory factory = PlacementSimulator.nodeFactory();
+        NodeFactory factory = TokenPlacementModel.nodeFactory();
         Node movingNode = factory.make(1, 1, 1).overrideToken(t1);
         List<Node> orig = Arrays.asList(movingNode,
                                         factory.make(2, 1, 1).overrideToken(t2),
@@ -103,7 +120,7 @@ public class PlacementSimulatorTest
 
     public void testBootstrap(long t1, long t2, long t3, long t4, long newToken, ReplicationFactor rf)
     {
-        NodeFactory factory = PlacementSimulator.nodeFactory();
+        NodeFactory factory = TokenPlacementModel.nodeFactory();
         List<Node> orig = Arrays.asList(factory.make(1, 1, 1).overrideToken(t1),
                                         factory.make(2, 1, 1).overrideToken(t2),
                                         factory.make(3, 1, 1).overrideToken(t3),
@@ -157,7 +174,7 @@ public class PlacementSimulatorTest
 
     public void testDecommission(long t1, long t2, long t3, long t4, long t5, ReplicationFactor rf)
     {
-        NodeFactory factory = PlacementSimulator.nodeFactory();
+        NodeFactory factory = TokenPlacementModel.nodeFactory();
         Node leavingNode = factory.make(1, 1, 1).overrideToken(t1);
         List<Node> orig = Arrays.asList(leavingNode,
                                         factory.make(2, 1, 1).overrideToken(t2),
@@ -225,7 +242,7 @@ public class PlacementSimulatorTest
 
     public void simulate(ReplicationFactor rf) throws Throwable
     {
-        NodeFactory factory = PlacementSimulator.nodeFactory();
+        NodeFactory factory = TokenPlacementModel.nodeFactory();
         List<Node> orig = Collections.singletonList(factory.make(1, 1, 1));
 
         ModelChecker<SimulatedPlacements, SUTState> modelChecker = new ModelChecker<>();
@@ -287,7 +304,7 @@ public class PlacementSimulatorTest
         for (int n : new int[]{ 2, 3, 5 })
         {
             ReplicationFactor rf = new SimpleReplicationFactor(n);
-            NodeFactory factory = PlacementSimulator.nodeFactoryHumanReadable();
+            NodeFactory factory = TokenPlacementModel.nodeFactoryHumanReadable();
             List<Node> nodes = new ArrayList<>(10);
             for (int i = 1; i <= 10; i++)
                 nodes.add(factory.make(i, 1, 1));
@@ -304,7 +321,7 @@ public class PlacementSimulatorTest
         for (int n : new int[]{ 2, 3, 5 })
         {
             ReplicationFactor rf = new SimpleReplicationFactor(n);
-            NodeFactory factory = PlacementSimulator.nodeFactoryHumanReadable();
+            NodeFactory factory = TokenPlacementModel.nodeFactoryHumanReadable();
             List<Node> nodes = new ArrayList<>(10);
             for (int i = 1; i <= 10; i++)
                 nodes.add(factory.make(i, 1, 1));
@@ -321,7 +338,7 @@ public class PlacementSimulatorTest
         for (int n : new int[]{ 2, 3, 5 })
         {
             ReplicationFactor rf = new SimpleReplicationFactor(n);
-            NodeFactory factory = PlacementSimulator.nodeFactoryHumanReadable();
+            NodeFactory factory = TokenPlacementModel.nodeFactoryHumanReadable();
             List<Node> nodes = new ArrayList<>(10);
             for (int i = 1; i <= 10; i++)
                 nodes.add(factory.make(i, 1, 1));

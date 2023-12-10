@@ -39,18 +39,18 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import harry.core.Configuration;
-import harry.core.Run;
-import harry.ddl.ColumnSpec;
-import harry.ddl.SchemaGenerators;
-import harry.ddl.SchemaSpec;
-import harry.generators.Surjections;
-import harry.model.clock.OffsetClock;
-import harry.model.sut.SystemUnderTest;
-import harry.model.sut.TokenPlacementModel;
-import harry.operations.Query;
-import harry.runner.DefaultDataTracker;
-import harry.visitors.GeneratingVisitor;
+import org.apache.cassandra.harry.clock.OffsetClock;
+import org.apache.cassandra.harry.core.Configuration;
+import org.apache.cassandra.harry.core.Run;
+import org.apache.cassandra.harry.ddl.ColumnSpec;
+import org.apache.cassandra.harry.ddl.SchemaGenerators;
+import org.apache.cassandra.harry.ddl.SchemaSpec;
+import org.apache.cassandra.harry.gen.Surjections;
+import org.apache.cassandra.harry.operations.Query;
+import org.apache.cassandra.harry.sut.SystemUnderTest;
+import org.apache.cassandra.harry.sut.injvm.InJvmSut;
+import org.apache.cassandra.harry.tracker.DefaultDataTracker;
+import org.apache.cassandra.harry.visitors.GeneratingVisitor;
 import io.airlift.airline.Command;
 import io.airlift.airline.HelpOption;
 import io.airlift.airline.Option;
@@ -61,9 +61,9 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
-import org.apache.cassandra.distributed.fuzz.HarryHelper;
-import org.apache.cassandra.distributed.fuzz.InJvmSut;
+import org.apache.cassandra.harry.HarryHelper;
 import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.harry.sut.TokenPlacementModel;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.ReplicationParams;
@@ -103,6 +103,7 @@ import org.apache.cassandra.utils.CloseableIterator;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
+import static org.apache.cassandra.harry.sut.TokenPlacementModel.constantLookup;
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.UNLIMITED;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.Options.noActions;
 
@@ -465,7 +466,7 @@ public class HarrySimulatorTest
         @Override
         public FutureActionScheduler futureActionScheduler(int nodeCount, SimulatedTime time, RandomSource random)
         {
-            return new AlwaysDeliverNetworkScheduler(time, random);
+            return new AlwaysDeliverNetworkScheduler(time);
         }
 
         @Override
@@ -574,7 +575,7 @@ public class HarrySimulatorTest
             else if (somewhatLossy.contains(verb))
                 schedulers.put(verb, new FixedLossNetworkScheduler(nodes, random, time, KindOfSequence.UNIFORM, .1f, .15f));
             else if (somewhatSlow.contains(verb))
-                schedulers.put(verb, new AlwaysDeliverNetworkScheduler(time, random, TimeUnit.MILLISECONDS.toNanos(100)));
+                schedulers.put(verb, new AlwaysDeliverNetworkScheduler(time, TimeUnit.MILLISECONDS.toNanos(100)));
         }
         return schedulers;
     }
@@ -834,12 +835,14 @@ public class HarrySimulatorTest
                 IInstanceConfig config = simulation.cluster.get(nodeId).config();
 
                 InetAddressAndPort addr = InetAddressAndPort.getByAddress(config.broadcastAddress());
-                TokenPlacementModel.Node node = new TokenPlacementModel.Node(Long.parseLong(config.getString("initial_token")),
-                                                                             addr.toString(),
-                                                                             new TokenPlacementModel.Location(simulation.clusterActions.snitch.get().getDatacenter(addr),
-                                                                                                              simulation.clusterActions.snitch.get().getRack(addr)));
+
+                TokenPlacementModel.Node node = new TokenPlacementModel.Node(0, 0, 0, 0,
+                                                                             constantLookup(addr.toString(),
+                                                                                            Long.parseLong(config.getString("initial_token")),
+                                                                                            simulation.clusterActions.snitch.get().getDatacenter(addr),
+                                                                                            simulation.clusterActions.snitch.get().getRack(addr)));
                 nodesLookup[i] = node;
-                nodesByDc.computeIfAbsent(node.location.dc, (k) -> new ArrayList<>()).add(node);
+                nodesByDc.computeIfAbsent(node.dc(), (k) -> new ArrayList<>()).add(node);
                 idByAddr.put(addr.toString(), config.num());
             }
             this.ring = new ArrayList<>();
@@ -850,7 +853,7 @@ public class HarrySimulatorTest
             int[] joined = new int[ring.size()];
             for (int i = 0; i < ring.size(); i++)
             {
-                joined[i] = idByAddr.get(ring.get(i).id);
+                joined[i] = idByAddr.get(ring.get(i).id());
             }
             return joined;
         }
@@ -894,7 +897,7 @@ public class HarrySimulatorTest
             for (TokenPlacementModel.Node node : ring)
             {
                 if (prev != null)
-                    assert node.token > prev.token : "Ring doesn't seem to be sorted: " + ring;
+                    assert node.token() > prev.token() : "Ring doesn't seem to be sorted: " + ring;
                 prev = node;
             }
         }
@@ -915,14 +918,18 @@ public class HarrySimulatorTest
             for (TokenPlacementModel.Node node : ring)
             {
                 if (prev != null)
-                    assert node.token > prev.token : "Ring doesn't seem to be sorted: " + ring;
+                    assert node.token() > prev.token() : "Ring doesn't seem to be sorted: " + ring;
                 prev = node;
             }
 
         }
         private static TokenPlacementModel.Node withToken(TokenPlacementModel.Node node, long token)
         {
-            return new TokenPlacementModel.Node(token, node.id, node.location);
+            return new TokenPlacementModel.Node(0, 0, 0, 0,
+                                                constantLookup(node.id(),
+                                                               token,
+                                                               node.dc(),
+                                                               node.rack()));
         }
 
         public String toString()

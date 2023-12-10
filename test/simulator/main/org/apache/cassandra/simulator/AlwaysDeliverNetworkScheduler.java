@@ -32,11 +32,11 @@ public class AlwaysDeliverNetworkScheduler implements FutureActionScheduler
 
     private final long delayNanos;
 
-    public AlwaysDeliverNetworkScheduler(SimulatedTime time, RandomSource randomSource)
+    public AlwaysDeliverNetworkScheduler(SimulatedTime time)
     {
-        this(time, randomSource, TimeUnit.MILLISECONDS.toNanos(10));
+        this(time, TimeUnit.MILLISECONDS.toNanos(10));
     }
-    public AlwaysDeliverNetworkScheduler(SimulatedTime time, RandomSource randomSource, long dealayNanos)
+    public AlwaysDeliverNetworkScheduler(SimulatedTime time, long dealayNanos)
     {
         this.time = time;
         this.delayNanos = dealayNanos;

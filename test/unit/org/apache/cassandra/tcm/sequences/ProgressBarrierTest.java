@@ -33,17 +33,17 @@ import java.util.stream.Collectors;
 import org.junit.Assert;
 import org.junit.Test;
 
-import harry.generators.PCGFastPure;
-import harry.generators.PcgRSUFast;
-import harry.generators.RandomGenerator;
-import harry.generators.Surjections;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.test.log.CMSTestBase;
-import org.apache.cassandra.distributed.test.log.PlacementSimulator;
 import org.apache.cassandra.distributed.test.log.RngUtils;
 import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.harry.gen.EntropySource;
+import org.apache.cassandra.harry.gen.Surjections;
+import org.apache.cassandra.harry.gen.rng.PCGFastPure;
+import org.apache.cassandra.harry.gen.rng.PcgRSUFast;
+import org.apache.cassandra.harry.sut.TokenPlacementModel;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.Message;
@@ -74,25 +74,25 @@ public class ProgressBarrierTest extends CMSTestBase
     @Test
     public void testProgressBarrier() throws Throwable
     {
-        RandomGenerator rng = new PcgRSUFast(1L, 1l);
+        EntropySource rng = new PcgRSUFast(1L, 1l);
         Supplier<Boolean> respond = bools().toGenerator().bind(rng);
-        Supplier<PlacementSimulator.ReplicationFactor> rfs = combine(ints(0, 3),
-                                                                     ints(1, 5),
-                                                                     bools(),
-                                                                     ints(1, 5),
-                                                                     (Integer dcs, Integer nodesPerDc, Boolean addAlternate, Integer nodesPerDcAlt) -> {
+        Supplier<TokenPlacementModel.ReplicationFactor> rfs = combine(ints(0, 3),
+                                                                      ints(1, 5),
+                                                                      bools(),
+                                                                      ints(1, 5),
+                                                                      (Integer dcs, Integer nodesPerDc, Boolean addAlternate, Integer nodesPerDcAlt) -> {
                                                                          if (dcs == 0)
-                                                                             return new PlacementSimulator.SimpleReplicationFactor(nodesPerDc);
+                                                                             return new TokenPlacementModel.SimpleReplicationFactor(nodesPerDc);
                                                                          else if (addAlternate && nodesPerDcAlt.intValue() != nodesPerDc.intValue())
                                                                          {
                                                                              int[] perDc = new int[dcs + 1];
                                                                              Arrays.fill(perDc, nodesPerDc);
                                                                              perDc[perDc.length - 1] = nodesPerDcAlt;
-                                                                             return new PlacementSimulator.NtsReplicationFactor(perDc);
+                                                                             return new TokenPlacementModel.NtsReplicationFactor(perDc);
                                                                          }
                                                                          else
                                                                          {
-                                                                             return new PlacementSimulator.NtsReplicationFactor(dcs, nodesPerDc);
+                                                                             return new TokenPlacementModel.NtsReplicationFactor(dcs, nodesPerDc);
                                                                          }
                                                                      })
                                                              .toGenerator()
@@ -106,14 +106,14 @@ public class ProgressBarrierTest extends CMSTestBase
                                                     ConsistencyLevel.ONE).toGenerator()
                                                     .bind(rng);
 
-        PlacementSimulator.NodeFactory nodeFactory = PlacementSimulator.nodeFactory();
+        TokenPlacementModel.NodeFactory nodeFactory = TokenPlacementModel.nodeFactory();
         for (int run = 0; run < 100; run++)
         {
-            PlacementSimulator.ReplicationFactor rf = rfs.get();
+            TokenPlacementModel.ReplicationFactor rf = rfs.get();
             try (CMSTestBase.CMSSut sut = new CMSTestBase.CMSSut(AtomicLongBackedProcessor::new, false, rf))
             {
-                List<PlacementSimulator.Node> allNodes = new ArrayList<>();
-                PlacementSimulator.Node node = null;
+                List<TokenPlacementModel.Node> allNodes = new ArrayList<>();
+                TokenPlacementModel.Node node = null;
                 int nodesInCluster = Math.max(rf.total(), nodes.get());
                 for (int i = 1; i <= nodesInCluster; i++)
                 {
@@ -210,7 +210,7 @@ public class ProgressBarrierTest extends CMSTestBase
                             replicas.sort(InetAddressAndPort::compareTo);
                             Set<InetAddressAndPort> collected = responded.stream().filter(replicas::contains).collect(Collectors.toSet());
                             int expected;
-                            if (rf instanceof PlacementSimulator.SimpleReplicationFactor)
+                            if (rf instanceof TokenPlacementModel.SimpleReplicationFactor)
                                 expected = rf.total() / 2 + 1;
                             else
                                 expected = rf.asMap().get(dc) / 2 + 1;
@@ -230,7 +230,7 @@ public class ProgressBarrierTest extends CMSTestBase
                                                         .forEach(n -> byDc.compute(metadata.directory.location(n).datacenter,
                                                                                    (k, v) -> v == null ? 1 : v + 1));
 
-                            if (rf instanceof PlacementSimulator.SimpleReplicationFactor)
+                            if (rf instanceof TokenPlacementModel.SimpleReplicationFactor)
                             {
                                 int actual = byDc.get(dc);
                                 int expected = rf.asMap().get(dc) / 2 + 1;
@@ -275,13 +275,13 @@ public class ProgressBarrierTest extends CMSTestBase
     @Test
     public void testProgressBarrierDegradingConsistency() throws Throwable
     {
-        PlacementSimulator.ReplicationFactor rf = new PlacementSimulator.NtsReplicationFactor(5, 5);
-        PlacementSimulator.NodeFactory nodeFactory = PlacementSimulator.nodeFactory();
+        TokenPlacementModel.ReplicationFactor rf = new TokenPlacementModel.NtsReplicationFactor(5, 5);
+        TokenPlacementModel.NodeFactory nodeFactory = TokenPlacementModel.nodeFactory();
 
         DatabaseDescriptor.setProgressBarrierMinConsistencyLevel(ConsistencyLevel.ONE);
         try (CMSTestBase.CMSSut sut = new CMSTestBase.CMSSut(AtomicLongBackedProcessor::new, false, rf))
         {
-            PlacementSimulator.Node node = null;
+            TokenPlacementModel.Node node = null;
             for (int i = 1; i <= 4; i++)
             {
                 node = nodeFactory.make(i, (i % rf.dcs()) + 1, 1);

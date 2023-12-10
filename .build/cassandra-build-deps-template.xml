@@ -107,10 +107,6 @@
       <artifactId>ant-junit</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.apache.cassandra</groupId>
-      <artifactId>harry-core</artifactId>
-    </dependency>
-    <dependency>
       <groupId>org.junit</groupId>
       <artifactId>junit-bom</artifactId>
       <type>pom</type>

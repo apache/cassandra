@@ -30,6 +30,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.distributed.test.ExecUtil;
+import org.apache.cassandra.harry.sut.TokenPlacementModel;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Sealed;
@@ -155,7 +156,7 @@ public class SystemKeyspaceStorageTest extends CoordinatorPathTestBase
     @Test
     public void bounceNodeBootrappedFromSnapshot() throws Throwable
     {
-        coordinatorPathTest(new PlacementSimulator.SimpleReplicationFactor(3), (cluster, simulatedCluster) -> {
+        coordinatorPathTest(new TokenPlacementModel.SimpleReplicationFactor(3), (cluster, simulatedCluster) -> {
             ClusterMetadataService.instance().sealPeriod();
             ClusterMetadataService.instance().log().waitForHighestConsecutive();
             ClusterMetadataService.instance().snapshotManager().storeSnapshot(ClusterMetadata.current());

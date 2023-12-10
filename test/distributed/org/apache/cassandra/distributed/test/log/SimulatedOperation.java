@@ -33,6 +33,8 @@ import org.junit.Assert;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.PlacementSimulator.SimulatedPlacements;
+import org.apache.cassandra.distributed.test.log.PlacementSimulator.Transformations;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.MultiStepOperation;
@@ -51,9 +53,7 @@ import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 
 import static org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import static org.apache.cassandra.distributed.test.log.CMSTestBase.CMSSut;
-import static org.apache.cassandra.distributed.test.log.PlacementSimulator.Node;
-import static org.apache.cassandra.distributed.test.log.PlacementSimulator.SimulatedPlacements;
-import static org.apache.cassandra.distributed.test.log.PlacementSimulator.Transformations;
+import static org.apache.cassandra.harry.sut.TokenPlacementModel.*;
 
 public abstract class SimulatedOperation
 {
