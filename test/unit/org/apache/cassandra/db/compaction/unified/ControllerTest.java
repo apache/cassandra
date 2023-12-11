@@ -567,23 +567,29 @@ public class ControllerTest
         options.put(Controller.MIN_SSTABLE_SIZE_OPTION, format("%sB", 0));
         Controller.validateOptions(options);
 
+        // test min < 0 failes
+        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, "-1B");
+        assertThatExceptionOfType(ConfigurationException.class)
+        .describedAs("Should have thrown a ConfigurationException when min_sstable_size is less than 0")
+        .isThrownBy(() -> Controller.validateOptions(options))
+        .withMessageContaining(format("greater than 0"));
 
         // test min < default target sstable size * INV_SQRT_2
         int limit = (int) Math.ceil(Controller.DEFAULT_TARGET_SSTABLE_SIZE  * Controller.INVERSE_SQRT_2);
-        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, format("%sB", limit-1));
+        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, format("%sB", limit+1));
         assertThatExceptionOfType(ConfigurationException.class)
-        .describedAs("Should have thrown a ConfigurationException when min_sstable_size is lower than target_sstable_size")
+        .describedAs("Should have thrown a ConfigurationException when min_sstable_size is greater than target_sstable_size")
         .isThrownBy(() -> Controller.validateOptions(options))
-        .withMessageContaining(format("greater than or equal to: %sB", limit));
+        .withMessageContaining(format("less than: %sB", limit));
 
         // test min < configured target table size * INV_SQRT_2
         limit = (int) Math.ceil(Controller.MIN_TARGET_SSTABLE_SIZE  * 2 * Controller.INVERSE_SQRT_2);
-        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, format("%sB", limit-1));
+        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, format("%sB", limit+1));
         options.put(Controller.TARGET_SSTABLE_SIZE_OPTION, format("%sB", Controller.MIN_TARGET_SSTABLE_SIZE * 2));
 
         assertThatExceptionOfType(ConfigurationException.class)
-        .describedAs("Should have thrown a ConfigurationException when min_sstable_size is lower than target_sstable_size")
+        .describedAs("Should have thrown a ConfigurationException when min_sstable_size is greater than target_sstable_size")
         .isThrownBy(() -> Controller.validateOptions(options))
-        .withMessageContaining(format("greater than or equal to: %sB", limit));
+        .withMessageContaining(format("less than: %sB", limit));
     }
 }
