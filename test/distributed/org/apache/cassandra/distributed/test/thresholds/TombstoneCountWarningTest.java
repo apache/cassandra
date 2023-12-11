@@ -57,6 +57,7 @@ import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.test.JavaDriverUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.exceptions.ReadFailureException;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.TombstoneAbortException;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -425,7 +426,7 @@ public class TombstoneCountWarningTest extends TestBaseImpl
         }
 
         @SuppressWarnings("unused")
-        public static void onFailure(InetAddressAndPort from, RequestFailureReason failureReason, @SuperCall Runnable zuper) throws Exception
+        public static void onFailure(InetAddressAndPort from, RequestFailure failure, @SuperCall Runnable zuper) throws Exception
         {
             State.onFailure(new InetSocketAddress(from.getAddress(), from.getPort()));
             zuper.run();
