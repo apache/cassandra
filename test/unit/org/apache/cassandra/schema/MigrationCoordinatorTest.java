@@ -42,7 +42,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.gms.ApplicationState;
@@ -99,8 +98,6 @@ public class MigrationCoordinatorTest
         {
             throw new AssertionError(e);
         }
-
-        CassandraRelevantProperties.SCHEMA_PULL_BACKOFF_INTERVAL_MS.setLong(0);
 
         DatabaseDescriptor.daemonInitialization();
 

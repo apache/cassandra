@@ -46,7 +46,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-import org.apache.cassandra.utils.NoSpamLogger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,6 +66,7 @@ import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -76,7 +76,6 @@ import org.apache.cassandra.utils.concurrent.WaitQueue;
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORED_SCHEMA_CHECK_ENDPOINTS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORED_SCHEMA_CHECK_VERSIONS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.MIGRATION_DELAY;
-import static org.apache.cassandra.config.CassandraRelevantProperties.SCHEMA_PULL_BACKOFF_INTERVAL_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SCHEMA_PULL_INTERVAL_MS;
 import static org.apache.cassandra.net.Verb.SCHEMA_PUSH_REQ;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -101,7 +100,7 @@ public class MigrationCoordinator
     private static final Logger logger = LoggerFactory.getLogger(MigrationCoordinator.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(MigrationCoordinator.logger, 1, TimeUnit.MINUTES);
     private static final Future<Void> FINISHED_FUTURE = ImmediateFuture.success(null);
-    private static final long PULL_BACKOFF_INTERVAL_MS = SCHEMA_PULL_BACKOFF_INTERVAL_MS.getLong(); // do not pull immediately if the previous pull failed
+    private static final long PULL_BACKOFF_INTERVAL_MS = 1000; // do not pull immediately if the previous pull failed
 
     private static LongSupplier getUptimeFn = () -> ManagementFactory.getRuntimeMXBean().getUptime();
 

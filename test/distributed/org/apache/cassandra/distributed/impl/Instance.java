@@ -156,8 +156,6 @@ import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
-import static org.apache.cassandra.config.CassandraRelevantProperties.CONSISTENT_RANGE_MOVEMENT;
-import static org.apache.cassandra.config.CassandraRelevantProperties.CONSISTENT_SIMULTANEOUS_MOVES_ALLOW;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RING_DELAY;
 import static org.apache.cassandra.distributed.api.Feature.BLANK_GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -602,10 +600,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     // TODO: hacky
                     if (!RING_DELAY.isPresent())
                         RING_DELAY.setLong(15000);
-                    if (!CONSISTENT_RANGE_MOVEMENT.isPresent())
-                        CONSISTENT_RANGE_MOVEMENT.setBoolean(false);
-                    if (!CONSISTENT_SIMULTANEOUS_MOVES_ALLOW.isPresent())
-                        CONSISTENT_SIMULTANEOUS_MOVES_ALLOW.setBoolean(true);
+                    if (!System.getProperties().containsKey("cassandra.consistent.rangemovement"))
+                        System.setProperty("cassandra.consistent.rangemovement", "false");
+                    if (!System.getProperties().containsKey("cassandra.consistent.simultaneousmoves.allow"))
+                        System.setProperty("cassandra.consistent.simultaneousmoves.allow", "true");
                 }
 
                 mkdirs();

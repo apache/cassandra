@@ -254,8 +254,6 @@ public enum CassandraRelevantProperties
     /** Defines how often schema definitions are pulled from the other nodes */
     SCHEMA_PULL_INTERVAL_MS("cassandra.schema_pull_interval_ms", "60000"),
 
-    SCHEMA_PULL_BACKOFF_INTERVAL_MS("cassandra.schema_pull_backoff_interval_ms", "1000"),
-
     PAXOS_REPAIR_RETRY_TIMEOUT_IN_MS("cassandra.paxos_repair_retry_timeout_millis", "60000"),
 
     /** If we should allow having duplicate keys in the config file, default to true for legacy reasons */
@@ -345,11 +343,6 @@ public enum CassandraRelevantProperties
      * Number of polls without gossip state change to consider gossip as settled.
      */
     GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED("cassandra.gossip_settle_poll_success_required", "3"),
-
-    CONSISTENT_RANGE_MOVEMENT("cassandra.consistent.rangemovement", "true"),
-    CONSISTENT_SIMULTANEOUS_MOVES_ALLOW("cassandra.consistent.simultaneousmoves.allow"),
-    REPLACE_ADDRESS("cassandra.replace_address"),
-    BROADCAST_INTERVAL_MS("cassandra.broadcast_interval_ms", "60000"),
 
     ;
 
