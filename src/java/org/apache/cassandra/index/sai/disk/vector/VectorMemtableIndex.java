@@ -253,14 +253,28 @@ public class VectorMemtableIndex implements MemtableIndex
      */
     public static int expectedNodesVisited(int limit, int nPermittedOrdinals, int graphSize)
     {
-        // constants are computed by Code Interpreter based on observed comparison counts in tests
-        // https://chat.openai.com/share/2b1d7195-b4cf-4a45-8dce-1b9b2f893c75
         var K = limit;
         var B = min(nPermittedOrdinals, graphSize);
         var N = graphSize;
-        var raw = (int) (0.7 * pow(log(N), 2) * pow(N, 0.33) * pow(log(K), 2) * pow(log((double) N / B), 2) / pow(B, 0.13));
+        // These constants come from running many searches on a variety of datasets and graph sizes.
+        // * It is very consistent that the visited count is slightly less than linear wrt K, for both
+        //   unconstrained (B = N) and constrained (B < N) searches.
+        // * The behavior wrt B is hard to characterize.  Graphing the result F vs N/B shows ranges of
+        //   growth very close to linear, interspersed with sharp jumps up to a higher visit count.  Overall,
+        //   approximating it as linear is in the right ballpark.
+        // * For unconstrained searches, the visited count is closest to log(N) but for constrained searches
+        //   it is closer to log(N)**2 (or a higher exponent), perhaps as a result of N/B being too small.
+        //
+        // If we need to make this even more accurate, the relationship to B and to log(N) may be the best
+        // places to start.
+        var raw = (int) (100 + 0.025 * pow(log(N), 2) * pow(K, 0.95) * ((double) N / B));
+        return ensureSaneEstimate(raw, limit, graphSize);
+    }
+
+    public static int ensureSaneEstimate(int rawEstimate, int limit, int graphSize)
+    {
         // we will always visit at least min(limit, graphSize) nodes, and we can't visit more nodes than exist in the graph
-        return min(max(raw, min(limit, graphSize)), graphSize);
+        return min(max(rawEstimate, min(limit, graphSize)), graphSize);
     }
 
     @Override
