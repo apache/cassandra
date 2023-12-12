@@ -44,6 +44,7 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Range;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,6 +69,7 @@ import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JavaUtils;
 import org.apache.cassandra.utils.NativeLibrary;
@@ -129,7 +131,8 @@ public class StartupChecks
     // The default set of pre-flight checks to run. Order is somewhat significant in that we probably
     // always want the system keyspace check run last, as this actually loads the schema for that
     // keyspace. All other checks should not require any schema initialization.
-    private final List<StartupCheck> DEFAULT_TESTS = ImmutableList.of(checkJemalloc,
+    private final List<StartupCheck> DEFAULT_TESTS = ImmutableList.of(checkKernelBug1057843,
+                                                                      checkJemalloc,
                                                                       checkLz4Native,
                                                                       checkValidLaunchDate,
                                                                       checkJMXPorts,
@@ -186,6 +189,58 @@ public class StartupChecks
             }
         }
     }
+
+    // https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1057843
+    public static final StartupCheck checkKernelBug1057843 = new StartupCheck()
+    {
+        private final Range<CassandraVersion> affectedKernels = Range.closedOpen(
+        new CassandraVersion("6.1.64").toBaseVersion(), new CassandraVersion("6.1.66").toBaseVersion());
+
+        private final Set<String> affectedFileSystemTypes = Set.of("ext4");
+
+        @Override
+        public void execute(StartupChecksOptions startupChecksOptions) throws StartupException
+        {
+            if (startupChecksOptions.isDisabled(getStartupCheckType()))
+                return;
+
+            if (!FBUtilities.isLinux)
+                return;
+
+            Set<Path> directIOWritePaths = new HashSet<>();
+            if (DatabaseDescriptor.getCommitLogWriteDiskAccessMode() == Config.DiskAccessMode.direct)
+                directIOWritePaths.add(new File(DatabaseDescriptor.getCommitLogLocation()).toPath());
+            // TODO: add data directories when direct IO is supported for flushing and compaction
+
+            Set<Path> affectedPaths = new HashSet<>();
+            for (Path path : directIOWritePaths)
+            {
+                try
+                {
+                    if (affectedFileSystemTypes.contains(Files.getFileStore(path).type().toLowerCase()))
+                        affectedPaths.add(path);
+                }
+                catch (IOException e)
+                {
+                    throw new StartupException(StartupException.ERR_WRONG_MACHINE_STATE, "Failed to determine file system type for path " + path, e);
+                }
+            }
+
+            if (affectedPaths.isEmpty())
+                return;
+
+            CassandraVersion kernelVersion = FBUtilities.getKernelVersion();
+            if (!affectedKernels.contains(kernelVersion.toBaseVersion()))
+                return;
+
+            throw new StartupException(StartupException.ERR_WRONG_MACHINE_STATE,
+                                       String.format("Detected kernel version %s with affected file system types %s and direct IO enabled for paths %s. " +
+                                                     "This combination is known to cause data corruption. To start Cassandra in this environment, " +
+                                                     "you have to disable direct IO for the affected paths. " +
+                                                     "Please see https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1057843 for more information.",
+                                                     kernelVersion, affectedFileSystemTypes, affectedPaths));
+        }
+    };
 
     public static final StartupCheck checkJemalloc = new StartupCheck()
     {

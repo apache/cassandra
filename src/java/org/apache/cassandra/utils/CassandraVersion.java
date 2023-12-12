@@ -139,6 +139,13 @@ public class CassandraVersion implements Comparable<CassandraVersion>
                : new CassandraVersion(major, minor, 0, NO_HOTFIX, ArrayUtils.EMPTY_STRING_ARRAY, null);
     }
 
+    public CassandraVersion toBaseVersion()
+    {
+        return hotfix == NO_HOTFIX && preRelease != null && preRelease.length == 0 && build == null
+               ? this
+               : new CassandraVersion(major, minor, patch, NO_HOTFIX, null, null);
+    }
+
     private static String[] parseIdentifiers(String version, String str)
     {
         // Drop initial - or +
