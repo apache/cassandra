@@ -6,6 +6,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Fix resource cleanup after SAI query timeouts (CASSANDRA-19177)
  * Suppress CVE-2023-6481 (CASSANDRA-19184)
 Merged from 4.1:
  * Fix StackOverflowError on ALTER after many previous schema changes (CASSANDRA-19166)

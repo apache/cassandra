@@ -118,6 +118,7 @@ public class PostingListRangeIterator extends KeyRangeIterator
             if (!(t instanceof QueryCancelledException))
                 logger.error(indexIdentifier.logMessage("Unable to provide next token!"), t);
 
+            FileUtils.closeQuietly(Arrays.asList(postingList, primaryKeyMap));
             throw Throwables.cleaned(t);
         }
     }
