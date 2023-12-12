@@ -264,6 +264,9 @@ public enum CassandraRelevantProperties
     @Deprecated(since = "4.1")
     IGNORE_DC("cassandra.ignore_dc"),
     IGNORE_DYNAMIC_SNITCH_SEVERITY("cassandra.ignore_dynamic_snitch_severity"),
+
+    IGNORE_KERNEL_BUG_1057843_CHECK("cassandra.ignore_kernel_bug_1057843_check"),
+
     IGNORE_MISSING_NATIVE_FILE_HINTS("cassandra.require_native_file_hints"),
     /** @deprecated should be removed in favor of enable flag of relevant startup check (checkRack) */
     /** @deprecated See CASSANDRA-17797 */
