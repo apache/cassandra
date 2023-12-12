@@ -205,8 +205,8 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
             // so we will live with the inaccuracy.)
             int nRows = Math.toIntExact(maxSSTableRowId - minSSTableRowId + 1);
             int maxBruteForceRows = min(globalBruteForceRows, maxBruteForceRows(topK, nRows));
-            logAndTrace("Search range covers {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
-                        nRows, maxBruteForceRows, graph.size(), topK);
+            Tracing.logAndTrace(logger, "Search range covers {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
+                                nRows, maxBruteForceRows, graph.size(), topK);
             // if we have a small number of results then let TopK processor do exact NN computation
             if (nRows <= maxBruteForceRows)
             {
@@ -374,9 +374,11 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
         if (keysInRange.isEmpty())
             return RangeIterator.empty();
 
-        logAndTrace("SAI predicates produced {} rows out of limit {}", keysInRange.size(), limit);
         if (keysInRange.size() <= limit)
+        {
+            Tracing.logAndTrace(logger, "Only {} keys in sstable range out of limit {}", keysInRange.size(), limit);
             return new CollectionRangeIterator(metadata.minKey, metadata.maxKey, keysInRange);
+        }
 
         int topK = topKFor(limit);
         // if we are brute forcing the similarity search, we want to build a list of segment row ids,
@@ -465,8 +467,8 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
 
         var numRows = rowIds.size();
         var maxBruteForceRows = min(globalBruteForceRows, maxBruteForceRows(topK, numRows));
-        logAndTrace("{} rows relevant to current sstable; max brute force rows is {} for index with {} nodes, LIMIT {}",
-                    numRows, maxBruteForceRows, graph.size(), limit);
+        Tracing.logAndTrace(logger, "{} rows relevant to current sstable out of {} in range; max brute force rows is {} for index with {} nodes, LIMIT {}",
+                            numRows, keysInRange.size(), maxBruteForceRows, graph.size(), limit);
         if (numRows == 0) {
             return RangeIterator.empty();
         }
@@ -492,12 +494,6 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
     private int getRawExpectedNodes(int topK, int nPermittedOrdinals)
     {
         return VectorMemtableIndex.expectedNodesVisited(topK, nPermittedOrdinals, graph.size());
-    }
-
-    private void logAndTrace(String message, Object... args)
-    {
-        logger.trace(message, args);
-        Tracing.trace(message, args);
     }
 
     @Override

@@ -298,6 +298,8 @@ public class QueryController
 
     private RangeIterator getTopKRows(List<PrimaryKey> rawSourceKeys, RowFilter.Expression expression)
     {
+        Tracing.logAndTrace(logger, "SAI predicates produced {} keys", rawSourceKeys.size());
+
         // Filter out PKs now. Each PK is passed to every segment of the ANN index, so filtering shadowed keys
         // eagerly can save some work when going from PK to row id for on disk segments.
         // Since the result is shared with multiple streams, we use an unmodifiable list.

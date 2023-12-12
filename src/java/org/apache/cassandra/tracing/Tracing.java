@@ -76,6 +76,12 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
         }
     };
 
+    public static void logAndTrace(Logger logger, String message, Object... args)
+    {
+        logger.trace(message, args);
+        trace(message, args);
+    }
+
     /* this enum is used in serialization; preserve order for compatibility */
     public enum TraceType
     {
