@@ -18,32 +18,57 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
+import java.nio.file.FileStore;
+import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.spi.FileSystemProvider;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
 
-import org.apache.cassandra.config.StartupChecksOptions;
-import org.apache.cassandra.io.util.File;
-import org.junit.*;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.Assume;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
+import com.vdurmont.semver4j.Semver;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.config.StartupChecksOptions;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.StartupException;
+import org.apache.cassandra.io.filesystem.ForwardingFileSystem;
+import org.apache.cassandra.io.filesystem.ForwardingFileSystemProvider;
+import org.apache.cassandra.io.filesystem.ForwardingPath;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.DataResurrectionCheck.Heartbeat;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.Collections.singletonList;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_INVALID_LEGACY_SSTABLE_ROOT;
 import static org.apache.cassandra.io.util.FileUtils.createTempFile;
 import static org.apache.cassandra.service.DataResurrectionCheck.HEARTBEAT_FILE_CONFIG_PROPERTY;
 import static org.apache.cassandra.service.StartupChecks.StartupCheckType.check_data_resurrection;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class StartupChecksTest
 {
@@ -202,6 +227,104 @@ public class StartupChecksTest
         startupChecks.withTest(check);
 
         verifyFailure(startupChecks, "Invalid tables: abc.def");
+    }
+
+    @Test
+    public void testKernelBug1057843Check() throws Exception
+    {
+        Assume.assumeTrue(DatabaseDescriptor.getCommitLogCompression() == null); // we would not be able to enable direct io otherwise
+        testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.63.1-generic"), false);
+        testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.64.1-generic"), true);
+        testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.65.1-generic"), true);
+        testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.66.1-generic"), false);
+        testKernelBug1057843Check("tmpfs", DiskAccessMode.direct, new Semver("6.1.64.1-generic"), false);
+        testKernelBug1057843Check("ext4", DiskAccessMode.mmap, new Semver("6.1.64.1-generic"), false);
+    }
+
+    private <R> void withPathOverriddingFileSystem(Map<String, String> pathOverrides, Callable<? extends R> callable) throws Exception
+    {
+        Map<String, FileStore> fileStores = Set.copyOf(pathOverrides.values()).stream().collect(Collectors.toMap(s -> s, s -> {
+            FileStore fs = mock(FileStore.class);
+            when(fs.type()).thenReturn(s);
+            return fs;
+        }));
+        FileSystem savedFileSystem = File.unsafeGetFilesystem();
+        try
+        {
+            ForwardingFileSystemProvider fsp = new ForwardingFileSystemProvider(savedFileSystem.provider())
+            {
+                @Override
+                public FileStore getFileStore(Path path) throws IOException
+                {
+                    String override = pathOverrides.get(path.toString());
+                    if (override != null)
+                        return fileStores.get(override);
+
+                    return super.getFileStore(path);
+                }
+            };
+
+            ForwardingFileSystem fs = new ForwardingFileSystem(File.unsafeGetFilesystem())
+            {
+                private final FileSystem thisFileSystem = this;
+
+                @Override
+                public FileSystemProvider provider()
+                {
+                    return fsp;
+                }
+
+                @Override
+                protected Path wrap(Path p)
+                {
+                    return new ForwardingPath(p)
+                    {
+                        @Override
+                        public FileSystem getFileSystem()
+                        {
+                            return thisFileSystem;
+                        }
+                    };
+                }
+            };
+            File.unsafeSetFilesystem(fs);
+            callable.call();
+        }
+        finally
+        {
+            File.unsafeSetFilesystem(savedFileSystem);
+        }
+    }
+
+    private void testKernelBug1057843Check(String fsType, DiskAccessMode diskAccessMode, Semver kernelVersion, boolean expectToFail) throws Exception
+    {
+        String commitLogLocation = Files.createTempDirectory("testKernelBugCheck").toString();
+
+        String savedCommitLogLocation = DatabaseDescriptor.getCommitLogLocation();
+        DiskAccessMode savedCommitLogWriteDiskAccessMode = DatabaseDescriptor.getCommitLogWriteDiskAccessMode();
+        Semver savedKernelVersion = FBUtilities.getKernelVersion();
+        try
+        {
+            DatabaseDescriptor.setCommitLogLocation(commitLogLocation);
+            DatabaseDescriptor.setCommitLogWriteDiskAccessMode(diskAccessMode);
+            DatabaseDescriptor.initializeCommitLogDiskAccessMode();
+            assertThat(DatabaseDescriptor.getCommitLogWriteDiskAccessMode()).isEqualTo(diskAccessMode);
+            FBUtilities.setKernelVersionSupplier(() -> kernelVersion);
+            withPathOverriddingFileSystem(Map.of(commitLogLocation, fsType), () -> {
+                if (expectToFail)
+                    assertThatExceptionOfType(StartupException.class).isThrownBy(() -> StartupChecks.checkKernelBug1057843.execute(options));
+                else
+                    StartupChecks.checkKernelBug1057843.execute(options);
+                return null;
+            });
+        }
+        finally
+        {
+            DatabaseDescriptor.setCommitLogLocation(savedCommitLogLocation);
+            DatabaseDescriptor.setCommitLogWriteDiskAccessMode(savedCommitLogWriteDiskAccessMode);
+            DatabaseDescriptor.initializeCommitLogDiskAccessMode();
+            FBUtilities.setKernelVersionSupplier(() -> savedKernelVersion);
+        }
     }
 
     private void copyInvalidLegacySSTables(Path targetDir) throws IOException
