@@ -416,7 +416,7 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
             var comparisonsSavedByBsearch = new QuickSlidingWindowReservoir(10);
             boolean preferSeqScanToBsearch = false;
 
-            for (int i = 0; i < keysInRange.size(); i++)
+            for (int i = 0; i < keysInRange.size();)
             {
                 // turn the pk back into a row id, with a fast path for the case where the pk is from this sstable
                 var primaryKey = keysInRange.get(i);
@@ -434,24 +434,28 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
                     long ceilingRowId = - sstableRowId - 1;
                     if (ceilingRowId > metadata.maxSSTableRowId)
                     {
-                        // The next greatest primary key is greater than all the primary keys in this sstable
+                        // The next greatest primary key is greater than all the primary keys in this segment
                         break;
                     }
                     var ceilingPrimaryKey = primaryKeyMap.primaryKeyFromRowId(ceilingRowId);
 
+                    boolean ceilingPrimaryKeyMatchesKeyInRange = false;
                     // adaptively choose either seq scan or bsearch to skip ahead in keysInRange until
                     // we find one at least as large as the ceiling key
                     if (preferSeqScanToBsearch)
                     {
-                        int j = 0;
-                        for ( ; i + j < keysInRange.size(); j++)
+                        int keysToSkip = 1; // We already know that the PK at index i is not equal to the ceiling PK.
+                        int cmp = 1; // Need to initialize. The value is irrelevant.
+                        for ( ; i + keysToSkip < keysInRange.size(); keysToSkip++)
                         {
-                            var nextPrimaryKey = keys.get(i + j);
-                            if (nextPrimaryKey.compareTo(ceilingPrimaryKey) >= 0)
+                            var nextPrimaryKey = keys.get(i + keysToSkip);
+                            cmp = nextPrimaryKey.compareTo(ceilingPrimaryKey);
+                            if (cmp >= 0)
                                 break;
                         }
-                        comparisonsSavedByBsearch.update(j - (int) ceil(logBase2(keysInRange.size() - i)));
-                        i += j - 1; // -1 because loop will increment next
+                        comparisonsSavedByBsearch.update(keysToSkip - (int) ceil(logBase2(keysInRange.size() - i)));
+                        i += keysToSkip;
+                        ceilingPrimaryKeyMatchesKeyInRange = cmp == 0;
                     }
                     else
                     {
@@ -461,16 +465,23 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
                         if (nextIndexForCeiling < 0)
                             // We got: -(insertion point) - 1. Invert it so we get the insertion point.
                             nextIndexForCeiling = -nextIndexForCeiling - 1;
+                        else
+                            ceilingPrimaryKeyMatchesKeyInRange = true;
 
                         comparisonsSavedByBsearch.update(nextIndexForCeiling - (int) ceil(logBase2(keysRemaining.size())));
-                        i += nextIndexForCeiling - 1; // -1 because loop will increment next
+                        i += nextIndexForCeiling;
                     }
 
                     // update our estimate
                     preferSeqScanToBsearch = comparisonsSavedByBsearch.size() >= 10
                                              && comparisonsSavedByBsearch.getMean() < 0;
-                    continue;
+                    if (ceilingPrimaryKeyMatchesKeyInRange)
+                        sstableRowId = ceilingRowId;
+                    else
+                        continue; // without incrementing i further. ceilingPrimaryKey is less than the PK at index i.
                 }
+                // Increment here to simplify the sstableRowId < 0 logic.
+                i++;
 
                 // these should still be true based on our computation of keysInRange
                 assert sstableRowId >= metadata.minSSTableRowId : String.format("sstableRowId %d < minSSTableRowId %d", sstableRowId, metadata.minSSTableRowId);

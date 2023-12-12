@@ -986,4 +986,32 @@ public class VectorTypeTest extends VectorTester
             assertRows(execute("SELECT a FROM %s WHERE val = 'A' ORDER BY vec ANN OF [1,4] LIMIT 1"), row(2));
         });
     }
+
+    @Test
+        public void testHybridSearchSeqLogicForMappingPKsBackToRowIds() throws Throwable
+    {
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int, a int, val text, vec vector<float, 2>, PRIMARY KEY(pk, a))");
+        createIndex("CREATE CUSTOM INDEX ON %s(vec) USING 'StorageAttachedIndex' WITH OPTIONS = { 'similarity_function' : 'euclidean' }");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+
+        // Insert rows into two sstables. The rows are interleaved to ensure binary search is less efficient, which
+        // pushes us to use a sequential scan when we map PKs back to row ids in the sstable.
+        int rowCount = 100;
+        // Insert even rows to first sstable
+        for (int i = 0; i < rowCount; i += 2)
+            execute("INSERT INTO %s (pk, a, val, vec) VALUES (1, ?, 'A', ?)", i, vector(1, i));
+
+        flush();
+        // Insert odd rows to new sstable
+        for (int i = 1; i < rowCount; i += 2)
+            execute("INSERT INTO %s (pk, a, val, vec) VALUES (1, ?, 'A', ?)", i, vector(1, i));
+
+        // Verify result for rows in different memtables/sstables
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT a FROM %s WHERE val = 'A' ORDER BY vec ANN OF [1,49] LIMIT 1"),
+                       row(49));
+            assertRows(execute("SELECT a FROM %s WHERE val = 'A' ORDER BY vec ANN OF [1,50] LIMIT 1"),
+                       row(50));
+        });
+    }
 }
