@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.index.sai.disk.v1.bbtree;
+package org.apache.cassandra.index.sai.disk.v1.segment;
 
 import java.util.Collections;
 import java.util.List;
@@ -26,16 +26,15 @@ import java.util.stream.StreamSupport;
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.index.sai.utils.IndexEntry;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 import static org.junit.Assert.assertEquals;
 
-public class BlockBalancedTreeRamBufferTest extends SAIRandomizedTester
+public class SegmentRamBufferTest extends SAIRandomizedTester
 {
     @Test
     public void shouldReturnValuesInSortedValue()
@@ -49,28 +48,24 @@ public class BlockBalancedTreeRamBufferTest extends SAIRandomizedTester
                                         .boxed()
                                         .collect(Collectors.toList());
 
-        BlockBalancedTreeRamBuffer buffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
+        SegmentTrieBuffer buffer = new SegmentTrieBuffer();
 
         IndexTermType indexTermType = createIndexTermType(Int32Type.instance);
 
-        byte[] scratch = new byte[Integer.BYTES];
-        values.forEach(v -> {
-            indexTermType.toComparableBytes(Int32Type.instance.decompose(v), scratch);
-            buffer.add(0, scratch);
-        });
+        values.forEach(value -> buffer.add(v -> indexTermType.asComparableBytes(Int32Type.instance.decompose(value), v), Integer.BYTES, 0));
 
-        Iterable<Pair<byte[], PostingList>> iterable = buffer::iterator;
+        Iterable<IndexEntry> iterable = buffer::iterator;
 
-        List<Integer> result = StreamSupport.stream(iterable.spliterator(), false).mapToInt(pair -> unpackValue(pair.left)).boxed().collect(Collectors.toList());
+        List<Integer> result = StreamSupport.stream(iterable.spliterator(), false).mapToInt(pair -> unpackValue(pair.term)).boxed().collect(Collectors.toList());
 
         Collections.sort(values);
 
         assertEquals(values, result);
     }
 
-    private static int unpackValue(byte[] value)
+    private static int unpackValue(ByteComparable value)
     {
-        return Int32Type.instance.compose(Int32Type.instance.fromComparableBytes(ByteSource.peekable(ByteSource.fixedLength(value)),
+        return Int32Type.instance.compose(Int32Type.instance.fromComparableBytes(ByteSource.peekable(value.asComparableBytes(ByteComparable.Version.OSS50)),
                                                                                  ByteComparable.Version.OSS50));
     }
 }
