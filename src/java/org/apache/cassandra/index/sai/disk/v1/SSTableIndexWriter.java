@@ -129,7 +129,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
             if (currentBuilder != null)
             {
                 long bytesAllocated = currentBuilder.totalBytesAllocated();
-                long globalBytesUsed = currentBuilder.release(index.identifier());
+                long globalBytesUsed = currentBuilder.release();
                 logger.debug(index.identifier().logMessage("Flushing final segment for SSTable {} released {}. Global segment memory usage now at {}."),
                              indexDescriptor.sstableDescriptor, FBUtilities.prettyPrintMemory(bytesAllocated), FBUtilities.prettyPrintMemory(globalBytesUsed));
             }
@@ -160,7 +160,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
             // If an exception is thrown out of any writer operation prior to successful segment
             // flush, we will end up here, and we need to free up builder memory tracked by the limiter:
             long allocated = currentBuilder.totalBytesAllocated();
-            long globalBytesUsed = currentBuilder.release(index.identifier());
+            long globalBytesUsed = currentBuilder.release();
             logger.debug(index.identifier().logMessage("Aborting index writer for SSTable {} released {}. Global segment memory usage now at {}."),
                          indexDescriptor.sstableDescriptor, FBUtilities.prettyPrintMemory(allocated), FBUtilities.prettyPrintMemory(globalBytesUsed));
         }
@@ -251,7 +251,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
         {
             long bytesAllocated = currentBuilder.totalBytesAllocated();
 
-            SegmentMetadata segmentMetadata = currentBuilder.flush(indexDescriptor, index.identifier());
+            SegmentMetadata segmentMetadata = currentBuilder.flush(indexDescriptor);
 
             long flushMillis = Math.max(1, TimeUnit.NANOSECONDS.toMillis(Clock.Global.nanoTime() - start));
 
@@ -273,7 +273,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
             // flush. Note that any failure that occurs before this (even in term addition) will
             // actuate this column writer's abort logic from the parent SSTable-level writer, and
             // that abort logic will release the current builder's memory against the limiter.
-            long globalBytesUsed = currentBuilder.release(index.identifier());
+            long globalBytesUsed = currentBuilder.release();
             currentBuilder = null;
             logger.debug(index.identifier().logMessage("Flushing index segment for SSTable {} released {}. Global segment memory usage now at {}."),
                          indexDescriptor.sstableDescriptor, FBUtilities.prettyPrintMemory(bytesAllocated), FBUtilities.prettyPrintMemory(globalBytesUsed));
@@ -306,14 +306,8 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
 
     private SegmentBuilder newSegmentBuilder()
     {
-        SegmentBuilder builder;
-
-        if (index.termType().isVector())
-            builder = new SegmentBuilder.VectorSegmentBuilder(index.termType(), limiter, index.indexWriterConfig());
-        else if (index.termType().isLiteral())
-            builder = new SegmentBuilder.RAMStringSegmentBuilder(index.termType(), limiter);
-        else
-            builder = new SegmentBuilder.BlockBalancedTreeSegmentBuilder(index.termType(), limiter);
+        SegmentBuilder builder = index.termType().isVector() ? new SegmentBuilder.VectorSegmentBuilder(index, limiter)
+                                                             : new SegmentBuilder.TrieSegmentBuilder(index, limiter);
 
         long globalBytesUsed = limiter.increment(builder.totalBytesAllocated());
         logger.debug(index.identifier().logMessage("Created new segment builder while flushing SSTable {}. Global segment memory usage now at {}."),

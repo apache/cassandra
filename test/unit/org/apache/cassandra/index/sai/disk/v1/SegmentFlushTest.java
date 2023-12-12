@@ -42,10 +42,10 @@ import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.utils.IndexEntry;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
-import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.TermsIterator;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -55,6 +55,7 @@ import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 import static org.apache.cassandra.Util.dk;
 import static org.junit.Assert.assertEquals;
@@ -201,11 +202,10 @@ public class SegmentFlushTest
 
     private void verifyTermPostings(TermsIterator iterator, ByteBuffer expectedTerm, int minSegmentRowId, int maxSegmentRowId)
     {
-        ByteComparable term = iterator.next();
-        PostingList postings = iterator.postings();
+        IndexEntry indexEntry = iterator.next();
 
-        assertEquals(0, ByteComparable.compare(term, ByteComparable.fixedLength(expectedTerm), ByteComparable.Version.OSS50));
-        assertEquals(minSegmentRowId == maxSegmentRowId ? 1 : 2, postings.size());
+        assertEquals(0, ByteComparable.compare(indexEntry.term, v -> ByteSource.of(expectedTerm, v), ByteComparable.Version.OSS50));
+        assertEquals(minSegmentRowId == maxSegmentRowId ? 1 : 2, indexEntry.postingList.size());
     }
 
     private Row createRow(ColumnMetadata column, ByteBuffer value)

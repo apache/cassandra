@@ -104,6 +104,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.lucene.codecs.CodecUtil;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_RANDOM_SEED;
@@ -277,20 +278,20 @@ public abstract class SAITester extends CQLTester
         return new StorageAttachedIndex(cfs, indexMetadata);
     }
 
-    public static StorageAttachedIndex createMockIndex(String columnName, AbstractType<?> cellType)
+    public static StorageAttachedIndex createMockIndex(AbstractType<?> cellType)
     {
         TableMetadata table = TableMetadata.builder("test", "test")
                                            .addPartitionKeyColumn("pk", Int32Type.instance)
-                                           .addRegularColumn(columnName, cellType)
+                                           .addRegularColumn("val", cellType)
                                            .partitioner(Murmur3Partitioner.instance)
                                            .caching(CachingParams.CACHE_NOTHING)
                                            .build();
 
         Map<String, String> options = new HashMap<>();
         options.put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, StorageAttachedIndex.class.getCanonicalName());
-        options.put("target", columnName);
+        options.put("target", "val");
 
-        IndexMetadata indexMetadata = IndexMetadata.fromSchemaMetadata(columnName, IndexMetadata.Kind.CUSTOM, options);
+        IndexMetadata indexMetadata = IndexMetadata.fromSchemaMetadata("val", IndexMetadata.Kind.CUSTOM, options);
 
         ColumnFamilyStore cfs = MockSchema.newCFS(table);
 
@@ -380,21 +381,6 @@ public abstract class SAITester extends CQLTester
             IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable);
             if (!indexDescriptor.validatePerSSTableComponents(IndexValidation.CHECKSUM)
                 || !indexDescriptor.validatePerIndexComponents(indexContext, indexIdentifier, IndexValidation.CHECKSUM))
-                return false;
-        }
-        return true;
-    }
-
-    protected boolean validateComponents(IndexTermType indexTermType, String indexName)
-    {
-        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
-        IndexIdentifier indexIdentifier = createIndexIdentifier(cfs.getKeyspaceName(), cfs.getTableName(), indexName);
-
-        for (SSTableReader sstable : cfs.getLiveSSTables())
-        {
-            IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable);
-            if (!indexDescriptor.validatePerSSTableComponents(IndexValidation.HEADER_FOOTER)
-                || !indexDescriptor.validatePerIndexComponents(indexTermType, indexIdentifier, IndexValidation.HEADER_FOOTER))
                 return false;
         }
         return true;
@@ -814,6 +800,11 @@ public abstract class SAITester extends CQLTester
                 return event.getDescription();
         }
         return null;
+    }
+
+    protected ByteComparable integerToByteComparable(int value)
+    {
+        return v -> Int32Type.instance.asComparableBytes(Int32Type.instance.decompose(value), v);
     }
 
     /**

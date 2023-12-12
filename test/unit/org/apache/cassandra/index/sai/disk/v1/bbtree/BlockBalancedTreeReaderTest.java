@@ -34,6 +34,7 @@ import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.v1.segment.SegmentTrieBuffer;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.plan.Expression;
@@ -96,7 +97,7 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
     public void setup() throws Throwable
     {
         indexDescriptor = newIndexDescriptor();
-        index = SAITester.createMockIndex(newIndex(), Int32Type.instance);
+        index = SAITester.createMockIndex(Int32Type.instance);
     }
 
     @Test
@@ -104,13 +105,11 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
     {
         int numRows = 1000;
 
-        final BlockBalancedTreeRamBuffer buffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
+        final SegmentTrieBuffer buffer = new SegmentTrieBuffer();
 
-        byte[] scratch = new byte[4];
-        for (int rowID = 0; rowID < numRows; rowID++)
+        for (int rowId = 0; rowId < numRows; rowId++)
         {
-            NumericUtils.intToSortableBytes(rowID, scratch, 0);
-            buffer.add(rowID, scratch);
+            buffer.add(integerToByteComparable(rowId), Integer.BYTES, rowId);
         }
 
         try (BlockBalancedTreeReader reader = finishAndOpenReader(4, buffer))
@@ -123,13 +122,11 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
     public void testAdvance() throws Exception
     {
         final int numRows = between(1000, 2000);
-        final BlockBalancedTreeRamBuffer buffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
+        final SegmentTrieBuffer buffer = new SegmentTrieBuffer();
 
-        byte[] scratch = new byte[4];
-        for (int rowID = 0; rowID < numRows; rowID++)
+        for (int rowId = 0; rowId < numRows; rowId++)
         {
-            NumericUtils.intToSortableBytes(rowID, scratch, 0);
-            buffer.add(rowID, scratch);
+            buffer.add(integerToByteComparable(rowId), Integer.BYTES, rowId);
         }
 
         try (BlockBalancedTreeReader reader = finishAndOpenReader(2, buffer))
@@ -163,25 +160,21 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
         // method is exercised in a test. To do this we need to ensure that
         // we have at least one leaf that has all the same value and that
         // all of that leaf is requested in a query.
-        final BlockBalancedTreeRamBuffer buffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
-        byte[] scratch = new byte[4];
+        final SegmentTrieBuffer buffer = new SegmentTrieBuffer();
 
-        for (int rowID = 0; rowID < 10; rowID++)
+        for (int rowId = 0; rowId < 10; rowId++)
         {
-            NumericUtils.intToSortableBytes(rowID, scratch, 0);
-            buffer.add(rowID, scratch);
+            buffer.add(integerToByteComparable(rowId), Integer.BYTES, rowId);
         }
 
-        for (int rowID = 10; rowID < 20; rowID++)
+        for (int rowId = 10; rowId < 20; rowId++)
         {
-            NumericUtils.intToSortableBytes(10, scratch, 0);
-            buffer.add(rowID, scratch);
+            buffer.add(integerToByteComparable(10), Integer.BYTES, rowId);
         }
 
-        for (int rowID = 20; rowID < 30; rowID++)
+        for (int rowId = 20; rowId < 30; rowId++)
         {
-            NumericUtils.intToSortableBytes(rowID, scratch, 0);
-            buffer.add(rowID, scratch);
+            buffer.add(integerToByteComparable(rowId), Integer.BYTES, rowId);
         }
 
         try (BlockBalancedTreeReader reader = finishAndOpenReader(5, buffer))
@@ -207,18 +200,15 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
     @Test
     public void testResourcesReleaseWhenQueryDoesntMatchAnything() throws Exception
     {
-        final BlockBalancedTreeRamBuffer buffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
-        byte[] scratch = new byte[4];
-        for (int rowID = 0; rowID < 1000; rowID++)
+        final SegmentTrieBuffer buffer = new SegmentTrieBuffer();
+        for (int rowId = 0; rowId < 1000; rowId++)
         {
-            NumericUtils.intToSortableBytes(rowID, scratch, 0);
-            buffer.add(rowID, scratch);
+            buffer.add(integerToByteComparable(rowId), Integer.BYTES, rowId);
         }
         // add a gap between 1000 and 1100
-        for (int rowID = 1000; rowID < 2000; rowID++)
+        for (int rowId = 1000; rowId < 2000; rowId++)
         {
-            NumericUtils.intToSortableBytes(rowID + 100, scratch, 0);
-            buffer.add(rowID, scratch);
+            buffer.add(integerToByteComparable(rowId + 100), Integer.BYTES, rowId);
         }
 
         try (BlockBalancedTreeReader reader = finishAndOpenReader(50, buffer))
@@ -233,13 +223,11 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
     {
         int numRows = 1000;
 
-        final BlockBalancedTreeRamBuffer buffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
+        final SegmentTrieBuffer buffer = new SegmentTrieBuffer();
 
-        byte[] scratch = new byte[4];
-        for (int rowID = 0; rowID < numRows; rowID++)
+        for (int rowId = 0; rowId < numRows; rowId++)
         {
-            NumericUtils.intToSortableBytes(rowID, scratch, 0);
-            buffer.add(rowID, scratch);
+            buffer.add(integerToByteComparable(rowId), Integer.BYTES, rowId);
         }
 
         try (BlockBalancedTreeReader reader = finishAndOpenReader(4, buffer))
@@ -319,14 +307,13 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
         };
     }
 
-    private BlockBalancedTreeReader finishAndOpenReader(int maxPointsPerLeaf, BlockBalancedTreeRamBuffer buffer) throws Exception
+    private BlockBalancedTreeReader finishAndOpenReader(int maxPointsPerLeaf, SegmentTrieBuffer buffer) throws Exception
     {
         setBDKPostingsWriterSizing(8, 2);
         final NumericIndexWriter writer = new NumericIndexWriter(indexDescriptor,
                                                                  index.identifier(),
                                                                  maxPointsPerLeaf,
-                                                                 Integer.BYTES,
-                                                                 Math.toIntExact(buffer.numRows()));
+                                                                 Integer.BYTES);
 
         final SegmentMetadata.ComponentMetadataMap metadata = writer.writeCompleteSegment(buffer.iterator());
         final long treePosition = metadata.get(IndexComponent.BALANCED_TREE).root;

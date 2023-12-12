@@ -23,11 +23,11 @@ import java.util.function.IntFunction;
 import org.junit.Before;
 import org.junit.Test;
 
+import org.apache.cassandra.index.sai.disk.v1.segment.SegmentTrieBuffer;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.DataInput;
-import org.apache.lucene.util.NumericUtils;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -158,13 +158,11 @@ public class BlockBalancedTreeTest extends SAIRandomizedTester
 
     private long writeBalancedTree(int numRows, int leafSize, IntFunction<Integer> valueProvider) throws Exception
     {
-        final BlockBalancedTreeRamBuffer buffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
+        SegmentTrieBuffer buffer = new SegmentTrieBuffer();
 
-        byte[] scratch = new byte[4];
-        for (int rowID = 0; rowID < numRows; rowID++)
+        for (int rowId = 0; rowId < numRows; rowId++)
         {
-            NumericUtils.intToSortableBytes(valueProvider.apply(rowID), scratch, 0);
-            buffer.add(rowID, scratch);
+            buffer.add(integerToByteComparable(valueProvider.apply(rowId)), Integer.BYTES, rowId);
         }
 
         BlockBalancedTreeWriter writer = new BlockBalancedTreeWriter(4, leafSize);

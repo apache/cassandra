@@ -48,6 +48,7 @@ import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -102,7 +103,7 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
     public void testEqQueriesAgainstStringIndex() throws Exception
     {
         QueryContext context = mock(QueryContext.class);
-        final StorageAttachedIndex index = createMockIndex(newIndex(), UTF8Type.instance);
+        final StorageAttachedIndex index = createMockIndex(UTF8Type.instance);
 
         final int numTerms = getRandom().nextIntBetween(64, 512), numPostings = getRandom().nextIntBetween(256, 1024);
         final List<Pair<ByteComparable, LongArrayList>> termsEnum = buildTermsEnum(numTerms, numPostings);
@@ -161,7 +162,7 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
     public void testUnsupportedOperator() throws Exception
     {
         QueryContext context = mock(QueryContext.class);
-        final StorageAttachedIndex index = createMockIndex(newIndex(), UTF8Type.instance);
+        final StorageAttachedIndex index = createMockIndex(UTF8Type.instance);
 
         final int numTerms = getRandom().nextIntBetween(5, 15), numPostings = getRandom().nextIntBetween(5, 20);
         final List<Pair<ByteComparable, LongArrayList>> termsEnum = buildTermsEnum(numTerms, numPostings);
@@ -187,10 +188,8 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
         final IndexDescriptor indexDescriptor = newIndexDescriptor();
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
-        try (LiteralIndexWriter writer = new LiteralIndexWriter(indexDescriptor, index.identifier()))
-        {
-            indexMetas = writer.writeCompleteSegment(new MemtableTermsIterator(null, null, termsEnum.iterator()));
-        }
+        LiteralIndexWriter writer = new LiteralIndexWriter(indexDescriptor, index.identifier());
+        indexMetas = writer.writeCompleteSegment(new MemtableTermsIterator(null, null, termsEnum.iterator()));
 
         final SegmentMetadata segmentMetadata = new SegmentMetadata(0,
                                                                     size,
@@ -220,6 +219,6 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
 
     private ByteBuffer wrap(ByteComparable bc)
     {
-        return ByteBuffer.wrap(ByteSourceInverse.readBytes(bc.asComparableBytes(ByteComparable.Version.OSS50)));
+        return ByteBuffer.wrap(ByteSourceInverse.readBytes(ByteSourceInverse.unescape(ByteSource.peekable(bc.asComparableBytes(ByteComparable.Version.OSS50)))));
     }
 }

@@ -121,13 +121,12 @@ public class BlockBalancedTreeIndexBuilder
         final TermsIterator termEnum = new MemtableTermsIterator(null, null, terms);
         final SegmentMetadata metadata;
 
-        StorageAttachedIndex index = SAITester.createMockIndex("test", type);
+        StorageAttachedIndex index = SAITester.createMockIndex(type);
 
         NumericIndexWriter writer = new NumericIndexWriter(indexDescriptor,
                                                            index.identifier(),
-                                                           index.termType().fixedSizeOf(),
-                                                           maxSegmentRowId);
-        final SegmentMetadata.ComponentMetadataMap indexMetas = writer.writeCompleteSegment(BlockBalancedTreeIterator.fromTermsIterator(termEnum, index.termType()));
+                                                           index.termType().fixedSizeOf());
+        final SegmentMetadata.ComponentMetadataMap indexMetas = writer.writeCompleteSegment(termEnum);
         metadata = new SegmentMetadata(0,
                                        size,
                                        minSegmentRowId,
@@ -239,7 +238,7 @@ public class BlockBalancedTreeIndexBuilder
     public static AbstractGuavaIterator<Pair<ByteComparable, LongArrayList>> singleOrd(Iterator<ByteBuffer> terms, AbstractType<?> type, int segmentRowIdOffset, int size)
     {
         IndexTermType indexTermType = SAITester.createIndexTermType(type);
-        return new AbstractGuavaIterator<Pair<ByteComparable, LongArrayList>>()
+        return new AbstractGuavaIterator<>()
         {
             private long currentTerm = 0;
             private int currentSegmentRowId = segmentRowIdOffset;
@@ -289,7 +288,7 @@ public class BlockBalancedTreeIndexBuilder
     public static Iterator<ByteBuffer> decimalRange(final BigDecimal startInclusive, final BigDecimal endExclusive)
     {
         int n = endExclusive.subtract(startInclusive).intValueExact() * 10;
-        final Supplier<BigDecimal> generator = new Supplier<BigDecimal>() {
+        final Supplier<BigDecimal> generator = new Supplier<>() {
             BigDecimal current = startInclusive;
 
             @Override
@@ -310,7 +309,7 @@ public class BlockBalancedTreeIndexBuilder
     public static Iterator<ByteBuffer> bigIntegerRange(final BigInteger startInclusive, final BigInteger endExclusive)
     {
         int n = endExclusive.subtract(startInclusive).intValueExact();
-        final Supplier<BigInteger> generator = new Supplier<BigInteger>() {
+        final Supplier<BigInteger> generator = new Supplier<>() {
             BigInteger current = startInclusive;
 
             @Override

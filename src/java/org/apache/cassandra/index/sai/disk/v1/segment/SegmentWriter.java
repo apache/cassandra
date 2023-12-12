@@ -15,21 +15,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.index.sai.utils;
 
-import java.io.Closeable;
-import java.nio.ByteBuffer;
+package org.apache.cassandra.index.sai.disk.v1.segment;
+
+import java.io.IOException;
 import java.util.Iterator;
-import javax.annotation.concurrent.NotThreadSafe;
 
-/**
- * An iterator over the contents of an index that extends {@link Iterator}&lt;{@link IndexEntry}&gt; that provides the min and max
- * terms in the index. Each {@link IndexEntry} contains a term and the postings associated with that term.
- */
-@NotThreadSafe
-public interface TermsIterator extends Iterator<IndexEntry>, Closeable
+import org.apache.cassandra.index.sai.utils.IndexEntry;
+
+public interface SegmentWriter
 {
-    ByteBuffer getMinTerm();
+    /**
+     * Appends a set of terms and associated postings to their respective overall SSTable component files.
+     *
+     * @param indexEntryIterator an {@link Iterator} of {@link IndexEntry}s sorted in term order.
+     *
+     * @return metadata describing the location of this inverted index in the overall SSTable terms and postings component files
+     */
+    SegmentMetadata.ComponentMetadataMap writeCompleteSegment(Iterator<IndexEntry> indexEntryIterator) throws IOException;
 
-    ByteBuffer getMaxTerm();
+    /**
+     * Returns the number of rows written to the segment
+     *
+     * @return the number of rows
+     */
+    long getNumberOfRows();
 }
