@@ -214,9 +214,7 @@ public class TrieMemoryIndexTest extends SAIRandomizedTester
             assertEquals(1, pair.right.size());
 
             final int rowId = i;
-            final ByteComparable expectedByteComparable = index.index.termType().isLiteral()
-                                                          ? ByteComparable.fixedLength(decompose.apply(rowId))
-                                                          : version -> type.asComparableBytes(decompose.apply(rowId), version);
+            final ByteComparable expectedByteComparable = version -> type.asComparableBytes(decompose.apply(rowId), version);
             final ByteComparable actualByteComparable = pair.left;
             assertEquals("Mismatch at: " + i, 0, ByteComparable.compare(expectedByteComparable, actualByteComparable, ByteComparable.Version.OSS50));
 

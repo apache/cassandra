@@ -15,21 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.index.sai.utils;
 
-import java.io.Closeable;
-import java.nio.ByteBuffer;
-import java.util.Iterator;
-import javax.annotation.concurrent.NotThreadSafe;
+import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
-/**
- * An iterator over the contents of an index that extends {@link Iterator}&lt;{@link IndexEntry}&gt; that provides the min and max
- * terms in the index. Each {@link IndexEntry} contains a term and the postings associated with that term.
- */
-@NotThreadSafe
-public interface TermsIterator extends Iterator<IndexEntry>, Closeable
+public class IndexEntry
 {
-    ByteBuffer getMinTerm();
+    public final ByteComparable term;
+    public final PostingList postingList;
 
-    ByteBuffer getMaxTerm();
+    private IndexEntry(ByteComparable term, PostingList postingList)
+    {
+        this.term = term;
+        this.postingList = postingList;
+    }
+
+    public static IndexEntry create(ByteComparable term, PostingList postingList)
+    {
+        return new IndexEntry(term, postingList);
+    }
 }

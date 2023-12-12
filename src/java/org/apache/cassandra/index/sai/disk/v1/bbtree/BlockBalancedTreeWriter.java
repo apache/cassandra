@@ -21,6 +21,7 @@ package org.apache.cassandra.index.sai.disk.v1.bbtree;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 
 import javax.annotation.concurrent.NotThreadSafe;
@@ -30,9 +31,10 @@ import com.google.common.base.MoreObjects;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.index.sai.disk.ResettableByteBuffersIndexOutput;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
-import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.index.sai.utils.IndexEntry;
 import org.apache.cassandra.utils.ByteArrayUtil;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexOutput;
@@ -130,26 +132,26 @@ public class BlockBalancedTreeWriter
     }
 
     /**
-     * Write the sorted values from a {@link BlockBalancedTreeIterator}.
+     * Write the sorted values from an {@link Iterator}.
      * <p>
      * @param treeOutput The {@link IndexOutput} to write the balanced tree to
-     * @param values The {@link BlockBalancedTreeIterator} containing the values and rowIDs to be written
+     * @param iterator An {@link Iterator} of {@link IndexEntry}s containing the terms and postings, sorted in term order
      * @param callback The {@link Callback} used to record the leaf postings for each leaf
      *
      * @return The file pointer to the beginning of the balanced tree
      */
-    public long write(IndexOutput treeOutput, BlockBalancedTreeIterator values, final Callback callback) throws IOException
+    public long write(IndexOutput treeOutput, Iterator<IndexEntry> iterator, final Callback callback) throws IOException
     {
         SAICodecUtils.writeHeader(treeOutput);
 
         LeafWriter leafWriter = new LeafWriter(treeOutput, callback);
 
-        while (values.hasNext())
+        while (iterator.hasNext())
         {
-            Pair<byte[], PostingList> pair = values.next();
+            IndexEntry indexEntry = iterator.next();
             long segmentRowId;
-            while ((segmentRowId = pair.right.nextPosting()) != END_OF_STREAM)
-                leafWriter.add(pair.left, segmentRowId);
+            while ((segmentRowId = indexEntry.postingList.nextPosting()) != END_OF_STREAM)
+                leafWriter.add(indexEntry.term, segmentRowId);
         }
 
         valueCount = leafWriter.finish();
@@ -488,6 +490,7 @@ public class BlockBalancedTreeWriter
         private final Callback callback;
         private final ByteBuffersDataOutput leafOrderIndexOutput = new ByteBuffersDataOutput(2 * 1024);
         private final ByteBuffersDataOutput leafBlockOutput = new ByteBuffersDataOutput(32 * 1024);
+        private final byte[] packedValue = new byte[bytesPerValue];
         private final byte[] lastPackedValue = new byte[bytesPerValue];
 
         private long valueCount;
@@ -511,8 +514,10 @@ public class BlockBalancedTreeWriter
          * Adds a value and row ID to the current leaf block. If the leaf block is full after the addition
          * the current leaf block is written to disk.
          */
-        void add(byte[] packedValue, long rowID) throws IOException
+        void add(ByteComparable value, long rowID) throws IOException
         {
+            ByteSourceInverse.copyBytes(value.asComparableBytes(ByteComparable.Version.OSS50), packedValue);
+
             if (DEBUG)
                 valueInOrder(valueCount + leafValueCount, lastPackedValue, packedValue, 0, rowID, lastRowID);
 
@@ -625,7 +630,7 @@ public class BlockBalancedTreeWriter
             callback.writeLeafPostings(rowIDAndIndexes, 0, leafValueCount);
 
             // Write the common prefix for the leaf block
-            writeCommonPrefix(treeOutput, commonPrefixLength, leafValues);
+            writeCommonPrefix(treeOutput, commonPrefixLength);
 
             // Write the run length encoded packed values for the leaf block
             leafBlockOutput.reset();
@@ -649,11 +654,11 @@ public class BlockBalancedTreeWriter
             }
         }
 
-        private void writeCommonPrefix(DataOutput treeOutput, int commonPrefixLength, byte[] packedValue) throws IOException
+        private void writeCommonPrefix(DataOutput treeOutput, int commonPrefixLength) throws IOException
         {
             treeOutput.writeVInt(commonPrefixLength);
             if (commonPrefixLength > 0)
-                treeOutput.writeBytes(packedValue, 0, commonPrefixLength);
+                treeOutput.writeBytes(leafValues, 0, commonPrefixLength);
         }
 
         private void writeLeafBlockPackedValues(DataOutput out, int commonPrefixLength, int count) throws IOException
@@ -704,24 +709,24 @@ public class BlockBalancedTreeWriter
 
         // The following 3 methods are only used when DEBUG is true:
 
-        private void valueInBounds(byte[] packedValue, int packedValueOffset, byte[] minPackedValue, byte[] maxPackedValue)
+        private void valueInBounds(byte[] packedValues, int packedValueOffset, byte[] minPackedValue, byte[] maxPackedValue)
         {
-            if (ByteArrayUtil.compareUnsigned(packedValue,
+            if (ByteArrayUtil.compareUnsigned(packedValues,
                                               packedValueOffset,
                                               minPackedValue,
                                               0,
                                               bytesPerValue) < 0)
             {
-                throw new AssertionError("value=" + new BytesRef(packedValue, packedValueOffset, bytesPerValue) +
+                throw new AssertionError("value=" + new BytesRef(packedValues, packedValueOffset, bytesPerValue) +
                                          " is < minPackedValue=" + new BytesRef(minPackedValue));
             }
 
-            if (ByteArrayUtil.compareUnsigned(packedValue,
+            if (ByteArrayUtil.compareUnsigned(packedValues,
                                               packedValueOffset,
                                               maxPackedValue, 0,
                                               bytesPerValue) > 0)
             {
-                throw new AssertionError("value=" + new BytesRef(packedValue, packedValueOffset, bytesPerValue) +
+                throw new AssertionError("value=" + new BytesRef(packedValues, packedValueOffset, bytesPerValue) +
                                          " is > maxPackedValue=" + new BytesRef(maxPackedValue));
             }
         }
@@ -740,15 +745,15 @@ public class BlockBalancedTreeWriter
             }
         }
 
-        private void valueInOrder(long ord, byte[] lastPackedValue, byte[] packedValue, int packedValueOffset, long rowId, long lastRowId)
+        private void valueInOrder(long ord, byte[] lastPackedValue, byte[] packedValues, int packedValueOffset, long rowId, long lastRowId)
         {
             if (ord > 0)
             {
-                int cmp = ByteArrayUtil.compareUnsigned(lastPackedValue, 0, packedValue, packedValueOffset, bytesPerValue);
+                int cmp = ByteArrayUtil.compareUnsigned(lastPackedValue, 0, packedValues, packedValueOffset, bytesPerValue);
                 if (cmp > 0)
                 {
                     throw new AssertionError("values out of order: last value=" + new BytesRef(lastPackedValue) +
-                                             " current value=" + new BytesRef(packedValue, packedValueOffset, bytesPerValue) +
+                                             " current value=" + new BytesRef(packedValues, packedValueOffset, bytesPerValue) +
                                              " ord=" + ord);
                 }
                 if (cmp == 0 && rowId < lastRowId)
@@ -756,7 +761,7 @@ public class BlockBalancedTreeWriter
                     throw new AssertionError("row IDs out of order: last rowID=" + lastRowId + " current rowID=" + rowId + " ord=" + ord);
                 }
             }
-            System.arraycopy(packedValue, packedValueOffset, lastPackedValue, 0, bytesPerValue);
+            System.arraycopy(packedValues, packedValueOffset, lastPackedValue, 0, bytesPerValue);
         }
     }
 }

@@ -37,7 +37,6 @@ import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
-import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IndexInput;
@@ -163,7 +162,7 @@ public class IndexStreamingFailureTest extends TestBaseImpl
         }
 
         @SuppressWarnings("unused")
-        public static SegmentMetadata flush(IndexDescriptor indexDescriptor, IndexIdentifier indexIdentifier, @SuperCall Callable<SegmentMetadata> zuper) throws IOException
+        public static SegmentMetadata flush(IndexDescriptor indexDescriptor, @SuperCall Callable<SegmentMetadata> zuper) throws IOException
         {
             if (failFlush)
                 throw new IOException(TEST_ERROR_MESSAGE);

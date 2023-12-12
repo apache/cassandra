@@ -26,6 +26,7 @@ import com.carrotsearch.hppc.LongArrayList;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.utils.IndexEntry;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.v1.segment.LiteralIndexSegmentTermsReader;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
@@ -74,10 +75,8 @@ public class TermsReaderTest extends SAIRandomizedTester
         final List<Pair<ByteComparable, LongArrayList>> termsEnum = buildTermsEnum(terms, postings);
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
-        try (LiteralIndexWriter writer = new LiteralIndexWriter(indexDescriptor, indexIdentifier))
-        {
-            indexMetas = writer.writeCompleteSegment(new MemtableTermsIterator(null, null, termsEnum.iterator()));
-        }
+        LiteralIndexWriter writer = new LiteralIndexWriter(indexDescriptor, indexIdentifier);
+        indexMetas = writer.writeCompleteSegment(new MemtableTermsIterator(null, null, termsEnum.iterator()));
 
         FileHandle termsData = indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexIdentifier, null);
         FileHandle postingLists = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexIdentifier, null);
@@ -85,10 +84,10 @@ public class TermsReaderTest extends SAIRandomizedTester
         try (TermsIterator iterator = new TermsScanner(termsData, postingLists, indexMetas.get(IndexComponent.TERMS_DATA).root))
         {
             int i = 0;
-            for (ByteComparable term = iterator.next(); term != null; term = iterator.next())
+            for (IndexEntry indexEntry = iterator.next(); indexEntry != null; indexEntry = iterator.next())
             {
                 final ByteComparable expected = termsEnum.get(i++).left;
-                assertEquals(0, ByteComparable.compare(expected, term, ByteComparable.Version.OSS50));
+                assertEquals(0, ByteComparable.compare(expected, indexEntry.term, ByteComparable.Version.OSS50));
             }
         }
     }
@@ -100,10 +99,8 @@ public class TermsReaderTest extends SAIRandomizedTester
         final List<Pair<ByteComparable, LongArrayList>> termsEnum = buildTermsEnum(numTerms, numPostings);
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
-        try (LiteralIndexWriter writer = new LiteralIndexWriter(indexDescriptor, indexIdentifier))
-        {
-            indexMetas = writer.writeCompleteSegment(new MemtableTermsIterator(null, null, termsEnum.iterator()));
-        }
+        LiteralIndexWriter writer = new LiteralIndexWriter(indexDescriptor, indexIdentifier);
+        indexMetas = writer.writeCompleteSegment(new MemtableTermsIterator(null, null, termsEnum.iterator()));
 
         FileHandle termsData = indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexIdentifier, null);
         FileHandle postingLists = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexIdentifier, null);
