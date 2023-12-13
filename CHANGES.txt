@@ -176,6 +176,8 @@ Merged from 3.0:
  * Remove unused suppressions (CASSANDRA-18724)
 
 Unreleased
+ * [SO-26456] Fix CAS related metrics don't have necessary prefix/scope bug
+4.0.6.11
  * [SO-26331] nodetool compact should have -s option by default
  * [SO-26369] Add error log feature to enable error log for quries
  * [SO-24205] Cassandra Anti-pattern for non-LOCAL_QUORUM mutations
