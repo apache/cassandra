@@ -27,10 +27,12 @@ import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
 import org.assertj.core.api.Assertions;
+import org.assertj.core.data.Offset;
 
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.utils.StorageCompatibilityMode.NONE;
 import static org.apache.cassandra.utils.StorageCompatibilityMode.UPGRADING;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Tests TTL the overflow policy triggers at the correct limit: year 2038 <=nb or 2186 >=oa
@@ -46,6 +48,7 @@ public class MixedModeTTLOverflowUpgradeTest extends UpgradeTestBase
     public void testTTLOverflowDuringUpgrade() throws Throwable
     {
         testTTLOverflow((cluster, node) -> {
+            cluster.disableAutoCompaction(KEYSPACE);
             if (node == 1) // only node1 is upgraded, and the cluster is in mixed versions mode
             {
                 assertPolicyTriggersAt2038(cluster.coordinator(1));
@@ -84,6 +87,7 @@ public class MixedModeTTLOverflowUpgradeTest extends UpgradeTestBase
     public void testTTLOverflowAfterUpgrade() throws Throwable
     {
         testTTLOverflow((cluster, node) -> {
+            cluster.disableAutoCompaction(KEYSPACE);
             if (node == 1) // only node1 is upgraded, and the cluster is in mixed versions mode
             {
                 assertPolicyTriggersAt2038(cluster.coordinator(1));
@@ -156,6 +160,16 @@ public class MixedModeTTLOverflowUpgradeTest extends UpgradeTestBase
                       .hasMessageContaining("2106");
         }
         else
+        {
+            long t0 = Clock.Global.currentTimeMillis();
             coordinator.execute(withKeyspace("INSERT INTO %s.t (k, v) VALUES (0, 0) USING TTL " + Attributes.MAX_TTL), ALL);
+            int ttlMemtable = (int) coordinator.execute(withKeyspace("SELECT TTL(v) FROM %s.t WHERE k = 0"), ALL)[0][0];
+            coordinator.instance().flush(KEYSPACE);
+            int ttlSSTable = (int) coordinator.execute(withKeyspace("SELECT TTL(v) FROM %s.t WHERE k = 0"), ALL)[0][0];
+            long t1 = Clock.Global.currentTimeMillis();
+            int delta = (int) Math.max((t1 - t0) / 1000, 1);
+            assertThat(ttlMemtable).isCloseTo(Attributes.MAX_TTL, Offset.offset(delta));
+            assertThat(ttlSSTable).isCloseTo(Attributes.MAX_TTL, Offset.offset(delta));
+        }
     }
 }
