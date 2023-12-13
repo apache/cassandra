@@ -18,45 +18,28 @@
 
 package org.apache.cassandra.utils;
 
-import java.io.IOException;
-import java.net.InetAddress;
-import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Random;
-import java.util.TreeMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-
 import com.google.common.primitives.Ints;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import com.vdurmont.semver4j.Semver;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.UUIDType;
-import org.apache.cassandra.dht.ByteOrderedPartitioner;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.LengthPartitioner;
-import org.apache.cassandra.dht.LocalPartitioner;
-import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.dht.OrderPreservingPartitioner;
-import org.apache.cassandra.dht.RandomPartitioner;
+import org.apache.cassandra.dht.*;
+import org.junit.Assert;
+import org.junit.Assume;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+import java.util.concurrent.*;
 
 import static org.apache.cassandra.utils.FBUtilities.parseKernelVersion;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -375,10 +358,12 @@ public class FBUtilitiesTest
     @Test
     public void testParseKernelVersion()
     {
-        assertThat(parseKernelVersion("4.4.0-21-generic")).isEqualTo(new CassandraVersion("4.4.0-21-generic"));
-        assertThat(parseKernelVersion("4.4.0-21-generic\n")).isEqualTo(new CassandraVersion("4.4.0-21-generic"));
-        assertThat(parseKernelVersion("\n4.4.0-21-generic\n")).isEqualTo(new CassandraVersion("4.4.0-21-generic"));
-        assertThat(parseKernelVersion("\n 4.4.0-21-generic \n")).isEqualTo(new CassandraVersion("4.4.0-21-generic"));
+        assertThat(parseKernelVersion("4.4.0-21-generic").toString()).isEqualTo("4.4.0-21-generic");
+        assertThat(parseKernelVersion("4.4.0-pre21-generic").toString()).isEqualTo("4.4.0-pre21-generic");
+        assertThat(parseKernelVersion("4.4-pre21-generic").toString()).isEqualTo("4.4-pre21-generic");
+        assertThat(parseKernelVersion("4.4.0-21-generic\n").toString()).isEqualTo("4.4.0-21-generic");
+        assertThat(parseKernelVersion("\n4.4.0-21-generic\n").toString()).isEqualTo("4.4.0-21-generic");
+        assertThat(parseKernelVersion("\n 4.4.0-21-generic \n").toString()).isEqualTo("4.4.0-21-generic");
         assertThat(parseKernelVersion("\n \n")).isEqualTo(null);
     }
 
@@ -386,8 +371,8 @@ public class FBUtilitiesTest
     public void testGetKernelVersion()
     {
         Assume.assumeTrue(FBUtilities.isLinux);
-        CassandraVersion kernelVersion = FBUtilities.getKernelVersion();
-        assertThat(kernelVersion).isGreaterThan(new CassandraVersion("0.0.0"));
-        assertThat(kernelVersion).isLessThan(new CassandraVersion("100.0.0"));
+        Semver kernelVersion = FBUtilities.getKernelVersion();
+        assertThat(kernelVersion).isGreaterThan(new Semver("0.0.0", Semver.SemverType.LOOSE));
+        assertThat(kernelVersion).isLessThan(new Semver("100.0.0", Semver.SemverType.LOOSE));
     }
 }

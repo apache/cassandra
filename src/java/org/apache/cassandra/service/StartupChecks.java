@@ -49,6 +49,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.vdurmont.semver4j.Semver;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
@@ -69,7 +70,6 @@ import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JavaUtils;
 import org.apache.cassandra.utils.NativeLibrary;
@@ -77,6 +77,7 @@ import org.apache.cassandra.utils.SigarLibrary;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PORT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_KERNEL_BUG_1057843_CHECK;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NAME;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -193,52 +194,64 @@ public class StartupChecks
     // https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1057843
     public static final StartupCheck checkKernelBug1057843 = new StartupCheck()
     {
-        private final Range<CassandraVersion> affectedKernels = Range.closedOpen(
-        new CassandraVersion("6.1.64").toBaseVersion(), new CassandraVersion("6.1.66").toBaseVersion());
+        private final Range<Semver> affectedKernels = Range.closedOpen(
+        new Semver("6.1.64", Semver.SemverType.LOOSE), new Semver("6.1.66", Semver.SemverType.LOOSE));
 
         private final Set<String> affectedFileSystemTypes = Set.of("ext4");
 
         @Override
         public void execute(StartupChecksOptions startupChecksOptions) throws StartupException
         {
-            if (startupChecksOptions.isDisabled(getStartupCheckType()))
-                return;
-
-            if (!FBUtilities.isLinux)
-                return;
-
-            Set<Path> directIOWritePaths = new HashSet<>();
-            if (DatabaseDescriptor.getCommitLogWriteDiskAccessMode() == Config.DiskAccessMode.direct)
-                directIOWritePaths.add(new File(DatabaseDescriptor.getCommitLogLocation()).toPath());
-            // TODO: add data directories when direct IO is supported for flushing and compaction
-
-            Set<Path> affectedPaths = new HashSet<>();
-            for (Path path : directIOWritePaths)
+            try
             {
-                try
+                if (startupChecksOptions.isDisabled(getStartupCheckType()))
+                    return;
+
+                if (!FBUtilities.isLinux)
+                    return;
+
+                Set<Path> directIOWritePaths = new HashSet<>();
+                if (DatabaseDescriptor.getCommitLogWriteDiskAccessMode() == Config.DiskAccessMode.direct)
+                    directIOWritePaths.add(new File(DatabaseDescriptor.getCommitLogLocation()).toPath());
+                // TODO: add data directories when direct IO is supported for flushing and compaction
+
+                Set<Path> affectedPaths = new HashSet<>();
+                for (Path path : directIOWritePaths)
                 {
-                    if (affectedFileSystemTypes.contains(Files.getFileStore(path).type().toLowerCase()))
-                        affectedPaths.add(path);
+                    try
+                    {
+                        if (affectedFileSystemTypes.contains(Files.getFileStore(path).type().toLowerCase()))
+                            affectedPaths.add(path);
+                    }
+                    catch (IOException e)
+                    {
+                        throw new StartupException(StartupException.ERR_WRONG_MACHINE_STATE, "Failed to determine file system type for path " + path, e);
+                    }
                 }
-                catch (IOException e)
-                {
-                    throw new StartupException(StartupException.ERR_WRONG_MACHINE_STATE, "Failed to determine file system type for path " + path, e);
-                }
+
+                if (affectedPaths.isEmpty())
+                    return;
+
+                Semver kernelVersion = FBUtilities.getKernelVersion();
+                if (!affectedKernels.contains(kernelVersion.withClearedSuffixAndBuild()))
+                    return;
+
+
+                throw new StartupException(StartupException.ERR_WRONG_MACHINE_STATE,
+                                           String.format("Detected kernel version %s with affected file system types %s and direct IO enabled for paths %s. " +
+                                                         "This combination is known to cause data corruption. To start Cassandra in this environment, " +
+                                                         "you have to disable direct IO for the affected paths. If you are sure the verification provided " +
+                                                         "a false positive result, you can suppress it by setting '" + IGNORE_KERNEL_BUG_1057843_CHECK.getKey() + "' system property to 'true'. " +
+                                                         "Please see https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1057843 for more information.",
+                                                         kernelVersion, affectedFileSystemTypes, affectedPaths));
             }
-
-            if (affectedPaths.isEmpty())
-                return;
-
-            CassandraVersion kernelVersion = FBUtilities.getKernelVersion();
-            if (!affectedKernels.contains(kernelVersion.toBaseVersion()))
-                return;
-
-            throw new StartupException(StartupException.ERR_WRONG_MACHINE_STATE,
-                                       String.format("Detected kernel version %s with affected file system types %s and direct IO enabled for paths %s. " +
-                                                     "This combination is known to cause data corruption. To start Cassandra in this environment, " +
-                                                     "you have to disable direct IO for the affected paths. " +
-                                                     "Please see https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1057843 for more information.",
-                                                     kernelVersion, affectedFileSystemTypes, affectedPaths));
+            catch (StartupException | RuntimeException ex)
+            {
+                if (IGNORE_KERNEL_BUG_1057843_CHECK.getBoolean())
+                    logger.warn("Kernel bug 1057843 check failed - ignoring as '{}' system property is set: {}", IGNORE_KERNEL_BUG_1057843_CHECK.getKey(), ex.getMessage());
+                else
+                    throw ex;
+            }
         }
     };
 

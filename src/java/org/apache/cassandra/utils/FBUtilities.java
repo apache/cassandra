@@ -69,6 +69,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.vdurmont.semver4j.Semver;
+import com.vdurmont.semver4j.SemverException;
 import org.apache.cassandra.audit.IAuditLogger;
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.auth.IAuthenticator;
@@ -136,7 +138,7 @@ public class FBUtilities
 
     private static int availableProcessors = CASSANDRA_AVAILABLE_PROCESSORS.getInt(DatabaseDescriptor.getAvailableProcessors());
 
-    private static volatile Supplier<CassandraVersion> kernelVersionSupplier = Suppliers.memoize(FBUtilities::getKernelVersionFromUname);
+    private static volatile Supplier<Semver> kernelVersionSupplier = Suppliers.memoize(FBUtilities::getKernelVersionFromUname);
 
     public static void setAvailableProcessors(int value)
     {
@@ -144,7 +146,7 @@ public class FBUtilities
     }
 
     @VisibleForTesting
-    public static void setKernelVersionSupplier(Supplier<CassandraVersion> supplier)
+    public static void setKernelVersionSupplier(Supplier<Semver> supplier)
     {
         kernelVersionSupplier = supplier;
     }
@@ -1113,14 +1115,14 @@ public class FBUtilities
             if (!completed)
             {
                 process.destroyForcibly();
-                logger.warn("Command {} did not complete in {}, killed forcibly:\noutput:\n{}\n(truncated {} bytes)\nerror:\n{}\n(truncated {} bytes)",
+                logger.error("Command {} did not complete in {}, killed forcibly:\noutput:\n{}\n(truncated {} bytes)\nerror:\n{}\n(truncated {} bytes)",
                             Arrays.toString(cmd), timeout, out.asString(), outOverflow, err.asString(), errOverflow);
                 throw new TimeoutException("Command " + Arrays.toString(cmd) + " did not complete in " + timeout);
             }
             int r = process.exitValue();
             if (r != 0)
             {
-                logger.warn("Command {} failed with exit code {}:\noutput:\n{}\n(truncated {} bytes)\nerror:\n{}\n(truncated {} bytes)",
+                logger.error("Command {} failed with exit code {}:\noutput:\n{}\n(truncated {} bytes)\nerror:\n{}\n(truncated {} bytes)",
                             Arrays.toString(cmd), r, out.asString(), outOverflow, err.asString(), errOverflow);
                 throw new IOException("Command " + Arrays.toString(cmd) + " failed with exit code " + r);
             }
@@ -1369,13 +1371,13 @@ public class FBUtilities
         }
     }
 
-    public static CassandraVersion getKernelVersion()
+    public static Semver getKernelVersion()
     {
         return kernelVersionSupplier.get();
     }
 
     @VisibleForTesting
-    static CassandraVersion getKernelVersionFromUname()
+    static Semver getKernelVersionFromUname()
     {
         if (!isLinux)
             return null;
@@ -1401,16 +1403,24 @@ public class FBUtilities
     }
 
     @VisibleForTesting
-    static CassandraVersion parseKernelVersion(String outStr)
+    static Semver parseKernelVersion(String versionString)
     {
-        try (Scanner scanner = new Scanner(outStr))
+        try (Scanner scanner = new Scanner(versionString))
         {
             while (scanner.hasNextLine())
             {
                 String version = scanner.nextLine().trim();
                 if (version.isBlank() || version.isEmpty())
                     continue;
-                return new CassandraVersion(version);
+                try
+                {
+                    return new Semver(version, Semver.SemverType.LOOSE);
+                }
+                catch (SemverException ex)
+                {
+                    logger.warn("Error while trying to parse kernel version from '{}' - {}", versionString, ex.getMessage());
+                    return null;
+                }
             }
         }
         return null;
