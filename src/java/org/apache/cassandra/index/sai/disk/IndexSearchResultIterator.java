@@ -115,26 +115,12 @@ public class IndexSearchResultIterator extends KeyRangeIterator
 
     protected PrimaryKey computeNext()
     {
-        try
-        {
-            return union.hasNext() ? union.next() : endOfData();
-        }
-        finally
-        {
-            context.checkpoint();
-        }
+        return union.hasNext() ? union.next() : endOfData();
     }
 
     protected void performSkipTo(PrimaryKey nextKey)
     {
-        try
-        {
-            union.skipTo(nextKey);
-        }
-        finally
-        {
-            context.checkpoint();
-        }
+        union.skipTo(nextKey);
     }
 
     public void close()

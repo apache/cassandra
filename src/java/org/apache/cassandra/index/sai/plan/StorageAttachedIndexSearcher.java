@@ -153,11 +153,6 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         @Override
         public UnfilteredRowIterator computeNext()
         {
-            // IMPORTANT: The correctness of the entire query pipeline relies on the fact that we consume a token
-            // and materialize its keys before moving on to the next token in the flow. This sequence must not be broken
-            // with toList() or similar. (Both the union and intersection flow constructs, to avoid excessive object
-            // allocation, reuse their token mergers as they process individual positions on the ring.)
-
             if (resultKeyIterator == null)
                 return endOfData();
 
@@ -379,6 +374,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             try (UnfilteredRowIterator partition = queryController.queryStorage(key, executionController))
             {
                 queryContext.partitionsRead++;
+                queryContext.checkpoint();
 
                 return applyIndexFilter(key, partition, filterTree, queryContext);
             }
