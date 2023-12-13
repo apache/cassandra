@@ -1,4 +1,5 @@
 5.0-beta2
+ * Fix the correspondingMessagingVersion of SSTable format and improve TTL overflow tests coverage (CASSANDRA-19197)
  * Fix resource cleanup after SAI query timeouts (CASSANDRA-19177)
  * Suppress CVE-2023-6481 (CASSANDRA-19184)
 Merged from 4.1:
@@ -6,6 +7,7 @@ Merged from 4.1:
 Merged from 4.0:
 Merged from 3.11:
 Merged from 3.0:
+
 
 5.0-beta1
  * Fix SAI intersection queries (CASSANDRA-19011)

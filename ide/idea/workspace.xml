@@ -200,8 +200,9 @@
                                           -Dmigration-sstable-root=$PROJECT_DIR$/test/data/migration-sstables
                                           -XX:ActiveProcessorCount=2
                                           -XX:HeapDumpPath=build/test
-                                          -XX:MaxMetaspaceSize=1G
+                                          -XX:MaxMetaspaceSize=2G
                                           -XX:SoftRefLRUPolicyMSPerMB=0
+                                          -Xmx4G
                                           -ea" />
       <option name="PARAMETERS" value="" />
       <fork_mode value="class" />
