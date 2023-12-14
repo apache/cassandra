@@ -22,8 +22,6 @@ import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
-import org.junit.Test;
-
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.Feature;
@@ -35,8 +33,6 @@ import org.assertj.core.data.Offset;
 
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.LOCAL_ONE;
-import static org.apache.cassandra.utils.StorageCompatibilityMode.NONE;
-import static org.apache.cassandra.utils.StorageCompatibilityMode.UPGRADING;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -47,23 +43,23 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * @see StorageCompatibilityMode
  */
-public class MixedModeTTLOverflowUpgradeTest extends UpgradeTestBase
+public abstract class MixedModeTTLOverflowUpgradeTestBase extends UpgradeTestBase
 {
-    private static final int SMALL_TTL = 3600;
+    static final int SMALL_TTL = 3600;
 
-    private static final String T_REGULAR = "table_regular";
-    private static final String T_CLUST = "table_clust";
-    private static final String T_STATIC = "table_static";
-    private static final String T_COMPLEX = "table_complex";
-    private static final String T_FROZEN = "table_frozen";
-    private static final String T_INDEX = "table_indexed";
-    private static final String INDEX = "idx";
-    private static final String TYPE = "complex_type";
+    static final String T_REGULAR = "table_regular";
+    static final String T_CLUST = "table_clust";
+    static final String T_STATIC = "table_static";
+    static final String T_COMPLEX = "table_complex";
+    static final String T_FROZEN = "table_frozen";
+    static final String T_INDEX = "table_indexed";
+    static final String INDEX = "idx";
+    static final String TYPE = "complex_type";
 
-    private static final int NODE_1_MAX_TTL_KEY_OFFSET = 1000;
-    private static final int NODE_2_MAX_TTL_KEY_OFFSET = 2000;
-    private static final int NODE_1_MIXED_TTL_KEY_OFFSET = 3000;
-    private static final int NODE_2_MIXED_TTL_KEY_OFFSET = 4000;
+    static final int NODE_1_MAX_TTL_KEY_OFFSET = 1000;
+    static final int NODE_2_MAX_TTL_KEY_OFFSET = 2000;
+    static final int NODE_1_MIXED_TTL_KEY_OFFSET = 3000;
+    static final int NODE_2_MIXED_TTL_KEY_OFFSET = 4000;
 
     enum Step
     {
@@ -77,76 +73,9 @@ public class MixedModeTTLOverflowUpgradeTest extends UpgradeTestBase
         NODE1_NONE_NODE2_NONE,
     }
 
-    private static volatile long clusterStatupTime = 0;
+    static volatile long clusterStatupTime = 0;
 
-    @Test
-    public void testTTLOverflowDuringUpgrade() throws Throwable
-    {
-        testTTLOverflow((cluster, node) -> {
-            cluster.disableAutoCompaction(KEYSPACE);
-            if (node == 1) // only node1 is upgraded, and the cluster is in mixed versions mode
-            {
-                verify(Step.NODE1_40_NODE2_PREV, cluster, true);
-
-                // We restart the upgraded node 1 with compatibility mode = UPGRADING
-                restartNodeWithCompatibilityMode(cluster, 1, UPGRADING);
-                // 2038 should still be the limit, because node2 is not upgraded yet
-                verify(Step.NODE1_UPGRADING_NODE2_PREV, cluster, true);
-            }
-            else // both nodes have been upgraded, and the cluster isn't in mixed version mode anymore
-            {
-                // Once we have completed the upgrade, 2038 should still be the limit because
-                // node2 is still in 4.x compatibility mode
-                verify(Step.NODE1_UPGRADING_NODE2_40, cluster, true);
-
-                // We restart the last upgraded node in UPGRADING compatibility mode
-                restartNodeWithCompatibilityMode(cluster, 2, UPGRADING);
-                // Both nodes are in UPGRADING compatibility mode, so the limit should be 2106
-                verify(Step.NODE1_UPGRADING_NODE2_UPGRADING, cluster, false);
-
-                // We restart get both nodes out of compatibility mode, so the limit should be 2106.
-                restartNodeWithCompatibilityMode(cluster, 1, NONE);
-                verify(Step.NODE1_NONE_NODE2_UPGRADING, cluster, false);
-                restartNodeWithCompatibilityMode(cluster, 2, NONE);
-                verify(Step.NODE1_NONE_NODE2_NONE, cluster, false);
-            }
-        });
-    }
-
-    @Test
-    public void testTTLOverflowAfterUpgrade() throws Throwable
-    {
-        testTTLOverflow((cluster, node) -> {
-            cluster.disableAutoCompaction(KEYSPACE);
-            if (node == 1) // only node1 is upgraded, and the cluster is in mixed versions mode
-            {
-                verify(Step.NODE1_40_NODE2_PREV, cluster, true);
-            }
-            else // both nodes have been upgraded, and the cluster isn't in mixed version mode anymore
-            {
-                verify(Step.NODE1_40_NODE2_40, cluster, true);
-
-                // We restart node1 with compatibility mode UPGRADING
-                restartNodeWithCompatibilityMode(cluster, 1, UPGRADING);
-                // since node2 is still in 4.0 compatibility mode, the limit should remain 2038
-                verify(Step.NODE1_UPGRADING_NODE2_40, cluster, true);
-
-                // We restart node2 in UPGRADING compatibility mode
-                restartNodeWithCompatibilityMode(cluster, 2, UPGRADING);
-                // Both nodes are in UPGRADING compatibility mode, so the limit should be 2106
-                verify(Step.NODE1_UPGRADING_NODE2_UPGRADING, cluster, false);
-
-                // We restart the cluster out of compatibility mode, so the limit should be 2106
-                restartNodeWithCompatibilityMode(cluster, 1, NONE);
-                verify(Step.NODE1_NONE_NODE2_UPGRADING, cluster, false);
-
-                restartNodeWithCompatibilityMode(cluster, 2, NONE);
-                verify(Step.NODE1_NONE_NODE2_NONE, cluster, false);
-            }
-        });
-    }
-
-    private static void testTTLOverflow(RunOnClusterAndNode runAfterNodeUpgrade) throws Throwable
+    static void testTTLOverflow(RunOnClusterAndNode runAfterNodeUpgrade) throws Throwable
     {
         new TestCase()
                 .nodes(2)
@@ -182,7 +111,7 @@ public class MixedModeTTLOverflowUpgradeTest extends UpgradeTestBase
      *                                  allowed expiration date is 2106, and we cannot test that for now because of
      *                                  {@link Attributes#MAX_TTL} limit of 20 years.
      */
-    private static void verify(Step step, UpgradeableCluster cluster, boolean expectPolicyTriggerAt2038)
+    static void verify(Step step, UpgradeableCluster cluster, boolean expectPolicyTriggerAt2038)
     {
         insert(cluster, step.ordinal(), expectPolicyTriggerAt2038);
         query(cluster, step.ordinal(), expectPolicyTriggerAt2038);
@@ -276,7 +205,7 @@ public class MixedModeTTLOverflowUpgradeTest extends UpgradeTestBase
                          String.format("SELECT ttl(%s) FROM %s.%s WHERE k = %d", col, KEYSPACE, T_INDEX, key));
     }
 
-    private static void restartNodeWithCompatibilityMode(UpgradeableCluster cluster, int node, StorageCompatibilityMode mode) throws Throwable
+    static void restartNodeWithCompatibilityMode(UpgradeableCluster cluster, int node, StorageCompatibilityMode mode) throws Throwable
     {
         cluster.get(node).shutdown().get();
         cluster.get(node).config().set("storage_compatibility_mode", mode.toString());
