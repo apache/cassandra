@@ -44,7 +44,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tcm.log.Replication;
+import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.sequences.AddToCMS;
 import org.apache.cassandra.tcm.transformations.SealPeriod;
 
@@ -310,12 +310,12 @@ public class FetchLogFromPeersTest extends TestBaseImpl
             cluster.filters().inbound().to(2).messagesMatching((from, to, message) ->
                 cluster.get(2).callOnInstance(() -> {
                     Message<?> decoded = Instance.deserializeMessage(message);
-                    if (decoded.payload instanceof Replication)
+                    if (decoded.payload instanceof LogState)
                     {
-                        Replication rep = (Replication) decoded.payload;
+                        LogState logState = (LogState) decoded.payload;
                         // drop every other replication message to make sure pending buffer is non-consecutive
                         if (decoded.epoch().getEpoch() % 2 == 0 &&
-                            rep.entries().stream().noneMatch((e) -> e.transform instanceof SealPeriod))
+                            logState.entries.stream().noneMatch((e) -> e.transform instanceof SealPeriod))
                             return false;
                     }
                     return true;

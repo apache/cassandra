@@ -51,7 +51,6 @@ import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.log.LogStorage;
-import org.apache.cassandra.tcm.log.Replication;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.migration.Election;
@@ -116,7 +115,7 @@ public class ClusterMetadataService
     private final LocalLog log;
     private final MetadataSnapshots snapshots;
 
-    private final IVerbHandler<Replication> replicationHandler;
+    private final IVerbHandler<LogState> replicationHandler;
     private final IVerbHandler<LogState> logNotifyHandler;
     private final IVerbHandler<FetchCMSLog> fetchLogHandler;
     private final IVerbHandler<Commit> commitRequestHandler;
@@ -161,7 +160,7 @@ public class ClusterMetadataService
         {
             log = LocalLog.sync(logSpec);
             localProcessor = wrapProcessor.apply(new AtomicLongBackedProcessor(log, logSpec.isReset()));
-            fetchLogHandler = new FetchCMSLog.Handler((e, ignored) -> logStorage.getLogState(e));
+            fetchLogHandler = new FetchCMSLog.Handler((e, ignored) -> logStorage.getLogState(log.metadata().period, e));
         }
         else
         {
@@ -186,8 +185,8 @@ public class ClusterMetadataService
                                             cmsStateSupplier);
 
 
-        replicationHandler = new Replication.ReplicationHandler(log);
-        logNotifyHandler = new Replication.LogNotifyHandler(log);
+        replicationHandler = new LogState.ReplicationHandler(log);
+        logNotifyHandler = new LogState.LogNotifyHandler(log);
         peerLogFetcher = new PeerLogFetcher(log);
     }
 
@@ -205,8 +204,8 @@ public class ClusterMetadataService
         this.processor = new SwitchableProcessor(processor, null, null, replicator, () -> State.LOCAL);
         this.snapshots = snapshots;
 
-        replicationHandler = new Replication.ReplicationHandler(log);
-        logNotifyHandler = new Replication.LogNotifyHandler(log);
+        replicationHandler = new LogState.ReplicationHandler(log);
+        logNotifyHandler = new LogState.LogNotifyHandler(log);
         currentEpochHandler = new CurrentEpochRequestHandler();
 
         fetchLogHandler = isMemberOfOwnershipGroup ? new FetchCMSLog.Handler() : null;
@@ -219,8 +218,8 @@ public class ClusterMetadataService
                                    MetadataSnapshots snapshots,
                                    LocalLog log,
                                    Processor processor,
-                                   Replication.ReplicationHandler replicationHandler,
-                                   Replication.LogNotifyHandler logNotifyHandler,
+                                   LogState.ReplicationHandler replicationHandler,
+                                   LogState.LogNotifyHandler logNotifyHandler,
                                    CurrentEpochRequestHandler currentEpochHandler,
                                    FetchCMSLog.Handler fetchLogHandler,
                                    Commit.Handler commitRequestHandler,
@@ -254,8 +253,8 @@ public class ClusterMetadataService
                                                                 MetadataSnapshots.NO_OP,
                                                                 log,
                                                                 new AtomicLongBackedProcessor(log),
-                                                                new Replication.ReplicationHandler(log),
-                                                                new Replication.LogNotifyHandler(log),
+                                                                new LogState.ReplicationHandler(log),
+                                                                new LogState.LogNotifyHandler(log),
                                                                 new CurrentEpochRequestHandler(),
                                                                 null,
                                                                 null,
@@ -441,7 +440,7 @@ public class ClusterMetadataService
     private ClusterMetadata transformSnapshot(LogState state)
     {
         ClusterMetadata toApply = state.baseState;
-        for (Entry entry : state.transformations.entries())
+        for (Entry entry : state.entries)
         {
             Transformation.Result res = entry.transform.execute(toApply);
             assert res.isSuccess();
@@ -528,7 +527,7 @@ public class ClusterMetadataService
      * Accessors
      */
 
-    public static IVerbHandler<Replication> replicationHandler()
+    public static IVerbHandler<LogState> replicationHandler()
     {
         // Make it possible to get Verb without throwing NPE during simulation
         ClusterMetadataService instance = ClusterMetadataService.instance();
@@ -751,11 +750,6 @@ public class ClusterMetadataService
                                                           // If the transformation got rejected, someone else has beat us to seal this period
                                                           return ClusterMetadata.current();
                                                       });
-    }
-
-    public void initRecentlySealedPeriodsIndex()
-    {
-        Sealed.initIndexFromSystemTables();
     }
 
     public boolean isMigrating()

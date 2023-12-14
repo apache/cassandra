@@ -19,24 +19,19 @@
 package org.apache.cassandra.tcm.log;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
+import java.util.List;
+import java.util.Objects;
 
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runners.Parameterized;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
-import org.apache.cassandra.tcm.Sealed;
+import org.apache.cassandra.tcm.Period;
 
-import static org.apache.cassandra.db.SystemKeyspace.LAST_SEALED_PERIOD_TABLE_NAME;
-import static org.apache.cassandra.db.SystemKeyspace.SEALED_PERIODS_TABLE_NAME;
-import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -62,20 +57,6 @@ public abstract class LogStateTestBase
     }
 
     abstract LogStateSUT getSystemUnderTest(MetadataSnapshots snapshots);
-    protected boolean truncateIndexTable;
-    protected boolean truncateInMemoryIndex;
-
-
-    @Parameterized.Parameters(name = "truncate index table: {0}, clear in-mem index: {1}")
-    public static Collection<Object[]> params()
-    {
-        return Arrays.asList(new Object[][] {
-            { true, true },
-            { false, false },
-            { true, false },
-            { false, true }
-        });
-    }
 
     @Before
     public void initEntries() throws IOException
@@ -98,25 +79,22 @@ public abstract class LogStateTestBase
         for (int i = 0; i < 2; i++)
             sut.insertRegularEntry();
 
-        if (truncateIndexTable)
-            ColumnFamilyStore.getIfExists(SYSTEM_KEYSPACE_NAME, SEALED_PERIODS_TABLE_NAME).truncateBlockingWithoutSnapshot();
-
-        if (truncateInMemoryIndex)
-            Sealed.unsafeClearLookup();
-
         sut.dumpTables();
     }
 
     static class TestSnapshots extends MetadataSnapshots.SystemKeyspaceMetadataSnapshots {};
 
-    static MetadataSnapshots withMissingSnapshot(Epoch expected)
+    static MetadataSnapshots withMissingSnapshot(Epoch ... expected)
     {
         return new TestSnapshots()
         {
+            int idx = 0;
             @Override
             public ClusterMetadata getSnapshot(Epoch since)
             {
-                assertEquals(expected, since);
+                if (idx >= expected.length)
+                    throw new AssertionError("Should not have gotten a query for "+since);
+                assertEquals(expected[idx++], since);
                 return null;
             }
         };
@@ -151,10 +129,14 @@ public abstract class LogStateTestBase
     @Test
     public void sinceIsEmptyWithMissingSnapshot()
     {
-        MetadataSnapshots missingSnapshot = withMissingSnapshot(REAL_LAST_SEALED.epoch);
+        Epoch [] queriedEpochs = new Epoch[NUM_PERIODS];
+        for (int i = 0; i < NUM_PERIODS; i++)
+            queriedEpochs[i] = Epoch.create((REAL_LAST_SEALED.period - i) * PERIOD_SIZE);
+        MetadataSnapshots missingSnapshot = withMissingSnapshot(queriedEpochs);
+
         LogState state = getSystemUnderTest(missingSnapshot).getLogState(Epoch.EMPTY);
         assertNull(state.baseState);
-        assertReplication(state.transformations, 1, CURRENT_EPOCH);
+        assertReplication(state.entries, 1, CURRENT_EPOCH);
     }
 
     @Test
@@ -164,18 +146,20 @@ public abstract class LogStateTestBase
         MetadataSnapshots withSnapshot = withAvailableSnapshot(expected);
         LogState state = getSystemUnderTest(withSnapshot).getLogState(Epoch.EMPTY);
         assertEquals(expected, state.baseState.epoch);
-        assertReplication(state.transformations, expected.nextEpoch().getEpoch(), CURRENT_EPOCH);
+        assertReplication(state.entries, expected.nextEpoch().getEpoch(), CURRENT_EPOCH);
     }
 
     @Test
     public void sinceIsBeforeLastSealedButMissingSnapshot()
     {
-        MetadataSnapshots missingSnapshot = withMissingSnapshot(REAL_LAST_SEALED.epoch);
+        MetadataSnapshots missingSnapshot = withMissingSnapshot(REAL_LAST_SEALED.epoch,
+                                                                Epoch.create(((REAL_LAST_SEALED.period - 1) * PERIOD_SIZE )),
+                                                                Epoch.create(((REAL_LAST_SEALED.period - 2) * PERIOD_SIZE )));
         // an arbitrary epoch earlier than the last sealed
         Epoch since = Epoch.create(((REAL_LAST_SEALED.period - 3) * PERIOD_SIZE ) + 2);
         LogState state = getSystemUnderTest(missingSnapshot).getLogState(since);
         assertNull(state.baseState);
-        assertReplication(state.transformations, since.nextEpoch().getEpoch(), CURRENT_EPOCH);
+        assertReplication(state.entries, since.nextEpoch().getEpoch(), CURRENT_EPOCH);
     }
 
     @Test
@@ -187,7 +171,7 @@ public abstract class LogStateTestBase
         Epoch since = Epoch.create(((REAL_LAST_SEALED.period - 3) * PERIOD_SIZE ) + 2);
         LogState state = getSystemUnderTest(withSnapshot).getLogState(since);
         assertEquals(expected, state.baseState.epoch);
-        assertReplication(state.transformations, expected.nextEpoch().getEpoch(), CURRENT_EPOCH);
+        assertReplication(state.entries, expected.nextEpoch().getEpoch(), CURRENT_EPOCH);
     }
 
     @Test
@@ -198,7 +182,7 @@ public abstract class LogStateTestBase
         MetadataSnapshots withSnapshot = withAvailableSnapshot(since);
         LogState state = getSystemUnderTest(withSnapshot).getLogState(since);
         assertNull(state.baseState);
-        assertReplication(state.transformations, since.nextEpoch().getEpoch(), CURRENT_EPOCH);
+        assertReplication(state.entries, since.nextEpoch().getEpoch(), CURRENT_EPOCH);
     }
 
     @Test
@@ -209,7 +193,7 @@ public abstract class LogStateTestBase
         MetadataSnapshots missingSnapshot = withMissingSnapshot(since);
         LogState state = getSystemUnderTest(missingSnapshot).getLogState(since);
         assertNull(state.baseState);
-        assertReplication(state.transformations, since.nextEpoch().getEpoch(), CURRENT_EPOCH);
+        assertReplication(state.entries, since.nextEpoch().getEpoch(), CURRENT_EPOCH);
     }
 
     @Test
@@ -220,7 +204,7 @@ public abstract class LogStateTestBase
         Epoch since = Epoch.create(CURRENT_EPOCH - 1);
         LogState state = getSystemUnderTest(snapshots).getLogState(since);
         assertNull(state.baseState);
-        assertReplication(state.transformations, since.nextEpoch().getEpoch(), CURRENT_EPOCH);
+        assertReplication(state.entries, since.nextEpoch().getEpoch(), CURRENT_EPOCH);
     }
 
     @Test
@@ -231,20 +215,7 @@ public abstract class LogStateTestBase
         Epoch since = Epoch.create(CURRENT_EPOCH);
         LogState state = getSystemUnderTest(snapshots).getLogState(since);
         assertNull(state.baseState);
-        assertTrue(state.transformations.isEmpty());
-    }
-
-    @Test
-    public void sinceArbitraryEpochWithoutAnySealed()
-    {
-        Sealed.unsafeClearLookup();
-        ColumnFamilyStore.getIfExists(SYSTEM_KEYSPACE_NAME, SEALED_PERIODS_TABLE_NAME).truncateBlockingWithoutSnapshot();
-        ColumnFamilyStore.getIfExists(SYSTEM_KEYSPACE_NAME, LAST_SEALED_PERIOD_TABLE_NAME).truncateBlockingWithoutSnapshot();
-        MetadataSnapshots snapshots = throwing();
-        Epoch since = Epoch.create(35);
-        LogState state = getSystemUnderTest(snapshots).getLogState(since);
-        assertNull(state.baseState);
-        assertReplication(state.transformations, since.nextEpoch().getEpoch(), CURRENT_EPOCH);
+        assertTrue(state.entries.isEmpty());
     }
 
     @Test
@@ -252,22 +223,68 @@ public abstract class LogStateTestBase
     {
         Epoch since = Epoch.create(35);
         Epoch expected = REAL_LAST_SEALED.epoch;
-        MetadataSnapshots missingSnapshot = withMissingSnapshot(expected);
+        MetadataSnapshots missingSnapshot = withMissingSnapshot(expected,                                     // 50
+                                                                Epoch.create(expected.getEpoch() - PERIOD_SIZE),        // 45
+                                                                Epoch.create(expected.getEpoch() - PERIOD_SIZE * 2L));   // 40
+
         LogState state = getSystemUnderTest(missingSnapshot).getLogState(since);
         assertNull(state.baseState);
-        assertReplication(state.transformations, since.nextEpoch().getEpoch(), CURRENT_EPOCH);
+        assertReplication(state.entries, since.nextEpoch().getEpoch(), CURRENT_EPOCH);
     }
 
-    private void assertReplication(Replication replication, long min, long max)
+    private void assertReplication(List<Entry> entries, long min, long max)
     {
         int idx = 0;
         for (long i = min; i <= max; i++)
         {
-            Entry e = replication.entries().get(idx);
+            Entry e = entries.get(idx);
             assertEquals(e.epoch.getEpoch(), i);
             idx++;
         }
-        assertEquals(idx, replication.entries().size());
+        assertEquals(idx, entries.size());
     }
 
+
+    public static class Sealed implements Comparable<Sealed>
+    {
+        public static final Sealed EMPTY = new Sealed(Period.EMPTY, Epoch.EMPTY);
+        public final long period;
+        public final Epoch epoch;
+
+        public Sealed(long period, Epoch epoch)
+        {
+            this.period = period;
+            this.epoch = epoch;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "Sealed{" +
+                   "period=" + period +
+                   ", epoch=" + epoch +
+                   '}';
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (!(o instanceof Sealed)) return false;
+            Sealed sealed = (Sealed) o;
+            return period == sealed.period && epoch.equals(sealed.epoch);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(period, epoch);
+        }
+
+        @Override
+        public int compareTo(Sealed o)
+        {
+            return Long.compare(this.epoch.getEpoch(), o.epoch.getEpoch());
+        }
+    }
 }

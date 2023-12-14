@@ -55,6 +55,7 @@ public abstract class PartitionerTestCase
     public void clean()
     {
         initPartitioner();
+        DatabaseDescriptor.setPartitionerUnsafe(partitioner);
     }
 
     public Token tok(byte[] key)

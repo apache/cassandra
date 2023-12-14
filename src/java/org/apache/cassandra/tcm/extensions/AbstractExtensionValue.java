@@ -19,6 +19,7 @@
 package org.apache.cassandra.tcm.extensions;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -52,6 +53,21 @@ public abstract class AbstractExtensionValue<V> implements ExtensionValue<V>
     public V getValue()
     {
         return value;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (!(o instanceof AbstractExtensionValue)) return false;
+        AbstractExtensionValue<?> that = (AbstractExtensionValue<?>) o;
+        return Objects.equals(lastModified, that.lastModified) && Objects.equals(value, that.value);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(lastModified, value);
     }
 
     public void serialize(DataOutputPlus out, Version version) throws IOException

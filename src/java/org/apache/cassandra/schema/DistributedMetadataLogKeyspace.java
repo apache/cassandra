@@ -21,10 +21,10 @@ package org.apache.cassandra.schema;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Set;
+import java.util.function.Supplier;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,19 +33,16 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
-import org.apache.cassandra.metrics.TCMMetrics;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.Period;
-import org.apache.cassandra.tcm.Retry;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LogReader;
 import org.apache.cassandra.tcm.log.LogState;
-import org.apache.cassandra.tcm.log.Replication;
 import org.apache.cassandra.tcm.transformations.cms.PreInitialize;
-import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static org.apache.cassandra.tcm.Epoch.FIRST;
 
@@ -108,11 +105,12 @@ public final class DistributedMetadataLogKeyspace
         }
         catch (CasWriteTimeoutException t)
         {
-            logger.warn("Timed out wile trying to CAS", t);
+            logger.warn("Timed out while trying to CAS", t);
             return false;
         }
         catch (Throwable t)
         {
+            JVMStabilityInspector.inspectThrowable(t);
             logger.error("Caught an exception while trying to CAS", t);
             return false;
         }
@@ -163,7 +161,7 @@ public final class DistributedMetadataLogKeyspace
         }
         catch (CasWriteTimeoutException t)
         {
-            logger.warn("Timed out wile trying to append item to the log: ", t.getMessage());
+            logger.warn("Timed out while trying to append item to the log", t);
             return false;
         }
         catch (Throwable t)
@@ -173,105 +171,54 @@ public final class DistributedMetadataLogKeyspace
         }
     }
 
-    @VisibleForTesting
-    public static void truncateLogState()
-    {
-        QueryProcessor.execute(String.format("TRUNCATE %s.%s", SchemaConstants.METADATA_KEYSPACE_NAME, TABLE_NAME), ConsistencyLevel.QUORUM);
-    }
-
-
     private static final LogReader localLogReader = new DistributedTableLogReader(ConsistencyLevel.NODE_LOCAL);
     private static final LogReader serialLogReader = new DistributedTableLogReader(ConsistencyLevel.SERIAL);
 
     public static LogState getLogState(Epoch since, boolean consistentFetch)
     {
-        return LogState.getLogState(since, ClusterMetadataService.instance().snapshotManager(), consistentFetch ? serialLogReader : localLogReader);
-    }
-
-    @VisibleForTesting
-    public static LogState getLogState(Epoch since, LogReader logReader, MetadataSnapshots snapshots)
-    {
-        Retry retry = new Retry.Jitter(TCMMetrics.instance.fetchLogRetries);
-        while (!retry.reachedMax())
-        {
-            try
-            {
-                return LogState.getLogState(since, snapshots, logReader);
-            }
-            catch (Throwable t)
-            {
-                retry.maybeSleep();
-            }
-        }
-
-        throw new IllegalStateException(String.format("Could not retrieve log state after %s tries.", retry.currentTries()));
+        return (consistentFetch ? serialLogReader : localLogReader).getLogState(ClusterMetadata.current().period, since);
     }
 
     public static class DistributedTableLogReader implements LogReader
     {
         private final ConsistencyLevel consistencyLevel;
+        private final Supplier<MetadataSnapshots> snapshots;
+
+        public DistributedTableLogReader(ConsistencyLevel consistencyLevel, Supplier<MetadataSnapshots> snapshots)
+        {
+            this.consistencyLevel = consistencyLevel;
+            this.snapshots = snapshots;
+        }
 
         public DistributedTableLogReader(ConsistencyLevel consistencyLevel)
         {
-            this.consistencyLevel = consistencyLevel;
+            this(consistencyLevel, () -> ClusterMetadataService.instance().snapshotManager());
+        }
+
+        public EntryHolder getEntries(long period, Epoch since) throws IOException
+        {
+            UntypedResultSet resultSet = execute(String.format("SELECT current_epoch, period, epoch, kind, transformation, entry_id, sealed FROM %s.%s WHERE period = ? AND epoch >= ?",
+                                                               SchemaConstants.METADATA_KEYSPACE_NAME, TABLE_NAME),
+                                                 consistencyLevel, period, since.getEpoch());
+            EntryHolder entryHolder = new EntryHolder(since);
+            for (UntypedResultSet.Row row : resultSet)
+            {
+                long epochl = row.getLong("epoch");
+                Epoch epoch = Epoch.create(epochl);
+                Transformation.Kind kind = Transformation.Kind.valueOf(row.getString("kind"));
+                long entryId = row.getLong("entry_id");
+                Transformation transform = kind.fromVersionedBytes(row.getBlob("transformation"));
+                entryHolder.add(new Entry(new Entry.Id(entryId), epoch, transform));
+            }
+            return entryHolder;
         }
 
         @Override
-        public Replication getReplication(long startPeriod, Epoch since)
+        public MetadataSnapshots snapshots()
         {
-            try
-            {
-                if (startPeriod == Period.EMPTY)
-                {
-                    startPeriod = Period.scanLogForPeriod(Log, since);
-                    // There shouldn't be any entries in period 0, the pre-init transform would bump it to period 1.
-                    if (startPeriod == Period.EMPTY)
-                        return Replication.EMPTY;
-                }
-
-                long currentEpoch = since.getEpoch();
-                long lastEpoch = since.getEpoch();
-
-                long period = startPeriod;
-                ImmutableList.Builder<Entry> entries = new ImmutableList.Builder<>();
-
-                while (true)
-                {
-                    boolean empty = true;
-                    UntypedResultSet resultSet = execute(String.format("SELECT current_epoch, period, epoch, kind, transformation, entry_id, sealed FROM %s.%s WHERE period = ? AND epoch > ?",
-                                                                       SchemaConstants.METADATA_KEYSPACE_NAME, TABLE_NAME),
-                                                         consistencyLevel, period, since.getEpoch());
-
-                    for (UntypedResultSet.Row row : resultSet)
-                    {
-                        currentEpoch = row.getLong("current_epoch");
-                        long epochl = row.getLong("epoch");
-                        Epoch epoch = Epoch.create(epochl);
-                        Transformation.Kind kind = Transformation.Kind.valueOf(row.getString("kind"));
-                        long entryId = row.getLong("entry_id");
-                        Transformation transform = kind.fromVersionedBytes(row.getBlob("transformation"));
-                        entries.add(new Entry(new Entry.Id(entryId), epoch, transform));
-
-                        lastEpoch = currentEpoch;
-                        empty = false;
-                    }
-
-                    if (period != startPeriod && empty)
-                        break;
-
-                    period++;
-                }
-
-                assert currentEpoch == lastEpoch;
-                return new Replication(entries.build());
-            }
-            catch (IOException t)
-            {
-                JVMStabilityInspector.inspectThrowable(t);
-                throw new RuntimeException(t);
-            }
+            return snapshots.get();
         }
-    };
+    }
 
     private static UntypedResultSet execute(String query, ConsistencyLevel cl, Object ... params)
     {

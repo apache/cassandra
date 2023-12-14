@@ -303,9 +303,9 @@ public abstract class LocalLog implements Closeable
         }
     }
 
-    public Replication getCommittedEntries(Epoch since)
+    public LogState getCommittedEntries(Epoch since)
     {
-        return persistence.getReplication(since);
+        return persistence.getLogState(committed.get().period, since);
     }
 
     public ClusterMetadata waitForHighestConsecutive()
@@ -355,7 +355,7 @@ public abstract class LocalLog implements Closeable
         // currently enacted epoch (if we'd already moved on beyond the epoch of the base state for instance, or if newer
         // entries have been received via normal replication), but this is fine as entries will be put in the reorder
         // log, and duplicates will be dropped.
-        pending.addAll(logState.transformations.entries());
+        pending.addAll(logState.entries);
         processPending();
     }
 
@@ -505,13 +505,13 @@ public abstract class LocalLog implements Closeable
     /**
      * Replays items that were persisted during previous starts. Replayed items _will not_ be persisted again.
      */
-    public Epoch replayPersisted()
+    public void replayPersisted()
     {
         if (replayComplete.get())
             throw new IllegalStateException("Can only replay persisted once.");
-        LogState logState = persistence.getLogState(metadata().epoch);
+        LogState logState = persistence.getPersistedLogState();
         append(logState);
-        return waitForHighestConsecutive().epoch;
+        waitForHighestConsecutive();
     }
 
     private void maybeNotifyListeners(Entry entry, Transformation.Result result)

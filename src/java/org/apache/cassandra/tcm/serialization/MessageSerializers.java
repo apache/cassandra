@@ -22,7 +22,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Commit;
 import org.apache.cassandra.tcm.log.LogState;
-import org.apache.cassandra.tcm.log.Replication;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.migration.ClusterMetadataHolder;
 
@@ -63,16 +62,6 @@ public class MessageSerializers
 
         assert !metadata.directory.clusterMinVersion.serializationVersion().equals(NodeVersion.CURRENT.serializationVersion());
         return Commit.messageSerializer(metadata.directory.clusterMinVersion.serializationVersion());
-    }
-
-    public static IVersionedSerializer<Replication> replicationSerializer()
-    {
-        ClusterMetadata metadata = ClusterMetadata.currentNullable();
-        if (metadata == null || metadata.directory.clusterMinVersion.serializationVersion == NodeVersion.CURRENT.serializationVersion)
-            return Replication.defaultMessageSerializer;
-
-        assert metadata.directory.clusterMinVersion.serializationVersion().isBefore(NodeVersion.CURRENT.serializationVersion());
-        return Replication.messageSerializer(metadata.directory.clusterMinVersion.serializationVersion());
     }
 
     public static IVersionedSerializer<ClusterMetadataHolder> metadataHolderSerializer()

@@ -181,6 +181,21 @@ public class CustomTransformation implements Transformation
             return String.format("String{'%s'}", str);
         }
 
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (!(o instanceof PokeString)) return false;
+            PokeString that = (PokeString) o;
+            return Objects.equals(str, that.str);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(str);
+        }
+
         public static class TransformSerializer implements AsymmetricMetadataSerializer<Transformation, PokeString>
         {
             private TransformSerializer() {}
@@ -237,6 +252,21 @@ public class CustomTransformation implements Transformation
         public String toString()
         {
             return String.format("int{%d}", v);
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (!(o instanceof PokeInt)) return false;
+            PokeInt pokeInt = (PokeInt) o;
+            return v == pokeInt.v;
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(v);
         }
 
         public static class TransformSerializer implements AsymmetricMetadataSerializer<Transformation, PokeInt>

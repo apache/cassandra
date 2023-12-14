@@ -147,7 +147,6 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                                                                       wrapProcessor,
                                                                       ClusterMetadataService::state,
                                                                       logSpec));
-        ClusterMetadataService.instance().initRecentlySealedPeriodsIndex();
         ClusterMetadataService.instance().log().replayPersisted();
         ClusterMetadata replayed = ClusterMetadataService.instance().log().metadata();
         scrubDataDirectories(replayed);

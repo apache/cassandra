@@ -81,7 +81,7 @@ public final class RemoteProcessor implements Processor
             if (result.isSuccess())
             {
                 Commit.Result.Success success = result.success();
-                log.append(success.replication.entries());
+                log.append(success.logState);
                 log.awaitAtLeast(success.epoch);
             }
 
