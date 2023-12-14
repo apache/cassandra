@@ -20,15 +20,24 @@ package org.apache.cassandra.tcm;
 
 import java.util.Collections;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
+import org.apache.cassandra.tcm.Commit.Replicator;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.ownership.DataPlacements;
+import org.apache.cassandra.tcm.ownership.PlacementProvider;
+import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
+import org.apache.cassandra.tcm.sequences.InProgressSequences;
+import org.apache.cassandra.tcm.sequences.LockedRanges;
 
 public class StubClusterMetadataService extends ClusterMetadataService
 {
@@ -73,10 +82,22 @@ public class StubClusterMetadataService extends ClusterMetadataService
                       .withInitialState(initial)
                       .createLog(),
               new StubProcessor(),
-              Commit.Replicator.NO_OP,
+              Replicator.NO_OP,
               false);
         this.metadata = initial;
         this.log().readyUnchecked();
+    }
+
+    private StubClusterMetadataService(PlacementProvider placement,
+                                       MetadataSnapshots snapshots,
+                                       LocalLog log,
+                                       Processor processor,
+                                       Replicator replicator,
+                                       boolean isMember)
+    {
+       super(placement, snapshots, log, processor, replicator, isMember);
+       this.metadata = log.metadata();
+       this.log().readyUnchecked();
     }
 
     @Override
@@ -123,6 +144,66 @@ public class StubClusterMetadataService extends ClusterMetadataService
         public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy)
         {
             throw new UnsupportedOperationException();
+        }
+    }
+
+
+    public static Builder builder()
+    {
+        return new Builder();
+    }
+
+    public static Builder builder(IPartitioner partitioner)
+    {
+        return new Builder(partitioner);
+    }
+
+    public static class Builder
+    {
+        IPartitioner partitioner;
+        ClusterMetadata initial;
+        MetadataSnapshots snapshots = MetadataSnapshots.NO_OP;
+
+        public StubClusterMetadataService build()
+        {
+            if (initial == null)
+                initial = new ClusterMetadata(Epoch.EMPTY,
+                                              partitioner,
+                                              DistributedSchema.empty(),
+                                              Directory.EMPTY,
+                                              new TokenMap(partitioner),
+                                              DataPlacements.EMPTY,
+                                              LockedRanges.EMPTY,
+                                              InProgressSequences.EMPTY,
+                                              ImmutableMap.of());
+            return new StubClusterMetadataService(new UniformRangePlacement(),
+                                                  snapshots != null ? snapshots : MetadataSnapshots.NO_OP,
+                                                  LocalLog.logSpec().withInitialState(initial).createLog(),
+                                                  new StubProcessor(),
+                                                  Replicator.NO_OP,
+                                                  false);
+        }
+
+        private Builder()
+        {
+            this(DatabaseDescriptor.getPartitioner());
+        }
+
+        private Builder(IPartitioner partitioner)
+        {
+            this.partitioner = partitioner;
+        }
+
+        public Builder withInitial(ClusterMetadata initial)
+        {
+            this.initial = initial;
+            return this;
+        }
+
+        public Builder withSnapshots(MetadataSnapshots snapshots)
+        {
+            this.snapshots = snapshots;
+            return this;
         }
     }
 }

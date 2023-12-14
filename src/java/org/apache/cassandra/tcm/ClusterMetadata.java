@@ -107,7 +107,7 @@ public class ClusterMetadata
     @VisibleForTesting
     public ClusterMetadata(IPartitioner partitioner, Directory directory)
     {
-        this(partitioner, directory, DistributedSchema.first());
+        this(partitioner, directory, DistributedSchema.first(directory.knownDatacenters()));
     }
 
     @VisibleForTesting

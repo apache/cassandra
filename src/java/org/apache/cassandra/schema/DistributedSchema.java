@@ -58,9 +58,16 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
         return new DistributedSchema(Keyspaces.none(), Epoch.EMPTY);
     }
 
-    public static DistributedSchema first()
+    public static DistributedSchema first(Set<String> knownDatacenters)
     {
-        return new DistributedSchema(Keyspaces.of(DistributedMetadataLogKeyspace.initialMetadata(Collections.singleton(DatabaseDescriptor.getLocalDataCenter()))), Epoch.FIRST);
+        if (knownDatacenters.isEmpty())
+        {
+            if (DatabaseDescriptor.getLocalDataCenter() != null)
+                knownDatacenters = Collections.singleton(DatabaseDescriptor.getLocalDataCenter());
+            else
+                knownDatacenters = Collections.singleton("DC1");
+        }
+        return new DistributedSchema(Keyspaces.of(DistributedMetadataLogKeyspace.initialMetadata(knownDatacenters)), Epoch.FIRST);
     }
 
     private final Keyspaces keyspaces;
