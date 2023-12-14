@@ -1237,12 +1237,16 @@
   <macrodef name="testlist">
     <attribute name="test.file.list"/>
     <sequential>
+      <condition property="maxMemory" value="8G" else="4G">
+          <equals arg1="${test.classlistprefix}" arg2="distributed"/>
+      </condition>
       <testmacrohelper inputdir="${test.dir}/${test.classlistprefix}" filelist="@{test.file.list}" exclude="**/*.java" timeout="${test.timeout}">
         <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
         <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
         <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
         <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
         <jvmarg value="-Dcassandra.skip_sync=true" />
+        <jvmarg value="-Xmx${maxMemory}"/>
       </testmacrohelper>
     </sequential>
   </macrodef>
@@ -1764,6 +1768,7 @@
       <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />
+      <jvmarg value="-Xmx8G"/>
     </testmacro>
   </target>
 
@@ -1800,6 +1805,7 @@
       <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />
+      <jvmarg value="-Xmx8G"/>
     </testmacro>
   </target>
 
@@ -1815,6 +1821,7 @@
       <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />
+      <jvmarg value="-Xmx8G"/>
     </testmacro>
   </target>
 
