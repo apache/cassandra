@@ -200,6 +200,8 @@ public class ShadowedRowsLoopTest extends VectorTester
 
     public void shadowedLoopTest(int limit) throws Throwable
     {
+        resetMetrics();
+
         QueryController.allowSpeculativeLimits = false;
         search(queryVector, limit);
         Metrics resultNoSp = getMetrics();
@@ -215,10 +217,13 @@ public class ShadowedRowsLoopTest extends VectorTester
         logger.info("OnDisk: {} N: {}, limit: {}; Got loops {} -> {}",
                     toPrintable(isOnDisk), N, limit, resultNoSp.loops, result.loops);
 
+        // vector search has some randomness which can result in hitting more shadowed rows
+        // than expected. Allow for some extra loops.
+        int allowExtraLoop = result.keys > resultNoSp.keys ? 1 : 0;;
         if (resultNoSp.loops > 3)
-            assertThat(result.loops).isLessThan(resultNoSp.loops);
+            assertThat(result.loops).isLessThan(resultNoSp.loops + allowExtraLoop);
         else
-            assertThat(result.loops).isLessThanOrEqualTo(resultNoSp.loops);
+            assertThat(result.loops).isLessThanOrEqualTo(resultNoSp.loops + allowExtraLoop);
     }
 
     private String toPrintable(int isOnDisk)
