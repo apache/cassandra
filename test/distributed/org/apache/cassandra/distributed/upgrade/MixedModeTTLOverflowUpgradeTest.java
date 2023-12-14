@@ -167,7 +167,7 @@ public class MixedModeTTLOverflowUpgradeTest extends UpgradeTestBase
             coordinator.instance().flush(KEYSPACE);
             int ttlSSTable = (int) coordinator.execute(withKeyspace("SELECT TTL(v) FROM %s.t WHERE k = 0"), ALL)[0][0];
             long t1 = Clock.Global.currentTimeMillis();
-            int delta = (int) Math.max((t1 - t0) / 1000, 1);
+            int delta = (int) Math.max(1 + (t1 - t0) / 1000, 1);
             assertThat(ttlMemtable).isCloseTo(Attributes.MAX_TTL, Offset.offset(delta));
             assertThat(ttlSSTable).isCloseTo(Attributes.MAX_TTL, Offset.offset(delta));
         }
