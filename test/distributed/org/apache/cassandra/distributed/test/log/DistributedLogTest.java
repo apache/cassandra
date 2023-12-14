@@ -29,6 +29,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.log.LogStorage;
@@ -93,7 +94,7 @@ public class DistributedLogTest extends TestBaseImpl
                 List<String> actual = node.callOnInstance(() -> {
                     List<String> res = new ArrayList<>();
 
-                    for (Entry entry : LogStorage.SystemKeyspace.getLogState(Epoch.FIRST).transformations.entries())
+                    for (Entry entry : LogStorage.SystemKeyspace.getLogState(ClusterMetadata.current().period, Epoch.FIRST).entries)
                     {
                         if (entry.transform instanceof CustomTransformation)
                         {
@@ -178,8 +179,8 @@ public class DistributedLogTest extends TestBaseImpl
                     ClusterMetadataService.instance().processor().fetchLogAndWait();
 
                     Set<String> res = new HashSet<>();
-
-                    for (Entry entry : LogStorage.SystemKeyspace.getLogState(Epoch.FIRST).transformations.entries())
+                    // todo: add method to get the full log
+                    for (Entry entry : LogStorage.SystemKeyspace.getLogState(ClusterMetadata.current().period, Epoch.FIRST).entries)
                     {
                         if (entry.transform instanceof CustomTransformation)
                         {

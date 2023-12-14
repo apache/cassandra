@@ -149,7 +149,6 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                                                                       ClusterMetadataService::state,
                                                                       logSpec));
         ClusterMetadataService.instance().log().ready();
-        ClusterMetadataService.instance().initRecentlySealedPeriodsIndex();
 
         NodeId nodeId = ClusterMetadata.current().myNodeId();
         UUID currentHostId = SystemKeyspace.getLocalHostId();

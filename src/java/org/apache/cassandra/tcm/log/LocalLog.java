@@ -334,9 +334,9 @@ public abstract class LocalLog implements Closeable
         }
     }
 
-    public Replication getCommittedEntries(Epoch since)
+    public LogState getCommittedEntries(Epoch since)
     {
-        return storage.getReplication(since);
+        return storage.getLogState(committed.get().period, since);
     }
 
     public ClusterMetadata waitForHighestConsecutive()
@@ -386,7 +386,7 @@ public abstract class LocalLog implements Closeable
         // currently enacted epoch (if we'd already moved on beyond the epoch of the base state for instance, or if newer
         // entries have been received via normal replication), but this is fine as entries will be put in the reorder
         // log, and duplicates will be dropped.
-        pending.addAll(logState.transformations.entries());
+        pending.addAll(logState.entries);
         processPending();
     }
 
@@ -540,7 +540,7 @@ public abstract class LocalLog implements Closeable
     {
         if (replayComplete.get())
             throw new IllegalStateException("Can only replay persisted once.");
-        LogState logState = storage.getLogState(metadata().epoch);
+        LogState logState = storage.getPersistedLogState();
         append(logState);
         return waitForHighestConsecutive();
     }
