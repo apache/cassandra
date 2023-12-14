@@ -81,7 +81,41 @@ public class MixedModeTTLOverflowUpgradeTest extends UpgradeTestBase
         });
     }
 
-    static void testTTLOverflow(RunOnClusterAndNode runAfterNodeUpgrade) throws Throwable
+    @Test
+    public void testTTLOverflowAfterUpgrade() throws Throwable
+    {
+        testTTLOverflow((cluster, node) -> {
+            if (node == 1) // only node1 is upgraded, and the cluster is in mixed versions mode
+            {
+                assertPolicyTriggersAt2038(cluster.coordinator(1));
+                assertPolicyTriggersAt2038(cluster.coordinator(2));
+            }
+            else // both nodes have been upgraded, and the cluster isn't in mixed version mode anymore
+            {
+                assertPolicyTriggersAt2038(cluster.coordinator(1));
+                assertPolicyTriggersAt2038(cluster.coordinator(2));
+
+                // We restart one node on 5.0 >oa hence 2038 should still be the limit as the other node is 5.0 <=oa
+                // We're on compatibility mode where oa and oa nodes are a possibility
+                restartNodeWithCompatibilityMode(cluster, 1, UPGRADING);
+                assertPolicyTriggersAt2038(cluster.coordinator(1));
+                assertPolicyTriggersAt2038(cluster.coordinator(2));
+
+                // We restart the other node so they're all on 5.0 >oa hence 2106 should be the limit
+                restartNodeWithCompatibilityMode(cluster, 2, UPGRADING);
+                assertPolicyTriggersAt2106(cluster.coordinator(1));
+                assertPolicyTriggersAt2106(cluster.coordinator(2));
+
+                // We restart the cluster out of compatibility mode once everything is 5.0oa TTL 2106
+                restartNodeWithCompatibilityMode(cluster, 1, NONE);
+                restartNodeWithCompatibilityMode(cluster, 2, NONE);
+                assertPolicyTriggersAt2106(cluster.coordinator(1));
+                assertPolicyTriggersAt2106(cluster.coordinator(2));
+            }
+        });
+    }
+
+    private static void testTTLOverflow(RunOnClusterAndNode runAfterNodeUpgrade) throws Throwable
     {
         new TestCase()
                 .nodes(2)
@@ -100,21 +134,21 @@ public class MixedModeTTLOverflowUpgradeTest extends UpgradeTestBase
                 .run();
     }
 
-    static void restartNodeWithCompatibilityMode(UpgradeableCluster cluster, int node, StorageCompatibilityMode mode) throws Throwable
+    private static void restartNodeWithCompatibilityMode(UpgradeableCluster cluster, int node, StorageCompatibilityMode mode) throws Throwable
     {
         cluster.get(node).shutdown().get();
         cluster.get(node).config().set("storage_compatibility_mode", mode.toString());
         cluster.get(node).startup();
     }
 
-    static void assertPolicyTriggersAt2038(ICoordinator coordinator)
+    private static void assertPolicyTriggersAt2038(ICoordinator coordinator)
     {
         Assertions.assertThatThrownBy(() -> coordinator.execute(withKeyspace("INSERT INTO %s.t (k, v) VALUES (0, 0) USING TTL " + Attributes.MAX_TTL), ALL))
                   .hasMessageContaining("exceeds maximum supported expiration date")
                   .hasMessageContaining("2038");
     }
 
-    static void assertPolicyTriggersAt2106(ICoordinator coordinator)
+    private static void assertPolicyTriggersAt2106(ICoordinator coordinator)
     {
         boolean overflowPoliciesApply = (Clock.Global.currentTimeMillis() / 1000) > (Cell.MAX_DELETION_TIME - Attributes.MAX_TTL);
 
