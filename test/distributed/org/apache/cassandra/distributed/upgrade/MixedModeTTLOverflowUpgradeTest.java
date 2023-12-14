@@ -169,6 +169,15 @@ public class MixedModeTTLOverflowUpgradeTest extends UpgradeTestBase
                 .run();
     }
 
+    /**
+     * Verifies that the TTL overflow policy triggers at the correct limit for a variety types
+     * @param step the step in the upgrade process (manily use a unique primary key for each verification)
+     * @param cluster the cluster
+     * @param expectPolicyTriggerAt2038 when true, we expect the overflow policy to trigger at 2038 and attempts to set
+     *                                  a TTL which would result in expiration date after 2038 to fail. Otherwise, the
+     *                                  allowed expiration date is 2106, and we cannot test that for now because of
+     *                                  {@link Attributes#MAX_TTL} limit of 20 years.
+     */
     private static void verify(Step step, UpgradeableCluster cluster, boolean expectPolicyTriggerAt2038)
     {
         insert(cluster, step.ordinal(), expectPolicyTriggerAt2038);
