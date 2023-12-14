@@ -58,8 +58,10 @@ public interface ISslContextFactory
      * @param verifyPeerCertificate {@code true} if SSL peer's certificate needs to be verified; {@code false} otherwise
      * @return JSSE's {@link SSLContext}
      * @throws SSLException in case the Ssl Context creation fails for some reason
+     *
+     * @deprecated See CASSANDRA-18811
      */
-    @Deprecated
+    @Deprecated(since = "5.1")
     SSLContext createJSSESslContext(boolean verifyPeerCertificate) throws SSLException;
 
     /**
@@ -92,8 +94,10 @@ public interface ISslContextFactory
      *                              {@link io.netty.handler.ssl.SslContextBuilder#ciphers(Iterable, CipherSuiteFilter)}
      * @return Netty's {@link SslContext}
      * @throws SSLException in case the Ssl Context creation fails for some reason
+     *
+     * @deprecated See CASSANDRA-18811
      */
-    @Deprecated
+    @Deprecated(since = "5.1")
     SslContext createNettySslContext(boolean verifyPeerCertificate, SocketType socketType,
                                      CipherSuiteFilter cipherFilter) throws SSLException;
 
