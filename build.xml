@@ -1180,6 +1180,7 @@
         <jvmarg value="-Dcassandra.use_nix_recursive_delete=${cassandra.use_nix_recursive_delete}"/>
         <jvmarg value="-Dio.netty.allocator.useCacheForAllThreads=true"/>
         <jvmarg value="-Dio.netty.allocator.maxOrder=11"/>
+        <jvmarg value="-XX:+ExitOnOutOfMemoryError"/>
         <jvmarg line="${java-jvmargs}"/>
         <!-- disable shrinks in quicktheories CASSANDRA-15554 -->
         <jvmarg value="-DQT_SHRINKS=0"/>
