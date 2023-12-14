@@ -39,10 +39,10 @@ import static org.apache.cassandra.utils.StorageCompatibilityMode.UPGRADING;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Tests TTL the overflow policy triggers at the correct limit: year 2038 <=nb or 2186 >=oa
+ * Tests TTL the overflow policy triggers at the correct limit
  * <p>
- * <=oa overflow policy triggers at year 2038. That could be <=4.1 or 5.0 with 4.x storage compatibility
- * >oa overflow policy triggers at year 2106. That is >=5.0 using >=5.x storage compatibility
+ * sstable version < BIG:oa, overflow policy triggers at year 2038. That could be <=4.1 or 5.0 with 4.x storage compatibility
+ * sstable version >= BIG:oa or BTI - overflow policy triggers at year 2106. That is >=5.0 using no storage compatibility
  *
  * @see StorageCompatibilityMode
  */
@@ -66,13 +66,14 @@ public class MixedModeTTLOverflowUpgradeTest extends UpgradeTestBase
 
     enum Step
     {
-        BEFORE_UPGRADE,
-        NODE_1_UPGRADED,
-        NODE_2_UPGRADED,
-        NODE_1_UPGRADING_MODE,
-        NODE_2_UPGRADING_MODE,
-        NODE_1_FINAL,
-        NODE_2_FINAL,
+        NODE1_PREV_NODE2_PREV,
+        NODE1_40_NODE2_PREV,
+        NODE1_UPGRADING_NODE2_PREV,
+        NODE1_40_NODE2_40,
+        NODE1_UPGRADING_NODE2_40,
+        NODE1_UPGRADING_NODE2_UPGRADING,
+        NODE1_NONE_NODE2_UPGRADING,
+        NODE1_NONE_NODE2_NONE,
     }
 
     private static volatile long clusterStatupTime = 0;
@@ -84,30 +85,29 @@ public class MixedModeTTLOverflowUpgradeTest extends UpgradeTestBase
             cluster.disableAutoCompaction(KEYSPACE);
             if (node == 1) // only node1 is upgraded, and the cluster is in mixed versions mode
             {
-                verify(Step.NODE_1_UPGRADED, cluster, true);
+                verify(Step.NODE1_40_NODE2_PREV, cluster, true);
 
-                // We restart the upgraded node out of 4.0 storage compatibility,
-                // and we set it to be compatible with 5.0.
-                // 2038 should still be the limit because there is still a not upgraded node.
+                // We restart the upgraded node 1 with compatibility mode = UPGRADING
                 restartNodeWithCompatibilityMode(cluster, 1, UPGRADING);
-                verify(Step.NODE_1_UPGRADING_MODE, cluster, true);
+                // 2038 should still be the limit, because node2 is not upgraded yet
+                verify(Step.NODE1_UPGRADING_NODE2_PREV, cluster, true);
             }
             else // both nodes have been upgraded, and the cluster isn't in mixed version mode anymore
             {
-                // Once we have completed the upgrade, 2038 should still be the limit because there is still one node
-                // in 5.0 storage compatibility mode.
-                verify(Step.NODE_2_UPGRADED, cluster, true);
+                // Once we have completed the upgrade, 2038 should still be the limit because
+                // node2 is still in 4.x compatibility mode
+                verify(Step.NODE1_UPGRADING_NODE2_40, cluster, true);
 
-                // We restart the last upgraded node in 5.0 compatibility mode, so both nodes are now in 5.0
-                // compatibility mode, and the limit should be 2106.
+                // We restart the last upgraded node in UPGRADING compatibility mode
                 restartNodeWithCompatibilityMode(cluster, 2, UPGRADING);
-                verify(Step.NODE_2_UPGRADING_MODE, cluster, false);
+                // Both nodes are in UPGRADING compatibility mode, so the limit should be 2106
+                verify(Step.NODE1_UPGRADING_NODE2_UPGRADING, cluster, false);
 
                 // We restart get both nodes out of compatibility mode, so the limit should be 2106.
                 restartNodeWithCompatibilityMode(cluster, 1, NONE);
-                verify(Step.NODE_1_FINAL, cluster, false);
+                verify(Step.NODE1_NONE_NODE2_UPGRADING, cluster, false);
                 restartNodeWithCompatibilityMode(cluster, 2, NONE);
-                verify(Step.NODE_2_FINAL, cluster, false);
+                verify(Step.NODE1_NONE_NODE2_NONE, cluster, false);
             }
         });
     }
@@ -119,27 +119,28 @@ public class MixedModeTTLOverflowUpgradeTest extends UpgradeTestBase
             cluster.disableAutoCompaction(KEYSPACE);
             if (node == 1) // only node1 is upgraded, and the cluster is in mixed versions mode
             {
-                verify(Step.NODE_1_UPGRADED, cluster, true);
+                verify(Step.NODE1_40_NODE2_PREV, cluster, true);
             }
             else // both nodes have been upgraded, and the cluster isn't in mixed version mode anymore
             {
-                verify(Step.NODE_2_UPGRADED, cluster, true);
+                verify(Step.NODE1_40_NODE2_40, cluster, true);
 
-                // We restart one node on 5.0 >oa hence 2038 should still be the limit as the other node is 5.0 <=oa
-                // We're on compatibility mode where oa and oa nodes are a possibility
+                // We restart node1 with compatibility mode UPGRADING
                 restartNodeWithCompatibilityMode(cluster, 1, UPGRADING);
-                verify(Step.NODE_1_UPGRADING_MODE, cluster, true);
+                // since node2 is still in 4.0 compatibility mode, the limit should remain 2038
+                verify(Step.NODE1_UPGRADING_NODE2_40, cluster, true);
 
-                // We restart the other node so they're all on 5.0 >oa hence 2106 should be the limit
+                // We restart node2 in UPGRADING compatibility mode
                 restartNodeWithCompatibilityMode(cluster, 2, UPGRADING);
-                verify(Step.NODE_2_UPGRADING_MODE, cluster, false);
+                // Both nodes are in UPGRADING compatibility mode, so the limit should be 2106
+                verify(Step.NODE1_UPGRADING_NODE2_UPGRADING, cluster, false);
 
-                // We restart the cluster out of compatibility mode once everything is 5.0oa TTL 2106
+                // We restart the cluster out of compatibility mode, so the limit should be 2106
                 restartNodeWithCompatibilityMode(cluster, 1, NONE);
-                verify(Step.NODE_1_FINAL, cluster, false);
+                verify(Step.NODE1_NONE_NODE2_UPGRADING, cluster, false);
 
                 restartNodeWithCompatibilityMode(cluster, 2, NONE);
-                verify(Step.NODE_2_FINAL, cluster, false);
+                verify(Step.NODE1_NONE_NODE2_NONE, cluster, false);
             }
         });
     }
@@ -162,7 +163,7 @@ public class MixedModeTTLOverflowUpgradeTest extends UpgradeTestBase
 
                     cluster.disableAutoCompaction(KEYSPACE);
                     clusterStatupTime = Clock.Global.currentTimeMillis();
-                    verify(Step.BEFORE_UPGRADE, cluster, true);
+                    verify(Step.NODE1_PREV_NODE2_PREV, cluster, true);
                 })
                 .runAfterNodeUpgrade(runAfterNodeUpgrade)
                 .run();
