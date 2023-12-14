@@ -27,6 +27,7 @@ WORKSPACE=$1
 
 [ "x${WORKSPACE}" != "x" ] || WORKSPACE="$(readlink -f $(dirname "$0")/..)"
 [ "x${BUILD_DIR}" != "x" ] || BUILD_DIR="${WORKSPACE}/build"
+[ "x${DIST_DIR}" != "x" ] || DIST_DIR="${WORKSPACE}/build"
 
 export TMPDIR="$(mktemp -d ${DIST_DIR}/run-python-dtest.XXXXXX)"
 export PYTHONIOENCODING="utf-8"
