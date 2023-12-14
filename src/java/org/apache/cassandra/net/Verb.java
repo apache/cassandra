@@ -228,7 +228,7 @@ public enum Verb
     TCM_COMMIT_REQ         (802, P1, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::commitSerializer,               () -> commitRequestHandler(),               TCM_COMMIT_RSP         ),
     TCM_FETCH_CMS_LOG_RSP  (803, P1, rpcTimeout,      FETCH_LOG,            MessageSerializers::logStateSerializer,             () -> ResponseVerbHandler.instance                                 ),
     TCM_FETCH_CMS_LOG_REQ  (804, P1, rpcTimeout,      FETCH_LOG,            () -> FetchCMSLog.serializer,                       () -> fetchLogRequestHandler(),             TCM_FETCH_CMS_LOG_RSP  ),
-    TCM_REPLICATION        (805, P1, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::replicationSerializer,          () -> replicationHandler()                                         ),
+    TCM_REPLICATION        (805, P1, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::logStateSerializer,             () -> replicationHandler()                                         ),
     TCM_NOTIFY_RSP         (806, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Epoch.messageSerializer,                      () -> ResponseVerbHandler.instance                                 ),
     TCM_NOTIFY_REQ         (807, P1, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::logStateSerializer,             () -> logNotifyHandler(),                   TCM_NOTIFY_RSP         ),
     TCM_CURRENT_EPOCH_REQ  (808, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Epoch.messageSerializer,                      () -> currentEpochRequestHandler(),         TCM_NOTIFY_RSP         ),

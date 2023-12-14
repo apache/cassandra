@@ -19,11 +19,9 @@
 package org.apache.cassandra.distributed.test.log;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
-import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -33,10 +31,9 @@ import org.apache.cassandra.distributed.test.ExecUtil;
 import org.apache.cassandra.harry.sut.TokenPlacementModel;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tcm.Sealed;
+import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.FetchCMSLog;
-import org.apache.cassandra.tcm.log.Replication;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -44,6 +41,8 @@ import org.apache.cassandra.utils.BiMultiValMap;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.db.SystemKeyspace.SNAPSHOT_TABLE_NAME;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class SystemKeyspaceStorageTest extends CoordinatorPathTestBase
 {
@@ -104,40 +103,42 @@ public class SystemKeyspaceStorageTest extends CoordinatorPathTestBase
                     cluster.get(1).runOnInstance(() -> deleteSnapshot(toRemoveEpoch));
                 }
             }
-
+            long latestSnapshot = remainingPeriods.get(remainingPeriods.size() - 1);
+            Epoch lastEpoch =  allEpochs.stream().max(Comparator.naturalOrder()).get();
             repeat(10, () -> {
-                long lastSealed = remainingPeriods.isEmpty() ? -1 : remainingPeriods.get(rng.nextInt(remainingPeriods.size()));
-                if (lastSealed > 0)
-                {
-                    Epoch maxInPeriod = maxEpochInPeriod(epochToPeriod, lastSealed);
-                    cluster.get(1).runOnInstance(() -> forceLastSealed(lastSealed, maxInPeriod.getEpoch()));
-                }
-
                 repeat(100, () -> {
                     Epoch since = allEpochs.get(rng.nextInt(allEpochs.size()));
                     for (boolean consistentReplay : new boolean[]{ true, false })
                     {
                         LogState logState = simulatedCluster.node(2).requestResponse(new FetchCMSLog(since, consistentReplay));
-                        // Either:
-                        //  * we have no snapshots to catch up from which may
-                        //  * we've requested an epoch that's past last sealed snapshot
-                        //  * the epoch we're requesting is the max in the last sealed snapshot, in which case we
-                        //    do not send it
-                        // so the case is equivalent to the above replication test.
-                        if (remainingPeriods.isEmpty()
-                            || epochToPeriod.get(since) > lastSealed
-                            || since.is(maxEpochInPeriod(epochToPeriod, lastSealed)))
+                        // we now search backwards in the log, starting at the current period.
+                        // if we return a snapshot it is always the most recent one
+                        // we don't return a snapshot if `since` is in the previous period
+                        Epoch start = since;
+                        if (logState.baseState == null)
                         {
-                            Assert.assertNull(logState.baseState);
-                            assertReplication(since, allEpochs, logState.transformations);
+                            if (logState.entries.isEmpty()) // requesting an epoch after the last known epoch -> null + empty entries
+                                assertTrue(since.getEpoch() >= lastEpoch.getEpoch());
+                            else
+                                // first entry should be epoch since + 1
+                                assertEquals(start.nextEpoch(), logState.entries.get(0).epoch);
                         }
-                        // We have a snapshot to catch up from, so it has to be returned
                         else
                         {
-                            Assert.assertEquals(lastSealed, logState.baseState.period);
-                            Assert.assertTrue(logState.baseState.lastInPeriod);
-                            assertReplication(logState.baseState.epoch, allEpochs, logState.transformations);
+                            assertEquals(latestSnapshot, logState.baseState.period);
+                            start = logState.baseState.epoch;
+                            if (logState.entries.isEmpty()) // no entries, snapshot should have the same epoch as since
+                                assertEquals(since, start);
+                            else // first epoch in entries should be snapshot epoch + 1
+                                assertEquals(start.nextEpoch(), logState.entries.get(0).epoch);
                         }
+
+                        for (Entry entry : logState.entries)
+                        {
+                            start = start.nextEpoch();
+                            assertEquals(start, entry.epoch);
+                        }
+                        assertEquals(lastEpoch, start);
                     }
                 });
             });
@@ -178,25 +179,6 @@ public class SystemKeyspaceStorageTest extends CoordinatorPathTestBase
         }, false);
     }
 
-    public static void assertReplication(Epoch since, List<Epoch> allEpochs, Replication replication)
-    {
-        // +1 because we assume we already know the `since` epoch
-        int offset = Collections.binarySearch(allEpochs, since) + 1;
-
-        if (since.equals(allEpochs.get(allEpochs.size() - 1)))
-            Assert.assertEquals(0, replication.entries().size());
-        else
-            Assert.assertEquals(since.getEpoch() + 1, replication.entries().get(0).epoch.getEpoch());
-
-        Assert.assertEquals(allEpochs.get(allEpochs.size() - 1).getEpoch() - since.getEpoch(),
-                            replication.entries().size());
-        for (int i = 0; i < replication.entries().size(); i++)
-        {
-            Assert.assertEquals(String.format("Got mismatch while replication starting with %s", since),
-                                allEpochs.get(offset + i), replication.entries().get(i).epoch);
-        }
-    }
-
     public static void repeat(int num, ExecUtil.ThrowingSerializableRunnable r)
     {
         for (int i = 0; i < num; i++)
@@ -218,7 +200,7 @@ public class SystemKeyspaceStorageTest extends CoordinatorPathTestBase
         String query = String.format("SELECT period FROM %s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SNAPSHOT_TABLE_NAME);
         for (UntypedResultSet.Row row : QueryProcessor.executeInternal(query))
             allPeriods.add(row.getLong("period"));
-
+        allPeriods.sort(Long::compare);
         return allPeriods;
     }
 
@@ -226,11 +208,5 @@ public class SystemKeyspaceStorageTest extends CoordinatorPathTestBase
     {
         String query = String.format("DELETE FROM %s.%s WHERE epoch = ?", SchemaConstants.SYSTEM_KEYSPACE_NAME, SNAPSHOT_TABLE_NAME);
         QueryProcessor.executeInternal(query, epoch);
-    }
-
-    public static void forceLastSealed(long period, long epoch)
-    {
-        Sealed.unsafeClearLookup();
-        Sealed.recordSealedPeriod(period, Epoch.create(epoch));
     }
 }

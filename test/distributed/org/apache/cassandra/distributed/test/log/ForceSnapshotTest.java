@@ -95,7 +95,7 @@ public class ForceSnapshotTest extends TestBaseImpl
                 try
                 {
                     int goneTable = startReverting - i;
-                    cluster.coordinator(1).execute(withKeyspace("insert into %s.x " + goneTable + " (id) values (1)"), ConsistencyLevel.ALL);
+                    cluster.coordinator(1).execute(withKeyspace("insert into %s.x" + goneTable + " (id) values (1)"), ConsistencyLevel.ALL);
                     fail("Table x" + goneTable + " should not exist");
                 }
                 catch (Exception e)

@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.tcm.log;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.function.Supplier;
 
@@ -30,6 +31,7 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
@@ -37,7 +39,6 @@ import org.apache.cassandra.tcm.Period;
 import org.apache.cassandra.tcm.Transformation;
 
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
-import static org.apache.cassandra.db.SystemKeyspace.LocalMetadataLog;
 
 public class SystemKeyspaceStorage implements LogStorage
 {
@@ -49,7 +50,7 @@ public class SystemKeyspaceStorage implements LogStorage
      * If you make any changes to the tables below, make sure to increment the
      * generation and document your change here.
      * <p>
-     * gen 0: original definition in 5.0
+     * gen 0: original definition in 5.1
      */
     public static final long GENERATION = 0;
 
@@ -96,9 +97,10 @@ public class SystemKeyspaceStorage implements LogStorage
         return false;
     }
 
-    public LogState getLogState(Epoch since)
+    @Override
+    public MetadataSnapshots snapshots()
     {
-        return LogState.getLogState(since, snapshots.get(), this);
+        return snapshots.get();
     }
 
     public void truncate()
@@ -107,60 +109,76 @@ public class SystemKeyspaceStorage implements LogStorage
     }
 
     /**
-     * Uses the supplied period as a starting point to iterate through the log table
-     * collating log entries which follow the supplied epoch. It is assumed that the
-     * target epoch is found in the starting period, so any entries returned will be
-     * from either the starting period or subsequent periods.
-     * @param since target epoch
-     * @return contiguous list of log entries which follow the given epoch,
-     *         which may be empty
-     * @param startPeriod
-     * @param since
+     * Gets the persisted log state for replaying log on startup
+     *
+     * Slow, only to be used on startup
+     *
      * @return
      */
-    public Replication getReplication(long startPeriod, Epoch since)
+    @Override
+    public LogState getPersistedLogState()
+    {
+        ClusterMetadata base = snapshots.get().getLatestSnapshot();
+        return getLogStateBetween(base, Epoch.create(Long.MAX_VALUE));
+    }
+
+    @Override
+    public EntryHolder getEntries(long period, Epoch since) throws IOException
+    {
+        UntypedResultSet resultSet = executeInternal(String.format("SELECT epoch, kind, transformation, entry_id FROM %s.%s WHERE period = ? and epoch >= ?", SchemaConstants.SYSTEM_KEYSPACE_NAME, NAME),
+                                                     period, since.getEpoch());
+        EntryHolder holder = new EntryHolder(since);
+        for (UntypedResultSet.Row row : resultSet)
+        {
+            long entryId = row.getLong("entry_id");
+            Epoch epoch = Epoch.create(row.getLong("epoch"));
+            ByteBuffer transformationBlob = row.getBlob("transformation");
+            Transformation.Kind kind = Transformation.Kind.valueOf(row.getString("kind"));
+            Transformation transform = kind.fromVersionedBytes(transformationBlob);
+            kind.fromVersionedBytes(transformationBlob);
+            holder.add(new Entry(new Entry.Id(entryId), epoch, transform));
+        }
+        return holder;
+    }
+
+    @Override
+    public LogState getLogStateBetween(ClusterMetadata base, Epoch end)
     {
         try
         {
-            if (startPeriod == Period.EMPTY)
-            {
-                startPeriod = Period.scanLogForPeriod(LocalMetadataLog, since);
-                if (startPeriod == Period.EMPTY)
-                    return Replication.EMPTY;
-            }
-
-            long period = startPeriod;
-            ImmutableList.Builder<Entry> entries = new ImmutableList.Builder<>();
+            ImmutableList.Builder<Entry> allEntries = ImmutableList.builder();
+            long period = (base == null ? Period.EMPTY : base.period) + 1;
+            Epoch epoch = base == null ? Epoch.EMPTY : base.epoch;
             while (true)
             {
-                boolean empty = true;
+                EntryHolder entryHolder = getEntries(period, epoch);
 
-                UntypedResultSet resultSet = executeInternal(String.format("SELECT epoch, kind, transformation, entry_id FROM %s.%s WHERE period = ? and epoch > ?", SchemaConstants.SYSTEM_KEYSPACE_NAME, NAME),
-                                                             period, since.getEpoch());
-
-                for (UntypedResultSet.Row row : resultSet)
-                {
-                    long entryId = row.getLong("entry_id");
-                    Epoch epoch = Epoch.create(row.getLong("epoch"));
-                    ByteBuffer transformationBlob = row.getBlob("transformation");
-                    Transformation.Kind kind = Transformation.Kind.valueOf(row.getString("kind"));
-                    Transformation transform = kind.fromVersionedBytes(transformationBlob);
-                    kind.fromVersionedBytes(transformationBlob);
-                    entries.add(new Entry(new Entry.Id(entryId), epoch, transform));
-                    empty = false;
-                }
-
-                if (period != startPeriod && empty)
+                if (entryHolder.entries.isEmpty())
                     break;
-
+                boolean done = false;
+                for (Entry entry : entryHolder.entries)
+                {
+                    if (entry.epoch.isEqualOrBefore(end))
+                        allEntries.add(entry);
+                    else
+                        done = true;
+                }
+                if (done)
+                    break;
                 period++;
             }
-
-            return new Replication(entries.build());
+            ImmutableList<Entry> entries = allEntries.build();
+            Epoch prevEpoch = epoch;
+            for (Entry e : entries)
+            {
+                if (!prevEpoch.nextEpoch().is(e.epoch))
+                    throw new IllegalStateException("Can't get replication between " + epoch + " and " + end + " - incomplete local log?");
+                prevEpoch = e.epoch;
+            }
+            return new LogState(base, entries);
         }
-        catch (Exception e)
+        catch (IOException e)
         {
-            logger.error("Could not restore the state.", e);
             throw new RuntimeException(e);
         }
     }

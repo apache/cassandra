@@ -21,8 +21,6 @@ package org.apache.cassandra.tcm.log;
 import java.io.IOException;
 
 import org.junit.BeforeClass;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -36,20 +34,17 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.Period;
-import org.apache.cassandra.tcm.Sealed;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
 import org.apache.cassandra.tcm.transformations.SealPeriod;
 
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.apache.cassandra.db.SystemKeyspace.METADATA_LOG;
-import static org.apache.cassandra.db.SystemKeyspace.SEALED_PERIODS_TABLE_NAME;
 import static org.apache.cassandra.schema.DistributedMetadataLogKeyspace.TABLE_NAME;
 import static org.apache.cassandra.schema.SchemaConstants.METADATA_KEYSPACE_NAME;
 import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 import static org.junit.Assert.assertTrue;
 
-@RunWith(Parameterized.class)
 public class DistributedLogStateTest extends LogStateTestBase
 {
     @BeforeClass
@@ -60,12 +55,6 @@ public class DistributedLogStateTest extends LogStateTestBase
         ServerTestUtils.cleanupAndLeaveDirs();
         CommitLog.instance.start();
         ServerTestUtils.initCMS();
-    }
-
-    public DistributedLogStateTest(boolean truncateIndexTable, boolean truncateInMemoryIndex)
-    {
-        this.truncateIndexTable = truncateIndexTable;
-        this.truncateInMemoryIndex = truncateInMemoryIndex;
     }
 
     @Override
@@ -80,18 +69,17 @@ public class DistributedLogStateTest extends LogStateTestBase
             long period = Period.FIRST;
             long nextPeriod = period;
             boolean applied;
+            final LogReader reader = new DistributedMetadataLogKeyspace.DistributedTableLogReader(ConsistencyLevel.SERIAL, () -> snapshots);
 
             @Override
-            public void cleanup() throws IOException
+            public void cleanup()
             {
                 ColumnFamilyStore.getIfExists(SYSTEM_KEYSPACE_NAME, METADATA_LOG).truncateBlockingWithoutSnapshot();
-                ColumnFamilyStore.getIfExists(SYSTEM_KEYSPACE_NAME, SEALED_PERIODS_TABLE_NAME).truncateBlockingWithoutSnapshot();
                 ColumnFamilyStore.getIfExists(METADATA_KEYSPACE_NAME, TABLE_NAME).truncateBlockingWithoutSnapshot();
-                Sealed.unsafeClearLookup();
             }
 
             @Override
-            public void insertRegularEntry() throws IOException
+            public void insertRegularEntry()
             {
                 nextEpoch = currentEpoch.nextEpoch();
                 boolean applied = DistributedMetadataLogKeyspace.tryCommit(new Entry.Id(currentEpoch.getEpoch()),
@@ -107,7 +95,7 @@ public class DistributedLogStateTest extends LogStateTestBase
             }
 
             @Override
-            public void sealPeriod() throws IOException
+            public void sealPeriod()
             {
                 nextEpoch = currentEpoch.nextEpoch();
                 applied = DistributedMetadataLogKeyspace.tryCommit(new Entry.Id(currentEpoch.getEpoch()),
@@ -119,7 +107,6 @@ public class DistributedLogStateTest extends LogStateTestBase
                                                                    true);
                 assertTrue(applied);
                 // after appending a SealPeriod, move to a new partition
-                Sealed.recordSealedPeriod(period, nextEpoch);
                 nextPeriod++;
                 currentEpoch = nextEpoch;
                 // flush log table periodically so queries are served from disk
@@ -129,7 +116,7 @@ public class DistributedLogStateTest extends LogStateTestBase
             @Override
             public LogState getLogState(Epoch since)
             {
-                return DistributedMetadataLogKeyspace.getLogState(since, new DistributedMetadataLogKeyspace.DistributedTableLogReader(ConsistencyLevel.SERIAL), snapshots);
+                return reader.getLogState(NUM_PERIODS + 1, since);
             }
 
             @Override
@@ -142,14 +129,6 @@ public class DistributedLogStateTest extends LogStateTestBase
                     long i = row.getLong("entry_id");
                     String s = row.getString("kind");
                     System.out.println(String.format("(%d, %d, %d, %s)", p, e, i, s));
-                });
-
-                String query = String.format("SELECT max_epoch, period FROM SYStem.metadata_sealed_periods");
-                r = executeInternal(query);
-                r.forEach(row -> {
-                    long p = row.getLong("period");
-                    long e = row.getLong("max_epoch");
-                    System.out.println(String.format("(%d, %d)", e, p));
                 });
             }
         };

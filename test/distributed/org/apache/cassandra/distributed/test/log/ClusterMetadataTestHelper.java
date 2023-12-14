@@ -64,7 +64,6 @@ import org.apache.cassandra.tcm.Period;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
-import org.apache.cassandra.tcm.log.Replication;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -187,7 +186,7 @@ public class ClusterMetadataTestHelper
                                        metadata.lockedRanges,
                                        metadata.inProgressSequences,
                                        metadata.extensions);
-        ClusterMetadataService.instance().log().append(new LogState(metadata, Replication.of(Collections.emptyList())));
+        ClusterMetadataService.instance().log().append(new LogState(metadata, LogState.EMPTY.entries));
     }
 
     public static ClusterMetadataService syncInstanceForTest()

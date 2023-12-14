@@ -34,8 +34,9 @@ public interface MetadataSnapshots
 {
     Logger logger = LoggerFactory.getLogger(MetadataSnapshots.class);
 
-    ClusterMetadata getLatestSnapshotAfter(Epoch epoch);
     ClusterMetadata getSnapshot(Epoch epoch);
+    ClusterMetadata getSnapshotBefore(Epoch epoch);
+    ClusterMetadata getLatestSnapshot();
     void storeSnapshot(ClusterMetadata metadata);
 
     static ByteBuffer toBytes(ClusterMetadata metadata) throws IOException
@@ -61,17 +62,10 @@ public interface MetadataSnapshots
                                                      new DataInputBuffer(serialized, false));
     }
 
-
     MetadataSnapshots NO_OP = new NoOp();
 
-    public class NoOp implements MetadataSnapshots
+    class NoOp implements MetadataSnapshots
     {
-        @Override
-        public ClusterMetadata getLatestSnapshotAfter(Epoch epoch)
-        {
-            return null;
-        }
-
         @Override
         public ClusterMetadata getSnapshot(Epoch epoch)
         {
@@ -79,18 +73,16 @@ public interface MetadataSnapshots
         }
 
         @Override
+        public ClusterMetadata getSnapshotBefore(Epoch epoch) {return null;}
+
+        @Override
+        public ClusterMetadata getLatestSnapshot() {return null;}
+        @Override
         public void storeSnapshot(ClusterMetadata metadata) {}
     }
 
     class SystemKeyspaceMetadataSnapshots implements MetadataSnapshots
     {
-        @Override
-        public ClusterMetadata getLatestSnapshotAfter(Epoch epoch)
-        {
-            Sealed sealed = Sealed.lookupForSnapshot(epoch);
-            return sealed.epoch.isAfter(epoch) ? getSnapshot(sealed.epoch) : null;
-        }
-
         @Override
         public ClusterMetadata getSnapshot(Epoch epoch)
         {
@@ -103,6 +95,36 @@ public interface MetadataSnapshots
                 logger.error("Could not load snapshot", e);
                 return null;
             }
+        }
+
+        @Override
+        public ClusterMetadata getSnapshotBefore(Epoch epoch)
+        {
+            try
+            {
+                return fromBytes(SystemKeyspace.findSnapshotBefore(epoch));
+            }
+            catch (IOException e)
+            {
+                logger.error("Could not load snapshot before " + epoch, e);
+                return null;
+            }
+        }
+
+        @Override
+        public ClusterMetadata getLatestSnapshot()
+        {
+            try
+            {
+                ByteBuffer snapshot = SystemKeyspace.findLastSnapshot();
+                if (snapshot != null)
+                    return fromBytes(snapshot);
+            }
+            catch (IOException e)
+            {
+                logger.error("Could not find latest snapshot");
+            }
+            return null;
         }
 
         @Override

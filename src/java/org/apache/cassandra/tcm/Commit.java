@@ -33,7 +33,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.TCMMetrics;
-import org.apache.cassandra.tcm.log.Replication;
+import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.net.*;
@@ -117,7 +117,7 @@ public class Commit
     }
 
     static volatile Result.Serializer resultSerializerCache;
-    public static interface Result
+    public interface Result
     {
         boolean isSuccess();
         boolean isFailure();
@@ -146,12 +146,12 @@ public class Commit
         final class Success implements Result
         {
             public final Epoch epoch;
-            public final Replication replication;
+            public final LogState logState;
 
-            public Success(Epoch epoch, Replication replication)
+            public Success(Epoch epoch, LogState logState)
             {
                 this.epoch = epoch;
-                this.replication = replication;
+                this.logState = logState;
             }
 
             @Override
@@ -159,7 +159,7 @@ public class Commit
             {
                 return "Success{" +
                        "epoch=" + epoch +
-                       ", replication=" + replication +
+                       ", logState=" + logState +
                        '}';
             }
 
@@ -233,7 +233,7 @@ public class Commit
                 {
                     out.writeByte(SUCCESS);
                     out.writeUnsignedVInt32(serializationVersion.asInt());
-                    Replication.serializer.serialize(t.success().replication, out, serializationVersion);
+                    LogState.metadataSerializer.serialize(t.success().logState, out, serializationVersion);
                     Epoch.serializer.serialize(t.success().epoch, out, serializationVersion);
                 }
                 else
@@ -253,7 +253,7 @@ public class Commit
                 if (b == SUCCESS)
                 {
                     Version deserializationVersion = Version.fromInt(in.readUnsignedVInt32());
-                    Replication delta = Replication.serializer.deserialize(in, deserializationVersion);
+                    LogState delta = LogState.metadataSerializer.deserialize(in, deserializationVersion);
                     Epoch epoch = Epoch.serializer.deserialize(in, deserializationVersion);
                     return new Success(epoch, delta);
                 }
@@ -272,7 +272,7 @@ public class Commit
                 if (t instanceof Success)
                 {
                     size += VIntCoding.computeUnsignedVIntSize(serializationVersion.asInt());
-                    size += Replication.serializer.serializedSize(t.success().replication, serializationVersion);
+                    size += LogState.metadataSerializer.serializedSize(t.success().logState, serializationVersion);
                     size += Epoch.serializer.serializedSize(t.success().epoch, serializationVersion);
                 }
                 else
@@ -383,9 +383,9 @@ public class Commit
             // one as there may have been a new period automatically triggered and we'd like to push that out to all
             // peers too. Of course, there may be other entries interspersed with these but it doesn't harm anything to
             // include those too, it may simply be redundant.
-            Replication newlyCommitted = success.replication.retainFrom(success.epoch);
+            LogState newlyCommitted = success.logState.retainFrom(success.epoch);
             assert !newlyCommitted.isEmpty() : String.format("Nothing to replicate after retaining epochs since %s from %s",
-                                                             success.epoch, success.replication);
+                                                             success.epoch, success.logState);
 
             for (NodeId peerId : directory.peerIds())
             {

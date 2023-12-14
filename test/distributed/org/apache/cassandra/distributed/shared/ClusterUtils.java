@@ -522,7 +522,7 @@ public class ClusterUtils
             processor.registerCommitPredicate((event, result) -> {
                 if (predicate.test(event, result))
                 {
-                    promise.setSuccess(result.success().replication.latestEpoch());
+                    promise.setSuccess(result.success().logState.latestEpoch());
                     return true;
                 }
 

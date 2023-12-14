@@ -18,12 +18,15 @@
 
 package org.apache.cassandra.tcm.log;
 
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.MetadataSnapshots;
 
 public interface LogStorage extends LogReader
 {
     void append(long period, Entry entry);
-    LogState getLogState(Epoch since);
+    LogState getPersistedLogState();
+    LogState getLogStateBetween(ClusterMetadata base, Epoch end);
 
     /**
      * We are using system keyspace even on CMS nodes (at least for now) since otherwise it is tricky
@@ -38,19 +41,37 @@ public interface LogStorage extends LogReader
 
     class NoOpLogStorage implements LogStorage
     {
+        @Override
         public void append(long period, Entry entry) {}
-        public LogState getLogState(Epoch since)
+
+        @Override
+        public LogState getLogState(long startPeriod, Epoch since)
         {
             return LogState.EMPTY;
         }
-        public void truncate() {}
-        public Replication getReplication(Epoch since)
+
+        @Override
+        public LogState getPersistedLogState()
         {
-            return Replication.EMPTY;
+            return LogState.EMPTY;
         }
-        public Replication getReplication(long startPeriod, Epoch since)
+
+        @Override
+        public EntryHolder getEntries(long period, Epoch since)
         {
-            return Replication.EMPTY;
+            return null;
+        }
+
+        @Override
+        public MetadataSnapshots snapshots()
+        {
+            return null;
+        }
+
+        @Override
+        public LogState getLogStateBetween(ClusterMetadata base, Epoch end)
+        {
+            return LogState.EMPTY;
         }
     }
 }
