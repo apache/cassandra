@@ -33,6 +33,7 @@ import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 
+
 import org.apache.cassandra.ServerTestUtils.ResettableClusterMetadataService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -62,19 +63,23 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.log.LocalLog;
+import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
+import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
+import org.apache.cassandra.tcm.sequences.InProgressSequences;
+import org.apache.cassandra.tcm.sequences.LockedRanges;
+import org.apache.cassandra.tcm.sequences.Move;
 import org.apache.cassandra.tcm.sequences.LeaveStreams;
 import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
-import org.apache.cassandra.tcm.sequences.Move;
 import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 import org.apache.cassandra.tcm.transformations.AlterSchema;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
@@ -135,6 +140,18 @@ public class ClusterMetadataTestHelper
         QueryProcessor.registerStatementInvalidatingListener();
         service.mark();
         return service;
+    }
+
+    public static ClusterMetadata minimalForTesting(Epoch epoch, IPartitioner partitioner)
+    {
+        return new ClusterMetadata(epoch, Murmur3Partitioner.instance,
+                                   DistributedSchema.empty(),
+                                   Directory.EMPTY,
+                                   new TokenMap(partitioner),
+                                   DataPlacements.empty(),
+                                   LockedRanges.EMPTY,
+                                   InProgressSequences.EMPTY,
+                                   ImmutableMap.of());
     }
 
     public static ClusterMetadata minimalForTesting(IPartitioner partitioner)
