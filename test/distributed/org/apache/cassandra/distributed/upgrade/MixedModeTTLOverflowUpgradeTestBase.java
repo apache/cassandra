@@ -42,6 +42,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * sstable version >= BIG:oa or BTI - overflow policy triggers at year 2106. That is >=5.0 using no storage compatibility
  *
  * @see StorageCompatibilityMode
+ *
+ * This test has been split by subclassing in order to avoid OOMs.
  */
 public abstract class MixedModeTTLOverflowUpgradeTestBase extends UpgradeTestBase
 {
