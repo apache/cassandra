@@ -124,8 +124,6 @@ public class ControllerTest
     {
         Map<String, String> options = new HashMap<>();
         addOptions(useIntegers, options);
-        options.putIfAbsent(Controller.MIN_SSTABLE_SIZE_OPTION, FBUtilities.prettyPrintMemory(100 << 20));
-        options.putIfAbsent(Controller.SSTABLE_GROWTH_OPTION, "0.5");
         options = Controller.validateOptions(options);
         assertTrue(options.toString(), options.isEmpty());
     }
@@ -142,8 +140,9 @@ public class ControllerTest
 
         options.putIfAbsent(Controller.BASE_SHARD_COUNT_OPTION, Integer.toString(2));
         options.putIfAbsent(Controller.TARGET_SSTABLE_SIZE_OPTION, FBUtilities.prettyPrintMemory(100 << 20));
+        // the below value is based on the value in the above statement.  Decreasing the above statemnt should result in a decrease below.
+        options.putIfAbsent(Controller.MIN_SSTABLE_SIZE_OPTION, "70.710MiB");
         options.putIfAbsent(Controller.OVERLAP_INCLUSION_METHOD_OPTION, Overlaps.InclusionMethod.SINGLE.toString().toLowerCase());
-        options.putIfAbsent(Controller.MIN_SSTABLE_SIZE_OPTION, FBUtilities.prettyPrintMemory(100 << 20));
         options.putIfAbsent(Controller.SSTABLE_GROWTH_OPTION, "0.5");
     }
 
@@ -572,7 +571,7 @@ public class ControllerTest
         assertThatExceptionOfType(ConfigurationException.class)
         .describedAs("Should have thrown a ConfigurationException when min_sstable_size is less than 0")
         .isThrownBy(() -> Controller.validateOptions(options))
-        .withMessageContaining(format("greater than 0"));
+        .withMessageContaining(format("greater than or equal to 0"));
 
         // test min < default target sstable size * INV_SQRT_2
         int limit = (int) Math.ceil(Controller.DEFAULT_TARGET_SSTABLE_SIZE  * Controller.INVERSE_SQRT_2);
