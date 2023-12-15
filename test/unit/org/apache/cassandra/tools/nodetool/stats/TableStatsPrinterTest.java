@@ -76,7 +76,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tTable: %s\n" +
         "\tSSTable count: 60000\n" +
         "\tOld SSTable count: 0\n" +
-        "\tMax SSTable size: 0.000 KiB\n" +
+        "\tMax SSTable size: 0 bytes\n" +
         "\tSpace used (live): 0\n" +
         "\tSpace used (total): 9001\n" +
         "\tSpace used by snapshots (total): 1111\n" +
@@ -93,15 +93,15 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read/write ratio: 0.000\n" +
         "\tPending flushes: 11111\n" +
         "\tPercent repaired: 100.0\n" +
-        "\tBytes repaired: 0.000 KiB\n" +
-        "\tBytes unrepaired: 0.000 KiB\n" +
-        "\tBytes pending repair: 0.000 KiB\n" +
+        "\tBytes repaired: 0 bytes\n" +
+        "\tBytes unrepaired: 0 bytes\n" +
+        "\tBytes pending repair: 0 bytes\n" +
         "\tBloom filter false positives: 30\n" +
         "\tBloom filter false ratio: 0.400\n" +
         "\tBloom filter space used: 789\n" +
-        "\tCompacted partition minimum bytes: 0.002 KiB\n" +
-        "\tCompacted partition maximum bytes: 0.059 KiB\n" +
-        "\tCompacted partition mean bytes: 0.006 KiB\n" +
+        "\tCompacted partition minimum bytes: 2 bytes\n" +
+        "\tCompacted partition maximum bytes: 60 bytes\n" +
+        "\tCompacted partition mean bytes: 6 bytes\n" +
         "\tAverage live cells per slice (last five minutes): 6.00\n" +
         "\tMaximum live cells per slice (last five minutes): 6\n" +
         "\tAverage tombstones per slice (last five minutes): 5.00\n" +
@@ -155,7 +155,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tTable: %s\n" +
         "\tSSTable count: 3000\n" +
         "\tOld SSTable count: 0\n" +
-        "\tMax SSTable size: 0.000 KiB\n" +
+        "\tMax SSTable size: 0 bytes\n" +
         "\tSpace used (live): 22\n" +
         "\tSpace used (total): 1024\n" +
         "\tSpace used by snapshots (total): 222\n" +
@@ -174,18 +174,18 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read/write ratio: 0.000\n" +
         "\tPending flushes: 222222\n" +
         "\tPercent repaired: 99.9\n" +
-        "\tBytes repaired: 0.000 KiB\n" +
-        "\tBytes unrepaired: 0.000 KiB\n" +
-        "\tBytes pending repair: 0.000 KiB\n" +
+        "\tBytes repaired: 0 bytes\n" +
+        "\tBytes unrepaired: 0 bytes\n" +
+        "\tBytes pending repair: 0 bytes\n" +
         "\tBloom filter false positives: 600\n" +
         "\tBloom filter false ratio: 0.010\n" +
         "\tBloom filter space used: 161718\n" +
         "\tBloom filter off heap memory used: 98\n" +
         "\tIndex summary off heap memory used: 1\n" +
         "\tCompression metadata off heap memory used: 3\n" +
-        "\tCompacted partition minimum bytes: 0.004 KiB\n" +
-        "\tCompacted partition maximum bytes: 0.029 KiB\n" +
-        "\tCompacted partition mean bytes: 0.004 KiB\n" +
+        "\tCompacted partition minimum bytes: 4 bytes\n" +
+        "\tCompacted partition maximum bytes: 30 bytes\n" +
+        "\tCompacted partition mean bytes: 4 bytes\n" +
         "\tAverage live cells per slice (last five minutes): 4.01\n" +
         "\tMaximum live cells per slice (last five minutes): 5\n" +
         "\tAverage tombstones per slice (last five minutes): 4.00\n" +
@@ -234,7 +234,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tTable: %s\n" +
         "\tSSTable count: 50000\n" +
         "\tOld SSTable count: 0\n" +
-        "\tMax SSTable size: 0.000 KiB\n" +
+        "\tMax SSTable size: 0 bytes\n" +
         "\tSpace used (live): 0\n" +
         "\tSpace used (total): 512\n" +
         "\tSpace used by snapshots (total): 0\n" +
@@ -251,15 +251,15 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read/write ratio: 0.000\n" +
         "\tPending flushes: 333\n" +
         "\tPercent repaired: 99.8\n" +
-        "\tBytes repaired: 0.000 KiB\n" +
-        "\tBytes unrepaired: 0.000 KiB\n" +
-        "\tBytes pending repair: 0.000 KiB\n" +
+        "\tBytes repaired: 0 bytes\n" +
+        "\tBytes unrepaired: 0 bytes\n" +
+        "\tBytes pending repair: 0 bytes\n" +
         "\tBloom filter false positives: 20\n" +
         "\tBloom filter false ratio: 0.500\n" +
         "\tBloom filter space used: 456\n" +
-        "\tCompacted partition minimum bytes: 0.002 KiB\n" +
-        "\tCompacted partition maximum bytes: 0.049 KiB\n" +
-        "\tCompacted partition mean bytes: 0.005 KiB\n" +
+        "\tCompacted partition minimum bytes: 2 bytes\n" +
+        "\tCompacted partition maximum bytes: 50 bytes\n" +
+        "\tCompacted partition mean bytes: 5 bytes\n" +
         "\tAverage live cells per slice (last five minutes): 0.00\n" +
         "\tMaximum live cells per slice (last five minutes): 5\n" +
         "\tAverage tombstones per slice (last five minutes): NaN\n" +
@@ -313,7 +313,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tTable: %s\n" +
         "\tSSTable count: 2000\n" +
         "\tOld SSTable count: 0\n" +
-        "\tMax SSTable size: 0.000 KiB\n" +
+        "\tMax SSTable size: 0 bytes\n" +
         "\tSpace used (live): 4444\n" +
         "\tSpace used (total): 256\n" +
         "\tSpace used by snapshots (total): 44\n" +
@@ -332,18 +332,18 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read/write ratio: 0.000\n" +
         "\tPending flushes: 4444\n" +
         "\tPercent repaired: 50.0\n" +
-        "\tBytes repaired: 0.000 KiB\n" +
-        "\tBytes unrepaired: 0.000 KiB\n" +
-        "\tBytes pending repair: 0.000 KiB\n" +
+        "\tBytes repaired: 0 bytes\n" +
+        "\tBytes unrepaired: 0 bytes\n" +
+        "\tBytes pending repair: 0 bytes\n" +
         "\tBloom filter false positives: 500\n" +
         "\tBloom filter false ratio: 0.020\n" +
         "\tBloom filter space used: 131415\n" +
         "\tBloom filter off heap memory used: 299792458\n" +
         "\tIndex summary off heap memory used: 2\n" +
         "\tCompression metadata off heap memory used: 2\n" +
-        "\tCompacted partition minimum bytes: 0.005 KiB\n" +
-        "\tCompacted partition maximum bytes: 0.020 KiB\n" +
-        "\tCompacted partition mean bytes: 0.004 KiB\n" +
+        "\tCompacted partition minimum bytes: 5 bytes\n" +
+        "\tCompacted partition maximum bytes: 20 bytes\n" +
+        "\tCompacted partition mean bytes: 4 bytes\n" +
         "\tAverage live cells per slice (last five minutes): NaN\n" +
         "\tMaximum live cells per slice (last five minutes): 3\n" +
         "\tAverage tombstones per slice (last five minutes): 0.00\n" +
@@ -392,7 +392,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tTable: %s\n" +
         "\tSSTable count: 40000\n" +
         "\tOld SSTable count: 0\n" +
-        "\tMax SSTable size: 0.000 KiB\n" +
+        "\tMax SSTable size: 0 bytes\n" +
         "\tSpace used (live): 55555\n" +
         "\tSpace used (total): 64\n" +
         "\tSpace used by snapshots (total): 55555\n" +
@@ -409,15 +409,15 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read/write ratio: 0.000\n" +
         "\tPending flushes: 5\n" +
         "\tPercent repaired: 93.0\n" +
-        "\tBytes repaired: 0.000 KiB\n" +
-        "\tBytes unrepaired: 0.000 KiB\n" +
-        "\tBytes pending repair: 0.000 KiB\n" +
+        "\tBytes repaired: 0 bytes\n" +
+        "\tBytes unrepaired: 0 bytes\n" +
+        "\tBytes pending repair: 0 bytes\n" +
         "\tBloom filter false positives: 10\n" +
         "\tBloom filter false ratio: 0.600\n" +
         "\tBloom filter space used: 123\n" +
-        "\tCompacted partition minimum bytes: 0.003 KiB\n" +
-        "\tCompacted partition maximum bytes: 0.039 KiB\n" +
-        "\tCompacted partition mean bytes: 0.004 KiB\n" +
+        "\tCompacted partition minimum bytes: 3 bytes\n" +
+        "\tCompacted partition maximum bytes: 40 bytes\n" +
+        "\tCompacted partition mean bytes: 4 bytes\n" +
         "\tAverage live cells per slice (last five minutes): 4.00\n" +
         "\tMaximum live cells per slice (last five minutes): 3\n" +
         "\tAverage tombstones per slice (last five minutes): 4.01\n" +
@@ -471,7 +471,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tTable: %s\n" +
         "\tSSTable count: 1000\n" +
         "\tOld SSTable count: 0\n" +
-        "\tMax SSTable size: 0.000 KiB\n" +
+        "\tMax SSTable size: 0 bytes\n" +
         "\tSpace used (live): 666666\n" +
         "\tSpace used (total): 0\n" +
         "\tSpace used by snapshots (total): 0\n" +
@@ -490,18 +490,18 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read/write ratio: 0.000\n" +
         "\tPending flushes: 66\n" +
         "\tPercent repaired: 0.0\n" +
-        "\tBytes repaired: 0.000 KiB\n" +
-        "\tBytes unrepaired: 0.000 KiB\n" +
-        "\tBytes pending repair: 0.000 KiB\n" +
+        "\tBytes repaired: 0 bytes\n" +
+        "\tBytes unrepaired: 0 bytes\n" +
+        "\tBytes pending repair: 0 bytes\n" +
         "\tBloom filter false positives: 400\n" +
         "\tBloom filter false ratio: 0.030\n" +
         "\tBloom filter space used: 101112\n" +
         "\tBloom filter off heap memory used: 667408\n" +
         "\tIndex summary off heap memory used: 3\n" +
         "\tCompression metadata off heap memory used: 1\n" +
-        "\tCompacted partition minimum bytes: 0.006 KiB\n" +
-        "\tCompacted partition maximum bytes: 0.020 KiB\n" +
-        "\tCompacted partition mean bytes: 0.003 KiB\n" +
+        "\tCompacted partition minimum bytes: 6 bytes\n" +
+        "\tCompacted partition maximum bytes: 20 bytes\n" +
+        "\tCompacted partition mean bytes: 3 bytes\n" +
         "\tAverage live cells per slice (last five minutes): 5.00\n" +
         "\tMaximum live cells per slice (last five minutes): 2\n" +
         "\tAverage tombstones per slice (last five minutes): 6.00\n" +

@@ -20,21 +20,28 @@ package org.apache.cassandra.tools.nodetool.stats;
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.*;
-
-import com.google.common.collect.ArrayListMultimap;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TimeZone;
 
 import javax.management.InstanceNotFoundException;
 
-import org.apache.commons.lang3.time.DurationFormatUtils;
-
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy;
 import org.apache.cassandra.db.compaction.TimeWindowCompactionStrategyOptions;
-import org.apache.cassandra.io.util.*;
-import org.apache.cassandra.metrics.*;
-import org.apache.cassandra.tools.*;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.metrics.CassandraMetricsRegistry;
+import org.apache.cassandra.tools.NodeProbe;
+import org.apache.commons.lang3.time.DurationFormatUtils;
+
+import com.google.common.collect.ArrayListMultimap;
 
 public class TableStatsHolder implements StatsHolder
 {
@@ -420,7 +427,7 @@ public class TableStatsHolder implements StatsHolder
 
     private String format(long bytes, boolean humanReadable)
     {
-        return humanReadable ? FBUtilities.prettyPrintMemoryShort(bytes) : Long.toString(bytes);
+        return humanReadable ? FileUtils.stringifyFileSize(bytes) : Long.toString(bytes);
     }
 
     private Map<String, String> format(Map<String, Long> map, boolean humanReadable)

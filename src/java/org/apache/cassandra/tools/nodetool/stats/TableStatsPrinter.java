@@ -22,6 +22,7 @@ import java.io.PrintStream;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class TableStatsPrinter<T extends StatsHolder>
@@ -170,7 +171,7 @@ public class TableStatsPrinter<T extends StatsHolder>
 
         protected String formatMemory(long bytes, boolean humanReadable)
         {
-            return humanReadable ? FBUtilities.prettyPrintMemoryShort(bytes) : Long.toString(bytes);
+            return humanReadable ? FileUtils.stringifyFileSize(bytes) : Long.toString(bytes);
         }
     }
 

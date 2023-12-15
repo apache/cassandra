@@ -18,18 +18,22 @@
 
 package org.apache.cassandra.utils;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
+
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.TreeMap;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -37,23 +41,25 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.primitives.Ints;
-
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.LengthPartitioner;
+import org.apache.cassandra.dht.LocalPartitioner;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.OrderPreservingPartitioner;
+import org.apache.cassandra.dht.RandomPartitioner;
 import org.junit.Assert;
 import org.junit.Test;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.dht.*;
-
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
+import com.google.common.primitives.Ints;
 
 public class FBUtilitiesTest
 {
@@ -397,15 +403,5 @@ public class FBUtilitiesTest
         Assert.assertEquals("0.00", FBUtilities.prettyPrintAverage(0.00));
         Assert.assertEquals("NaN", FBUtilities.prettyPrintAverage(Double.NaN));
         Assert.assertEquals("Infinity", FBUtilities.prettyPrintAverage(Double.POSITIVE_INFINITY));
-    }
-
-    @Test
-    public void testPrettyPrintMemoryShort()
-    {
-        Assert.assertEquals("4.96 KiB", FBUtilities.prettyPrintMemoryShort(5075));
-        Assert.assertEquals("48.8 KiB", FBUtilities.prettyPrintMemoryShort(50000));
-        Assert.assertEquals("477 MiB", FBUtilities.prettyPrintMemoryShort(500000000));
-        Assert.assertEquals("0.422 KiB", FBUtilities.prettyPrintMemoryShort(432));
-        Assert.assertEquals("0.000 KiB", FBUtilities.prettyPrintMemoryShort(0));
     }
 }

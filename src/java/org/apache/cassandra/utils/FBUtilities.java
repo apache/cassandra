@@ -17,6 +17,16 @@
  */
 package org.apache.cassandra.utils;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_AVAILABLE_PROCESSORS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.GIT_SHA;
+import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
+import static org.apache.cassandra.config.CassandraRelevantProperties.OS_NAME;
+import static org.apache.cassandra.config.CassandraRelevantProperties.RELEASE_VERSION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TRIGGERS_DIR;
+import static org.apache.cassandra.config.CassandraRelevantProperties.USER_HOME;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -55,16 +65,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Joiner;
-import com.google.common.collect.ImmutableList;
-import com.google.common.base.Preconditions;
-import org.apache.commons.lang3.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.IAuditLogger;
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
@@ -93,17 +96,15 @@ import org.apache.cassandra.security.AbstractCryptoProvider;
 import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import org.apache.commons.lang3.StringUtils;
 import org.objectweb.asm.Opcodes;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_AVAILABLE_PROCESSORS;
-import static org.apache.cassandra.config.CassandraRelevantProperties.GIT_SHA;
-import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
-import static org.apache.cassandra.config.CassandraRelevantProperties.OS_NAME;
-import static org.apache.cassandra.config.CassandraRelevantProperties.RELEASE_VERSION;
-import static org.apache.cassandra.config.CassandraRelevantProperties.TRIGGERS_DIR;
-import static org.apache.cassandra.config.CassandraRelevantProperties.USER_HOME;
-import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Joiner;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 
 public class FBUtilities
 {
@@ -937,33 +938,6 @@ public class FBUtilities
                                  Math.scalb(size, -prefixIndex * 10),
                                  separator,
                                  UNIT_PREFIXES.charAt(UNIT_PREFIXES_BASE + prefixIndex));
-    }
-
-    /**
-     * Convert the given size in bytes to a human-readable value using binary (i.e. 2^10-based) modifiers
-     * with only three significant digits.
-     * For example, "4.96 KiB", "48.8 KiB", "477 MiB", "0.422 KiB", "0.000 KiB".
-     * @param size      Number to convert.
-     */
-    public static String prettyPrintMemoryShort(long size)
-    {
-        int prefixIndex = (63 - Long.numberOfLeadingZeros(Math.abs(size))) / 10;
-        if (prefixIndex == 0)
-            prefixIndex = 1; // Kilo is the smallest prefix
-        char prefix = UNIT_PREFIXES.charAt(UNIT_PREFIXES_BASE + prefixIndex);
-        float scaledSize = Math.scalb(size, -prefixIndex * 10);
-        String scaledSizeStr;
-        if (scaledSize > -1 && scaledSize < 1) {
-            scaledSizeStr = String.format("%.3f", scaledSize);
-        } else {
-            int digitsBeforeDecimal = (int) Math.log10(Math.abs(scaledSize)) + 1;
-            int decimalPlaces = Math.max(0, 3 - digitsBeforeDecimal);
-            scaledSizeStr = String.format("%." + decimalPlaces + "f", scaledSize);
-        }
-        return String.format("%s%s%ciB",
-                             scaledSizeStr,
-                             ' ',
-                             prefix);
     }
 
     /**
