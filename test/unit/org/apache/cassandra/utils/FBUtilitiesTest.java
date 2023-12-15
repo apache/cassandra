@@ -18,39 +18,30 @@
 
 package org.apache.cassandra.utils;
 
+import com.google.common.primitives.Ints;
+import com.vdurmont.semver4j.Semver;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.dht.*;
+import org.junit.Assert;
+import org.junit.Assume;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Random;
-import java.util.TreeMap;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 
-import com.google.common.primitives.Ints;
-
-import org.junit.Assert;
-import org.junit.Test;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.dht.*;
-
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
-
+import static org.apache.cassandra.utils.FBUtilities.parseKernelVersion;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -397,5 +388,26 @@ public class FBUtilitiesTest
         Assert.assertEquals("0.00", FBUtilities.prettyPrintAverage(0.00));
         Assert.assertEquals("NaN", FBUtilities.prettyPrintAverage(Double.NaN));
         Assert.assertEquals("Infinity", FBUtilities.prettyPrintAverage(Double.POSITIVE_INFINITY));
+    }
+
+    @Test
+    public void testParseKernelVersion()
+    {
+        assertThat(parseKernelVersion("4.4.0-21-generic").toString()).isEqualTo("4.4.0-21-generic");
+        assertThat(parseKernelVersion("4.4.0-pre21-generic").toString()).isEqualTo("4.4.0-pre21-generic");
+        assertThat(parseKernelVersion("4.4-pre21-generic").toString()).isEqualTo("4.4-pre21-generic");
+        assertThat(parseKernelVersion("4.4.0-21-generic\n").toString()).isEqualTo("4.4.0-21-generic");
+        assertThat(parseKernelVersion("\n4.4.0-21-generic\n").toString()).isEqualTo("4.4.0-21-generic");
+        assertThat(parseKernelVersion("\n 4.4.0-21-generic \n").toString()).isEqualTo("4.4.0-21-generic");
+        assertThat(parseKernelVersion("\n \n")).isEqualTo(null);
+    }
+
+    @Test
+    public void testGetKernelVersion()
+    {
+        Assume.assumeTrue(FBUtilities.isLinux);
+        Semver kernelVersion = FBUtilities.getKernelVersion();
+        assertThat(kernelVersion).isGreaterThan(new Semver("0.0.0", Semver.SemverType.LOOSE));
+        assertThat(kernelVersion).isLessThan(new Semver("100.0.0", Semver.SemverType.LOOSE));
     }
 }

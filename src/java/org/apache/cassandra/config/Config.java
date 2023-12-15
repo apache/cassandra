@@ -1157,7 +1157,12 @@ public class Config
         mmap_index_only,
         standard,
         legacy,
-        direct // Direct-I/O is enabled for commitlog disk only.
+
+        /**
+         * Direct-I/O is enabled for commitlog disk only.
+         * When adding support for direct IO, update {@link org.apache.cassandra.service.StartupChecks#checkKernelBug1057843}
+         */
+        direct
     }
 
     public enum MemtableAllocationType
