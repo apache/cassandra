@@ -1379,6 +1379,7 @@ public class FBUtilities
     @VisibleForTesting
     static Semver getKernelVersionFromUname()
     {
+        // TODO rewrite this method with Oshi when it is eventually included in the project
         if (!isLinux)
             return null;
 
