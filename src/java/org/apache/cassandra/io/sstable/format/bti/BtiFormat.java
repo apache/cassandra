@@ -302,7 +302,7 @@ public class BtiFormat extends AbstractSSTableFormat<BtiTableReader, BtiTableWri
             super(format, version);
 
             isLatestVersion = version.compareTo(current_version) == 0;
-            correspondingMessagingVersion = MessagingService.VERSION_40;
+            correspondingMessagingVersion = MessagingService.VERSION_50;
         }
 
         @Override
