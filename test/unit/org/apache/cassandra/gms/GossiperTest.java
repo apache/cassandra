@@ -175,7 +175,7 @@ public class GossiperTest
         // assassinate a non-existing node
         Gossiper.instance.assassinateEndpoint("127.0.0.4");
 
-        assertEquals(4, Gossiper.instance.endpointStateMap.size());
+        assertTrue(Gossiper.instance.endpointStateMap.containsKey(InetAddressAndPort.getByName("127.0.0.4")));
         assertNull(Gossiper.instance.upgradeFromVersionSupplier.get().value());
         assertFalse(Gossiper.instance.hasMajorVersion3Nodes());
         assertFalse(Gossiper.instance.isUpgradingFromVersionLowerThan(CassandraVersion.CASSANDRA_3_4));
