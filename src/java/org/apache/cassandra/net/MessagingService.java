@@ -31,10 +31,10 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
-import io.netty.util.concurrent.Future; //checkstyle: permit this import
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.netty.util.concurrent.Future; //checkstyle: permit this import
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -52,7 +52,6 @@ import org.apache.cassandra.utils.concurrent.Promise;
 
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.MINUTES;
-
 import static org.apache.cassandra.concurrent.Stage.MUTATION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.NON_GRACEFUL_SHUTDOWN;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -271,9 +270,26 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
     public static final int VERSION_50 = 13; // c14227 TTL overflow, 'uint' timestamps
     public static final int VERSION_51 = 14; // TCM
     public static final int minimum_version = VERSION_40;
-    public static final int current_version = Version.CURRENT.value;
-    static AcceptVersions accept_messaging = new AcceptVersions(minimum_version, current_version);
-    static AcceptVersions accept_streaming = new AcceptVersions(current_version, current_version);
+    public static final int maximum_version = VERSION_51;
+    // we want to use a modified behavior for the tools and clients - that is, since they are not running a server, they
+    // should not need to run in a compatibility mode. They should be able to connect to the server regardless whether
+    // it uses messaving version 4 or 5
+    public static final int current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? VERSION_40 : VERSION_50;
+    static AcceptVersions accept_messaging;
+    static AcceptVersions accept_streaming;
+    static
+    {
+        if (DatabaseDescriptor.isClientOrToolInitialized())
+        {
+            accept_messaging = new AcceptVersions(minimum_version, maximum_version);
+            accept_streaming = new AcceptVersions(minimum_version, maximum_version);
+        }
+        else
+        {
+            accept_messaging = new AcceptVersions(minimum_version, current_version);
+            accept_streaming = new AcceptVersions(current_version, current_version);
+        }
+    }
     static Map<Integer, Integer> versionOrdinalMap = Arrays.stream(Version.values()).collect(Collectors.toMap(v -> v.value, v -> v.ordinal()));
 
     /**
