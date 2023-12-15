@@ -478,7 +478,9 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
             super(format, version);
 
             isLatestVersion = version.compareTo(current_version) == 0;
-            correspondingMessagingVersion = MessagingService.VERSION_30;
+
+            // Note that, we probably forgot to change that to 40 for N version, and therefore we cannot do it now.
+            correspondingMessagingVersion = version.compareTo("oa") >= 0 ? MessagingService.VERSION_50 : MessagingService.VERSION_30;
 
             hasCommitLogLowerBound = version.compareTo("mb") >= 0;
             hasCommitLogIntervals = version.compareTo("mc") >= 0;
