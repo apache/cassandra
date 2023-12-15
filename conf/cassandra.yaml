@@ -647,6 +647,17 @@ seed_provider:
       # based on the configured name service on the system. Defaults to "false".
       #  resolve_multiple_ip_addresses_per_dns_record: "false"
 
+
+#  - class_name: org.apache.cassandra.locator.UrlSeedProvider
+#    parameter:
+        # seeds_url points to config which container one seed per line.
+        # Ex: "http://<seeds-url-address>"
+#      - seeds_url: "http://127.0.0.1"
+        # read timout, 0 = no timeout.
+#        read_timeout: 0ms
+        # connection timeout, 0 = no timeout.
+#        connect_timeout: 0ms
+
 # For workloads with more data than can fit in memory, Cassandra's
 # bottleneck will be reads that need to fetch data from
 # disk. "concurrent_reads" should be set to (16 * number_of_drives) in
