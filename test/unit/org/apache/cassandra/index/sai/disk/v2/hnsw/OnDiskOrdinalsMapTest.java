@@ -35,7 +35,7 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.VectorType;
-import org.apache.cassandra.index.sai.disk.vector.CompactionVectorValues;
+import org.apache.cassandra.index.sai.disk.vector.ConcurrentVectorValues;
 import org.apache.cassandra.index.sai.disk.vector.OnDiskOrdinalsMap;
 import org.apache.cassandra.index.sai.disk.vector.RamAwareVectorValues;
 import org.apache.cassandra.index.sai.disk.vector.VectorPostings;
@@ -130,13 +130,12 @@ public class OnDiskOrdinalsMapTest
 
     private RamAwareVectorValues generateVectors(int totalOrdinals)
     {
-        var type = VectorType.getInstance(FloatType.instance, dimension);
-        CompactionVectorValues vectorValues = new CompactionVectorValues(type);
+        var vectorValues = new ConcurrentVectorValues(dimension);
         for (int i = 0; i < totalOrdinals; i++)
         {
-            List<Float> rawVector = new ArrayList<>(Collections.nCopies(dimension, (float) i));
-            var bb = type.getSerializer().serialize(rawVector);
-            vectorValues.add(i, bb);
+            float[] rawVector = new float[dimension];
+            Arrays.fill(rawVector, (float) i);
+            vectorValues.add(i, rawVector);
         }
         return vectorValues;
     }

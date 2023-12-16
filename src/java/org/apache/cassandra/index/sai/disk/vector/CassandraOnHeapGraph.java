@@ -76,7 +76,7 @@ public class CassandraOnHeapGraph<T>
 {
     private static final Logger logger = LoggerFactory.getLogger(CassandraOnHeapGraph.class);
 
-    private final RamAwareVectorValues vectorValues;
+    private final ConcurrentVectorValues vectorValues;
     private final GraphIndexBuilder<float[]> builder;
     private final VectorType.VectorSerializer serializer;
     private final VectorSimilarityFunction similarityFunction;
@@ -86,28 +86,13 @@ public class CassandraOnHeapGraph<T>
     private volatile boolean hasDeletions;
 
     /**
-     * @param termComparator the vector type
+     * @param termComparator the vector type -- passed as AbstractType for caller's convenience
      * @param indexWriterConfig
-     *
-     * Will create a concurrent object.
      */
     public CassandraOnHeapGraph(AbstractType<?> termComparator, IndexWriterConfig indexWriterConfig)
     {
-        this(termComparator, indexWriterConfig, true);
-    }
-
-    /**
-     * @param termComparator the vector type
-     * @param indexWriterConfig
-     * @param concurrent should be true for memtables, false for compaction.  Concurrent allows us to search
-     *                   while building the graph; non-concurrent allows us to avoid synchronization costs.
-     */
-    public CassandraOnHeapGraph(AbstractType<?> termComparator, IndexWriterConfig indexWriterConfig, boolean concurrent)
-    {
         serializer = (VectorType.VectorSerializer)termComparator.getSerializer();
-        vectorValues = concurrent
-                       ? new ConcurrentVectorValues(((VectorType) termComparator).dimension)
-                       : new CompactionVectorValues(((VectorType<Float>) termComparator));
+        vectorValues = new ConcurrentVectorValues(((VectorType<?>) termComparator).dimension);
         similarityFunction = indexWriterConfig.getSimilarityFunction();
         // We need to be able to inexpensively distinguish different vectors, with a slower path
         // that identifies vectors that are equal but not the same reference.  A comparison-
@@ -180,9 +165,7 @@ public class CassandraOnHeapGraph<T>
                 var ordinal = nextOrdinal.getAndIncrement();
                 postings.setOrdinal(ordinal);
                 bytesUsed += RamEstimation.concurrentHashMapRamUsed(1); // the new posting Map entry
-                bytesUsed += (vectorValues instanceof ConcurrentVectorValues)
-                             ? ((ConcurrentVectorValues) vectorValues).add(ordinal, vector)
-                             : ((CompactionVectorValues) vectorValues).add(ordinal, term);
+                bytesUsed += vectorValues.add(ordinal, vector);
                 bytesUsed += VectorPostings.emptyBytesUsed() + VectorPostings.bytesPerPosting();
                 postingsByOrdinal.put(ordinal, postings);
                 bytesUsed += builder.addGraphNode(ordinal, vectorValues);

@@ -18,7 +18,15 @@
 
 package org.apache.cassandra.index.sai.disk.vector;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
+import java.util.function.IntUnaryOperator;
+
+import com.google.common.annotations.VisibleForTesting;
+
 import io.github.jbellis.jvector.util.RamUsageEstimator;
+import org.apache.cassandra.io.util.SequentialWriter;
 import org.jctools.maps.NonBlockingHashMapLong;
 
 public class ConcurrentVectorValues implements RamAwareVectorValues
@@ -80,5 +88,22 @@ public class ConcurrentVectorValues implements RamAwareVectorValues
     private long oneVectorBytesUsed()
     {
         return Integer.BYTES + Integer.BYTES + (long) dimension() * Float.BYTES;
+    }
+
+    @VisibleForTesting
+    public long write(SequentialWriter writer, IntUnaryOperator ordinalMapper) throws IOException
+    {
+        writer.writeInt(size());
+        writer.writeInt(dimension());
+
+        for (var i = 0; i < size(); i++) {
+            int ord = ordinalMapper.applyAsInt(i);
+            var fb = FloatBuffer.wrap(values.get(ord));
+            var bb = ByteBuffer.allocate(fb.capacity() * Float.BYTES);
+            bb.asFloatBuffer().put(fb);
+            writer.write(bb);
+        }
+
+        return writer.position();
     }
 }

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -33,7 +34,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.VectorType;
-import org.apache.cassandra.index.sai.disk.vector.CompactionVectorValues;
+import org.apache.cassandra.index.sai.disk.vector.ConcurrentVectorValues;
+import org.apache.cassandra.index.sai.disk.vector.RamAwareVectorValues;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.SequentialWriter;
@@ -47,7 +49,7 @@ public class VectorCacheTest
 {
     private int dimension;
     private int expectedCached;
-    private CompactionVectorValues vectorValues;
+    private ConcurrentVectorValues vectorValues;
     private Path testDirectory;
     private OnDiskVectors onDiskVectors;
     private HnswGraph hnsw;
@@ -78,13 +80,12 @@ public class VectorCacheTest
 
     private void generateVectors(int totalOrdinals)
     {
-        var type = VectorType.getInstance(FloatType.instance, dimension);
-        vectorValues = new CompactionVectorValues(type);
+        vectorValues = new ConcurrentVectorValues(dimension);
         for (int i = 0; i < totalOrdinals; i++)
         {
-            List<Float> rawVector = new ArrayList<>(Collections.nCopies(dimension, (float) i));
-            var bb = type.getSerializer().serialize(rawVector);
-            vectorValues.add(i, bb);
+            float[] rawVector = new float[dimension];
+            Arrays.fill(rawVector, i);
+            vectorValues.add(i, rawVector);
         }
     }
 

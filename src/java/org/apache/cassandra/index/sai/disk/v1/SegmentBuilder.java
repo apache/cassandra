@@ -171,7 +171,7 @@ public abstract class SegmentBuilder
         public VectorSegmentBuilder(AbstractType<?> termComparator, NamedMemoryLimiter limiter, IndexWriterConfig indexWriterConfig)
         {
             super(termComparator, limiter);
-            graphIndex = new CassandraOnHeapGraph<>(termComparator, indexWriterConfig, false);
+            graphIndex = new CassandraOnHeapGraph<>(termComparator, indexWriterConfig);
         }
 
         @Override
