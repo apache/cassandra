@@ -102,7 +102,7 @@ public class ExpiringMemoizingSupplier<T> implements Supplier<T>
             this.value = value;
         }
 
-        abstract boolean canMemoize();
+        public abstract boolean canMemoize();
 
         public T value()
         {

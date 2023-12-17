@@ -188,7 +188,7 @@ public class GossiperTest
         Gossiper.instance.assassinateEndpoint("127.0.0.4");
 
         assertTrue(Gossiper.instance.endpointStateMap.containsKey(InetAddressAndPort.getByName("127.0.0.4")));
-        assertNull(Gossiper.instance.upgradeFromVersionSupplier.get().value());
+        assertTrue(Gossiper.instance.upgradeFromVersionSupplier.get().canMemoize());
         assertFalse(Gossiper.instance.hasMajorVersion3Nodes());
         assertFalse(Gossiper.instance.isUpgradingFromVersionLowerThan(CassandraVersion.CASSANDRA_3_4));
     }
