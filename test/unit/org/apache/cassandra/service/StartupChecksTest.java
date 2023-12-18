@@ -17,6 +17,28 @@
  */
 package org.apache.cassandra.service;
 
+import java.io.IOException;
+import java.nio.file.FileStore;
+import java.nio.file.FileSystem;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.spi.FileSystemProvider;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
+
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.Assume;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import com.vdurmont.semver4j.Semver;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.Config.DiskAccessMode;
@@ -34,17 +56,6 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.DataResurrectionCheck.Heartbeat;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
-import org.junit.*;
-
-import java.io.IOException;
-import java.nio.file.*;
-import java.nio.file.spi.FileSystemProvider;
-import java.time.Instant;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_INVALID_LEGACY_SSTABLE_ROOT;
@@ -53,7 +64,9 @@ import static org.apache.cassandra.service.DataResurrectionCheck.HEARTBEAT_FILE_
 import static org.apache.cassandra.service.StartupChecks.StartupCheckType.check_data_resurrection;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -271,7 +284,7 @@ public class StartupChecksTest
         }
     }
 
-    public void testKernelBugCheck(String fsType, DiskAccessMode diskAccessMode, Semver kernelVersion, boolean expectToFail) throws Exception
+    public void testKernelBug1057843Check(String fsType, DiskAccessMode diskAccessMode, Semver kernelVersion, boolean expectToFail) throws Exception
     {
         String commitLogLocation = Files.createTempDirectory("testKernelBugCheck").toString();
 
@@ -303,15 +316,15 @@ public class StartupChecksTest
     }
 
     @Test
-    public void testKernelBugCheck() throws Exception
+    public void testKernelBug1057843Check() throws Exception
     {
         Assume.assumeTrue(DatabaseDescriptor.getCommitLogCompression() == null); // we would not be able to enable direct io otherwise
-        testKernelBugCheck("ext4", DiskAccessMode.direct, new Semver("6.1.63.1-generic"), false);
-        testKernelBugCheck("ext4", DiskAccessMode.direct, new Semver("6.1.64.1-generic"), true);
-        testKernelBugCheck("ext4", DiskAccessMode.direct, new Semver("6.1.65.1-generic"), true);
-        testKernelBugCheck("ext4", DiskAccessMode.direct, new Semver("6.1.66.1-generic"), false);
-        testKernelBugCheck("tmpfs", DiskAccessMode.direct, new Semver("6.1.64.1-generic"), false);
-        testKernelBugCheck("ext4", DiskAccessMode.mmap, new Semver("6.1.64.1-generic"), false);
+        testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.63.1-generic"), false);
+        testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.64.1-generic"), true);
+        testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.65.1-generic"), true);
+        testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.66.1-generic"), false);
+        testKernelBug1057843Check("tmpfs", DiskAccessMode.direct, new Semver("6.1.64.1-generic"), false);
+        testKernelBug1057843Check("ext4", DiskAccessMode.mmap, new Semver("6.1.64.1-generic"), false);
     }
 
     private void copyInvalidLegacySSTables(Path targetDir) throws IOException

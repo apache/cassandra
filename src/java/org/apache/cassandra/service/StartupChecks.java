@@ -238,7 +238,6 @@ public class StartupChecks
             if (!affectedKernels.contains(kernelVersion.withClearedSuffixAndBuild()))
                 return;
 
-
             throw new StartupException(StartupException.ERR_WRONG_MACHINE_STATE,
                                        String.format("Detected kernel version %s with affected file system types %s and direct IO enabled for paths %s. " +
                                                      "This combination is known to cause data corruption. To start Cassandra in this environment, " +
