@@ -100,97 +100,11 @@
         </dependency-check>
     </target>
 
-    <target name="-resolve-latest-nightly-build" unless="nightly.build.dir">
-        <property name="nightly.version" value="4.0"/>
-        <property name="nightlies.url"
-                  value="https://nightlies.apache.org/cassandra/cassandra-${nightly.version}/Cassandra-${nightly.version}-artifacts"/>
-        <exec executable="curl" failonerror="true" failifexecutionfails="true" logerror="true">
-            <arg value="-s"/>
-            <arg value="${nightlies.url}/?C=M;O=D"/>
-            <redirector outputproperty="last.build.number">
-                <outputfilterchain>
-                    <linecontainsregexp regexp="href=&quot;([0-9]+./)&quot;"/>
-                    <replaceregex byline="true" pattern=".*href=&quot;([0-9]+)/&quot;.*" replace="\1"/>
-                    <headfilter lines="1"/>
-                </outputfilterchain>
-            </redirector>
-        </exec>
-        <echo message="last.build.number=${last.build.number}"/>
-
-        <property name="last.build.url"
-                  value="${nightlies.url}/${last.build.number}/Cassandra-${nightly.version}-artifacts/jdk=jdk_1.8_latest,label=cassandra/build"/>
-        <exec executable="curl" failonerror="true" failifexecutionfails="true" logerror="true">
-            <arg value="-s"/>
-            <arg value="${last.build.url}/"/>
-            <redirector outputproperty="last.build.name">
-                <outputfilterchain>
-                    <linecontainsregexp regexp="-bin\.tar\.gz"/>
-                    <replaceregex byline="true" pattern=".*href=&quot;([^&quot;]+)&quot;.*" replace="\1"/>
-                    <headfilter lines="1"/>
-                </outputfilterchain>
-            </redirector>
-        </exec>
-        <property name="last.build.artifact.url" value="${last.build.url}/${last.build.name}"/>
-        <echo message="last.build.artifact.url=${last.build.artifact.url}"/>
-    </target>
-
-    <target name="-maybe-fetch-latest-nightly-build" depends="-resolve-latest-nightly-build" unless="nightly.build.dir">
-        <property name="cassandra.nightlies.dir" value="${tmp.dir}/cassandra-nightlies"/>
-        <property name="nightly.build.dir" value="${cassandra.nightlies.dir}/${nightly.version}/${last.build.number}"/>
-        <condition property="nightly.build.dir.exists">
-            <available file="${nightly.build.dir}" type="dir"/>
-        </condition>
-        <antcall target="-fetch-latest-nightly-build" unless:set="nightly.build.dir.exists" inheritall="true"
-                 inheritrefs="true"/>
-    </target>
-
-    <target name="-fetch-latest-nightly-build">
-        <dirname property="nightly.build.parent.dir" file="${nightly.build.dir}"/>
-        <delete dir="${nightly.build.parent.dir}" includeemptydirs="true" failonerror="false"/>
-        <mkdir dir="${nightly.build.dir}"/>
-        <get src="${last.build.artifact.url}" dest="${nightly.build.dir}/cassandra.tar.gz" verbose="true"/>
-        <gunzip src="${nightly.build.dir}/cassandra.tar.gz" dest="${nightly.build.dir}/cassandra.tar"/>
-        <delete file="${nightly.build.dir}/cassandra.tar.gz"/>
-        <untar src="${nightly.build.dir}/cassandra.tar" dest="${nightly.build.dir}/" allowfilestoescapedest="false"
-               stripabsolutepathspec="2"/>
-        <delete file="${nightly.build.dir}/cassandra.tar"/>
-        <exec executable="bash" failifexecutionfails="true" failonerror="true" logerror="true"
-              dir="${nightly.build.dir}">
-            <arg value="-c"/>
-            <arg value="mv apache-cassandra-*/* .; rm -rf apache-cassandra-*"/>
-        </exec>
-    </target>
-
-    <target name="-determine-dependency-changes">
-        <get src="https://raw.githubusercontent.com/apache/cassandra/cassandra-4.0/build.xml" retries="3"
-             dest="${tmp.dir}/cassandra-4.0-build.xml" verbose="true"/>
-        <condition property="dependencies-changed" value="true">
-            <not>
-                <filesmatch file1="${tmp.dir}/cassandra-4.0-build.xml" file2="build.xml"/>
-            </not>
-        </condition>
-        <delete file="${tmp.dir}/cassandra-4.0-build.xml"/>
-        <echo if:set="dependencies-changed" message="Dependencies changed compared to the last nightly build"/>
-    </target>
-
-    <target name="dependency-check-full" depends="resolver-dist-lib">
+    <target name="dependency-check" depends="resolver-dist-lib">
         <fileset dir="lib" id="dependencies_to_check">
             <include name="**/*.jar"/>
         </fileset>
         <antcall target="-run-owasp-scan" inheritrefs="true" inheritall="true"/>
-    </target>
-
-    <target name="-dependency-check" depends="-maybe-fetch-latest-nightly-build,resolver-dist-lib">
-        <fileset id="dependencies_to_check" dir="${build.lib}" includes="**/**">
-            <present present="srconly" targetdir="${nightly.build.dir}/lib"/>
-        </fileset>
-        <echo message="New or changed dependencies: ${toString:dependencies_to_check}"/>
-        <antcall target="-run-owasp-scan" inheritrefs="true" inheritall="true"/>
-    </target>
-
-    <target name="dependency-check" depends="-determine-dependency-changes">
-        <antcall target="-dependency-check" inheritall="true" inheritrefs="true" if:set="dependencies-changed"/>
-        <echo unless:set="dependencies-changed" message="No dependency changes detected"/>
     </target>
 
 </project>
