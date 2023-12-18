@@ -30,6 +30,7 @@
     <property environment="env"/>
     <property file="build.properties" />
     <property file="build.properties.default" />
+    <property file="${user.home}/.ant/build.properties"/>
     <property name="debuglevel" value="source,lines,vars"/>
 
     <!-- default version and SCM information -->
