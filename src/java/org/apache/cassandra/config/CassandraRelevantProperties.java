@@ -405,6 +405,9 @@ public enum CassandraRelevantProperties
     // if true, allow BQ and writing optimized ordinal maps
     VSEARCH_11_9_UPGRADES("cassandra.vsearch_11_9_upgrades", "true"),
 
+    // Allow disabling deletions of corrupt index components for troubleshooting
+    DELETE_CORRUPT_SAI_COMPONENTS("cassandra.sai.delete_corrupt_components", "true"),
+
     // Enables parallel index read.
     USE_PARALLEL_INDEX_READ("cassandra.index_read.parallel", "true"),
     PARALLEL_INDEX_READ_NUM_THREADS("cassandra.index_read.parallel_thread_num");
