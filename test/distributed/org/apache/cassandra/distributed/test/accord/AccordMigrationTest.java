@@ -61,7 +61,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
 import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState;
@@ -160,7 +159,6 @@ public class AccordMigrationTest extends AccordTestBase
         upperMidToken = partitioner.midpoint(midToken, maxToken);
         lowerMidToken = partitioner.midpoint(minToken, midToken);
         coordinator = SHARED_CLUSTER.coordinator(1);
-        SHARED_CLUSTER.get(1).runOnInstance(() -> AccordService.instance().ensureKeyspaceIsAccordManaged(KEYSPACE));
     }
 
     @AfterClass
@@ -342,13 +340,13 @@ public class AccordMigrationTest extends AccordTestBase
     @Test
     public void testPaxosToAccordCAS() throws Exception
     {
-        test(format(TABLE_FMT, currentTable),
+        test(format(TABLE_FMT, qualifiedTableName),
           cluster -> {
-              String casCQL = format(CAS_FMT, currentTable, CLUSTERING_VALUE);
+              String casCQL = format(CAS_FMT, qualifiedTableName, CLUSTERING_VALUE);
               Consumer<Integer> runCasNoApply = key -> assertRowEquals(cluster, new Object[]{false}, casCQL, key);
               Consumer<Integer> runCasApplies = key -> assertRowEquals(cluster, new Object[]{true}, casCQL, key);
               Consumer<Integer> runCasOnSecondNode = key -> assertEquals( "[applied]", cluster.coordinator(2).executeWithResult(casCQL, ANY, key).names().get(0));
-              String tableName = currentTable.split("\\.")[1];
+              String tableName = qualifiedTableName.split("\\.")[1];
               int migratingKey = getKeyBetweenTokens(midToken, maxToken);
               int notMigratingKey = getKeyBetweenTokens(minToken, midToken);
               Range<Token> migratingRange = new Range(midToken, maxToken);
@@ -419,7 +417,7 @@ public class AccordMigrationTest extends AccordTestBase
               // Update inserted row so the condition can apply, if the condition check doesn't apply
               // then it won't get to propose/accept
               migratingKey = testingKeys.next();
-              Consumer<Integer> makeCASApply = key -> cluster.coordinator(1).execute("UPDATE " + currentTable + " SET v = 42 WHERE id = ? AND c = ?", ALL, key, CLUSTERING_VALUE);
+              Consumer<Integer> makeCASApply = key -> cluster.coordinator(1).execute("UPDATE " + qualifiedTableName + " SET v = 42 WHERE id = ? AND c = ?", ALL, key, CLUSTERING_VALUE);
               makeCASApply.accept(migratingKey);
               assertTargetAccordWrite(runCasApplies, 1, migratingKey, 1, 1, 1, 0, 1);
 
@@ -468,10 +466,10 @@ public class AccordMigrationTest extends AccordTestBase
     @Test
     public void testPaxosToAccordSerialRead() throws Exception
     {
-        test(format(TABLE_FMT, currentTable),
+        test(format(TABLE_FMT, qualifiedTableName),
           cluster -> {
-              String tableName = currentTable.split("\\.")[1];
-              String readCQL = format("SELECT * FROM %s WHERE id = ? and c = %s", currentTable, CLUSTERING_VALUE);
+              String tableName = qualifiedTableName.split("\\.")[1];
+              String readCQL = format("SELECT * FROM %s WHERE id = ? and c = %s", qualifiedTableName, CLUSTERING_VALUE);
               Function<Integer, Object[][]> runRead = key -> cluster.coordinator(1).execute(readCQL, SERIAL, key);
               Range<Token> migratingRange = new Range<>(new LongToken(Long.MIN_VALUE + 1), new LongToken(Long.MIN_VALUE));
               List<Range<Token>> migratingRanges = ImmutableList.of(migratingRange);
@@ -494,11 +492,11 @@ public class AccordMigrationTest extends AccordTestBase
     @Test
     public void testAccordToPaxos() throws Exception
     {
-        test(format(TABLE_FMT, currentTable),
+        test(format(TABLE_FMT, qualifiedTableName),
              cluster -> {
-                 String casCQL = format(CAS_FMT, currentTable, CLUSTERING_VALUE);
+                 String casCQL = format(CAS_FMT, qualifiedTableName, CLUSTERING_VALUE);
                  Consumer<Integer> runCasNoApply = key -> assertRowEquals(cluster, new Object[]{false}, casCQL, key);
-                 String tableName = currentTable.split("\\.")[1];
+                 String tableName = qualifiedTableName.split("\\.")[1];
 
                  // Mark a subrange as migrating and finish migrating half of it
                  nodetool(coordinator, "consensus_admin", "begin-migration", "-st", midToken.toString(), "-et", maxToken.toString(), "-tp", "accord", KEYSPACE, tableName);

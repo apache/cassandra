@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.ToLongFunction;
 
 import com.google.common.collect.ImmutableSortedMap;
@@ -58,6 +59,7 @@ import accord.primitives.Txn.Kind;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import accord.primitives.Writes;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
@@ -84,7 +86,8 @@ public class AccordObjectSizes
         return ((AccordRoutingKey) key).estimatedSizeOnHeap();
     }
 
-    private static final long EMPTY_RANGE_SIZE = measure(TokenRange.fullRange(""));
+    private static final TableId EMPTY_ID = TableId.fromUUID(new UUID(0, 0));
+    private static final long EMPTY_RANGE_SIZE = measure(TokenRange.fullRange(EMPTY_ID));
     public static long range(Range range)
     {
         return EMPTY_RANGE_SIZE + key(range.start()) + key(range.end());
@@ -271,7 +274,7 @@ public class AccordObjectSizes
 
     private static class CommandEmptySizes
     {
-        private final static TokenKey EMPTY_KEY = new TokenKey("doesnotexist", null);
+        private final static TokenKey EMPTY_KEY = new TokenKey(EMPTY_ID, null);
         private final static TxnId EMPTY_TXNID = new TxnId(42, 42, Kind.Read, Domain.Key, new Node.Id(42));
 
         private static CommonAttributes attrs(boolean hasDeps, boolean hasTxn)

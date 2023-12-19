@@ -222,12 +222,13 @@ public class Move extends MultiStepOperation<Epoch>
 
                     for (KeyspaceMetadata ks : keyspaces)
                     {
-                        if (AccordService.instance().isAccordManagedKeyspace(ks.name))
-                            continue;
                         ReplicationParams replicationParams = ks.params.replication;
-                        if (replicationParams.isMeta())
+                        if (replicationParams.isMeta() || !StreamPlan.hasNonAccordTables(ks))
                             continue;
+
                         EndpointsByReplica endpoints = movementMap.get(replicationParams);
+
+                        String[] cfNames = StreamPlan.nonAccordTablesForKeyspace(ks);
                         for (Map.Entry<Replica, Replica> e : endpoints.flattenEntries())
                         {
                             Replica destination = e.getKey();
@@ -235,13 +236,13 @@ public class Move extends MultiStepOperation<Epoch>
                             logger.info("Stream source: {} destination: {}", source, destination);
                             assert !source.endpoint().equals(destination.endpoint()) : String.format("Source %s should not be the same as destionation %s", source, destination);
                             if (source.isSelf())
-                                streamPlan.transferRanges(destination.endpoint(), ks.name, RangesAtEndpoint.of(destination));
+                                streamPlan.transferRanges(destination.endpoint(), ks.name, RangesAtEndpoint.of(destination), cfNames);
                             else if (destination.isSelf())
                             {
                                 if (destination.isFull())
-                                    streamPlan.requestRanges(source.endpoint(), ks.name, RangesAtEndpoint.of(destination), RangesAtEndpoint.empty(destination.endpoint()));
+                                    streamPlan.requestRanges(source.endpoint(), ks.name, RangesAtEndpoint.of(destination), RangesAtEndpoint.empty(destination.endpoint()), cfNames);
                                 else
-                                    streamPlan.requestRanges(source.endpoint(), ks.name, RangesAtEndpoint.empty(destination.endpoint()), RangesAtEndpoint.of(destination));
+                                    streamPlan.requestRanges(source.endpoint(), ks.name, RangesAtEndpoint.empty(destination.endpoint()), RangesAtEndpoint.of(destination), cfNames);
                             }
                             else
                                 throw new IllegalStateException("Node should be either source or destination in the movement map " + endpoints);

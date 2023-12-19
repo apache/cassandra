@@ -58,13 +58,13 @@ class EndpointMapping implements AccordEndpointMapper
     }
 
     @Override
-    public Node.Id mappedId(InetAddressAndPort endpoint)
+    public Node.Id mappedIdOrNull(InetAddressAndPort endpoint)
     {
         return mapping.inverse().get(endpoint);
     }
 
     @Override
-    public InetAddressAndPort mappedEndpoint(Node.Id id)
+    public InetAddressAndPort mappedEndpointOrNull(Node.Id id)
     {
         return mapping.get(id);
     }

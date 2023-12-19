@@ -370,7 +370,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
             Txn txn = createTxn(state.getClientState(), options);
 
-            AccordService.instance().maybeConvertKeyspacesToAccord(txn);
+            AccordService.instance().maybeConvertTablesToAccord(txn);
 
             TxnResult txnResult = AccordService.instance().coordinate(txn, options.getConsistency(), queryStartNanoTime);
             if (txnResult.kind() == retry_new_protocol)

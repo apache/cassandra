@@ -28,6 +28,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import org.apache.cassandra.tcm.transformations.AddAccordTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,6 +77,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.KeyspaceSplitter;
@@ -92,7 +94,6 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.transformations.AddAccordKeyspace;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -121,6 +122,7 @@ public class AccordService implements IAccordService, Shutdownable
     private final Shutdownable nodeShutdown;
     private final AccordMessageSink messageSink;
     private final AccordConfigurationService configService;
+    private final AccordFastPathCoordinator fastPathCoordinator;
     private final AccordScheduler scheduler;
     private final AccordDataStore dataStore;
     private final AccordJournal journal;
@@ -138,7 +140,7 @@ public class AccordService implements IAccordService, Shutdownable
         @Override
         public long barrier(@Nonnull Seekables keysOrRanges, long minEpoch, long queryStartNanos, long timeoutNanos, BarrierType barrierType, boolean isForWrite)
         {
-            throw new UnsupportedOperationException("No accord barriers should be executed when accord_transactions_enabled = false in cassandra.yaml");
+            throw new UnsupportedOperationException("No accord barriers should be executed when accord.enabled = false in cassandra.yaml");
         }
 
         @Override
@@ -194,7 +196,7 @@ public class AccordService implements IAccordService, Shutdownable
         public void receive(Message<List<AccordSyncPropagator.Notification>> message) {}
 
         @Override
-        public boolean isAccordManagedKeyspace(String keyspace)
+        public boolean isAccordManagedTable(TableId keyspace)
         {
             return false;
         }
@@ -206,7 +208,7 @@ public class AccordService implements IAccordService, Shutdownable
         }
 
         @Override
-        public void ensureKeyspaceIsAccordManaged(String keyspace) {}
+        public void ensureTableIsAccordManaged(TableId tableId) {}
     };
 
     private static volatile IAccordService instance = null;
@@ -235,7 +237,7 @@ public class AccordService implements IAccordService, Shutdownable
             instance = NOOP_SERVICE;
             return;
         }
-        AccordService as = new AccordService(AccordTopologyUtils.tcmIdToAccord(tcmId));
+        AccordService as = new AccordService(AccordTopology.tcmIdToAccord(tcmId));
         as.startup();
         instance = as;
     }
@@ -275,6 +277,7 @@ public class AccordService implements IAccordService, Shutdownable
         logger.info("Starting accord with nodeId {}", localId);
         AccordAgent agent = new AccordAgent();
         this.configService = new AccordConfigurationService(localId);
+        this.fastPathCoordinator = AccordFastPathCoordinator.create(localId, configService);
         this.messageSink = new AccordMessageSink(agent, configService);
         this.scheduler = new AccordScheduler();
         this.dataStore = new AccordDataStore();
@@ -309,6 +312,8 @@ public class AccordService implements IAccordService, Shutdownable
         journal.start();
         configService.start();
         ClusterMetadataService.instance().log().addListener(configService);
+        fastPathCoordinator.start();
+        ClusterMetadataService.instance().log().addListener(fastPathCoordinator);
     }
 
     @Override
@@ -665,17 +670,18 @@ public class AccordService implements IAccordService, Shutdownable
         return configService;
     }
 
-    public boolean isAccordManagedKeyspace(String keyspace)
+    @Override
+    public boolean isAccordManagedTable(TableId tableId)
     {
-        return ClusterMetadata.current().accordKeyspaces.contains(keyspace);
+        return ClusterMetadata.current().accordTables.contains(tableId);
     }
 
     @Override
-    public void ensureKeyspaceIsAccordManaged(String keyspace)
+    public void ensureTableIsAccordManaged(TableId tableId)
     {
-        if (isAccordManagedKeyspace(keyspace))
+        if (isAccordManagedTable(tableId))
             return;
-        ClusterMetadataService.instance().commit(new AddAccordKeyspace(keyspace),
+        ClusterMetadataService.instance().commit(new AddAccordTable(tableId),
                                                  metadata -> null,
                                                  (code, message) -> {
                                                      Invariants.checkState(code == ExceptionCode.ALREADY_EXISTS,

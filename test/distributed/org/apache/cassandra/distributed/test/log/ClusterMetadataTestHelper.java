@@ -63,12 +63,13 @@ import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.service.accord.AccordFastPath;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
-import org.apache.cassandra.tcm.ownership.AccordKeyspaces;
+import org.apache.cassandra.tcm.ownership.AccordTables;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
@@ -149,7 +150,8 @@ public class ClusterMetadataTestHelper
                                    Directory.EMPTY,
                                    new TokenMap(partitioner),
                                    DataPlacements.empty(),
-                                   AccordKeyspaces.EMPTY,
+                                   AccordTables.EMPTY,
+                                   AccordFastPath.EMPTY,
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
                                    null,
@@ -164,7 +166,8 @@ public class ClusterMetadataTestHelper
                                    null,
                                    null,
                                    DataPlacements.empty(),
-                                   AccordKeyspaces.EMPTY,
+                                   AccordTables.EMPTY,
+                                   AccordFastPath.EMPTY,
                                    null,
                                    null,
                                    null,
@@ -179,7 +182,8 @@ public class ClusterMetadataTestHelper
                                    null,
                                    null,
                                    DataPlacements.empty(),
-                                   AccordKeyspaces.EMPTY,
+                                   AccordTables.EMPTY,
+                                   AccordFastPath.EMPTY,
                                    null,
                                    null,
                                    null,

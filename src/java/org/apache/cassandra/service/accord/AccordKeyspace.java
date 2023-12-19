@@ -861,7 +861,7 @@ public class AccordKeyspace
 
     private static ByteBuffer serializeKey(PartitionKey key)
     {
-        return TupleType.buildValue(UUIDSerializer.instance.serialize(key.tableId().asUUID()), key.partitionKey().getKey());
+        return TupleType.buildValue(UUIDSerializer.instance.serialize(key.table().asUUID()), key.partitionKey().getKey());
     }
 
     private static ByteBuffer serializeTimestamp(Timestamp timestamp)
@@ -1302,7 +1302,7 @@ public class AccordKeyspace
         TableMetadata metadata = Schema.instance.getTableMetadata(tableId);
         if (metadata == null)
             throw new IllegalStateException("Table with id " + tableId + " could not be found; was it deleted?");
-        return new PartitionKey(metadata.keyspace, tableId, metadata.partitioner.decorateKey(key));
+        return new PartitionKey(tableId, metadata.partitioner.decorateKey(key));
     }
 
     public static PartitionKey deserializeKey(UntypedResultSet.Row row)
@@ -1357,7 +1357,7 @@ public class AccordKeyspace
         return executeInternal(format(cql, ACCORD_KEYSPACE_NAME, TIMESTAMPS_FOR_KEY),
                                commandStore.id(),
                                serializeToken(key.token()),
-                               key.tableId().asUUID(), key.partitionKey().getKey());
+                               key.table().asUUID(), key.partitionKey().getKey());
     }
 
     public static TimestampsForKey loadTimestampsForKey(AccordCommandStore commandStore, PartitionKey key)

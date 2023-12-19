@@ -59,6 +59,7 @@ import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
@@ -400,13 +401,13 @@ public class CommandsForRanges
 
     public Iterable<DomainInfo> search(AbstractKeys<Key> keys)
     {
-        // group by the keyspace, as ranges are based off TokenKey, which is scoped to a range
-        Map<String, List<Key>> groupByKeyspace = new TreeMap<>();
+        // group by the table, as ranges are based off TokenKey, which is scoped to a range
+        Map<TableId, List<Key>> groupByTable = new TreeMap<>();
         for (Key key : keys)
-            groupByKeyspace.computeIfAbsent(((PartitionKey) key).keyspace(), ignore -> new ArrayList<>()).add(key);
+            groupByTable.computeIfAbsent(((PartitionKey) key).table(), ignore -> new ArrayList<>()).add(key);
         return () -> new AbstractIterator<DomainInfo>()
         {
-            Iterator<String> ksIt = groupByKeyspace.keySet().iterator();
+            Iterator<TableId> tblIt = groupByTable.keySet().iterator();
             Iterator<Map.Entry<Range, Set<RangeCommandSummary>>> rangeIt;
 
             @Override
@@ -420,13 +421,13 @@ public class CommandsForRanges
                         return result(next.getKey(), next.getValue());
                     }
                     rangeIt = null;
-                    if (!ksIt.hasNext())
+                    if (!tblIt.hasNext())
                     {
-                        ksIt = null;
+                        tblIt = null;
                         return endOfData();
                     }
-                    String ks = ksIt.next();
-                    List<Key> keys = groupByKeyspace.get(ks);
+                    TableId tbl = tblIt.next();
+                    List<Key> keys = groupByTable.get(tbl);
                     Map<Range, Set<RangeCommandSummary>> groupByRange = new TreeMap<>(Range::compare);
                     for (Key key : keys)
                     {

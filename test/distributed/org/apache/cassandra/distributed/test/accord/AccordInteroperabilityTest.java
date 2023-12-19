@@ -28,7 +28,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.shared.AssertUtils;
-import org.apache.cassandra.service.accord.AccordService;
 
 public class AccordInteroperabilityTest extends AccordTestBase
 {
@@ -45,21 +44,20 @@ public class AccordInteroperabilityTest extends AccordTestBase
     {
         AccordTestBase.setupCluster(builder -> builder.appendConfig(config -> config.set("lwt_strategy", "accord")
                                                                                     .set("non_serial_write_strategy", "accord")), 3);
-        SHARED_CLUSTER.get(1).runOnInstance(() -> AccordService.instance().ensureKeyspaceIsAccordManaged(KEYSPACE));
     }
 
     @Test
     public void testSerialReadDescending() throws Throwable
     {
-        test("CREATE TABLE " + currentTable + " (k int, c int, v int, PRIMARY KEY(k, c))",
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, PRIMARY KEY(k, c))",
              cluster -> {
                  ICoordinator coordinator = cluster.coordinator(1);
                  for (int i = 1; i <= 10; i++)
-                     coordinator.execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (0, ?, ?) USING TIMESTAMP 0;", ConsistencyLevel.ALL, i, i * 10);
-                 assertRowSerial(cluster, "SELECT c, v FROM " + currentTable + " WHERE k=0 ORDER BY c DESC LIMIT 1", AssertUtils.row(10, 100));
-                 assertRowSerial(cluster, "SELECT c, v FROM " + currentTable + " WHERE k=0 ORDER BY c DESC LIMIT 2", AssertUtils.row(10, 100), AssertUtils.row(9, 90));
-                 assertRowSerial(cluster, "SELECT c, v FROM " + currentTable + " WHERE k=0 ORDER BY c DESC LIMIT 3", AssertUtils.row(10, 100), AssertUtils.row(9, 90), AssertUtils.row(8, 80));
-                 assertRowSerial(cluster, "SELECT c, v FROM " + currentTable + " WHERE k=0 ORDER BY c DESC LIMIT 4", AssertUtils.row(10, 100), AssertUtils.row(9, 90), AssertUtils.row(8, 80), AssertUtils.row(7, 70));
+                     coordinator.execute("INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (0, ?, ?) USING TIMESTAMP 0;", ConsistencyLevel.ALL, i, i * 10);
+                 assertRowSerial(cluster, "SELECT c, v FROM " + qualifiedTableName + " WHERE k=0 ORDER BY c DESC LIMIT 1", AssertUtils.row(10, 100));
+                 assertRowSerial(cluster, "SELECT c, v FROM " + qualifiedTableName + " WHERE k=0 ORDER BY c DESC LIMIT 2", AssertUtils.row(10, 100), AssertUtils.row(9, 90));
+                 assertRowSerial(cluster, "SELECT c, v FROM " + qualifiedTableName + " WHERE k=0 ORDER BY c DESC LIMIT 3", AssertUtils.row(10, 100), AssertUtils.row(9, 90), AssertUtils.row(8, 80));
+                 assertRowSerial(cluster, "SELECT c, v FROM " + qualifiedTableName + " WHERE k=0 ORDER BY c DESC LIMIT 4", AssertUtils.row(10, 100), AssertUtils.row(9, 90), AssertUtils.row(8, 80), AssertUtils.row(7, 70));
              }
          );
     }

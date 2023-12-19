@@ -42,4 +42,6 @@ public class AccordSpec
     public DurationSpec.IntMillisecondsBound barrier_max_backoff = new DurationSpec.IntMillisecondsBound("10m");
 
     public DurationSpec.IntMillisecondsBound range_barrier_timeout = new DurationSpec.IntMillisecondsBound("2m");
+
+    public volatile DurationSpec fast_path_update_delay = new DurationSpec.IntSecondsBound(5);
 }

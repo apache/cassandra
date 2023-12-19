@@ -4367,10 +4367,23 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public List<String> getAccordManagedKeyspaces()
     {
+        Keyspaces keyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
+        return keyspaces.stream().flatMap(ks -> ks.tables.stream())
+                .filter(tbm -> AccordService.instance().isAccordManagedTable(tbm.id))
+                .map(tbm -> tbm.keyspace)
+                .distinct()
+                .sorted()
+                .collect(toList());
+    }
+
+    @Override
+    public List<String> getAccordManagedTables()
+    {
         // TODO (review) These are really just the ones Accord is aware of not necessarily managed
-        Set<String> keyspaces = Schema.instance.getNonLocalStrategyKeyspaces().names();
-        return keyspaces.stream()
-                        .filter(AccordService.instance()::isAccordManagedKeyspace)
+        Keyspaces keyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
+        return keyspaces.stream().flatMap(ks -> ks.tables.stream())
+                        .filter(tbm -> AccordService.instance().isAccordManagedTable(tbm.id))
+                        .map(tbm -> tbm.keyspace + '.' + tbm.name)
                         .collect(toList());
     }
 
