@@ -40,7 +40,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.streaming.StreamEvent;
 import org.apache.cassandra.streaming.StreamEventHandler;
 import org.apache.cassandra.streaming.StreamOperation;
@@ -127,7 +126,8 @@ public class BootStrapper extends ProgressEventNotifierSupport
                                                    true,
                                                    DatabaseDescriptor.getStreamingConnectionsPerHost(),
                                                    movements,
-                                                   strictMovements);
+                                                   strictMovements,
+                                                   true);
 
         if (beingReplaced != null)
             streamer.addSourceFilter(new RangeStreamer.ExcludedSourcesFilter(Collections.singleton(beingReplaced)));
@@ -137,8 +137,6 @@ public class BootStrapper extends ProgressEventNotifierSupport
             logger.debug("Schema does not contain any non-local keyspaces to stream on bootstrap");
         for (String keyspaceName : nonLocalStrategyKeyspaces)
         {
-            if (AccordService.instance().isAccordManagedKeyspace(keyspaceName))
-                continue;
             KeyspaceMetadata ksm = metadata.schema.getKeyspaces().get(keyspaceName).get();
             if (ksm.params.replication.isMeta())
                 continue;

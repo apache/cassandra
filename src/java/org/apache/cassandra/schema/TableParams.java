@@ -32,6 +32,7 @@ import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.service.reads.PercentileSpeculativeRetryPolicy;
@@ -69,7 +70,8 @@ public final class TableParams
         ADDITIONAL_WRITE_POLICY,
         CRC_CHECK_CHANCE,
         CDC,
-        READ_REPAIR;
+        READ_REPAIR,
+        FAST_PATH;
 
         @Override
         public String toString()
@@ -97,6 +99,7 @@ public final class TableParams
     public final ImmutableMap<String, ByteBuffer> extensions;
     public final boolean cdc;
     public final ReadRepairStrategy readRepair;
+    public final FastPathStrategy fastPath;
 
     private TableParams(Builder builder)
     {
@@ -121,6 +124,7 @@ public final class TableParams
         extensions = builder.extensions;
         cdc = builder.cdc;
         readRepair = builder.readRepair;
+        fastPath = builder.fastPath;
     }
 
     public static Builder builder()
@@ -148,7 +152,8 @@ public final class TableParams
                             .additionalWritePolicy(params.additionalWritePolicy)
                             .extensions(params.extensions)
                             .cdc(params.cdc)
-                            .readRepair(params.readRepair);
+                            .readRepair(params.readRepair)
+                            .fastPath(params.fastPath);
     }
 
     public Builder unbuild()
@@ -239,7 +244,8 @@ public final class TableParams
             && memtable.equals(p.memtable)
             && extensions.equals(p.extensions)
             && cdc == p.cdc
-            && readRepair == p.readRepair;
+            && readRepair == p.readRepair
+            && fastPath.equals(fastPath);
     }
 
     @Override
@@ -263,7 +269,8 @@ public final class TableParams
                                 memtable,
                                 extensions,
                                 cdc,
-                                readRepair);
+                                readRepair,
+                                fastPath);
     }
 
     @Override
@@ -275,6 +282,7 @@ public final class TableParams
                           .add(ALLOW_AUTO_SNAPSHOT.toString(), allowAutoSnapshot)
                           .add(BLOOM_FILTER_FP_CHANCE.toString(), bloomFilterFpChance)
                           .add(CRC_CHECK_CHANCE.toString(), crcCheckChance)
+                          .add(FAST_PATH.toString(), fastPath)
                           .add(GC_GRACE_SECONDS.toString(), gcGraceSeconds)
                           .add(DEFAULT_TIME_TO_LIVE.toString(), defaultTimeToLive)
                           .add(INCREMENTAL_BACKUPS.toString(), incrementalBackups)
@@ -289,6 +297,7 @@ public final class TableParams
                           .add(EXTENSIONS.toString(), extensions)
                           .add(CDC.toString(), cdc)
                           .add(READ_REPAIR.toString(), readRepair)
+                          .add(Option.FAST_PATH.toString(), fastPath)
                           .toString();
     }
 
@@ -318,8 +327,8 @@ public final class TableParams
 
         if (!isView)
         {
-            builder.append("AND default_time_to_live = ").append(defaultTimeToLive)
-                   .newLine();
+            builder.append("AND fast_path = ").append(fastPath.asCQL()).newLine();
+            builder.append("AND default_time_to_live = ").append(defaultTimeToLive).newLine();
         }
 
         builder.append("AND extensions = ").append(extensions.entrySet()
@@ -364,6 +373,7 @@ public final class TableParams
         private ImmutableMap<String, ByteBuffer> extensions = ImmutableMap.of();
         private boolean cdc;
         private ReadRepairStrategy readRepair = ReadRepairStrategy.BLOCKING;
+        private FastPathStrategy fastPath = FastPathStrategy.inheritKeyspace();
 
         public Builder()
         {
@@ -482,6 +492,12 @@ public final class TableParams
             return this;
         }
 
+        public Builder fastPath(FastPathStrategy val)
+        {
+            fastPath = val;
+            return this;
+        }
+
         public Builder extensions(Map<String, ByteBuffer> val)
         {
             extensions = ImmutableMap.copyOf(val);
@@ -504,7 +520,10 @@ public final class TableParams
             out.writeUTF(t.speculativeRetry.toString());
             out.writeUTF(t.additionalWritePolicy.toString());
             if (version.isAtLeast(Version.V2))
+            {
                 out.writeUTF(t.memtable.configurationKey());
+                FastPathStrategy.serializer.serialize(t.fastPath, out, version);
+            }
             serializeMap(t.caching.asMap(), out);
             serializeMap(t.compaction.asMap(), out);
             serializeMap(t.compression.asMap(), out);
@@ -532,6 +551,7 @@ public final class TableParams
                    .speculativeRetry(SpeculativeRetryPolicy.fromString(in.readUTF()))
                    .additionalWritePolicy(SpeculativeRetryPolicy.fromString(in.readUTF()))
                    .memtable(version.isAtLeast(Version.V2) ? MemtableParams.get(in.readUTF()) : MemtableParams.DEFAULT)
+                   .fastPath(version.isAtLeast(Version.V2) ? FastPathStrategy.serializer.deserialize(in, version) : FastPathStrategy.simple())
                    .caching(CachingParams.fromMap(deserializeMap(in)))
                    .compaction(CompactionParams.fromMap(deserializeMap(in)))
                    .compression(CompressionParams.fromMap(deserializeMap(in)))
@@ -556,6 +576,7 @@ public final class TableParams
                    sizeof(t.speculativeRetry.toString()) +
                    sizeof(t.additionalWritePolicy.toString()) +
                    (version.isAtLeast(Version.V2) ? sizeof(t.memtable.configurationKey()) : 0) +
+                   (version.isAtLeast(Version.V2) ? FastPathStrategy.serializer.serializedSize(t.fastPath, version) : 0) +
                    serializedSizeMap(t.caching.asMap()) +
                    serializedSizeMap(t.compaction.asMap()) +
                    serializedSizeMap(t.compression.asMap()) +

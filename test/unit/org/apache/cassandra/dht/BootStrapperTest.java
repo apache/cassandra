@@ -212,7 +212,8 @@ public class BootStrapperTest extends CassandraTestBase
                false,
                1,
                movements.left,
-               movements.right);
+               movements.right,
+               true);
     }
 
     private boolean includesWraparound(Collection<Range<Token>> toFetch)

@@ -38,7 +38,7 @@ import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
-import org.apache.cassandra.tcm.transformations.AddAccordKeyspace;
+import org.apache.cassandra.tcm.transformations.AddAccordTable;
 import org.apache.cassandra.tcm.transformations.AlterSchema;
 import org.apache.cassandra.tcm.transformations.AlterTopology;
 import org.apache.cassandra.tcm.transformations.Assassinate;
@@ -51,6 +51,7 @@ import org.apache.cassandra.tcm.transformations.PrepareJoin;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
 import org.apache.cassandra.tcm.transformations.PrepareReplace;
+import org.apache.cassandra.tcm.transformations.ReconfigureAccordFastPath;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.SetConsensusMigrationTargetProtocol;
 import org.apache.cassandra.tcm.transformations.Startup;
@@ -239,10 +240,11 @@ public interface Transformation
         CANCEL_CMS_RECONFIGURATION(34, () -> CancelCMSReconfiguration.serializer),
         ALTER_TOPOLOGY(35, () -> AlterTopology.serializer),
 
-        ADD_ACCORD_KEYSPACE(36, () -> AddAccordKeyspace.serializer),
-        BEGIN_CONSENSUS_MIGRATION_FOR_TABLE_AND_RANGE(37, () -> BeginConsensusMigrationForTableAndRange.serializer),
-        MAYBE_FINISH_CONSENSUS_MIGRATION_FOR_TABLE_AND_RANGE(38, () -> MaybeFinishConsensusMigrationForTableAndRange.serializer),
-        SET_CONSENSUS_MIGRATION_TARGET_PROTOCOL(39, () -> SetConsensusMigrationTargetProtocol.serializer)
+        ADD_ACCORD_TABLE(36, () -> AddAccordTable.serializer),
+        UPDATE_AVAILABILITY(37, () -> ReconfigureAccordFastPath.serializer),
+        BEGIN_CONSENSUS_MIGRATION_FOR_TABLE_AND_RANGE(38, () -> BeginConsensusMigrationForTableAndRange.serializer),
+        MAYBE_FINISH_CONSENSUS_MIGRATION_FOR_TABLE_AND_RANGE(39, () -> MaybeFinishConsensusMigrationForTableAndRange.serializer),
+        SET_CONSENSUS_MIGRATION_TARGET_PROTOCOL(40, () -> SetConsensusMigrationTargetProtocol.serializer)
         ;
 
         private final Supplier<AsymmetricMetadataSerializer<Transformation, ? extends Transformation>> serializer;

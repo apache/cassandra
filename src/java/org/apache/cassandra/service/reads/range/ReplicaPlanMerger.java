@@ -27,6 +27,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
 
@@ -34,11 +35,13 @@ class ReplicaPlanMerger extends AbstractIterator<ReplicaPlan.ForRangeRead>
 {
     private final Keyspace keyspace;
     private final ConsistencyLevel consistency;
+    private final TableId tableId;
     private final PeekingIterator<ReplicaPlan.ForRangeRead> ranges;
 
-    ReplicaPlanMerger(Iterator<ReplicaPlan.ForRangeRead> iterator, Keyspace keyspace, ConsistencyLevel consistency)
+    ReplicaPlanMerger(Iterator<ReplicaPlan.ForRangeRead> iterator, Keyspace keyspace, TableId tableId, ConsistencyLevel consistency)
     {
         this.keyspace = keyspace;
+        this.tableId = tableId;
         this.consistency = consistency;
         this.ranges = Iterators.peekingIterator(iterator);
     }
@@ -66,7 +69,7 @@ class ReplicaPlanMerger extends AbstractIterator<ReplicaPlan.ForRangeRead>
                 break;
 
             ReplicaPlan.ForRangeRead next = ranges.peek();
-            ReplicaPlan.ForRangeRead merged = ReplicaPlans.maybeMerge(metadata, keyspace, consistency, current, next);
+            ReplicaPlan.ForRangeRead merged = ReplicaPlans.maybeMerge(metadata, keyspace, tableId, consistency, current, next);
             if (merged == null)
                 break;
 

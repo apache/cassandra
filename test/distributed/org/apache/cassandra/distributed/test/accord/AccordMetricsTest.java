@@ -69,16 +69,16 @@ public class AccordMetricsTest extends AccordTestBase
     String writeCql()
     {
         return "BEGIN TRANSACTION\n" +
-               "  LET val = (SELECT v FROM " + currentTable + " WHERE k=? AND c=?);\n" +
+               "  LET val = (SELECT v FROM " + qualifiedTableName + " WHERE k=? AND c=?);\n" +
                "  SELECT val.v;\n" +
-               "  UPDATE " + currentTable + " SET v = v + 1 WHERE k=? AND c=?;\n" +
+               "  UPDATE " + qualifiedTableName + " SET v = v + 1 WHERE k=? AND c=?;\n" +
                "COMMIT TRANSACTION";
     }
 
     String readCql()
     {
         return "BEGIN TRANSACTION\n" +
-               "  LET val = (SELECT v FROM " + currentTable + " WHERE k=? AND c=?);\n" +
+               "  LET val = (SELECT v FROM " + qualifiedTableName + " WHERE k=? AND c=?);\n" +
                "  SELECT val.v;\n" +
                "COMMIT TRANSACTION";
     }
@@ -89,8 +89,8 @@ public class AccordMetricsTest extends AccordTestBase
     public void beforeTest()
     {
         SHARED_CLUSTER.filters().reset();
-        SHARED_CLUSTER.schemaChange("CREATE TABLE " + currentTable + " (k int, c int, v int, PRIMARY KEY (k, c))");
-        SHARED_CLUSTER.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (0, 0, 0)", ConsistencyLevel.ALL);
+        SHARED_CLUSTER.schemaChange("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, PRIMARY KEY (k, c))");
+        SHARED_CLUSTER.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (0, 0, 0)", ConsistencyLevel.ALL);
     }
 
     @Test

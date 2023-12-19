@@ -103,7 +103,7 @@ public class AccordAgent implements Agent
     @Override
     public void onUncaughtException(Throwable t)
     {
-        // TODO: this
+        logger.error("Uncaught accord exception", t);
         JVMStabilityInspector.uncaughtException(Thread.currentThread(), t);
     }
 

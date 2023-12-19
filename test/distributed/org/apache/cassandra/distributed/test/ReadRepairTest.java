@@ -27,6 +27,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.google.common.util.concurrent.FutureCallback;
+import org.apache.cassandra.distributed.test.accord.AccordTestBase;
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -54,7 +55,6 @@ import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.reads.repair.BlockingReadRepair;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.utils.concurrent.Condition;
@@ -108,9 +108,9 @@ public class ReadRepairTest extends TestBaseImpl
     {
         try (Cluster cluster = init(Cluster.create(3, config -> config.set("non_serial_write_strategy", brrThroughAccord ? "migration" : "normal"))))
         {
-            cluster.get(1).runOnInstance(() -> AccordService.instance().ensureKeyspaceIsAccordManaged(KEYSPACE));
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.t (k int, c int, v int, PRIMARY KEY (k, c)) " +
                                               String.format("WITH read_repair='%s'", strategy)));
+            AccordTestBase.ensureTableIsAccordManaged(cluster, KEYSPACE, "t");
 
             Object[] row = row(1, 1, 1);
             String insertQuery = withKeyspace("INSERT INTO %s.t (k, c, v) VALUES (?, ?, ?)");

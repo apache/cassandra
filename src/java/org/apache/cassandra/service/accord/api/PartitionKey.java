@@ -53,16 +53,14 @@ public final class PartitionKey extends AccordRoutableKey implements Key
     static
     {
         DecoratedKey key = DatabaseDescriptor.getPartitioner().decorateKey(ByteBufferUtil.EMPTY_BYTE_BUFFER);
-        EMPTY_SIZE = ObjectSizes.measureDeep(new PartitionKey(null, null, key));
+        EMPTY_SIZE = ObjectSizes.measureDeep(new PartitionKey(null, key));
     }
 
-    final TableId tableId; // TODO (expected): move to PartitionKey
     final DecoratedKey key;
 
-    public PartitionKey(String keyspace, TableId tableId, DecoratedKey key)
+    public PartitionKey(TableId tableId, DecoratedKey key)
     {
-        super(keyspace);
-        this.tableId = tableId;
+        super(tableId);
         this.key = key;
     }
 
@@ -73,20 +71,18 @@ public final class PartitionKey extends AccordRoutableKey implements Key
 
     public static PartitionKey of(PartitionUpdate update)
     {
-        return new PartitionKey(update.metadata().keyspace, update.metadata().id, update.partitionKey());
+        return new PartitionKey(update.metadata().id, update.partitionKey());
     }
 
     public static PartitionKey of(Partition partition)
     {
-        return new PartitionKey(partition.metadata().keyspace, partition.metadata().id, partition.partitionKey());
+        return new PartitionKey(partition.metadata().id, partition.partitionKey());
     }
 
     public static PartitionKey of(SinglePartitionReadCommand command)
     {
-        return new PartitionKey(command.metadata().keyspace, command.metadata().id, command.partitionKey());
+        return new PartitionKey(command.metadata().id, command.partitionKey());
     }
-
-    public final TableId tableId() { return tableId; }
 
     @Override
     public Token token()
@@ -102,7 +98,7 @@ public final class PartitionKey extends AccordRoutableKey implements Key
     @Override
     public RoutingKey toUnseekable()
     {
-        return new TokenKey(keyspace, token());
+        return new TokenKey(table, token());
     }
 
     public long estimatedSizeOnHeap()
@@ -131,14 +127,14 @@ public final class PartitionKey extends AccordRoutableKey implements Key
         @Override
         public void serialize(PartitionKey key, DataOutputPlus out, int version) throws IOException
         {
-            key.tableId().serialize(out);
+            key.table().serialize(out);
             ByteBufferUtil.writeWithShortLength(key.partitionKey().getKey(), out);
         }
 
         public <V> int serialize(PartitionKey key, V dst, ValueAccessor<V> accessor, int offset)
         {
             int position = offset;
-            position += key.tableId().serialize(dst, accessor, position);
+            position += key.table().serialize(dst, accessor, position);
             ByteBuffer bytes = key.partitionKey().getKey();
             int numBytes = ByteBufferAccessor.instance.size(bytes);
             Preconditions.checkState(numBytes <= Short.MAX_VALUE);
@@ -154,7 +150,7 @@ public final class PartitionKey extends AccordRoutableKey implements Key
             TableId tableId = TableId.deserialize(in);
             TableMetadata metadata = Schema.instance.getExistingTableMetadata(tableId);
             DecoratedKey key = metadata.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(in));
-            return new PartitionKey(metadata.keyspace, tableId, key);
+            return new PartitionKey(tableId, key);
         }
 
         public <V> PartitionKey deserialize(V src, ValueAccessor<V> accessor, int offset) throws IOException
@@ -167,7 +163,7 @@ public final class PartitionKey extends AccordRoutableKey implements Key
             ByteBuffer bytes = ByteBuffer.allocate(numBytes);
             accessor.copyTo(src, offset, bytes, ByteBufferAccessor.instance, 0, numBytes);
             DecoratedKey key = metadata.partitioner.decorateKey(bytes);
-            return new PartitionKey(metadata.keyspace, tableId, key);
+            return new PartitionKey(tableId, key);
         }
 
         @Override
@@ -178,7 +174,7 @@ public final class PartitionKey extends AccordRoutableKey implements Key
 
         public long serializedSize(PartitionKey key)
         {
-            return key.tableId().serializedSize() + ByteBufferUtil.serializedSizeWithShortLength(key.partitionKey().getKey());
+            return key.table().serializedSize() + ByteBufferUtil.serializedSizeWithShortLength(key.partitionKey().getKey());
         }
     }
 }

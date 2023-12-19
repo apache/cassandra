@@ -119,6 +119,7 @@ import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.schema.Views;
+import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeGenBuilder;
@@ -481,7 +482,7 @@ public final class CassandraGenerators
                 AbstractReplicationStrategy replication = replicationGen.generate(rs).withKeyspace(nameGen).build().generate(rs);
                 ReplicationParams replicationParams = ReplicationParams.fromStrategy(replication);
                 boolean durableWrites = durableWritesGen.generate(rs);
-                KeyspaceParams params = new KeyspaceParams(durableWrites, replicationParams);
+                KeyspaceParams params = new KeyspaceParams(durableWrites, replicationParams, FastPathStrategy.simple());
                 Tables tables = Tables.none();
                 Views views = Views.none();
                 Types types = Types.none();

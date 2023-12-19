@@ -192,9 +192,9 @@ public class AccordCommandsForKeys
         }
 
         // update in memory cfk data with the update results
-        protected void maybeUpdateCommands(CommandsForKeyUpdate update)
+        protected void maybeUpdateCommands(CommandsForKeyUpdate update, AccordStateCache.Instance<RoutableKey, CommandsForKey, AccordSafeCommandsForKey> cache)
         {
-            CommandsCachingState commands = (CommandsCachingState) commandStore.depsCommandsForKeyCache().getUnsafe(key());
+            CommandsCachingState commands = (CommandsCachingState) cache.getUnsafe(key());
             if (commands == null)
                 return;
 
@@ -214,7 +214,8 @@ public class AccordCommandsForKeys
             Modified<RoutableKey, CommandsForKeyUpdate> modified = (Modified<RoutableKey, CommandsForKeyUpdate>) next;
 
             CommandsForKeyUpdate current = modified.current;
-            maybeUpdateCommands(current);
+            maybeUpdateCommands(current, commandStore.depsCommandsForKeyCache());
+            maybeUpdateCommands(current, commandStore.allCommandsForKeyCache());
 
             // combine in memory updates
             current = CommandsForKeyGroupUpdater.Immutable.merge(modified.original, current, this);
