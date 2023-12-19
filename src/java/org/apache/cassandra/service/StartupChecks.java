@@ -192,9 +192,6 @@ public class StartupChecks
     // https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1057843
     public static final StartupCheck checkKernelBug1057843 = new StartupCheck()
     {
-        private final Range<Semver> affectedKernels = Range.closedOpen(
-        new Semver("6.1.64", Semver.SemverType.LOOSE), new Semver("6.1.66", Semver.SemverType.LOOSE));
-
         private final Set<String> affectedFileSystemTypes = Set.of("ext4");
 
         @Override
@@ -233,6 +230,9 @@ public class StartupChecks
 
             if (affectedPaths.isEmpty())
                 return;
+
+            Range<Semver> affectedKernels = Range.closedOpen(new Semver("6.1.64", Semver.SemverType.LOOSE),
+                                                             new Semver("6.1.66", Semver.SemverType.LOOSE));
 
             Semver kernelVersion = FBUtilities.getKernelVersion();
             if (!affectedKernels.contains(kernelVersion.withClearedSuffixAndBuild()))
