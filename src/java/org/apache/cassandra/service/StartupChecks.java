@@ -89,7 +89,7 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
  * Each individual test is modelled as an implementation of StartupCheck, these are run
  * at the start of CassandraDaemon#setup() before any local state is mutated. The default
  * checks are a mix of informational tests (inspectJvmOptions), initialization
- * (initSigarLibrary, checkCacheServiceInitialization) and invariant checking
+ * (checkProcessEnvironment, checkCacheServiceInitialization) and invariant checking
  * (checkValidLaunchDate, checkSystemKeyspaceState, checkSSTablesFormat).
  *
  * In addition, if checkSystemKeyspaceState determines that the release version has
