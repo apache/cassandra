@@ -23,7 +23,6 @@ import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
-import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,7 +87,7 @@ public class SystemInfo
      */
     long getMaxProcess()
     {
-        // this check only works on Linux systems.
+        // this check only works on Linux systems.  Errors fall through to return default.
         if (oshi.SystemInfo.getCurrentPlatform() == PlatformEnum.LINUX)
         {
             String path = format("/proc/%s/limits", getPid());
@@ -108,12 +107,7 @@ public class SystemInfo
                         return "unlimited".equals(limit) ? INFINITY : Long.parseLong(limit);
                     }
                 }
-
-                /* return the default value for non-Linux systems.
-                 * can not return 0 as we know there is at least 1 process (this one) and
-                 * -1 historically represents infinity.
-                 */
-                return DEFAULT_MAX_PROCESSES;
+                logger.error( "'Max processes' not found in "+path);
             }
             catch (Throwable t)
             {
@@ -121,8 +115,8 @@ public class SystemInfo
             }
         }
 
-        /* return the default value for non-Linux systems.
-         * can not return 0 as we know there is at least 1 process (this one) and
+        /* return the default value for non-Linux systems or parsing error.
+         * Can not return 0 as we know there is at least 1 process (this one) and
          * -1 historically represents infinity.
          */
         return DEFAULT_MAX_PROCESSES;
@@ -194,13 +188,8 @@ public class SystemInfo
 
         StringBuilder sb = new StringBuilder();
 
-        for (Supplier<Optional<String>> check : ImmutableList.of(expectedNumProc,
-                                                                 swapShouldBeDisabled,
-                                                                 expectedAddressSpace,
-                                                                 expectedMinNoFile))
-        {
+        for (Supplier<Optional<String>> check : List.of(expectedNumProc, swapShouldBeDisabled, expectedAddressSpace, expectedMinNoFile))
             check.get().map(sb::append);
-        }
 
         String message = sb.toString();
         return message.isEmpty() ? empty() : of(message);
