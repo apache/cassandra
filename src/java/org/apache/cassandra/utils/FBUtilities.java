@@ -63,6 +63,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
+import com.google.common.base.Preconditions;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.base.Preconditions;
@@ -71,7 +72,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.vdurmont.semver4j.Semver;
-import com.vdurmont.semver4j.SemverException;
 import org.apache.cassandra.audit.IAuditLogger;
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.auth.IAuthenticator;
@@ -1150,8 +1150,24 @@ public class FBUtilities
         }
     }
 
+    /**
+     * Starts and waits for the given <code>cmd</code> to finish. If the process does not finish within <code>timeout</code>,
+     * it will be destroyed.
+     *
+     * @param env        additional environment variables to set
+     * @param timeout    timeout for the process to finish, or zero/null to wait forever
+     * @param outBufSize the maximum size of the collected std output; the overflow will be discarded
+     * @param errBufSize the maximum size of the collected std error; the overflow will be discarded
+     * @param cmd        the command to execute
+     * @return the std output of the process up to the size specified by <code>outBufSize</code>
+     */
     public static String exec(Map<String, String> env, Duration timeout, int outBufSize, int errBufSize, String... cmd) throws IOException, TimeoutException, InterruptedException
     {
+        if (env == null)
+            env = Map.of();
+        if (timeout == null)
+            timeout = Duration.ZERO;
+
         ProcessBuilder processBuilder = new ProcessBuilder(cmd);
         processBuilder.environment().putAll(env);
         Process process = processBuilder.start();
@@ -1159,7 +1175,16 @@ public class FBUtilities
              DataOutputBuffer out = new DataOutputBuffer();
              OutputStream overflowSink = OutputStream.nullOutputStream())
         {
-            boolean completed = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            boolean completed;
+            if (timeout.isZero())
+            {
+                process.waitFor();
+                completed = true;
+            }
+            else
+            {
+                completed = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            }
 
             copy(process.getInputStream(), out, outBufSize);
             long outOverflow = process.getInputStream().transferTo(overflowSink);
@@ -1461,24 +1486,17 @@ public class FBUtilities
     @VisibleForTesting
     static Semver parseKernelVersion(String versionString)
     {
+        Preconditions.checkNotNull(versionString, "kernel version cannot be null");
         try (Scanner scanner = new Scanner(versionString))
         {
             while (scanner.hasNextLine())
             {
                 String version = scanner.nextLine().trim();
-                if (version.isBlank() || version.isEmpty())
+                if (version.isEmpty())
                     continue;
-                try
-                {
-                    return new Semver(version, Semver.SemverType.LOOSE);
-                }
-                catch (SemverException ex)
-                {
-                    logger.warn("Error while trying to parse kernel version from '{}' - {}", versionString, ex.getMessage());
-                    return null;
-                }
+                return new Semver(version, Semver.SemverType.LOOSE);
             }
         }
-        return null;
+        throw new IllegalArgumentException("Error while trying to parse kernel version - no version found");
     }
 }

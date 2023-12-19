@@ -61,6 +61,7 @@ import org.apache.cassandra.dht.RandomPartitioner;
 
 import static org.apache.cassandra.utils.FBUtilities.parseKernelVersion;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
@@ -417,7 +418,9 @@ public class FBUtilitiesTest
         assertThat(parseKernelVersion("4.4.0-21-generic\n").toString()).isEqualTo("4.4.0-21-generic");
         assertThat(parseKernelVersion("\n4.4.0-21-generic\n").toString()).isEqualTo("4.4.0-21-generic");
         assertThat(parseKernelVersion("\n 4.4.0-21-generic \n").toString()).isEqualTo("4.4.0-21-generic");
-        assertThat(parseKernelVersion("\n \n")).isEqualTo(null);
+
+        assertThatExceptionOfType(IllegalArgumentException.class).isThrownBy(() -> parseKernelVersion("\n \n"))
+                                                                 .withMessageContaining("no version found");
     }
 
     @Test
