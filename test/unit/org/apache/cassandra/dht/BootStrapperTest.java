@@ -133,7 +133,8 @@ public class BootStrapperTest extends CassandraTestBase
                                             false,
                                             1,
                                             movements.left,
-                                            movements.right);
+                                            movements.right,
+                                            true);
 
         assertNotNull(Keyspace.open(keyspaceName));
         s.addKeyspaceToFetch(keyspaceName);

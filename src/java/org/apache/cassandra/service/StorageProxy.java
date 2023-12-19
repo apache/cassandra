@@ -384,7 +384,7 @@ public class StorageProxy implements StorageProxyMBean
                                                         clientState,
                                                         nowInSeconds);
                     IAccordService accordService = AccordService.instance();
-                    accordService.maybeConvertKeyspacesToAccord(txn);
+                    accordService.maybeConvertTablesToAccord(txn);
                     TxnResult txnResult = accordService.coordinate(txn,
                                                                    consistencyForPaxos,
                                                                    queryStartNanoTime);
@@ -1256,7 +1256,7 @@ public class StorageProxy implements StorageProxyMBean
         AccordUpdate update = new TxnUpdate(fragments, TxnCondition.none(), clForCommit);
         Txn.InMemory txn = new Txn.InMemory(Keys.of(partitionKeys), TxnRead.EMPTY, TxnQuery.EMPTY, update);
         IAccordService accordService = AccordService.instance();
-        accordService.maybeConvertKeyspacesToAccord(txn);
+        accordService.maybeConvertTablesToAccord(txn);
         accordService.coordinate(txn, consistencyLevel, queryStartNanoTime);
     }
 
@@ -1983,7 +1983,7 @@ public class StorageProxy implements StorageProxyMBean
         TxnRead read = TxnRead.createSerialRead(readCommand, consistencyLevel);
         Txn txn = new Txn.InMemory(read.keys(), read, TxnQuery.ALL);
         IAccordService accordService = AccordService.instance();
-        accordService.maybeConvertKeyspacesToAccord(txn);
+        accordService.maybeConvertTablesToAccord(txn);
         TxnResult txnResult = accordService.coordinate(txn, consistencyLevel, queryStartNanoTime);
         if (txnResult.kind() == retry_new_protocol)
             return RETRY_NEW_PROTOCOL;

@@ -75,6 +75,7 @@ public class RangeCommands
         ReplicaPlanIterator replicaPlans = new ReplicaPlanIterator(command.dataRange().keyRange(),
                                                                    command.indexQueryPlan(),
                                                                    keyspace,
+                                                                   command.metadata().id(),
                                                                    consistencyLevel);
 
         if (command.isTopK())
@@ -105,7 +106,7 @@ public class RangeCommands
             Tracing.trace("Submitting range requests on {} ranges with a concurrency of {}", replicaPlans.size(), concurrencyFactor);
         }
 
-        ReplicaPlanMerger mergedReplicaPlans = new ReplicaPlanMerger(replicaPlans, keyspace, consistencyLevel);
+        ReplicaPlanMerger mergedReplicaPlans = new ReplicaPlanMerger(replicaPlans, keyspace, command.metadata().id(), consistencyLevel);
         return new RangeCommandIterator(mergedReplicaPlans,
                                         command,
                                         concurrencyFactor,
@@ -145,11 +146,12 @@ public class RangeCommands
             ReplicaPlanIterator rangeIterator = new ReplicaPlanIterator(DataRange.allData(metadata.partitioner).keyRange(),
                                                                         null,
                                                                         keyspace,
+                                                                        metadata.id,
                                                                         consistency);
 
             // Called for the side effect of running assureSufficientLiveReplicasForRead.
             // Deliberately called with an invalid vnode count in case it is used elsewhere in the future..
-            rangeIterator.forEachRemaining(r ->  ReplicaPlans.forRangeRead(keyspace, null, consistency, r.range(), -1));
+            rangeIterator.forEachRemaining(r ->  ReplicaPlans.forRangeRead(keyspace, metadata.id, null, consistency, r.range(), -1));
             return true;
         }
         catch (UnavailableException e)

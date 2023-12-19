@@ -1085,6 +1085,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     String listConsensusMigrations(@Nullable Set<String> keyspaceNames, @Nullable Set<String> tableNames, @Nonnull String format);
 
     List<String> getAccordManagedKeyspaces();
+    List<String> getAccordManagedTables();
 
     /** Gets the concurrency settings for processing stages*/
     static class StageConcurrency implements Serializable

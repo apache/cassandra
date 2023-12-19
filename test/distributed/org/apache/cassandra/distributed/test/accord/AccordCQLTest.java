@@ -123,11 +123,11 @@ public class AccordCQLTest extends AccordTestBase
             for (int i = 0; i < 10; i++)
             {
                 for (int j = 0; j < 10; j++)
-                    cluster.coordinator(1).execute("INSERT INTO " + currentTable + "(k, c, v) VALUES (?, ?, ?);", ConsistencyLevel.ALL, i, j, i + j);
+                    cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + "(k, c, v) VALUES (?, ?, ?);", ConsistencyLevel.ALL, i, j, i + j);
             }
             // multi row
             String cql = "BEGIN TRANSACTION\n" +
-                         "  SELECT * FROM " + currentTable + " WHERE k=? AND c IN (?, ?);\n" +
+                         "  SELECT * FROM " + qualifiedTableName + " WHERE k=? AND c IN (?, ?);\n" +
                          "COMMIT TRANSACTION";
             SimpleQueryResult result = cluster.coordinator(1).executeWithResult(cql, ConsistencyLevel.ANY, 0, 0, 1);
             assertThat(result).isEqualTo(QueryResults.builder()
@@ -138,7 +138,7 @@ public class AccordCQLTest extends AccordTestBase
             // Results should be in Partiton/Clustering order, so make sure
             // multi partition
             cql = "BEGIN TRANSACTION\n" +
-                  "  SELECT * FROM " + currentTable + " WHERE k IN (?, ?) AND c = ?;\n" +
+                  "  SELECT * FROM " + qualifiedTableName + " WHERE k IN (?, ?) AND c = ?;\n" +
                   "COMMIT TRANSACTION";
             for (boolean asc : Arrays.asList(true, false))
             {
@@ -153,7 +153,7 @@ public class AccordCQLTest extends AccordTestBase
 
             // multi-partition, multi-clustering
             cql = "BEGIN TRANSACTION\n" +
-                  "  SELECT * FROM " + currentTable + " WHERE k IN (?, ?) AND c IN (?, ?);\n" +
+                  "  SELECT * FROM " + qualifiedTableName + " WHERE k IN (?, ?) AND c IN (?, ?);\n" +
                   "COMMIT TRANSACTION";
             for (boolean asc : Arrays.asList(true, false))
             {
@@ -232,14 +232,14 @@ public class AccordCQLTest extends AccordTestBase
     {
         test(cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 0, 3);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (1, 0, 3);", ConsistencyLevel.ALL);
                  
                  String query = "BEGIN TRANSACTION\n" +
-                                "  LET row1 = (SELECT v FROM " + currentTable + " WHERE k = ? AND c = ?);\n" +
-                                "  LET row2 = (SELECT v FROM " + currentTable + " WHERE k = ? AND c = ?);\n" +
-                                "  SELECT v FROM " + currentTable + " WHERE k = ? AND c = ?;\n" +
+                                "  LET row1 = (SELECT v FROM " + qualifiedTableName + " WHERE k = ? AND c = ?);\n" +
+                                "  LET row2 = (SELECT v FROM " + qualifiedTableName + " WHERE k = ? AND c = ?);\n" +
+                                "  SELECT v FROM " + qualifiedTableName + " WHERE k = ? AND c = ?;\n" +
                                 "  IF row1 IS NULL AND row2.v = ? THEN\n" +
-                                "    INSERT INTO " + currentTable + " (k, c, v) VALUES (?, ?, ?);\n" +
+                                "    INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (?, ?, ?);\n" +
                                 "  END IF\n" +
                                 "COMMIT TRANSACTION";
 
@@ -253,7 +253,7 @@ public class AccordCQLTest extends AccordTestBase
                  assertEquals(3, result[0][0]);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k=0 AND c=0;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k=0 AND c=0;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, 0, 1 }, check);
              });
@@ -262,13 +262,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testRegularScalarIsNull() throws Throwable
     {
-        testScalarIsNull("CREATE TABLE " + currentTable + " (k int, c int, v int, primary key (k, c))");
+        testScalarIsNull("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, primary key (k, c))");
     }
 
     @Test
     public void testStaticScalarIsNull() throws Throwable
     {
-        testScalarIsNull("CREATE TABLE " + currentTable + " (k int, c int, v int static, primary key (k, c))");
+        testScalarIsNull("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int static, primary key (k, c))");
     }
 
     private void testScalarIsNull(String tableDDL) throws Exception {
@@ -276,25 +276,25 @@ public class AccordCQLTest extends AccordTestBase
              cluster ->
              {
                  String insertNull = "BEGIN TRANSACTION\n" +
-                                     "  LET row0 = (SELECT * FROM " + currentTable + " WHERE k = 0 LIMIT 1);\n" +
+                                     "  LET row0 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 0 LIMIT 1);\n" +
                                      "  SELECT row0.k, row0.v;\n" +
                                      "  IF row0.v IS NULL THEN\n" +
-                                     "    INSERT INTO " + currentTable + " (k, c, v) VALUES (?, ?, null);\n" +
+                                     "    INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (?, ?, null);\n" +
                                      "  END IF\n" +
                                      "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { null, null }, insertNull, 0, 0);
 
                  String insert = "BEGIN TRANSACTION\n" +
-                                 "  LET row0 = (SELECT * FROM " + currentTable + " WHERE k = 0 LIMIT 1);\n" +
+                                 "  LET row0 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 0 LIMIT 1);\n" +
                                  "  SELECT row0.k, row0.v;\n" +
                                  "  IF row0.v IS NULL THEN\n" +
-                                 "    INSERT INTO " + currentTable + " (k, c, v) VALUES (?, ?, ?);\n" +
+                                 "    INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (?, ?, ?);\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, null }, insert, 0, 0, 1);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT k, c, v  FROM " + currentTable + " WHERE k=0 AND c=0;\n" +
+                                "  SELECT k, c, v  FROM " + qualifiedTableName + " WHERE k=0 AND c=0;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, 0, 1 }, check);
              });
@@ -303,36 +303,36 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testQueryStaticColumn() throws Exception
     {
-        test("CREATE TABLE " + currentTable + " (k int, c int, s int static, v int, primary key (k, c))",
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, s int static, v int, primary key (k, c))",
              cluster ->
              {
                  // select partition key, clustering key and static column, restrict on partition and clustering
                  testQueryStaticColumn(cluster,
-                                       "LET row0 = (SELECT k, c, s, v FROM " + currentTable + " WHERE k = ? AND c = 0);\n" +
+                                       "LET row0 = (SELECT k, c, s, v FROM " + qualifiedTableName + " WHERE k = ? AND c = 0);\n" +
                                        "SELECT row0.k, row0.c, row0.s, row0.v;\n",
 
-                                       "SELECT k, c, s, v FROM " + currentTable + " WHERE k = ? AND c = 0");
+                                       "SELECT k, c, s, v FROM " + qualifiedTableName + " WHERE k = ? AND c = 0");
 
                  // select partition key, clustering key and static column, restrict on partition and limit to 1 row
                  testQueryStaticColumn(cluster,
-                                       "LET row0 = (SELECT k, c, s, v FROM " + currentTable + " WHERE k = ? LIMIT 1);\n" +
+                                       "LET row0 = (SELECT k, c, s, v FROM " + qualifiedTableName + " WHERE k = ? LIMIT 1);\n" +
                                        "SELECT row0.k, row0.c, row0.s, row0.v;\n",
 
-                                       "SELECT k, c, s, v FROM " + currentTable + " WHERE k = ? LIMIT 1");
+                                       "SELECT k, c, s, v FROM " + qualifiedTableName + " WHERE k = ? LIMIT 1");
 
                  // select static column and regular column, restrict on partition and clustering
                  testQueryStaticColumn(cluster,
-                                       "LET row0 = (SELECT s, v FROM " + currentTable + " WHERE k = ? AND c = 0);\n" +
+                                       "LET row0 = (SELECT s, v FROM " + qualifiedTableName + " WHERE k = ? AND c = 0);\n" +
                                        "SELECT row0.s, row0.v;\n",
 
-                                       "SELECT s, v FROM " + currentTable + " WHERE k = ? AND c = 0");
+                                       "SELECT s, v FROM " + qualifiedTableName + " WHERE k = ? AND c = 0");
 
                  // select just static column, restrict on partition and limit to 1 row
                  testQueryStaticColumn(cluster,
-                                       "LET row0 = (SELECT s FROM " + currentTable + " WHERE k = ? LIMIT 1);\n" +
+                                       "LET row0 = (SELECT s FROM " + qualifiedTableName + " WHERE k = ? LIMIT 1);\n" +
                                        "SELECT row0.s;\n",
 
-                                       "SELECT s FROM " + currentTable + " WHERE k = ? LIMIT 1");
+                                       "SELECT s FROM " + qualifiedTableName + " WHERE k = ? LIMIT 1");
              });
     }
 
@@ -342,22 +342,22 @@ public class AccordCQLTest extends AccordTestBase
         int key = 10;
         assertResultsFromAccordMatches(cluster, accordReadQuery, simpleReadQuery, key++);
 
-        cluster.get(1).coordinator().execute("INSERT INTO " + currentTable + " (k, s) VALUES (?, null);", ConsistencyLevel.ALL, key);
+        cluster.get(1).coordinator().execute("INSERT INTO " + qualifiedTableName + " (k, s) VALUES (?, null);", ConsistencyLevel.ALL, key);
         logger().info("null -> static column");
         assertResultsFromAccordMatches(cluster, accordReadQuery, simpleReadQuery, key++);
 
-        cluster.get(1).coordinator().execute("INSERT INTO " + currentTable + " (k, s) VALUES (?, 1);", ConsistencyLevel.ALL, key);
+        cluster.get(1).coordinator().execute("INSERT INTO " + qualifiedTableName + " (k, s) VALUES (?, 1);", ConsistencyLevel.ALL, key);
         logger().info("Inserted 1 -> static column");
         assertResultsFromAccordMatches(cluster, accordReadQuery, simpleReadQuery, key++);
 
-        cluster.get(1).coordinator().execute("INSERT INTO " + currentTable + " (k, c) VALUES (?, 0);", ConsistencyLevel.ALL, key);
+        cluster.get(1).coordinator().execute("INSERT INTO " + qualifiedTableName + " (k, c) VALUES (?, 0);", ConsistencyLevel.ALL, key);
         logger().info("Inserted 0 -> clustering");
         assertResultsFromAccordMatches(cluster, accordReadQuery, simpleReadQuery, key);
     }
 
     @Test
     public void testUpdateStaticColumn() throws Exception {
-        test("CREATE TABLE " + currentTable + " (k int, c int, s int static, v int, primary key (k, c))",
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, s int static, v int, primary key (k, c))",
              cluster ->
              {
                  checkUpdateStatic(cluster, "SET s=1 WHERE k=?", 101, "[[101, null, 1, null]]", "[]");
@@ -373,16 +373,16 @@ public class AccordCQLTest extends AccordTestBase
     private void checkUpdateStatic(Cluster cluster, String update, int key, String expPart, String expClust)
     {
         Object[][] r1, r2, r3, r4, r;
-        r = cluster.get(1).coordinator().execute("UPDATE " + currentTable + " " + update + " IF s = NULL;", ConsistencyLevel.QUORUM, key);
+        r = cluster.get(1).coordinator().execute("UPDATE " + qualifiedTableName + " " + update + " IF s = NULL;", ConsistencyLevel.QUORUM, key);
         Assertions.assertThat(Arrays.deepToString(r)).isEqualTo("[[true]]");
-        r1 = cluster.get(1).coordinator().execute("SELECT * FROM " + currentTable + " WHERE k = ? LIMIT 1;", ConsistencyLevel.SERIAL, key);
-        r2 = cluster.get(1).coordinator().execute("SELECT * FROM " + currentTable + " WHERE k = ? AND c = 0;", ConsistencyLevel.SERIAL, key);
-        cluster.get(1).coordinator().execute("TRUNCATE " + currentTable, ConsistencyLevel.ALL);
+        r1 = cluster.get(1).coordinator().execute("SELECT * FROM " + qualifiedTableName + " WHERE k = ? LIMIT 1;", ConsistencyLevel.SERIAL, key);
+        r2 = cluster.get(1).coordinator().execute("SELECT * FROM " + qualifiedTableName + " WHERE k = ? AND c = 0;", ConsistencyLevel.SERIAL, key);
+        cluster.get(1).coordinator().execute("TRUNCATE " + qualifiedTableName, ConsistencyLevel.ALL);
 
-        executeAsTxn(cluster, "UPDATE " + currentTable + " " + update + ";", key);
-        r3 = executeAsTxn(cluster, "SELECT * FROM " + currentTable + " WHERE k = ? LIMIT 1;", key).toObjectArrays();
-        r4 = executeAsTxn(cluster, "SELECT * FROM " + currentTable + " WHERE k = ? AND c = 0;", key).toObjectArrays();
-        cluster.get(1).coordinator().execute("TRUNCATE " + currentTable, ConsistencyLevel.ALL);
+        executeAsTxn(cluster, "UPDATE " + qualifiedTableName + " " + update + ";", key);
+        r3 = executeAsTxn(cluster, "SELECT * FROM " + qualifiedTableName + " WHERE k = ? LIMIT 1;", key).toObjectArrays();
+        r4 = executeAsTxn(cluster, "SELECT * FROM " + qualifiedTableName + " WHERE k = ? AND c = 0;", key).toObjectArrays();
+        cluster.get(1).coordinator().execute("TRUNCATE " + qualifiedTableName, ConsistencyLevel.ALL);
 
         Assertions.assertThat(Arrays.deepToString(r1)).isEqualTo(expPart);
         Assertions.assertThat(Arrays.deepToString(r2)).isEqualTo(expClust);
@@ -453,12 +453,12 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testStaticScalarEQ() throws Throwable
     {
-        testScalarCondition("CREATE TABLE " + currentTable + " (k int, c int, v int static, primary key (k, c))", 3, "=", 3, "=");
+        testScalarCondition("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int static, primary key (k, c))", 3, "=", 3, "=");
     }
 
     private void testScalarCondition(int lhs, String operator, int rhs, String reversedOperator) throws Exception
     {
-        testScalarCondition("CREATE TABLE " + currentTable + " (k int, c int, v int, primary key (k, c))", lhs, operator, rhs, reversedOperator);
+        testScalarCondition("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, primary key (k, c))", lhs, operator, rhs, reversedOperator);
     }
 
     private void testScalarCondition(String tableDDL, int lhs, String operator, int rhs, String reversedOperator) throws Exception
@@ -466,27 +466,27 @@ public class AccordCQLTest extends AccordTestBase
         test(tableDDL,
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (0, 0, " + lhs + ");", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (0, 0, " + lhs + ");", ConsistencyLevel.ALL);
 
                  String query = "BEGIN TRANSACTION\n" +
-                                "  LET row1 = (SELECT v FROM " + currentTable + " WHERE k = ? LIMIT 1);\n" +
+                                "  LET row1 = (SELECT v FROM " + qualifiedTableName + " WHERE k = ? LIMIT 1);\n" +
                                 "  SELECT row1.v;\n" +
                                 "  IF row1.v " + operator + " ? THEN\n" +
-                                "    INSERT INTO " + currentTable + " (k, c, v) VALUES (?, ?, ?);\n" +
+                                "    INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (?, ?, ?);\n" +
                                 "  END IF\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { lhs }, query, 0, rhs, 1, 0, 1);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = ? AND c = ?;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = ? AND c = ?;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 1, 0, 1 }, check, 1, 0);
 
                  String queryWithReversed = "BEGIN TRANSACTION\n" +
-                                            "  LET row1 = (SELECT v FROM " + currentTable + " WHERE k = ? LIMIT 1);\n" +
+                                            "  LET row1 = (SELECT v FROM " + qualifiedTableName + " WHERE k = ? LIMIT 1);\n" +
                                             "  SELECT row1.v;\n" +
                                             "  IF ? " + reversedOperator + " row1.v THEN\n" +
-                                            "    INSERT INTO " + currentTable + " (k, c, v) VALUES (?, ?, ?);\n" +
+                                            "    INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (?, ?, ?);\n" +
                                             "  END IF\n" +
                                             "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { lhs }, queryWithReversed, 0, rhs, 2, 0, 1);
@@ -500,7 +500,7 @@ public class AccordCQLTest extends AccordTestBase
         test(cluster ->
              {
                  String query = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k=0 AND c=0;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k=0 AND c=0;\n" +
                                 "COMMIT TRANSACTION";
                  SimpleQueryResult result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY);
                  assertFalse(result.hasNext());
@@ -513,13 +513,13 @@ public class AccordCQLTest extends AccordTestBase
         test(cluster ->
              {
                  String query = "BEGIN TRANSACTION\n" +
-                                "  INSERT INTO " + currentTable + " (k, c, v) VALUES (?, ?, ?);\n" +
+                                "  INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (?, ?, ?);\n" +
                                 "COMMIT TRANSACTION";
                  SimpleQueryResult result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY, 0, 0, 1);
                  assertFalse(result.hasNext());
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k=? AND c=?;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k=? AND c=?;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {0, 0, 1}, check, 0, 0);
              });
@@ -530,14 +530,14 @@ public class AccordCQLTest extends AccordTestBase
     {
         test(cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 0, 3);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (1, 0, 3);", ConsistencyLevel.ALL);
              
                  String query = "BEGIN TRANSACTION\n" +
-                                "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ? AND c = ?);\n" +
-                                "  LET row2 = (SELECT * FROM " + currentTable + " WHERE k = ? AND c = ?);\n" +
+                                "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ? AND c = ?);\n" +
+                                "  LET row2 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ? AND c = ?);\n" +
                                 "  SELECT row1.v, row2.k, row2.c, row2.v;\n" +
                                 "  IF row1 IS NULL AND row2.v = ? THEN\n" +
-                                "    INSERT INTO " + currentTable + " (k, c, v) VALUES (?, ?, ?);\n" +
+                                "    INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (?, ?, ?);\n" +
                                 "  END IF\n" +
                                 "COMMIT TRANSACTION";
                  SimpleQueryResult result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY, 0, 0, 1, 0, 3, 0, 0, 1);
@@ -545,7 +545,7 @@ public class AccordCQLTest extends AccordTestBase
                  assertThat(result).hasSize(1).contains(null, 1, 0, 3);
              
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k=0 AND c=0;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k=0 AND c=0;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {0, 0, 1}, check);
              });
@@ -556,14 +556,14 @@ public class AccordCQLTest extends AccordTestBase
     {
         test(cluster ->
         {
-            cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 0, 3);", ConsistencyLevel.ALL);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (1, 0, 3);", ConsistencyLevel.ALL);
 
             String query = "BEGIN TRANSACTION\n" +
-                           "  LET row0 = (SELECT * FROM " + currentTable + " WHERE k = ? AND c = ?);\n" +
-                           "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ? AND c = ?);\n" +
+                           "  LET row0 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ? AND c = ?);\n" +
+                           "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ? AND c = ?);\n" +
                            "  SELECT row1.v;\n" +
                            "  IF row0 IS NULL AND row1.v = ? THEN\n" +
-                           "    INSERT INTO " + currentTable + " (k, c, v) VALUES (?, ?, ?);\n" +
+                           "    INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (?, ?, ?);\n" +
                            "  END IF\n" +
                            "COMMIT TRANSACTION";
             SimpleQueryResult result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY, 0, 0, 1, 0, 2, 0, 0, 1);
@@ -571,7 +571,7 @@ public class AccordCQLTest extends AccordTestBase
             assertThat(result).hasSize(1).contains(3);
 
             String check = "BEGIN TRANSACTION\n" +
-                           "  SELECT * FROM " + currentTable + " WHERE k=0 AND c=0;\n" +
+                           "  SELECT * FROM " + qualifiedTableName + " WHERE k=0 AND c=0;\n" +
                            "COMMIT TRANSACTION";
             assertEmptyWithPreemptedRetry(cluster, check);
         });
@@ -580,22 +580,22 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testReversedClusteringReference() throws Exception
     {
-        test("CREATE TABLE " + currentTable + " (k int, c int, v int, PRIMARY KEY (k, c)) WITH CLUSTERING ORDER BY (c DESC)",
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, PRIMARY KEY (k, c)) WITH CLUSTERING ORDER BY (c DESC)",
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 1, 1)", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (1, 1, 1)", ConsistencyLevel.ALL);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1 AND c = 1);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1 AND c = 1);\n" +
                                  "  SELECT row1.k, row1.c, row1.v;\n" +
                                  "  IF row1.c = 1 THEN\n" +
-                                 "    UPDATE " + currentTable + " SET v += row1.c WHERE k=1 AND c=1;\n" +
+                                 "    UPDATE " + qualifiedTableName + " SET v += row1.c WHERE k=1 AND c=1;\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[]{1, 1, 1}, update);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = 1 AND c = 1;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = 1 AND c = 1;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[]{1, 1, 2}, check);
              });
@@ -615,20 +615,20 @@ public class AccordCQLTest extends AccordTestBase
 
     private void testScalarShorthandOperation(int startingValue, String operation, int endingvalue) throws Exception
     {
-        test("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, v int)",
+        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int)",
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, v) VALUES (1, ?)", ConsistencyLevel.ALL, startingValue);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, v) VALUES (1, ?)", ConsistencyLevel.ALL, startingValue);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1);\n" +
                                  "  SELECT row1.v;\n" +
-                                 "  UPDATE " + currentTable + " SET v " + operation + " 1 WHERE k = 1;\n" +
+                                 "  UPDATE " + qualifiedTableName + " SET v " + operation + " 1 WHERE k = 1;\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEquals(cluster, new Object[] { startingValue }, update);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT v FROM " + currentTable + " WHERE k = 1;\n" +
+                                "  SELECT v FROM " + qualifiedTableName + " WHERE k = 1;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 2 }, check);
              });
@@ -637,20 +637,20 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testConstantNonStaticRowReadBeforeUpdate() throws Exception
     {
-        test("CREATE TABLE " + currentTable + " (k int, c int, v int, PRIMARY KEY (k, c))",
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, PRIMARY KEY (k, c))",
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 2, ?)", ConsistencyLevel.ALL, 3);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (1, 2, ?)", ConsistencyLevel.ALL, 3);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1 AND c = 2);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1 AND c = 2);\n" +
                                  "  SELECT row1.v;\n" +
-                                 "  UPDATE " + currentTable + " SET v += 1 WHERE k = 1 AND c = 2;\n" +
+                                 "  UPDATE " + qualifiedTableName + " SET v += 1 WHERE k = 1 AND c = 2;\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEquals(cluster, new Object[] { 3 }, update);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT v FROM " + currentTable + " WHERE k = 1 AND c = 2;\n" +
+                                "  SELECT v FROM " + qualifiedTableName + " WHERE k = 1 AND c = 2;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 4 }, check);
              });
@@ -659,21 +659,21 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testRangeDeletion() throws Exception
     {
-        test("CREATE TABLE " + currentTable + " (k int, c int, v int, PRIMARY KEY (k, c))",
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, PRIMARY KEY (k, c))",
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 2, ?)", ConsistencyLevel.ALL, 3);
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 3, ?)", ConsistencyLevel.ALL, 4);
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 4, ?)", ConsistencyLevel.ALL, 5);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (1, 2, ?)", ConsistencyLevel.ALL, 3);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (1, 3, ?)", ConsistencyLevel.ALL, 4);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (1, 4, ?)", ConsistencyLevel.ALL, 5);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1 AND c = 2);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1 AND c = 2);\n" +
                                  "  SELECT row1.v;\n" +
-                                 "  DELETE FROM " + currentTable + " WHERE k = 1 AND c >=3 AND c <= 4;\n" +
+                                 "  DELETE FROM " + qualifiedTableName + " WHERE k = 1 AND c >=3 AND c <= 4;\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEquals(cluster, new Object[] { 3 }, update);
 
-                 Object[][] check = cluster.coordinator(1).execute("SELECT * FROM " + currentTable + " WHERE k = 1;", ConsistencyLevel.SERIAL);
+                 Object[][] check = cluster.coordinator(1).execute("SELECT * FROM " + qualifiedTableName + " WHERE k = 1;", ConsistencyLevel.SERIAL);
                  assertArrayEquals(new Object[] { 1, 2, 3 }, check[0]);
                  assertEquals(1, check.length);
              });
@@ -683,22 +683,22 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testPartitionKeyReferenceCondition() throws Exception
     {
-        test("CREATE TABLE " + currentTable + " (k INT, c INT, v INT, PRIMARY KEY (k, c)) WITH CLUSTERING ORDER BY (c DESC)",
+        test("CREATE TABLE " + qualifiedTableName + " (k INT, c INT, v INT, PRIMARY KEY (k, c)) WITH CLUSTERING ORDER BY (c DESC)",
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 1, 1)", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (1, 1, 1)", ConsistencyLevel.ALL);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1 AND c = 1);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1 AND c = 1);\n" +
                                  "  SELECT row1.k, row1.c, row1.v;\n" +
                                  "  IF row1.k = 1 THEN\n" +
-                                 "    UPDATE " + currentTable + " SET v += row1.k WHERE k=1 AND c=1;\n" +
+                                 "    UPDATE " + qualifiedTableName + " SET v += row1.k WHERE k=1 AND c=1;\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[]{1, 1, 1}, update);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = 1 AND c = 1;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = 1 AND c = 1;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[]{1, 1, 2}, check);
              });
@@ -707,13 +707,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellListEqCondition() throws Exception
     {
-        testListEqCondition("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_list list<int>)");
+        testListEqCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>)");
     }
 
     @Test
     public void testFrozenListEqCondition() throws Exception
     {
-        testListEqCondition("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_list frozen<list<int>>)");
+        testListEqCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list frozen<list<int>>)");
     }
 
     private void testListEqCondition(String ddl) throws Exception
@@ -726,7 +726,7 @@ public class AccordCQLTest extends AccordTestBase
                  ByteBuffer initialListBytes = listType.getSerializer().serialize(initialList);
 
                  String insert = "BEGIN TRANSACTION\n" +
-                                 "  INSERT INTO " + currentTable + " (k, int_list) VALUES (?, ?);\n" +
+                                 "  INSERT INTO " + qualifiedTableName + " (k, int_list) VALUES (?, ?);\n" +
                                  "COMMIT TRANSACTION";
                  SimpleQueryResult result = cluster.coordinator(1).executeWithResult(insert, ConsistencyLevel.ANY, 0, initialListBytes);
                  assertFalse(result.hasNext());
@@ -735,16 +735,16 @@ public class AccordCQLTest extends AccordTestBase
                  ByteBuffer updatedListBytes = listType.getSerializer().serialize(updatedList);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                  "  SELECT row1.int_list;\n" +
                                  "  IF row1.int_list = ? THEN\n" +
-                                 "    UPDATE " + currentTable + " SET int_list = ? WHERE k = ?;\n" +
+                                 "    UPDATE " + qualifiedTableName + " SET int_list = ? WHERE k = ?;\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {initialList}, update, 0, initialListBytes, updatedListBytes, 0);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = ?;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = ?;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {0, updatedList}, check, 0);
              }
@@ -754,13 +754,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellSetEqCondition() throws Exception
     {
-        testSetEqCondition("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_set set<int>)");
+        testSetEqCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set set<int>)");
     }
 
     @Test
     public void testFrozenSetEqCondition() throws Exception
     {
-        testSetEqCondition("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_set frozen<set<int>>)");
+        testSetEqCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set frozen<set<int>>)");
     }
 
     private void testSetEqCondition(String ddl) throws Exception
@@ -773,7 +773,7 @@ public class AccordCQLTest extends AccordTestBase
                  ByteBuffer initialSetBytes = setType.getSerializer().serialize(initialSet);
 
                  String insert = "BEGIN TRANSACTION\n" +
-                                 "  INSERT INTO " + currentTable + " (k, int_set) VALUES (?, ?);\n" +
+                                 "  INSERT INTO " + qualifiedTableName + " (k, int_set) VALUES (?, ?);\n" +
                                  "COMMIT TRANSACTION";
                  SimpleQueryResult result = cluster.coordinator(1).executeWithResult(insert, ConsistencyLevel.ANY, 0, initialSetBytes);
                  assertFalse(result.hasNext());
@@ -782,16 +782,16 @@ public class AccordCQLTest extends AccordTestBase
                  ByteBuffer updatedSetBytes = setType.getSerializer().serialize(updatedSet);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                  "  SELECT row1.int_set;\n" +
                                  "  IF row1.int_set = ? THEN\n" +
-                                 "    UPDATE " + currentTable + " SET int_set = ? WHERE k = ?;\n" +
+                                 "    UPDATE " + qualifiedTableName + " SET int_set = ? WHERE k = ?;\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {initialSet}, update, 0, initialSetBytes, updatedSetBytes, 0);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = ?;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = ?;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {0, updatedSet}, check, 0);
              }
@@ -801,13 +801,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellMapEqCondition() throws Exception
     {
-        testMapEqCondition("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_map map<text, int>)", true);
+        testMapEqCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>)", true);
     }
 
     @Test
     public void testFrozenMapEqCondition() throws Exception
     {
-        testMapEqCondition("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_map frozen<map<text, int>>)", false);
+        testMapEqCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map frozen<map<text, int>>)", false);
     }
 
     private void testMapEqCondition(String ddl, boolean isMultiCell) throws Exception
@@ -820,7 +820,7 @@ public class AccordCQLTest extends AccordTestBase
                  ByteBuffer initialMapBytes = mapType.getSerializer().serialize(initialMap);
 
                  String insert = "BEGIN TRANSACTION\n" +
-                                 "  INSERT INTO " + currentTable + " (k, int_map) VALUES (?, ?);\n" +
+                                 "  INSERT INTO " + qualifiedTableName + " (k, int_map) VALUES (?, ?);\n" +
                                  "COMMIT TRANSACTION";
                  SimpleQueryResult result = cluster.coordinator(1).executeWithResult(insert, ConsistencyLevel.ANY, 0, initialMapBytes);
                  assertFalse(result.hasNext());
@@ -829,16 +829,16 @@ public class AccordCQLTest extends AccordTestBase
                  ByteBuffer updatedMapBytes = mapType.getSerializer().serialize(updatedMap);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                  "  SELECT row1.int_map;\n" +
                                  "  IF row1.int_map = ? THEN\n" +
-                                 "    UPDATE " + currentTable + " SET int_map = ? WHERE k = ?;\n" +
+                                 "    UPDATE " + qualifiedTableName + " SET int_map = ? WHERE k = ?;\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { initialMap }, update, 0, initialMapBytes, updatedMapBytes, 0);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = ?;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = ?;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, updatedMap }, check, 0);
              }
@@ -848,13 +848,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellUDTEqCondition() throws Exception
     {
-        testUDTEqCondition("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, customer person)");
+        testUDTEqCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer person)");
     }
 
     @Test
     public void testFrozenUDTEqCondition() throws Exception
     {
-        testUDTEqCondition("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, customer frozen<person>)");
+        testUDTEqCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer frozen<person>)");
     }
 
     private void testUDTEqCondition(String tableDDL) throws Exception
@@ -866,7 +866,7 @@ public class AccordCQLTest extends AccordTestBase
                  ByteBuffer initialPersonBuffer = CQLTester.makeByteBuffer(initialPersonValue, null);
 
                  String insert = "BEGIN TRANSACTION\n" +
-                                 "  INSERT INTO " + currentTable + " (k, customer) VALUES (?, ?);\n" +
+                                 "  INSERT INTO " + qualifiedTableName + " (k, customer) VALUES (?, ?);\n" +
                                  "COMMIT TRANSACTION";
                  SimpleQueryResult result = cluster.coordinator(1).executeWithResult(insert, ConsistencyLevel.ANY, 0, initialPersonBuffer);
                  assertFalse(result.hasNext());
@@ -875,16 +875,16 @@ public class AccordCQLTest extends AccordTestBase
                  ByteBuffer updatedPersonBuffer = CQLTester.makeByteBuffer(updatedPersonValue, null);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                  "  SELECT row1.customer;\n" +
                                  "  IF row1.customer = ? THEN\n" +
-                                 "    UPDATE " + currentTable + " SET customer = ? WHERE k = ?;\n" +
+                                 "    UPDATE " + qualifiedTableName + " SET customer = ? WHERE k = ?;\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { initialPersonBuffer }, update, 0, initialPersonBuffer, updatedPersonBuffer, 0);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = ?;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = ?;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, updatedPersonBuffer }, check, 0);
              }
@@ -894,14 +894,14 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testTupleEqCondition() throws Exception
     {
-        test("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, pair tuple<text, int>)",
+        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, pair tuple<text, int>)",
              cluster ->
              {
                  Object initialTupleValue = CQLTester.tuple("age", 37);
                  ByteBuffer initialTupleBuffer = CQLTester.makeByteBuffer(initialTupleValue, null);
 
                  String insert = "BEGIN TRANSACTION\n" +
-                                 "  INSERT INTO " + currentTable + " (k, pair) VALUES (?, ?);\n" +
+                                 "  INSERT INTO " + qualifiedTableName + " (k, pair) VALUES (?, ?);\n" +
                                  "COMMIT TRANSACTION";
                  SimpleQueryResult result = cluster.coordinator(1).executeWithResult(insert, ConsistencyLevel.ANY, 0, initialTupleBuffer);
                  assertFalse(result.hasNext());
@@ -910,16 +910,16 @@ public class AccordCQLTest extends AccordTestBase
                  ByteBuffer updatedTupleBuffer = CQLTester.makeByteBuffer(updatedTupleValue, null);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                  "  SELECT row1.pair;\n" +
                                  "  IF row1.pair = ? THEN\n" +
-                                 "    UPDATE " + currentTable + " SET pair = ? WHERE k = ?;\n" +
+                                 "    UPDATE " + qualifiedTableName + " SET pair = ? WHERE k = ?;\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { initialTupleBuffer }, update, 0, initialTupleBuffer, updatedTupleBuffer, 0);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = ?;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = ?;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, updatedTupleBuffer }, check, 0);
              }
@@ -929,31 +929,31 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testIsNullWithComplexDeletion() throws Exception
     {
-        test("CREATE TABLE " + currentTable + " (k int, c int, int_list list<int>, PRIMARY KEY (k, c))",
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, int_list list<int>, PRIMARY KEY (k, c))",
              cluster ->
              {
                  ListType<Integer> listType = ListType.getInstance(Int32Type.instance, true);
                  List<Integer> initialList = Arrays.asList(1, 2);
                  ByteBuffer initialListBytes = listType.getSerializer().serialize(initialList);
 
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, int_list) VALUES (0, 0, ?);", ConsistencyLevel.ALL, initialListBytes);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, int_list) VALUES (0, 0, ?);", ConsistencyLevel.ALL, initialListBytes);
                  cluster.forEach(i -> i.flush(KEYSPACE));
-                 cluster.coordinator(1).execute("DELETE int_list FROM " + currentTable + " WHERE k = 0 AND c = 0;", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("DELETE int_list FROM " + qualifiedTableName + " WHERE k = 0 AND c = 0;", ConsistencyLevel.ALL);
 
                  List<Integer> updatedList = Arrays.asList(1, 2, 3);
                  ByteBuffer updatedListBytes = listType.getSerializer().serialize(updatedList);
                  
                  String insert = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ? AND c = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ? AND c = ?);\n" +
                                  "  SELECT row1.int_list;\n" +
                                  "  IF row1.int_list IS NULL THEN\n" +
-                                 "    INSERT INTO " + currentTable + " (k, c, int_list) VALUES (?, ?, ?);\n" +
+                                 "    INSERT INTO " + qualifiedTableName + " (k, c, int_list) VALUES (?, ?, ?);\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { null }, insert, 0, 0, 0, 0, updatedListBytes);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = ? AND c = ?;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = ? AND c = ?;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, 0, updatedList }, check, 0, 0);
              }
@@ -963,13 +963,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testNullMultiCellListConditions() throws Exception
     {
-        testNullListConditions("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_list list<int>)");
+        testNullListConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>)");
     }
 
     @Test
     public void testNullFrozenListConditions() throws Exception
     {
-        testNullListConditions("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_list frozen<list<int>>)");
+        testNullListConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list frozen<list<int>>)");
     }
 
     private void testNullListConditions(String ddl) throws Exception
@@ -977,31 +977,31 @@ public class AccordCQLTest extends AccordTestBase
         test(ddl,
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_list) VALUES (0, null);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_list) VALUES (0, null);", ConsistencyLevel.ALL);
 
                  ListType<Integer> listType = ListType.getInstance(Int32Type.instance, true);
                  List<Integer> initialList = Arrays.asList(1, 2);
                  ByteBuffer initialListBytes = listType.getSerializer().serialize(initialList);
 
                  String insert = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                  "  SELECT row1.int_list;\n" +
                                  "  IF row1.int_list IS NULL THEN\n" +
-                                 "    INSERT INTO " + currentTable + " (k, int_list) VALUES (?, ?);\n" +
+                                 "    INSERT INTO " + qualifiedTableName + " (k, int_list) VALUES (?, ?);\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {null}, insert, 0, 0, initialListBytes);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = ?;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = ?;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {0, initialList}, check, 0);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                  "  SELECT row1.int_list;\n" +
                                  "  IF row1.int_list IS NOT NULL THEN\n" +
-                                 "    UPDATE " + currentTable + " SET int_list = ? WHERE k = ?;\n" +
+                                 "    UPDATE " + qualifiedTableName + " SET int_list = ? WHERE k = ?;\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
 
@@ -1015,13 +1015,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testNullMultiCellSetConditions() throws Exception
     {
-        testNullSetConditions("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_set set<int>)");
+        testNullSetConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set set<int>)");
     }
 
     @Test
     public void testNullFrozenSetConditions() throws Exception
     {
-        testNullSetConditions("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_set frozen<set<int>>)");
+        testNullSetConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set frozen<set<int>>)");
     }
 
     private void testNullSetConditions(String ddl) throws Exception
@@ -1029,31 +1029,31 @@ public class AccordCQLTest extends AccordTestBase
         test(ddl,
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_set) VALUES (0, null);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_set) VALUES (0, null);", ConsistencyLevel.ALL);
 
                  SetType<Integer> setType = SetType.getInstance(Int32Type.instance, true);
                  Set<Integer> initialSet = ImmutableSet.of(1, 2);
                  ByteBuffer initialSetBytes = setType.getSerializer().serialize(initialSet);
 
                  String insert = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                  "  SELECT row1.int_set;\n" +
                                  "  IF row1.int_set IS NULL THEN\n" +
-                                 "    INSERT INTO " + currentTable + " (k, int_set) VALUES (?, ?);\n" +
+                                 "    INSERT INTO " + qualifiedTableName + " (k, int_set) VALUES (?, ?);\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {null}, insert, 0, 0, initialSetBytes);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = ?;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = ?;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {0, initialSet}, check, 0);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                  "  SELECT row1.int_set;\n" +
                                  "  IF row1.int_set IS NOT NULL THEN\n" +
-                                 "    UPDATE " + currentTable + " SET int_set = ? WHERE k = ?;\n" +
+                                 "    UPDATE " + qualifiedTableName + " SET int_set = ? WHERE k = ?;\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
 
@@ -1067,13 +1067,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testNullMultiCellMapConditions() throws Exception
     {
-        testNullMapConditions("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_map map<text, int>)", true);
+        testNullMapConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>)", true);
     }
 
     @Test
     public void testNullFrozenMapConditions() throws Exception
     {
-        testNullMapConditions("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_map frozen<map<text, int>>)", false);
+        testNullMapConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map frozen<map<text, int>>)", false);
     }
 
     private void testNullMapConditions(String ddl, boolean isMultiCell) throws Exception
@@ -1081,31 +1081,31 @@ public class AccordCQLTest extends AccordTestBase
         test(ddl,
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_map) VALUES (0, null);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_map) VALUES (0, null);", ConsistencyLevel.ALL);
 
                  MapType<String, Integer> mapType = MapType.getInstance(UTF8Type.instance, Int32Type.instance, isMultiCell);
                  Map<String, Integer> initialMap = ImmutableMap.of("one", 1, "two", 2);
                  ByteBuffer initialMapBytes = mapType.getSerializer().serialize(initialMap);
 
                  String insert = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                  "  SELECT row1.int_map;\n" +
                                  "  IF row1.int_map IS NULL THEN\n" +
-                                 "    INSERT INTO " + currentTable + " (k, int_map) VALUES (?, ?);\n" +
+                                 "    INSERT INTO " + qualifiedTableName + " (k, int_map) VALUES (?, ?);\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { null }, insert, 0, 0, initialMapBytes);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = ?;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = ?;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, initialMap }, check, 0);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                  "  SELECT row1.int_map;\n" +
                                  "  IF row1.int_map IS NOT NULL THEN\n" +
-                                 "    UPDATE " + currentTable + " SET int_map = ? WHERE k = ?;\n" +
+                                 "    UPDATE " + qualifiedTableName + " SET int_map = ? WHERE k = ?;\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
 
@@ -1114,7 +1114,7 @@ public class AccordCQLTest extends AccordTestBase
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { initialMap }, update, 0, updatedMapBytes, 0);
 
                  String checkUpdate = "BEGIN TRANSACTION\n" +
-                                      "  SELECT * FROM " + currentTable + " WHERE k = ?;\n" +
+                                      "  SELECT * FROM " + qualifiedTableName + " WHERE k = ?;\n" +
                                       "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, updatedMap }, checkUpdate, 0);
              }
@@ -1124,13 +1124,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testNullMultiCellUDTCondition() throws Exception
     {
-        testNullUDTCondition("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, customer person)");
+        testNullUDTCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer person)");
     }
 
     @Test
     public void testNullFrozenUDTCondition() throws Exception
     {
-        testNullUDTCondition("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, customer frozen<person>)");
+        testNullUDTCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer frozen<person>)");
     }
 
     private void testNullUDTCondition(String tableDDL) throws Exception
@@ -1142,24 +1142,24 @@ public class AccordCQLTest extends AccordTestBase
                  ByteBuffer initialPersonBuffer = CQLTester.makeByteBuffer(initialPersonValue, null);
 
                  String insert = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                  "  SELECT row1.customer;\n" +
                                  "  IF row1.customer IS NULL THEN\n" +
-                                 "    INSERT INTO " + currentTable + " (k, customer) VALUES (?, ?);\n" +
+                                 "    INSERT INTO " + qualifiedTableName + " (k, customer) VALUES (?, ?);\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { null }, insert, 0, 0, initialPersonBuffer);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = ?;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = ?;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, initialPersonBuffer }, check, 0);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                  "  SELECT row1.customer;\n" +
                                  "  IF row1.customer IS NOT NULL THEN\n" +
-                                 "    UPDATE " + currentTable + " SET customer = ? WHERE k = ?;\n" +
+                                 "    UPDATE " + qualifiedTableName + " SET customer = ? WHERE k = ?;\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
 
@@ -1168,7 +1168,7 @@ public class AccordCQLTest extends AccordTestBase
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { initialPersonBuffer }, update, 0, updatedPersonBuffer, 0);
 
                  String checkUpdate = "BEGIN TRANSACTION\n" +
-                                      "  SELECT * FROM " + currentTable + " WHERE k = ?;\n" +
+                                      "  SELECT * FROM " + qualifiedTableName + " WHERE k = ?;\n" +
                                       "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, updatedPersonBuffer }, checkUpdate, 0);
              }
@@ -1178,13 +1178,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testNullMultiCellSetElementConditions() throws Exception
     {
-        testNullSetElementConditions("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_set set<int>)");
+        testNullSetElementConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set set<int>)");
     }
 
     @Test
     public void testNullFrozenSetElementConditions() throws Exception
     {
-        testNullSetElementConditions("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_set frozen<set<int>>)");
+        testNullSetElementConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set frozen<set<int>>)");
     }
 
     private void testNullSetElementConditions(String ddl) throws Exception
@@ -1192,31 +1192,31 @@ public class AccordCQLTest extends AccordTestBase
         test(ddl,
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_set) VALUES (0, {1});", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_set) VALUES (0, {1});", ConsistencyLevel.ALL);
 
                  SetType<Integer> setType = SetType.getInstance(Int32Type.instance, true);
                  Set<Integer> initialSet = ImmutableSet.of(1, 2);
                  ByteBuffer initialSetBytes = setType.getSerializer().serialize(initialSet);
 
                  String insert = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                  "  SELECT row1.int_set[2];\n" +
                                  "  IF row1.int_set[2] IS NULL THEN\n" +
-                                 "    INSERT INTO " + currentTable + " (k, int_set) VALUES (?, ?);\n" +
+                                 "    INSERT INTO " + qualifiedTableName + " (k, int_set) VALUES (?, ?);\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {null}, insert, 0, 0, initialSetBytes);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = ?;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = ?;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {0, initialSet}, check, 0);
 
                  String update = "BEGIN TRANSACTION\n" +
-                         "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                         "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                          "  SELECT row1.int_set;\n" +
                          "  IF row1.int_set[2] IS NOT NULL THEN\n" +
-                         "    UPDATE " + currentTable + " SET int_set = ? WHERE k = ?;\n" +
+                         "    UPDATE " + qualifiedTableName + " SET int_set = ? WHERE k = ?;\n" +
                          "  END IF\n" +
                          "COMMIT TRANSACTION";
 
@@ -1230,13 +1230,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testNullMultiCellMapElementConditions() throws Exception
     {
-        testNullMapElementConditions("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_map map<text, int>)", true);
+        testNullMapElementConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>)", true);
     }
 
     @Test
     public void testNullFrozenMapElementConditions() throws Exception
     {
-        testNullMapElementConditions("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_map frozen<map<text, int>>)", false);
+        testNullMapElementConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map frozen<map<text, int>>)", false);
     }
 
     private void testNullMapElementConditions(String ddl, boolean isMultiCell) throws Exception
@@ -1244,31 +1244,31 @@ public class AccordCQLTest extends AccordTestBase
         test(ddl,
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_map) VALUES (0, null);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_map) VALUES (0, null);", ConsistencyLevel.ALL);
 
                  MapType<String, Integer> mapType = MapType.getInstance(UTF8Type.instance, Int32Type.instance, isMultiCell);
                  Map<String, Integer> initialMap = ImmutableMap.of("one", 1, "two", 2);
                  ByteBuffer initialMapBytes = mapType.getSerializer().serialize(initialMap);
 
                  String insert = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                  "  SELECT row1.int_map;\n" +
                                  "  IF row1.int_map[?] IS NULL THEN\n" +
-                                 "    INSERT INTO " + currentTable + " (k, int_map) VALUES (?, ?);\n" +
+                                 "    INSERT INTO " + qualifiedTableName + " (k, int_map) VALUES (?, ?);\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { null }, insert, 0, "one", 0, initialMapBytes);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = ?;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = ?;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, initialMap }, check, 0);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                  "  SELECT row1.int_map;\n" +
                                  "  IF row1.int_map[?] IS NOT NULL THEN\n" +
-                                 "    UPDATE " + currentTable + " SET int_map = ? WHERE k = ?;\n" +
+                                 "    UPDATE " + qualifiedTableName + " SET int_map = ? WHERE k = ?;\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
 
@@ -1277,7 +1277,7 @@ public class AccordCQLTest extends AccordTestBase
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { initialMap }, update, 0, "two", updatedMapBytes, 0);
 
                  String checkUpdate = "BEGIN TRANSACTION\n" +
-                                      "  SELECT * FROM " + currentTable + " WHERE k = ?;\n" +
+                                      "  SELECT * FROM " + qualifiedTableName + " WHERE k = ?;\n" +
                                       "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, updatedMap }, checkUpdate, 0);
              }
@@ -1287,13 +1287,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testNullMultiCellUDTFieldCondition() throws Exception
     {
-        testNullUDTFieldCondition("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, customer person)");
+        testNullUDTFieldCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer person)");
     }
 
     @Test
     public void testNullFrozenUDTFieldCondition() throws Exception
     {
-        testNullUDTFieldCondition("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, customer frozen<person>)");
+        testNullUDTFieldCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer frozen<person>)");
     }
 
     private void testNullUDTFieldCondition(String tableDDL) throws Exception
@@ -1305,24 +1305,24 @@ public class AccordCQLTest extends AccordTestBase
                  ByteBuffer initialPersonBuffer = CQLTester.makeByteBuffer(initialPersonValue, null);
 
                  String insert = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                  "  SELECT row1.customer;\n" +
                                  "  IF row1.customer.age IS NULL THEN\n" +
-                                 "    INSERT INTO " + currentTable + " (k, customer) VALUES (?, ?);\n" +
+                                 "    INSERT INTO " + qualifiedTableName + " (k, customer) VALUES (?, ?);\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { null }, insert, 0, 0, initialPersonBuffer);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = ?;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = ?;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, initialPersonBuffer }, check, 0);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                  "  SELECT row1.customer;\n" +
                                  "  IF row1.customer.age IS NOT NULL THEN\n" +
-                                 "    UPDATE " + currentTable + " SET customer = ? WHERE k = ?;\n" +
+                                 "    UPDATE " + qualifiedTableName + " SET customer = ? WHERE k = ?;\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
 
@@ -1331,7 +1331,7 @@ public class AccordCQLTest extends AccordTestBase
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { initialPersonBuffer }, update, 0, updatedPersonBuffer, 0);
 
                  String checkUpdate = "BEGIN TRANSACTION\n" +
-                                      "  SELECT * FROM " + currentTable + " WHERE k = ?;\n" +
+                                      "  SELECT * FROM " + qualifiedTableName + " WHERE k = ?;\n" +
                                       "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, updatedPersonBuffer }, checkUpdate, 0);
              }
@@ -1341,13 +1341,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellListSubstitution() throws Exception
     {
-        testListSubstitution("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_list list<int>)", true);
+        testListSubstitution("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>)", true);
     }
 
     @Test
     public void testFrozenListSubstitution() throws Exception
     {
-        testListSubstitution("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_list frozen<list<int>>)", false);
+        testListSubstitution("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list frozen<list<int>>)", false);
     }
 
     private void testListSubstitution(String ddl, boolean isMultiCell) throws Exception
@@ -1359,19 +1359,19 @@ public class AccordCQLTest extends AccordTestBase
                  List<Integer> initialList = Arrays.asList(1, 2);
                  ByteBuffer initialListBytes = listType.getSerializer().serialize(initialList);
 
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_list) VALUES (0, ?);", ConsistencyLevel.ALL, initialListBytes);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_list) VALUES (0, ?);", ConsistencyLevel.ALL, initialListBytes);
 
                  String insert = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                  "  SELECT row1.int_list;\n" +
                                  "  IF row1.int_list IS NOT NULL THEN\n" +
-                                 "    INSERT INTO " + currentTable + " (k, int_list) VALUES (?, row1.int_list);\n" +
+                                 "    INSERT INTO " + qualifiedTableName + " (k, int_list) VALUES (?, row1.int_list);\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { initialList }, insert, 0, 1);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = ?;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = ?;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 1, initialList }, check, 1);
              }
@@ -1381,13 +1381,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellSetSubstitution() throws Exception
     {
-        testSetSubstitution("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_set set<int>)", true);
+        testSetSubstitution("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set set<int>)", true);
     }
 
     @Test
     public void testFrozenSetSubstitution() throws Exception
     {
-        testSetSubstitution("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_set frozen<set<int>>)", false);
+        testSetSubstitution("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set frozen<set<int>>)", false);
     }
 
     private void testSetSubstitution(String ddl, boolean isMultiCell) throws Exception
@@ -1399,19 +1399,19 @@ public class AccordCQLTest extends AccordTestBase
                  Set<Integer> initialSet = ImmutableSet.of(1, 2);
                  ByteBuffer initialSetBytes = setType.getSerializer().serialize(initialSet);
 
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_set) VALUES (0, ?);", ConsistencyLevel.ALL, initialSetBytes);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_set) VALUES (0, ?);", ConsistencyLevel.ALL, initialSetBytes);
 
                  String insert = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                  "  SELECT row1.int_set;\n" +
                                  "  IF row1.int_set IS NOT NULL THEN\n" +
-                                 "    INSERT INTO " + currentTable + " (k, int_set) VALUES (?, row1.int_set);\n" +
+                                 "    INSERT INTO " + qualifiedTableName + " (k, int_set) VALUES (?, row1.int_set);\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { initialSet }, insert, 0, 1);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = ?;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = ?;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 1, initialSet }, check, 1);
              }
@@ -1421,13 +1421,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellMapSubstitution() throws Exception
     {
-        testMapSubstitution("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_map map<text, int>)", true);
+        testMapSubstitution("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>)", true);
     }
 
     @Test
     public void testFrozenMapSubstitution() throws Exception
     {
-        testMapSubstitution("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_map frozen<map<text, int>>)", false);
+        testMapSubstitution("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map frozen<map<text, int>>)", false);
     }
 
     private void testMapSubstitution(String ddl, boolean isMultiCell) throws Exception
@@ -1439,19 +1439,19 @@ public class AccordCQLTest extends AccordTestBase
                  Map<String, Integer> initialMap = ImmutableMap.of("one", 1, "two", 2);
                  ByteBuffer initialMapBytes = mapType.getSerializer().serialize(initialMap);
 
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_map) VALUES (0, ?);", ConsistencyLevel.ALL, initialMapBytes);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_map) VALUES (0, ?);", ConsistencyLevel.ALL, initialMapBytes);
 
                  String insert = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                  "  SELECT row1.int_map;\n" +
                                  "  IF row1.int_map IS NOT NULL THEN\n" +
-                                 "    INSERT INTO " + currentTable + " (k, int_map) VALUES (?, row1.int_map);\n" +
+                                 "    INSERT INTO " + qualifiedTableName + " (k, int_map) VALUES (?, row1.int_map);\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[]{ initialMap }, insert, 0, 1);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = ?;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = ?;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 1, initialMap }, check, 1);
              }
@@ -1461,13 +1461,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellUDTSubstitution() throws Exception
     {
-        testUDTSubstitution("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, customer person)");
+        testUDTSubstitution("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer person)");
     }
 
     @Test
     public void testFrozenUDTSubstitution() throws Exception
     {
-        testUDTSubstitution("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, customer frozen<person>)");
+        testUDTSubstitution("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer frozen<person>)");
     }
 
     private void testUDTSubstitution(String tableDDL) throws Exception
@@ -1477,19 +1477,19 @@ public class AccordCQLTest extends AccordTestBase
              {
                  Object initialPersonValue = CQLTester.userType("height", 74, "age", 37);
                  ByteBuffer initialPersonBuffer = CQLTester.makeByteBuffer(initialPersonValue, null);
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, customer) VALUES (0, ?);", ConsistencyLevel.ALL, initialPersonBuffer);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, customer) VALUES (0, ?);", ConsistencyLevel.ALL, initialPersonBuffer);
 
                  String insert = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                  "  SELECT row1.customer;\n" +
                                  "  IF row1.customer IS NOT NULL THEN\n" +
-                                 "    INSERT INTO " + currentTable + " (k, customer) VALUES (?, row1.customer);\n" +
+                                 "    INSERT INTO " + qualifiedTableName + " (k, customer) VALUES (?, row1.customer);\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[]{ initialPersonBuffer }, insert, 0, 1);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = ?;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = ?;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 1, initialPersonBuffer }, check, 1);
              }
@@ -1499,24 +1499,24 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testTupleSubstitution() throws Exception
     {
-        test("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, pair tuple<text, int>)",
+        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, pair tuple<text, int>)",
              cluster ->
              {
                  Object initialTupleValue = CQLTester.tuple("age", 37);
                  ByteBuffer initialTupleBuffer = CQLTester.makeByteBuffer(initialTupleValue, null);
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, pair) VALUES (0, ?);", ConsistencyLevel.ALL, initialTupleBuffer);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, pair) VALUES (0, ?);", ConsistencyLevel.ALL, initialTupleBuffer);
 
                  String insert = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                  "  SELECT row1.pair;\n" +
                                  "  IF row1.pair IS NOT NULL THEN\n" +
-                                 "    INSERT INTO " + currentTable + " (k, pair) VALUES (?, row1.pair);\n" +
+                                 "    INSERT INTO " + qualifiedTableName + " (k, pair) VALUES (?, row1.pair);\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { initialTupleBuffer }, insert, 0, 1);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = ?;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = ?;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 1, initialTupleBuffer }, check, 1);
              }
@@ -1526,13 +1526,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellListReplacement() throws Exception
     {
-        testListReplacement("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_list list<int>)");
+        testListReplacement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>)");
     }
 
     @Test
     public void testFrozenListReplacement() throws Exception
     {
-        testListReplacement("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_list frozen<list<int>>)");
+        testListReplacement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list frozen<list<int>>)");
     }
 
     private void testListReplacement(String ddl) throws Exception
@@ -1540,20 +1540,20 @@ public class AccordCQLTest extends AccordTestBase
         test(ddl,
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_list) VALUES (0, [1, 2]);", ConsistencyLevel.ALL);
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_list) VALUES (1, [3, 4]);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_list) VALUES (0, [1, 2]);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_list) VALUES (1, [3, 4]);", ConsistencyLevel.ALL);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1);\n" +
                                  "  SELECT row1.int_list;\n" +
                                  "  IF row1.int_list = [3, 4] THEN\n" +
-                                 "    UPDATE " + currentTable + " SET int_list = row1.int_list WHERE k=0;\n" +
+                                 "    UPDATE " + qualifiedTableName + " SET int_list = row1.int_list WHERE k=0;\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {Arrays.asList(3, 4)}, update);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = 0;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = 0;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {0, Arrays.asList(3, 4)}, check);
              }
@@ -1563,13 +1563,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellSetReplacement() throws Exception
     {
-        testSetReplacement("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_set set<int>)");
+        testSetReplacement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set set<int>)");
     }
 
     @Test
     public void testFrozenSetReplacement() throws Exception
     {
-        testSetReplacement("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_set frozen<set<int>>)");
+        testSetReplacement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set frozen<set<int>>)");
     }
 
     private void testSetReplacement(String ddl) throws Exception
@@ -1577,20 +1577,20 @@ public class AccordCQLTest extends AccordTestBase
         test(ddl,
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_set) VALUES (0, {1, 2});", ConsistencyLevel.ALL);
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_set) VALUES (1, {3, 4});", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_set) VALUES (0, {1, 2});", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_set) VALUES (1, {3, 4});", ConsistencyLevel.ALL);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1);\n" +
                                  "  SELECT row1.int_set;\n" +
                                  "  IF row1.int_set = {3, 4} THEN\n" +
-                                 "    UPDATE " + currentTable + " SET int_set = row1.int_set WHERE k=0;\n" +
+                                 "    UPDATE " + qualifiedTableName + " SET int_set = row1.int_set WHERE k=0;\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { ImmutableSet.of(3, 4) }, update);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = 0;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = 0;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, ImmutableSet.of(3, 4) }, check);
              }
@@ -1600,23 +1600,23 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testListAppendFromReference() throws Exception
     {
-        test("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_list list<int>)",
+        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>)",
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_list) VALUES (0, [1, 2]);", ConsistencyLevel.ALL);
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_list) VALUES (1, [3, 4]);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_list) VALUES (0, [1, 2]);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_list) VALUES (1, [3, 4]);", ConsistencyLevel.ALL);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1);\n" +
                                  "  SELECT row1.int_list;\n" +
                                  "  IF row1.int_list = [3, 4] THEN\n" +
-                                 "    UPDATE " + currentTable + " SET int_list += row1.int_list WHERE k=0;\n" +
+                                 "    UPDATE " + qualifiedTableName + " SET int_list += row1.int_list WHERE k=0;\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {Arrays.asList(3, 4)}, update);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = 0;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = 0;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {0, Arrays.asList(1, 2, 3, 4)}, check);
              }
@@ -1626,13 +1626,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testSetByIndexFromMultiCellListElement() throws Exception
     {
-        testListSetByIndexFromListElement("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, src_int_list list<int>, dest_int_list list<int>)");
+        testListSetByIndexFromListElement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, src_int_list list<int>, dest_int_list list<int>)");
     }
 
     @Test
     public void testSetByIndexFromFrozenListElement() throws Exception
     {
-        testListSetByIndexFromListElement("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, src_int_list frozen<list<int>>, dest_int_list list<int>)");
+        testListSetByIndexFromListElement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, src_int_list frozen<list<int>>, dest_int_list list<int>)");
     }
 
     private void testListSetByIndexFromListElement(String ddl) throws Exception
@@ -1640,18 +1640,18 @@ public class AccordCQLTest extends AccordTestBase
         test(ddl,
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, dest_int_list) VALUES (0, [1, 2]);", ConsistencyLevel.ALL);
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, src_int_list) VALUES (1, [3, 4]);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, dest_int_list) VALUES (0, [1, 2]);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, src_int_list) VALUES (1, [3, 4]);", ConsistencyLevel.ALL);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1);\n" +
                                  "  SELECT row1.src_int_list;\n" +
-                                 "  UPDATE " + currentTable + " SET dest_int_list[0] = row1.src_int_list[0] WHERE k = 0;\n" +
+                                 "  UPDATE " + qualifiedTableName + " SET dest_int_list[0] = row1.src_int_list[0] WHERE k = 0;\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {Arrays.asList(3, 4)}, update);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT dest_int_list FROM " + currentTable + " WHERE k = 0;\n" +
+                                "  SELECT dest_int_list FROM " + qualifiedTableName + " WHERE k = 0;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {Arrays.asList(3, 2)}, check);
              }
@@ -1661,20 +1661,20 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testListSetByIndexFromScalar() throws Exception
     {
-        test("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_list list<int>)",
+        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>)",
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_list) VALUES (0, [1, 2]);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_list) VALUES (0, [1, 2]);", ConsistencyLevel.ALL);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row0 = (SELECT * FROM " + currentTable + " WHERE k = 0);\n" +
+                                 "  LET row0 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 0);\n" +
                                  "  SELECT row0.int_list;\n" +
-                                 "  UPDATE " + currentTable + " SET int_list[0] = 2 WHERE k = 0;\n" +
+                                 "  UPDATE " + qualifiedTableName + " SET int_list[0] = 2 WHERE k = 0;\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {Arrays.asList(1, 2)}, update);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT int_list FROM " + currentTable + " WHERE k = 0;\n" +
+                                "  SELECT int_list FROM " + qualifiedTableName + " WHERE k = 0;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {Arrays.asList(2, 2)}, check);
              }
@@ -1684,21 +1684,21 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testAutoReadSelectionConstruction() throws Exception
     {
-        test("CREATE TABLE " + currentTable + " (k int, c int, counter int, other_counter int, PRIMARY KEY (k, c))",
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, counter int, other_counter int, PRIMARY KEY (k, c))",
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, counter, other_counter) VALUES (0, 0, 1, 1);", ConsistencyLevel.ALL);
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, counter, other_counter) VALUES (0, 1, 1, 1);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, counter, other_counter) VALUES (0, 0, 1, 1);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, counter, other_counter) VALUES (0, 1, 1, 1);", ConsistencyLevel.ALL);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row0 = (SELECT * FROM " + currentTable + " WHERE k = 0 AND c = 0);\n" +
+                                 "  LET row0 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 0 AND c = 0);\n" +
                                  "  SELECT row0.counter, row0.other_counter;\n" +
-                                 "  UPDATE " + currentTable + " SET other_counter += 1, counter += row0.counter WHERE k = 0 AND c = 1;\n" +
+                                 "  UPDATE " + qualifiedTableName + " SET other_counter += 1, counter += row0.counter WHERE k = 0 AND c = 1;\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEquals(cluster, new Object[] { 1, 1 }, update);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT counter, other_counter FROM " + currentTable + " WHERE k = 0 AND c = 1;\n" +
+                                "  SELECT counter, other_counter FROM " + qualifiedTableName + " WHERE k = 0 AND c = 1;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 2, 2 }, check);
              }
@@ -1708,21 +1708,21 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiMutationsSameKey() throws Exception
     {
-        test("CREATE TABLE " + currentTable + " (k int, c int, counter int, int_list list<int>, PRIMARY KEY (k, c))",
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, counter int, int_list list<int>, PRIMARY KEY (k, c))",
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, counter, int_list) VALUES (0, 0, 0, [1, 2]);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, counter, int_list) VALUES (0, 0, 0, [1, 2]);", ConsistencyLevel.ALL);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row0 = (SELECT * FROM " + currentTable + " WHERE k = 0 AND c = 0);\n" +
+                                 "  LET row0 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 0 AND c = 0);\n" +
                                  "  SELECT row0.counter, row0.int_list;\n" +
-                                 "  UPDATE " + currentTable + " SET int_list[0] = 42 WHERE k = 0 AND c = 0;\n" +
-                                 "  UPDATE " + currentTable + " SET counter += 1 WHERE k = 0 AND c = 0;\n" +
+                                 "  UPDATE " + qualifiedTableName + " SET int_list[0] = 42 WHERE k = 0 AND c = 0;\n" +
+                                 "  UPDATE " + qualifiedTableName + " SET counter += 1 WHERE k = 0 AND c = 0;\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEquals(cluster, new Object[] { 0, Arrays.asList(1, 2) }, update);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT counter, int_list FROM " + currentTable + " WHERE k = 0 AND c = 0;\n" +
+                                "  SELECT counter, int_list FROM " + qualifiedTableName + " WHERE k = 0 AND c = 0;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {1, Arrays.asList(42, 2)}, check);
              }
@@ -1733,10 +1733,10 @@ public class AccordCQLTest extends AccordTestBase
     public void testLetLargerThanOneWithPK() throws Exception
     {
         test(cluster -> {
-            cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (0, 0, 0);", ConsistencyLevel.ALL);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (0, 0, 0);", ConsistencyLevel.ALL);
 
             String cql = "BEGIN TRANSACTION\n" +
-                         "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k=0 AND c=0 LIMIT 2);\n" +
+                         "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k=0 AND c=0 LIMIT 2);\n" +
                          "  SELECT row1.v;\n" +
                          "COMMIT TRANSACTION";
             assertRowEqualsWithPreemptedRetry(cluster, new Object[]{ 0 }, cql, 1);
@@ -1747,10 +1747,10 @@ public class AccordCQLTest extends AccordTestBase
     public void testLetLimitUsingBind() throws Exception
     {
         test(cluster -> {
-             cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (0, 0, 0);", ConsistencyLevel.ALL);
+             cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (0, 0, 0);", ConsistencyLevel.ALL);
 
              String cql = "BEGIN TRANSACTION\n" +
-                          "    LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 0 LIMIT ?);\n" +
+                          "    LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 0 LIMIT ?);\n" +
                           "    SELECT row1.v;\n" +
                           "COMMIT TRANSACTION";
              assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0 }, cql, 1);
@@ -1760,24 +1760,24 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testListSetByIndexMultiRow() throws Exception
     {
-        test("CREATE TABLE " + currentTable + " (k int, c int, int_list list<int>, PRIMARY KEY (k, c))",
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, int_list list<int>, PRIMARY KEY (k, c))",
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, int_list) VALUES (0, 0, [1, 2]);", ConsistencyLevel.ALL);
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, int_list) VALUES (0, 1, [3, 4]);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, int_list) VALUES (0, 0, [1, 2]);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, int_list) VALUES (0, 1, [3, 4]);", ConsistencyLevel.ALL);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row0 = (SELECT * FROM " + currentTable + " WHERE k = 0 AND c = 0);\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 0 AND c = 1);\n" +
+                                 "  LET row0 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 0 AND c = 0);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 0 AND c = 1);\n" +
                                  "  SELECT row0.int_list;\n" +
-                                 "  UPDATE " + currentTable + " SET int_list[0] = row1.int_list[0] WHERE k = 0 AND c = 0;\n" +
-                                 "  UPDATE " + currentTable + " SET int_list[0] = row0.int_list[0] WHERE k = 0 AND c = 1;\n" +
+                                 "  UPDATE " + qualifiedTableName + " SET int_list[0] = row1.int_list[0] WHERE k = 0 AND c = 0;\n" +
+                                 "  UPDATE " + qualifiedTableName + " SET int_list[0] = row0.int_list[0] WHERE k = 0 AND c = 1;\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { Arrays.asList(1, 2) }, update);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                 "  LET row0 = (SELECT * FROM " + currentTable + " WHERE k = 0 AND c = 0);\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 0 AND c = 1);\n" +
+                                 "  LET row0 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 0 AND c = 0);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 0 AND c = 1);\n" +
                                  "  SELECT row0.int_list, row1.int_list;\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {Arrays.asList(3, 2), Arrays.asList(1, 4)}, check);
@@ -1788,21 +1788,21 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testSetAppend() throws Exception
     {
-        test("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_set set<int>)",
+        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set set<int>)",
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_set) VALUES (0, {1, 2});", ConsistencyLevel.ALL);
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_set) VALUES (1, {3, 4});", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_set) VALUES (0, {1, 2});", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_set) VALUES (1, {3, 4});", ConsistencyLevel.ALL);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1);\n" +
                                  "  SELECT row1.int_set;\n" +
-                                 "  UPDATE " + currentTable + " SET int_set += row1.int_set WHERE k=0;\n" +
+                                 "  UPDATE " + qualifiedTableName + " SET int_set += row1.int_set WHERE k=0;\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { ImmutableSet.of(3, 4) }, update);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = 0;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = 0;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, ImmutableSet.of(1, 2, 3, 4) }, check);
              }
@@ -1812,13 +1812,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testAssignmentFromMultiCellSetElement() throws Exception
     {
-        testAssignmentFromSetElement("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, v int, int_set set<int>)");
+        testAssignmentFromSetElement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int, int_set set<int>)");
     }
 
     @Test
     public void testAssignmentFromFrozenSetElement() throws Exception
     {
-        testAssignmentFromSetElement("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, v int, int_set frozen<set<int>>)");
+        testAssignmentFromSetElement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int, int_set frozen<set<int>>)");
     }
 
     private void testAssignmentFromSetElement(String ddl) throws Exception
@@ -1826,18 +1826,18 @@ public class AccordCQLTest extends AccordTestBase
         test(ddl,
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, v, int_set) VALUES (0, 0, {1, 2});", ConsistencyLevel.ALL);
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, v, int_set) VALUES (1, 0, {3, 4});", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, v, int_set) VALUES (0, 0, {1, 2});", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, v, int_set) VALUES (1, 0, {3, 4});", ConsistencyLevel.ALL);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1);\n" +
                                  "  SELECT row1.int_set;\n" +
-                                 "  UPDATE " + currentTable + " SET v = row1.int_set[4] WHERE k=0;\n" +
+                                 "  UPDATE " + qualifiedTableName + " SET v = row1.int_set[4] WHERE k=0;\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { ImmutableSet.of(3, 4) }, update);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT v FROM " + currentTable + " WHERE k = 0;\n" +
+                                "  SELECT v FROM " + qualifiedTableName + " WHERE k = 0;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 4 }, check);
              }
@@ -1847,21 +1847,21 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMapAppend() throws Exception
     {
-        test("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_map map<text, int>)",
+        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>)",
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_map) VALUES (0, {'one': 2});", ConsistencyLevel.ALL);
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_map) VALUES (1, {'three': 4});", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_map) VALUES (0, {'one': 2});", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_map) VALUES (1, {'three': 4});", ConsistencyLevel.ALL);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1);\n" +
                                  "  SELECT row1.int_map;\n" +
-                                 "  UPDATE " + currentTable + " SET int_map += row1.int_map WHERE k=0;\n" +
+                                 "  UPDATE " + qualifiedTableName + " SET int_map += row1.int_map WHERE k=0;\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { ImmutableMap.of("three", 4) }, update);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = 0;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = 0;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, ImmutableMap.of("one", 2, "three", 4) }, check);
              }
@@ -1871,13 +1871,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testAssignmentFromMultiCellMapElement() throws Exception
     {
-        testAssignmentFromMapElement("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, v int, int_map map<text, int>)");
+        testAssignmentFromMapElement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int, int_map map<text, int>)");
     }
 
     @Test
     public void testAssignmentFromFrozenMapElement() throws Exception
     {
-        testAssignmentFromMapElement("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, v int, int_map frozen<map<text, int>>)");
+        testAssignmentFromMapElement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int, int_map frozen<map<text, int>>)");
     }
 
     private void testAssignmentFromMapElement(String ddl) throws Exception
@@ -1885,18 +1885,18 @@ public class AccordCQLTest extends AccordTestBase
         test(ddl,
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, v, int_map) VALUES (0, 0, {'one': 2});", ConsistencyLevel.ALL);
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, v, int_map) VALUES (1, 0, {'three': 4});", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, v, int_map) VALUES (0, 0, {'one': 2});", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, v, int_map) VALUES (1, 0, {'three': 4});", ConsistencyLevel.ALL);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1);\n" +
                                  "  SELECT row1.int_map;\n" +
-                                 "  UPDATE " + currentTable + " SET v = row1.int_map[?] WHERE k=0;\n" +
+                                 "  UPDATE " + qualifiedTableName + " SET v = row1.int_map[?] WHERE k=0;\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { ImmutableMap.of("three", 4) }, update, "three");
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT v FROM " + currentTable + " WHERE k = 0;\n" +
+                                "  SELECT v FROM " + qualifiedTableName + " WHERE k = 0;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 4 }, check);
              }
@@ -1906,13 +1906,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testAssignmentFromMultiCellUDTField() throws Exception
     {
-        testAssignmentFromUDTField("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, v int, customer person)");
+        testAssignmentFromUDTField("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int, customer person)");
     }
 
     @Test
     public void testAssignmentFromFrozenUDTField() throws Exception
     {
-        testAssignmentFromUDTField("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, v int, customer frozen<person>)");
+        testAssignmentFromUDTField("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int, customer frozen<person>)");
     }
 
     private void testAssignmentFromUDTField(String tableDDL) throws Exception
@@ -1922,18 +1922,18 @@ public class AccordCQLTest extends AccordTestBase
              {
                  Object initialPersonValue = CQLTester.userType("height", 74, "age", 37);
                  ByteBuffer initialPersonBuffer = CQLTester.makeByteBuffer(initialPersonValue, null);
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, v, customer) VALUES (0, 0, null);", ConsistencyLevel.ALL);
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, v, customer) VALUES (1, 0, ?);", ConsistencyLevel.ALL, initialPersonBuffer);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, v, customer) VALUES (0, 0, null);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, v, customer) VALUES (1, 0, ?);", ConsistencyLevel.ALL, initialPersonBuffer);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1);\n" +
                                  "  SELECT row1.customer;\n" +
-                                 "  UPDATE " + currentTable + " SET v = row1.customer.age WHERE k=0;\n" +
+                                 "  UPDATE " + qualifiedTableName + " SET v = row1.customer.age WHERE k=0;\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { initialPersonBuffer }, update);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT v FROM " + currentTable + " WHERE k = 0;\n" +
+                                "  SELECT v FROM " + qualifiedTableName + " WHERE k = 0;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 37 }, check);
              }
@@ -1943,21 +1943,21 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testSetMapElementFromMapElementReference() throws Exception
     {
-        test("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_map map<text, int>)",
+        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>)",
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_map) VALUES (0, {'one': 2});", ConsistencyLevel.ALL);
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_map) VALUES (1, {'three': 4});", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_map) VALUES (0, {'one': 2});", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_map) VALUES (1, {'three': 4});", ConsistencyLevel.ALL);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1);\n" +
                                  "  SELECT row1.int_map;\n" +
-                                 "  UPDATE " + currentTable + " SET int_map[?] = row1.int_map[?] WHERE k=0;\n" +
+                                 "  UPDATE " + qualifiedTableName + " SET int_map[?] = row1.int_map[?] WHERE k=0;\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { ImmutableMap.of("three", 4) }, update, "one", "three");
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT int_map[?] FROM " + currentTable + " WHERE k = 0;\n" +
+                                "  SELECT int_map[?] FROM " + qualifiedTableName + " WHERE k = 0;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 4 }, check, "one");
              }
@@ -1967,7 +1967,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testSetUDTFieldFromUDTFieldReference() throws Exception
     {
-        test("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, customer person)",
+        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer person)",
              cluster ->
              {
                  Object youngPerson = CQLTester.userType("height", 58, "age", 9);
@@ -1975,18 +1975,18 @@ public class AccordCQLTest extends AccordTestBase
                  Object adultPerson = CQLTester.userType("height", 74, "age", 37);
                  ByteBuffer adultPersonBuffer = CQLTester.makeByteBuffer(adultPerson, null);
 
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, customer) VALUES (0, ?);", ConsistencyLevel.ALL, youngPersonBuffer);
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, customer) VALUES (1, ?);", ConsistencyLevel.ALL, adultPersonBuffer);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, customer) VALUES (0, ?);", ConsistencyLevel.ALL, youngPersonBuffer);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, customer) VALUES (1, ?);", ConsistencyLevel.ALL, adultPersonBuffer);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1);\n" +
                                  "  SELECT row1.customer;\n" +
-                                 "  UPDATE " + currentTable + " SET customer.age = row1.customer.age WHERE k = 0;\n" +
+                                 "  UPDATE " + qualifiedTableName + " SET customer.age = row1.customer.age WHERE k = 0;\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { adultPersonBuffer }, update);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT customer.height, customer.age FROM " + currentTable + " WHERE k = 0;\n" +
+                                "  SELECT customer.height, customer.age FROM " + qualifiedTableName + " WHERE k = 0;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 58, 37 }, check);
              }
@@ -1996,13 +1996,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellListElementCondition() throws Exception
     {
-        testListElementCondition("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_list list<int>)");
+        testListElementCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>)");
     }
 
     @Test
     public void testFrozenListElementCondition() throws Exception
     {
-        testListElementCondition("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_list frozen<list<int>>)");
+        testListElementCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list frozen<list<int>>)");
     }
 
     private void testListElementCondition(String ddl) throws Exception
@@ -2010,20 +2010,20 @@ public class AccordCQLTest extends AccordTestBase
         test(ddl,
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_list) VALUES (0, [1, 2]);", ConsistencyLevel.ALL);
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_list) VALUES (1, [3, 4]);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_list) VALUES (0, [1, 2]);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_list) VALUES (1, [3, 4]);", ConsistencyLevel.ALL);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1);\n" +
                                  "  SELECT row1.int_list;\n" +
                                  "  IF row1.int_list[1] = 4 THEN\n" +
-                                 "    UPDATE " + currentTable + " SET int_list = [3, 4] WHERE k = 0;\n" +
+                                 "    UPDATE " + qualifiedTableName + " SET int_list = [3, 4] WHERE k = 0;\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { ImmutableList.of(3, 4) }, update);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = 0;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = 0;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, ImmutableList.of(3, 4) }, check);
              }
@@ -2033,13 +2033,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellMapElementCondition() throws Exception
     {
-        testMapElementCondition("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_map map<text, int>)");
+        testMapElementCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>)");
     }
 
     @Test
     public void testFrozenMapElementCondition() throws Exception
     {
-        testMapElementCondition("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_map frozen<map<text, int>>)");
+        testMapElementCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map frozen<map<text, int>>)");
     }
 
     private void testMapElementCondition(String ddl) throws Exception
@@ -2047,20 +2047,20 @@ public class AccordCQLTest extends AccordTestBase
         test(ddl,
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_map) VALUES (0, {'one': 2});", ConsistencyLevel.ALL);
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_map) VALUES (1, {'three': 4});", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_map) VALUES (0, {'one': 2});", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_map) VALUES (1, {'three': 4});", ConsistencyLevel.ALL);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1);\n" +
                                  "  SELECT row1.int_map;\n" +
                                  "  IF row1.int_map[?] = 4 THEN\n" +
-                                 "    UPDATE " + currentTable + " SET int_map = {'three': 4} WHERE k = 0;\n" +
+                                 "    UPDATE " + qualifiedTableName + " SET int_map = {'three': 4} WHERE k = 0;\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { ImmutableMap.of("three", 4) }, update, "three");
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = 0;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = 0;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, ImmutableMap.of("three", 4) }, check);
              }
@@ -2070,13 +2070,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellUDTFieldCondition() throws Exception
     {
-        testUDTFieldCondition("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, customer person)");
+        testUDTFieldCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer person)");
     }
 
     @Test
     public void testFrozenUDTFieldCondition() throws Exception
     {
-        testUDTFieldCondition("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, customer frozen<person>)");
+        testUDTFieldCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer frozen<person>)");
     }
 
     private void testUDTFieldCondition(String tableDDL) throws Exception
@@ -2088,21 +2088,21 @@ public class AccordCQLTest extends AccordTestBase
                  ByteBuffer initialPersonBuffer = CQLTester.makeByteBuffer(initialPersonValue, null);
 
                  String insert = "BEGIN TRANSACTION\n" +
-                                 "  INSERT INTO " + currentTable + " (k, customer) VALUES (?, ?);\n" +
+                                 "  INSERT INTO " + qualifiedTableName + " (k, customer) VALUES (?, ?);\n" +
                                  "COMMIT TRANSACTION";
                  SimpleQueryResult result = cluster.coordinator(1).executeWithResult(insert, ConsistencyLevel.ANY, 0, initialPersonBuffer);
                  assertFalse(result.hasNext());
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = ?;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = ?;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, initialPersonBuffer }, check, 0);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                  "  SELECT row1.customer;\n" +
                                  "  IF row1.customer.age = 37 THEN\n" +
-                                 "    UPDATE " + currentTable + " SET customer = ? WHERE k = ?;\n" +
+                                 "    UPDATE " + qualifiedTableName + " SET customer = ? WHERE k = ?;\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
 
@@ -2111,7 +2111,7 @@ public class AccordCQLTest extends AccordTestBase
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { initialPersonBuffer }, update, 0, updatedPersonBuffer, 0);
 
                  String checkUpdate = "BEGIN TRANSACTION\n" +
-                                      "  SELECT * FROM " + currentTable + " WHERE k = ?;\n" +
+                                      "  SELECT * FROM " + qualifiedTableName + " WHERE k = ?;\n" +
                                       "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, updatedPersonBuffer }, checkUpdate, 0);
              }
@@ -2121,23 +2121,23 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testListSubtraction() throws Exception
     {
-        test("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_list list<int>)",
+        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>)",
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_list) VALUES (0, [1, 2, 3, 4]);", ConsistencyLevel.ALL);
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_list) VALUES (1, [3, 4]);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_list) VALUES (0, [1, 2, 3, 4]);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_list) VALUES (1, [3, 4]);", ConsistencyLevel.ALL);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1);\n" +
                                  "  SELECT row1.int_list;\n" +
                                  "  IF row1.int_list = [3, 4] THEN\n" +
-                                 "    UPDATE " + currentTable + " SET int_list -= row1.int_list WHERE k=0;\n" +
+                                 "    UPDATE " + qualifiedTableName + " SET int_list -= row1.int_list WHERE k=0;\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {Arrays.asList(3, 4)}, update);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = 0;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = 0;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {0, Arrays.asList(1, 2)}, check);
              }
@@ -2147,23 +2147,23 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testSetSubtraction() throws Exception
     {
-        test("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_set set<int>)",
+        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set set<int>)",
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_set) VALUES (0, {1, 2, 3, 4});", ConsistencyLevel.ALL);
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_set) VALUES (1, {3, 4});", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_set) VALUES (0, {1, 2, 3, 4});", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_set) VALUES (1, {3, 4});", ConsistencyLevel.ALL);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1);\n" +
                                  "  SELECT row1.int_set;\n" +
                                  "  IF row1.int_set = {3, 4} THEN\n" +
-                                 "    UPDATE " + currentTable + " SET int_set -= row1.int_set WHERE k=0;\n" +
+                                 "    UPDATE " + qualifiedTableName + " SET int_set -= row1.int_set WHERE k=0;\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { ImmutableSet.of(3, 4) }, update);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = 0;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = 0;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, ImmutableSet.of(1, 2) }, check);
              }
@@ -2173,13 +2173,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellMapSubtraction() throws Exception
     {
-        testMapSubtraction("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_map map<text, int>, int_set set<text>)");
+        testMapSubtraction("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>, int_set set<text>)");
     }
 
     @Test
     public void testFrozenMapSubtraction() throws Exception
     {
-        testMapSubtraction("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_map map<text, int>, int_set frozen<set<text>>)");
+        testMapSubtraction("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>, int_set frozen<set<text>>)");
     }
 
     private void testMapSubtraction(String ddl) throws Exception
@@ -2187,20 +2187,20 @@ public class AccordCQLTest extends AccordTestBase
         test(ddl,
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_map) VALUES (0, { 'one': 2, 'three': 4 });", ConsistencyLevel.ALL);
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_set) VALUES (1, { 'three' });", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_map) VALUES (0, { 'one': 2, 'three': 4 });", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_set) VALUES (1, { 'three' });", ConsistencyLevel.ALL);
 
                  String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1);\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1);\n" +
                                  "  SELECT row1.int_set;\n" +
                                  "  IF row1.int_set = { 'three' } THEN\n" +
-                                 "    UPDATE " + currentTable + " SET int_map -= row1.int_set WHERE k=0;\n" +
+                                 "    UPDATE " + qualifiedTableName + " SET int_map -= row1.int_set WHERE k=0;\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { ImmutableSet.of("three") }, update);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = 0;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = 0;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, ImmutableMap.of("one", 2), null}, check);
              }
@@ -2210,13 +2210,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellListSelection() throws Exception
     {
-        testListSelection("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_list list<int>)");
+        testListSelection("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>)");
     }
 
     @Test
     public void testFrozenListSelection() throws Exception
     {
-        testListSelection("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_list frozen<list<int>>)");
+        testListSelection("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list frozen<list<int>>)");
     }
 
     private void testListSelection(String ddl) throws Exception
@@ -2224,16 +2224,16 @@ public class AccordCQLTest extends AccordTestBase
         test(ddl,
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_list) VALUES (1, [10, 20, 30, 40]);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_list) VALUES (1, [10, 20, 30, 40]);", ConsistencyLevel.ALL);
 
                  String selectEntireSet = "BEGIN TRANSACTION\n" +
-                                          "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1);\n" +
+                                          "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1);\n" +
                                           "  SELECT row1.int_list;\n" +
                                           "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { ImmutableList.of(10, 20, 30, 40) }, selectEntireSet);
 
                  String selectSingleElement = "BEGIN TRANSACTION\n" +
-                                              "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1);\n" +
+                                              "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1);\n" +
                                               "  SELECT row1.int_list[0];\n" +
                                               "COMMIT TRANSACTION";
 
@@ -2248,13 +2248,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellSetSelection() throws Exception
     {
-        testSetSelection("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_set set<int>)");
+        testSetSelection("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set set<int>)");
     }
 
     @Test
     public void testFrozenSetSelection() throws Exception
     {
-        testSetSelection("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_set frozen<set<int>>)");
+        testSetSelection("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set frozen<set<int>>)");
     }
 
     private void testSetSelection(String ddl) throws Exception
@@ -2262,16 +2262,16 @@ public class AccordCQLTest extends AccordTestBase
         test(ddl,
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_set) VALUES (1, {10, 20, 30, 40});", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_set) VALUES (1, {10, 20, 30, 40});", ConsistencyLevel.ALL);
 
                  String selectEntireSet = "BEGIN TRANSACTION\n" +
-                                          "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1);\n" +
+                                          "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1);\n" +
                                           "  SELECT row1.int_set;\n" +
                                           "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { ImmutableSet.of(10, 20, 30, 40) }, selectEntireSet);
 
                  String selectSingleElement = "BEGIN TRANSACTION\n" +
-                                              "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1);\n" +
+                                              "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1);\n" +
                                               "  SELECT row1.int_set[10];\n" +
                                               "COMMIT TRANSACTION";
 
@@ -2286,13 +2286,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellMapSelection() throws Exception
     {
-        testMapSelection("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_map map<text, int>)");
+        testMapSelection("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>)");
     }
 
     @Test
     public void testFrozenMapSelection() throws Exception
     {
-        testMapSelection("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, int_map frozen<map<text, int>>)");
+        testMapSelection("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map frozen<map<text, int>>)");
     }
 
     private void testMapSelection(String ddl) throws Exception
@@ -2300,16 +2300,16 @@ public class AccordCQLTest extends AccordTestBase
         test(ddl,
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, int_map) VALUES (1, { 'ten': 20, 'thirty': 40 });", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_map) VALUES (1, { 'ten': 20, 'thirty': 40 });", ConsistencyLevel.ALL);
 
                  String selectEntireMap = "BEGIN TRANSACTION\n" +
-                                          "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1);\n" +
+                                          "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1);\n" +
                                           "  SELECT row1.int_map;\n" +
                                           "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { ImmutableMap.of("ten", 20, "thirty", 40) }, selectEntireMap);
 
                  String selectSingleElement = "BEGIN TRANSACTION\n" +
-                                              "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1);\n" +
+                                              "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 1);\n" +
                                               "  SELECT row1.int_map['ten'];\n" +
                                               "COMMIT TRANSACTION";
 
@@ -2325,25 +2325,25 @@ public class AccordCQLTest extends AccordTestBase
     {
         String KEYSPACE = "ks" + System.currentTimeMillis();
         SHARED_CLUSTER.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 2}");
-        SHARED_CLUSTER.schemaChange("CREATE TABLE " + currentTable + "1 (k int, c int, v int, primary key (k, c))");
-        SHARED_CLUSTER.schemaChange("CREATE TABLE " + currentTable + "2 (k int, c int, v int, primary key (k, c))");
+        SHARED_CLUSTER.schemaChange("CREATE TABLE " + qualifiedTableName + "1 (k int, c int, v int, primary key (k, c))");
+        SHARED_CLUSTER.schemaChange("CREATE TABLE " + qualifiedTableName + "2 (k int, c int, v int, primary key (k, c))");
         SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
-        SHARED_CLUSTER.coordinator(1).execute("INSERT INTO " + currentTable + "1 (k, c, v) VALUES (1, 2, 3);", ConsistencyLevel.ALL);
-        SHARED_CLUSTER.coordinator(1).execute("INSERT INTO " + currentTable + "2 (k, c, v) VALUES (2, 2, 4);", ConsistencyLevel.ALL);
+        SHARED_CLUSTER.coordinator(1).execute("INSERT INTO " + qualifiedTableName + "1 (k, c, v) VALUES (1, 2, 3);", ConsistencyLevel.ALL);
+        SHARED_CLUSTER.coordinator(1).execute("INSERT INTO " + qualifiedTableName + "2 (k, c, v) VALUES (2, 2, 4);", ConsistencyLevel.ALL);
 
         String query = "BEGIN TRANSACTION\n" +
-                       "  LET row1 = (SELECT * FROM " + currentTable + "1 WHERE k=1 AND c=2);\n" +
-                       "  LET row2 = (SELECT * FROM " + currentTable + "2 WHERE k=2 AND c=2);\n" +
-                       "  SELECT v FROM " + currentTable + "1 WHERE k=1 AND c=2;\n" +
+                       "  LET row1 = (SELECT * FROM " + qualifiedTableName + "1 WHERE k=1 AND c=2);\n" +
+                       "  LET row2 = (SELECT * FROM " + qualifiedTableName + "2 WHERE k=2 AND c=2);\n" +
+                       "  SELECT v FROM " + qualifiedTableName + "1 WHERE k=1 AND c=2;\n" +
                        "  IF row1.v = 3 AND row2.v = 4 THEN\n" +
-                       "    UPDATE " + currentTable + "1 SET v = row2.v WHERE k=1 AND c=2;\n" +
+                       "    UPDATE " + qualifiedTableName + "1 SET v = row2.v WHERE k=1 AND c=2;\n" +
                        "  END IF\n" +
                        "COMMIT TRANSACTION";
         Object[][] result = SHARED_CLUSTER.coordinator(1).execute(query, ConsistencyLevel.ANY);
         assertEquals(3, result[0][0]);
 
         String check = "BEGIN TRANSACTION\n" +
-                       "  SELECT * FROM " + currentTable + "1 WHERE k=1 AND c=2;\n" +
+                       "  SELECT * FROM " + qualifiedTableName + "1 WHERE k=1 AND c=2;\n" +
                        "COMMIT TRANSACTION";
         assertRowEqualsWithPreemptedRetry(SHARED_CLUSTER, new Object[]{1, 2, 4}, check);
     }
@@ -2351,13 +2351,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testRegularScalarInsertSubstitution() throws Exception
     {
-        testScalarInsertSubstitution("CREATE TABLE " + currentTable + " (k int, c int, v int, PRIMARY KEY (k, c))");
+        testScalarInsertSubstitution("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, PRIMARY KEY (k, c))");
     }
 
     @Test
     public void testStaticScalarInsertSubstitution() throws Exception
     {
-        testScalarInsertSubstitution("CREATE TABLE " + currentTable + " (k int, c int, v int static, PRIMARY KEY (k, c))");
+        testScalarInsertSubstitution("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int static, PRIMARY KEY (k, c))");
     }
 
     private void testScalarInsertSubstitution(String tableDDL) throws Exception
@@ -2365,19 +2365,19 @@ public class AccordCQLTest extends AccordTestBase
         test(tableDDL,
              cluster ->
              {
-                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (0, 0, 1);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (0, 0, 1);", ConsistencyLevel.ALL);
 
                  String insert = "BEGIN TRANSACTION\n" +
-                                 "  LET row0 = (SELECT * FROM " + currentTable + " WHERE k = 0 LIMIT 1);\n" +
+                                 "  LET row0 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 0 LIMIT 1);\n" +
                                  "  SELECT row0.v;\n" +
                                  "  IF row0.v IS NOT NULL THEN\n" +
-                                 "    INSERT INTO " + currentTable + " (k, c, v) VALUES (0, 1, row0.v);\n" +
+                                 "    INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (0, 1, row0.v);\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 1 }, insert);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT k, c, v FROM " + currentTable + " WHERE k = 0 AND c = 1;\n" +
+                                "  SELECT k, c, v FROM " + qualifiedTableName + " WHERE k = 0 AND c = 1;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, 1, 1 }, check);
              }
@@ -2387,13 +2387,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testSelectMultiCellUDTReference() throws Exception
     {
-        testSelectUDTReference("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, customer person)");
+        testSelectUDTReference("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer person)");
     }
 
     @Test
     public void testSelectFrozenUDTReference() throws Exception
     {
-        testSelectUDTReference("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, customer frozen<person>)");
+        testSelectUDTReference("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer frozen<person>)");
     }
 
     private void testSelectUDTReference(String tableDDL) throws Exception
@@ -2405,13 +2405,13 @@ public class AccordCQLTest extends AccordTestBase
                  ByteBuffer personBuffer = CQLTester.makeByteBuffer(personValue, null);
 
                  String insert = "BEGIN TRANSACTION\n" +
-                                 "  INSERT INTO " + currentTable + " (k, customer) VALUES (?, ?);\n" +
+                                 "  INSERT INTO " + qualifiedTableName + " (k, customer) VALUES (?, ?);\n" +
                                  "COMMIT TRANSACTION";
                  SimpleQueryResult result = cluster.coordinator(1).executeWithResult(insert, ConsistencyLevel.ANY, 0, personBuffer);
                  assertFalse(result.hasNext());
 
                  String read = "BEGIN TRANSACTION\n" +
-                               "  LET row0 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                               "  LET row0 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                "  SELECT row0.customer;\n" +
                                "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { personBuffer }, read, 0);
@@ -2422,13 +2422,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testSelectMultiCellUDTFieldReference() throws Exception
     {
-        testSelectUDTFieldReference("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, customer person)");
+        testSelectUDTFieldReference("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer person)");
     }
 
     @Test
     public void testSelectFrozenUDTFieldReference() throws Exception
     {
-        testSelectUDTFieldReference("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, customer frozen<person>)");
+        testSelectUDTFieldReference("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer frozen<person>)");
     }
 
     private void testSelectUDTFieldReference(String tableDDL) throws Exception
@@ -2440,13 +2440,13 @@ public class AccordCQLTest extends AccordTestBase
                  ByteBuffer personBuffer = CQLTester.makeByteBuffer(personValue, null);
 
                  String insert = "BEGIN TRANSACTION\n" +
-                                 "  INSERT INTO " + currentTable + " (k, customer) VALUES (?, ?);\n" +
+                                 "  INSERT INTO " + qualifiedTableName + " (k, customer) VALUES (?, ?);\n" +
                                  "COMMIT TRANSACTION";
                  SimpleQueryResult result = cluster.coordinator(1).executeWithResult(insert, ConsistencyLevel.ANY, 0, personBuffer);
                  assertFalse(result.hasNext());
 
                  String read = "BEGIN TRANSACTION\n" +
-                               "  LET row0 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                               "  LET row0 = (SELECT * FROM " + qualifiedTableName + " WHERE k = ?);\n" +
                                "  SELECT row0.customer.age;\n" +
                                "COMMIT TRANSACTION";
                  result = assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 37 }, read, 0);
@@ -2459,33 +2459,33 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiKeyQueryAndInsert() throws Throwable
     {
-        test("CREATE TABLE " + currentTable + " (k int, c int, v int, primary key (k, c))",
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, primary key (k, c))",
              cluster ->
              {
                  String query1 = "BEGIN TRANSACTION\n" +
-                                 "  LET select1 = (SELECT * FROM " + currentTable + " WHERE k=0 AND c=0);\n" +
-                                 "  LET select2 = (SELECT * FROM " + currentTable + " WHERE k=1 AND c=0);\n" +
-                                 "  SELECT v FROM " + currentTable + " WHERE k=0 AND c=0;\n" +
+                                 "  LET select1 = (SELECT * FROM " + qualifiedTableName + " WHERE k=0 AND c=0);\n" +
+                                 "  LET select2 = (SELECT * FROM " + qualifiedTableName + " WHERE k=1 AND c=0);\n" +
+                                 "  SELECT v FROM " + qualifiedTableName + " WHERE k=0 AND c=0;\n" +
                                  "  IF select1 IS NULL THEN\n" +
-                                 "    INSERT INTO " + currentTable + " (k, c, v) VALUES (0, 0, 0);\n" +
-                                 "    INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 0, 0);\n" +
+                                 "    INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (0, 0, 0);\n" +
+                                 "    INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (1, 0, 0);\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertEmptyWithPreemptedRetry(cluster, query1);
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k = ? AND c = ?;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE k = ? AND c = ?;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {0, 0, 0}, check, 0, 0);
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] {1, 0, 0}, check, 1, 0);
 
                  String query2 = "BEGIN TRANSACTION\n" +
-                                 "  LET select1 = (SELECT * FROM " + currentTable + " WHERE k=1 AND c=0);\n" +
-                                 "  LET select2 = (SELECT * FROM " + currentTable + " WHERE k=2 AND c=0);\n" +
-                                 "  SELECT v FROM " + currentTable + " WHERE k=1 AND c=0;\n" +
+                                 "  LET select1 = (SELECT * FROM " + qualifiedTableName + " WHERE k=1 AND c=0);\n" +
+                                 "  LET select2 = (SELECT * FROM " + qualifiedTableName + " WHERE k=2 AND c=0);\n" +
+                                 "  SELECT v FROM " + qualifiedTableName + " WHERE k=1 AND c=0;\n" +
                                  "  IF select1.v = ? THEN\n" +
-                                 "    INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 0, 1);\n" +
-                                 "    INSERT INTO " + currentTable + " (k, c, v) VALUES (2, 0, 1);\n" +
+                                 "    INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (1, 0, 1);\n" +
+                                 "    INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (2, 0, 1);\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0 }, query2, 0);
@@ -2501,10 +2501,11 @@ public class AccordCQLTest extends AccordTestBase
     {
         SHARED_CLUSTER.schemaChange("DROP KEYSPACE IF EXISTS demo_ks;");
         SHARED_CLUSTER.schemaChange("CREATE KEYSPACE demo_ks WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor':2};");
-        SHARED_CLUSTER.get(1).runOnInstance(() -> AccordService.instance().ensureKeyspaceIsAccordManaged("demo_ks"));
         SHARED_CLUSTER.schemaChange("CREATE TABLE demo_ks.org_docs ( org_name text, doc_id int, contents_version int static, title text, permissions int, PRIMARY KEY (org_name, doc_id) );");
         SHARED_CLUSTER.schemaChange("CREATE TABLE demo_ks.org_users ( org_name text, user text, members_version int static, permissions int, PRIMARY KEY (org_name, user) );");
         SHARED_CLUSTER.schemaChange("CREATE TABLE demo_ks.user_docs ( user text, doc_id int, title text, org_name text, permissions int, PRIMARY KEY (user, doc_id) );");
+
+        SHARED_CLUSTER.get(1).runOnInstance(() -> AccordService.instance().ensureKeyspaceIsAccordManaged("demo_ks"));
 
         SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
 
@@ -2547,12 +2548,12 @@ public class AccordCQLTest extends AccordTestBase
     public void testReferenceArithmeticInInsert() throws Exception
     {
         test(cluster -> {
-             cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (0, 0, 0)", ConsistencyLevel.ALL);
+             cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (0, 0, 0)", ConsistencyLevel.ALL);
 
              String cql = "BEGIN TRANSACTION\n" +
-                          "  LET a = (SELECT * FROM " + currentTable + " WHERE k=0 AND c=0);\n" +
+                          "  LET a = (SELECT * FROM " + qualifiedTableName + " WHERE k=0 AND c=0);\n" +
                           "  IF a IS NOT NULL THEN\n" +
-                          "    INSERT INTO " + currentTable + " (k, c, v) VALUES (0, 1, a.v + 1);\n" +
+                          "    INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (0, 1, a.v + 1);\n" +
                           "  END IF\n" +
                           "COMMIT TRANSACTION";
              assertEmptyWithPreemptedRetry(cluster, cql);
@@ -2565,12 +2566,12 @@ public class AccordCQLTest extends AccordTestBase
     public void testReferenceArithmeticInUpdate() throws Exception
     {
         test(cluster -> {
-             cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (0, 0, 0)", ConsistencyLevel.ALL);
+             cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (0, 0, 0)", ConsistencyLevel.ALL);
 
              String cql = "BEGIN TRANSACTION\n" +
-                          "  LET a = (SELECT * FROM " + currentTable + " WHERE k=0 AND c=0);\n" +
+                          "  LET a = (SELECT * FROM " + qualifiedTableName + " WHERE k=0 AND c=0);\n" +
                           "  IF a IS NOT NULL THEN\n" +
-                          "    UPDATE " + currentTable + " SET v = a.v + 1 WHERE k = 0 and c = 1;\n" +
+                          "    UPDATE " + qualifiedTableName + " SET v = a.v + 1 WHERE k = 0 and c = 1;\n" +
                           "  END IF\n" +
                           "COMMIT TRANSACTION";
              assertEmptyWithPreemptedRetry(cluster, cql);
@@ -2582,39 +2583,39 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testCASAndSerialRead() throws Exception
     {
-        test("CREATE TABLE " + currentTable + " (id int, c int, v int, s int static, PRIMARY KEY ((id), c));",
+        test("CREATE TABLE " + qualifiedTableName + " (id int, c int, v int, s int static, PRIMARY KEY ((id), c));",
             cluster -> {
                 ICoordinator coordinator = cluster.coordinator(1);
                 int startingAccordCoordinateCount = getAccordCoordinateCount();
-                assertRowEquals(cluster, new Object[]{false}, "UPDATE " + currentTable + " SET v = 4 WHERE id = 1 AND c = 2 IF EXISTS");
-                assertRowEquals(cluster, new Object[]{false}, "UPDATE " + currentTable + " SET v = 4 WHERE id = 1 AND c = 2 IF v = 3");
-                coordinator.execute("INSERT INTO " + currentTable + " (id, c, v, s) VALUES (1, 2, 3, 5);", ConsistencyLevel.ALL);
-                assertRowSerial(cluster, "SELECT id, c, v, s FROM " + currentTable + " WHERE id = 1 AND c = 2", 1, 2, 3, 5);
-                assertRowEquals(cluster, new Object[]{true}, "UPDATE " + currentTable + " SET v = 4 WHERE id = 1 AND c = 2 IF v = 3");
-                assertRowSerial(cluster, "SELECT id, c, v, s FROM " + currentTable + " WHERE id = 1 AND c = 2", 1, 2, 4, 5);
-                assertRowEquals(cluster, new Object[]{ false, 4 }, "UPDATE " + currentTable + " SET v = 4 WHERE id = 1 AND c = 2 IF v = 3");
-                assertRowSerial(cluster, "SELECT id, c, v, s FROM " + currentTable + " WHERE id = 1 AND c = 2", 1, 2, 4, 5);
+                assertRowEquals(cluster, new Object[]{false}, "UPDATE " + qualifiedTableName + " SET v = 4 WHERE id = 1 AND c = 2 IF EXISTS");
+                assertRowEquals(cluster, new Object[]{false}, "UPDATE " + qualifiedTableName + " SET v = 4 WHERE id = 1 AND c = 2 IF v = 3");
+                coordinator.execute("INSERT INTO " + qualifiedTableName + " (id, c, v, s) VALUES (1, 2, 3, 5);", ConsistencyLevel.ALL);
+                assertRowSerial(cluster, "SELECT id, c, v, s FROM " + qualifiedTableName + " WHERE id = 1 AND c = 2", 1, 2, 3, 5);
+                assertRowEquals(cluster, new Object[]{true}, "UPDATE " + qualifiedTableName + " SET v = 4 WHERE id = 1 AND c = 2 IF v = 3");
+                assertRowSerial(cluster, "SELECT id, c, v, s FROM " + qualifiedTableName + " WHERE id = 1 AND c = 2", 1, 2, 4, 5);
+                assertRowEquals(cluster, new Object[]{ false, 4 }, "UPDATE " + qualifiedTableName + " SET v = 4 WHERE id = 1 AND c = 2 IF v = 3");
+                assertRowSerial(cluster, "SELECT id, c, v, s FROM " + qualifiedTableName + " WHERE id = 1 AND c = 2", 1, 2, 4, 5);
 
                 // Test working with a static column
-                assertRowEquals(cluster, new Object[]{ false, 5 }, "UPDATE " + currentTable + " SET v = 5 WHERE id = 1 AND c = 2 IF s = 4");
-                assertRowSerial(cluster, "SELECT id, c, v, s FROM " + currentTable + " WHERE id = 1 AND c = 2", 1, 2, 4, 5);
-                assertRowEquals(cluster, new Object[]{true}, "UPDATE " + currentTable + " SET v = 5 WHERE id = 1 AND c = 2 IF s = 5");
-                assertRowSerial(cluster, "SELECT id, c, v, s FROM " + currentTable + " WHERE id = 1 AND c = 2", 1, 2, 5, 5);
-                assertRowEquals(cluster, new Object[]{true}, "UPDATE " + currentTable + " SET s = 6 WHERE id = 1 IF s = 5");
-                assertRowSerial(cluster, "SELECT id, c, v, s FROM " + currentTable + " WHERE id = 1 AND c = 2", 1, 2, 5, 6);
+                assertRowEquals(cluster, new Object[]{ false, 5 }, "UPDATE " + qualifiedTableName + " SET v = 5 WHERE id = 1 AND c = 2 IF s = 4");
+                assertRowSerial(cluster, "SELECT id, c, v, s FROM " + qualifiedTableName + " WHERE id = 1 AND c = 2", 1, 2, 4, 5);
+                assertRowEquals(cluster, new Object[]{true}, "UPDATE " + qualifiedTableName + " SET v = 5 WHERE id = 1 AND c = 2 IF s = 5");
+                assertRowSerial(cluster, "SELECT id, c, v, s FROM " + qualifiedTableName + " WHERE id = 1 AND c = 2", 1, 2, 5, 5);
+                assertRowEquals(cluster, new Object[]{true}, "UPDATE " + qualifiedTableName + " SET s = 6 WHERE id = 1 IF s = 5");
+                assertRowSerial(cluster, "SELECT id, c, v, s FROM " + qualifiedTableName + " WHERE id = 1 AND c = 2", 1, 2, 5, 6);
 
                 // Test that read before write works with CAS
-                assertRowEquals(cluster, new Object[]{true}, "UPDATE " + currentTable + " SET s +=1, v += 1 WHERE id = 1 AND c = 2 IF EXISTS");
-                assertRowSerial(cluster, "SELECT id, c, v, s FROM " + currentTable + " WHERE id = 1 AND c = 2", 1, 2, 6, 7);
+                assertRowEquals(cluster, new Object[]{true}, "UPDATE " + qualifiedTableName + " SET s +=1, v += 1 WHERE id = 1 AND c = 2 IF EXISTS");
+                assertRowSerial(cluster, "SELECT id, c, v, s FROM " + qualifiedTableName + " WHERE id = 1 AND c = 2", 1, 2, 6, 7);
 
                 // Check range deletion works
-                coordinator.execute("INSERT INTO " + currentTable + " (id, c, v, s) VALUES (1, 2, 6, 7);", ConsistencyLevel.ALL);
-                coordinator.execute("INSERT INTO " + currentTable + " (id, c, v) VALUES (1, 3, 3);", ConsistencyLevel.ALL);
+                coordinator.execute("INSERT INTO " + qualifiedTableName + " (id, c, v, s) VALUES (1, 2, 6, 7);", ConsistencyLevel.ALL);
+                coordinator.execute("INSERT INTO " + qualifiedTableName + " (id, c, v) VALUES (1, 3, 3);", ConsistencyLevel.ALL);
                 assertRowEquals(cluster, new Object[]{true}, "BEGIN BATCH \n" +
-                                                             "UPDATE " + currentTable + " SET s +=1, v += 1 WHERE id = 1 AND c = 2 IF EXISTS; \n" +
-                                                             "DELETE FROM " + currentTable + " WHERE id = 1 AND c > 0 AND c < 10; \n" +
+                                                             "UPDATE " + qualifiedTableName + " SET s +=1, v += 1 WHERE id = 1 AND c = 2 IF EXISTS; \n" +
+                                                             "DELETE FROM " + qualifiedTableName + " WHERE id = 1 AND c > 0 AND c < 10; \n" +
                                                              "APPLY BATCH;");
-                Object[][] rangeDeletionCheck = coordinator.execute("SELECT id, c, v, s FROM " + currentTable + " WHERE id = 1", ConsistencyLevel.SERIAL);
+                Object[][] rangeDeletionCheck = coordinator.execute("SELECT id, c, v, s FROM " + qualifiedTableName + " WHERE id = 1", ConsistencyLevel.SERIAL);
                 assertArrayEquals(new Object[] { 1, 2, 7, 8 }, rangeDeletionCheck[0]);
                 assertEquals(1, rangeDeletionCheck.length);
 
@@ -2631,10 +2632,10 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testCASSimulatorLite() throws Exception
     {
-        test("CREATE TABLE " + currentTable + " (pk int, count int, seq1 text, seq2 list<int>, PRIMARY KEY (pk))",
+        test("CREATE TABLE " + qualifiedTableName + " (pk int, count int, seq1 text, seq2 list<int>, PRIMARY KEY (pk))",
              cluster -> {
                  ICoordinator coordinator = cluster.coordinator(1);
-                 coordinator.execute("INSERT INTO " + currentTable + " (pk, count, seq1, seq2) VALUES (1, 0, '', []) USING TIMESTAMP 0", ConsistencyLevel.ALL);
+                 coordinator.execute("INSERT INTO " + qualifiedTableName + " (pk, count, seq1, seq2) VALUES (1, 0, '', []) USING TIMESTAMP 0", ConsistencyLevel.ALL);
 
                  ListType<Integer> LIST_TYPE = ListType.getInstance(Int32Type.instance, true);
                  ExecutorService es = Executors.newCachedThreadPool();
@@ -2642,12 +2643,12 @@ public class AccordCQLTest extends AccordTestBase
                  for (int ii = 0; ii < 10; ii++)
                  {
                      int id = ii;
-                     futures.add(es.submit(() -> coordinator.execute("UPDATE " + currentTable + " SET count = count + 1, seq1 = seq1 + ?, seq2 = seq2 + ? WHERE pk = ? IF EXISTS", ConsistencyLevel.ALL, id + ",", ByteBufferUtil.getArray(LIST_TYPE.decompose(singletonList(id))), 1)));
+                     futures.add(es.submit(() -> coordinator.execute("UPDATE " + qualifiedTableName + " SET count = count + 1, seq1 = seq1 + ?, seq2 = seq2 + ? WHERE pk = ? IF EXISTS", ConsistencyLevel.ALL, id + ",", ByteBufferUtil.getArray(LIST_TYPE.decompose(singletonList(id))), 1)));
                  }
                  for (Future f : futures)
                      f.get();
 
-                 Object[][] result = coordinator.execute("SELECT pk, count, seq1, seq2 FROM  " + currentTable + " WHERE pk = 1", ConsistencyLevel.SERIAL);
+                 Object[][] result = coordinator.execute("SELECT pk, count, seq1, seq2 FROM  " + qualifiedTableName + " WHERE pk = 1", ConsistencyLevel.SERIAL);
 
                  int[] seq1 = Arrays.stream(((String) result[0][2]).split(","))
                                     .filter(s -> !s.isEmpty())
@@ -2663,11 +2664,11 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testTransactionCasSimulatorLite() throws Exception
     {
-        test("CREATE TABLE " + currentTable + " (pk int, count int, seq1 text, seq2 list<int>, PRIMARY KEY (pk))",
+        test("CREATE TABLE " + qualifiedTableName + " (pk int, count int, seq1 text, seq2 list<int>, PRIMARY KEY (pk))",
              cluster ->
              {
                  ICoordinator coordinator = cluster.coordinator(1);
-                 coordinator.execute("INSERT INTO " + currentTable + " (pk, count, seq1, seq2) VALUES (1, 0, '', []) USING TIMESTAMP 0", ConsistencyLevel.ALL);
+                 coordinator.execute("INSERT INTO " + qualifiedTableName + " (pk, count, seq1, seq2) VALUES (1, 0, '', []) USING TIMESTAMP 0", ConsistencyLevel.ALL);
 
                  ListType<Integer> LIST_TYPE = ListType.getInstance(Int32Type.instance, true);
                  ExecutorService es = Executors.newCachedThreadPool();
@@ -2676,8 +2677,8 @@ public class AccordCQLTest extends AccordTestBase
                  {
                      int id = ii;
                      String update = "BEGIN TRANSACTION\n" +
-                                     "  LET row1 = (SELECT * FROM " + currentTable + " WHERE pk = 1);\n" +
-                                     "  UPDATE " + currentTable + " SET count += 1, seq1 = seq1 + ?, seq2 = seq2 + ? WHERE pk=1;\n" +
+                                     "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE pk = 1);\n" +
+                                     "  UPDATE " + qualifiedTableName + " SET count += 1, seq1 = seq1 + ?, seq2 = seq2 + ? WHERE pk=1;\n" +
                                      "COMMIT TRANSACTION";
                      futures.add(es.submit(() -> coordinator.executeWithResult(update, ConsistencyLevel.ANY, id + ",", ByteBufferUtil.getArray(LIST_TYPE.decompose(singletonList(id))))));
                  }
@@ -2685,7 +2686,7 @@ public class AccordCQLTest extends AccordTestBase
                      f.get();
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE pk = 1;\n" +
+                                "  SELECT * FROM " + qualifiedTableName + " WHERE pk = 1;\n" +
                                 "COMMIT TRANSACTION";
                  Object[][] result = coordinator.execute(check, ConsistencyLevel.ALL);
 
@@ -2704,15 +2705,15 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testSerialReadDescending() throws Throwable
     {
-        test("CREATE TABLE " + currentTable + " (k int, c int, v int, PRIMARY KEY(k, c))",
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, PRIMARY KEY(k, c))",
              cluster -> {
                  ICoordinator coordinator = cluster.coordinator(1);
                  for (int i = 1; i <= 10; i++)
-                     coordinator.execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (0, ?, ?) USING TIMESTAMP 0;", ConsistencyLevel.ALL, i, i * 10);
-                 assertRowSerial(cluster, "SELECT c, v FROM " + currentTable + " WHERE k=0 ORDER BY c DESC LIMIT 1", AssertUtils.row(10, 100));
-                 assertRowSerial(cluster, "SELECT c, v FROM " + currentTable + " WHERE k=0 ORDER BY c DESC LIMIT 2", AssertUtils.row(10, 100), AssertUtils.row(9, 90));
-                 assertRowSerial(cluster, "SELECT c, v FROM " + currentTable + " WHERE k=0 ORDER BY c DESC LIMIT 3", AssertUtils.row(10, 100), AssertUtils.row(9, 90), AssertUtils.row(8, 80));
-                 assertRowSerial(cluster, "SELECT c, v FROM " + currentTable + " WHERE k=0 ORDER BY c DESC LIMIT 4", AssertUtils.row(10, 100), AssertUtils.row(9, 90), AssertUtils.row(8, 80), AssertUtils.row(7, 70));
+                     coordinator.execute("INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (0, ?, ?) USING TIMESTAMP 0;", ConsistencyLevel.ALL, i, i * 10);
+                 assertRowSerial(cluster, "SELECT c, v FROM " + qualifiedTableName + " WHERE k=0 ORDER BY c DESC LIMIT 1", AssertUtils.row(10, 100));
+                 assertRowSerial(cluster, "SELECT c, v FROM " + qualifiedTableName + " WHERE k=0 ORDER BY c DESC LIMIT 2", AssertUtils.row(10, 100), AssertUtils.row(9, 90));
+                 assertRowSerial(cluster, "SELECT c, v FROM " + qualifiedTableName + " WHERE k=0 ORDER BY c DESC LIMIT 3", AssertUtils.row(10, 100), AssertUtils.row(9, 90), AssertUtils.row(8, 80));
+                 assertRowSerial(cluster, "SELECT c, v FROM " + qualifiedTableName + " WHERE k=0 ORDER BY c DESC LIMIT 4", AssertUtils.row(10, 100), AssertUtils.row(9, 90), AssertUtils.row(8, 80), AssertUtils.row(7, 70));
              }
          );
     }

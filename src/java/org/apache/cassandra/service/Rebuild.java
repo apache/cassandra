@@ -113,7 +113,8 @@ public class Rebuild
                                                        false,
                                                        DatabaseDescriptor.getStreamingConnectionsPerHost(),
                                                        rebuildMovements,
-                                                       null);
+                                                       null,
+                                                       true);
             if (sourceDc != null)
                 streamer.addSourceFilter(new RangeStreamer.SingleDatacenterFilter(DatabaseDescriptor.getEndpointSnitch(), sourceDc));
 
@@ -123,16 +124,11 @@ public class Rebuild
             if (keyspace == null)
             {
                 for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces().names())
-                {
-                    if (AccordService.instance().isAccordManagedKeyspace(keyspaceName))
-                        continue;
                     streamer.addKeyspaceToFetch(keyspaceName);
-                }
             }
             else if (tokens == null)
             {
-                if (!AccordService.instance().isAccordManagedKeyspace(keyspace))
-                    streamer.addKeyspaceToFetch(keyspace);
+                streamer.addKeyspaceToFetch(keyspace);
             }
             else
             {
@@ -159,8 +155,7 @@ public class Rebuild
                     streamer.addSourceFilter(new RangeStreamer.AllowedSourcesFilter(sources));
                 }
 
-                if (!AccordService.instance().isAccordManagedKeyspace(keyspace))
-                    streamer.addKeyspaceToFetch(keyspace);
+                streamer.addKeyspaceToFetch(keyspace);
             }
 
             StreamResultFuture resultFuture = streamer.fetchAsync();

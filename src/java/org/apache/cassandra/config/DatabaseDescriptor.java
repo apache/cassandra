@@ -4905,6 +4905,16 @@ public class DatabaseDescriptor
         return conf.accord.shard_count.or(DatabaseDescriptor::getAvailableProcessors);
     }
 
+    public static long getAccordFastPathUpdateDelayMillis()
+    {
+        return conf.accord.fast_path_update_delay.to(TimeUnit.MILLISECONDS);
+    }
+
+    public static void setAccordFastPathUpdateDelayMillis(long millis)
+    {
+        conf.accord.fast_path_update_delay = new DurationSpec.IntMillisecondsBound(millis);
+    }
+
     public static boolean getForceNewPreparedStatementBehaviour()
     {
         return conf.force_new_prepared_statement_behaviour;

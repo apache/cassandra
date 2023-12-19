@@ -37,6 +37,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 
+import static org.apache.cassandra.service.accord.AccordTestUtils.TABLE_ID1;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
@@ -287,9 +288,9 @@ public abstract class PartitionerTestCase
         if (less.equals(more) && less.isMinimum())
             ranges = Ranges.EMPTY;
         else if (less.equals(more))
-            ranges = Ranges.of(new TokenRange(new TokenKey("", partitioner.getMinimumToken()), new TokenKey("", less)));
+            ranges = Ranges.of(new TokenRange(new TokenKey(TABLE_ID1, partitioner.getMinimumToken()), new TokenKey(TABLE_ID1, less)));
         else
-            ranges = Ranges.of(new TokenRange(new TokenKey("", less), new TokenKey("", more)));
+            ranges = Ranges.of(new TokenRange(new TokenKey(TABLE_ID1, less), new TokenKey(TABLE_ID1, more)));
 
         AccordSplitter splitter = partitioner.accordSplitter().apply(ranges);
         BigInteger lv = splitter.valueForToken(less);
@@ -302,11 +303,11 @@ public abstract class PartitionerTestCase
 
     void testSplitter(Token start, Token end)
     {
-        accord.primitives.Range range = new TokenRange(new TokenKey("", start), new TokenKey("", end));
+        accord.primitives.Range range = new TokenRange(new TokenKey(TABLE_ID1, start), new TokenKey(TABLE_ID1, end));
         AccordSplitter splitter = partitioner.accordSplitter().apply(Ranges.of(range));
         if (!start.isMinimum())
-            testSplitter(new TokenRange(new TokenKey("", partitioner.getMinimumToken()), new TokenKey("", start)));
-        testSplitter(new TokenRange(new TokenKey("", start), new TokenKey("", splitter.tokenForValue(splitter.maximumValue()))));
+            testSplitter(new TokenRange(new TokenKey(TABLE_ID1, partitioner.getMinimumToken()), new TokenKey(TABLE_ID1, start)));
+        testSplitter(new TokenRange(new TokenKey(TABLE_ID1, start), new TokenKey(TABLE_ID1, splitter.tokenForValue(splitter.maximumValue()))));
         checkRoundTrip(start, splitter.tokenForValue(splitter.valueForToken(start)));
         checkRoundTrip(end, splitter.tokenForValue(splitter.valueForToken(end)));
     }

@@ -62,12 +62,13 @@ import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.Period;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.log.LocalLog;
+import org.apache.cassandra.service.accord.AccordFastPath;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
-import org.apache.cassandra.tcm.ownership.AccordKeyspaces;
+import org.apache.cassandra.tcm.ownership.AccordTables;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
@@ -164,7 +165,8 @@ public class ClusterMetadataTestHelper
                                    null,
                                    null,
                                    DataPlacements.empty(),
-                                   AccordKeyspaces.EMPTY,
+                                   AccordTables.EMPTY,
+                                   AccordFastPath.EMPTY,
                                    null,
                                    null,
                                    null,
@@ -181,7 +183,8 @@ public class ClusterMetadataTestHelper
                                    null,
                                    null,
                                    DataPlacements.empty(),
-                                   AccordKeyspaces.EMPTY,
+                                   AccordTables.EMPTY,
+                                   AccordFastPath.EMPTY,
                                    null,
                                    null,
                                    null,
@@ -201,7 +204,8 @@ public class ClusterMetadataTestHelper
                                        metadata.directory,
                                        metadata.tokenMap,
                                        metadata.placements,
-                                       AccordKeyspaces.EMPTY,
+                                       AccordTables.EMPTY,
+                                       AccordFastPath.EMPTY,
                                        metadata.lockedRanges,
                                        metadata.inProgressSequences,
                                        metadata.consensusMigrationState,

@@ -22,6 +22,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Files;
 
+import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -269,6 +270,7 @@ public class SchemaCQLHelperTest extends CQLTester
                .compaction(CompactionParams.lcs(Collections.singletonMap("sstable_size_in_mb", "1")))
                .compression(CompressionParams.lz4(1 << 16, 1 << 15))
                .crcCheckChance(0.3)
+               .fastPath(FastPathStrategy.simple())
                .defaultTimeToLive(4)
                .gcGraceSeconds(5)
                .minIndexInterval(6)
@@ -296,6 +298,7 @@ public class SchemaCQLHelperTest extends CQLTester
                             "    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor', 'min_compress_ratio': '2.0'}\n" +
                             "    AND memtable = 'default'\n" +
                             "    AND crc_check_chance = 0.3\n" +
+                            "    AND fast_path = 'simple'\n" +
                             "    AND default_time_to_live = 4\n" +
                             "    AND extensions = {'ext1': 0x76616c31}\n" +
                             "    AND gc_grace_seconds = 5\n" +

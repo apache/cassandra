@@ -40,15 +40,22 @@ import accord.topology.TopologyManager;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.api.AccordRoutableKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
 import org.apache.cassandra.service.accord.txn.TxnResult;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.transformations.AddAccordTable;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -71,7 +78,7 @@ public interface IAccordService
         String ks = cfs.keyspace.getName();
         Ranges accordRanges = Ranges.of(ranges
              .stream()
-             .map(r -> new TokenRange(new TokenKey(ks, r.left), new TokenKey(ks, r.right)))
+             .map(r -> new TokenRange(new TokenKey(cfs.getTableId(), r.left), new TokenKey(cfs.getTableId(), r.right)))
              .collect(Collectors.toList())
              .toArray(new accord.primitives.Range[0]));
         try
@@ -108,10 +115,10 @@ public interface IAccordService
 
     /**
      * Temporary method to avoid double-streaming keyspaces
-     * @param keyspace
+     * @param tableId
      * @return
      */
-    boolean isAccordManagedKeyspace(String keyspace);
+    boolean isAccordManagedTable(TableId tableId);
 
     /**
      * Fetch the redundnant befores for every command store
@@ -120,23 +127,45 @@ public interface IAccordService
 
     default Id nodeId() { throw new UnsupportedOperationException(); }
 
-    default void maybeConvertKeyspacesToAccord(Txn txn)
+    default void maybeConvertTablesToAccord(Txn txn)
     {
-        Set<String> allKeyspaces = new HashSet<>();
-        txn.keys().forEach(key -> allKeyspaces.add(((AccordRoutableKey) key).keyspace()));
+        Set<TableId> allTables = new HashSet<>();
+        Set<TableId> newTables = new HashSet<>();
+        txn.keys().forEach(key -> {
+            TableId table = ((AccordRoutableKey) key).table();
+            if (allTables.add(table) && !isAccordManagedTable(table))
+                newTables.add(table);
+        });
 
-        for (String keyspace : allKeyspaces)
+        if (newTables.isEmpty())
+            return;
+
+        for (TableId table : newTables)
+            AddAccordTable.addTable(table);
+
+        // we need to avoid creating a txnId in an epoch when no one has any ranges
+        FBUtilities.waitOnFuture(epochReady(ClusterMetadata.current().epoch));
+
+        for (TableId table : allTables)
         {
-
-            ensureKeyspaceIsAccordManaged(keyspace);
-        }
-
-        for (String keyspace : allKeyspaces)
-        {
-            if (!AccordService.instance().isAccordManagedKeyspace(keyspace))
-                throw new IllegalStateException(keyspace + " is not an accord managed keyspace");
+            if (!isAccordManagedTable(table))
+                throw new IllegalStateException(table + " is not an accord managed table");
         }
     }
 
-    void ensureKeyspaceIsAccordManaged(String keyspace);
+    void ensureTableIsAccordManaged(TableId tableId);
+
+    default void ensureTableIsAccordManaged(String keyspace, String table)
+    {
+        // TODO: remove when accord enabled is handled via schema
+        TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
+        ensureTableIsAccordManaged(metadata.id);
+    }
+
+    default void ensureKeyspaceIsAccordManaged(String keyspace)
+    {
+        // TODO: remove when accord enabled is handled via schema
+        Keyspace ks = Keyspace.open(keyspace);
+        ks.getMetadata().tables.forEach(metadata -> ensureTableIsAccordManaged(metadata.id));
+    }
 }

@@ -210,7 +210,7 @@ public abstract class ConsensusKeyMigrationState
 
     public static void maybeSaveAccordKeyMigrationLocally(PartitionKey partitionKey, Epoch epoch)
     {
-        TableId tableId = partitionKey.tableId();
+        TableId tableId = partitionKey.table();
         UUID tableUUID = tableId.asUUID();
         DecoratedKey dk = partitionKey.partitionKey();
         ByteBuffer key = dk.getKey();
@@ -279,7 +279,7 @@ public abstract class ConsensusKeyMigrationState
             // will soon be ready to execute, but only waits for the local replica to be ready
             // Local will only create a transaction if it can't find an existing one to wait on
             BarrierType barrierType = global ? BarrierType.global_async : BarrierType.local;
-            AccordService.instance().barrier(Seekables.of(new PartitionKey(keyspace, tableId, key)), minEpoch, queryStartNanos, DatabaseDescriptor.getTransactionTimeout(TimeUnit.NANOSECONDS), barrierType, isForWrite);
+            AccordService.instance().barrier(Seekables.of(new PartitionKey(tableId, key)), minEpoch, queryStartNanos, DatabaseDescriptor.getTransactionTimeout(TimeUnit.NANOSECONDS), barrierType, isForWrite);
             // We don't save the state to the cache here. Accord will notify the agent every time a barrier happens.
         }
         finally
