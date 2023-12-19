@@ -52,14 +52,15 @@ from cqlshlib.formatting import (DEFAULT_DATE_FORMAT, DEFAULT_NANOTIME_FORMAT,
 from cqlshlib.helptopics import get_html_anchor, get_html_topics
 from cqlshlib.tracing import print_trace, print_trace_session
 from cqlshlib.util import get_file_encoding_bomsize, is_file_secure
+
+from cqlshlib.cqlshhandling import cqlshruleset as ruleset
+
 try:
     from cqlshlib.serverversion import version as build_version
 except ImportError:
     build_version = 'UNKNOWN'
 
 UTF8 = 'utf-8'
-
-description = "CQL Shell for Apache Cassandra"
 version = "6.2.0"
 
 readline = None
@@ -85,82 +86,10 @@ if webbrowser._tryorder and webbrowser._tryorder[0] == 'xdg-open' and os.environ
     webbrowser._tryorder.remove('xdg-open')
     webbrowser._tryorder.append('xdg-open')
 
-warnings.filterwarnings("ignore", r".*blist.*")
-
-DEFAULT_HOST = '127.0.0.1'
-DEFAULT_PORT = 9042
-DEFAULT_SSL = False
-DEFAULT_CONNECT_TIMEOUT_SECONDS = 5
-DEFAULT_REQUEST_TIMEOUT_SECONDS = 10
-
-DEFAULT_FLOAT_PRECISION = 5
-DEFAULT_DOUBLE_PRECISION = 5
-DEFAULT_MAX_TRACE_WAIT = 10
-
 if readline is not None and readline.__doc__ is not None and 'libedit' in readline.__doc__:
     DEFAULT_COMPLETEKEY = '\t'
 else:
     DEFAULT_COMPLETEKEY = 'tab'
-
-cqldocs = None
-cqlruleset = None
-CASSANDRA_CQL_HTML = None
-
-epilog = """Connects to %(DEFAULT_HOST)s:%(DEFAULT_PORT)d by default. These
-defaults can be changed by setting $CQLSH_HOST and/or $CQLSH_PORT. When a
-host (and optional port number) are given on the command line, they take
-precedence over any defaults.""" % globals()
-
-
-parser = argparse.ArgumentParser(description=description, epilog=epilog,
-                                 usage="Usage: %(prog)s [options] [host [port]]",
-                                 prog='cqlsh')
-parser.add_argument('-v', '--version', action='version', version='cqlsh ' + version)
-parser.add_argument("-C", "--color", action='store_true', dest='color',
-                                            help='Always use color output')
-parser.add_argument("--no-color", action='store_false', dest='color', help='Never use color output')
-parser.add_argument("--browser", dest='browser', help="""The browser to use to display CQL help, where BROWSER can be:
-                                                    - one of the supported browsers in https://docs.python.org/3/library/webbrowser.html.
-                                                    - browser path followed by %%s, example: /usr/bin/google-chrome-stable %%s""")
-
-parser.add_argument('--ssl', action='store_true', help='Use SSL', default=False)
-parser.add_argument("-u", "--username", help="Authenticate as user.")
-parser.add_argument("-p", "--password", help="Authenticate using password.")
-parser.add_argument('-k', '--keyspace', help='Authenticate to the given keyspace.')
-parser.add_argument("-f", "--file", help="Execute commands from FILE, then exit")
-parser.add_argument('--debug', action='store_true',
-                    help='Show additional debugging information')
-parser.add_argument('--coverage', action='store_true',
-                    help='Collect coverage data')
-parser.add_argument("--encoding", help="Specify a non-default encoding for output."
-                    + " (Default: %s)" % (UTF8,))
-parser.add_argument("--cqlshrc", help="Specify an alternative cqlshrc file location.")
-parser.add_argument("--credentials", help="Specify an alternative credentials file location.")
-parser.add_argument('--cqlversion', default=None,
-                    help='Specify a particular CQL version, '
-                    'by default the highest version supported by the server will be used.'
-                    ' Examples: "3.0.3", "3.1.0"')
-parser.add_argument("--protocol-version", type=int, default=None,
-                    help='Specify a specific protcol version otherwise the client will default and downgrade as necessary')
-
-parser.add_argument("-e", "--execute", help='Execute the statement and quit.')
-parser.add_argument("--connect-timeout", default=DEFAULT_CONNECT_TIMEOUT_SECONDS, dest='connect_timeout',
-                    help='Specify the connection timeout in seconds (default: %(default)s seconds).')
-parser.add_argument("--request-timeout", default=DEFAULT_REQUEST_TIMEOUT_SECONDS, dest='request_timeout',
-                    help='Specify the default request timeout in seconds (default: %(default)s seconds).')
-parser.add_argument("-t", "--tty", action='store_true', dest='tty',
-                    help='Force tty mode (command prompt).')
-
-# This is a hidden option to suppress the warning when the -p/--password command line option is used.
-# Power users may use this option if they know no other people has access to the system where cqlsh is run or don't care about security.
-# Use of this option in scripting is discouraged. Please use a (temporary) credentials file where possible.
-# The Cassandra distributed tests (dtests) also use this option in some tests when a well-known password is supplied via the command line.
-parser.add_argument("--insecure-password-without-warning", action='store_true', dest='insecure_password_without_warning',
-                    help=argparse.SUPPRESS)
-
-# use cfarguments for config file
-
-cfarguments, args = parser.parse_known_args()
 
 # BEGIN history config
 
@@ -193,18 +122,6 @@ except OSError:
 
 
 # END history config
-
-DEFAULT_CQLSHRC = os.path.expanduser(os.path.join('~', '.cassandra', 'cqlshrc'))
-
-if cfarguments.cqlshrc is not None:
-    CONFIG_FILE = os.path.expanduser(cfarguments.cqlshrc)
-    if not os.path.exists(CONFIG_FILE):
-        print('\nWarning: Specified cqlshrc location `%s` does not exist.  Using `%s` instead.\n' % (CONFIG_FILE, DEFAULT_CQLSHRC))
-        CONFIG_FILE = DEFAULT_CQLSHRC
-else:
-    CONFIG_FILE = DEFAULT_CQLSHRC
-
-CQL_DIR = os.path.dirname(CONFIG_FILE)
 
 CQL_ERRORS = (
     cassandra.AlreadyExists, cassandra.AuthenticationFailed, cassandra.CoordinationFailure,
@@ -246,14 +163,6 @@ class VersionNotSupported(Exception):
 
 
 class UserTypeNotFound(Exception):
-    pass
-
-
-class FunctionNotFound(Exception):
-    pass
-
-
-class AggregateNotFound(Exception):
     pass
 
 
@@ -308,12 +217,22 @@ def show_warning_without_quoting_line(message, category, filename, lineno, file=
     except IOError:
         pass
 
-
 warnings.showwarning = show_warning_without_quoting_line
 warnings.filterwarnings('always', category=cql3handling.UnexpectedTableStructure)
-
+warnings.filterwarnings("ignore", r".*blist.*")
 
 class Shell(cmd.Cmd):
+    DEFAULT_HOST = '127.0.0.1'
+    DEFAULT_PORT = 9042
+    DEFAULT_SSL = False
+    DEFAULT_CONNECT_TIMEOUT_SECONDS = 5
+    DEFAULT_REQUEST_TIMEOUT_SECONDS = 10
+
+    DEFAULT_FLOAT_PRECISION = 5
+    DEFAULT_DOUBLE_PRECISION = 5
+    DEFAULT_MAX_TRACE_WAIT = 10
+    DEFAULT_CQLDOCS_URL = 'https://cassandra.apache.org/doc/latest/cassandra/cql/cql_singlefile.html'
+
     custom_prompt = os.getenv('CQLSH_PROMPT', '')
     if custom_prompt != '':
         custom_prompt += "\n"
@@ -334,7 +253,7 @@ class Shell(cmd.Cmd):
 
     def __init__(self, hostname, port, color=False,
                  username=None, encoding=None, elapsed_enabled=False, stdin=None, tty=True,
-                 completekey=DEFAULT_COMPLETEKEY, browser=None, use_conn=None,
+                 completekey=DEFAULT_COMPLETEKEY, browser=None, docspath=None, use_conn=None,
                  cqlver=None, keyspace=None,
                  tracing_enabled=False, expand_enabled=False,
                  display_nanotime_format=DEFAULT_NANOTIME_FORMAT,
@@ -392,6 +311,7 @@ class Shell(cmd.Cmd):
         if browser == "":
             browser = None
         self.browser = browser
+        self.docspath = docspath
         self.color = color
 
         self.display_nanotime_format = display_nanotime_format
@@ -831,7 +751,7 @@ class Shell(cmd.Cmd):
         """
         statementtext = self.strip_comment_blocks(statementtext)
         try:
-            statements, endtoken_escaped = cqlruleset.cql_split_statements(statementtext)
+            statements, endtoken_escaped = ruleset.cql_split_statements(statementtext)
         except pylexotron.LexingError as e:
             if self.show_line_nums:
                 self.printerr('Invalid syntax at line {0}, char {1}'
@@ -885,14 +805,14 @@ class Shell(cmd.Cmd):
             cmdword = 'help'
         custom_handler = getattr(self, 'do_' + cmdword.lower(), None)
         if custom_handler:
-            parsed = cqlruleset.cql_whole_parse_tokens(tokens, srcstr=srcstr,
+            parsed = ruleset.cql_whole_parse_tokens(tokens, srcstr=srcstr,
                                                        startsymbol='cqlshCommand')
             if parsed and not parsed.remainder:
                 # successful complete parse
                 return custom_handler(parsed)
             else:
                 return self.handle_parse_error(cmdword, tokens, parsed, srcstr)
-        return self.perform_statement(cqlruleset.cql_extract_orig(tokens, srcstr))
+        return self.perform_statement(ruleset.cql_extract_orig(tokens, srcstr))
 
     def handle_parse_error(self, cmdword, tokens, parsed, srcstr):
         if cmdword.lower() in ('select', 'insert', 'update', 'delete', 'truncate',
@@ -900,7 +820,7 @@ class Shell(cmd.Cmd):
                                'batch', 'list'):
             # hey, maybe they know about some new syntax we don't. type
             # assumptions won't work, but maybe the query will.
-            return self.perform_statement(cqlruleset.cql_extract_orig(tokens, srcstr))
+            return self.perform_statement(ruleset.cql_extract_orig(tokens, srcstr))
         if parsed:
             self.printerr('Improper %s command (problem at %r).' % (cmdword, parsed.remainder[0]))
         else:
@@ -949,7 +869,7 @@ class Shell(cmd.Cmd):
 
     def parse_for_select_meta(self, query_string):
         try:
-            parsed = cqlruleset.cql_parse(query_string)[1]
+            parsed = ruleset.cql_parse(query_string)[1]
         except IndexError:
             return None
         ks = self.cql_unprotect_name(parsed.get_binding('ksname', None))
@@ -964,7 +884,7 @@ class Shell(cmd.Cmd):
 
     def parse_for_update_meta(self, query_string):
         try:
-            parsed = cqlruleset.cql_parse(query_string)[1]
+            parsed = ruleset.cql_parse(query_string)[1]
         except IndexError:
             return None
         ks = self.cql_unprotect_name(parsed.get_binding('ksname', None))
@@ -1158,7 +1078,7 @@ class Shell(cmd.Cmd):
         wholestmt = prevlines + curline
         begidx = readline.get_begidx() + len(prevlines)
         stuff_to_complete = wholestmt[:begidx]
-        return cqlruleset.cql_complete(stuff_to_complete, text, cassandra_conn=self,
+        return ruleset.cql_complete(stuff_to_complete, text, cassandra_conn=self,
                                        debug=debug_completion, startsymbol='cqlshCommand')
 
     def set_prompt(self, prompt, prepend_user=False):
@@ -1170,11 +1090,11 @@ class Shell(cmd.Cmd):
     def cql_unprotect_name(self, namestr):
         if namestr is None:
             return
-        return cqlruleset.dequote_name(namestr)
+        return ruleset.dequote_name(namestr)
 
     def cql_unprotect_value(self, valstr):
         if valstr is not None:
-            return cqlruleset.dequote_value(valstr)
+            return ruleset.dequote_value(valstr)
 
     def _columnize_unicode(self, name_list):
         """
@@ -1860,7 +1780,7 @@ class Shell(cmd.Cmd):
             elif t.lower() in get_html_topics():
                 urlpart = get_html_anchor(t)
                 if urlpart is not None:
-                    url = "%s#%s" % (CASSANDRA_CQL_HTML, urlpart)
+                    url = "%s#%s" % (self.docspath, urlpart)
                     if self.browser is not None:
                         opened = webbrowser.get(self.browser).open_new_tab(url)
                     else:
@@ -2061,17 +1981,17 @@ def should_use_color():
     return True
 
 
-def read_options(cmdlineargs, environment=os.environ):
+def read_options(cmdlineargs, parser, config_file, cql_dir, environment=os.environ):
     configs = configparser.ConfigParser()
-    configs.read(CONFIG_FILE)
+    configs.read(config_file)
 
     rawconfigs = configparser.RawConfigParser()
-    rawconfigs.read(CONFIG_FILE)
+    rawconfigs.read(config_file)
 
     username_from_cqlshrc = option_with_default(configs.get, 'authentication', 'username')
     password_from_cqlshrc = option_with_default(rawconfigs.get, 'authentication', 'password')
     if username_from_cqlshrc or password_from_cqlshrc:
-        if password_from_cqlshrc and not is_file_secure(os.path.expanduser(CONFIG_FILE)):
+        if password_from_cqlshrc and not is_file_secure(os.path.expanduser(config_file)):
             print("\nWarning: Password is found in an insecure cqlshrc file. The file is owned or readable by other users on the system.",
                   end='', file=sys.stderr)
         print("\nNotice: Credentials in the cqlshrc file is deprecated and will be ignored in the future."
@@ -2082,7 +2002,7 @@ def read_options(cmdlineargs, environment=os.environ):
     argvalues.username = None
     argvalues.password = None
     argvalues.credentials = os.path.expanduser(option_with_default(configs.get, 'authentication', 'credentials',
-                                                                   os.path.join(CQL_DIR, 'credentials')))
+                                                                   os.path.join(cql_dir, 'credentials')))
     argvalues.keyspace = option_with_default(configs.get, 'authentication', 'keyspace')
     argvalues.browser = option_with_default(configs.get, 'ui', 'browser', None)
     argvalues.completekey = option_with_default(configs.get, 'ui', 'completekey',
@@ -2095,11 +2015,11 @@ def read_options(cmdlineargs, environment=os.environ):
     argvalues.date_format = raw_option_with_default(configs, 'ui', 'date_format',
                                                     DEFAULT_DATE_FORMAT)
     argvalues.float_precision = option_with_default(configs.getint, 'ui', 'float_precision',
-                                                    DEFAULT_FLOAT_PRECISION)
+                                                    Shell.DEFAULT_FLOAT_PRECISION)
     argvalues.double_precision = option_with_default(configs.getint, 'ui', 'double_precision',
-                                                     DEFAULT_DOUBLE_PRECISION)
+                                                     Shell.DEFAULT_DOUBLE_PRECISION)
     argvalues.max_trace_wait = option_with_default(configs.getfloat, 'tracing', 'max_trace_wait',
-                                                   DEFAULT_MAX_TRACE_WAIT)
+                                                   Shell.DEFAULT_MAX_TRACE_WAIT)
     argvalues.timezone = option_with_default(configs.get, 'ui', 'timezone', None)
 
     argvalues.debug = False
@@ -2109,14 +2029,14 @@ def read_options(cmdlineargs, environment=os.environ):
         argvalues.coverage = True
 
     argvalues.file = None
-    argvalues.ssl = option_with_default(configs.getboolean, 'connection', 'ssl', DEFAULT_SSL)
+    argvalues.ssl = option_with_default(configs.getboolean, 'connection', 'ssl', Shell.DEFAULT_SSL)
     argvalues.encoding = option_with_default(configs.get, 'ui', 'encoding', UTF8)
 
     argvalues.tty = option_with_default(configs.getboolean, 'ui', 'tty', sys.stdin.isatty())
     argvalues.protocol_version = option_with_default(configs.getint, 'protocol', 'version', None)
     argvalues.cqlversion = option_with_default(configs.get, 'cql', 'version', None)
-    argvalues.connect_timeout = option_with_default(configs.getint, 'connection', 'timeout', DEFAULT_CONNECT_TIMEOUT_SECONDS)
-    argvalues.request_timeout = option_with_default(configs.getint, 'connection', 'request_timeout', DEFAULT_REQUEST_TIMEOUT_SECONDS)
+    argvalues.connect_timeout = option_with_default(configs.getint, 'connection', 'timeout', Shell.DEFAULT_CONNECT_TIMEOUT_SECONDS)
+    argvalues.request_timeout = option_with_default(configs.getint, 'connection', 'request_timeout', Shell.DEFAULT_REQUEST_TIMEOUT_SECONDS)
     argvalues.execute = None
     argvalues.insecure_password_without_warning = False
 
@@ -2163,8 +2083,8 @@ def read_options(cmdlineargs, environment=os.environ):
         print("\nWarning: Using a password on the command line interface can be insecure."
               "\nRecommendation: use the credentials file to securely provide the password.\n", file=sys.stderr)
 
-    hostname = option_with_default(configs.get, 'connection', 'hostname', DEFAULT_HOST)
-    port = option_with_default(configs.get, 'connection', 'port', DEFAULT_PORT)
+    hostname = option_with_default(configs.get, 'connection', 'hostname', Shell.DEFAULT_HOST)
+    port = option_with_default(configs.get, 'connection', 'port', Shell.DEFAULT_PORT)
 
     hostname = environment.get('CQLSH_HOST', hostname)
     port = environment.get('CQLSH_PORT', port)
@@ -2173,13 +2093,13 @@ def read_options(cmdlineargs, environment=os.environ):
         options.connect_timeout = int(options.connect_timeout)
     except ValueError:
         parser.error('"%s" is not a valid connect timeout.' % (options.connect_timeout,))
-        options.connect_timeout = DEFAULT_CONNECT_TIMEOUT_SECONDS
+        options.connect_timeout = Shell.DEFAULT_CONNECT_TIMEOUT_SECONDS
 
     try:
         options.request_timeout = int(options.request_timeout)
     except ValueError:
         parser.error('"%s" is not a valid request timeout.' % (options.request_timeout,))
-        options.request_timeout = DEFAULT_REQUEST_TIMEOUT_SECONDS
+        options.request_timeout = Shell.DEFAULT_REQUEST_TIMEOUT_SECONDS
 
     if len(arguments) > 0:
         hostname = arguments[0]
@@ -2206,30 +2126,15 @@ def read_options(cmdlineargs, environment=os.environ):
         parser.error('%r is not a valid port number.' % port)
     return options, hostname, port
 
-
-def setup_cqlruleset():
-    global cqlruleset
-    cqlruleset = cql3handling.CqlRuleSet
-    cqlruleset.append_rules(cqlshhandling.cqlsh_extra_syntax_rules)
-    for rulename, termname, func in cqlshhandling.cqlsh_syntax_completers:
-        cqlruleset.completer_for(rulename, termname)(func)
-    cqlruleset.commands_end_with_newline.update(cqlshhandling.my_commands_ending_with_newline)
-
-
-def setup_docspath(path):
-    global CASSANDRA_CQL_HTML
-    CASSANDRA_CQL_HTML_FALLBACK = 'https://cassandra.apache.org/doc/latest/cassandra/cql/cql_singlefile.html'
-    #
-    # default location of local CQL.html
+def get_docspath(path):
+    cqldocs_url = Shell.DEFAULT_CQLDOCS_URL
     if os.path.exists(path + '/doc/cql3/CQL.html'):
         # default location of local CQL.html
-        CASSANDRA_CQL_HTML = 'file://' + path + '/doc/cql3/CQL.html'
+        cqldocs_url = 'file://' + path + '/doc/cql3/CQL.html'
     elif os.path.exists('/usr/share/doc/cassandra/CQL.html'):
         # fallback to package file
-        CASSANDRA_CQL_HTML = 'file:///usr/share/doc/cassandra/CQL.html'
-    else:
-        # fallback to online version
-        CASSANDRA_CQL_HTML = CASSANDRA_CQL_HTML_FALLBACK
+        cqldocs_url = 'file:///usr/share/doc/cassandra/CQL.html'
+    return cqldocs_url
 
 
 def insert_driver_hooks():
@@ -2259,10 +2164,80 @@ def insert_driver_hooks():
 
 def main(cmdline, pkgpath):
     insert_driver_hooks()
-    (options, hostname, port) = read_options(cmdline)
 
-    setup_docspath(pkgpath)
-    setup_cqlruleset()
+    epilog = f"Connects to {Shell.DEFAULT_HOST}:{Shell.DEFAULT_PORT}  by default. These \
+    defaults can be changed by setting $CQLSH_HOST and/or $CQLSH_PORT. When a \
+    host (and optional port number) are given on the command line, they take \
+    precedence over any defaults."
+
+    description = "CQL Shell for Apache Cassandra"
+
+    parser = argparse.ArgumentParser(description=description, epilog=epilog,
+                                     usage="Usage: %(prog)s [options] [host [port]]",
+                                     prog='cqlsh')
+    parser.add_argument('-v', '--version', action='version', version='cqlsh ' + version)
+    parser.add_argument("-C", "--color", action='store_true', dest='color',
+                        help='Always use color output')
+    parser.add_argument("--no-color", action='store_false', dest='color', help='Never use color output')
+    parser.add_argument("--browser", dest='browser', help="""The browser to use to display CQL help, where BROWSER can be:
+                                                        - one of the supported browsers in https://docs.python.org/3/library/webbrowser.html.
+                                                        - browser path followed by %%s, example: /usr/bin/google-chrome-stable %%s""")
+
+    parser.add_argument('--ssl', action='store_true', help='Use SSL', default=False)
+    parser.add_argument("-u", "--username", help="Authenticate as user.")
+    parser.add_argument("-p", "--password", help="Authenticate using password.")
+    parser.add_argument('-k', '--keyspace', help='Authenticate to the given keyspace.')
+    parser.add_argument("-f", "--file", help="Execute commands from FILE, then exit")
+    parser.add_argument('--debug', action='store_true',
+                        help='Show additional debugging information')
+    parser.add_argument('--coverage', action='store_true',
+                        help='Collect coverage data')
+    parser.add_argument("--encoding", help=f"Specify a non-default encoding for output."
+                                           + " (Default: {UTF8)")
+    parser.add_argument("--cqlshrc", help="Specify an alternative cqlshrc file location.")
+    parser.add_argument("--credentials", help="Specify an alternative credentials file location.")
+    parser.add_argument('--cqlversion', default=None,
+                        help='Specify a particular CQL version, '
+                             'by default the highest version supported by the server will be used.'
+                             ' Examples: "3.0.3", "3.1.0"')
+    parser.add_argument("--protocol-version", type=int, default=None,
+                        help='Specify a specific protcol version otherwise the client will default and downgrade as necessary')
+
+    parser.add_argument("-e", "--execute", help='Execute the statement and quit.')
+    parser.add_argument("--connect-timeout", default=Shell.DEFAULT_CONNECT_TIMEOUT_SECONDS, dest='connect_timeout',
+                        help='Specify the connection timeout in seconds (default: %(default)s seconds).')
+    parser.add_argument("--request-timeout", default=Shell.DEFAULT_REQUEST_TIMEOUT_SECONDS, dest='request_timeout',
+                        help='Specify the default request timeout in seconds (default: %(default)s seconds).')
+    parser.add_argument("-t", "--tty", action='store_true', dest='tty',
+                        help='Force tty mode (command prompt).')
+
+    # This is a hidden option to suppress the warning when the -p/--password command line option is used.
+    # Power users may use this option if they know no other people has access to the system where cqlsh is run or don't care about security.
+    # Use of this option in scripting is discouraged. Please use a (temporary) credentials file where possible.
+    # The Cassandra distributed tests (dtests) also use this option in some tests when a well-known password is supplied via the command line.
+    parser.add_argument("--insecure-password-without-warning", action='store_true',
+                        dest='insecure_password_without_warning',
+                        help=argparse.SUPPRESS)
+
+    # use cfarguments for config file
+
+    cfarguments, args = parser.parse_known_args()
+
+    default_cqlshrc = os.path.expanduser(os.path.join('~', '.cassandra', 'cqlshrc'))
+
+    if cfarguments.cqlshrc is not None:
+        config_file = os.path.expanduser(cfarguments.cqlshrc)
+        if not os.path.exists(config_file):
+            print('\nWarning: Specified cqlshrc location `%s` does not exist.  Using `%s` instead.\n' % (
+            config_file, default_cqlshrc))
+            config_file = default_cqlshrc
+    else:
+        config_file = default_cqlshrc
+
+    cql_dir = os.path.dirname(config_file)
+    (options, hostname, port) = read_options(cmdline, parser, config_file, cql_dir)
+
+    docspath = get_docspath(pkgpath)
 
     if options.file is None:
         stdin = None
@@ -2338,6 +2313,7 @@ def main(cmdline, pkgpath):
                       tty=options.tty,
                       completekey=options.completekey,
                       browser=options.browser,
+                      docspath=docspath,
                       protocol_version=options.protocol_version,
                       cqlver=options.cqlversion,
                       keyspace=options.keyspace,
@@ -2354,7 +2330,7 @@ def main(cmdline, pkgpath):
                       connect_timeout=options.connect_timeout,
                       encoding=options.encoding,
                       auth_provider=authproviderhandling.load_auth_provider(
-                          config_file=CONFIG_FILE,
+                          config_file=config_file,
                           cred_file=options.credentials,
                           username=options.username,
                           password=options.password))

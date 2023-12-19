@@ -16,7 +16,7 @@
 
 import os
 
-from cqlshlib import cqlhandling
+from cqlshlib import cqlhandling, cql3handling
 
 # we want the cql parser to understand our cqlsh-specific commands too
 my_commands_ending_with_newline = (
@@ -250,6 +250,15 @@ cqlsh_extra_syntax_rules = cqlsh_cmd_syntax_rules + \
     cqlsh_history_cmd_syntax_rules + \
     cqlsh_question_mark
 
+def get_cqlshruleset():
+    cqlruleset = cql3handling.CqlRuleSet
+    cqlruleset.append_rules(cqlsh_extra_syntax_rules)
+    for rulename, termname, func in cqlsh_syntax_completers:
+        cqlruleset.completer_for(rulename, termname)(func)
+    cqlruleset.commands_end_with_newline.update(my_commands_ending_with_newline)
+    return cqlruleset
+
+cqlshruleset = get_cqlshruleset()
 
 def complete_source_quoted_filename(ctxt, cqlsh):
     partial_path = ctxt.get_binding('partial', '')
