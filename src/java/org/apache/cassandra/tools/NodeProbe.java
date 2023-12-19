@@ -1275,10 +1275,14 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getNonLocalStrategyKeyspaces();
     }
 
-
-    public List<String> getAccordManagedKeyspace()
+    public List<String> getAccordManagedKeyspaces()
     {
         return ssProxy.getAccordManagedKeyspaces();
+    }
+
+    public List<String> getAccordManagedTables()
+    {
+        return ssProxy.getAccordManagedTables();
     }
 
     public String getClusterName()

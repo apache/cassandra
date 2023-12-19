@@ -52,7 +52,8 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
-import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -267,16 +268,16 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
 
                 // TODO (correctness): check epoch
                 // TODO (correctness): handle dropped tables
-                KeyspaceMetadata ksm = ClusterMetadata.current().schema.getKeyspaceMetadata(range.keyspace());
-                Invariants.checkState(ksm != null, "Keyspace %s not found", range.keyspace());
-                Invariants.checkState(ksm.tables.size() > 0, "Keyspace '%s' has no tables", range.keyspace());
+                TableId tableId = range.table();
+                TableMetadata table = ClusterMetadata.current().schema.getKeyspaces().getTableOrViewNullable(tableId);
+                Invariants.checkState(table != null, "Table with id %s not found", tableId);
 
                 // FIXME: may also be relocation
                 StreamPlan plan = new StreamPlan(StreamOperation.BOOTSTRAP, 1, false,
                                                  null, PreviewKind.NONE).flushBeforeTransfer(true);
 
                 RangesAtEndpoint ranges = RangesAtEndpoint.toDummyList(Collections.singleton(range.toKeyspaceRange()));
-                ksm.tables.forEach(table -> plan.transferRanges(to, table.keyspace, ranges, table.name));
+                plan.transferRanges(to, table.keyspace, ranges, table.name);
                 StreamResultFuture future = plan.execute();
                 return AsyncChains.success(StreamData.of(range, future.planId, hasDataToStream(future.getCoordinator(), to)));
             }

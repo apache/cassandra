@@ -25,6 +25,7 @@ import com.google.common.collect.Sets;
 
 import org.apache.cassandra.cql3.statements.PropertyDefinitions;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.CompressionParams;
@@ -32,6 +33,7 @@ import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.schema.TableParams.Option;
+import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
@@ -150,6 +152,18 @@ public final class TableAttributes extends PropertyDefinitions
 
         if (hasOption(READ_REPAIR))
             builder.readRepair(ReadRepairStrategy.fromString(getString(READ_REPAIR)));
+
+        if (hasOption(Option.FAST_PATH))
+        {
+            try
+            {
+                builder.fastPath(FastPathStrategy.fromMap(getMap(Option.FAST_PATH)));
+            }
+            catch (SyntaxException e)
+            {
+                builder.fastPath(FastPathStrategy.tableStrategyFromString(getString(Option.FAST_PATH)));
+            }
+        }
 
         return builder.build();
     }

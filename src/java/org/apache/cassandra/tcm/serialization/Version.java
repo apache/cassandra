@@ -36,6 +36,7 @@ public enum Version
     /**
      *  - Added version to PlacementForRange serializer
      *  - Serialize MemtableParams when serializing TableParams
+     *  - Added AccordFastPath
      */
     V2(2),
 

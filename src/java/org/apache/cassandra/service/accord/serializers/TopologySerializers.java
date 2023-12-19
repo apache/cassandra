@@ -32,6 +32,8 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.TokenRange;
+import org.apache.cassandra.tcm.serialization.MetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.ArraySerializers;
 import org.apache.cassandra.utils.CollectionSerializers;
 
@@ -40,14 +42,25 @@ public class TopologySerializers
     private TopologySerializers() {}
 
     public static final NodeIdSerializer nodeId = new NodeIdSerializer();
-    public static class NodeIdSerializer implements IVersionedSerializer<Node.Id>
+    public static class NodeIdSerializer implements IVersionedSerializer<Node.Id>, MetadataSerializer<Node.Id>
     {
         private NodeIdSerializer() {}
+
+        private static void serialize(Node.Id id, DataOutputPlus out) throws IOException
+        {
+            out.writeInt(id.id);
+        }
 
         @Override
         public void serialize(Node.Id id, DataOutputPlus out, int version) throws IOException
         {
-            out.writeInt(id.id);
+            serialize(id, out);
+        }
+
+        @Override
+        public void serialize(Node.Id id, DataOutputPlus out, Version version) throws IOException
+        {
+            serialize(id, out);
         }
 
         public <V> int serialize(Node.Id id, V dst, ValueAccessor<V> accessor, int offset)
@@ -55,15 +68,31 @@ public class TopologySerializers
             return accessor.putInt(dst, offset, id.id);
         }
 
+        private static Node.Id deserialize(DataInputPlus in) throws IOException
+        {
+            return new Node.Id(in.readInt());
+        }
+
         @Override
         public Node.Id deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new Node.Id(in.readInt());
+            return deserialize(in);
+        }
+
+        @Override
+        public Node.Id deserialize(DataInputPlus in, Version version) throws IOException
+        {
+            return deserialize(in);
         }
 
         public <V> Node.Id deserialize(V src, ValueAccessor<V> accessor, int offset)
         {
             return new Node.Id(accessor.getInt(src, offset));
+        }
+
+        public int serializedSize()
+        {
+            return TypeSizes.INT_SIZE;  // id.id
         }
 
         @Override
@@ -72,9 +101,10 @@ public class TopologySerializers
             return serializedSize();
         }
 
-        public int serializedSize()
+        @Override
+        public long serializedSize(Node.Id t, Version version)
         {
-            return TypeSizes.INT_SIZE;  // id.id
+            return serializedSize();
         }
     };
 

@@ -49,6 +49,7 @@ import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.quicktheories.impl.JavaRandom;
 
 import static accord.utils.AccordGens.txnIds;
+import static org.apache.cassandra.service.accord.AccordTestUtils.TABLE_ID1;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialTxn;
 
 public class AccordGenerators
@@ -99,47 +100,44 @@ public class AccordGenerators
 
     public static Gen<PartitionKey> keys()
     {
-        return keys(fromQT(Generators.IDENTIFIER_GEN),
-                    fromQT(CassandraGenerators.TABLE_ID_GEN),
+        return keys(fromQT(CassandraGenerators.TABLE_ID_GEN),
                     fromQT(CassandraGenerators.decoratedKeys()));
     }
 
     public static Gen<PartitionKey> keys(IPartitioner partitioner)
     {
-        return keys(fromQT(Generators.IDENTIFIER_GEN),
-                    fromQT(CassandraGenerators.TABLE_ID_GEN),
+        return keys(fromQT(CassandraGenerators.TABLE_ID_GEN),
                     fromQT(CassandraGenerators.decoratedKeys(ignore -> partitioner)));
     }
 
-    public static Gen<PartitionKey> keys(Gen<String> keyspace, Gen<TableId> tableId, Gen<DecoratedKey> key)
+    public static Gen<PartitionKey> keys(Gen<TableId> tableIdGen, Gen<DecoratedKey> key)
     {
-        return rs -> new PartitionKey(keyspace.next(rs), tableId.next(rs), key.next(rs));
+        return rs -> new PartitionKey(tableIdGen.next(rs), key.next(rs));
     }
 
-    public static Gen<AccordRoutingKey> routingKeyGen(Gen<String> keyspace, Gen<Token> tokenGen)
+    public static Gen<AccordRoutingKey> routingKeyGen(Gen<TableId> tableIdGen, Gen<Token> tokenGen)
     {
         return rs -> {
-            String ks = keyspace.next(rs);
-            if (rs.nextBoolean()) return new AccordRoutingKey.TokenKey(ks, tokenGen.next(rs));
-            else return rs.nextBoolean() ? AccordRoutingKey.SentinelKey.min(ks) : AccordRoutingKey.SentinelKey.max(ks);
+            TableId tableId = tableIdGen.next(rs);
+            if (rs.nextBoolean()) return new AccordRoutingKey.TokenKey(tableId, tokenGen.next(rs));
+            else return rs.nextBoolean() ? AccordRoutingKey.SentinelKey.min(tableId) : AccordRoutingKey.SentinelKey.max(tableId);
         };
     }
 
     public static Gen<Range> range()
     {
-        return PARTITIONER_GEN.flatMap(partitioner -> range(fromQT(Generators.IDENTIFIER_GEN), fromQT(CassandraGenerators.token(partitioner))));
+        return PARTITIONER_GEN.flatMap(partitioner -> range(fromQT(CassandraGenerators.TABLE_ID_GEN), fromQT(CassandraGenerators.token(partitioner))));
     }
 
     public static Gen<Range> range(IPartitioner partitioner)
     {
-        return range(fromQT(Generators.IDENTIFIER_GEN), fromQT(CassandraGenerators.token(partitioner)));
+        return range(fromQT(CassandraGenerators.TABLE_ID_GEN), fromQT(CassandraGenerators.token(partitioner)));
     }
 
-    public static Gen<Range> range(Gen<String> keyspace, Gen<Token> tokenGen)
+    public static Gen<Range> range(Gen<TableId> tables, Gen<Token> tokenGen)
     {
         return rs -> {
-            String ks = keyspace.next(rs);
-            Gen<AccordRoutingKey> gen = routingKeyGen(Gens.constant(ks), tokenGen);
+            Gen<AccordRoutingKey> gen = routingKeyGen(Gens.constant(tables.next(rs)), tokenGen);
             AccordRoutingKey a = gen.next(rs);
             AccordRoutingKey b = gen.next(rs);
             while (a.equals(b))
@@ -152,17 +150,17 @@ public class AccordGenerators
     public static Gen<Ranges> ranges()
     {
         // javac couldn't pick the right constructor with HashSet::new, so had to create new lambda...
-        return ranges(Gens.lists(fromQT(Generators.IDENTIFIER_GEN)).unique().ofSizeBetween(1, 10).map(l -> new HashSet<>(l)), PARTITIONER_GEN);
+        return ranges(Gens.lists(fromQT(CassandraGenerators.TABLE_ID_GEN)).unique().ofSizeBetween(1, 10).map(l -> new HashSet<>(l)), PARTITIONER_GEN);
     }
 
-    public static Gen<Ranges> ranges(Gen<Set<String>> keyspaceGen, Gen<IPartitioner> partitionerGen)
+    public static Gen<Ranges> ranges(Gen<Set<TableId>> tableIdGen, Gen<IPartitioner> partitionerGen)
     {
         return rs -> {
-            Set<String> keyspaces = keyspaceGen.next(rs);
+            Set<TableId> tables = tableIdGen.next(rs);
             IPartitioner partitioner = partitionerGen.next(rs);
             List<Range> ranges = new ArrayList<>();
             int numSplits = rs.nextInt(10, 100);
-            TokenRange range = new TokenRange(AccordRoutingKey.SentinelKey.min(""), AccordRoutingKey.SentinelKey.max(""));
+            TokenRange range = new TokenRange(AccordRoutingKey.SentinelKey.min(TABLE_ID1), AccordRoutingKey.SentinelKey.max(TABLE_ID1));
             AccordSplitter splitter = partitioner.accordSplitter().apply(Ranges.of(range));
             BigInteger size = splitter.sizeOf(range);
             BigInteger update = splitter.divide(size, numSplits);
@@ -171,9 +169,9 @@ public class AccordGenerators
             {
                 BigInteger end = offset.add(update);
                 TokenRange r = (TokenRange) splitter.subRange(range, offset, end);
-                for (String ks : keyspaces)
+                for (TableId id : tables)
                 {
-                    ranges.add(r.withKeyspace(ks));
+                    ranges.add(r.withTable(id));
                 }
                 offset = end;
             }
@@ -183,7 +181,7 @@ public class AccordGenerators
 
     public static Gen<Ranges> ranges(IPartitioner partitioner)
     {
-        return ranges(Gens.lists(fromQT(Generators.IDENTIFIER_GEN)).unique().ofSizeBetween(1, 10).map(l -> new HashSet<>(l)), ignore -> partitioner);
+        return ranges(Gens.lists(fromQT(CassandraGenerators.TABLE_ID_GEN)).unique().ofSizeBetween(1, 10).map(l -> new HashSet<>(l)), ignore -> partitioner);
     }
 
     public static Gen<KeyDeps> keyDepsGen()

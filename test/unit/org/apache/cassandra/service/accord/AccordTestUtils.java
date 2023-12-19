@@ -18,8 +18,10 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -80,6 +82,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.metrics.AccordStateCacheMetrics;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.api.AccordAgent;
@@ -96,6 +99,8 @@ import static java.lang.String.format;
 
 public class AccordTestUtils
 {
+    public static final TableId TABLE_ID1 = TableId.fromString("00000000-0000-0000-0000-000000000001");
+
     public static class Commands
     {
         public static Command notDefined(TxnId txnId, PartialTxn txn)
@@ -308,7 +313,7 @@ public class AccordTestUtils
     public static Ranges fullRange(Seekables<?, ?> keys)
     {
         PartitionKey key = (PartitionKey) keys.get(0);
-        return Ranges.of(TokenRange.fullRange(key.keyspace()));
+        return Ranges.of(TokenRange.fullRange(key.table()));
     }
 
     public static PartialTxn createPartialTxn(int key)
@@ -336,7 +341,7 @@ public class AccordTestUtils
     public static InMemoryCommandStore.Synchronized createInMemoryCommandStore(LongSupplier now, String keyspace, String table)
     {
         TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
-        TokenRange range = TokenRange.fullRange(metadata.keyspace);
+        TokenRange range = TokenRange.fullRange(metadata.id);
         Node.Id node = new Id(1);
         Topology topology = new Topology(1, new Shard(range, Lists.newArrayList(node), Sets.newHashSet(node), Collections.emptySet()));
         NodeTimeService time = new NodeTimeService()
@@ -400,7 +405,7 @@ public class AccordTestUtils
         LongSupplier now, String keyspace, String table, ExecutorPlus loadExecutor, ExecutorPlus saveExecutor)
     {
         TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
-        TokenRange range = TokenRange.fullRange(metadata.keyspace);
+        TokenRange range = TokenRange.fullRange(metadata.id);
         Node.Id node = new Id(1);
         Topology topology = new Topology(1, new Shard(range, Lists.newArrayList(node), Sets.newHashSet(node), Collections.emptySet()));
         AccordCommandStore store = createAccordCommandStore(node, now, topology, loadExecutor, saveExecutor);
@@ -432,11 +437,26 @@ public class AccordTestUtils
     public static PartitionKey key(TableMetadata table, int key)
     {
         DecoratedKey dk = table.partitioner.decorateKey(Int32Type.instance.decompose(key));
-        return new PartitionKey(table.keyspace, table.id, dk);
+        return new PartitionKey(table.id, dk);
     }
 
     public static Keys keys(TableMetadata table, int... keys)
     {
         return Keys.of(IntStream.of(keys).mapToObj(key -> key(table, key)).collect(Collectors.toList()));
+    }
+
+    public static Node.Id id(int id)
+    {
+        return new Node.Id(id);
+    }
+
+    public static List<Node.Id> idList(int... ids)
+    {
+        return Arrays.stream(ids).mapToObj(AccordTestUtils::id).collect(Collectors.toList());
+    }
+
+    public static Set<Id> idSet(int... ids)
+    {
+        return Arrays.stream(ids).mapToObj(AccordTestUtils::id).collect(Collectors.toSet());
     }
 }

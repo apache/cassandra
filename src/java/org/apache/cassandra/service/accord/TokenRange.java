@@ -32,6 +32,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
 
@@ -40,25 +41,25 @@ public class TokenRange extends Range.EndInclusive
     public TokenRange(AccordRoutingKey start, AccordRoutingKey end)
     {
         super(start, end);
-        Invariants.checkArgument(start.keyspace().equals(end.keyspace()),
+        Invariants.checkArgument(start.table().equals(end.table()),
                                  "Token ranges cannot cover more than one keyspace start:%s, end:%s",
                                  start, end);
     }
 
-    public String keyspace()
+    public TableId table()
     {
-        return ((AccordRoutingKey) start()).keyspace();
+        return ((AccordRoutingKey) start()).table();
     }
 
     @VisibleForTesting
-    public Range withKeyspace(String ks)
+    public Range withTable(TableId table)
     {
-        return new TokenRange(((AccordRoutingKey) start()).withKeyspace(ks), ((AccordRoutingKey) end()).withKeyspace(ks));
+        return new TokenRange(((AccordRoutingKey) start()).withTable(table), ((AccordRoutingKey) end()).withTable(table));
     }
 
-    public static TokenRange fullRange(String keyspace)
+    public static TokenRange fullRange(TableId table)
     {
-        return new TokenRange(SentinelKey.min(keyspace), SentinelKey.max(keyspace));
+        return new TokenRange(SentinelKey.min(table), SentinelKey.max(table));
     }
 
     @Override

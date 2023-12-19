@@ -26,6 +26,8 @@ import java.util.Map;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.cassandra.service.accord.AccordFastPath;
+import org.apache.cassandra.tcm.ownership.AccordTables;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -39,7 +41,6 @@ import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.ownership.AccordKeyspaces;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
@@ -89,7 +90,8 @@ public class MetaStrategyTest
                                    directory,
                                    tokenMap,
                                    DataPlacements.EMPTY,
-                                   AccordKeyspaces.EMPTY,
+                                   AccordTables.EMPTY,
+                                   AccordFastPath.EMPTY,
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
                                    ConsensusMigrationState.EMPTY,

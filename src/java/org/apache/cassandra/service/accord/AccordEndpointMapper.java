@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord;
 
 import accord.local.Node;
+import accord.utils.Invariants;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
 /**
@@ -26,6 +27,16 @@ import org.apache.cassandra.locator.InetAddressAndPort;
  */
 public interface AccordEndpointMapper
 {
-    Node.Id mappedId(InetAddressAndPort endpoint);
-    InetAddressAndPort mappedEndpoint(Node.Id id);
+    Node.Id mappedIdOrNull(InetAddressAndPort endpoint);
+    InetAddressAndPort mappedEndpointOrNull(Node.Id id);
+
+    default Node.Id mappedId(InetAddressAndPort endpoint)
+    {
+        return Invariants.nonNull(mappedIdOrNull(endpoint), "Unable to map address %s to a Node.Id", endpoint);
+    }
+
+    default InetAddressAndPort mappedEndpoint(Node.Id id)
+    {
+        return Invariants.nonNull(mappedEndpointOrNull(id), "Unable to map node id %s to a InetAddressAndPort", id);
+    }
 }

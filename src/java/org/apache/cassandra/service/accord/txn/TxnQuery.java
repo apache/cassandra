@@ -216,6 +216,6 @@ public abstract class TxnQuery implements Query
         // and transaction statement will generate an error when it sees
         // the RetryOnNewProtocolResult
         PartitionKey partitionKey = (PartitionKey)keys.get(0);
-        return ConsensusRequestRouter.instance.isKeyInMigratingOrMigratedRangeFromAccord(epoch, partitionKey.tableId(), partitionKey.partitionKey());
+        return ConsensusRequestRouter.instance.isKeyInMigratingOrMigratedRangeFromAccord(epoch, partitionKey.table(), partitionKey.partitionKey());
     }
 }

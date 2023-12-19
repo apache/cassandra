@@ -28,12 +28,13 @@ import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
+import org.apache.cassandra.service.accord.AccordFastPath;
 import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState;
 import org.apache.cassandra.tcm.Commit.Replicator;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.membership.Directory;
-import org.apache.cassandra.tcm.ownership.AccordKeyspaces;
+import org.apache.cassandra.tcm.ownership.AccordTables;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.TokenMap;
@@ -175,7 +176,8 @@ public class StubClusterMetadataService extends ClusterMetadataService
                                               Directory.EMPTY,
                                               new TokenMap(partitioner),
                                               DataPlacements.EMPTY,
-                                              AccordKeyspaces.EMPTY,
+                                              AccordTables.EMPTY,
+                                              AccordFastPath.EMPTY,
                                               LockedRanges.EMPTY,
                                               InProgressSequences.EMPTY,
                                               ConsensusTableMigrationState.ConsensusMigrationState.EMPTY,

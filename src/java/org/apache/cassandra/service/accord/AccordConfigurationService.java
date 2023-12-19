@@ -153,15 +153,15 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     }
 
     @Override
-    public Node.Id mappedId(InetAddressAndPort endpoint)
+    public Node.Id mappedIdOrNull(InetAddressAndPort endpoint)
     {
-        return Invariants.nonNull(mapping.mappedId(endpoint), "Unable to map address %s to a Node.Id", endpoint);
+        return mapping.mappedIdOrNull(endpoint);
     }
 
     @Override
-    public InetAddressAndPort mappedEndpoint(Node.Id id)
+    public InetAddressAndPort mappedEndpointOrNull(Node.Id id)
     {
-        return Invariants.nonNull(mapping.mappedEndpoint(id), "Unable to map node id %s to a InetAddressAndPort", id);
+        return mapping.mappedEndpointOrNull(id);
     }
 
     @VisibleForTesting
@@ -179,7 +179,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
 
     synchronized void updateMapping(ClusterMetadata metadata)
     {
-        updateMapping(AccordTopologyUtils.directoryToMapping(mapping, metadata.epoch.getEpoch(), metadata.directory));
+        updateMapping(AccordTopology.directoryToMapping(mapping, metadata.epoch.getEpoch(), metadata.directory));
     }
 
     private void reportMetadata(ClusterMetadata metadata)
@@ -188,7 +188,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
             synchronized (AccordConfigurationService.this)
             {
                 updateMapping(metadata);
-                reportTopology(AccordTopologyUtils.createAccordTopology(metadata));
+                reportTopology(AccordTopology.createAccordTopology(metadata));
             }
         });
     }

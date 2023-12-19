@@ -21,6 +21,7 @@ package org.apache.cassandra.repair;
 import java.math.BigInteger;
 import javax.annotation.Nullable;
 
+import org.apache.cassandra.service.accord.AccordTopology;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,7 +32,6 @@ import accord.primitives.Seekables;
 import org.apache.cassandra.dht.AccordSplitter;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.service.accord.AccordService;
-import org.apache.cassandra.service.accord.AccordTopologyUtils;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationRepairResult;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -65,7 +65,7 @@ public class AccordRepairJob extends AbstractRepairJob
     {
         super(repairSession, cfname);
         IPartitioner partitioner = desc.ranges.iterator().next().left.getPartitioner();
-        this.ranges = AccordTopologyUtils.toAccordRanges(desc.keyspace, desc.ranges);
+        this.ranges = AccordTopology.toAccordRanges(desc.keyspace, desc.ranges);
         this.splitter = partitioner.accordSplitter().apply(ranges);
     }
 

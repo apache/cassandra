@@ -31,7 +31,7 @@ public enum SimpleAccordEndpointMapper implements AccordEndpointMapper
     INSTANCE;
 
     @Override
-    public Node.Id mappedId(InetAddressAndPort endpoint)
+    public Node.Id mappedIdOrNull(InetAddressAndPort endpoint)
     {
         if (endpoint.addressBytes.length != 4)
             throw new IllegalArgumentException("Only IPV4 is allowed: given " + endpoint.toString(true));
@@ -39,7 +39,7 @@ public enum SimpleAccordEndpointMapper implements AccordEndpointMapper
     }
 
     @Override
-    public InetAddressAndPort mappedEndpoint(Node.Id id)
+    public InetAddressAndPort mappedEndpointOrNull(Node.Id id)
     {
         byte[] array = ByteBufferUtil.bytes(id.id).array();
         try

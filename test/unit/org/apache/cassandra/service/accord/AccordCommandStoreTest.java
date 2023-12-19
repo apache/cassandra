@@ -61,7 +61,9 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordCachingState.Modified;
 import org.apache.cassandra.service.accord.api.PartitionKey;
@@ -108,6 +110,7 @@ public class AccordCommandStoreTest
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
 
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, c, v) VALUES (0, 0, 1)");
+        TableId tableId = Schema.instance.getTableMetadata("ks", "tbl").id;
         TxnId oldTxnId1 = txnId(1, clock.incrementAndGet(), 1);
         TxnId oldTxnId2 = txnId(1, clock.incrementAndGet(), 1);
         TxnId oldTimestamp = txnId(1, clock.incrementAndGet(), 1);
@@ -147,7 +150,7 @@ public class AccordCommandStoreTest
 
         Apply apply =
             Apply.SerializationSupport.create(txnId,
-                                              route.slice(Ranges.of(TokenRange.fullRange("ks"))),
+                                              route.slice(Ranges.of(TokenRange.fullRange(tableId))),
                                               1L,
                                               Apply.Kind.Minimal,
                                               depTxn.keys(),

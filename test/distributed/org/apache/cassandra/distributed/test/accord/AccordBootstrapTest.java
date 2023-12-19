@@ -78,7 +78,7 @@ public class AccordBootstrapTest extends TestBaseImpl
     private static PartitionKey pk(int key, String keyspace, String table)
     {
         TableId tid = Schema.instance.getTableMetadata(keyspace, table).id;
-        return new PartitionKey(keyspace, tid, dk(key));
+        return new PartitionKey(tid, dk(key));
     }
 
     protected void bootstrapAndJoinNode(Cluster cluster)
@@ -451,7 +451,7 @@ public class AccordBootstrapTest extends TestBaseImpl
                             Assert.assertEquals(key, row.getInt("c"));
                             Assert.assertEquals(key, row.getInt("v"));
 
-                            PartitionKey partitionKey = new PartitionKey("ks", tableId, dk);
+                            PartitionKey partitionKey = new PartitionKey(tableId, dk);
 
                             awaitUninterruptiblyAndRethrow(service().node().commandStores().forEach(PreLoadContext.contextFor(partitionKey),
                                                                                           partitionKey.toUnseekable(), moveMax, moveMax,

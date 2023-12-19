@@ -46,11 +46,12 @@ import org.apache.cassandra.utils.IntervalTree;
 
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.simulator.RandomSource.Choices.choose;
+import static org.apache.cassandra.service.accord.AccordTestUtils.TABLE_ID1;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class CommandsForRangesTest
 {
-    private static Ranges FULL_RANGE = Ranges.of(new TokenRange(AccordRoutingKey.SentinelKey.min("test"), AccordRoutingKey.SentinelKey.max("test")));
+    private static Ranges FULL_RANGE = Ranges.of(new TokenRange(AccordRoutingKey.SentinelKey.min(TABLE_ID1), AccordRoutingKey.SentinelKey.max(TABLE_ID1)));
 
     @BeforeClass
     public static void setup() throws NoSuchFieldException, IllegalAccessException
@@ -98,7 +99,7 @@ public class CommandsForRangesTest
             IPartitioner partitioner = partitionerGen.next(rs);
             // some code reaches to the DD for partitioner...
             DatabaseDescriptor.setPartitionerUnsafe(partitioner);
-            Gen<Ranges> rangesGen = AccordGenerators.ranges(ignore -> Collections.singleton("test"), ignore -> partitioner);
+            Gen<Ranges> rangesGen = AccordGenerators.ranges(ignore -> Collections.singleton(TABLE_ID1), ignore -> partitioner);
             CommandsForRanges.Builder builder = new CommandsForRanges.Builder();
             int numTxn = rs.nextInt(1, 10);
             Set<TxnId> uniq = new HashSet<>();

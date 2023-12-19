@@ -55,7 +55,7 @@ public class CommandSerializersTest
                                                  "  END IF\n" +
                                                  "COMMIT TRANSACTION");
         PartitionKey key = (PartitionKey) txn.keys().get(0);
-        PartialTxn expected = txn.slice(Ranges.of(TokenRange.fullRange(key.keyspace())), true);
+        PartialTxn expected = txn.slice(Ranges.of(TokenRange.fullRange(key.table())), true);
         SerializerTestUtils.assertSerializerIOEquality(expected, CommandSerializers.partialTxn);
     }
 }

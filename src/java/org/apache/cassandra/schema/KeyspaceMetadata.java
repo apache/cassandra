@@ -325,9 +325,16 @@ public final class KeyspaceMetadata implements SchemaElement
             params.replication.appendCqlTo(builder);
 
             builder.append("  AND durable_writes = ")
-                   .append(params.durableWrites)
-                   .append(';')
-                   .toString();
+                   .append(params.durableWrites);
+
+            if (params.fastPath != null)
+            {
+                builder.append("  AND fast_path = '")
+                       .append(params.fastPath.toString().toLowerCase())
+                       .append("'");
+            }
+
+            builder.append(';');
         }
         return builder.toString();
     }

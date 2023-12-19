@@ -33,6 +33,7 @@ import accord.utils.RandomSource;
 import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.metrics.AccordStateCacheMetrics;
 import org.apache.cassandra.metrics.CacheSizeMetrics;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 
 public class AccordCommandStores extends CommandStores implements CacheSize
@@ -62,15 +63,15 @@ public class AccordCommandStores extends CommandStores implements CacheSize
         if (!super.shouldBootstrap(node, previous, updated, range))
             return false;
         // we see new ranges when a new keyspace is added, so avoid bootstrap in these cases
-        return contains(previous, ((AccordRoutingKey)  range.start()).keyspace());
+        return contains(previous, ((AccordRoutingKey)  range.start()).table());
     }
 
-    private static boolean contains(Topology previous, String searchKeyspace)
+    private static boolean contains(Topology previous, TableId searchTable)
     {
         for (Range range : previous.ranges())
         {
-            String keyspace = ((AccordRoutingKey)  range.start()).keyspace();
-            if (keyspace.equals(searchKeyspace))
+            TableId table = ((AccordRoutingKey)  range.start()).table();
+            if (table.equals(searchTable))
                 return true;
         }
         return false;

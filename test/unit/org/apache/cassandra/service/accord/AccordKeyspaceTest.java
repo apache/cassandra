@@ -45,6 +45,8 @@ import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.assertj.core.api.Assertions;
 
@@ -53,14 +55,14 @@ import static org.apache.cassandra.service.accord.AccordTestUtils.wrapInTxn;
 
 public class AccordKeyspaceTest extends CQLTester.InMemory
 {
-    private static final Ranges GLOBAL_SCOPE = Ranges.of(new TokenRange(AccordRoutingKey.SentinelKey.min(KEYSPACE), AccordRoutingKey.SentinelKey.max(KEYSPACE)));
-
     @Test
     public void serde()
     {
         AtomicLong now = new AtomicLong();
 
         String tableName = createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c))");
+        TableId tableId = Schema.instance.getTableMetadata(KEYSPACE, tableName).id;
+        Ranges scope = Ranges.of(new TokenRange(AccordRoutingKey.SentinelKey.min(tableId), AccordRoutingKey.SentinelKey.max(tableId)));
 
         AccordCommandStore store = AccordTestUtils.createAccordCommandStore(now::incrementAndGet, KEYSPACE, tableName);
 
@@ -68,25 +70,25 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
 
         Txn txn = createTxn(wrapInTxn(String.format("SELECT * FROM %s.%s WHERE k=? LIMIT 1", KEYSPACE, tableName)), Collections.singletonList(42));
 
-        PartialTxn partialTxn = txn.slice(GLOBAL_SCOPE, true);
+        PartialTxn partialTxn = txn.slice(scope, true);
         RoutingKey routingKey = partialTxn.keys().get(0).asKey().toUnseekable();
         FullRoute<?> route = partialTxn.keys().toRoute(routingKey);
         Deps deps = new Deps(KeyDeps.none((Keys) txn.keys()), RangeDeps.NONE);
-        PartialDeps partialDeps = deps.slice(GLOBAL_SCOPE);
+        PartialDeps partialDeps = deps.slice(scope);
 
 
         CommonAttributes.Mutable common = new CommonAttributes.Mutable(id);
         common.partialTxn(partialTxn);
         common.route(route);
-        common.partialDeps(partialDeps);
+        common.partialDeps(deps.slice(scope));
         common.durability(Status.Durability.NotDurable);
-        Command.WaitingOn waitingOn = Command.WaitingOn.none(partialDeps);
+        Command.WaitingOn waitingOn = Command.WaitingOn.none(deps.slice(scope));
 
         Command.Committed committed = Command.SerializerSupport.committed(common, SaveStatus.Committed, id, Ballot.ZERO, Ballot.ZERO, waitingOn);
         AccordSafeCommand safeCommand = new AccordSafeCommand(AccordTestUtils.loaded(id, null));
         safeCommand.set(committed);
 
-        Commit commit = Commit.SerializerSupport.create(id, route.slice(GLOBAL_SCOPE), 1, Commit.Kind.Maximal, id, partialTxn, partialDeps, route, null);
+        Commit commit = Commit.SerializerSupport.create(id, route.slice(scope), 1, Commit.Kind.Maximal, id, partialTxn, partialDeps, route, null);
         store.appendToJournal(commit);
 
         Mutation mutation = AccordKeyspace.getCommandMutation(store, safeCommand, 42);

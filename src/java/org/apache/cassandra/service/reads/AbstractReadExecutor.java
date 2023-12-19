@@ -204,6 +204,7 @@ public abstract class AbstractReadExecutor
 
         ReplicaPlan.ForTokenRead replicaPlan = ReplicaPlans.forRead(metadata,
                                                                     keyspace,
+                                                                    command.metadata().id,
                                                                     command.partitionKey().getToken(),
                                                                     command.indexQueryPlan(),
                                                                     consistencyLevel,

@@ -81,7 +81,7 @@ public class AccordCommandTest
     private static PartitionKey key(int k)
     {
         TableMetadata metadata = Schema.instance.getTableMetadata("ks", "tbl");
-        return new PartitionKey(metadata.keyspace, metadata.id, metadata.partitioner.decorateKey(ByteBufferUtil.bytes(k)));
+        return new PartitionKey(metadata.id, metadata.partitioner.decorateKey(ByteBufferUtil.bytes(k)));
     }
 
     /**

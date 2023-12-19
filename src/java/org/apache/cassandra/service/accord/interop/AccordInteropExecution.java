@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
+import org.apache.cassandra.schema.TableId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -229,9 +230,9 @@ public class AccordInteropExecution implements Execute, ReadCoordinator, Maximal
     }
 
     @Override
-    public EndpointsForToken forNonLocalStrategyTokenRead(ClusterMetadata doNotUse, KeyspaceMetadata keyspace, Token token)
+    public EndpointsForToken forNonLocalStrategyTokenRead(ClusterMetadata doNotUse, KeyspaceMetadata keyspace, TableId tableId, Token token)
     {
-        AccordRoutingKey.TokenKey key = new AccordRoutingKey.TokenKey(keyspace.name, token);
+        AccordRoutingKey.TokenKey key = new AccordRoutingKey.TokenKey(tableId, token);
         Shard shard = executeTopology.forKey(key);
         Range<Token> range = ((TokenRange) shard.range).toKeyspaceRange();
 

@@ -207,7 +207,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
         private static TxnRequest<?> toRequest(int event)
         {
             TxnId id = toTxnId(event);
-            Ranges ranges = Ranges.of(new TokenRange(AccordRoutingKey.SentinelKey.min("system"), AccordRoutingKey.SentinelKey.max("system")));
+            Ranges ranges = Ranges.of(new TokenRange(AccordRoutingKey.SentinelKey.min(tableId), AccordRoutingKey.SentinelKey.max(tableId)));
             Topologies topologies = Utils.topologies(TopologyUtils.initialTopology(new Node.Id[] {node}, ranges, 3));
             Keys keys = Keys.of(toKey(0));
             Txn txn = new Txn.InMemory(keys, new TxnRead(new TxnNamedRead[0], keys, null), TxnQuery.ALL, new NoopUpdate());
@@ -222,7 +222,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
 
         private static PartitionKey toKey(int a)
         {
-            return new PartitionKey(KEYSPACE, tableId, Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(a)));
+            return new PartitionKey(tableId, Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(a)));
         }
 
         private static final TableId tableId = TableId.fromUUID(new UUID(0, 0));
@@ -233,7 +233,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
             return new FullKeyRoute(key, true, new RoutingKey[]{ key });
         }
 
-        private static final RoutingKey key = new AccordRoutingKey.TokenKey("system", new Murmur3Partitioner.LongToken(42));
+        private static final RoutingKey key = new AccordRoutingKey.TokenKey(tableId, new Murmur3Partitioner.LongToken(42));
     }
 
     public static class NoopUpdate implements Update

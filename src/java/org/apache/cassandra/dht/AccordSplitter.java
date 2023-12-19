@@ -21,6 +21,7 @@ package org.apache.cassandra.dht;
 import java.math.BigInteger;
 
 import accord.local.ShardDistributor;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
@@ -54,9 +55,9 @@ public abstract class AccordSplitter implements ShardDistributor.EvenSplit.Split
         BigInteger end = endBound instanceof SentinelKey ? maximumValue() : valueForToken(endBound.token());
         BigInteger sizeOfRange = end.subtract(start);
 
-        String keyspace = startBound.keyspace();
-        return new TokenRange(startOffset.equals(ZERO) ? startBound : new TokenKey(keyspace, tokenForValue(start.add(startOffset))),
-                              endOffset.compareTo(sizeOfRange) >= 0 ? endBound : new TokenKey(keyspace, tokenForValue(start.add(endOffset))));
+        TableId tableId = startBound.table();
+        return new TokenRange(startOffset.equals(ZERO) ? startBound : new TokenKey(tableId, tokenForValue(start.add(startOffset))),
+                              endOffset.compareTo(sizeOfRange) >= 0 ? endBound : new TokenKey(tableId, tokenForValue(start.add(endOffset))));
     }
 
     @Override

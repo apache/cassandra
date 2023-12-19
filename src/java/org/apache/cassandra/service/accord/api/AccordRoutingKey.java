@@ -40,6 +40,7 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -53,14 +54,14 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
         TOKEN, SENTINEL
     }
 
-    protected AccordRoutingKey(String keyspace)
+    protected AccordRoutingKey(TableId table)
     {
-        super(keyspace);
+        super(table);
     }
 
     public abstract RoutingKeyKind kindOfRoutingKey();
     public abstract long estimatedSizeOnHeap();
-    public abstract AccordRoutingKey withKeyspace(String ks);
+    public abstract AccordRoutingKey withTable(TableId table);
 
     public SentinelKey asSentinelKey()
     {
@@ -84,16 +85,16 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
 
         private final boolean isMin;
 
-        private SentinelKey(String keyspace, boolean isMin)
+        private SentinelKey(TableId table, boolean isMin)
         {
-            super(keyspace);
+            super(table);
             this.isMin = isMin;
         }
 
         @Override
         public int hashCode()
         {
-            return Objects.hash(keyspace, isMin);
+            return Objects.hash(table, isMin);
         }
 
         @Override
@@ -108,26 +109,25 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
             return EMPTY_SIZE;
         }
 
-        @Override
-        public AccordRoutingKey withKeyspace(String ks)
+        public AccordRoutingKey withTable(TableId table)
         {
-            return new SentinelKey(ks, isMin);
+            return new SentinelKey(table, isMin);
         }
 
-        public static SentinelKey min(String keyspace)
+        public static SentinelKey min(TableId table)
         {
-            return new SentinelKey(keyspace, true);
+            return new SentinelKey(table, true);
         }
 
-        public static SentinelKey max(String keyspace)
+        public static SentinelKey max(TableId table)
         {
-            return new SentinelKey(keyspace, false);
+            return new SentinelKey(table, false);
         }
 
         public TokenKey toTokenKey()
         {
             IPartitioner partitioner = getPartitioner();
-            return new TokenKey(keyspace, isMin ?
+            return new TokenKey(table, isMin ?
                                          partitioner.getMinimumToken().nextValidToken() :
                                          partitioner.getMaximumToken().decreaseSlightly());
         }
@@ -154,22 +154,22 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
             @Override
             public void serialize(SentinelKey key, DataOutputPlus out, int version) throws IOException
             {
+                key.table.serialize(out);
                 out.writeBoolean(key.isMin);
-                out.writeUTF(key.keyspace);
             }
 
             @Override
             public SentinelKey deserialize(DataInputPlus in, int version) throws IOException
             {
+                TableId table = TableId.deserialize(in);
                 boolean isMin = in.readBoolean();
-                String keyspace = in.readUTF();
-                return new SentinelKey(keyspace, isMin);
+                return new SentinelKey(table, isMin);
             }
 
             @Override
             public long serializedSize(SentinelKey key, int version)
             {
-                return TypeSizes.BOOL_SIZE + TypeSizes.sizeof(key.keyspace);
+                return key.table().serializedSize() + TypeSizes.BOOL_SIZE;
             }
         };
 
@@ -189,8 +189,8 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
         public Range asRange()
         {
             AccordRoutingKey before = token.isMinimum()
-                                      ? new SentinelKey(keyspace, true)
-                                      : new TokenKey(keyspace, token.decreaseSlightly());
+                                      ? new SentinelKey(table, true)
+                                      : new TokenKey(table, token.decreaseSlightly());
 
             return new TokenRange(before, this);
         }
@@ -202,15 +202,15 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
         }
 
         final Token token;
-        public TokenKey(String keyspace, Token token)
+        public TokenKey(TableId tableId, Token token)
         {
-            super(keyspace);
+            super(tableId);
             this.token = token;
         }
 
         public TokenKey withToken(Token token)
         {
-            return new TokenKey(keyspace, token);
+            return new TokenKey(table, token);
         }
 
         @Override
@@ -236,10 +236,9 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
             return EMPTY_SIZE + token().getHeapSize();
         }
 
-        @Override
-        public AccordRoutingKey withKeyspace(String ks)
+        public AccordRoutingKey withTable(TableId table)
         {
-            return new TokenKey(ks, token);
+            return new TokenKey(table, token);
         }
 
         public static final Serializer serializer = new Serializer();
@@ -250,22 +249,22 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
             @Override
             public void serialize(TokenKey key, DataOutputPlus out, int version) throws IOException
             {
-                out.writeUTF(key.keyspace);
+                key.table.serialize(out);
                 Token.compactSerializer.serialize(key.token, out, version);
             }
 
             @Override
             public TokenKey deserialize(DataInputPlus in, int version) throws IOException
             {
-                String keyspace = in.readUTF();
+                TableId table = TableId.deserialize(in);
                 Token token = Token.compactSerializer.deserialize(in, getPartitioner(), version);
-                return new TokenKey(keyspace, token);
+                return new TokenKey(table, token);
             }
 
             @Override
             public long serializedSize(TokenKey key, int version)
             {
-                return TypeSizes.sizeof(key.keyspace) + Token.compactSerializer.serializedSize(key.token(), version);
+                return key.table.serializedSize() + Token.compactSerializer.serializedSize(key.token(), version);
             }
         }
     }
@@ -370,15 +369,15 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
         @Override
         public List<Ranges> split(Ranges ranges)
         {
-            Map<String, List<Range>> byKeyspace = new TreeMap<>();
+            Map<TableId, List<Range>> byTable = new TreeMap<>();
             for (Range range : ranges)
             {
-                byKeyspace.computeIfAbsent(((AccordRoutableKey)range.start()).keyspace, ignore -> new ArrayList<>())
+                byTable.computeIfAbsent(((AccordRoutableKey)range.start()).table, ignore -> new ArrayList<>())
                           .add(range);
             }
 
             List<Ranges> results = new ArrayList<>();
-            for (List<Range> keyspaceRanges : byKeyspace.values())
+            for (List<Range> keyspaceRanges : byTable.values())
             {
                 List<Ranges> splits = subSplitter.split(Ranges.ofSortedAndDeoverlapped(keyspaceRanges.toArray(new Range[0])));
 

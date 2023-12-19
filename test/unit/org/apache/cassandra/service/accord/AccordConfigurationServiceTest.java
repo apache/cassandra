@@ -182,7 +182,7 @@ public class AccordConfigurationServiceTest
         Assert.assertEquals(null, AccordKeyspace.loadEpochDiskState());
         Assert.assertTrue(executeInternal(format("SELECT * FROM %s.%s WHERE epoch=1", ACCORD_KEYSPACE_NAME, TOPOLOGIES)).isEmpty());
 
-        Topology topology1 = new Topology(1, new Shard(AccordTopologyUtils.fullRange("ks"), ID_LIST, ID_SET));
+        Topology topology1 = new Topology(1, new Shard(AccordTopology.fullRange(TBL1), ID_LIST, ID_SET));
         service.reportTopology(topology1);
         loadEpoch(1, (epoch, topology, syncStatus, pendingSync, remoteSync, closed, redundant) -> {
             Assert.assertEquals(topology1, topology);
@@ -204,7 +204,7 @@ public class AccordConfigurationServiceTest
         AccordConfigurationService service = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector());
         service.start();
 
-        Topology topology1 = new Topology(1, new Shard(AccordTopologyUtils.fullRange("ks"), ID_LIST, ID_SET));
+        Topology topology1 = new Topology(1, new Shard(AccordTopology.fullRange(TBL1), ID_LIST, ID_SET));
         service.updateMapping(mappingForEpoch(ClusterMetadata.current().epoch.getEpoch() + 1));
         service.reportTopology(topology1);
         service.acknowledgeEpoch(EpochReady.done(1), true);
@@ -212,12 +212,12 @@ public class AccordConfigurationServiceTest
         service.receiveRemoteSyncComplete(ID2, 1);
         service.receiveRemoteSyncComplete(ID3, 1);
 
-        Topology topology2 = new Topology(2, new Shard(AccordTopologyUtils.fullRange("ks"), ID_LIST, of(ID1, ID2)));
+        Topology topology2 = new Topology(2, new Shard(AccordTopology.fullRange(TBL1), ID_LIST, of(ID1, ID2)));
         service.reportTopology(topology2);
         service.acknowledgeEpoch(EpochReady.done(2), true);
         service.receiveRemoteSyncComplete(ID1, 2);
 
-        Topology topology3 = new Topology(3, new Shard(AccordTopologyUtils.fullRange("ks"), ID_LIST, of(ID1, ID2)));
+        Topology topology3 = new Topology(3, new Shard(AccordTopology.fullRange(TBL1), ID_LIST, of(ID1, ID2)));
         service.reportTopology(topology3);
         service.acknowledgeEpoch(EpochReady.done(3), true);
 
@@ -245,14 +245,14 @@ public class AccordConfigurationServiceTest
         service.registerListener(serviceListener);
         service.start();
 
-        Topology topology1 = new Topology(1, new Shard(AccordTopologyUtils.fullRange("ks"), ID_LIST, ID_SET));
+        Topology topology1 = new Topology(1, new Shard(AccordTopology.fullRange(TBL1), ID_LIST, ID_SET));
         service.updateMapping(mappingForEpoch(ClusterMetadata.current().epoch.getEpoch() + 1));
         service.reportTopology(topology1);
 
-        Topology topology2 = new Topology(2, new Shard(AccordTopologyUtils.fullRange("ks"), ID_LIST, of(ID1, ID2)));
+        Topology topology2 = new Topology(2, new Shard(AccordTopology.fullRange(TBL1), ID_LIST, of(ID1, ID2)));
         service.reportTopology(topology2);
 
-        Topology topology3 = new Topology(3, new Shard(AccordTopologyUtils.fullRange("ks"), ID_LIST, of(ID1, ID2)));
+        Topology topology3 = new Topology(3, new Shard(AccordTopology.fullRange(TBL1), ID_LIST, of(ID1, ID2)));
         service.reportTopology(topology3);
         service.truncateTopologiesUntil(3);
         Assert.assertEquals(EpochDiskState.create(3), service.diskState());
