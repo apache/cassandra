@@ -2233,3 +2233,6 @@ storage_compatibility_mode: NONE
 #
 #  # Progress log scheduling delay
 #  progress_log_schedule_delay: 1s
+#
+#  # how quickly the fast path is reconfigured when nodes go up/down
+#  fast_path_update_delay: 5s

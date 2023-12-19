@@ -65,6 +65,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.serialization.UDTAndFunctionsAwareMetadataSerializer;
@@ -912,6 +913,12 @@ public class TableMetadata implements SchemaElement
         public Builder compression(CompressionParams val)
         {
             params.compression(val);
+            return this;
+        }
+
+        public Builder fastPath(FastPathStrategy val)
+        {
+            params.fastPath(val);
             return this;
         }
 

@@ -289,11 +289,11 @@ public class DescribeStatementTest extends CQLTester
             row(KEYSPACE, "keyspace", KEYSPACE,
                 "CREATE KEYSPACE " + KEYSPACE +
                 " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
-                "  AND durable_writes = true;"),
+                "  AND durable_writes = true  AND fast_path = 'simple';"),
             row(KEYSPACE_PER_TEST, "keyspace", KEYSPACE_PER_TEST,
                 "CREATE KEYSPACE " + KEYSPACE_PER_TEST +
                 " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
-                "  AND durable_writes = true;"),
+                "  AND durable_writes = true  AND fast_path = 'simple';"),
             row("test", "keyspace", "test", keyspaceOutput()),
             row("test", "table", "has_all_types", allTypesTable()),
             row("test", "table", "\"Test\"", testTableOutput()),
@@ -695,7 +695,8 @@ public class DescribeStatementTest extends CQLTester
             assertRowsNet(executeDescribeNet(KEYSPACE_PER_TEST, "DESCRIBE KEYSPACE " + KEYSPACE_PER_TEST),
                           row(KEYSPACE_PER_TEST, "keyspace", KEYSPACE_PER_TEST, "CREATE KEYSPACE " + KEYSPACE_PER_TEST +
                                                                                 " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
-                                                                                "  AND durable_writes = true;"),
+                                                                                "  AND durable_writes = true" +
+                                                                                "  AND fast_path = 'simple';"),
                           row(KEYSPACE_PER_TEST, "type", type2, "CREATE TYPE " + KEYSPACE_PER_TEST + "." + type2 + " (\n" +
                                                                 "    x text,\n" +
                                                                 "    y text\n" +
@@ -800,7 +801,8 @@ public class DescribeStatementTest extends CQLTester
 
         String expectedKeyspaceStmt = "CREATE KEYSPACE " + KEYSPACE_PER_TEST +
                                       " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
-                                      "  AND durable_writes = true;";
+                                      "  AND durable_writes = true" +
+                                      "  AND fast_path = 'simple';";
 
         String expectedTableStmt = "CREATE TABLE " + KEYSPACE_PER_TEST + "." + table + " (\n" +
                                    "    id int PRIMARY KEY,\n" +
@@ -1067,6 +1069,7 @@ public class DescribeStatementTest extends CQLTester
                "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
                "    AND memtable = 'default'\n" +
                "    AND crc_check_chance = 1.0\n" +
+               "    AND fast_path = 'keyspace'\n" +
                "    AND default_time_to_live = 0\n" +
                "    AND extensions = {}\n" +
                "    AND gc_grace_seconds = 864000\n" +
@@ -1107,7 +1110,7 @@ public class DescribeStatementTest extends CQLTester
 
     private static String keyspaceOutput()
     {
-        return "CREATE KEYSPACE test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true;";
+        return "CREATE KEYSPACE test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true  AND fast_path = 'simple';";
     }
 
     private void describeError(String cql, String msg) throws Throwable

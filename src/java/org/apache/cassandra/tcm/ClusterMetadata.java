@@ -29,9 +29,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import accord.local.Node;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+
+import com.google.common.collect.Sets;
+import org.apache.cassandra.tcm.membership.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,13 +59,8 @@ import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationS
 import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.TableMigrationState;
 import org.apache.cassandra.tcm.extensions.ExtensionKey;
 import org.apache.cassandra.tcm.extensions.ExtensionValue;
-import org.apache.cassandra.tcm.membership.Directory;
-import org.apache.cassandra.tcm.membership.Location;
-import org.apache.cassandra.tcm.membership.NodeAddresses;
-import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.membership.NodeState;
-import org.apache.cassandra.tcm.membership.NodeVersion;
-import org.apache.cassandra.tcm.ownership.AccordKeyspaces;
+import org.apache.cassandra.service.accord.AccordFastPath;
+import org.apache.cassandra.tcm.ownership.AccordTables;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PlacementForRange;
@@ -78,6 +77,7 @@ import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
+import static org.apache.cassandra.tcm.serialization.Version.V2;
 
 public class ClusterMetadata
 {
@@ -95,7 +95,8 @@ public class ClusterMetadata
     public final Directory directory;
     public final TokenMap tokenMap;
     public final DataPlacements placements;
-    public final AccordKeyspaces accordKeyspaces;
+    public final AccordTables accordTables;
+    public final AccordFastPath accordFastPath;
     public final LockedRanges lockedRanges;
     public final InProgressSequences inProgressSequences;
     public final ConsensusMigrationState consensusMigrationState;
@@ -129,7 +130,8 @@ public class ClusterMetadata
              directory,
              new TokenMap(partitioner),
              DataPlacements.EMPTY,
-             AccordKeyspaces.EMPTY,
+             AccordTables.EMPTY,
+             AccordFastPath.EMPTY,
              LockedRanges.EMPTY,
              InProgressSequences.EMPTY,
              ConsensusMigrationState.EMPTY,
@@ -144,7 +146,8 @@ public class ClusterMetadata
                            Directory directory,
                            TokenMap tokenMap,
                            DataPlacements placements,
-                           AccordKeyspaces accordKeyspaces,
+                           AccordTables accordTables,
+                           AccordFastPath accordFastPath,
                            LockedRanges lockedRanges,
                            InProgressSequences inProgressSequences,
                            ConsensusMigrationState consensusMigrationState,
@@ -194,7 +197,8 @@ public class ClusterMetadata
         this.directory = directory;
         this.tokenMap = tokenMap;
         this.placements = placements;
-        this.accordKeyspaces = accordKeyspaces;
+        this.accordTables = accordTables;
+        this.accordFastPath = accordFastPath;
         this.lockedRanges = lockedRanges;
         this.inProgressSequences = inProgressSequences;
         this.consensusMigrationState = consensusMigrationState;
@@ -204,12 +208,12 @@ public class ClusterMetadata
 
     public ClusterMetadata withDirectory(Directory directory)
     {
-        return new ClusterMetadata(epoch, period, lastInPeriod, partitioner, schema, directory, tokenMap, placements, accordKeyspaces, lockedRanges, inProgressSequences, consensusMigrationState, extensions);
+        return new ClusterMetadata(epoch, period, lastInPeriod, partitioner, schema, directory, tokenMap, placements, accordTables, accordFastPath, lockedRanges, inProgressSequences, consensusMigrationState, extensions);
     }
 
     public ClusterMetadata withPlacements(DataPlacements placements)
     {
-        return new ClusterMetadata(epoch, period, lastInPeriod, partitioner, schema, directory, tokenMap, placements, accordKeyspaces, lockedRanges, inProgressSequences, consensusMigrationState, extensions);
+        return new ClusterMetadata(epoch, period, lastInPeriod, partitioner, schema, directory, tokenMap, placements, accordTables, accordFastPath, lockedRanges, inProgressSequences, consensusMigrationState, extensions);
     }
 
     public Set<InetAddressAndPort> fullCMSMembers()
@@ -261,7 +265,8 @@ public class ClusterMetadata
                                    capLastModified(directory, epoch),
                                    capLastModified(tokenMap, epoch),
                                    capLastModified(placements, epoch),
-                                   capLastModified(accordKeyspaces, epoch),
+                                   capLastModified(accordTables, epoch),
+                                   capLastModified(accordFastPath, epoch),
                                    capLastModified(lockedRanges, epoch),
                                    capLastModified(inProgressSequences, epoch),
                                    capLastModified(consensusMigrationState, epoch),
@@ -303,7 +308,8 @@ public class ClusterMetadata
                                    directory,
                                    tokenMap,
                                    placements,
-                                   accordKeyspaces,
+                                   accordTables,
+                                   accordFastPath,
                                    lockedRanges,
                                    inProgressSequences,
                                    consensusMigrationState,
@@ -426,7 +432,8 @@ public class ClusterMetadata
         private Directory directory;
         private TokenMap tokenMap;
         private DataPlacements placements;
-        private AccordKeyspaces accordKeyspaces;
+        private AccordTables accordTables;
+        private AccordFastPath accordFastPath;
         private LockedRanges lockedRanges;
         private InProgressSequences inProgressSequences;
         private ConsensusMigrationState consensusMigrationState;
@@ -444,7 +451,8 @@ public class ClusterMetadata
             this.directory = metadata.directory;
             this.tokenMap = metadata.tokenMap;
             this.placements = metadata.placements;
-            this.accordKeyspaces = metadata.accordKeyspaces;
+            this.accordTables = metadata.accordTables;
+            this.accordFastPath = metadata.accordFastPath;
             this.lockedRanges = metadata.lockedRanges;
             this.inProgressSequences = metadata.inProgressSequences;
             this.consensusMigrationState = metadata.consensusMigrationState;
@@ -563,9 +571,15 @@ public class ClusterMetadata
             return this;
         }
 
-        public Transformer withAccordKeyspace(String keyspace)
+        public Transformer withAccordTable(TableId table)
         {
-            accordKeyspaces = accordKeyspaces.with(keyspace);
+            accordTables = accordTables.with(table);
+            return this;
+        }
+
+        public Transformer withFastPathStatusSince(Node.Id node, AccordFastPath.Status status, long updateTimeMillis, long updateDelayMillis)
+        {
+            accordFastPath = accordFastPath.withNodeStatusSince(node, status, updateTimeMillis, updateDelayMillis);
             return this;
         }
 
@@ -660,6 +674,9 @@ public class ClusterMetadata
             {
                 modifiedKeys.add(MetadataKeys.NODE_DIRECTORY);
                 directory = directory.withLastModified(epoch);
+
+                for (NodeId peer : Sets.difference(base.directory.peerIds(), directory.peerIds()))
+                    accordFastPath = accordFastPath.withoutNode(peer);
             }
 
             if (tokenMap != base.tokenMap)
@@ -680,10 +697,16 @@ public class ClusterMetadata
                 placements = placements.withLastModified(epoch);
             }
 
-            if (accordKeyspaces != base.accordKeyspaces)
+            if (accordTables != base.accordTables)
             {
-                modifiedKeys.add(MetadataKeys.ACCORD_KEYSPACES);
-                accordKeyspaces = accordKeyspaces.withLastModified(epoch);
+                modifiedKeys.add(MetadataKeys.ACCORD_TABLES);
+                accordTables = accordTables.withLastModified(epoch);
+            }
+
+            if (accordFastPath != base.accordFastPath)
+            {
+                modifiedKeys.add(MetadataKeys.ACCORD_FAST_PATH);
+                accordFastPath = accordFastPath.withLastModified(epoch);
             }
 
             if (lockedRanges != base.lockedRanges)
@@ -712,7 +735,8 @@ public class ClusterMetadata
                                                        directory,
                                                        tokenMap,
                                                        placements,
-                                                       accordKeyspaces,
+                                                       accordTables,
+                                                       accordFastPath,
                                                        lockedRanges,
                                                        inProgressSequences,
                                                        consensusMigrationState,
@@ -731,7 +755,8 @@ public class ClusterMetadata
                                        directory,
                                        tokenMap,
                                        placements,
-                                       accordKeyspaces,
+                                       accordTables,
+                                       accordFastPath,
                                        lockedRanges,
                                        inProgressSequences,
                                        consensusMigrationState,
@@ -750,6 +775,7 @@ public class ClusterMetadata
                    ", directory=" + schema +
                    ", tokenMap=" + tokenMap +
                    ", placement=" + placements +
+                   ", availability=" + accordFastPath +
                    ", lockedRanges=" + lockedRanges +
                    ", inProgressSequences=" + inProgressSequences +
                    ", consensusMigrationState=" + consensusMigrationState +
@@ -1003,7 +1029,11 @@ public class ClusterMetadata
             Directory.serializer.serialize(metadata.directory, out, version);
             TokenMap.serializer.serialize(metadata.tokenMap, out, version);
             DataPlacements.serializer.serialize(metadata.placements, out, version);
-            AccordKeyspaces.serializer.serialize(metadata.accordKeyspaces, out, version);
+            if (version.isAtLeast(V2))
+            {
+                AccordTables.serializer.serialize(metadata.accordTables, out, version);
+                AccordFastPath.serializer.serialize(metadata.accordFastPath, out, version);
+            }
             LockedRanges.serializer.serialize(metadata.lockedRanges, out, version);
             InProgressSequences.serializer.serialize(metadata.inProgressSequences, out, version);
             ConsensusMigrationState.serializer.serialize(metadata.consensusMigrationState, out, version);
@@ -1043,7 +1073,18 @@ public class ClusterMetadata
             Directory dir = Directory.serializer.deserialize(in, version);
             TokenMap tokenMap = TokenMap.serializer.deserialize(in, version);
             DataPlacements placements = DataPlacements.serializer.deserialize(in, version);
-            AccordKeyspaces accordKeyspaces = AccordKeyspaces.serializer.deserialize(in, version);
+            AccordTables accordTables;
+            AccordFastPath accordFastPath;
+            if (version.isAtLeast(V2))
+            {
+                accordTables = AccordTables.serializer.deserialize(in, version);
+                accordFastPath = AccordFastPath.serializer.deserialize(in, version);
+            }
+            else
+            {
+                accordTables = AccordTables.EMPTY;
+                accordFastPath = AccordFastPath.EMPTY;
+            }
             LockedRanges lockedRanges = LockedRanges.serializer.deserialize(in, version);
             InProgressSequences ips = InProgressSequences.serializer.deserialize(in, version);
             ConsensusMigrationState consensusMigrationState = ConsensusMigrationState.serializer.deserialize(in, version);
@@ -1065,7 +1106,8 @@ public class ClusterMetadata
                                        dir,
                                        tokenMap,
                                        placements,
-                                       accordKeyspaces,
+                                       accordTables,
+                                       accordFastPath,
                                        lockedRanges,
                                        ips,
                                        consensusMigrationState,
@@ -1091,10 +1133,17 @@ public class ClusterMetadata
                     Directory.serializer.serializedSize(metadata.directory, version) +
                     TokenMap.serializer.serializedSize(metadata.tokenMap, version) +
                     DataPlacements.serializer.serializedSize(metadata.placements, version) +
-                    AccordKeyspaces.serializer.serializedSize(metadata.accordKeyspaces, version) +
-                    LockedRanges.serializer.serializedSize(metadata.lockedRanges, version) +
-                    InProgressSequences.serializer.serializedSize(metadata.inProgressSequences, version) +
                     ConsensusMigrationState.serializer.serializedSize(metadata.consensusMigrationState, version);
+                    DataPlacements.serializer.serializedSize(metadata.placements, version);
+
+            if (version.isAtLeast(V2))
+            {
+                size += AccordTables.serializer.serializedSize(metadata.accordTables, version) +
+                        AccordFastPath.serializer.serializedSize(metadata.accordFastPath, version);
+            }
+
+            size += LockedRanges.serializer.serializedSize(metadata.lockedRanges, version) +
+                    InProgressSequences.serializer.serializedSize(metadata.inProgressSequences, version);
 
             return size;
         }

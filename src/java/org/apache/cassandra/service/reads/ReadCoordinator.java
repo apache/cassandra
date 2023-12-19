@@ -29,6 +29,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tcm.ClusterMetadata;
 
 public interface ReadCoordinator
@@ -40,7 +41,7 @@ public interface ReadCoordinator
             return true;
         }
 
-        public EndpointsForToken forNonLocalStrategyTokenRead(ClusterMetadata metadata, KeyspaceMetadata keyspace, Token token)
+        public EndpointsForToken forNonLocalStrategyTokenRead(ClusterMetadata metadata, KeyspaceMetadata keyspace, TableId tableId, Token token)
         {
             return ReplicaLayout.forNonLocalStrategyTokenRead(metadata, keyspace, token);
         }
@@ -62,7 +63,7 @@ public interface ReadCoordinator
     };
 
     boolean localReadSupported();
-    EndpointsForToken forNonLocalStrategyTokenRead(ClusterMetadata metadata, KeyspaceMetadata keyspace, Token token);
+    EndpointsForToken forNonLocalStrategyTokenRead(ClusterMetadata metadata, KeyspaceMetadata keyspace, TableId tableId, Token token);
     default ReadCommand maybeAllowOutOfRangeReads(ReadCommand command)
     {
         return command;

@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.google.common.collect.Iterators;
+import org.apache.cassandra.schema.TableId;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -49,6 +50,7 @@ public class RangeCommandIteratorTest
 {
     private static final String KEYSPACE1 = "RangeCommandIteratorTest";
     private static final String CF_STANDARD1 = "Standard1";
+    private static final TableId TABLE_ID = TableId.generate();
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -70,11 +72,11 @@ public class RangeCommandIteratorTest
         for (int i = 0; i + 1 < tokens.size(); i++)
         {
             Range<PartitionPosition> range = Range.makeRowRange(tokens.get(i), tokens.get(i + 1));
-            ranges.add(ReplicaPlans.forRangeRead(keyspace, null, ConsistencyLevel.ONE, range, 1));
+            ranges.add(ReplicaPlans.forRangeRead(keyspace, TABLE_ID, null, ConsistencyLevel.ONE, range, 1));
             vnodeCount++;
         }
 
-        ReplicaPlanMerger merge = new ReplicaPlanMerger(ranges.iterator(), keyspace, ConsistencyLevel.ONE);
+        ReplicaPlanMerger merge = new ReplicaPlanMerger(ranges.iterator(), keyspace, TABLE_ID, ConsistencyLevel.ONE);
         ReplicaPlan.ForRangeRead mergedRange = Iterators.getOnlyElement(merge);
         // all ranges are merged as test has only one node.
         assertEquals(vnodeCount, mergedRange.vnodeCount());
@@ -164,9 +166,9 @@ public class RangeCommandIteratorTest
                                                                                    Keyspace keyspace,
                                                                                    boolean withRangeMerger)
     {
-        CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans = new ReplicaPlanIterator(keyRange, null, keyspace, ConsistencyLevel.ONE);
+        CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans = new ReplicaPlanIterator(keyRange, null, keyspace, null, ConsistencyLevel.ONE);
         if (withRangeMerger)
-            replicaPlans = new ReplicaPlanMerger(replicaPlans, keyspace, ConsistencyLevel.ONE);
+            replicaPlans = new ReplicaPlanMerger(replicaPlans, keyspace, null, ConsistencyLevel.ONE);
 
         return  replicaPlans;
     }

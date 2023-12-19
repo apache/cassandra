@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
+import org.apache.cassandra.distributed.test.accord.AccordTestBase;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -44,7 +45,6 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.AssertUtils;
-import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
@@ -111,7 +111,6 @@ public class ShortReadProtectionTest extends TestBaseImpl
                               .withNodes(NUM_NODES)
                               .withConfig(config -> config.set("hinted_handoff_enabled", false))
                               .start());
-        cluster.get(1).runOnInstance(() -> AccordService.instance().ensureKeyspaceIsAccordManaged(KEYSPACE));
     }
 
     @AfterClass
@@ -437,6 +436,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
 
         private final ConsistencyLevel readConsistencyLevel;
         private final boolean flush, paging;
+        private final String table;
         private final String qualifiedTableName;
 
         private boolean flushed = false;
@@ -446,7 +446,8 @@ public class ShortReadProtectionTest extends TestBaseImpl
             this.readConsistencyLevel = readConsistencyLevel;
             this.flush = flush;
             this.paging = paging;
-            qualifiedTableName = KEYSPACE + ".t_" + seqNumber.getAndIncrement();
+            this.table = "t_" + seqNumber.getAndIncrement();
+            qualifiedTableName = KEYSPACE + '.' + table;
 
             assert readConsistencyLevel == ALL || readConsistencyLevel == QUORUM || readConsistencyLevel == SERIAL
             : "Only ALL and QUORUM consistency levels are supported";
@@ -455,6 +456,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
         private Tester createTable(String query)
         {
             cluster.schemaChange(format(query) + " WITH read_repair='NONE'");
+            AccordTestBase.ensureTableIsAccordManaged(cluster, KEYSPACE, table);
             return this;
         }
 

@@ -24,6 +24,8 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static com.google.common.collect.Iterables.all;
@@ -224,5 +226,32 @@ public class StreamPlan
     public StreamCoordinator getCoordinator()
     {
         return coordinator;
+    }
+
+    /**
+     * Returns an array containing the non-accord tables for the given keyspace. Since the relevant StreamPlan methods
+     * interpret an empty array to mean all tables, null is returned if there are no non-accord tables in
+     * the given keyspace
+     * @param ksm
+     * @return
+     */
+    public static String[] nonAccordTablesForKeyspace(KeyspaceMetadata ksm)
+    {
+        String[] result = ksm.tables.stream()
+                                    .filter(tbl -> !AccordService.instance().isAccordManagedTable(tbl.id))
+                                    .map(tbl -> tbl.name)
+                                    .toArray(String[]::new);
+
+        return result.length > 0 ? result : null;
+    }
+
+    public static boolean hasNonAccordTables(KeyspaceMetadata ksm)
+    {
+        return ksm.tables.stream().anyMatch(tbl -> !AccordService.instance().isAccordManagedTable(tbl.id));
+    }
+
+    public static boolean hasAccordTables(KeyspaceMetadata ksm)
+    {
+        return ksm.tables.stream().anyMatch(tbl -> AccordService.instance().isAccordManagedTable(tbl.id));
     }
 }

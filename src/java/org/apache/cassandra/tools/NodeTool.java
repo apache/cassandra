@@ -490,7 +490,7 @@ public class NodeTool
                 else if (defaultKeyspaceSet == KeyspaceSet.NON_SYSTEM)
                     keyspaces.addAll(keyspaces = nodeProbe.getNonSystemKeyspaces());
                 else if (defaultKeyspaceSet == KeyspaceSet.ACCORD_MANAGED)
-                    keyspaces.addAll(nodeProbe.getAccordManagedKeyspace());
+                    keyspaces.addAll(nodeProbe.getAccordManagedKeyspaces());
                 else
                     keyspaces.addAll(nodeProbe.getKeyspaces());
             }

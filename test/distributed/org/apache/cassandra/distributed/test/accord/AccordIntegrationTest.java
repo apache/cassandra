@@ -59,10 +59,10 @@ public class AccordIntegrationTest extends AccordTestBase
             IMessageFilters.Filter lostCommit = cluster.filters().verbs(Verb.ACCORD_COMMIT_REQ.id).to(2).drop();
 
             String query = "BEGIN TRANSACTION\n" +
-                           "  LET row1 = (SELECT v FROM " + currentTable + " WHERE k=0 AND c=0);\n" +
+                           "  LET row1 = (SELECT v FROM " + qualifiedTableName + " WHERE k=0 AND c=0);\n" +
                            "  SELECT row1.v;\n" +
                            "  IF row1 IS NULL THEN\n" +
-                           "    INSERT INTO " + currentTable + " (k, c, v) VALUES (0, 0, 1);\n" +
+                           "    INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (0, 0, 1);\n" +
                            "  END IF\n" +
                            "COMMIT TRANSACTION";
             // row1.v shouldn't have existed when the txn's SELECT was executed
@@ -73,24 +73,24 @@ public class AccordIntegrationTest extends AccordTestBase
 
             // Querying again should trigger recovery...
             query = "BEGIN TRANSACTION\n" +
-                    "  LET row1 = (SELECT v FROM " + currentTable + " WHERE k=0 AND c=0);\n" +
+                    "  LET row1 = (SELECT v FROM " + qualifiedTableName + " WHERE k=0 AND c=0);\n" +
                     "  SELECT row1.v;\n" +
                     "  IF row1.v = 1 THEN\n" +
-                    "    UPDATE " + currentTable + " SET v=2 WHERE k = 0 AND c = 0;\n" +
+                    "    UPDATE " + qualifiedTableName + " SET v=2 WHERE k = 0 AND c = 0;\n" +
                     "  END IF\n" +
                     "COMMIT TRANSACTION";
             assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 1 }, query);
 
             String check = "BEGIN TRANSACTION\n" +
-                    "  SELECT * FROM " + currentTable + " WHERE k = ? AND c = ?;\n" +
+                    "  SELECT * FROM " + qualifiedTableName + " WHERE k = ? AND c = ?;\n" +
                     "COMMIT TRANSACTION";
             assertRowEqualsWithPreemptedRetry(cluster, new Object[] {0, 0, 2}, check, 0, 0);
 
             query = "BEGIN TRANSACTION\n" +
-                    "  LET row1 = (SELECT v FROM " + currentTable + " WHERE k=0 AND c=0);\n" +
+                    "  LET row1 = (SELECT v FROM " + qualifiedTableName + " WHERE k=0 AND c=0);\n" +
                     "  SELECT row1.v;\n" +
                     "  IF row1 IS NULL THEN\n" +
-                    "    INSERT INTO " + currentTable + " (k, c, v) VALUES (0, 0, 3);\n" +
+                    "    INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (0, 0, 3);\n" +
                     "  END IF\n" +
                     "COMMIT TRANSACTION";
             assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 2 }, query);
@@ -113,16 +113,16 @@ public class AccordIntegrationTest extends AccordTestBase
             })).drop();
 
             String query = "BEGIN TRANSACTION\n" +
-                           "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 0 AND c = 0);\n" +
+                           "  LET row1 = (SELECT * FROM " + qualifiedTableName + " WHERE k = 0 AND c = 0);\n" +
                            "  SELECT row1.v;\n" +
                            "  IF row1 IS NULL THEN\n" +
-                           "    INSERT INTO " + currentTable + " (k, c, v) VALUES (0, 0, 1);\n" +
+                           "    INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (0, 0, 1);\n" +
                            "  END IF\n" +
                            "COMMIT TRANSACTION";
             assertRowEqualsWithPreemptedRetry(cluster, new Object[] { null }, query);
 
             String check = "BEGIN TRANSACTION\n" +
-                           "  SELECT * FROM " + currentTable + " WHERE k = ? AND c = ?;\n" +
+                           "  SELECT * FROM " + qualifiedTableName + " WHERE k = ? AND c = ?;\n" +
                            "COMMIT TRANSACTION";
             assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, 0, 1 }, check, 0, 0);
         });

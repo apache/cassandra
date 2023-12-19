@@ -85,7 +85,8 @@ public abstract class AccordTestBase extends TestBaseImpl
 
     protected static Cluster SHARED_CLUSTER;
 
-    protected String currentTable;
+    protected String tableName;
+    protected String qualifiedTableName;
 
     public static void setupCluster(Function<Builder, Builder> options, int nodes) throws IOException
     {
@@ -102,7 +103,8 @@ public abstract class AccordTestBase extends TestBaseImpl
     @Before
     public void setup()
     {
-        currentTable = KEYSPACE + ".tbl" + COUNTER.getAndIncrement();
+        tableName = "tbl" + COUNTER.getAndIncrement();
+        qualifiedTableName = KEYSPACE + '.' + tableName;
     }
 
     @After
@@ -129,11 +131,17 @@ public abstract class AccordTestBase extends TestBaseImpl
         test(Collections.singletonList(tableDDL), fn);
     }
 
+    public static void ensureTableIsAccordManaged(Cluster cluster, String ksname, String tableName)
+    {
+        cluster.get(1).runOnInstance(() -> AccordService.instance().ensureTableIsAccordManaged(ksname, tableName));
+    }
+
     protected void test(List<String> ddls, FailingConsumer<Cluster> fn) throws Exception
     {
         for (String ddl : ddls)
             SHARED_CLUSTER.schemaChange(ddl);
 
+        ensureTableIsAccordManaged(SHARED_CLUSTER, KEYSPACE, tableName);
         // Evict commands from the cache immediately to expose problems loading from disk.
         SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
 
@@ -149,7 +157,7 @@ public abstract class AccordTestBase extends TestBaseImpl
 
     protected void test(FailingConsumer<Cluster> fn) throws Exception
     {
-        test("CREATE TABLE " + currentTable + " (k int, c int, v int, primary key (k, c))", fn);
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, primary key (k, c))", fn);
     }
 
     protected static ConsensusMigrationState getMigrationStateSnapshot(IInvokableInstance instance) throws IOException

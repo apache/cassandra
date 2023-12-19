@@ -247,16 +247,13 @@ public class AccordSyncPropagatorTest
         }
 
         @Override
-        public Node.Id mappedId(InetAddressAndPort endpoint)
+        public Node.Id mappedIdOrNull(InetAddressAndPort endpoint)
         {
-            Node.Id id = nodeToAddress.inverse().get(endpoint);
-            if (id == null)
-                throw new NullPointerException("Unable to map endpoint: " + endpoint);
-            return id;
+            return nodeToAddress.inverse().get(endpoint);
         }
 
         @Override
-        public InetAddressAndPort mappedEndpoint(Node.Id id)
+        public InetAddressAndPort mappedEndpointOrNull(Node.Id id)
         {
             return nodeToAddress.get(id);
         }

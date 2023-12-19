@@ -34,6 +34,7 @@ import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
@@ -237,6 +238,6 @@ public final class DistributedMetadataLogKeyspace
 
     public static KeyspaceMetadata initialMetadata(Set<String> knownDatacenters)
     {
-        return KeyspaceMetadata.create(SchemaConstants.METADATA_KEYSPACE_NAME, new KeyspaceParams(true, ReplicationParams.simpleMeta(1, knownDatacenters)), Tables.of(Log));
+        return KeyspaceMetadata.create(SchemaConstants.METADATA_KEYSPACE_NAME, new KeyspaceParams(true, ReplicationParams.simpleMeta(1, knownDatacenters), FastPathStrategy.simple()), Tables.of(Log));
     }
 }

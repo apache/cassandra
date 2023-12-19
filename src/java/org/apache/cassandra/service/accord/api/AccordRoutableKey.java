@@ -22,25 +22,30 @@ import java.util.Objects;
 
 import accord.primitives.RoutableKey;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 
 public abstract class AccordRoutableKey implements RoutableKey
 {
-    final String keyspace; // TODO (desired): use an id (TrM)
+    final TableId table; // TODO (desired): use an id (TrM)
 
-    protected AccordRoutableKey(String keyspace)
+    protected AccordRoutableKey(TableId table)
     {
-        this.keyspace = keyspace;
+        this.table = table;
     }
 
-    public final String keyspace() { return keyspace; }
+    public TableId table()
+    {
+        return table;
+    }
+
     public abstract Token token();
 
     @Override
     public Object prefix()
     {
-        return keyspace;
+        return table;
     }
 
     @Override
@@ -52,7 +57,7 @@ public abstract class AccordRoutableKey implements RoutableKey
     @Override
     public int hashCode()
     {
-        return Objects.hash(keyspace, token().tokenHash());
+        return Objects.hash(table, token().tokenHash());
     }
 
     @Override
@@ -63,7 +68,7 @@ public abstract class AccordRoutableKey implements RoutableKey
 
     public final int compareTo(AccordRoutableKey that)
     {
-        int cmp = this.keyspace().compareTo(that.keyspace());
+        int cmp = this.table().compareTo(that.table());
         if (cmp != 0)
             return cmp;
 
@@ -80,7 +85,7 @@ public abstract class AccordRoutableKey implements RoutableKey
 
         if (this.getClass() == TokenKey.class)
             return that.getClass() == TokenKey.class ? 0 : 1;
-        return that.getClass() == TokenKey.class ? -1 : ((PartitionKey)this).tableId.compareTo(((PartitionKey)that).tableId);
+        return that.getClass() == TokenKey.class ? -1 : 0;
     }
 
     @Override
