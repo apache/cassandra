@@ -284,7 +284,7 @@ public class StartupChecksTest
         }
     }
 
-    public void testKernelBug1057843Check(String fsType, DiskAccessMode diskAccessMode, Semver kernelVersion, boolean expectToFail) throws Exception
+    private void testKernelBug1057843Check(String fsType, DiskAccessMode diskAccessMode, Semver kernelVersion, boolean expectToFail) throws Exception
     {
         String commitLogLocation = Files.createTempDirectory("testKernelBugCheck").toString();
 
