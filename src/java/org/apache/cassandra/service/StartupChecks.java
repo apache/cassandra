@@ -194,8 +194,6 @@ public class StartupChecks
     // https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1057843
     public static final StartupCheck checkKernelBug1057843 = new StartupCheck()
     {
-        private final Set<String> affectedFileSystemTypes = Set.of("ext4");
-
         @Override
         public void execute(StartupChecksOptions startupChecksOptions) throws StartupException
         {
@@ -216,6 +214,7 @@ public class StartupChecks
                 return;
             }
 
+            Set<String> affectedFileSystemTypes = Set.of("ext4");
             Set<Path> affectedPaths = new HashSet<>();
             for (Path path : directIOWritePaths)
             {
