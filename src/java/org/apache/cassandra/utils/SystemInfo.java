@@ -85,7 +85,7 @@ public class SystemInfo
      * @return The maximum number of processes.
      * @see #DEFAULT_MAX_PROCESSES
      */
-    long getMaxProcess()
+    public long getMaxProcess()
     {
         // this check only works on Linux systems.  Errors fall through to return default.
         if (oshi.SystemInfo.getCurrentPlatform() == PlatformEnum.LINUX)
