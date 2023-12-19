@@ -229,6 +229,18 @@ public class StartupChecksTest
         verifyFailure(startupChecks, "Invalid tables: abc.def");
     }
 
+    @Test
+    public void testKernelBug1057843Check() throws Exception
+    {
+        Assume.assumeTrue(DatabaseDescriptor.getCommitLogCompression() == null); // we would not be able to enable direct io otherwise
+        testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.63.1-generic"), false);
+        testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.64.1-generic"), true);
+        testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.65.1-generic"), true);
+        testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.66.1-generic"), false);
+        testKernelBug1057843Check("tmpfs", DiskAccessMode.direct, new Semver("6.1.64.1-generic"), false);
+        testKernelBug1057843Check("ext4", DiskAccessMode.mmap, new Semver("6.1.64.1-generic"), false);
+    }
+
     private <R> void withPathOverriddingFileSystem(Map<String, String> pathOverrides, Callable<? extends R> callable) throws Exception
     {
         Map<String, FileStore> fileStores = Set.copyOf(pathOverrides.values()).stream().collect(Collectors.toMap(s -> s, s -> {
@@ -313,18 +325,6 @@ public class StartupChecksTest
             DatabaseDescriptor.initializeCommitLogDiskAccessMode();
             FBUtilities.setKernelVersionSupplier(() -> savedKernelVersion);
         }
-    }
-
-    @Test
-    public void testKernelBug1057843Check() throws Exception
-    {
-        Assume.assumeTrue(DatabaseDescriptor.getCommitLogCompression() == null); // we would not be able to enable direct io otherwise
-        testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.63.1-generic"), false);
-        testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.64.1-generic"), true);
-        testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.65.1-generic"), true);
-        testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.66.1-generic"), false);
-        testKernelBug1057843Check("tmpfs", DiskAccessMode.direct, new Semver("6.1.64.1-generic"), false);
-        testKernelBug1057843Check("ext4", DiskAccessMode.mmap, new Semver("6.1.64.1-generic"), false);
     }
 
     private void copyInvalidLegacySSTables(Path targetDir) throws IOException
