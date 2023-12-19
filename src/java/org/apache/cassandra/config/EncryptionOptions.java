@@ -74,13 +74,13 @@ public class EncryptionOptions
         NOT_REQUIRED("false"),
         OPTIONAL("optional");
         private final String value;
-        private static Map<String, ClientAuth> values = new HashMap<>();
+        private static final Map<String, ClientAuth> VALUES = new HashMap<>();
         static
         {
-            for(final ClientAuth clientAuth: ClientAuth.values())
+            for (ClientAuth clientAuth : ClientAuth.values())
             {
-                values.put(clientAuth.value, clientAuth);
-                values.put(clientAuth.name().toLowerCase(), clientAuth);
+                VALUES.put(clientAuth.value, clientAuth);
+                VALUES.put(clientAuth.name().toLowerCase(), clientAuth);
             }
         }
 
@@ -91,10 +91,10 @@ public class EncryptionOptions
 
         public static ClientAuth from(String value)
         {
-            if(values.containsKey(value.toLowerCase()))
+            if (VALUES.containsKey(value.toLowerCase()))
             {
-                return values.get(value.toLowerCase());
-            };
+                return VALUES.get(value.toLowerCase());
+            }
             throw new ConfigurationException(value + " is not a valid ClientAuth option");
         }
 

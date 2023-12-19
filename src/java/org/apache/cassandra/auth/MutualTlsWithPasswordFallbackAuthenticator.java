@@ -60,7 +60,7 @@ public class MutualTlsWithPasswordFallbackAuthenticator extends PasswordAuthenti
     public void validateConfiguration() throws ConfigurationException
     {
         Config config = DatabaseDescriptor.getRawConfig();
-        if(config.client_encryption_options.getClientAuth() == EncryptionOptions.ClientAuth.NOT_REQUIRED)
+        if (config.client_encryption_options.getClientAuth() == EncryptionOptions.ClientAuth.NOT_REQUIRED)
         {
             String msg = "MutualTlsWithPasswordFallbackAuthenticator requires client_encryption_options.require_client_auth to be optional/true";
             throw new ConfigurationException(msg);
