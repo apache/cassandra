@@ -178,31 +178,29 @@ public final class SystemInfo
      */
     public Optional<String> isDegraded()
     {
-        Supplier<Optional<String>> expectedNumProc = () -> {
+        Supplier<String> expectedNumProc = () -> {
             // only check proc on nproc linux
             if (oshi.SystemInfo.getCurrentPlatform() == PlatformEnum.LINUX)
-                return invalid(getMaxProcess(), EXPECTED_NPROC) ? of(format("Number of processes should be >= %s. ", EXPECTED_NPROC))
-                                                                : empty();
+                return invalid(getMaxProcess(), EXPECTED_NPROC) ? format("Number of processes should be >= %s. ", EXPECTED_NPROC)
+                                                                : null;
             else
-                return of(format("System is running %s, Linux OS is recommended", platform()));
+                return format("System is running %s, Linux OS is recommended", platform());
         };
 
-        Supplier<Optional<String>> swapShouldBeDisabled = () -> (getSwapSize() > 0)
-                                                                ? of("Swap should be disabled. ")
-                                                                : empty();
+        Supplier<String> swapShouldBeDisabled = () -> (getSwapSize() > 0) ? "Swap should be disabled. " : null;
 
-        Supplier<Optional<String>> expectedAddressSpace = () -> invalid(getVirtualMemoryMax(), EXPECTED_AS)
-                                                                ? of(format("Amount of available address space should be >= %s. ", EXPECTED_AS))
-                                                                : empty();
+        Supplier<String> expectedAddressSpace = () -> invalid(getVirtualMemoryMax(), EXPECTED_AS)
+                                                      ? format("Amount of available address space should be >= %s. ", EXPECTED_AS)
+                                                      : null;
 
-        Supplier<Optional<String>> expectedMinNoFile = () -> invalid(getMaxOpenFiles(), EXPECTED_MIN_NOFILE)
-                                                             ? of(format("Minimum value for max open files should be >= %s. ", EXPECTED_MIN_NOFILE))
-                                                             : empty();
+        Supplier<String> expectedMinNoFile = () -> invalid(getMaxOpenFiles(), EXPECTED_MIN_NOFILE)
+                                                   ? format("Minimum value for max open files should be >= %s. ", EXPECTED_MIN_NOFILE)
+                                                   : null;
 
         StringBuilder sb = new StringBuilder();
 
-        for (Supplier<Optional<String>> check : List.of(expectedNumProc, swapShouldBeDisabled, expectedAddressSpace, expectedMinNoFile))
-            check.get().map(sb::append);
+        for (Supplier<String> check : List.of(expectedNumProc, swapShouldBeDisabled, expectedAddressSpace, expectedMinNoFile))
+            Optional.ofNullable(check.get()).map(sb::append);
 
         String message = sb.toString();
         return message.isEmpty() ? empty() : of(message);
