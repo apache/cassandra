@@ -228,10 +228,6 @@ public final class SystemDistributedKeyspace
 
     public static void startRepairs(TimeUUID id, TimeUUID parent_id, String keyspaceName, String[] cfnames, CommonRange commonRange)
     {
-        // Don't record repair history if an upgrade is in progress as version 3 nodes generates errors
-        // due to schema differences
-        boolean includeNewColumns = !Gossiper.instance.hasMajorVersion3Nodes();
-
         InetAddressAndPort coordinator = FBUtilities.getBroadcastAddressAndPort();
         Set<String> participants = Sets.newHashSet();
         Set<String> participants_v2 = Sets.newHashSet();
@@ -245,43 +241,23 @@ public final class SystemDistributedKeyspace
         String query =
                 "INSERT INTO %s.%s (keyspace_name, columnfamily_name, id, parent_id, range_begin, range_end, coordinator, coordinator_port, participants, participants_v2, status, started_at) " +
                         "VALUES (   '%s',          '%s',              %s, %s,        '%s',        '%s',      '%s',        %d,               { '%s' },     { '%s' },        '%s',   to_timestamp(now()))";
-        String queryWithoutNewColumns =
-                "INSERT INTO %s.%s (keyspace_name, columnfamily_name, id, parent_id, range_begin, range_end, coordinator, participants, status, started_at) " +
-                        "VALUES (   '%s',          '%s',              %s, %s,        '%s',        '%s',      '%s',               { '%s' },        '%s',   to_timestamp(now()))";
 
         for (String cfname : cfnames)
         {
             for (Range<Token> range : commonRange.ranges)
             {
-                String fmtQry;
-                if (includeNewColumns)
-                {
-                    fmtQry = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, REPAIR_HISTORY,
-                                    keyspaceName,
-                                    cfname,
-                                    id.toString(),
-                                    parent_id.toString(),
-                                    range.left.toString(),
-                                    range.right.toString(),
-                                    coordinator.getHostAddress(false),
-                                    coordinator.getPort(),
-                                    Joiner.on("', '").join(participants),
-                                    Joiner.on("', '").join(participants_v2),
-                                    RepairState.STARTED.toString());
-                }
-                else
-                {
-                    fmtQry = format(queryWithoutNewColumns, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, REPAIR_HISTORY,
-                                    keyspaceName,
-                                    cfname,
-                                    id.toString(),
-                                    parent_id.toString(),
-                                    range.left.toString(),
-                                    range.right.toString(),
-                                    coordinator.getHostAddress(false),
-                                    Joiner.on("', '").join(participants),
-                                    RepairState.STARTED.toString());
-                }
+                String fmtQry = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, REPAIR_HISTORY,
+                                       keyspaceName,
+                                       cfname,
+                                       id.toString(),
+                                       parent_id.toString(),
+                                       range.left.toString(),
+                                       range.right.toString(),
+                                       coordinator.getHostAddress(false),
+                                       coordinator.getPort(),
+                                       Joiner.on("', '").join(participants),
+                                       Joiner.on("', '").join(participants_v2),
+                                       RepairState.STARTED.toString());
                 processSilent(fmtQry);
             }
         }

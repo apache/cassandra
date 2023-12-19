@@ -1621,7 +1621,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
     public void applyStateLocally(Map<InetAddressAndPort, EndpointState> epStateMap)
     {
         checkProperThreadForStateMutation();
-        boolean hasMajorVersion3Nodes = hasMajorVersion3Nodes();
         for (Entry<InetAddressAndPort, EndpointState> entry : order(epStateMap))
         {
             InetAddressAndPort ep = entry.getKey();
@@ -1636,8 +1635,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
 
             EndpointState localEpStatePtr = endpointStateMap.get(ep);
             EndpointState remoteState = entry.getValue();
-            if (!hasMajorVersion3Nodes)
-                remoteState.removeMajorVersion3LegacyApplicationStates();
 
             /*
                 If state does not exist just add it. If it does then add it if the remote generation is greater.
@@ -1672,7 +1669,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
                     if (remoteMaxVersion > localMaxVersion)
                     {
                         // apply states, but do not notify since there is no major change
-                        applyNewStates(ep, localEpStatePtr, remoteState, hasMajorVersion3Nodes);
+                        applyNewStates(ep, localEpStatePtr, remoteState);
                     }
                     else if (logger.isTraceEnabled())
                             logger.trace("Ignoring remote version {} <= {} for {}", remoteMaxVersion, localMaxVersion, ep);
@@ -1695,7 +1692,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         }
     }
 
-    private void applyNewStates(InetAddressAndPort addr, EndpointState localState, EndpointState remoteState, boolean hasMajorVersion3Nodes)
+    private void applyNewStates(InetAddressAndPort addr, EndpointState localState, EndpointState remoteState)
     {
         // don't assert here, since if the node restarts the version will go back to zero
         int oldVersion = localState.getHeartBeatState().getHeartBeatVersion();
@@ -1722,10 +1719,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
             }
         }
         localState.addApplicationStates(updatedStates);
-
-        // get rid of legacy fields once the cluster is not in mixed mode
-        if (!hasMajorVersion3Nodes)
-            localState.removeMajorVersion3LegacyApplicationStates();
 
         // need to run STATUS or STATUS_WITH_PORT first to handle BOOT_REPLACE correctly (else won't be a member, so TOKENS won't be processed)
         for (Entry<ApplicationState, VersionedValue> updatedEntry : updatedStates)
@@ -2451,18 +2444,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
             waited += toWait;
             toWait = Math.min(1000, toWait * 2);
         }
-    }
-
-    /**
-     * Returns {@code false} only if the information about the version of each node in the cluster is available and
-     * ALL the nodes are on 4.0+ (regardless of the patch version).
-     */
-    public boolean hasMajorVersion3Nodes()
-    {
-        return isUpgradingFromVersionLowerThan(CassandraVersion.CASSANDRA_4_0) || // this is quite obvious
-               // however if we discovered only nodes at current version so far (in particular only this node),
-               // but still there are nodes with unknown version, we also want to report that the cluster may have nodes at 3.x
-               upgradeInProgressPossible && !isUpgradingFromVersionLowerThan(SystemKeyspace.CURRENT_VERSION.familyLowerBound.get());
     }
 
     /**

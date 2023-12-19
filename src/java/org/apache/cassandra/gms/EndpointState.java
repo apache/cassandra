@@ -129,47 +129,6 @@ public class EndpointState
         }
     }
 
-    void removeMajorVersion3LegacyApplicationStates()
-    {
-        while (hasLegacyFields())
-        {
-            Map<ApplicationState, VersionedValue> orig = applicationState.get();
-            Map<ApplicationState, VersionedValue> updatedStates = filterMajorVersion3LegacyApplicationStates(orig);
-            // avoid updating if no state is removed
-            if (orig.size() == updatedStates.size()
-                || applicationState.compareAndSet(orig, updatedStates))
-                return;
-        }
-    }
-
-    private boolean hasLegacyFields()
-    {
-        Set<ApplicationState> statesPresent = applicationState.get().keySet();
-        if (statesPresent.isEmpty())
-            return false;
-        return (statesPresent.contains(ApplicationState.STATUS) && statesPresent.contains(ApplicationState.STATUS_WITH_PORT))
-               || (statesPresent.contains(ApplicationState.INTERNAL_IP) && statesPresent.contains(ApplicationState.INTERNAL_ADDRESS_AND_PORT))
-               || (statesPresent.contains(ApplicationState.RPC_ADDRESS) && statesPresent.contains(ApplicationState.NATIVE_ADDRESS_AND_PORT));
-    }
-
-    private static Map<ApplicationState, VersionedValue> filterMajorVersion3LegacyApplicationStates(Map<ApplicationState, VersionedValue> states)
-    {
-        return states.entrySet().stream().filter(entry -> {
-                // Filter out pre-4.0 versions of data for more complete 4.0 versions
-                switch (entry.getKey())
-                {
-                    case INTERNAL_IP:
-                        return !states.containsKey(ApplicationState.INTERNAL_ADDRESS_AND_PORT);
-                    case STATUS:
-                        return !states.containsKey(ApplicationState.STATUS_WITH_PORT);
-                    case RPC_ADDRESS:
-                        return !states.containsKey(ApplicationState.NATIVE_ADDRESS_AND_PORT);
-                    default:
-                        return true;
-                }
-            }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-    }
-
     /* getters and setters */
     /**
      * @return System.nanoTime() when state was updated last time.

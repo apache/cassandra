@@ -1082,7 +1082,7 @@ public class Util
 
     /**
      * Setups Gossiper to mimic the upgrade behaviour when {@link Gossiper#isUpgradingFromVersionLowerThan(CassandraVersion)}
-     * or {@link Gossiper#hasMajorVersion3Nodes()} is called.
+     * is called.
      */
     public static void setUpgradeFromVersion(String version)
     {
