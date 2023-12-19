@@ -40,6 +40,10 @@ import static java.util.Optional.of;
  */
 public class SystemInfo
 {
+    // TODO: Determine memlock limits if possible
+    // TODO: Determine if file system is remote or local
+    // TODO: Determine if disk latency is within acceptable limits
+    
     private static final Logger logger = LoggerFactory.getLogger(SystemInfo.class);
 
     private static final long INFINITY = -1L;
