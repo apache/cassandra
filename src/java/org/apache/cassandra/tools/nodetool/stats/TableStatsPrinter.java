@@ -86,7 +86,7 @@ public class TableStatsPrinter<T extends StatsHolder>
             out.println(indent + "Table" + (table.isIndex ? " (index): " : ": ") + tableDisplayName);
             out.println(indent + "SSTable count: " + table.sstableCount);
             out.println(indent + "Old SSTable count: " + table.oldSSTableCount);
-            out.println(indent + "Max SSTable size: " + formatMemory(table.maxSSTableSize, humanReadable));
+            out.println(indent + "Max SSTable size: " + formatDataSize(table.maxSSTableSize, humanReadable));
             if (table.twcs != null)
                 out.println(indent + "SSTables Time Window: " + table.twcs);
             if (table.isLeveledSstable)
@@ -122,9 +122,9 @@ public class TableStatsPrinter<T extends StatsHolder>
             out.println(indent + "Pending flushes: " + table.pendingFlushes);
             out.println(indent + "Percent repaired: " + table.percentRepaired);
 
-            out.println(indent +"Bytes repaired: " + formatMemory(table.bytesRepaired, humanReadable));
-            out.println(indent +"Bytes unrepaired: " + formatMemory(table.bytesUnrepaired, humanReadable));
-            out.println(indent +"Bytes pending repair: " + formatMemory(table.bytesPendingRepair, humanReadable));
+            out.println(indent + "Bytes repaired: " + formatDataSize(table.bytesRepaired, humanReadable));
+            out.println(indent + "Bytes unrepaired: " + formatDataSize(table.bytesUnrepaired, humanReadable));
+            out.println(indent + "Bytes pending repair: " + formatDataSize(table.bytesPendingRepair, humanReadable));
 
             out.println(indent + "Bloom filter false positives: " + table.bloomFilterFalsePositives);
             out.println(indent + "Bloom filter false ratio: " + FBUtilities.prettyPrintRatio(table.bloomFilterFalseRatio));
@@ -137,9 +137,9 @@ public class TableStatsPrinter<T extends StatsHolder>
             if (table.compressionMetadataOffHeapUsed)
                 out.println(indent + "Compression metadata off heap memory used: " + table.compressionMetadataOffHeapMemoryUsed);
 
-            out.println(indent + "Compacted partition minimum bytes: " + formatMemory(table.compactedPartitionMinimumBytes, humanReadable));
-            out.println(indent + "Compacted partition maximum bytes: " + formatMemory(table.compactedPartitionMaximumBytes, humanReadable));
-            out.println(indent + "Compacted partition mean bytes: " + formatMemory(table.compactedPartitionMeanBytes, humanReadable));
+            out.println(indent + "Compacted partition minimum bytes: " + formatDataSize(table.compactedPartitionMinimumBytes, humanReadable));
+            out.println(indent + "Compacted partition maximum bytes: " + formatDataSize(table.compactedPartitionMaximumBytes, humanReadable));
+            out.println(indent + "Compacted partition mean bytes: " + formatDataSize(table.compactedPartitionMeanBytes, humanReadable));
             out.println(indent + "Average live cells per slice (last five minutes): " +
                         FBUtilities.prettyPrintAverage(table.averageLiveCellsPerSliceLastFiveMinutes));
             out.println(indent + "Maximum live cells per slice (last five minutes): " + table.maximumLiveCellsPerSliceLastFiveMinutes);
@@ -169,7 +169,7 @@ public class TableStatsPrinter<T extends StatsHolder>
             out.println("");
         }
 
-        protected String formatMemory(long bytes, boolean humanReadable)
+        private String formatDataSize(long bytes, boolean humanReadable)
         {
             return humanReadable ? FileUtils.stringifyFileSize(bytes) : Long.toString(bytes);
         }
