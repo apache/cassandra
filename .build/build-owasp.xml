@@ -77,7 +77,7 @@
             failBuildOnCVSS is by default 11 so build would never fail,
             the table categorising vulnerabilities is here (1), so by setting
             "failBuildOnCVSS" to 1, we will fail the build on any CVE found
-            if it is not suppressed already dependency-check-suppressions.xml
+            if it is not suppressed already owasp/dependency-check-suppressions.xml
 
             If a vendor provides no details about a vulnerability,
             NVD will score that vulnerability as 10.0 (the highest rating translating to critical).
@@ -95,7 +95,7 @@
                           failBuildOnCVSS="1"
                           assemblyAnalyzerEnabled="false"
                           dataDirectory="${nvd.data.dir}"
-                          suppressionFile="${basedir}/.build/dependency-check-suppressions.xml">
+                          suppressionFile="${build.helpers.dir}/owasp/dependency-check-suppressions.xml">
             <fileset refid="dependencies_to_check"/>
         </dependency-check>
     </target>
