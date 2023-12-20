@@ -49,8 +49,6 @@ import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 /**
  * This is an in-memory index using the {@link InMemoryTrie} to store a {@link ByteComparable}
@@ -64,7 +62,6 @@ public class TrieMemoryIndex extends MemoryIndex
 
     private final InMemoryTrie<PrimaryKeys> data;
     private final PrimaryKeysReducer primaryKeysReducer;
-    private final boolean isLiteral;
 
     private ByteBuffer minTerm;
     private ByteBuffer maxTerm;
@@ -74,8 +71,6 @@ public class TrieMemoryIndex extends MemoryIndex
         super(index);
         this.data = new InMemoryTrie<>(TrieMemtable.BUFFER_TYPE);
         this.primaryKeysReducer = new PrimaryKeysReducer();
-        // The use of the analyzer is within a synchronized block so can be considered thread-safe
-        this.isLiteral = index.termType().isLiteral();
     }
 
     /**
@@ -176,7 +171,7 @@ public class TrieMemoryIndex extends MemoryIndex
             public Pair<ByteComparable, PrimaryKeys> next()
             {
                 Map.Entry<ByteComparable, PrimaryKeys> entry = iterator.next();
-                return Pair.create(decode(entry.getKey()), entry.getValue());
+                return Pair.create(entry.getKey(), entry.getValue());
             }
         };
     }
@@ -243,35 +238,7 @@ public class TrieMemoryIndex extends MemoryIndex
 
     private ByteComparable asComparableBytes(ByteBuffer input)
     {
-        return isLiteral ? version -> terminated(ByteSource.of(input, version))
-                         : version -> index.termType().asComparableBytes(input, version);
-    }
-
-    private ByteComparable decode(ByteComparable term)
-    {
-        return isLiteral ? version -> ByteSourceInverse.unescape(ByteSource.peekable(term.asComparableBytes(version)))
-                         : term;
-    }
-
-    private ByteSource terminated(ByteSource src)
-    {
-        return new ByteSource()
-        {
-            boolean done = false;
-
-            @Override
-            public int next()
-            {
-                if (done)
-                    return END_OF_STREAM;
-                int n = src.next();
-                if (n != END_OF_STREAM)
-                    return n;
-
-                done = true;
-                return ByteSource.TERMINATOR;
-            }
-        };
+        return version -> index.termType().asComparableBytes(input, version);
     }
 
     private KeyRangeIterator exactMatch(Expression expression, AbstractBounds<PartitionPosition> keyRange)

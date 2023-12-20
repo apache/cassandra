@@ -525,11 +525,15 @@ public class IndexTermType
     {
         if (isInetAddress() || isBigInteger() || isBigDecimal())
             return ByteSource.optionalFixedLength(ByteBufferAccessor.instance, value);
+        else if (isLong())
             // The LongType.asComparableBytes uses variableLengthInteger which doesn't play well with
             // the balanced tree because it is expecting fixed length data. So for SAI we use a optionalSignedFixedLengthNumber
             // to keep all comparable values the same length
-        else if (isLong())
             return ByteSource.optionalSignedFixedLengthNumber(ByteBufferAccessor.instance, value);
+        else if (isFrozen())
+            // We need to override the default frozen implementation here because it will defer to the underlying
+            // type's implementation which will be incorrect, for us, for the case of multi-cell types.
+            return ByteSource.of(value, version);
         return indexType.asComparableBytes(value, version);
     }
 

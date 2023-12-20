@@ -25,7 +25,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import com.carrotsearch.hppc.LongArrayList;
-import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
@@ -39,8 +38,7 @@ public class InvertedIndexBuilder
                                                        .distinct()
                                                        .limit(terms)
                                                        .sorted()
-                                                       .map(UTF8Type.instance::decompose)
-                                                       .map(ByteComparable::fixedLength)
+                                                       .map(ByteComparable::of)
                                                        .collect(toList());
 
         final List<Pair<ByteComparable, LongArrayList>> termsEnum = new ArrayList<>();

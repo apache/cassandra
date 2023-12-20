@@ -111,7 +111,7 @@ public class VectorMemoryIndexTest extends SAITester
     public void setup() throws Throwable
     {
         dimensionCount = getRandom().nextIntBetween(2, 2048);
-        index = SAITester.createMockIndex("index", VectorType.getInstance(FloatType.instance, dimensionCount));
+        index = SAITester.createMockIndex(VectorType.getInstance(FloatType.instance, dimensionCount));
         cfs = index.baseCfs();
         partitioner = cfs.getPartitioner();
         indexSearchCounter.reset();
