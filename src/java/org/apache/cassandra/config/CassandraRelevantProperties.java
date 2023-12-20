@@ -453,7 +453,7 @@ public enum CassandraRelevantProperties
     SAI_SORTED_TERMS_PARTITION_BLOCK_SHIFT("cassandra.sai.sorted_terms_partition_block_shift", "4"),
 
     SAI_TEST_BALANCED_TREE_DEBUG_ENABLED("cassandra.sai.test.balanced_tree_debug_enabled", "false"),
-    SAI_TEST_DISABLE_TIMEOUT("cassandra.sai.test.disable.timeout", "false"),
+    SAI_TEST_DISABLE_TIMEOUT("cassandra.sai.test.timeout_disabled", "false"),
 
     /** Whether to allow the user to specify custom options to the hnsw index */
     SAI_VECTOR_ALLOW_CUSTOM_PARAMETERS("cassandra.sai.vector.allow_custom_parameters", "false"),
