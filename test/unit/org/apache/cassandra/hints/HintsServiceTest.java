@@ -99,6 +99,12 @@ public class HintsServiceTest
         MessagingService.instance().inboundSink.clear();
         MessagingService.instance().outboundSink.clear();
 
+        // Hint service has to know the endpoint version to be able to send the hints. Otherwise,
+        // it wouldn't be able to make a decision whether to decode (rewrap) or not.
+        MessagingService.instance().versions.set(
+            HintsEndpointProvider.instance.endpointForHost(StorageService.instance.getLocalHostUUID()),
+            MessagingService.current_version);
+
         if (!HintsService.instance.isShutDown())
         {
             HintsService.instance.shutdownBlocking();

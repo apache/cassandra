@@ -18,6 +18,7 @@
 package org.apache.cassandra.hints;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -272,7 +273,15 @@ final class HintsDispatchExecutor
             InputPosition offset = store.getDispatchOffset(descriptor);
 
             BooleanSupplier shouldAbort = () -> !isAlive.test(descriptor.hostId) || isPaused.get();
-            try (HintsDispatcher dispatcher = HintsDispatcher.create(file, rateLimiter, address, descriptor.hostId, shouldAbort))
+
+            Optional<Integer> optVersion = HintsEndpointProvider.instance.versionForEndpoint(address);
+            if (optVersion.isEmpty())
+            {
+                logger.debug("Cannot deliver handoff to endpoint {}: its version is unknown. This should be temporary.", address);
+                return false;
+            }
+
+            try (HintsDispatcher dispatcher = HintsDispatcher.create(file, rateLimiter, address, descriptor.hostId, optVersion.get(), shouldAbort))
             {
                 if (offset != null)
                     dispatcher.seek(offset);

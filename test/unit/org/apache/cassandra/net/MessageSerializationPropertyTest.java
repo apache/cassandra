@@ -105,7 +105,7 @@ public class MessageSerializationPropertyTest implements Serializable
                         FixedMonotonicClock.setNowInNanos(message.createdAtNanos());
 
                         serializer.serialize(message, first, version.value);
-                        Message<Object> read = serializer.deserialize(new DataInputBuffer(first.buffer(), true), FBUtilities.getBroadcastAddressAndPort(), version.value);
+                        Message<Object> read = serializer.deserialize(new DataInputBuffer(first.buffer(), true), message.from(), version.value);
                         serializer.serialize(read, second, version.value);
                         // using hex as byte buffer equality kept failing, and was harder to debug difference
                         // using hex means the specific section of the string that is different will be shown

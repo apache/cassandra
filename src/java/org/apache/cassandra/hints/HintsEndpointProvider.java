@@ -17,11 +17,16 @@
  */
 package org.apache.cassandra.hints;
 
+import java.util.Optional;
 import java.util.UUID;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.EndpointMessagingVersions;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
@@ -34,6 +39,8 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.CUSTOM_HIN
  */
 public interface HintsEndpointProvider
 {
+    static final Logger LOGGER = LoggerFactory.getLogger(HintsDispatcher.class);
+
     HintsEndpointProvider instance = CUSTOM_HINTS_ENDPOINT_PROVIDER.isPresent()
                                      ? FBUtilities.construct(CUSTOM_HINTS_ENDPOINT_PROVIDER.getString(),
                                                              "Hinted Handoff Endpoint Provider")
@@ -47,7 +54,7 @@ public interface HintsEndpointProvider
 
     UUID hostForEndpoint(InetAddressAndPort endpoint);
 
-    int versionForEndpoint(InetAddressAndPort endpoint);
+    Optional<Integer> versionForEndpoint(InetAddressAndPort endpoint);
 
     class DefaultHintsEndpointProvider implements HintsEndpointProvider
     {
@@ -64,9 +71,21 @@ public interface HintsEndpointProvider
         }
 
         @Override
-        public int versionForEndpoint(InetAddressAndPort endpoint)
+        public Optional<Integer> versionForEndpoint(InetAddressAndPort endpoint)
         {
-            return MessagingService.instance().versions.get(endpoint);
+            EndpointMessagingVersions versions = MessagingService.instance().versions;
+            if (versions.knows(endpoint))
+            {
+                try
+                {
+                    return Optional.of(versions.getRaw(endpoint));
+                }
+                catch (Exception e)
+                {
+                    LOGGER.debug("Failed to get raw version for endpoint {}", endpoint, e);
+                }
+            }
+            return Optional.empty();
         }
 
         @Override

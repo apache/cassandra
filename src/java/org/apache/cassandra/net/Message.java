@@ -669,7 +669,7 @@ public class Message<T>
 
         public <T> Message<T> deserialize(DataInputPlus in, InetAddressAndPort peer, int version) throws IOException
         {
-            return version >= VERSION_40 ? deserializePost40(in, peer, version) : deserializePre40(in, version);
+            return version >= VERSION_40 ? deserializePost40(in, peer, version) : deserializePre40(in, peer, version);
         }
 
         /**
@@ -710,7 +710,7 @@ public class Message<T>
         {
             return version >= VERSION_40
                  ? extractHeaderPost40(buf, from, currentTimeNanos, version)
-                 : extractHeaderPre40(buf, currentTimeNanos, version);
+                 : extractHeaderPre40(buf, from, currentTimeNanos, version);
         }
 
         private static long getExpiresAtNanos(long createdAtNanos, long currentTimeNanos, long expirationPeriodNanos)
@@ -889,18 +889,19 @@ public class Message<T>
             serializeParams(addFlagsToLegacyParams(header.params, header.flags), out, version);
         }
 
-        private Header deserializeHeaderPre40(DataInputPlus in, int version) throws IOException
+        private Header deserializeHeaderPre40(DataInputPlus in, InetAddressAndPort peer, int version) throws IOException
         {
             validateLegacyProtocolMagic(in.readInt());
             int id = in.readInt();
             long currentTimeNanos = approxTime.now();
             MonotonicClockTranslation timeSnapshot = approxTime.translate();
             long creationTimeNanos = calculateCreationTimeNanos(in.readInt(), timeSnapshot, currentTimeNanos);
-            InetAddressAndPort from = inetAddressAndPortSerializer.deserialize(in, version);
+            // skip from field
+            inetAddressAndPortSerializer.deserialize(in, version);
             Verb verb = Verb.fromId(in.readInt());
             Map<ParamType, Object> params = deserializeParams(in, version);
             int flags = removeFlagsFromLegacyParams(params);
-            return new Header(id, verb, from, creationTimeNanos, verb.expiresAtNanos(creationTimeNanos), flags, params);
+            return new Header(id, verb, peer, creationTimeNanos, verb.expiresAtNanos(creationTimeNanos), flags, params);
         }
 
         private static final int PRE_40_MESSAGE_PREFIX_SIZE = 12; // protocol magic + id + createdAt
@@ -923,7 +924,7 @@ public class Message<T>
             return Ints.checkedCast(size);
         }
 
-        private Header extractHeaderPre40(ByteBuffer buf, long currentTimeNanos, int version) throws IOException
+        private Header extractHeaderPre40(ByteBuffer buf, InetAddressAndPort peer, long currentTimeNanos, int version) throws IOException
         {
             MonotonicClockTranslation timeSnapshot = approxTime.translate();
 
@@ -937,7 +938,8 @@ public class Message<T>
             int createdAtMillis = buf.getInt(index);
             index += 4;
 
-            InetAddressAndPort from = inetAddressAndPortSerializer.extract(buf, index);
+            // skip 'from' field and use the provided one instead
+            inetAddressAndPortSerializer.extract(buf, index);
             index += 1 + buf.get(index);
 
             Verb verb = Verb.fromId(buf.getInt(index));
@@ -949,7 +951,7 @@ public class Message<T>
             long createdAtNanos = calculateCreationTimeNanos(createdAtMillis, timeSnapshot, currentTimeNanos);
             long expiresAtNanos = verb.expiresAtNanos(createdAtNanos);
 
-            return new Header(id, verb, from, createdAtNanos, expiresAtNanos, flags, params);
+            return new Header(id, verb, peer, createdAtNanos, expiresAtNanos, flags, params);
         }
 
         private <T> void serializePre40(Message<T> message, DataOutputPlus out, int version) throws IOException
@@ -971,9 +973,9 @@ public class Message<T>
             }
         }
 
-        private <T> Message<T> deserializePre40(DataInputPlus in, int version) throws IOException
+        private <T> Message<T> deserializePre40(DataInputPlus in, InetAddressAndPort peer, int version) throws IOException
         {
-            Header header = deserializeHeaderPre40(in, version);
+            Header header = deserializeHeaderPre40(in, peer, version);
             return deserializePre40(in, header, false, version);
         }
 

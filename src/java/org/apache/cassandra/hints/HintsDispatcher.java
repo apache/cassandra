@@ -69,10 +69,14 @@ final class HintsDispatcher implements AutoCloseable
         this.abortRequested = abortRequested;
     }
 
-    static HintsDispatcher create(File file, RateLimiter rateLimiter, InetAddressAndPort address, UUID hostId, BooleanSupplier abortRequested)
+    static HintsDispatcher create(File file,
+                                  RateLimiter rateLimiter,
+                                  InetAddressAndPort address,
+                                  UUID hostId,
+                                  int peerMessagingVersion,
+                                  BooleanSupplier abortRequested)
     {
-        int messagingVersion = HintsEndpointProvider.instance.versionForEndpoint(address);
-        HintsDispatcher dispatcher = new HintsDispatcher(HintsReader.open(file, rateLimiter), hostId, address, messagingVersion, abortRequested);
+        HintsDispatcher dispatcher = new HintsDispatcher(HintsReader.open(file, rateLimiter), hostId, address, peerMessagingVersion, abortRequested);
         HintDiagnostics.dispatcherCreated(dispatcher);
         return dispatcher;
     }

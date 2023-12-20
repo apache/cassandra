@@ -111,7 +111,8 @@ public final class HintMessage implements SerializableHintMessage
                 Encoded message = (Encoded) obj;
 
                 if (version != message.version)
-                    throw new IllegalArgumentException("serializedSize() called with non-matching version " + version);
+                    throw new IllegalArgumentException("serializedSize() called with non-matching version " + version +
+                                                       " for message with version " + message.version);
 
                 long size = UUIDSerializer.serializer.serializedSize(message.hostId, version);
                 size += TypeSizes.sizeofUnsignedVInt(message.hint.remaining());

@@ -64,7 +64,7 @@ public class EndpointMessagingVersions
         if (v == null)
         {
             // we don't know the version. assume current. we'll know soon enough if that was incorrect.
-            logger.trace("Assuming current protocol version for {}", endpoint);
+            logger.debug("Assuming current protocol version for {}", endpoint);
             return MessagingService.current_version;
         }
         else
