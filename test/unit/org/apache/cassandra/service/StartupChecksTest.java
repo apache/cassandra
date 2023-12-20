@@ -75,6 +75,10 @@ public class StartupChecksTest
 {
     static
     {
+        // This test was failing because in the middle of file deletions in @Before hook, it happened that some
+        // thread modified system.local table. Each change to system.local is immediately flushed to disk. Creation
+        // of those new files when the directory was being deleted caused the test to fail occasionally.
+        // The property below disables flushing system.local after each change.
         CassandraRelevantProperties.UNSAFE_SYSTEM.setBoolean(true);
     }
 
