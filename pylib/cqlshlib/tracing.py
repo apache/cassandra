@@ -14,8 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime
-import time
+from datetime import datetime, timezone
 
 from cassandra.query import QueryTrace, TraceUnavailable
 from cqlshlib.displaying import MAGENTA
@@ -85,6 +84,8 @@ def total_micro_seconds(td):
 
 
 def datetime_from_utc_to_local(utc_datetime):
-    now_timestamp = time.time()
-    offset = datetime.fromtimestamp(now_timestamp) - datetime.utcfromtimestamp(now_timestamp)
-    return utc_datetime + offset
+    """
+    Convert a naive UTC datetime to the local timezone.
+    This is necessary because the driver always returns naive datetime objects.
+    """
+    return utc_datetime.replace(tzinfo=timezone.utc).astimezone()
