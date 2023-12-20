@@ -46,7 +46,8 @@ public class Operation
 {
     public enum BooleanOperator
     {
-        AND((a, b) -> a & b);
+        AND((a, b) -> a & b),
+        OR((a, b) -> a | b);
 
         private final BiFunction<Boolean, Boolean, Boolean> func;
 
@@ -277,9 +278,9 @@ public class Operation
      *
      * @return root of the filter tree.
      */
-    static FilterTree buildFilter(QueryController controller)
+    static FilterTree buildFilter(QueryController controller, boolean strict)
     {
-        return Node.buildTree(controller.filterOperation()).buildFilter(controller);
+        return Node.buildTree(controller.filterOperation()).buildFilter(controller, strict);
     }
 
     static abstract class Node
@@ -308,7 +309,7 @@ public class Operation
 
         abstract void analyze(List<RowFilter.Expression> expressionList, QueryController controller);
 
-        abstract FilterTree filterTree();
+        abstract FilterTree filterTree(boolean strict);
 
         abstract KeyRangeIterator rangeIterator(QueryController controller);
 
@@ -347,13 +348,13 @@ public class Operation
             }
         }
 
-        FilterTree buildFilter(QueryController controller)
+        FilterTree buildFilter(QueryController controller, boolean strict)
         {
             analyzeTree(controller);
-            FilterTree tree = filterTree();
+            FilterTree tree = filterTree(strict);
             for (Node child : children())
                 if (child.canFilter())
-                    tree.addChild(child.buildFilter(controller));
+                    tree.addChild(child.buildFilter(controller, strict));
             return tree;
         }
     }
@@ -384,9 +385,10 @@ public class Operation
         }
 
         @Override
-        FilterTree filterTree()
+        FilterTree filterTree(boolean strict)
         {
-            return new FilterTree(BooleanOperator.AND, expressionMap);
+            // TODO: Push down strict evaluation to the filter tree, where we can actually identify partial updates
+            return new FilterTree(strict ? BooleanOperator.AND : BooleanOperator.OR, expressionMap);
         }
 
         @Override
@@ -411,11 +413,13 @@ public class Operation
         public void analyze(List<RowFilter.Expression> expressionList, QueryController controller)
         {
             expressionMap = buildIndexExpressions(controller, expressionList);
+            assert expressionMap.size() == 1 : "Expression nodes should only have a single expression!";
         }
 
         @Override
-        FilterTree filterTree()
+        FilterTree filterTree(boolean strict)
         {
+            // There should only be one expression, so AND/OR would both work here. 
             return new FilterTree(BooleanOperator.AND, expressionMap);
         }
 

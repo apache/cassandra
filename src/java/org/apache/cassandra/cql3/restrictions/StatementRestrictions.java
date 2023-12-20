@@ -779,7 +779,10 @@ public final class StatementRestrictions
         if (filterRestrictions.isEmpty())
             return RowFilter.none();
 
-        RowFilter filter = RowFilter.create();
+        ConsistencyLevel cl = options.getConsistency();
+        boolean isStrict = cl == ConsistencyLevel.ONE || cl == ConsistencyLevel.LOCAL_ONE || cl == ConsistencyLevel.NODE_LOCAL;
+
+        RowFilter filter = RowFilter.create(isStrict);
         for (Restrictions restrictions : filterRestrictions.getRestrictions())
             restrictions.addToRowFilter(filter, indexRegistry, options);
 

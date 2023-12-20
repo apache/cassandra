@@ -75,6 +75,8 @@ public class FilterTree
 
         final long now = FBUtilities.nowInSeconds();
         boolean result = op == BooleanOperator.AND;
+        
+        // TODO: Examine the timestamps from queried columns and determine whether we actually want strict evaluation.
 
         Iterator<ColumnMetadata> columnIterator = expressions.keySet().iterator();
         while (columnIterator.hasNext())
@@ -107,6 +109,11 @@ public class FilterTree
                 // If the operation is an AND then exit early if we get a single false
                 if (op == BooleanOperator.AND && !result)
                     return false;
+
+                // TODO: Test this in OperationTest?
+                // If the operation is an OR then exit early if we get a single true
+                if (op == BooleanOperator.OR && result)
+                    return true;
             }
         }
         return result;

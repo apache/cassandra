@@ -54,6 +54,7 @@ import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class StorageAttachedIndexSearcher implements Index.Searcher
 {
@@ -84,7 +85,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         for (RowFilter.Expression expression : queryController.filterOperation())
         {
             if (queryController.hasAnalyzer(expression))
-                return applyIndexFilter(fullResponse, Operation.buildFilter(queryController), queryContext);
+                return applyIndexFilter(fullResponse, Operation.buildFilter(queryController, true), queryContext);
         }
 
         // if no analyzer does transformation
@@ -140,7 +141,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             this.keyRanges = queryController.dataRanges().iterator();
             this.currentKeyRange = keyRanges.next().keyRange();
             this.resultKeyIterator = Operation.buildIterator(queryController);
-            this.filterTree = Operation.buildFilter(queryController);
+            this.filterTree = Operation.buildFilter(queryController, queryController.usesStrictFiltering());
             this.queryController = queryController;
             this.executionController = executionController;
             this.queryContext = queryContext;
@@ -204,6 +205,8 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         {
             PrimaryKey key = nextKey();
 
+            System.err.println("nextKeyInRange() gets " + key + " on " + FBUtilities.getLocalAddressAndPort());
+            
             while (key != null && !(currentKeyRange.contains(key.partitionKey())))
             {
                 if (!currentKeyRange.right.isMinimum() && currentKeyRange.right.compareTo(key.partitionKey()) <= 0)
@@ -382,6 +385,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
 
         private UnfilteredRowIterator applyIndexFilter(PrimaryKey key, UnfilteredRowIterator partition, FilterTree tree, QueryContext queryContext)
         {
+            System.err.println("Filtered primary key " + key + " on " + FBUtilities.getLocalAddressAndPort());
             Row staticRow = partition.staticRow();
 
             List<Unfiltered> clusters = new ArrayList<>();
@@ -392,6 +396,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             while (partition.hasNext())
             {
                 Unfiltered row = partition.next();
+                System.err.println("Filtered row " + row + " on " + FBUtilities.getLocalAddressAndPort());
 
                 queryContext.rowsFiltered++;
                 if (tree.isSatisfiedBy(partition.partitionKey(), row, staticRow))

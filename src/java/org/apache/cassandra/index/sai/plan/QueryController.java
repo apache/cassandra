@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.plan;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -127,6 +128,11 @@ public class QueryController
     {
         return this.filterOperation;
     }
+    
+    public boolean usesStrictFiltering()
+    {
+        return command.rowFilter().isStrict();
+    }
 
     /**
      * @return token ranges used in the read command
@@ -171,33 +177,65 @@ public class QueryController
      * the {@link SSTableIndex}s that will satisfy the expression.
      * <p>
      * Each (expression, SSTable indexes) pair is then passed to
-     * {@link IndexSearchResultIterator#build(Expression, Collection, AbstractBounds, QueryContext)}
+     * {@link IndexSearchResultIterator#build(Expression, Collection, AbstractBounds, QueryContext, boolean)}
      * to search the in-memory index associated with the expression and the SSTable indexes, the results of
      * which are unioned and returned.
      * <p>
-     * The results from each call to {@link IndexSearchResultIterator#build(Expression, Collection, AbstractBounds, QueryContext)}
-     * are added to a {@link KeyRangeIntersectionIterator} and returned.
+     * The results from each call to {@link IndexSearchResultIterator#build(Expression, Collection, AbstractBounds, QueryContext, boolean)}
+     * are added to either a {@link KeyRangeIntersectionIterator} (if strict filtering is enabled) or a 
+     * {@link KeyRangeUnionIterator} (if strict filtering is not enabled) and returned.
+     * 
+     * TODO: Restructure this method comment a bit once things settle
      */
     public KeyRangeIterator.Builder getIndexQueryResults(Collection<Expression> expressions)
     {
         // VSTODO move ANN out of expressions and into its own abstraction? That will help get generic ORDER BY support
         expressions = expressions.stream().filter(e -> e.getIndexOperator() != Expression.IndexOperator.ANN).collect(Collectors.toList());
 
-        KeyRangeIterator.Builder builder = KeyRangeIntersectionIterator.builder(expressions.size());
-
-        QueryViewBuilder queryViewBuilder = new QueryViewBuilder(expressions, mergeRange);
-
-        QueryViewBuilder.QueryView queryView = queryViewBuilder.build();
+        KeyRangeIterator.Builder builder = command.rowFilter().isStrict()
+                                           ? KeyRangeIntersectionIterator.builder(expressions.size())
+                                           : KeyRangeUnionIterator.builder(expressions.size());
+        QueryViewBuilder.QueryView queryView = new QueryViewBuilder(expressions, mergeRange).build();
 
         try
         {
             maybeTriggerGuardrails(queryView);
 
-            for (Pair<Expression, Collection<SSTableIndex>> queryViewPair : queryView.view)
+            if (command.rowFilter().isStrict())
             {
-                KeyRangeIterator indexIterator = IndexSearchResultIterator.build(queryViewPair.left, queryViewPair.right, mergeRange, queryContext);
+                // If strict filtering is enabled, evaluate indexes for both repaired and un-repaired SSTables together.
+                // This usually means we are making this local index query in the context of a user query that reads 
+                // from a single replica and thus can safely perform local intersections.
+                for (Pair<Expression, Collection<SSTableIndex>> queryViewPair : queryView.view)
+                    builder.add(IndexSearchResultIterator.build(queryViewPair.left, queryViewPair.right, mergeRange, queryContext, true));
+            }
+            else
+            {
+                KeyRangeIterator.Builder repairedBuilder = KeyRangeIntersectionIterator.builder(expressions.size());
 
-                builder.add(indexIterator);
+                for (Pair<Expression, Collection<SSTableIndex>> queryViewPair : queryView.view)
+                {
+                    // TODO: can we size these any more intelligently?
+                    List<SSTableIndex> repaired = new ArrayList<>();
+                    List<SSTableIndex> unrepaired = new ArrayList<>();
+
+                    // Split SSTable indexes into repaired and un-reparired:
+                    for (SSTableIndex index : queryViewPair.right)
+                        if (index.getSSTable().isRepaired())
+                            repaired.add(index);
+                        else
+                            unrepaired.add(index);
+
+                    // Always build an iterator for the un-repaired set, given this must include Memtable indexes...  
+                    builder.add(IndexSearchResultIterator.build(queryViewPair.left, unrepaired, mergeRange, queryContext, true));
+
+                    // ...then only add an iterator to the repaired intersection if repaired SSTable indexes exist. 
+                    if (!repaired.isEmpty())
+                        repairedBuilder.add(IndexSearchResultIterator.build(queryViewPair.left, repaired, mergeRange, queryContext, false));
+                }
+
+                if (repairedBuilder.rangeCount() > 0)
+                    builder.add(repairedBuilder.build());
             }
         }
         catch (Throwable t)

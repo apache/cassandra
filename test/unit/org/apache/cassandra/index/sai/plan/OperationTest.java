@@ -157,7 +157,7 @@ public class OperationTest
         final ColumnMetadata age = getColumn(UTF8Type.instance.decompose("age"));
 
         Operation.Node node = new Operation.ExpressionNode(new SimpleExpression(age, Operator.EQ, Int32Type.instance.decompose(5)));
-        FilterTree filterTree = node.buildFilter(controller);
+        FilterTree filterTree = node.buildFilter(controller, true);
 
         DecoratedKey key = buildKey("0");
         Unfiltered row = buildRow(buildCell(age, instance.decompose(6), System.currentTimeMillis()));
@@ -177,7 +177,7 @@ public class OperationTest
         node = new Operation.AndNode();
         node.add(new Operation.ExpressionNode(new SimpleExpression(age, Operator.GT, Int32Type.instance.decompose(1))));
         node.add(new Operation.ExpressionNode(new SimpleExpression(age, Operator.LTE, Int32Type.instance.decompose(10))));
-        filterTree = node.buildFilter(controller);
+        filterTree = node.buildFilter(controller, true);
 
         Set<Integer> exclusions = Sets.newHashSet(0, 1, 11);
         for (int i = 0; i <= 11; i++)
@@ -194,7 +194,7 @@ public class OperationTest
         node.add(new Operation.ExpressionNode(new SimpleExpression(age, Operator.GTE, Int32Type.instance.decompose(0))));
         node.add(new Operation.ExpressionNode(new SimpleExpression(age, Operator.LT, Int32Type.instance.decompose(10))));
 
-        filterTree = node.buildFilter(controller);
+        filterTree = node.buildFilter(controller, true);
 
         for (int i = 0; i < 10; i++)
         {
@@ -209,7 +209,7 @@ public class OperationTest
         node.add(new Operation.ExpressionNode(new SimpleExpression(timestamp, Operator.GTE, LongType.instance.decompose(10L))));
         node.add(new Operation.ExpressionNode(new SimpleExpression(age, Operator.EQ, Int32Type.instance.decompose(5))));
 
-        filterTree = node.buildFilter(controller);
+        filterTree = node.buildFilter(controller, true);
 
         row = buildRow(buildCell(age, instance.decompose(6), System.currentTimeMillis()),
                                   buildCell(timestamp, LongType.instance.decompose(11L), System.currentTimeMillis()));
@@ -283,46 +283,46 @@ public class OperationTest
         node.add(new Operation.ExpressionNode(new SimpleExpression(age, Operator.EQ, Int32Type.instance.decompose(27))));
         node.add(new Operation.ExpressionNode(new SimpleExpression(height, Operator.EQ, Int32Type.instance.decompose(182))));
 
-        assertTrue(node.buildFilter(controllerClustering).isSatisfiedBy(key, row, staticRow));
+        assertTrue(node.buildFilter(controllerClustering, true).isSatisfiedBy(key, row, staticRow));
 
         node = new Operation.AndNode();
 
         node.add(new Operation.ExpressionNode(new SimpleExpression(age, Operator.EQ, Int32Type.instance.decompose(28))));
         node.add(new Operation.ExpressionNode(new SimpleExpression(height, Operator.EQ, Int32Type.instance.decompose(182))));
 
-        assertFalse(node.buildFilter(controllerClustering).isSatisfiedBy(key, row, staticRow));
+        assertFalse(node.buildFilter(controllerClustering, true).isSatisfiedBy(key, row, staticRow));
 
         node = new Operation.AndNode();
         node.add(new Operation.ExpressionNode(new SimpleExpression(location, Operator.EQ, UTF8Type.instance.decompose("US"))));
         node.add(new Operation.ExpressionNode(new SimpleExpression(age, Operator.GTE, Int32Type.instance.decompose(27))));
 
-        assertTrue(node.buildFilter(controllerClustering).isSatisfiedBy(key, row, staticRow));
+        assertTrue(node.buildFilter(controllerClustering, true).isSatisfiedBy(key, row, staticRow));
 
         node = new Operation.AndNode();
         node.add(new Operation.ExpressionNode(new SimpleExpression(location, Operator.EQ, UTF8Type.instance.decompose("BY"))));
         node.add(new Operation.ExpressionNode(new SimpleExpression(age, Operator.GTE, Int32Type.instance.decompose(28))));
 
-        assertFalse(node.buildFilter(controllerClustering).isSatisfiedBy(key, row, staticRow));
+        assertFalse(node.buildFilter(controllerClustering, true).isSatisfiedBy(key, row, staticRow));
 
         node = new Operation.AndNode();
         node.add(new Operation.ExpressionNode(new SimpleExpression(location, Operator.EQ, UTF8Type.instance.decompose("US"))));
         node.add(new Operation.ExpressionNode(new SimpleExpression(age, Operator.LTE, Int32Type.instance.decompose(27))));
         node.add(new Operation.ExpressionNode(new SimpleExpression(height, Operator.GTE, Int32Type.instance.decompose(182))));
 
-        assertTrue(node.buildFilter(controllerClustering).isSatisfiedBy(key, row, staticRow));
+        assertTrue(node.buildFilter(controllerClustering, true).isSatisfiedBy(key, row, staticRow));
 
         node = new Operation.AndNode();
         node.add(new Operation.ExpressionNode(new SimpleExpression(location, Operator.EQ, UTF8Type.instance.decompose("US"))));
         node.add(new Operation.ExpressionNode(new SimpleExpression(height, Operator.GTE, Int32Type.instance.decompose(182))));
         node.add(new Operation.ExpressionNode(new SimpleExpression(score, Operator.EQ, DoubleType.instance.decompose(1.0d))));
 
-        assertTrue(node.buildFilter(controllerClustering).isSatisfiedBy(key, row, staticRow));
+        assertTrue(node.buildFilter(controllerClustering, true).isSatisfiedBy(key, row, staticRow));
 
         node = new Operation.AndNode();
         node.add(new Operation.ExpressionNode(new SimpleExpression(height, Operator.GTE, Int32Type.instance.decompose(182))));
         node.add(new Operation.ExpressionNode(new SimpleExpression(score, Operator.EQ, DoubleType.instance.decompose(1.0d))));
 
-        assertTrue(node.buildFilter(controllerClustering).isSatisfiedBy(key, row, staticRow));
+        assertTrue(node.buildFilter(controllerClustering, true).isSatisfiedBy(key, row, staticRow));
     }
 
     private Map<Expression.IndexOperator, Expression> convert(Multimap<ColumnMetadata, Expression> expressions)
@@ -355,14 +355,14 @@ public class OperationTest
         node.add(new Operation.ExpressionNode(new SimpleExpression(sensorType, Operator.EQ, UTF8Type.instance.decompose("TEMPERATURE"))));
         node.add(new Operation.ExpressionNode(new SimpleExpression(value, Operator.EQ, DoubleType.instance.decompose(24.56))));
 
-        assertTrue(node.buildFilter(controllerStatic).isSatisfiedBy(key, row, staticRow));
+        assertTrue(node.buildFilter(controllerStatic, true).isSatisfiedBy(key, row, staticRow));
 
         // sensor_type ='TEMPERATURE' AND value = 30
         node = new Operation.AndNode();
         node.add(new Operation.ExpressionNode(new SimpleExpression(sensorType, Operator.EQ, UTF8Type.instance.decompose("TEMPERATURE"))));
         node.add(new Operation.ExpressionNode(new SimpleExpression(value, Operator.EQ, DoubleType.instance.decompose(30.00))));
 
-        assertFalse(node.buildFilter(controllerStatic).isSatisfiedBy(key, row, staticRow));
+        assertFalse(node.buildFilter(controllerStatic, true).isSatisfiedBy(key, row, staticRow));
     }
 
     public static TableMetadata.Builder skinnySAITableMetadata(String keyspace, String table)

@@ -68,19 +68,22 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
     protected final List<Expression> expressions;
 
-    protected RowFilter(List<Expression> expressions)
+    private final boolean isStrict;
+
+    protected RowFilter(List<Expression> expressions, boolean isStrict)
     {
         this.expressions = expressions;
+        this.isStrict = isStrict;
     }
 
-    public static RowFilter create()
+    public static RowFilter create(boolean isStrict)
     {
-        return new CQLFilter(new ArrayList<>());
+        return new CQLFilter(new ArrayList<>(), isStrict);
     }
 
     public static RowFilter create(int capacity)
     {
-        return new CQLFilter(new ArrayList<>(capacity));
+        return new CQLFilter(new ArrayList<>(capacity), true);
     }
 
     public static RowFilter none()
@@ -119,6 +122,11 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
     public List<Expression> getExpressions()
     {
         return expressions;
+    }
+
+    public boolean isStrict()
+    {
+        return isStrict;
     }
 
     /**
@@ -314,11 +322,11 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
     private static class CQLFilter extends RowFilter
     {
-        static CQLFilter NONE = new CQLFilter(Collections.emptyList());
+        static CQLFilter NONE = new CQLFilter(Collections.emptyList(), false);
 
-        private CQLFilter(List<Expression> expressions)
+        private CQLFilter(List<Expression> expressions, boolean useStrictFiltering)
         {
-            super(expressions);
+            super(expressions, useStrictFiltering);
         }
 
         protected Transformation<BaseRowIterator<?>> filter(TableMetadata metadata, long nowInSec)
@@ -382,7 +390,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
         protected RowFilter withNewExpressions(List<Expression> expressions)
         {
-            return new CQLFilter(expressions);
+            return new CQLFilter(expressions, isStrict());
         }
     }
 
@@ -1058,7 +1066,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
         }
 
-        public RowFilter deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
+        public RowFilter deserialize(DataInputPlus in, int version, TableMetadata metadata, boolean useStrictFiltering) throws IOException
         {
             in.readBoolean(); // Unused
             int size = in.readUnsignedVInt32();
@@ -1066,7 +1074,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             for (int i = 0; i < size; i++)
                 expressions.add(Expression.serializer.deserialize(in, version, metadata));
 
-            return new CQLFilter(expressions);
+            return new CQLFilter(expressions, useStrictFiltering);
         }
 
         public long serializedSize(RowFilter filter, int version)
