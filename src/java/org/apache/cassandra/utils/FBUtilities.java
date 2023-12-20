@@ -434,7 +434,7 @@ public class FBUtilities
         {
             JVMStabilityInspector.inspectThrowable(e);
             logger.warn("Unable to load version.properties", e);
-            return null;
+            return "debug version";
         }
     });
 
