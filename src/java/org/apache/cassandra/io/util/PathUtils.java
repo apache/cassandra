@@ -37,13 +37,16 @@ import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -62,6 +65,7 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static java.nio.file.StandardOpenOption.APPEND;
@@ -365,6 +369,7 @@ public final class PathUtils
             if (result != 0 && Files.exists(path))
             {
                 logger.error("{} returned:\nstdout:\n{}\n\nstderr:\n{}", Arrays.toString(cmd), out, err);
+                logger.error(FBUtilities.exec(Map.of(), Duration.ofSeconds(5), 10240, 1024, "ls",  "-lR", path.toAbsolutePath().toString()));
                 throw new IOException(String.format("%s returned non-zero exit code: %d%nstdout:%n%s%n%nstderr:%n%s", Arrays.toString(cmd), result, out, err));
             }
 
@@ -374,7 +379,7 @@ public final class PathUtils
         {
             throw propagateUnchecked(e, path, true);
         }
-        catch (InterruptedException e)
+        catch (InterruptedException | TimeoutException e)
         {
             Thread.currentThread().interrupt();
             throw new FSWriteError(e, path);

@@ -41,6 +41,7 @@ import org.junit.Test;
 
 import com.vdurmont.semver4j.Semver;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.StartupChecksOptions;
@@ -72,6 +73,11 @@ import static org.mockito.Mockito.when;
 
 public class StartupChecksTest
 {
+    static
+    {
+        CassandraRelevantProperties.UNSAFE_SYSTEM.setBoolean(true);
+    }
+
     StartupChecks startupChecks;
     Path sstableDir;
     static File heartbeatFile;
