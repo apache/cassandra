@@ -20,12 +20,7 @@ package org.apache.cassandra.simulator;
 
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.simulator.FutureActionScheduler;
 import org.apache.cassandra.simulator.systems.SimulatedTime;
-import org.apache.cassandra.simulator.utils.LongRange;
-
-import static java.util.concurrent.TimeUnit.MICROSECONDS;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 /**
  * Action scheduler that simulates ideal networking conditions. Useful to rule out
