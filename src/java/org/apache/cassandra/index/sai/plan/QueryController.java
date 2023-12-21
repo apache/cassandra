@@ -32,6 +32,7 @@ import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.MessageParams;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
@@ -41,6 +42,7 @@ import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
@@ -56,7 +58,9 @@ import org.apache.cassandra.index.sai.iterators.KeyRangeOrderingIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeUnionIterator;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
+import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
@@ -186,6 +190,8 @@ public class QueryController
 
         try
         {
+            maybeTriggerGuardrails(queryView);
+
             for (Pair<Expression, Collection<SSTableIndex>> queryViewPair : queryView.view)
             {
                 KeyRangeIterator indexIterator = IndexSearchResultIterator.build(queryViewPair.left, queryViewPair.right, mergeRange, queryContext);
@@ -201,6 +207,27 @@ public class QueryController
             throw t;
         }
         return builder;
+    }
+
+    private void maybeTriggerGuardrails(QueryViewBuilder.QueryView queryView)
+    {
+        int referencedIndexes = queryView.referencedIndexes.size();
+
+        if (Guardrails.saiSSTableIndexesPerQuery.failsOn(referencedIndexes, null))
+        {
+            String msg = String.format("Query %s attempted to read from too many indexes (%s) but max allowed is %s; " +
+                                       "query aborted (see sai_sstable_indexes_per_query_fail_threshold)",
+                                       command.toCQLString(),
+                                       referencedIndexes,
+                                       Guardrails.CONFIG_PROVIDER.getOrCreate(null).getSaiSSTableIndexesPerQueryFailThreshold());
+            Tracing.trace(msg);
+            MessageParams.add(ParamType.TOO_MANY_REFERENCED_INDEXES_FAIL, referencedIndexes);
+            throw new QueryReferencingTooManyIndexesException(msg);
+        }
+        else if (Guardrails.saiSSTableIndexesPerQuery.warnsOn(referencedIndexes, null))
+        {
+            MessageParams.add(ParamType.TOO_MANY_REFERENCED_INDEXES_WARN, referencedIndexes);
+        }
     }
 
     /**
