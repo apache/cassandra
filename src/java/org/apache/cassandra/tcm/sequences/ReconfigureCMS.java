@@ -255,6 +255,16 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
 
     }
 
+    @Override
+    public String toString()
+    {
+        return "ReconfigureCMS{" +
+               "next=" + next +
+               ", idx=" + idx +
+               ", latestModification=" + latestModification +
+               '}';
+    }
+
     static void repairPaxosTopology()
     {
         Retry.Backoff retry = new Retry.Backoff(TCMMetrics.instance.repairPaxosTopologyRetries);
@@ -343,6 +353,12 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
         public static Serializer serializer = new Serializer();
 
         private SequenceKey(){}
+
+        @Override
+        public String toString()
+        {
+            return "Reconfigure CMS";
+        }
 
         public static class Serializer implements MetadataSerializer<SequenceKey>
         {

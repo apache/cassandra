@@ -118,7 +118,7 @@ public class ClusterMetadataUpgradeHarryTest extends UpgradeTestBase
             });
 
             cluster.get(1).nodetoolResult("initializecms").asserts().success();
-            cluster.get(1).nodetoolResult("reconfigurecms", "datacenter1:3").asserts().success();
+            cluster.get(1).nodetoolResult("reconfigurecms", "3").asserts().success();
             cluster.schemaChange(withKeyspace("create table %s.xyz (id int primary key)"));
             stopLatch.decrement();
             harryRunner.get().get();

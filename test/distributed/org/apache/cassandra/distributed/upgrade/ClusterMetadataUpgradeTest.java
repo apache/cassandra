@@ -55,7 +55,7 @@ public class ClusterMetadataUpgradeTest extends UpgradeTestBase
                 assertFalse("node " + i.config().num() + " is still in MIGRATING STATE",
                             ClusterUtils.isMigrating((IInvokableInstance) i));
             });
-            cluster.get(2).nodetoolResult("reconfigurecms", "--sync", "3").asserts().success();
+            cluster.get(2).nodetoolResult("reconfigurecms", "3").asserts().success();
             cluster.schemaChange(withKeyspace("create table %s.xyz (id int primary key)"));
             cluster.forEach(i -> {
                 Object [][] res = i.executeInternal("select host_id from system.local");

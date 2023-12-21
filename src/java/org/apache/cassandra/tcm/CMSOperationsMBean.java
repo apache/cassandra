@@ -26,9 +26,10 @@ public interface CMSOperationsMBean
 {
     public void initializeCMS(List<String> ignore);
     public void resumeReconfigureCms();
-    public void reconfigureCMS(int rf, boolean sync);
-    public void reconfigureCMS(Map<String, Integer> rf, boolean sync);
+    public void reconfigureCMS(int rf);
+    public void reconfigureCMS(Map<String, Integer> rf);
     public Map<String, List<String>> reconfigureCMSStatus();
+    public void cancelReconfigureCms();
 
     public Map<String, String> describeCMS();
     public void sealPeriod();
