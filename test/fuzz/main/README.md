@@ -10,10 +10,6 @@ are consistent with what it knows it wrote to the cluster. You have a couple opt
 
 ### Option 2: Running things manually lower in the stack:
 
-The make file has a stress target where you can more directly access all available ARGS rather than restricting yourself
-to the convenience script above. If you're using an external cluster (i.e. `./bin/cassandra -f`, CCM, docker,
-kubernetes, or just a deployed cluster), the mini stress tool can be used directly as follows:
-
 To start a workload that performs a concurrent read/write workload, 2 read and 2 write threads for 60 seconds
 against a in-jvm cluster you can use the following code:
 
@@ -52,9 +48,7 @@ how to debug the issue.
 First of all, understand whether or not the issue is likely to be concurrent in nature. If you re-run your test with the
 same seed, but see no falsification, and it fails only sporadically, and often on different logical timestamp, it is
 likely that the issue is, in fact concurrent. Here, it is important to note that when you are running concurrent
-read/write workload, you will get different interleaving of reads and writes every time you do this. If you have reasons
-to think that you're seeing the falsification because a read has queried a specific partition state, try re-running your
-test with sequential runner (`--write-before-read`) if you are using ministress.
+read/write workload, you will get different interleaving of reads and writes every time you do this. 
 
 If you can get a stable repro with a sequential runner, you're in luck. Now all you need to do is to add logs everywhere
 and understand what might be causing it. But even if you do not have a stable repro, you are still likely to follow the
@@ -208,13 +202,12 @@ Queries can be provided manually or generated using `QueryGenerator` or `TypedQu
 # Basic Terminology
 
 * Inflate / inflatable: a process of producing a value (for example, string, or a blob) from a `long` descriptor that
-  uniquely identifies the value. See [data generation](https://github.com/apache/cassandra-harry#data-generation)
-  section of this guide for more details.
+  uniquely identifies the value. See data generation section of this guide for more details.
 * Deflate / deflatable: a process of producing the descriptor the value was inflated from during verification.
-  See [model](https://github.com/apache/cassandra-harry#model) section of this guide for more details.
+  See model section of this guide for more details.
 
 For definitions of logical timestamp, descriptor, and other entities used during inflation and deflation, refer
-to [formal relationships](https://github.com/apache/cassandra-harry#formal-relations-between-entities) section.
+to formal relationships section.
 
 # Features
 
@@ -230,11 +223,7 @@ Currently, Harry can exercise the following Cassandra functionality:
 * Inflating and validating random `SELECT` queries: single row, slices (with single open end), and ranges (with both
   ends of clusterings specified)
 
-Inflating partitions is done
-using [Reconciler](https://github.com/apache/cassandra-harry/blob/master/harry-core/src/harry/reconciler/Reconciler.java).
-Validating partitions and random queries can be done
-using [Quiescent Checker](https://github.com/apache/cassandra-harry/blob/master/harry-core/src/harry/model/QuiescentChecker.java)
-and [Exhaustive Checker](https://github.com/apache/cassandra-harry/blob/master/harry-core/src/harry/model/ExhaustiveChecker.java).
+Inflating partitions is done using `Reconciler`. Validating partitions and random queries can be done using `QuiescentChecker`.
 
 ## Outstanding Work
 

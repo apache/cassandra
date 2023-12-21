@@ -64,7 +64,7 @@ import org.reflections.Reflections;
 import org.reflections.scanners.Scanners;
 import org.reflections.util.NameHelper;
 
-@SuppressWarnings("checkstyle:IllegalInstantiation")
+// checkstyle: permit this instantiation
 public class Configuration
 {
     private enum NameUtils implements NameHelper
