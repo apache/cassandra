@@ -1232,6 +1232,11 @@
         <artifactId>big-math</artifactId>
         <version>2.3.0</version>
       </dependency>
+      <dependency>
+        <groupId>com.vdurmont</groupId>
+        <artifactId>semver4j</artifactId>
+        <version>3.1.0</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 </project>

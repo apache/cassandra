@@ -376,5 +376,9 @@
       <groupId>io.github.jbellis</groupId>
       <artifactId>jvector</artifactId>
     </dependency>
+    <dependency>
+      <groupId>com.vdurmont</groupId>
+      <artifactId>semver4j</artifactId>
+    </dependency>
   </dependencies>
 </project>
