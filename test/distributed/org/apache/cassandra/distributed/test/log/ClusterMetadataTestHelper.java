@@ -50,6 +50,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.Keyspaces;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaTransformation;
 import org.apache.cassandra.service.ClientState;
@@ -74,6 +75,7 @@ import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
 import org.apache.cassandra.tcm.sequences.Move;
 import org.apache.cassandra.tcm.sequences.LeaveStreams;
+import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
 import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 import org.apache.cassandra.tcm.transformations.AlterSchema;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
@@ -81,6 +83,8 @@ import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
 import org.apache.cassandra.tcm.transformations.PrepareReplace;
 import org.apache.cassandra.tcm.transformations.Register;
+import org.apache.cassandra.tcm.transformations.cms.AdvanceCMSReconfiguration;
+import org.apache.cassandra.tcm.transformations.cms.PrepareCMSReconfiguration;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.tcm.transformations.cms.Initialize;
 import org.apache.cassandra.utils.FBUtilities;
@@ -835,6 +839,15 @@ public class ClusterMetadataTestHelper
         .finishLeave();
     }
 
+    public static void reconfigureCms(ReplicationParams replication)
+    {
+        ClusterMetadata metadata = ClusterMetadataService.instance().commit(new PrepareCMSReconfiguration.Complex(replication));
+        while (metadata.inProgressSequences.contains(ReconfigureCMS.SequenceKey.instance))
+        {
+            AdvanceCMSReconfiguration next = ((ReconfigureCMS) metadata.inProgressSequences.get(ReconfigureCMS.SequenceKey.instance)).next;
+            metadata = ClusterMetadataService.instance().commit(next);
+        }
+    }
     public static void addOrUpdateKeyspace(KeyspaceMetadata keyspace)
     {
         try

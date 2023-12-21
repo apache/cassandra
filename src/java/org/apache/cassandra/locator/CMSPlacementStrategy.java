@@ -28,7 +28,6 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Transformation;
@@ -137,9 +136,6 @@ public interface CMSPlacementStrategy
 
         public Boolean apply(ClusterMetadata metadata, NodeId nodeId)
         {
-            if (!FailureDetector.instance.isAlive(metadata.directory.endpoint(nodeId)))
-                return false;
-
             if (metadata.directory.peerState(nodeId) != NodeState.JOINED)
                 return false;
 
