@@ -64,7 +64,6 @@ import org.reflections.Reflections;
 import org.reflections.scanners.Scanners;
 import org.reflections.util.NameHelper;
 
-// checkstyle: permit this instantiation
 public class Configuration
 {
     private enum NameUtils implements NameHelper
@@ -84,7 +83,7 @@ public class Configuration
 
     static
     {
-        mapper = new ObjectMapper(new YAMLFactory()
+        mapper = new ObjectMapper(new YAMLFactory() // checkstyle: permit this instantiation
                                   .disable(YAMLGenerator.Feature.USE_NATIVE_TYPE_ID)
                                   .disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER)
                                   .disable(YAMLGenerator.Feature.CANONICAL_OUTPUT)
