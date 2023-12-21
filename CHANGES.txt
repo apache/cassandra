@@ -1,4 +1,5 @@
 5.1
+ * Make nodetool reconfigurecms sync by default and add --cancel to be able to cancel ongoing reconfigurations (CASSANDRA-19216)
  * Expose auth mode in system_views.clients, nodetool clientstats, metrics (CASSANDRA-19366)
  * Remove sealed_periods and last_sealed_period tables (CASSANDRA-19189)
  * Improve setup and initialisation of LocalLog/LogSpec (CASSANDRA-19271)

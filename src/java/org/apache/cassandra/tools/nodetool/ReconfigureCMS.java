@@ -42,10 +42,10 @@ public class ReconfigureCMS extends NodeTool.NodeToolCmd
     description = "Whether or not a previously interrupted sequence should be resumed")
     private boolean resume = false;
 
-    @Option(title = "sync",
-    name = {"-s", "--sync"},
-    description = "Whether or not nodetool should block and wait for reconfiguration to finish")
-    private boolean sync = false;
+    @Option(title = "cancel",
+    name = {"-c", "--cancel"},
+    description = "Cancels any in progress CMS reconfiguration")
+    private boolean cancel = false;
 
     @Arguments(usage = "[<replication factor>] or <datacenter>:<replication_factor> ... ", description = "Replication factor of new CMS")
     private List<String> args = new ArrayList<>();
@@ -76,6 +76,12 @@ public class ReconfigureCMS extends NodeTool.NodeToolCmd
             return;
         }
 
+        if (cancel)
+        {
+            probe.getCMSOperationsProxy().cancelReconfigureCms();
+            return;
+        }
+
         if (args.isEmpty())
             throw new IllegalArgumentException("Replication factor is empty");
 
@@ -95,7 +101,7 @@ public class ReconfigureCMS extends NodeTool.NodeToolCmd
                 {
                     throw new IllegalArgumentException(String.format("Can not parse replication factor from %s", args.get(0)));
                 }
-                probe.getCMSOperationsProxy().reconfigureCMS(parsedRf, sync);
+                probe.getCMSOperationsProxy().reconfigureCMS(parsedRf);
                 return;
             }
             else
@@ -117,6 +123,6 @@ public class ReconfigureCMS extends NodeTool.NodeToolCmd
             }
         }
 
-        probe.getCMSOperationsProxy().reconfigureCMS(parsedRfs, sync);
+        probe.getCMSOperationsProxy().reconfigureCMS(parsedRfs);
     }
 }
