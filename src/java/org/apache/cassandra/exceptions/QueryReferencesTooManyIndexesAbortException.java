@@ -23,17 +23,15 @@ import java.util.Map;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
-public class TombstoneAbortException extends ReadAbortException
+public class QueryReferencesTooManyIndexesAbortException extends ReadAbortException
 {
     public final int nodes;
-    public final long tombstones;
+    public final long maxValue;
 
-    public TombstoneAbortException(String message, int nodes, long tombstones, boolean dataPresent,
-                                   ConsistencyLevel consistency, int received, int blockFor,
-                                   Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
+    public QueryReferencesTooManyIndexesAbortException(String msg, int nodes, long maxValue, boolean dataPresent, ConsistencyLevel consistency, int received, int blockFor, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
     {
-        super(message, consistency, received, blockFor, dataPresent, failureReasonByEndpoint);
+        super(msg, consistency, received, blockFor, dataPresent, failureReasonByEndpoint);
         this.nodes = nodes;
-        this.tombstones = tombstones;
+        this.maxValue = maxValue;
     }
 }

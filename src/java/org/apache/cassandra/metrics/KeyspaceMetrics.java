@@ -173,6 +173,9 @@ public class KeyspaceMetrics
     public final Meter rowIndexSizeAborts;
     public final Histogram rowIndexSize;
 
+    public final Meter tooManySSTableIndexesReadWarnings;
+    public final Meter tooManySSTableIndexesReadAborts;
+
     public final ImmutableMap<SSTableFormat<?, ?>, ImmutableMap<String, Gauge<? extends Number>>> formatSpecificGauges;
 
     public final MetricNameFactory factory;
@@ -274,6 +277,9 @@ public class KeyspaceMetrics
         rowIndexSizeWarnings = createKeyspaceMeter("RowIndexSizeWarnings");
         rowIndexSizeAborts = createKeyspaceMeter("RowIndexSizeAborts");
         rowIndexSize = createKeyspaceHistogram("RowIndexSize", false);
+
+        tooManySSTableIndexesReadWarnings = createKeyspaceMeter("TooManySSTableIndexesReadWarnings");
+        tooManySSTableIndexesReadAborts = createKeyspaceMeter("TooManySSTableIndexesReadAborts");
 
         formatSpecificGauges = createFormatSpecificGauges(keyspace);
     }

@@ -36,7 +36,8 @@ public enum RequestFailureReason
     INCOMPATIBLE_SCHEMA      (3),
     READ_SIZE                (4),
     NODE_DOWN                (5),
-    INDEX_NOT_AVAILABLE      (6);
+    INDEX_NOT_AVAILABLE      (6),
+    READ_TOO_MANY_INDEXES    (7);
 
     public static final Serializer serializer = new Serializer();
 
