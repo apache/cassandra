@@ -164,6 +164,12 @@ public class BatchStatement implements CQLStatement
         return functions;
     }
 
+    @Override
+    public boolean eligibleAsPreparedStatement()
+    {
+        return true;
+    }
+
     public void authorize(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
         for (ModificationStatement statement : statements)
