@@ -52,7 +52,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.FutureTask;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.ApplicationState;
@@ -76,6 +75,7 @@ import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORED_SCHEMA_CHECK_ENDPOINTS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORED_SCHEMA_CHECK_VERSIONS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.MIGRATION_DELAY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SCHEMA_PULL_INTERVAL_MS;
 import static org.apache.cassandra.net.Verb.SCHEMA_PUSH_REQ;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -100,6 +100,7 @@ public class MigrationCoordinator
     private static final Logger logger = LoggerFactory.getLogger(MigrationCoordinator.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(MigrationCoordinator.logger, 1, TimeUnit.MINUTES);
     private static final Future<Void> FINISHED_FUTURE = ImmediateFuture.success(null);
+    private static final long PULL_BACKOFF_INTERVAL_MS = 1000; // do not pull immediately if the previous pull failed
 
     private static LongSupplier getUptimeFn = () -> ManagementFactory.getRuntimeMXBean().getUptime();
 
@@ -109,7 +110,7 @@ public class MigrationCoordinator
         getUptimeFn = supplier;
     }
 
-    private static final int MIGRATION_DELAY_IN_MS = CassandraRelevantProperties.MIGRATION_DELAY.getInt();
+    private static final int MIGRATION_DELAY_IN_MS = MIGRATION_DELAY.getInt();
     public static final int MAX_OUTSTANDING_VERSION_REQUESTS = 3;
 
     private static ImmutableSet<UUID> getIgnoredVersions()
@@ -226,6 +227,7 @@ public class MigrationCoordinator
     private final Gossiper gossiper;
     private final Supplier<UUID> schemaVersion;
     private final BiConsumer<InetAddressAndPort, Collection<Mutation>> schemaUpdateCallback;
+    private final Set<InetAddressAndPort> lastPullFailures = new HashSet<>();
 
     final ExecutorPlus executor;
 
@@ -549,8 +551,16 @@ public class MigrationCoordinator
 
         if (shouldPullImmediately(endpoint, info.version))
         {
-            logger.debug("Pulling {} immediately from {}", info, endpoint);
-            submitToMigrationIfNotShutdown(task);
+            if (lastPullFailures.contains(endpoint))
+            {
+                logger.debug("Pulling {} immediately from {} with backoff interval = {}", info, endpoint, PULL_BACKOFF_INTERVAL_MS);
+                ScheduledExecutors.nonPeriodicTasks.schedule(() -> submitToMigrationIfNotShutdown(task), PULL_BACKOFF_INTERVAL_MS, TimeUnit.MILLISECONDS);
+            }
+            else
+            {
+                logger.debug("Pulling {} immediately from {}", info, endpoint);
+                submitToMigrationIfNotShutdown(task);
+            }
         }
         else
         {
@@ -679,7 +689,14 @@ public class MigrationCoordinator
     private synchronized Future<Void> pullComplete(InetAddressAndPort endpoint, VersionInfo info, boolean wasSuccessful)
     {
         if (wasSuccessful)
+        {
             info.markReceived();
+            lastPullFailures.remove(endpoint);
+        }
+        else
+        {
+            lastPullFailures.add(endpoint);
+        }
 
         info.outstandingRequests.remove(endpoint);
         info.requestQueue.add(endpoint);

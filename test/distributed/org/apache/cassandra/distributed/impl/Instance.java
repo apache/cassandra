@@ -592,12 +592,20 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 // org.apache.cassandra.distributed.impl.AbstractCluster.startup sets the exception handler for the thread
                 // so extract it to populate ExecutorFactory.Global
                 ExecutorFactory.Global.tryUnsafeSet(new ExecutorFactory.Default(Thread.currentThread().getContextClassLoader(), null, Thread.getDefaultUncaughtExceptionHandler()));
+
+                assert !FBUtilities.getReleaseVersionString().equals(FBUtilities.UNKNOWN_RELEASE_VERSION) : "Unknown version";
+                assert !FBUtilities.getReleaseVersionString().isEmpty() : "Empty version";
+                assert FBUtilities.getReleaseVersionString().contains(".") : "Invalid version: " + FBUtilities.getReleaseVersionString();
+
                 if (config.has(GOSSIP))
                 {
                     // TODO: hacky
-                    RING_DELAY.setLong(15000);
-                    CONSISTENT_RANGE_MOVEMENT.setBoolean(false);
-                    CONSISTENT_SIMULTANEOUS_MOVES_ALLOW.setBoolean(true);
+                    if (!RING_DELAY.isPresent())
+                        RING_DELAY.setLong(15000);
+                    if (!CONSISTENT_RANGE_MOVEMENT.isPresent())
+                        CONSISTENT_RANGE_MOVEMENT.setBoolean(false);
+                    if (!CONSISTENT_SIMULTANEOUS_MOVES_ALLOW.isPresent())
+                        CONSISTENT_SIMULTANEOUS_MOVES_ALLOW.setBoolean(true);
                 }
 
                 mkdirs();
