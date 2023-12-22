@@ -16,27 +16,26 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.mock.nodetool;
+package org.apache.cassandra.distributed.test;
 
-import java.io.IOException;
+import org.junit.Test;
 
-import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.INodeProbeFactory;
+import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.service.StorageProxy;
 
-public class InternalNodeProbeFactory implements INodeProbeFactory
+import static org.junit.Assert.assertTrue;
+
+public class SimpleTest extends TestBaseImpl
 {
-    private final boolean withNotifications;
 
-    public InternalNodeProbeFactory(boolean withNotifications)
+    @Test
+    public void test() throws Exception
     {
-        this.withNotifications = withNotifications;
-    }
-
-    public NodeProbe create(String host, int port) throws IOException {
-        return new InternalNodeProbe(withNotifications);
-    }
-
-    public NodeProbe create(String host, int port, String username, String password) throws IOException {
-        return new InternalNodeProbe(withNotifications);
+        try (Cluster cluster = init(Cluster.build().withNodes(1).withConfig(c -> c.with(Feature.JMX)).start()))
+        {
+            cluster.get(1).nodetoolResult("statushandoff").asserts().success().stdoutContains("Hinted handoff is running");
+            assertTrue(cluster.get(1).callOnInstance(() -> StorageProxy.instance.getHintedHandoffEnabled()));
+        }
     }
 }

@@ -86,8 +86,6 @@ import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.LogAction;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
-import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbe;
-import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbeFactory;
 import org.apache.cassandra.distributed.shared.Metrics;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
@@ -117,11 +115,12 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.DefaultFSErrorHandler;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.streaming.StreamReceiveTask;
 import org.apache.cassandra.streaming.StreamTransferTask;
 import org.apache.cassandra.streaming.async.StreamingInboundHandler;
+import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.Output;
 import org.apache.cassandra.tools.SystemExitException;
@@ -629,6 +628,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     throw new IllegalStateException(String.format("%s != %s", FBUtilities.getBroadcastAddressAndPort(), broadcastAddress()));
 
                 ActiveRepairService.instance.start();
+
+                StorageProxy instance = StorageProxy.instance;
             }
             catch (Throwable t)
             {
@@ -883,7 +884,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         return sync(() -> {
             try (CapturingOutput output = new CapturingOutput())
             {
-                DTestNodeTool nodetool = new DTestNodeTool(withNotifications, output.delegate);
+                DTestNodeTool nodetool = new DTestNodeTool(config, withNotifications, output.delegate);
                 // install security manager to get informed about the exit-code
                 System.setSecurityManager(new SecurityManager()
                 {
@@ -967,21 +968,16 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }
     }
 
-    public static class DTestNodeTool extends NodeTool {
-        private final StorageServiceMBean storageProxy;
+    public static class DTestNodeTool extends NodeTool
+    {
         private final CollectingNotificationListener notifications = new CollectingNotificationListener();
-
+        private final boolean withNotifications;
         private Throwable latestError;
 
-        public DTestNodeTool(boolean withNotifications, Output output) {
-            super(new InternalNodeProbeFactory(withNotifications), output);
-            storageProxy = new InternalNodeProbe(withNotifications).getStorageService();
-            storageProxy.addNotificationListener(notifications, null, null);
-        }
-
-        public List<Notification> getNotifications()
+        public DTestNodeTool(IInstanceConfig config, boolean withNotifications, Output output)
         {
-            return new ArrayList<>(notifications.notifications);
+            super(new InternalNodeProbeFactory(config, withNotifications), output);
+            this.withNotifications = withNotifications;
         }
 
         public Throwable getLatestError()
@@ -989,22 +985,27 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             return latestError;
         }
 
-        public int execute(String... args)
+        @Override
+        public void executeWithProbe(NodeProbe probe, Runnable r)
         {
             try
             {
-                return super.execute(args);
-            }
-            finally
-            {
+                if (withNotifications)
+                    probe.getStorageService().addNotificationListener(notifications, null, null);
+
                 try
                 {
-                    storageProxy.removeNotificationListener(notifications, null, null);
+                    super.executeWithProbe(probe, r);
                 }
-                catch (ListenerNotFoundException e)
+                finally
                 {
-                    // ignored
+                    if (withNotifications)
+                        probe.getStorageService().removeNotificationListener(notifications, null, null);
                 }
+            }
+            catch (ListenerNotFoundException e)
+            {
+                // ignored
             }
         }
 

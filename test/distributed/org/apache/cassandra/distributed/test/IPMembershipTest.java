@@ -50,7 +50,7 @@ public class IPMembershipTest extends TestBaseImpl
     public void sameIPFailWithoutReplace() throws IOException
     {
         try (Cluster cluster = Cluster.build(3)
-                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NATIVE_PROTOCOL)
+                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NATIVE_PROTOCOL, Feature.JMX)
                                                         .set(Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN, false))
                                       .start())
         {

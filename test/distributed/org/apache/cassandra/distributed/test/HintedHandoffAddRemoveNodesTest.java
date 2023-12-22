@@ -31,6 +31,7 @@ import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.service.StorageService;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.awaitility.Awaitility.await;
 import static org.junit.Assert.assertEquals;
 
@@ -53,7 +54,7 @@ public class HintedHandoffAddRemoveNodesTest extends TestBaseImpl
     public void shouldStreamHintsDuringDecommission() throws Exception
     {
         try (Cluster cluster = builder().withNodes(4)
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL))
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL, JMX))
                                         .withoutVNodes()
                                         .start())
         {
@@ -95,7 +96,7 @@ public class HintedHandoffAddRemoveNodesTest extends TestBaseImpl
         try (Cluster cluster = builder().withNodes(3)
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(4, 1))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL))
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL, JMX))
                                         .start())
         {
             cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2}"));

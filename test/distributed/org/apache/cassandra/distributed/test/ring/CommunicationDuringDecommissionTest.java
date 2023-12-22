@@ -31,6 +31,7 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 
 import static org.apache.cassandra.distributed.action.GossipHelper.decommission;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
@@ -40,7 +41,7 @@ public class CommunicationDuringDecommissionTest extends TestBaseImpl
     public void internodeConnectionsDuringDecom() throws Throwable
     {
         try (Cluster cluster = builder().withNodes(4)
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL))
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL, JMX))
                                         .start())
         {
             BootstrapTest.populate(cluster, 0, 100);

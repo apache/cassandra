@@ -245,7 +245,7 @@ public class GossipTest extends TestBaseImpl
     public void gossipShutdownUpdatesTokenMetadata() throws Exception
     {
         try (Cluster cluster = Cluster.build(3)
-                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK, Feature.JMX))
                                       .withInstanceInitializer(FailureHelper::installMoveFailure)
                                       .start())
         {

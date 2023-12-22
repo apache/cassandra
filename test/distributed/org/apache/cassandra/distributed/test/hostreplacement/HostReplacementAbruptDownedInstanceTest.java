@@ -58,7 +58,7 @@ public class HostReplacementAbruptDownedInstanceTest extends TestBaseImpl
         int numStartNodes = 3;
         TokenSupplier even = TokenSupplier.evenlyDistributedTokens(numStartNodes);
         try (Cluster cluster = Cluster.build(numStartNodes)
-                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK, Feature.JMX))
                                       .withTokenSupplier(node -> even.token(node == (numStartNodes + 1) ? 2 : node))
                                       .start())
         {

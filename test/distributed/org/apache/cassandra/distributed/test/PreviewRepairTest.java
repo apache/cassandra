@@ -70,6 +70,7 @@ import org.apache.cassandra.utils.concurrent.SimpleCondition;
 import org.apache.cassandra.utils.progress.ProgressEventType;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -91,7 +92,7 @@ public class PreviewRepairTest extends TestBaseImpl
     @Test
     public void testWithMismatchingPending() throws Throwable
     {
-        try(Cluster cluster = init(Cluster.build(2).withConfig(config -> config.with(GOSSIP).with(NETWORK)).start()))
+        try(Cluster cluster = init(Cluster.build(2).withConfig(config -> config.with(GOSSIP).with(NETWORK).with(JMX)).start()))
         {
             cluster.schemaChange("create table " + KEYSPACE + ".tbl (id int primary key, t int)");
             insert(cluster.coordinator(1), 0, 100);
@@ -307,7 +308,8 @@ public class PreviewRepairTest extends TestBaseImpl
         ExecutorService es = Executors.newSingleThreadExecutor();
         try(Cluster cluster = init(Cluster.build(2).withConfig(config ->
                                                                config.with(GOSSIP)
-                                                                     .with(NETWORK))
+                                                                     .with(NETWORK)
+                                                                     .with(JMX))
                                           .start()))
         {
             cluster.schemaChange("create table " + KEYSPACE + ".tbl (id int primary key, t int)");

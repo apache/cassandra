@@ -46,6 +46,7 @@ import org.apache.cassandra.locator.EndpointsForRange;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public class ReadsDuringBootstrapTest extends TestBaseImpl
@@ -59,7 +60,7 @@ public class ReadsDuringBootstrapTest extends TestBaseImpl
         try (Cluster cluster = builder().withNodes(originalNodeCount)
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP)
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP, JMX)
                                                                     .set("read_request_timeout_in_ms", Integer.MAX_VALUE)
                                                                     .set("request_timeout_in_ms", Integer.MAX_VALUE))
                                         .withInstanceInitializer(BB::install)
