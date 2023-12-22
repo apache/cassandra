@@ -148,22 +148,15 @@ public class QueryController
         if (key == null)
             throw new IllegalArgumentException("non-null key required");
 
-        try
-        {
-            SinglePartitionReadCommand partition = SinglePartitionReadCommand.create(cfs.metadata(),
-                                                                                     command.nowInSec(),
-                                                                                     command.columnFilter(),
-                                                                                     RowFilter.none(),
-                                                                                     DataLimits.NONE,
-                                                                                     key.partitionKey(),
-                                                                                     makeFilter(key));
+        SinglePartitionReadCommand partition = SinglePartitionReadCommand.create(cfs.metadata(),
+                                                                                 command.nowInSec(),
+                                                                                 command.columnFilter(),
+                                                                                 RowFilter.none(),
+                                                                                 DataLimits.NONE,
+                                                                                 key.partitionKey(),
+                                                                                 makeFilter(key));
 
-            return partition.queryMemtableAndDisk(cfs, executionController);
-        }
-        finally
-        {
-            queryContext.checkpoint();
-        }
+        return partition.queryMemtableAndDisk(cfs, executionController);
     }
 
     /**

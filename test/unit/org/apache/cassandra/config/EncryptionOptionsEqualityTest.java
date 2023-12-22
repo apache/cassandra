@@ -26,6 +26,8 @@ import org.junit.Test;
 import org.apache.cassandra.security.DefaultSslContextFactory;
 import org.apache.cassandra.security.DummySslContextFactoryImpl;
 
+import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.NOT_REQUIRED;
+import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 
@@ -46,7 +48,7 @@ public class EncryptionOptionsEqualityTest
                .withOutboundKeystore("test/conf/cassandra_outbound.keystore")
                .withOutboundKeystorePassword("cassandra")
                .withProtocol("TLSv1.1")
-               .withRequireClientAuth(true)
+               .withRequireClientAuth(REQUIRED)
                .withRequireEndpointVerification(false);
     }
 
@@ -60,7 +62,7 @@ public class EncryptionOptionsEqualityTest
         .withTrustStore("test/conf/cassandra_ssl_test.truststore")
         .withTrustStorePassword("cassandra")
         .withProtocol("TLSv1.1")
-        .withRequireClientAuth(true)
+        .withRequireClientAuth(REQUIRED)
         .withRequireEndpointVerification(false);
 
         EncryptionOptions encryptionOptions2 =
@@ -71,7 +73,7 @@ public class EncryptionOptionsEqualityTest
         .withTrustStore("test/conf/cassandra_ssl_test.truststore")
         .withTrustStorePassword("cassandra")
         .withProtocol("TLSv1.1")
-        .withRequireClientAuth(true)
+        .withRequireClientAuth(REQUIRED)
         .withRequireEndpointVerification(false);
 
         assertEquals(encryptionOptions1, encryptionOptions2);
@@ -88,7 +90,7 @@ public class EncryptionOptionsEqualityTest
         new EncryptionOptions()
         .withSslContextFactory(new ParameterizedClass(DummySslContextFactoryImpl.class.getName(), parameters1))
         .withProtocol("TLSv1.1")
-        .withRequireClientAuth(true)
+        .withRequireClientAuth(REQUIRED)
         .withRequireEndpointVerification(false);
 
         Map<String,String> parameters2 = new HashMap<>();
@@ -98,7 +100,7 @@ public class EncryptionOptionsEqualityTest
         new EncryptionOptions()
         .withSslContextFactory(new ParameterizedClass(DummySslContextFactoryImpl.class.getName(), parameters2))
         .withProtocol("TLSv1.1")
-        .withRequireClientAuth(true)
+        .withRequireClientAuth(REQUIRED)
         .withRequireEndpointVerification(false);
 
         assertEquals(encryptionOptions1, encryptionOptions2);
@@ -115,7 +117,7 @@ public class EncryptionOptionsEqualityTest
         new EncryptionOptions()
         .withSslContextFactory(new ParameterizedClass(DummySslContextFactoryImpl.class.getName(), parameters1))
         .withProtocol("TLSv1.1")
-        .withRequireClientAuth(false)
+        .withRequireClientAuth(NOT_REQUIRED)
         .withRequireEndpointVerification(true);
 
         Map<String,String> parameters2 = new HashMap<>();
@@ -125,7 +127,7 @@ public class EncryptionOptionsEqualityTest
         new EncryptionOptions()
         .withSslContextFactory(new ParameterizedClass(DefaultSslContextFactory.class.getName(), parameters2))
         .withProtocol("TLSv1.1")
-        .withRequireClientAuth(false)
+        .withRequireClientAuth(NOT_REQUIRED)
         .withRequireEndpointVerification(true);
 
         assertNotEquals(encryptionOptions1, encryptionOptions2);

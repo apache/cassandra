@@ -224,7 +224,20 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         VERSION_50(13),
         VERSION_51(14);
 
-        public static final Version CURRENT = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? VERSION_40 : VERSION_51;
+        public static final Version CURRENT;
+
+        static
+        {
+             if (DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5))
+             {
+                 logger.warn("Starting in storage compatibility mode " + DatabaseDescriptor.getStorageCompatibilityMode());
+                 CURRENT = VERSION_40;
+             }
+             else
+             {
+                 CURRENT = VERSION_51;
+             }
+        }
 
         public final int value;
 

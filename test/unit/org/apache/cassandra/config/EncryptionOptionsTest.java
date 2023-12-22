@@ -61,7 +61,7 @@ public class EncryptionOptionsTest
                                                                                               new HashMap<>()),
                                                                        keystorePath, "dummypass",
                                                                        "dummytruststore", "dummypass",
-                                                                       Collections.emptyList(), null, null, null, "JKS", false, false, enabled, optional)
+                                                                       Collections.emptyList(), null, null, null, "JKS", "false", false, enabled, optional)
                                                  .applyConfig(),
                                                  expected,
                                                  String.format("optional=%s keystore=%s enabled=%s", optional, keystorePath, enabled));
@@ -75,7 +75,7 @@ public class EncryptionOptionsTest
                                                                                               customSslContextFactoryParams),
                                                                        keystorePath, "dummypass",
                                                                        "dummytruststore", "dummypass",
-                                                                       Collections.emptyList(), null, null, null, "JKS", false, false, enabled, optional)
+                                                                       Collections.emptyList(), null, null, null, "JKS", "false", false, enabled, optional)
                                                  .applyConfig(),
                                                  expected,
                                                  String.format("optional=%s keystore=%s enabled=%s", optional, keystorePath, enabled));
@@ -126,7 +126,7 @@ public class EncryptionOptionsTest
         {
             return new ServerEncryptionOptionsTestCase(new EncryptionOptions.ServerEncryptionOptions(new ParameterizedClass("org.apache.cassandra.security.DefaultSslContextFactory",
                                                                                                                             new HashMap<>()), keystorePath, "dummypass", keystorePath, "dummypass", "dummytruststore", "dummypass",
-                                                                                               Collections.emptyList(), null, null, null, "JKS", false, false, optional, internodeEncryption, false)
+                                                                                               Collections.emptyList(), null, null, null, "JKS", "false", false, optional, internodeEncryption, false)
                                                        .applyConfig(),
                                                  expected,
                                                  String.format("optional=%s keystore=%s internode=%s", optional, keystorePath, internodeEncryption));

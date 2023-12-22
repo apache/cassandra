@@ -28,6 +28,7 @@ import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.v1.segment.SegmentTrieBuffer;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.memory.MemtableTermsIterator;
@@ -66,24 +67,19 @@ public class NumericIndexWriterTest extends SAIRandomizedTester
     @Test
     public void shouldFlushFromRamBuffer() throws Exception
     {
-        final BlockBalancedTreeRamBuffer ramBuffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
+        final SegmentTrieBuffer ramBuffer = new SegmentTrieBuffer();
         final int numRows = 120;
         int currentValue = numRows;
         for (int i = 0; i < numRows; ++i)
         {
-            byte[] scratch = new byte[Integer.BYTES];
-            NumericUtils.intToSortableBytes(currentValue--, scratch, 0);
-            ramBuffer.add(i, scratch);
+            ramBuffer.add(integerToByteComparable(currentValue--), Integer.BYTES, i);
         }
-
-        int rowCount = ramBuffer.numRows();
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
 
         NumericIndexWriter writer = new NumericIndexWriter(indexDescriptor,
                                                            indexIdentifier,
-                                                           Integer.BYTES,
-                                                           rowCount);
+                                                           Integer.BYTES);
         indexMetas = writer.writeCompleteSegment(ramBuffer.iterator());
 
         final FileHandle treeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexIdentifier, null);
@@ -128,9 +124,8 @@ public class NumericIndexWriterTest extends SAIRandomizedTester
         SegmentMetadata.ComponentMetadataMap indexMetas;
         NumericIndexWriter writer = new NumericIndexWriter(indexDescriptor,
                                                            indexIdentifier,
-                                                           indexTermType.fixedSizeOf(),
-                                                           maxSegmentRowId);
-        indexMetas = writer.writeCompleteSegment(BlockBalancedTreeIterator.fromTermsIterator(termEnum, indexTermType));
+                                                           indexTermType.fixedSizeOf());
+        indexMetas = writer.writeCompleteSegment(termEnum);
 
         final FileHandle treeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexIdentifier, null);
         final FileHandle treePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexIdentifier, null);
@@ -181,7 +176,7 @@ public class NumericIndexWriterTest extends SAIRandomizedTester
         final ByteBuffer minTerm = Int32Type.instance.decompose(startTermInclusive);
         final ByteBuffer maxTerm = Int32Type.instance.decompose(endTermExclusive);
 
-        final AbstractGuavaIterator<Pair<ByteComparable, LongArrayList>> iterator = new AbstractGuavaIterator<Pair<ByteComparable, LongArrayList>>()
+        final AbstractGuavaIterator<Pair<ByteComparable, LongArrayList>> iterator = new AbstractGuavaIterator<>()
         {
             private int currentTerm = startTermInclusive;
             private int currentRowId = 0;

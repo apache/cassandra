@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
@@ -53,8 +52,10 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableBiCons
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableConsumer;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnable;
 import org.apache.cassandra.distributed.impl.DirectStreamingConnectionFactory;
+import org.apache.cassandra.distributed.impl.InstanceIDDefiner;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
 import org.apache.cassandra.io.compress.LZ4Compressor;
+import org.apache.cassandra.io.filesystem.ListenableFileSystem;
 import org.apache.cassandra.io.util.FileSystems;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.paxos.BallotGenerator;
@@ -64,25 +65,24 @@ import org.apache.cassandra.simulator.asm.InterceptAsClassTransformer;
 import org.apache.cassandra.simulator.asm.NemesisFieldSelectors;
 import org.apache.cassandra.simulator.cluster.ClusterActions;
 import org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange;
-import org.apache.cassandra.io.filesystem.ListenableFileSystem;
 import org.apache.cassandra.simulator.systems.Failures;
 import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites.Capture;
 import org.apache.cassandra.simulator.systems.InterceptibleThread;
+import org.apache.cassandra.simulator.systems.InterceptingExecutorFactory;
 import org.apache.cassandra.simulator.systems.InterceptingGlobalMethods;
 import org.apache.cassandra.simulator.systems.InterceptingGlobalMethods.ThreadLocalRandomCheck;
 import org.apache.cassandra.simulator.systems.InterceptorOfGlobalMethods;
-import org.apache.cassandra.simulator.systems.InterceptingExecutorFactory;
 import org.apache.cassandra.simulator.systems.InterceptorOfGlobalMethods.IfInterceptibleThread;
 import org.apache.cassandra.simulator.systems.NetworkConfig;
 import org.apache.cassandra.simulator.systems.NetworkConfig.PhaseConfig;
 import org.apache.cassandra.simulator.systems.SchedulerConfig;
-import org.apache.cassandra.simulator.systems.SimulatedFutureActionScheduler;
-import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.simulator.systems.SimulatedBallots;
 import org.apache.cassandra.simulator.systems.SimulatedExecution;
 import org.apache.cassandra.simulator.systems.SimulatedFailureDetector;
+import org.apache.cassandra.simulator.systems.SimulatedFutureActionScheduler;
 import org.apache.cassandra.simulator.systems.SimulatedMessageDelivery;
 import org.apache.cassandra.simulator.systems.SimulatedSnitch;
+import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.simulator.systems.SimulatedTime;
 import org.apache.cassandra.simulator.utils.ChanceRange;
 import org.apache.cassandra.simulator.utils.IntRange;
@@ -500,6 +500,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                 switch (Choices.random(random, kinds).choose(random))
                 {
                     default: throw new AssertionError();
+                    case IMMEDIATE: return new RunnableActionScheduler.Immediate();
                     case SEQUENTIAL: return new RunnableActionScheduler.Sequential();
                     case UNIFORM: return new RunnableActionScheduler.RandomUniform(random);
                     case RANDOM_WALK: return new RunnableActionScheduler.RandomWalk(random);
@@ -640,11 +641,14 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
     public final RandomSource random;
     public final SimulatedSystems simulated;
     public final Cluster cluster;
-    public final S simulation;
     private final ListenableFileSystem fs;
     protected final Map<Integer, List<Closeable>> onUnexpectedShutdown = new TreeMap<>();
     protected final List<Callable<Void>> onShutdown = new CopyOnWriteArrayList<>();
     protected final ThreadLocalRandomCheck threadLocalRandomCheck;
+
+    private final RunnableActionScheduler scheduler;
+    private final ClusterActions.Options options;
+    private final SimulationFactory<S> factory;
 
     public ClusterSimulation(RandomSource random, long seed, int uniqueNum,
                              Builder<?> builder,
@@ -702,9 +706,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
 
         Failures failures = builder.failures;
         ThreadAllocator threadAllocator = new ThreadAllocator(random, builder.threadCount, numOfNodes);
-        List<String> allowedDiskAccessModes = Arrays.asList("mmap", "mmap_index_only", "standard");
-        String disk_access_mode = allowedDiskAccessModes.get(random.uniform(0, allowedDiskAccessModes.size() - 1));
-        boolean commitlogCompressed = random.decide(.5f);
+
         cluster = snitch.setup(Cluster.build(numOfNodes)
                          .withRoot(fs.getPath("/cassandra"))
                          .withSharedClasses(sharedClassPredicate)
@@ -729,6 +731,8 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                              public void initialise(ClassLoader classLoader, ThreadGroup threadGroup, int num, int generation)
                              {
                                  List<Closeable> onShutdown = new ArrayList<>();
+                                 IsolatedExecutor.transferAdhoc((SerializableConsumer<Integer>) InstanceIDDefiner::setInstanceId, classLoader)
+                                                 .accept(num);
                                  InterceptorOfGlobalMethods interceptorOfGlobalMethods = IsolatedExecutor.transferAdhoc((IIsolatedExecutor.SerializableQuadFunction<Capture, LongConsumer, Consumer<Throwable>, RandomSource, InterceptorOfGlobalMethods>) InterceptingGlobalMethods::new, classLoader)
                                                                                                          .apply(builder.capture, builder.onThreadLocalRandomCheck, failures, random);
                                  onShutdown.add(interceptorOfGlobalMethods);
@@ -801,11 +805,16 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         if (futureActionScheduler instanceof SimulatedFutureActionScheduler)
             simulated.register((SimulatedFutureActionScheduler) futureActionScheduler);
 
-        RunnableActionScheduler scheduler = builder.schedulerFactory.create(random);
-        ClusterActions.Options options = new ClusterActions.Options(builder.topologyChangeLimit, Choices.uniform(KindOfSequence.values()).choose(random).period(builder.topologyChangeIntervalNanos, random),
-                                                                    Choices.random(random, builder.topologyChanges),
-                                                                    minRf, initialRf, maxRf, null);
-        simulation = factory.create(simulated, scheduler, cluster, options);
+        scheduler = builder.schedulerFactory.create(random);
+        options = new ClusterActions.Options(builder.topologyChangeLimit, Choices.uniform(KindOfSequence.values()).choose(random).period(builder.topologyChangeIntervalNanos, random),
+                                             Choices.random(random, builder.topologyChanges),
+                                             minRf, initialRf, maxRf, null);
+        this.factory = factory;
+    }
+
+    public S simulation()
+    {
+        return factory.create(simulated, scheduler, cluster, options);
     }
 
     public synchronized void close() throws IOException
@@ -838,15 +847,6 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
             {
                 fail = Throwables.close(fail, onUnexpectedShutdown.get(num));
             }
-        }
-
-        try
-        {
-            simulation.close();
-        }
-        catch (Throwable t)
-        {
-            fail = t;
         }
 
         try

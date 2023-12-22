@@ -38,6 +38,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.sstable.CQLSSTableWriter;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -57,6 +58,7 @@ public class LongStreamingTest
         ServerTestUtils.prepareServerNoRegister();
 
         Keyspace.setInitialized();
+        MessagingService.instance().waitUntilListeningUnchecked();
         StorageService.instance.initServer();
 
         StorageService.instance.setCompactionThroughputMbPerSec(0);

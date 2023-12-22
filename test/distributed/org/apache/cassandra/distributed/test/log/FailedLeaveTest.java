@@ -40,6 +40,7 @@ import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.fuzz.HarryHelper;
 import org.apache.cassandra.distributed.fuzz.InJVMTokenAwareVisitorExecutor;
@@ -95,6 +96,7 @@ public class FailedLeaveTest extends FuzzTestBase
 
         try (Cluster cluster = builder().withNodes(3)
                                         .withInstanceInitializer(BB::install)
+                                        .appendConfig(c -> c.with(Feature.NETWORK))
                                         .start())
         {
             IInvokableInstance cmsInstance = cluster.get(1);

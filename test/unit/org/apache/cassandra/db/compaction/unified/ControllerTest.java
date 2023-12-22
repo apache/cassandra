@@ -44,6 +44,8 @@ import org.apache.cassandra.utils.Overlaps;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import static java.lang.String.format;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -122,8 +124,6 @@ public class ControllerTest
     {
         Map<String, String> options = new HashMap<>();
         addOptions(useIntegers, options);
-        options.putIfAbsent(Controller.MIN_SSTABLE_SIZE_OPTION, FBUtilities.prettyPrintMemory(100 << 20));
-        options.putIfAbsent(Controller.SSTABLE_GROWTH_OPTION, "0.5");
         options = Controller.validateOptions(options);
         assertTrue(options.toString(), options.isEmpty());
     }
@@ -140,8 +140,9 @@ public class ControllerTest
 
         options.putIfAbsent(Controller.BASE_SHARD_COUNT_OPTION, Integer.toString(2));
         options.putIfAbsent(Controller.TARGET_SSTABLE_SIZE_OPTION, FBUtilities.prettyPrintMemory(100 << 20));
+        // The below value is based on the value in the above statement. Decreasing the above statement should result in a decrease below.
+        options.putIfAbsent(Controller.MIN_SSTABLE_SIZE_OPTION, "70.710MiB");
         options.putIfAbsent(Controller.OVERLAP_INCLUSION_METHOD_OPTION, Overlaps.InclusionMethod.SINGLE.toString().toLowerCase());
-        options.putIfAbsent(Controller.MIN_SSTABLE_SIZE_OPTION, FBUtilities.prettyPrintMemory(100 << 20));
         options.putIfAbsent(Controller.SSTABLE_GROWTH_OPTION, "0.5");
     }
 
@@ -553,5 +554,40 @@ public class ControllerTest
         diskBoundaries = new DiskBoundaries(cfs, null, ImmutableList.of(min), Epoch.FIRST, 0);
         controller = Controller.fromOptions(cfs, options);
         assertEquals(Controller.DEFAULT_BASE_SHARD_COUNT, controller.baseShardCount);
+    }
+
+    @Test
+    public void testMinSSTableSize()
+    {
+        Map<String, String> options = new HashMap<>();
+
+        // verify 0 is acceptable
+        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, format("%sB", 0));
+        Controller.validateOptions(options);
+
+        // test min < 0 failes
+        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, "-1B");
+        assertThatExceptionOfType(ConfigurationException.class)
+        .describedAs("Should have thrown a ConfigurationException when min_sstable_size is less than 0")
+        .isThrownBy(() -> Controller.validateOptions(options))
+        .withMessageContaining("greater than or equal to 0");
+
+        // test min < default target sstable size * INV_SQRT_2
+        int limit = (int) Math.ceil(Controller.DEFAULT_TARGET_SSTABLE_SIZE * Controller.INVERSE_SQRT_2);
+        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, format("%sB", limit + 1));
+        assertThatExceptionOfType(ConfigurationException.class)
+        .describedAs("Should have thrown a ConfigurationException when min_sstable_size is greater than target_sstable_size")
+        .isThrownBy(() -> Controller.validateOptions(options))
+        .withMessageContaining(format("less than the target size minimum: %s", FBUtilities.prettyPrintMemory(limit)));
+
+        // test min < configured target table size * INV_SQRT_2
+        limit = (int) Math.ceil(Controller.MIN_TARGET_SSTABLE_SIZE * 2 * Controller.INVERSE_SQRT_2);
+        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, format("%sB", limit + 1));
+        options.put(Controller.TARGET_SSTABLE_SIZE_OPTION, format("%sB", Controller.MIN_TARGET_SSTABLE_SIZE * 2));
+
+        assertThatExceptionOfType(ConfigurationException.class)
+        .describedAs("Should have thrown a ConfigurationException when min_sstable_size is greater than target_sstable_size")
+        .isThrownBy(() -> Controller.validateOptions(options))
+        .withMessageContaining(format("less than the target size minimum: %s", FBUtilities.prettyPrintMemory(limit)));
     }
 }

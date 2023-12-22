@@ -19,6 +19,7 @@ package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +29,8 @@ import com.google.common.base.MoreObjects;
 
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.v1.segment.SegmentWriter;
+import org.apache.cassandra.index.sai.utils.IndexEntry;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
@@ -35,16 +38,13 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 
-import static com.google.common.base.Preconditions.checkArgument;
-
 /**
  * Specialized writer for values, that builds them into a {@link BlockBalancedTreeWriter} with auxiliary
  * posting lists on eligible tree levels.
  * <p>
- * Given a sorted input {@link BlockBalancedTreeIterator}, the flush process is optimised because we don't need to
- * buffer all point values to sort them.
+ * Given a sorted input, the flush process is optimised because we don't need to buffer all point values to sort them.
  */
-public class NumericIndexWriter
+public class NumericIndexWriter implements SegmentWriter
 {
     public static final int MAX_POINTS_IN_LEAF_NODE = BlockBalancedTreeWriter.DEFAULT_MAX_POINTS_IN_LEAF_NODE;
     private static final int DEFAULT_POSTINGS_SIZE = 128;
@@ -54,26 +54,19 @@ public class NumericIndexWriter
     private final IndexIdentifier indexIdentifier;
     private final int bytesPerValue;
 
-    /**
-     * @param maxSegmentRowId maximum possible segment row ID, used to create `maxRows` for the balanced tree
-     */
     public NumericIndexWriter(IndexDescriptor indexDescriptor,
                               IndexIdentifier indexIdentifier,
-                              int bytesPerValue,
-                              long maxSegmentRowId)
+                              int bytesPerValue)
     {
-        this(indexDescriptor, indexIdentifier, MAX_POINTS_IN_LEAF_NODE, bytesPerValue, maxSegmentRowId);
+        this(indexDescriptor, indexIdentifier, MAX_POINTS_IN_LEAF_NODE, bytesPerValue);
     }
 
     @VisibleForTesting
     public NumericIndexWriter(IndexDescriptor indexDescriptor,
                               IndexIdentifier indexIdentifier,
                               int maxPointsInLeafNode,
-                              int bytesPerValue,
-                              long maxSegmentRowId)
+                              int bytesPerValue)
     {
-        checkArgument(maxSegmentRowId >= 0, "[%s] maxSegmentRowId must be non-negative value, but got %s", indexIdentifier, maxSegmentRowId);
-
         this.indexDescriptor = indexDescriptor;
         this.indexIdentifier = indexIdentifier;
         this.bytesPerValue = bytesPerValue;
@@ -108,14 +101,8 @@ public class NumericIndexWriter
         }
     }
 
-    /**
-     * Writes a balanced tree and posting lists from a {@link BlockBalancedTreeIterator}.
-     *
-     * @param values sorted {@link BlockBalancedTreeIterator} values to write
-     *
-     * @return metadata describing the location and size of this balanced tree in the overall SSTable balanced tree component file
-     */
-    public SegmentMetadata.ComponentMetadataMap writeCompleteSegment(BlockBalancedTreeIterator values) throws IOException
+    @Override
+    public SegmentMetadata.ComponentMetadataMap writeCompleteSegment(Iterator<IndexEntry> iterator) throws IOException
     {
         long treePosition;
 
@@ -128,7 +115,7 @@ public class NumericIndexWriter
             // The SSTable balanced tree component file is opened in append mode, so our offset is the current file pointer.
             long treeOffset = treeOutput.getFilePointer();
 
-            treePosition = writer.write(treeOutput, values, leafCallback);
+            treePosition = writer.write(treeOutput, iterator, leafCallback);
 
             // If the treePosition is less than 0 then we didn't write any values out and the index is empty
             if (treePosition < 0)
@@ -170,10 +157,8 @@ public class NumericIndexWriter
         return components;
     }
 
-    /**
-     * @return number of values added
-     */
-    public long getValueCount()
+    @Override
+    public long getNumberOfRows()
     {
         return writer.getValueCount();
     }

@@ -71,6 +71,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.NOT_REQUIRED;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.MessagingService.current_version;
@@ -182,7 +183,7 @@ public class ConnectionTest
             .withKeyStorePassword("cassandra")
             .withTrustStore("test/conf/cassandra_ssl_test.truststore")
             .withTrustStorePassword("cassandra")
-            .withRequireClientAuth(false)
+            .withRequireClientAuth(NOT_REQUIRED)
             .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA");
 
     static final List<Function<Settings, Settings>> MODIFIERS = ImmutableList.of(

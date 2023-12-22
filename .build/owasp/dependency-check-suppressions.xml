@@ -20,22 +20,6 @@
   https://jeremylong.github.io/DependencyCheck/general/suppression.html
 -->
 <suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
-    <suppress>
-        <!--  https://issues.apache.org/jira/browse/CASSANDRA-17907 -->
-        <packageUrl regex="true">^pkg:maven/org\.yaml/snakeyaml@.*$</packageUrl>
-        <cve>CVE-2023-2251</cve>
-        <cve>CVE-2022-25857</cve>
-        <cve>CVE-2022-38749</cve>
-        <cve>CVE-2022-38750</cve>
-        <cve>CVE-2022-38751</cve>
-        <cve>CVE-2022-38752</cve>
-        <cve>CVE-2022-41854</cve>
-        <cve>CVE-2022-1471</cve>
-        <cve>CVE-2022-3064</cve>
-        <cve>CVE-2021-4235</cve>
-        <cve>CVE-2017-18640</cve>
-    </suppress>
-
     <!-- https://issues.apache.org/jira/browse/CASSANDRA-18943 -->
     <suppress>
         <packageUrl regex="true">^pkg:maven/io\.netty/netty\-.*@.*$</packageUrl>
@@ -45,8 +29,6 @@
     <!-- https://issues.apache.org/jira/browse/CASSANDRA-17966 -->
     <suppress>
         <packageUrl regex="true">^pkg:maven/com\.fasterxml\.jackson\.core/jackson\-databind@.*$</packageUrl>
-        <cve>CVE-2022-42003</cve>
-        <cve>CVE-2022-42004</cve>
         <cve>CVE-2023-35116</cve>
     </suppress>
 
@@ -54,9 +36,11 @@
     <suppress>
         <packageUrl regex="true">^pkg:maven/ch\.qos\.logback/logback\-core@.*$</packageUrl>
         <cve>CVE-2023-6378</cve>
+        <cve>CVE-2023-6481</cve>
     </suppress>
     <suppress>
         <packageUrl regex="true">^pkg:maven/ch\.qos\.logback/logback\-classic@.*$</packageUrl>
         <cve>CVE-2023-6378</cve>
+        <cve>CVE-2023-6481</cve>
     </suppress>
 </suppressions>

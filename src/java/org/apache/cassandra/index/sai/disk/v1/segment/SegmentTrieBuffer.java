@@ -15,34 +15,38 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.index.sai.disk.v1.bbtree;
+package org.apache.cassandra.index.sai.disk.v1.segment;
 
+import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.atomic.LongAdder;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.cassandra.db.memtable.TrieMemtable;
 import org.apache.cassandra.db.tries.InMemoryTrie;
+import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.index.sai.utils.IndexEntry;
 import org.apache.cassandra.utils.Throwables;
-import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 
 /**
- * On-heap buffer for values that provides a sorted view of itself as a {@link BlockBalancedTreeIterator}.
+ * On-heap buffer for values that provides a sorted view of itself as an {@link Iterator}.
  */
 @NotThreadSafe
-public class BlockBalancedTreeRamBuffer
+public class SegmentTrieBuffer
 {
+    private static final int MAX_RECURSIVE_TERM_LENGTH = 128;
+
     private final InMemoryTrie<PackedLongValues.Builder> trie;
     private final PostingsAccumulator postingsAccumulator;
-    private final int bytesPerValue;
     private int numRows;
 
-    public BlockBalancedTreeRamBuffer(int bytesPerValue)
+    public SegmentTrieBuffer()
     {
         trie = new InMemoryTrie<>(TrieMemtable.BUFFER_TYPE);
         postingsAccumulator = new PostingsAccumulator();
-        this.bytesPerValue = bytesPerValue;
     }
 
     public int numRows()
@@ -55,14 +59,14 @@ public class BlockBalancedTreeRamBuffer
         return trie.sizeOnHeap() + postingsAccumulator.heapAllocations();
     }
 
-    public long add(int segmentRowId, byte[] value)
+    public long add(ByteComparable term, int termLength, int segmentRowId)
     {
         final long initialSizeOnHeap = trie.sizeOnHeap();
         final long reducerHeapSize = postingsAccumulator.heapAllocations();
 
         try
         {
-            trie.putRecursive(v -> ByteSource.fixedLength(value), segmentRowId, postingsAccumulator);
+            trie.putSingleton(term, segmentRowId, postingsAccumulator, termLength <= MAX_RECURSIVE_TERM_LENGTH);
         }
         catch (InMemoryTrie.SpaceExhaustedException e)
         {
@@ -73,9 +77,48 @@ public class BlockBalancedTreeRamBuffer
         return (trie.sizeOnHeap() - initialSizeOnHeap) + (postingsAccumulator.heapAllocations() - reducerHeapSize);
     }
 
-    public BlockBalancedTreeIterator iterator()
+    public Iterator<IndexEntry> iterator()
     {
-        return BlockBalancedTreeIterator.fromTrieIterator(trie.entrySet().iterator(), bytesPerValue);
+        var iterator = trie.entrySet().iterator();
+
+        return new Iterator<>()
+        {
+            @Override
+            public boolean hasNext()
+            {
+                return iterator.hasNext();
+            }
+
+            @Override
+            public IndexEntry next()
+            {
+                Map.Entry<ByteComparable, PackedLongValues.Builder> entry = iterator.next();
+                PackedLongValues postings = entry.getValue().build();
+                PackedLongValues.Iterator postingsIterator = postings.iterator();
+                return IndexEntry.create(entry.getKey(), new PostingList()
+                {
+                    @Override
+                    public long nextPosting()
+                    {
+                        if (postingsIterator.hasNext())
+                            return postingsIterator.next();
+                        return END_OF_STREAM;
+                    }
+
+                    @Override
+                    public long size()
+                    {
+                        return postings.size();
+                    }
+
+                    @Override
+                    public long advance(long targetRowID)
+                    {
+                        throw new UnsupportedOperationException();
+                    }
+                });
+            }
+        };
     }
 
     private static class PostingsAccumulator implements InMemoryTrie.UpsertTransformer<PackedLongValues.Builder, Integer>

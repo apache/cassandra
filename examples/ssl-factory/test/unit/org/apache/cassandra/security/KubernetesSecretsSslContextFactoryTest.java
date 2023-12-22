@@ -80,7 +80,7 @@ public class KubernetesSecretsSslContextFactoryTest
          * done to avoid having a dependency on env in the unit test.
          */
         commonConfig.put("MY_TRUSTSTORE_PASSWORD", "cassandra");
-        commonConfig.put("require_client_auth", Boolean.FALSE);
+        commonConfig.put("require_client_auth", "false");
         commonConfig.put("cipher_suites", Arrays.asList("TLS_RSA_WITH_AES_128_CBC_SHA"));
     }
 

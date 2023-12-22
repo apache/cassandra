@@ -1,75 +1,108 @@
-= Time Window Compaction Strategy
+= Time Window Compaction Strategy (TWCS)
 
 [[twcs]]
-`TimeWindowCompactionStrategy` (TWCS) is designed specifically for
-workloads where it's beneficial to have data on disk grouped by the
-timestamp of the data, a common goal when the workload is time-series in
-nature or when all data is written with a TTL. In an expiring/TTL
-workload, the contents of an entire SSTable likely expire at
-approximately the same time, allowing them to be dropped completely, and
-space reclaimed much more reliably than when using
-`SizeTieredCompactionStrategy` or `LeveledCompactionStrategy`. The basic
-concept is that `TimeWindowCompactionStrategy` will create one sstable per
-file for a given window, where a window is simply calculated as the
-combination of two primary options:
 
-[[twcs_options]]
+include::cassandra:partial$ucs-recommend.adoc[]
 
-`compaction_window_unit` (default: DAYS)::
-  A Java TimeUnit (MINUTES, HOURS, or DAYS).
-`compaction_window_size` (default: 1)::
-  The number of units that make up a window.
-`unsafe_aggressive_sstable_expiration` (default: false)::
-  Expired sstables will be dropped without checking its data is
-  shadowing other sstables. This is a potentially risky option that can
-  lead to data loss or deleted data re-appearing, going beyond what
-  unchecked_tombstone_compaction does for single sstable
-  compaction. Due to the risk the jvm must also be started with
-  `-Dcassandra.unsafe_aggressive_sstable_expiration=true`.
+The `TimeWindowCompactionStrategy` (TWCS) is the recommended compaction strategy for time-series and expiring Time-To-Live (TTL) workloads.
+If the workload has data grouped by timestamp, TWCS can be used to group SSTables by time window, and then drop entire SSTables when they expire.
+Thus, disk space can be reclaimed much more reliably than when using STCS or LCS.
 
-Taken together, the operator can specify windows of virtually any size,
-and `TimeWindowCompactionStrategy` will work to create a
-single sstable for writes within that window. For efficiency during
-writing, the newest window will be compacted using
-`SizeTieredCompactionStrategy`.
+TWCS compacts SSTables using a series of time windows buckets.  
+During the active time window, TWCS compacts all SSTables flushed from memory into larger SSTables using STCS. 
+At the end of the time period, all of these SSTables are compacted into a single SSTable based on the SSTable maximum timestamp. 
+Once the major compaction for a time window is completed, no further compaction of the data will ever occur. 
+The process starts over with the SSTables written in the next time window.
+Notice that each TWCS time window contains varying amounts of data.
+Then the next time window starts and the process repeats.
 
-Ideally, operators should select a `compaction_window_unit` and
-`compaction_window_size` pair that produces approximately 20-30 windows
-- if writing with a 90 day TTL, for example, a 3 Day window would be a
-reasonable choice
-(`'compaction_window_unit':'DAYS','compaction_window_size':3`).
+
 
 == TimeWindowCompactionStrategy Operational Concerns
 
-The primary motivation for TWCS is to separate data on disk by timestamp
-and to allow fully expired SSTables to drop more efficiently. One
-potential way this optimal behavior can be subverted is if data is
-written to SSTables out of order, with new data and old data in the same
-SSTable. Out of order data can appear in two ways:
+The primary motivation for TWCS is to separate data on disk by timestamp and to allow fully expired SSTables to drop more efficiently. 
+One potential way this optimal behavior can be subverted is if data is written to SSTables out of order, with new data and old data in the same SSTable. 
 
-* If the user mixes old data and new data in the traditional write path,
-the data will be comingled in the memtables and flushed into the same
-SSTable, where it will remain comingled.
-* If the user's read requests for old data cause read repairs that pull
-old data into the current memtable, that data will be comingled and
-flushed into the same SSTable.
+Out of order data can appear in two ways:
 
-While TWCS tries to minimize the impact of comingled data, users should
-attempt to avoid this behavior. Specifically, users should avoid queries
-that explicitly set the timestamp via CQL `USING TIMESTAMP`.
-Additionally, users should run frequent repairs (which streams data in
-such a way that it does not become comingled).
+* If the user mixes old data and new data in the traditional write path, the data will be comingled in the memtables and flushed into the same SSTable, where it will remain comingled.
+* If the user's read requests for old data cause read repairs that pull old data into the current memtable, that data will be comingled and flushed into the same SSTable.
+
+While TWCS tries to minimize the impact of comingled data, users should attempt to avoid this behavior. Specifically, users should avoid queries that explicitly set the timestamp via CQL `USING TIMESTAMP`.
+Additionally, users should run frequent repairs (which streams data in such a way that it does not become comingled).
+
+include::cassandra:partial$default-compaction-strategy.adoc[]
+
+[[twcs_options]]
+== TWCS Options 
+
+[cols="1,2"]
+|===
+| Subproperty	| Description
+
+| enabled	
+| Enables background compaction. 
+Default value: true
+// See Enabling and disabling background compaction.
+
+| tombstone_compaction_interval	
+| The minimum number of seconds after which an SSTable is created before {cassandra} considers the SSTable for tombstone compaction. 
+An SSTable is eligible for tombstone compaction if the table exceeds the `tombstone_threshold` ratio. 
+Default value: 86400
+
+| tombstone_threshold	
+| The ratio of garbage-collectable tombstones to all contained columns. 
+If the ratio exceeds this limit, {cassandra} starts compaction on that table alone, to purge the tombstones. 
+Default value: 0.2
+
+| unchecked_tombstone_compaction	
+| If set to `true`, allows {cassandra} to run tombstone compaction without pre-checking which tables are eligible for this operation. 
+Even without this pre-check, {cassandra} checks an SSTable to make sure it is safe to drop tombstones.
+Default value: false
+
+| log_all	
+| Activates advanced logging for the entire cluster.
+Default value: false
+
+| compaction_window_unit	
+| Time unit used to define the bucket size. 
+The value is based on the Java TimeUnit. 
+For the list of valid values, see the Java API TimeUnit page located at https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/TimeUnit.html.
+Default: days
+
+| compaction_window_size	
+| Units per bucket.
+Default value: 1
+
+|timestamp_resolution	
+| The timestamp resolution used when inserting data, can be MILLISECONDS, MICROSECONDS etc (should be understandable by Java TimeUnit).
+Do not change this value unless you do mutations with USING TIMESTAMP (or equivalent directly in the client).
+Default: microseconds
+
+| expired_sstable_check_frequency_seconds
+| Determines how often to check for expired SSTables.
+Default: 10 minutes
+
+| unsafe_aggressive_sstable_expiration	
+| Expired SSTables will be dropped without checking its data is shadowing other SSTables. 
+This is a potentially risky option that can lead to data loss or deleted data re-appearing, going beyond what `unchecked_tombstone_compaction` does for single SSTable compaction. 
+Due to the risk, the JVM must also be started with the option: `-Dcassandra unsafe_aggressive_sstable_expiration=true`.
+Default: false
+|===
+
+Taken together, the operator can specify windows of virtually any size, and TWCS will work to create a
+single SSTable for writes within that window. 
+For efficiency during writing, the newest window will be compacted using STCS.
+
+Ideally, operators should select a `compaction_window_unit` and `compaction_window_size` pair that produces approximately 20-30 windows.
+If writing with a 90 day TTL, for example, a 3 Day window would be a reasonable choice, setting the options to `'compaction_window_unit':'DAYS' and 'compaction_window_size':3`.
+
 
 == Changing TimeWindowCompactionStrategy Options
 
-Operators wishing to enable `TimeWindowCompactionStrategy` on existing
-data should consider running a major compaction first, placing all
-existing data into a single (old) window. Subsequent newer writes will
-then create typical SSTables as expected.
+Operators wishing to enable TWCS on existing data should consider running a major compaction first, placing all existing data into a single (old) window. 
+Subsequent newer writes will then create typical SSTables as expected.
 
-Operators wishing to change `compaction_window_unit` or
-`compaction_window_size` can do so, but may trigger additional
-compactions as adjacent windows are joined together. If the window size
-is decrease d (for example, from 24 hours to 12 hours), then the
-existing SSTables will not be modified - TWCS can not split existing
-SSTables into multiple windows.
+Operators wishing to change `compaction_window_unit` or `compaction_window_size` can do so, but may trigger additional compactions as adjacent windows are joined together. 
+If the window size is decrease d (for example, from 24 hours to 12 hours), then the existing SSTables will not be modified.
+TWCS can not split existing SSTables into multiple windows.
