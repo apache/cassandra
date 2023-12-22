@@ -51,6 +51,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.disk.vector.OverqueryUtils;
 import org.apache.cassandra.index.sai.disk.vector.VectorMemtableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
@@ -154,7 +155,7 @@ public class VectorMemtableIndexTest extends SAITester
                 }
             }
             // with -Dcassandra.test.random.seed=260652334768666, there is one missing key
-            long expectedResult = Math.min(limit, keysInRange.size());
+            long expectedResult = Math.min(OverqueryUtils.topKFor(limit, null), keysInRange.size());
             if (RangeUtil.coversFullRing(keyRange))
                 assertEquals("Missing key in full ring: " + Sets.difference(keysInRange, foundKeys), expectedResult, foundKeys.size());
             else // if skip ANN, returned keys maybe larger than limit

@@ -31,7 +31,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.github.jbellis.jvector.graph.SearchResult;
-import io.github.jbellis.jvector.pq.BinaryQuantization;
 import io.github.jbellis.jvector.util.Bits;
 import io.github.jbellis.jvector.util.SparseFixedBitSet;
 import org.agrona.collections.IntArrayList;
@@ -48,6 +47,7 @@ import org.apache.cassandra.index.sai.disk.v1.PerIndexFiles;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v2.hnsw.CassandraOnDiskHnsw;
 import org.apache.cassandra.index.sai.disk.vector.JVectorLuceneOnDiskGraph;
+import org.apache.cassandra.index.sai.disk.vector.OverqueryUtils;
 import org.apache.cassandra.index.sai.disk.vector.VectorMemtableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.ArrayPostingList;
@@ -62,9 +62,7 @@ import org.apache.cassandra.metrics.QuickSlidingWindowReservoir;
 import org.apache.cassandra.tracing.Tracing;
 
 import static java.lang.Math.ceil;
-import static java.lang.Math.max;
 import static java.lang.Math.min;
-import static java.lang.Math.pow;
 
 /**
  * Executes ann search against the graph for an individual index segment.
@@ -126,7 +124,7 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
 
         if (exp.getEuclideanSearchThreshold() > 0)
             limit = 100000;
-        int topK = topKFor(limit);
+        int topK = OverqueryUtils.topKFor(limit, graph.getCompressedVectors());
         float[] queryVector = exp.lower.value.vector;
 
         BitsOrPostingList bitsOrPostingList = bitsOrPostingListForKeyRange(context, keyRange, queryVector, topK);
@@ -136,34 +134,6 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
         var vectorPostings = graph.search(queryVector, topK, exp.getEuclideanSearchThreshold(), limit, bitsOrPostingList.getBits(), context);
         bitsOrPostingList.updateStatistics(vectorPostings.getVisitedCount());
         return vectorPostings;
-    }
-
-    /**
-     * @return the topK >= `limit` results to ask the index to search for.  This allows
-     * us to compensate for using lossily-compressed vectors during the search, by
-     * searching deeper in the graph.
-     */
-    private int topKFor(int limit)
-    {
-        var cv = graph.getCompressedVectors();
-        // uncompressed indexes don't need to over-search
-        if (cv == null)
-            return limit;
-
-        // compute the factor `n` to multiply limit by to increase the number of results from the index.
-        var n = 0.509 + 9.491 * pow(limit, -0.402); // f(1) = 10.0, f(100) = 2.0, f(1000) = 1.1
-        // The function becomes less than 1 at limit ~= 1583.4
-        n = max(1.0, n);
-
-        // 2x results at limit=100 is enough for all our tested data sets to match uncompressed recall,
-        // except for the ada002 vectors that compress at a 32x ratio.  For ada002, we need 3x results
-        // with PQ, and 4x for BQ.
-        if (cv instanceof BinaryQuantization)
-            n *= 2;
-        else if ((double) cv.getOriginalSize() / cv.getCompressedSize() > 16.0)
-            n *= 1.5;
-
-        return (int) (n * limit);
     }
 
     /**
@@ -402,7 +372,7 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
             return new CollectionRangeIterator(metadata.minKey, metadata.maxKey, keysInRange);
         }
 
-        int topK = topKFor(limit);
+        int topK = OverqueryUtils.topKFor(limit, graph.getCompressedVectors());
         // if we are brute forcing the similarity search, we want to build a list of segment row ids,
         // but if not, we want to build a bitset of ordinals corresponding to the rows.
         // We won't know which path to take until we have an accurate key count.

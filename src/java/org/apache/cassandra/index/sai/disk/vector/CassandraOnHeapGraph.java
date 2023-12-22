@@ -70,8 +70,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.lucene.util.StringHelper;
 
-import static java.lang.Math.max;
-
 public class CassandraOnHeapGraph<T>
 {
     private static final Logger logger = LoggerFactory.getLogger(CassandraOnHeapGraph.class);
@@ -263,7 +261,8 @@ public class CassandraOnHeapGraph<T>
         NodeSimilarity.ExactScoreFunction scoreFunction = node2 -> {
             return similarityFunction.compare(queryVector, ((RandomAccessVectorValues<float[]>) vectorValues).vectorValue(node2));
         };
-        var result = searcher.search(scoreFunction, null, limit, threshold, bits);
+        var topK = OverqueryUtils.topKFor(limit, null);
+        var result = searcher.search(scoreFunction, null, topK, threshold, bits);
         Tracing.trace("ANN search visited {} in-memory nodes to return {} results", result.getVisitedCount(), result.getNodes().length);
         var a = result.getNodes();
         PriorityQueue<T> keyQueue = new PriorityQueue<>();
