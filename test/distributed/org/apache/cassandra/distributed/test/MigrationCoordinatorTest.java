@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test;
 import java.net.InetAddress;
 import java.util.UUID;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -28,25 +29,35 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.schema.Schema;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.CONSISTENT_RANGE_MOVEMENT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.BROADCAST_INTERVAL_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORED_SCHEMA_CHECK_ENDPOINTS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORED_SCHEMA_CHECK_VERSIONS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.RING_DELAY;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public class MigrationCoordinatorTest extends TestBaseImpl
 {
+    private static WithProperties withProperties;
 
     @Before
     public void setUp()
     {
-        REPLACE_ADDRESS.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
-        CONSISTENT_RANGE_MOVEMENT.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
-        IGNORED_SCHEMA_CHECK_VERSIONS.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
+        withProperties = new WithProperties();
+        withProperties.set(RING_DELAY, 5000);
+        withProperties.set(BROADCAST_INTERVAL_MS, 30000);
     }
+
+    @After
+    public void afterTestCleanup()
+    {
+        withProperties.close();
+    }
+
     /**
      * We shouldn't wait on versions only available from a node being replaced
      * see CASSANDRA-
@@ -67,7 +78,7 @@ public class MigrationCoordinatorTest extends TestBaseImpl
 
             IInstanceConfig config = cluster.newInstanceConfig();
             config.set("auto_bootstrap", true);
-            REPLACE_ADDRESS.setString(replacementAddress.getHostAddress());
+            withProperties.set(REPLACE_ADDRESS, replacementAddress.getHostAddress());
             cluster.bootstrap(config).startup();
         }
     }
@@ -88,8 +99,7 @@ public class MigrationCoordinatorTest extends TestBaseImpl
 
             IInstanceConfig config = cluster.newInstanceConfig();
             config.set("auto_bootstrap", true);
-            IGNORED_SCHEMA_CHECK_ENDPOINTS.setString(ignoredEndpoint.getHostAddress());
-            CONSISTENT_RANGE_MOVEMENT.setBoolean(false);
+            withProperties.set(IGNORED_SCHEMA_CHECK_ENDPOINTS, ignoredEndpoint.getHostAddress());
             cluster.bootstrap(config).startup();
         }
     }
@@ -115,8 +125,7 @@ public class MigrationCoordinatorTest extends TestBaseImpl
 
             IInstanceConfig config = cluster.newInstanceConfig();
             config.set("auto_bootstrap", true);
-            IGNORED_SCHEMA_CHECK_VERSIONS.setString(initialVersion.toString() + ',' + oldVersion);
-            CONSISTENT_RANGE_MOVEMENT.setBoolean(false);
+            withProperties.set(IGNORED_SCHEMA_CHECK_VERSIONS, initialVersion.toString() + ',' + oldVersion);
             cluster.bootstrap(config).startup();
         }
     }
