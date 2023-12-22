@@ -37,6 +37,9 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.ListenableFuture;
+
+import org.apache.cassandra.repair.state.CoordinatorState;
+import org.apache.cassandra.utils.TimeUUID;
 import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Before;
@@ -74,11 +77,11 @@ import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Throwables;
-import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.asserts.SyncTaskListAssert;
 
 import static java.util.Collections.emptySet;
 import static org.apache.cassandra.repair.RepairParallelism.SEQUENTIAL;
+import static org.apache.cassandra.repair.RepairSessionTest.coordinator;
 import static org.apache.cassandra.streaming.PreviewKind.NONE;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.apache.cassandra.utils.asserts.SyncTaskAssert.assertThat;
@@ -122,12 +125,12 @@ public class RepairJobTest
     {
         private final List<Callable<?>> syncCompleteCallbacks = new ArrayList<>();
 
-        public MeasureableRepairSession(TimeUUID parentRepairSession, CommonRange commonRange, String keyspace,
+        public MeasureableRepairSession(CoordinatorState coordinator, CommonRange commonRange, String keyspace,
                                         RepairParallelism parallelismDegree, boolean isIncremental, boolean pullRepair,
                                         PreviewKind previewKind, boolean optimiseStreams, boolean repairPaxos, boolean paxosOnly,
                                         String... cfnames)
         {
-            super(parentRepairSession, commonRange, keyspace, parallelismDegree, isIncremental, pullRepair,
+            super(coordinator, commonRange, keyspace, parallelismDegree, isIncremental, pullRepair,
                   previewKind, optimiseStreams, repairPaxos, paxosOnly, cfnames);
         }
 
@@ -182,12 +185,11 @@ public class RepairJobTest
     {
         Set<InetAddressAndPort> neighbors = new HashSet<>(Arrays.asList(addr2, addr3));
 
-        TimeUUID parentRepairSession = nextTimeUUID();
-        ActiveRepairService.instance.registerParentRepairSession(parentRepairSession, FBUtilities.getBroadcastAddressAndPort(),
-                                                                 Collections.singletonList(Keyspace.open(KEYSPACE).getColumnFamilyStore(CF)), FULL_RANGE, false,
-                                                                 ActiveRepairService.UNREPAIRED_SSTABLE, false, PreviewKind.NONE);
-
-        this.session = new MeasureableRepairSession(parentRepairSession,
+        CoordinatorState coordinator = coordinator();
+        ActiveRepairService.instance.registerParentRepairSession(coordinator.id, FBUtilities.getBroadcastAddressAndPort(),
+                                                                   Collections.singletonList(Keyspace.open(KEYSPACE).getColumnFamilyStore(CF)), FULL_RANGE, false,
+                                                                   ActiveRepairService.UNREPAIRED_SSTABLE, false, PreviewKind.NONE);
+        this.session = new MeasureableRepairSession(coordinator,
                                                     new CommonRange(neighbors, emptySet(), FULL_RANGE),
                                                     KEYSPACE, SEQUENTIAL, false, false,
                                                     NONE, false, true, false, CF);

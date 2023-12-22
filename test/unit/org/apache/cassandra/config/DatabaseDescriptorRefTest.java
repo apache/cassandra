@@ -66,6 +66,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.auth.IInternodeAuthenticator",
     "org.apache.cassandra.auth.IAuthenticator",
     "org.apache.cassandra.auth.IAuthorizer",
+    "org.apache.cassandra.cache.IMeasurableMemory",
     "org.apache.cassandra.auth.IRoleManager",
     "org.apache.cassandra.auth.INetworkAuthorizer",
     "org.apache.cassandra.config.DatabaseDescriptor",

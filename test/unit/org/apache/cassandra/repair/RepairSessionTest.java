@@ -36,11 +36,13 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.repair.state.CoordinatorState;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.Clock;
 
-import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
@@ -59,11 +61,10 @@ public class RepairSessionTest
         Gossiper.instance.initializeNodeUnsafe(remote, UUID.randomUUID(), 1);
 
         // Set up RepairSession
-        TimeUUID parentSessionId = nextTimeUUID();
         IPartitioner p = Murmur3Partitioner.instance;
         Range<Token> repairRange = new Range<>(p.getToken(ByteBufferUtil.bytes(0)), p.getToken(ByteBufferUtil.bytes(100)));
         Set<InetAddressAndPort> endpoints = Sets.newHashSet(remote);
-        RepairSession session = new RepairSession(parentSessionId,
+        RepairSession session = new RepairSession(coordinator(),
                                                   new CommonRange(endpoints, Collections.emptySet(), Arrays.asList(repairRange)),
                                                   "Keyspace1", RepairParallelism.SEQUENTIAL,
                                                   false, false,
@@ -82,5 +83,13 @@ public class RepairSessionTest
         {
             assertEquals(IOException.class, ex.getCause().getClass());
         }
+    }
+
+    public static CoordinatorState coordinator()
+    {
+        RepairOption options = RepairOption.parse(Collections.emptyMap(), DatabaseDescriptor.getPartitioner());
+        CoordinatorState state = new CoordinatorState(0, "test", options);
+        ActiveRepairService.instance.register(state);
+        return state;
     }
 }

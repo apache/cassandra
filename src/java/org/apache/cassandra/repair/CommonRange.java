@@ -21,21 +21,30 @@ package org.apache.cassandra.repair;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.cassandra.cache.IMeasurableMemory;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ObjectSizes;
 
 /**
  * Groups ranges with identical endpoints/transient endpoints
  */
-public class CommonRange
+public class CommonRange implements IMeasurableMemory
 {
+    // REVIEW: I've heard from some that these should be on a single line, others prefer them split out into separate lines
+    // in a static block. I'm open to either.
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new CommonRange(ImmutableSet.of(FBUtilities.getBroadcastAddressAndPort()), Collections.emptySet(), Range.rangeSet(new Range<>(new Murmur3Partitioner.LongToken(Long.MIN_VALUE), new Murmur3Partitioner.LongToken(Long.MIN_VALUE)))));
+
     public final ImmutableSet<InetAddressAndPort> endpoints;
     public final ImmutableSet<InetAddressAndPort> transEndpoints;
     public final Collection<Range<Token>> ranges;
@@ -91,5 +100,18 @@ public class CommonRange
                ", ranges=" + ranges +
                ", hasSkippedReplicas=" + hasSkippedReplicas +
                '}';
+    }
+
+    @Override
+    public long unsharedHeapSize()
+    {
+        long size = EMPTY_SIZE;
+        for (InetAddressAndPort addr : endpoints)
+            size += addr.unsharedHeapSize();
+        for (InetAddressAndPort addr : transEndpoints)
+            size += addr.unsharedHeapSize();
+        for (Range<Token> range : ranges)
+            size += ObjectSizes.sizeOf(range);
+        return size;
     }
 }

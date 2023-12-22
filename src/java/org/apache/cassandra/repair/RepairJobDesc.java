@@ -27,6 +27,7 @@ import com.google.common.base.Objects;
 
 import org.apache.commons.lang3.ArrayUtils;
 
+import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
@@ -36,6 +37,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -46,9 +48,11 @@ import static org.apache.cassandra.utils.ByteBufferUtil.getArray;
  *
  * @since 2.0
  */
-public class RepairJobDesc
+public class RepairJobDesc implements IMeasurableMemory
 {
     public static final IVersionedSerializer<RepairJobDesc> serializer = new RepairJobDescSerializer();
+
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new RepairJobDesc(null, null, null, null, null));
 
     public final TimeUUID parentSessionId;
     /** RepairSession id */
@@ -109,6 +113,19 @@ public class RepairJobDesc
     public int hashCode()
     {
         return Objects.hashCode(sessionId, keyspace, columnFamily, ranges);
+    }
+
+    @Override
+    public long unsharedHeapSize()
+    {
+        long size = EMPTY_SIZE;
+        size += TimeUUID.TIMEUUID_SIZE; // parentSessionId
+        size += TimeUUID.TIMEUUID_SIZE; // sessionId
+        size += ObjectSizes.sizeOf(keyspace);
+        size += ObjectSizes.sizeOf(columnFamily);
+        for (Range<Token> range : ranges)
+            size += ObjectSizes.sizeOf(range);
+        return size;
     }
 
     private static class RepairJobDescSerializer implements IVersionedSerializer<RepairJobDesc>

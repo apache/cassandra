@@ -81,7 +81,7 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
      */
     private static final long MIN_CLOCK_SEQ_AND_NODE = 0x8080808080808080L;
     private static final long MAX_CLOCK_SEQ_AND_NODE = 0x7f7f7f7f7f7f7f7fL;
-
+    public static final long TIMEUUID_SIZE = ObjectSizes.measureDeep(new TimeUUID(10, 10));
 
     final long uuidTimestamp, lsb;
 

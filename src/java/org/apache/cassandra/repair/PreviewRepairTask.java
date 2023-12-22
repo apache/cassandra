@@ -31,6 +31,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.RepairMetrics;
 import org.apache.cassandra.repair.consistent.SyncStatSummary;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.repair.state.CoordinatorState;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.DiagnosticSnapshotService;
 import org.apache.cassandra.utils.TimeUUID;
@@ -38,15 +39,13 @@ import org.apache.cassandra.utils.concurrent.Future;
 
 public class PreviewRepairTask extends AbstractRepairTask
 {
-    private final TimeUUID parentSession;
     private final List<CommonRange> commonRanges;
     private final String[] cfnames;
     private volatile String successMessage = name() + " completed successfully";
 
-    protected PreviewRepairTask(RepairOption options, String keyspace, RepairNotifier notifier, TimeUUID parentSession, List<CommonRange> commonRanges, String[] cfnames)
+    protected PreviewRepairTask(CoordinatorState coordinator, RepairOption options, String keyspace, RepairNotifier notifier, TimeUUID parentSession, List<CommonRange> commonRanges, String[] cfnames)
     {
-        super(options, keyspace, notifier);
-        this.parentSession = parentSession;
+        super(coordinator, options, keyspace, notifier);
         this.commonRanges = commonRanges;
         this.cfnames = cfnames;
     }
@@ -66,7 +65,7 @@ public class PreviewRepairTask extends AbstractRepairTask
     @Override
     public Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor)
     {
-        Future<CoordinatedRepairResult> f = runRepair(parentSession, false, executor, commonRanges, cfnames);
+        Future<CoordinatedRepairResult> f = runRepair(false, executor, commonRanges, cfnames);
         return f.map(result -> {
             if (result.hasFailed())
                 return result;
@@ -86,7 +85,7 @@ public class PreviewRepairTask extends AbstractRepairTask
                 message = (previewKind == PreviewKind.REPAIRED ? "Repaired data is inconsistent\n" : "Preview complete\n") + summary;
                 RepairMetrics.previewFailures.inc();
                 if (previewKind == PreviewKind.REPAIRED)
-                    maybeSnapshotReplicas(parentSession, keyspace, result.results.get()); // we know its present as summary used it
+                    maybeSnapshotReplicas(keyspace, result.results.get()); // we know its present as summary used it
             }
             successMessage += "; " + message;
             notifier.notification(message);
@@ -95,7 +94,7 @@ public class PreviewRepairTask extends AbstractRepairTask
         });
     }
 
-    private void maybeSnapshotReplicas(TimeUUID parentSession, String keyspace, List<RepairSessionResult> results)
+    private void maybeSnapshotReplicas(String keyspace, List<RepairSessionResult> results)
     {
         if (!DatabaseDescriptor.snapshotOnRepairedDataMismatch())
             return;
@@ -126,21 +125,21 @@ public class PreviewRepairTask extends AbstractRepairTask
                 if (!Keyspace.open(keyspace).getColumnFamilyStore(table).snapshotExists(snapshotName))
                 {
                     logger.info("{} Snapshotting {}.{} for preview repair mismatch with tag {} on instances {}",
-                                options.getPreviewKind().logPrefix(parentSession),
+                                options.getPreviewKind().logPrefix(coordinator.id),
                                 keyspace, table, snapshotName, nodes);
                     DiagnosticSnapshotService.repairedDataMismatch(Keyspace.open(keyspace).getColumnFamilyStore(table).metadata(), nodes);
                 }
                 else
                 {
                     logger.info("{} Not snapshotting {}.{} - snapshot {} exists",
-                                options.getPreviewKind().logPrefix(parentSession),
+                                options.getPreviewKind().logPrefix(coordinator.id),
                                 keyspace, table, snapshotName);
                 }
             }
         }
         catch (Exception e)
         {
-            logger.error("{} Failed snapshotting replicas", options.getPreviewKind().logPrefix(parentSession), e);
+            logger.error("{} Failed snapshotting replicas", options.getPreviewKind().logPrefix(coordinator.id), e);
         }
     }
 

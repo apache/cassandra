@@ -32,8 +32,8 @@ import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.repair.state.CoordinatorState;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
@@ -41,19 +41,20 @@ public abstract class AbstractRepairTask implements RepairTask
 {
     protected static final Logger logger = LoggerFactory.getLogger(AbstractRepairTask.class);
 
+    protected final CoordinatorState coordinator;
     protected final RepairOption options;
     protected final String keyspace;
     protected final RepairNotifier notifier;
 
-    protected AbstractRepairTask(RepairOption options, String keyspace, RepairNotifier notifier)
+    protected AbstractRepairTask(CoordinatorState coordinator, RepairOption options, String keyspace, RepairNotifier notifier)
     {
+        this.coordinator = Objects.requireNonNull(coordinator);
         this.options = Objects.requireNonNull(options);
         this.keyspace = Objects.requireNonNull(keyspace);
         this.notifier = Objects.requireNonNull(notifier);
     }
 
-    private List<RepairSession> submitRepairSessions(TimeUUID parentSession,
-                                                     boolean isIncremental,
+    private List<RepairSession> submitRepairSessions(boolean isIncremental,
                                                      ExecutorPlus executor,
                                                      List<CommonRange> commonRanges,
                                                      String... cfnames)
@@ -63,18 +64,18 @@ public abstract class AbstractRepairTask implements RepairTask
         for (CommonRange commonRange : commonRanges)
         {
             logger.info("Starting RepairSession for {}", commonRange);
-            RepairSession session = ActiveRepairService.instance.submitRepairSession(parentSession,
-                                                                                     commonRange,
-                                                                                     keyspace,
-                                                                                     options.getParallelism(),
-                                                                                     isIncremental,
-                                                                                     options.isPullRepair(),
-                                                                                     options.getPreviewKind(),
-                                                                                     options.optimiseStreams(),
-                                                                                     options.repairPaxos(),
-                                                                                     options.paxosOnly(),
-                                                                                     executor,
-                                                                                     cfnames);
+            RepairSession session = ActiveRepairService.instance.submitRepairSession(coordinator,
+                                                                                 commonRange,
+                                                                                 keyspace,
+                                                                                 options.getParallelism(),
+                                                                                 isIncremental,
+                                                                                 options.isPullRepair(),
+                                                                                 options.getPreviewKind(),
+                                                                                 options.optimiseStreams(),
+                                                                                 options.repairPaxos(),
+                                                                                 options.paxosOnly(),
+                                                                                 executor,
+                                                                                 cfnames);
             if (session == null)
                 continue;
             session.addCallback(new RepairSessionCallback(session));
@@ -83,13 +84,12 @@ public abstract class AbstractRepairTask implements RepairTask
         return futures;
     }
 
-    protected Future<CoordinatedRepairResult> runRepair(TimeUUID parentSession,
-                                                        boolean isIncremental,
+    protected Future<CoordinatedRepairResult> runRepair(boolean isIncremental,
                                                         ExecutorPlus executor,
                                                         List<CommonRange> commonRanges,
                                                         String... cfnames)
     {
-        List<RepairSession> allSessions = submitRepairSessions(parentSession, isIncremental, executor, commonRanges, cfnames);
+        List<RepairSession> allSessions = submitRepairSessions(isIncremental, executor, commonRanges, cfnames);
         List<Collection<Range<Token>>> ranges = Lists.transform(allSessions, RepairSession::ranges);
         Future<List<RepairSessionResult>> f = FutureCombiner.successfulOf(allSessions);
         return f.map(results -> {
