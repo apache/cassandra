@@ -91,7 +91,6 @@ public class ResourceLeakTest extends TestBaseImpl
      */
     private static Long getProcessId()
     {
-        // Once Java 9 is ready the process API should provide a better way to get the process ID.
         long pid = new SystemInfo().getPid();
 
         if (pid >= 0)

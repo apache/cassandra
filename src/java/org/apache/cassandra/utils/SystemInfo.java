@@ -23,6 +23,7 @@ import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
+import com.vdurmont.semver4j.Semver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +39,7 @@ import static java.util.Optional.of;
  * An abstraction of System information, this class provides access to system information without specifying how
  * it is retrieved.
  */
-public class SystemInfo
+public final class SystemInfo
 {
     // TODO: Determine memlock limits if possible
     // TODO: Determine if file system is remote or local
@@ -160,6 +161,14 @@ public class SystemInfo
     public long getPid()
     {
         return si.getOperatingSystem().getProcessId();
+    }
+
+    /**
+     * @return the Semver for the kernel version of the OS.
+     */
+    public Semver getKernelVersion()
+    { 
+        return new Semver(si.getOperatingSystem().getVersionInfo().getBuildNumber(), Semver.SemverType.LOOSE);
     }
 
     /**
