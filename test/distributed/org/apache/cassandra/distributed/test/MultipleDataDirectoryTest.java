@@ -33,6 +33,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -47,7 +48,7 @@ public class MultipleDataDirectoryTest extends TestBaseImpl
     @BeforeClass
     public static void before() throws IOException
     {
-        CLUSTER = init(Cluster.build().withNodes(1).withDataDirCount(3).start());
+        CLUSTER = init(Cluster.build().withNodes(1).withDataDirCount(3).withConfig(c -> c.with(Feature.JMX)).start());
         NODE = CLUSTER.get(1);
         CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s.cf (k text, c1 text, c2 text, PRIMARY KEY (k)) WITH compaction = {'class': 'LeveledCompactionStrategy', 'enabled': 'false'}"));
         Assert.assertEquals(3, NODE.callsOnInstance(() -> DatabaseDescriptor.getAllDataFileLocations().length).call().intValue());

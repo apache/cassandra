@@ -31,6 +31,7 @@ import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.service.StorageProxy;
 
@@ -61,7 +62,7 @@ public class HintedHandoffNodetoolTest extends TestBaseImpl
     @BeforeClass
     public static void before() throws IOException
     {
-        cluster = init(Cluster.build().withNodes(2).withDCs(2).start());
+        cluster = init(Cluster.build().withNodes(2).withDCs(2).withConfig(c -> c.with(Feature.JMX)).start());
     }
 
     @AfterClass

@@ -83,7 +83,8 @@ public class RepairCoordinatorFailingMessageTest extends TestBaseImpl implements
         // streaming also requires gossip or isn't setup properly
         CLUSTER = init(Cluster.build(3) // set to 3 so streaming hits non-local case
                               .withConfig(c -> c.with(Feature.NETWORK)
-                                                .with(Feature.GOSSIP))
+                                                .with(Feature.GOSSIP)
+                                                .with(Feature.JMX))
                               .start());
     }
 

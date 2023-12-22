@@ -44,6 +44,7 @@ import org.apache.cassandra.utils.TimeUUID;
 
 import static java.util.Arrays.stream;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.repair.consistent.ConsistentSession.State.REPAIRING;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -95,7 +96,8 @@ public class IncRepairAdminTest extends TestBaseImpl
     {
         try (Cluster cluster = init(Cluster.build(3)
                                            .withConfig(config -> config.with(GOSSIP)
-                                                                       .with(NETWORK))
+                                                                       .with(NETWORK)
+                                                                       .with(JMX))
                                            .start()))
         {
             boolean shouldFail = !coordinator && !force;

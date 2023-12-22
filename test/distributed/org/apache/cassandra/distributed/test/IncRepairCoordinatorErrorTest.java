@@ -35,7 +35,7 @@ public class IncRepairCoordinatorErrorTest extends TestBaseImpl
     public void errorTest() throws Exception
     {
         try (Cluster cluster = init(Cluster.build(3)
-                                           .withConfig(c -> c.with(Feature.NETWORK, Feature.GOSSIP))
+                                           .withConfig(c -> c.with(Feature.NETWORK, Feature.GOSSIP, Feature.JMX))
                                            .start()))
         {
             cluster.schemaChange(withKeyspace("create table %s.tbl (id int primary key, x int)"));

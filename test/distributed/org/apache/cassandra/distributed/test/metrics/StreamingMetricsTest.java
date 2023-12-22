@@ -33,6 +33,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.StreamingMetrics;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.net.Verb.MUTATION_REQ;
@@ -63,7 +64,7 @@ public class StreamingMetricsTest extends TestBaseImpl
     {
         try(Cluster cluster = init(Cluster.build(3)
                                           .withDataDirCount(1)
-                                          .withConfig(config -> config.with(NETWORK)
+                                          .withConfig(config -> config.with(NETWORK, JMX)
                                                                       .set("stream_entire_sstables", false)
                                                                       .set("hinted_handoff_enabled", false))
                                           .start(), 2))
@@ -153,7 +154,7 @@ public class StreamingMetricsTest extends TestBaseImpl
     {
         try(Cluster cluster = init(Cluster.build(3)
                                           .withDataDirCount(1)
-                                          .withConfig(config -> config.with(NETWORK, GOSSIP)
+                                          .withConfig(config -> config.with(NETWORK, GOSSIP, JMX)
                                                                       .set("stream_entire_sstables", false)
                                                                       .set("hinted_handoff_enabled", false))
                                           .start(), 2))

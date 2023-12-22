@@ -55,6 +55,7 @@ import org.apache.cassandra.streaming.PreviewKind;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -69,7 +70,8 @@ public class OptimiseStreamsRepairTest extends TestBaseImpl
                                           .withInstanceInitializer(BBHelper::install)
                                           .withConfig(config -> config.set("hinted_handoff_enabled", false)
                                                                       .with(GOSSIP)
-                                                                      .with(NETWORK))
+                                                                      .with(NETWORK)
+                                                                      .with(JMX))
                                           .start()))
         {
             cluster.schemaChange("create table " + KEYSPACE + ".tbl (id int primary key, t int) with compaction={'class': 'SizeTieredCompactionStrategy'}");

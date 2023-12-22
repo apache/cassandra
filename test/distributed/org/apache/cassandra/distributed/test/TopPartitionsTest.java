@@ -42,6 +42,7 @@ import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.test.PreviewRepairTest.logMark;
 import static org.junit.Assert.assertEquals;
@@ -79,7 +80,7 @@ public class TopPartitionsTest extends TestBaseImpl
         CLUSTER = init(Cluster.build(2).withConfig(config ->
                                                    config.set("min_tracked_partition_size", "0MiB")
                                                          .set("min_tracked_partition_tombstone_count", 0)
-                                                         .with(GOSSIP, NETWORK))
+                                                         .with(GOSSIP, NETWORK, JMX))
                               .start());
     }
 

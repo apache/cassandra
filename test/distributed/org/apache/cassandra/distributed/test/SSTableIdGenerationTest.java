@@ -224,7 +224,7 @@ public class SSTableIdGenerationTest extends TestBaseImpl
         // start both nodes with uuid disabled
         try (Cluster cluster = init(Cluster.build(2)
                                            .withDataDirCount(1)
-                                           .withConfig(config -> config.set(ENABLE_UUID_FIELD_NAME, false).with(Feature.NETWORK))
+                                           .withConfig(config -> config.set(ENABLE_UUID_FIELD_NAME, false).with(Feature.NETWORK, Feature.JMX))
                                            .start()))
         {
             // create an empty table and shutdown nodes 2, 3

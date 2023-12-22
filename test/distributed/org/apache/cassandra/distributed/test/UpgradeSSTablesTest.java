@@ -26,6 +26,7 @@ import org.junit.Test;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.LogAction;
@@ -37,7 +38,7 @@ public class UpgradeSSTablesTest extends TestBaseImpl
     @Test
     public void rewriteSSTablesTest() throws Throwable
     {
-        try (ICluster<IInvokableInstance> cluster = builder().withNodes(1).withDataDirCount(1).start())
+        try (ICluster<IInvokableInstance> cluster = builder().withNodes(1).withDataDirCount(1).withConfig(c -> c.with(Feature.JMX)).start())
         {
             for (String compressionBefore : new String[]{ "{'class' : 'LZ4Compressor', 'chunk_length_in_kb' : 32}", "{'enabled': 'false'}" })
             {

@@ -30,6 +30,7 @@ import org.apache.cassandra.distributed.shared.NetworkTopology;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
@@ -53,7 +54,7 @@ public class NetstatsRepairStreamingTest extends AbstractNetstatsStreaming
 
         try (final Cluster cluster = Cluster.build()
                                             .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(2, "dc0", "rack0"))
-                                            .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL)
+                                            .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL, JMX)
                                                                         .set("stream_throughput_outbound", "122KiB/s")
                                                                         .set("compaction_throughput", "1MiB/s")
                                                                         .set("stream_entire_sstables", false)).start())

@@ -67,7 +67,7 @@ public class AutoSnapshotTtlTest extends TestBaseImpl
     public void testAutoSnapshotTTlOnTruncate() throws IOException
     {
         try (Cluster cluster = init(build().withNodes(1)
-                                      .withConfig(c -> c.with(Feature.GOSSIP)
+                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.JMX)
                                                         .set("auto_snapshot_ttl", String.format("%ds", FIVE_SECONDS)))
                                       .start()))
         {
@@ -97,7 +97,7 @@ public class AutoSnapshotTtlTest extends TestBaseImpl
     public void testAutoSnapshotTTlOnDrop() throws IOException
     {
         try (Cluster cluster = init(build().withNodes(1)
-                                      .withConfig(c -> c.with(Feature.GOSSIP)
+                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.JMX)
                                                                   .set("auto_snapshot_ttl", String.format("%ds", FIVE_SECONDS)))
                                       .start()))
         {
@@ -128,7 +128,7 @@ public class AutoSnapshotTtlTest extends TestBaseImpl
     {
         int ONE_MINUTE = 60; // longer TTL to allow snapshot to survive node restart
         try (Cluster cluster = init(build().withNodes(1)
-                                           .withConfig(c -> c.with(Feature.GOSSIP)
+                                           .withConfig(c -> c.with(Feature.GOSSIP, Feature.JMX)
                                                              .set("auto_snapshot_ttl", String.format("%ds", ONE_MINUTE)))
                                            .start()))
         {
@@ -162,7 +162,7 @@ public class AutoSnapshotTtlTest extends TestBaseImpl
     public void testAutoSnapshotTtlDisabled() throws IOException, InterruptedException
     {
         try (Cluster cluster = init(build().withNodes(1)
-                                      .withConfig(c -> c.with(Feature.GOSSIP))
+                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.JMX))
                                       .start()))
         {
             IInvokableInstance instance = cluster.get(1);

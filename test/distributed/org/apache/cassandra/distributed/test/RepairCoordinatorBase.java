@@ -77,7 +77,8 @@ public class RepairCoordinatorBase extends TestBaseImpl
         // streaming also requires gossip or isn't setup properly
         CLUSTER = init(Cluster.build(2)
                               .withConfig(c -> c.with(Feature.NETWORK)
-                                                .with(Feature.GOSSIP))
+                                                .with(Feature.GOSSIP)
+                                                .with(Feature.JMX))
                               .start());
 
         CLUSTER.setUncaughtExceptionsFilter(throwable -> throwable instanceof RejectedExecutionException && "RepairJobTask has shut down".equals(throwable.getMessage()));

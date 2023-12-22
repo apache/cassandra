@@ -23,6 +23,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.serializers.BooleanSerializer;
 
 public class BooleanTest extends TestBaseImpl
@@ -30,7 +31,7 @@ public class BooleanTest extends TestBaseImpl
     @Test
     public void booleanTest() throws Throwable
     {
-        try(Cluster cluster = init(Cluster.build(1).start()))
+        try(Cluster cluster = init(Cluster.build(1).withConfig(c -> c.with(Feature.JMX)).start()))
         {
             cluster.schemaChange("create table " + KEYSPACE + ".tbl (id int, ck boolean, t int, primary key ((id, ck)))");
             for (int i = 0; i < 10; i++)

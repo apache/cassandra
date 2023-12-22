@@ -34,6 +34,7 @@ import org.assertj.core.api.Assertions;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public class RepairOperationalTest extends TestBaseImpl
@@ -42,7 +43,7 @@ public class RepairOperationalTest extends TestBaseImpl
     public void compactionBehindTest() throws IOException
     {
         try(Cluster cluster = init(Cluster.build(2)
-                                          .withConfig(config -> config.with(GOSSIP).with(NETWORK))
+                                          .withConfig(config -> config.with(GOSSIP).with(NETWORK).with(JMX))
                                           .withInstanceInitializer(ByteBuddyHelper::install)
                                           .start()))
         {
@@ -88,7 +89,7 @@ public class RepairOperationalTest extends TestBaseImpl
     {
         try (Cluster cluster = init(Cluster.build(4)
                                           .withDCs(2)
-                                          .withConfig(config -> config.with(GOSSIP).with(NETWORK))
+                                          .withConfig(config -> config.with(GOSSIP).with(NETWORK).with(JMX))
                                           .start()))
         {
             cluster.schemaChange("alter keyspace "+KEYSPACE+" with replication = {'class': 'NetworkTopologyStrategy', 'datacenter1':2, 'datacenter2':0}");
@@ -112,7 +113,7 @@ public class RepairOperationalTest extends TestBaseImpl
     @Test
     public void dcFilterOnEmptyDC() throws IOException
     {
-        try (Cluster cluster = Cluster.build().withRacks(2, 1, 2).start())
+        try (Cluster cluster = Cluster.build().withRacks(2, 1, 2).withConfig(c -> c.with(JMX)).start())
         {
             // 1-2 : datacenter1
             // 3-4 : datacenter2
@@ -138,7 +139,7 @@ public class RepairOperationalTest extends TestBaseImpl
     @Test
     public void hostFilterDifferentDC() throws IOException
     {
-        try (Cluster cluster = Cluster.build().withRacks(2, 1, 2).start())
+        try (Cluster cluster = Cluster.build().withRacks(2, 1, 2).withConfig(c -> c.with(JMX)).start())
         {
             // 1-2 : datacenter1
             // 3-4 : datacenter2
@@ -165,7 +166,7 @@ public class RepairOperationalTest extends TestBaseImpl
     @Test
     public void emptyDC() throws IOException
     {
-        try (Cluster cluster = Cluster.build().withRacks(2, 1, 2).start())
+        try (Cluster cluster = Cluster.build().withRacks(2, 1, 2).withConfig(c -> c.with(JMX)).start())
         {
             // 1-2 : datacenter1
             // 3-4 : datacenter2
