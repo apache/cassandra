@@ -23,11 +23,9 @@ import java.io.InputStream;
 import java.net.InetAddress;
 import java.security.KeyStore;
 import java.util.Collections;
-
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -173,32 +171,12 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
             c.set("client_encryption_options",
                   ImmutableMap.builder().putAll(validKeystore)
                               .put("enabled", true)
-                              .put("accepted_protocols", ImmutableList.of("TLSv1.1", "TLSv1.2", "TLSv1.3"))
+                              .put("accepted_protocols", getAcceptedProtocolsForNegotationTest())
                               .build());
         }).start())
         {
-            InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
             int port = (int) cluster.get(1).config().get("native_transport_port");
-
-            TlsConnection tls10Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1"));
-            Assert.assertEquals("Should not be possible to establish a TLSv1 connection",
-                                ConnectResult.FAILED_TO_NEGOTIATE, tls10Connection.connect());
-            tls10Connection.assertReceivedHandshakeException();
-
-            TlsConnection tls11Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1.1"));
-            Assert.assertEquals("Should be possible to establish a TLSv1.1 connection",
-                                ConnectResult.NEGOTIATED, tls11Connection.connect());
-            Assert.assertEquals("TLSv1.1", tls11Connection.lastProtocol());
-
-            TlsConnection tls12Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1.2"));
-            Assert.assertEquals("Should be possible to establish a TLSv1.2 connection",
-                                ConnectResult.NEGOTIATED, tls12Connection.connect());
-            Assert.assertEquals("TLSv1.2", tls12Connection.lastProtocol());
-
-            TlsConnection tls13Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1.3"));
-            Assert.assertEquals("Should be possible to establish a TLSv1.3 connection",
-                                ConnectResult.NEGOTIATED, tls13Connection.connect());
-            Assert.assertEquals("TLSv1.3", tls13Connection.lastProtocol());
+            testProtocolNegotation(cluster, port);
         }
     }
 
