@@ -444,14 +444,11 @@ public class FBUtilities
         return previousReleaseVersionString;
     }
 
-    private static Properties getVersionProperties()
-    {
+    private static final Supplier<Properties> loadedProperties = Suppliers.memoize(() -> {
         try (InputStream in = FBUtilities.class.getClassLoader().getResourceAsStream("org/apache/cassandra/config/version.properties"))
         {
             if (in == null)
-            {
                 return null;
-            }
             Properties props = new Properties();
             props.load(in);
             return props;
@@ -462,11 +459,11 @@ public class FBUtilities
             logger.warn("Unable to load version.properties", e);
             return null;
         }
-    }
+    });
 
     public static String getReleaseVersionString()
     {
-        Properties props = getVersionProperties();
+        Properties props = loadedProperties.get();
         if (props == null)
             return RELEASE_VERSION.getString(UNKNOWN_RELEASE_VERSION);
         return props.getProperty("CassandraVersion");
@@ -474,7 +471,7 @@ public class FBUtilities
 
     public static String getGitSHA()
     {
-        Properties props = getVersionProperties();
+        Properties props = loadedProperties.get();
         if (props == null)
             return GIT_SHA.getString(UNKNOWN_GIT_SHA);
         return props.getProperty("GitSHA", UNKNOWN_GIT_SHA);
