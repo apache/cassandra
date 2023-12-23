@@ -93,7 +93,18 @@ public final class DistributedMetadataLogKeyspace
                                                              Period.FIRST, FIRST.getEpoch(), FIRST.getEpoch(),
                                                              Transformation.Kind.PRE_INITIALIZE_CMS.toVersionedBytes(PreInitialize.blank()), Transformation.Kind.PRE_INITIALIZE_CMS.toString(), Entry.Id.NONE.entryId);
 
-            return result.one().getBoolean("[applied]");
+            UntypedResultSet.Row row = result.one();
+            if (row.getBoolean("[applied]"))
+                return true;
+
+            if (row.getLong("epoch") == FIRST.getEpoch() &&
+                row.getLong("period") == Period.FIRST &&
+                row.getLong("current_epoch") == FIRST.getEpoch() &&
+                row.getLong("entry_id") == Entry.Id.NONE.entryId &&
+                Transformation.Kind.PRE_INITIALIZE_CMS.toString().equals(row.getString("kind")))
+                return true;
+
+            throw new IllegalStateException("Could not initialize log.");
         }
         catch (CasWriteTimeoutException t)
         {
