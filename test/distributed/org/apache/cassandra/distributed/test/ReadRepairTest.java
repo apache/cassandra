@@ -55,7 +55,6 @@ import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.reads.repair.BlockingReadRepair;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.utils.concurrent.Condition;
