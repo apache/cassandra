@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -44,6 +45,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.util.Auth;
 import org.apache.cassandra.exceptions.QueryReferencesTooManyIndexesAbortException;
+import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.service.ClientWarn;
@@ -64,7 +66,7 @@ public class GuardrailNonPartitionRestrictedQueryTest extends GuardrailTester
 {
     private static Cluster cluster;
     private static com.datastax.driver.core.Cluster driverCluster;
-    private static Session driverSession;
+    private Session driverSession;
 
     @BeforeClass
     public static void setupCluster() throws IOException
@@ -88,15 +90,11 @@ public class GuardrailNonPartitionRestrictedQueryTest extends GuardrailTester
 
         // connect using that superuser, we use the driver to get access to the client warnings
         driverCluster = builder.withCredentials("test", "test").build();
-        driverSession = driverCluster.connect();
     }
 
     @AfterClass
     public static void teardownCluster()
     {
-        if (driverSession != null)
-            driverSession.close();
-
         if (driverCluster != null)
             driverCluster.close();
 
@@ -110,6 +108,14 @@ public class GuardrailNonPartitionRestrictedQueryTest extends GuardrailTester
         super.beforeTest();
         cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
         init(cluster);
+        driverSession = driverCluster.connect();
+    }
+
+    @After
+    public void afterTest()
+    {
+        if (driverSession != null)
+            driverSession.close();
     }
 
     @Override
@@ -251,8 +257,24 @@ public class GuardrailNonPartitionRestrictedQueryTest extends GuardrailTester
     private void testGuardrailInternal()
     {
         enableGuardrail();
-        assertThat(executeViaDriver(String.format("SELECT * from %s.%s WHERE k = 0 AND v1 = 0", KEYSPACE, tableName))).isEmpty();
-        assertThat(executeViaDriver(String.format("SELECT * from %s.%s WHERE v1 = 0", KEYSPACE, tableName))).isEmpty();
+
+        Awaitility.await()
+                  .pollDelay(5, TimeUnit.SECONDS)
+                  .atMost(1, TimeUnit.MINUTES)
+                  .pollInterval(5, TimeUnit.SECONDS)
+                  .until(() -> {
+                      try
+                      {
+                          assertThat(executeViaDriver(String.format("SELECT * from %s.%s WHERE k = 0 AND v1 = 0", KEYSPACE, tableName))).isEmpty();
+                          assertThat(executeViaDriver(String.format("SELECT * from %s.%s WHERE v1 = 0", KEYSPACE, tableName))).isEmpty();
+
+                          return true;
+                      }
+                      catch (ReadFailureException ex)
+                      {
+                          return false;
+                      }
+                  });
 
         disableGuardrail();
 
@@ -300,6 +322,27 @@ public class GuardrailNonPartitionRestrictedQueryTest extends GuardrailTester
     private List<String> executeSelect(long valueToQuery, boolean expectToFail)
     {
         return cluster.get(1).applyOnInstance((IIsolatedExecutor.SerializableTriFunction<String, String, Long, List<String>>) (keyspace, table, v1) -> {
+            Awaitility.await()
+                      .pollInterval(5, TimeUnit.SECONDS)
+                      .atMost(1, TimeUnit.MINUTES)
+                      .until(() -> {
+                          ColumnFamilyStore cs = Keyspace.open(keyspace).getColumnFamilyStore(table);
+                          if (cs == null)
+                              return false;
+
+                          SecondaryIndexManager indexManager = cs.indexManager;
+                          if (indexManager == null)
+                              return false;
+
+                          Index v1Idx = indexManager.getIndexByName("v1_idx");
+                          Index v2Idx = indexManager.getIndexByName("v2_idx");
+
+                          if (v1Idx == null || v2Idx == null)
+                              return false;
+
+                          return indexManager.isIndexQueryable(v1Idx) && indexManager.isIndexQueryable(v2Idx);
+                      });
+
             ClientWarn.instance.captureWarnings();
             CoordinatorWarnings.init();
 
