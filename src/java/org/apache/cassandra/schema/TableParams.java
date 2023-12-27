@@ -371,10 +371,7 @@ public final class TableParams
         public TableParams build(String keyspace, String name)
         {
             if (compression == null)
-                if (SchemaConstants.getLocalAndReplicatedSystemKeyspaceNames().contains(keyspace))
-                    compression = CompressionParams.DEFAULT;
-                else
-                    compression = CompressionParams.defaultParams();
+                compression = CompressionParams.defaultParams(keyspace);
 
             return new TableParams(this);
         }
