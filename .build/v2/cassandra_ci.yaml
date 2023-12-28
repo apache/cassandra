@@ -1,0 +1,582 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Contains definitions of all pipelines and jobs (test suites) in Apache Cassandra's CI.
+
+# CI consists of:
+#   1. job: a set of commands to run against a list of files containing tests
+#   2. pipeline: a list of jobs that can be run in arbitrary order
+#       pipelines contain a list of JDK's they have to be run across to certify correctness
+
+#-----------------------------------------------------------------------------
+# IMPLEMENTATION REQUIRED PARAMETERS:
+#-----------------------------------------------------------------------------
+# TODO: Rewrite this section
+#
+# REQUIRED ENV VAR FOR REPEATED TESTS:
+# AGENT_COUNT: the count of agent executors you're running in your environment, used to constrain repeat runs to agent count
+#
+#
+# EXPECTED FLOW ON AN AGENT DURING NORMAL TESTING:
+# 1. Populate contents of $TEST_LIST_FILE for a given job using "job->test_list_cmd:" piped through "job->TEST_FILTER:"
+# 2. Populate $TEST_SPLIT_FILE with a given split (CI implementation specific)
+# 3. Execute "job->run_cmd:" to run the given $TEST_SPLIT_FILE
+
+#-----------------------------------------------------------------------------
+# SOURCES
+#-----------------------------------------------------------------------------
+# You can configure the different sources you're using for your CI stack here; we default to HEAD on a given branch
+# and you should print out what SHA you checked out and built against for reproducibility in a subsequent  investigation.
+repos:
+  cassandra:
+    url: &jvm_url https://github.com/apache/cassandra
+    branch: &jvm_branch trunk
+    sha: &jvm_sha HEAD
+  ccm:
+    url: &ccm_url https://github.com/riptano/ccm
+    branch: &ccm_branch master
+    sha: &ccm_sha HEAD
+  python_dtest:
+    url: &python_dtest_url https://github.com/apache/cassandra-dtest
+    branch: &python_dtest_branch trunk
+    sha: &python_dtest_sha HEAD
+  cassandra-harry:
+    url: &harry_url https://github.com/apache/cassandra-harry
+    branch: &harry_branch trunk
+    sha: &harry_sha HEAD
+  # This can serve to either run against jvm or python dtests based on your needs
+  # We use these artifacts to diff and determine which files have changed.
+  repeat_diff:
+    base_url: &base_url https://github.com/apache/cassandra
+    base_branch: &base_branch trunk
+    sha: &base_sha HEAD
+
+
+#-----------------------------------------------------------------------------
+# PIPELINES
+#-----------------------------------------------------------------------------
+pipelines:
+  # All jobs in the pre-commit pipeline must run within constraints and pass
+  # before a commit is merged upstream. Committers are expected to validate
+  # and sign off on this if using non-reference CI environments.
+  #
+  # Failure to do so can lead to commits being reverted.
+  - name: pre-commit
+    jdk: java.default
+    jobs:
+      - check
+      - unit
+      - long-test
+      - cqlsh-test
+      - jvm-dtest
+      - jvm-dtest-upgrade
+      - python-dtest
+      - dtest-large
+      - dtest-upgrade
+      - dtest-upgrade-large
+
+  # The post-commit pipeline is a larger set of tests that include all supported JDKs.
+  # We expect different JDKs and variations on test suites to fail very rarely.
+  #
+  # Failures in these tests will be made visible on JIRA tickets shortly after
+  # test run on reference CI and committers are expected to prioritize
+  # rectifying any failures introduced by their work.
+  - name: post-commit
+    jdk: java.supported
+    jobs:
+      - unit
+      - unit-cdc
+      - compression
+      - test-oa
+      - test-system-keyspace-directory
+      - test-tries
+      - jvm-dtest-novnode
+      - jvm-dtest-vnode
+      - jvm-dtest-upgrade
+      - jvm-dtest-fuzz
+      - dtest
+      - dtest-novnode
+      - dtest-offheap
+      - dtest-large
+      - dtest-large-novnode
+      - dtest-upgrade
+      - dtest-upgrade-large
+      - long-test
+      - cqlsh-test
+      - stress-test
+      - fqltool-test
+      - test-burn
+
+#-----------------------------------------------------------------------------
+# Resource limits, alises, supported versions, and required and optional env vars
+#-----------------------------------------------------------------------------
+# Downstream test orchestration needs to use <= the following values when running tests.
+# Increasing these values indicates  a change in resource allocation https://ci-cassandra.apache.org/ and should not be done downstream.
+small_executor: &small_executor { cpu: 4, memory: 1g, storage: 5g }
+medium_executor: &medium_executor { cpu: 4, memory: 6g, storage: 25g }
+large_executor: &large_executor { cpu: 4, memory: 16g, storage: 50g }
+
+# On test addition or change, we repeat the job many times to try and suss out flakes. Instead of having it be bespoke
+# per job, we want to provide some general guidelines for folks to default to and provide guidance on each test suite.
+repeat_default: &repeat_many 500
+repeat_less: &repeat_moderate 100
+repeat_tiny: &repeat_few 25
+
+# These values are required for tests to complete successfully given the run_cmd: commands, however downstream implementations
+# are welcome to change them here or in the local env as needed to set up their env.
+# Precedence is: env then override .yaml then values here
+env_shared_default: &env_shared_default
+  # General env params
+  ANT_HOME: /usr/share/ant
+  KEEP_TEST_DIR: true
+  CASSANDRA_DIR: ~/cassandra
+  # Due to the hardcoded directory in build.xml, we have to set this here:
+  # <fileset dir="${build.test.dir}/output">
+  #   <include name="**/TEST-*.xml"/>
+  RESULTS_DIR: "${CASSANDRA_DIR}/build/test/output"
+  DTEST_JAR_PATH: ~/dtest_jars
+  # The root structure where temp data for a CI run is held
+  CASSANDRA_CI_TMP_ROOT: "~/cassandra.tmp/"
+  # The temp dir specific to this run; initialized to mktemp during runtime
+  TMP_RUN_DIR: "UNINITIALIZED"
+  # Set this == the nunber of executing agents in your environment; test splitting and parallelization will happen per-agent based on this value
+  CI_AGENT_COUNT: 1
+  # 0-indexed count. This needs to be set on a per-agent basis in its env; this determines which test split to run
+  CI_AGENT_INDEX: -1
+  # Whether the repeated test iterations should stop on the first failure by default.
+  REPEATED_TESTS_STOP_ON_FAILURE: false
+  NUM_TOKENS: "16"
+  TEST_TIMEOUT: test.timeout
+  # This is the job.name[] value from the yaml here to pull params and job steps from
+  ACTIVE_JOB: unit
+  # List of [class],[class],[class] provided by user to be repeated REPEAT_COUNT based on suite
+  USER_REPEAT_CLASSES: ""
+  # List of [class#method],[class#method] pairs to be repeated
+  USER_REPEAT_METHODS: ""
+  # JVM test params
+  JVM_URL: *jvm_url
+  JVM_BRANCH: *jvm_branch
+  JVM_SHA: *jvm_sha
+  # We use this to build reference dtest jars for cross-version jvm dtests
+  JVM_DTEST_REFERENCE_URL: "https://github.com/apache/cassandra.git"
+  # For repeated test jobs
+  BASE_URL: *base_url
+  BASE_BRANCH: *base_branch
+  BASE_SHA: *base_sha
+
+env_python_default: &env_python_default
+  CCM_DIR: "~/ccm"
+  CCM_CONFIG_DIR: "~/.ccm"
+  CCM_URL: *ccm_url
+  CCM_BRANCH: *ccm_branch
+  CCM_SHA: *ccm_sha
+  PYTHON_DTEST_DIR: "~/cassandra-dtest"
+  PYTHON_DTEST_URL: *python_dtest_url
+  PYTHON_DTEST_BRANCH: *python_dtest_branch
+  PYTHON_DTEST_SHA: *python_dtest_sha
+  PYTHON_VERSION: "3.11"
+  PYTHON_VENV_DIR: "~/.active_venv"
+  # We allow CI env to install python env in different locations; this is the prefix the PYTHON_SUPPORTED_VERSION can be appended to for sourcing activate
+  PYTHON_ENV_PREFIX: "${RESULTS_DIR}/env"
+  # An optional extra regex filter to run python dtest filenames through before writing the meta testlist
+  PYTHON_TEST_EXCLUSION_REGEX: ""
+
+# Anything specified in the required env vars SHOULD NOT BE CHANGED except for ASF CI; these are expected to have a
+# material impact on test correctness and changes to them on a downstream system will likely destabilize our reference
+# CI implementation
+env_required: &env_required
+  LANG: "en_US.UTF-8"
+  PYTHONIOENCODING: "utf-8"
+  PYTHONUNBUFFERED: true
+  CASS_DRIVER_NO_EXTENSIONS: true
+  CASS_DRIVER_NO_CYTHON: true
+  #Skip all syncing to disk to avoid performance issues in flaky CI environments
+  CASSANDRA_SKIP_SYNC: true
+  CCM_MAX_HEAP_SIZE: "1024M"
+  # TODO: Reconcile Circle and ASF:
+  #   - 512 on ASF, 256 on circle. Using circle's here; is this correct?
+  CCM_HEAP_NEWSIZE: "256"
+  PYTEST_OPTS: "-vv --log-cli-level=DEBUG --junit-xml=${RESULTS_DIR}/test/output/nosetests.xml --junit-prefix=${DTEST_TARGET} -s"
+  SUPPORTED_CASSANDRA_VERSIONS: "cassandra-3.0 cassandra-3.11 cassandra-4.0 cassandra-4.1 cassandra-5.0"
+  SUPPORTED_PYTHON_VERSIONS: "python3.6 python3.8 python3.11"
+
+
+#-----------------------------------------------------------------------------
+# JOBS
+#
+# By convention, anything in caps in the .yaml should be exported to an env var during the test run cycle.
+#
+# Parameters:
+#   job: the name
+#   resources: cpu: memory: storage: max allowable for the suite.
+#   SPLIT_SIZE: This indicates how many tests to include in a given split. Can raise or lower as needed in your env.
+#   env:
+#     TYPE: The type of test; this should translate into tests found under ${CASSANDRA_DIR}/test/${type} in $TEST_SPLIT_FILE
+#     TEST_FILTER: filter to run after test_list_cmd to narrow down tests (splits, upgrade vs. non, etc)
+#   test_list_cmd: command to run in shell to generate full list of tests to run. By default, randomizes test list by file name
+#   run_cmd: command to run in shell to execute tests
+#
+#-----------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------
+# Single node JVM tests
+#-----------------------------------------------------------------------------
+# TODO: Extract timeouts name from build.xml to here
+jobs:
+  - &job_jvm_base
+    name: unit
+    resources: *medium_executor
+    SPLIT_SIZE: 20
+    env: &env_jvm_base
+      <<: *env_shared_default
+      <<: *env_required
+      ANT_TARGET: testclasslist
+      ANT_TEST_OPTS: -Dno-build-test=true
+      TEST_DIR: "test/unit"
+      # This corresponds to the test.classlistprefix in build.xml, which is effectively the test/{TEST_CLASSLIST_PREFIX}.
+      # While we could theoretically parse it out of TEST_DIR, or have the name overload or something, best to just keep it
+      # decoupled and explicit for now.
+      TEST_CLASSLIST_PREFIX: "unit"
+      TEST_PACKAGE: "org.apache.cassandra"
+      TEST_FILTER: ""
+      # Corresponds to the tag value in build.xml containing the timeout for this test suite
+      TEST_TIMEOUT: test.timeout
+      TEST_SPLITTER: split_jvm_tests
+      # We allow providing arbitrary arguments for the run: stage command
+      RUN_ARGUMENTS: ""
+    # These reference methods found in ci_functions.sh and other .sh files in .build/*.sh. None take arguments and all
+    # rely on the environment as setup in either the execution environment, env:, or env_overrides:
+    before:
+      - setup_environment
+      - pretest_setup
+      - build_cassandra
+    run:
+      - run_jvm_tests
+
+  # When we repeat tests, we want to repeat a specific list of tests
+  - &job_jvm_repeat
+    <<: *job_jvm_base
+    name: unit-repeat
+    env:
+      <<: *env_jvm_base
+      TEST_SPLITTER: generate_diff_tests
+      REPEAT_COUNT: *repeat_many
+    run:
+    - repeat_jvm_tests
+
+  # [check] --------------------
+  - <<: *job_jvm_base
+    name: check
+    before:
+      - setup_environment
+      - pretest_setup
+    run:
+      - check_style
+
+  # [cdc] --------------------
+  - <<: *job_jvm_base
+    name: cdc
+    env_overrides: &env_override_cdc
+      ANT_TARGET: testclasslist-cdc
+
+  - <<: *job_jvm_repeat
+    name: cdc-repeat
+    env_overrides: [<<: *env_override_cdc]
+
+  # [compression] --------------------
+  - <<: *job_jvm_base
+    name: compression
+    env_overrides: &env_override_compression
+      ANT_TARGET: testclasslist-compression
+
+  - <<: *job_jvm_repeat
+    name: compression-repeat
+    env_overrides: [<<: *env_override_compression]
+
+  # [oa] --------------------
+  - <<: *job_jvm_base
+    name: oa
+    env_overrides: &env_override_oa
+      ANT_TARGET: testclasslist-oa
+
+  - <<: *job_jvm_repeat
+    name: oa-repeat
+    env_overrides: [<<: *env_override_oa]
+
+  # [trie] --------------------
+  - <<: *job_jvm_base
+    name: trie
+    env_overrides: &env_override_trie
+      ANT_TARGET: testclasslist-trie
+
+  - <<: *job_jvm_repeat
+    name: trie-repeat
+    env_overrides: [<<: *env_override_trie]
+
+  # [cqlsh] --------------------
+  - <<: *job_jvm_base
+    name: cqlsh-test
+    env_overrides:
+    run:
+    - run_cqlshlib_tests
+
+  # [fqltool] --------------------
+  - <<: *job_jvm_base
+    name: fqltool
+    resources: *small_executor
+    env_overrides: &env_override_fqltool
+      ANT_TARGET: fqltool-test
+      TEST_DIR: "tools/fqltool/test/unit"
+      TEST_PACKAGE: "org.apache.cassandra.fqltool"
+
+  - <<: *job_jvm_repeat
+    name: fqltool-repeat
+    env_overrides: [<<: *env_override_fqltool]
+
+  # [stress] --------------------
+  - <<: *job_jvm_base
+    name: stress
+    resources: *small_executor
+    env_overrides: &env_override_stress
+      ANT_TARGET: stress-test
+      TEST_DIR: "tools/stress/test/unit"
+      TEST_PACKAGE: "org.apache.cassandra.stress"
+
+  - <<: *job_jvm_repeat
+    name: stress-repeat
+    env_overrides: [<<: *env_override_stress]
+
+  # [long] --------------------
+  - <<: *job_jvm_base
+    name: long
+    env_overrides: &env_override_long
+      REPEAT_COUNT: *repeat_moderate
+      ANT_TARGET: long-test
+      TEST_DIR: "test/long"
+      TEST_CLASSLIST_PREFIX: "long"
+      TEST_TIMEOUT: test.long.timeout
+
+  - <<: *job_jvm_repeat
+    name: repeat-long
+    env_override: [<<: *env_override_long]
+
+  # [burn] --------------------
+  - <<: *job_jvm_base
+    name: test-burn
+    resources: *large_executor
+    env_overrides:
+      REPEAT_COUNT: *repeat_few
+      TEST_DIR: "test/burn"
+      ANT_TARGET: test-burn
+      TEST_TIMEOUT: test.burn.timeout
+
+  # [microbench] --------------------
+  - <<: *job_jvm_base
+    name: microbench
+    env_overrides:
+      TEST_DIR: "test/microbench"
+
+
+  #-----------------------------------------------------------------------------
+  # JVM Multi-node tests
+  #-----------------------------------------------------------------------------
+  - &job_jvm_dtest_base
+    <<: *job_jvm_base
+    name: jvm-dtest
+    resources: *large_executor
+    SPLIT_SIZE: 4
+    env: &env_jvm_dtest_base
+      <<: *env_jvm_base
+      ANT_TARGET: test-jvm-dtest-some
+      TEST_DIR: "test/distributed"
+      TEST_CLASSLIST_PREFIX: "distributed"
+      TEST_PACKAGE: "org.apache.cassandra.distributed.test"
+      TEST_FILTER: "| grep -v upgrade/ | grep -v fuzz/"
+      TEST_TIMEOUT: test.distributed.timeout
+      TEST_SPLITTER: split_jvm_tests
+    before:
+      - setup_environment
+      - pretest_setup
+      - build_cassandra
+    run:
+      - run_jvm_tests
+
+  - name: jvm-dtest-repeat
+    env:
+      <<: *env_jvm_dtest_base
+      TEST_SPLITTER: generate_diff_tests
+      REPEAT_COUNT: *repeat_moderate
+    run:
+      - repeat_jvm_tests
+
+  # We intentionally don't have a repeat target or vnode in-jvm tests
+  - <<: *job_jvm_dtest_base
+    name: jvm-dtest-vnode
+    env_overrides:
+      RUN_ARGUMENTS: "-Dtest.jvm.args='-Dcassandra.dtest.num_tokens=16'"
+
+  - <<: *job_jvm_dtest_base
+    name: jvm-dtest-fuzz
+    env_overrides:
+      TEST_FILTER: "| grep fuzz/"
+
+  # [simulator] --------------------
+  - <<: *job_jvm_dtest_base
+    name: jvm-simulator-dtest
+    SPLIT_SIZE: 2
+    env:
+      <<: *env_jvm_dtest_base
+      TEST_DIR: "test/simulator/test"
+
+  # [upgrade] --------------------
+  - &job_jvm_dtest_upgrade_base
+    <<: *job_jvm_dtest_base
+    name: jvm-dtest-upgrade
+    SPLIT_SIZE: 2
+    env:
+      <<: *env_jvm_dtest_base
+      TEST_FILTER: "| grep upgrade/"
+      REPEAT_COUNT: *repeat_few
+    before:
+      - setup_environment
+      - pretest_setup
+      - build_cassandra
+      - build_dtest_jars
+    run:
+      - run_jvm_tests
+
+
+  - <<: *job_jvm_dtest_upgrade_base
+    name: jvm-dtest-upgrade-repeat
+    env_override:
+      TEST_SPLITTER: generate_diff_tests
+      REPEAT_COUNT: *repeat_few
+    run:
+    - repeat_jvm_tests
+
+
+  #-----------------------------------------------------------------------------
+  # Python Dtests
+  #-----------------------------------------------------------------------------
+  - &job_python_dtest_base
+    name: python-dtest
+    resources: *large_executor
+    SPLIT_SIZE: 4
+    env: &env_python_dtest_base
+      <<: *env_shared_default
+      <<: *env_python_default
+      <<: *env_required
+      DTEST_TARGET: dtest
+      # Should not be changed for a given job tag downstream
+      DTEST_ARGS: "--use-vnodes --num-tokens=${NUM_TOKENS} --skip-resource-intensive-tests"
+      TEST_SPLITTER: split_python_tests
+      RUN_ARGUMENTS: ""
+      REPEAT_COUNT: *repeat_moderate
+    before:
+      - setup_environment
+      - pretest_setup
+      - build_cassandra
+    run:
+      - run_python_tests
+
+  # [basic] --------------------
+  - &job_python_dtest_repeat
+    <<: *job_python_dtest_base
+    name: python-dtest-repeat
+    env:
+      <<: *env_python_dtest_base
+      TEST_SPLITTER: generate_diff_tests
+    run:
+    - repeat_python_dtests
+
+  # [offheap] --------------------
+  - <<: *job_python_dtest_base
+    name: dtest-offheap
+    env_overrides: &env_override_offheap_dtest
+      DTEST_TARGET: "dtest-offheap"
+      DTEST_ARGS: "--use-vnodes --num-tokens=${NUM_TOKENS} --use-off-heap-memtables --skip-resource-intensive-tests"
+
+  - <<: *job_python_dtest_repeat
+    env_overrides: [<<: *env_override_offheap_dtest]
+    name: dtest-offheap-repeat
+
+  # [novnode] --------------------
+  - <<: *job_python_dtest_base
+    name: dtest-novnode
+    env_overrides: &env_override_dtest_novnode
+      DTEST_TARGET: "dtest-novnode"
+      DTEST_ARGS: "--skip-resource-intensive-tests --keep-failed-test-dir"
+
+  - <<: *job_python_dtest_repeat
+    env_overrides: [<<: *env_override_dtest_novnode]
+    name: dtest-novnode-repeat
+
+  # [large] --------------------
+  - <<: *job_python_dtest_base
+    name: dtest-large
+    env_overrides: &env_override_dtest_large
+      DTEST_TARGET: "dtest-large"
+      DTEST_ARGS: "--use-vnodes --num-tokens=${NUM_TOKENS} --only-resource-intensive-tests --force-resource-intensive-tests"
+
+  - <<: *job_python_dtest_repeat
+    name: dtest-large-repeat
+    env_overrides:
+      <<: *env_override_dtest_large
+      REPEAT_COUNT: *repeat_few
+
+  # [large novnode] --------------------
+  - <<: *job_python_dtest_base
+    name: dtest-large-novnode
+    env_overrides: &novnode_large_params
+      DTEST_TARGET: "dtest-large-novnode"
+      DTEST_ARGS: "--use-vnodes --num-tokens=${NUM_TOKENS} --only-resource-intensive-tests --force-resource-intensive-tests"
+
+  - <<: *job_python_dtest_repeat
+    <<: *novnode_large_params
+    name: dtest-large-novnode-repeat
+    env_overrides:
+      <<: *novnode_large_params
+      REPEAT_COUNT: *repeat_few
+
+  # [python dtest upgrade] --------------------
+  - <<: *job_python_dtest_base
+    name: dtest-upgrade
+    SPLIT_SIZE: 2
+    env_overrides: &env_override_dtest_upgrade
+      DTEST_TARGET: "dtest-upgrade"
+      DTEST_ARGS: "--use-vnodes --num-tokens=${NUM_TOKENS} --execute-upgrade-tests --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all"
+
+  - <<: *job_python_dtest_repeat
+    name: dtest-upgrade-repeat
+    SPLIT_SIZE: 2
+    env_overrides:
+      <<: *env_override_dtest_upgrade
+      REPEAT_COUNT: *repeat_few
+
+  # [python dtest upgrade large] --------------------
+  - <<: *job_python_dtest_base
+    name: dtest-upgrade-large
+    SPLIT_SIZE: 2
+    env_overrides: &env_override_dtest_upgrade_large
+      DTEST_TARGET: "dtest-upgrade-large"
+      DTEST_ARGS: "--use-vnodes --num-tokens=${NUM_TOKENS} --execute-upgrade-tests --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all --only-resource-intensive-tests --force-resource-intensive-tests"
+
+  - <<: *job_python_dtest_repeat
+    name: dtest-upgrade-large-repeat
+    SPLIT_SIZE: 2
+    env_overrides:
+      <<: *env_override_dtest_upgrade_large
+      REPEAT_COUNT: *repeat_few

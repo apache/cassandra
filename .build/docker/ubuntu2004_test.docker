@@ -65,18 +65,6 @@ RUN python3.8 -m pip install --upgrade pip
 # generate locales for the standard en_US.UTF8 value we use for testing
 RUN locale-gen en_US.UTF-8
 
-# as we only need the requirements.txt file from the dtest repo, let's just get it from GitHub as a raw asset
-# so we can avoid needing to clone the entire repo just to get this file
-RUN curl https://raw.githubusercontent.com/apache/cassandra-dtest/trunk/requirements.txt --output /opt/requirements.txt
-RUN chmod 0644 /opt/requirements.txt
-
-# now setup python via virtualenv with all of the python dependencies we need according to requirements.txt
-RUN pip3 install virtualenv virtualenv-clone
-RUN pip3 install --upgrade wheel
-
-# make Java 8 the default executable (we use to run all tests against Java 8)
-RUN update-java-alternatives --set java-1.8.0-openjdk-$(dpkg --print-architecture)
-
 # enable legacy TLSv1 and TLSv1.1 (CASSANDRA-16848)
 RUN find /etc -type f -name java.security -exec sed -i 's/TLSv1, TLSv1.1//' {} \;
 RUN find /etc -type f -name java.security -exec sed -i 's/3DES_EDE_CBC$/3DES_EDE_CBC, TLSv1, TLSv1.1/' {} \;
