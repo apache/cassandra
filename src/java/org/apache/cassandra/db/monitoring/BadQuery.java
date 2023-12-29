@@ -82,7 +82,7 @@ public class BadQuery
         MonitoringService.instance.setBadQueryWriteSlowCoordLatencyInms(DatabaseDescriptor.getBadQueryWriteSlowCoordLatencyInMs());
         MonitoringService.instance.setBadQueryTombstoneLimit(DatabaseDescriptor.getBadQueryTombstoneLimit());
         if (!DatabaseDescriptor.getBadQueryIgnoreKeyspaces().isEmpty()) {
-            MonitoringService.instance.setBadQueryIgnoreKeyspaces(Pattern.compile(DatabaseDescriptor
+            MonitoringService.instance.setBadQueryIgnoreKeyspacesPattern(Pattern.compile(DatabaseDescriptor
                                                                                   .getBadQueryIgnoreKeyspaces()));
         }
 
@@ -113,8 +113,7 @@ public class BadQuery
     {
         if (!DatabaseDescriptor.isBadQueryTracingEnabled() ||
                 (Double.compare(MonitoringService.instance.getBadQueryTracingFraction(), 0.0d) == 0) ||
-                (MonitoringService.instance.getBadQueryIgnoreKeyspaces() != null &&
-                        MonitoringService.instance.getBadQueryIgnoreKeyspaces().matcher(ksName).matches()))
+                MonitoringService.instance.getBadQueryIgnoreKeyspaces().contains(ksName))
         {
             return false;
         }

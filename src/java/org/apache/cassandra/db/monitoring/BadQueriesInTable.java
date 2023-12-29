@@ -57,12 +57,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Report BadQueries in table.
  */
-public class BadQueriesInTable implements IBadQueryReporter
+public class BadQueriesInTable extends BadQueryReporter
 {
     private static final Logger logger = LoggerFactory.getLogger(BadQueriesInTable.class);
-    //Store different types of bad queries in this queue and limit this queue to fix size.
-    private static final Map<BadQuery.BadQueryCategory, ConcurrentLinkedQueue<BadQueryTypes>> BAD_QUERY_CATEGORY_QUEUES = new HashMap<>();
-    private static final Map<BadQuery.BadQueryCategory, AtomicInteger> CURRENT_SAMPLES = new HashMap<>();
 
     private static final String TABLE_NAME = "badquery";
     private static final String TABLE_SCHEMA =
@@ -95,23 +92,6 @@ public class BadQueriesInTable implements IBadQueryReporter
         {
             BAD_QUERY_CATEGORY_QUEUES.put(category, new ConcurrentLinkedQueue<BadQueryTypes>());
             CURRENT_SAMPLES.put(category, new AtomicInteger(0));
-        }
-    }
-
-    @VisibleForTesting
-    public Map<BadQuery.BadQueryCategory, ConcurrentLinkedQueue<BadQueryTypes>> getBadQueryCategoryQueues()
-    {
-        return Collections.unmodifiableMap(BAD_QUERY_CATEGORY_QUEUES);
-    }
-
-    @VisibleForTesting
-    public void clear()
-    {
-        Iterator<Map.Entry<BadQuery.BadQueryCategory, ConcurrentLinkedQueue<BadQueryTypes>>> iter = BAD_QUERY_CATEGORY_QUEUES.entrySet().iterator();
-        while (iter.hasNext())
-        {
-            Map.Entry<BadQuery.BadQueryCategory, ConcurrentLinkedQueue<BadQueryTypes>> entry = iter.next();
-            entry.getValue().clear();
         }
     }
 
@@ -161,12 +141,6 @@ public class BadQueriesInTable implements IBadQueryReporter
                 }
             }
         }
-    }
-
-    @Override
-    public int getStats(BadQuery.BadQueryCategory type)
-    {
-        return CURRENT_SAMPLES.get(type).get();
     }
 
     /**

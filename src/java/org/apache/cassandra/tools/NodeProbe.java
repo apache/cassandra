@@ -2295,12 +2295,12 @@ public class NodeProbe implements AutoCloseable
 
     public Pattern getBadQueryIgnoreKeyspaces()
     {
-        return monitoringProxy.getBadQueryIgnoreKeyspaces();
+        return monitoringProxy.getBadQueryIgnoreKeyspacesPattern();
     }
 
     public void setBadQueryIgnoreKeyspaces(Pattern badQueryIgnoreKeyspaces)
     {
-        monitoringProxy.setBadQueryIgnoreKeyspaces(badQueryIgnoreKeyspaces);
+        monitoringProxy.setBadQueryIgnoreKeyspacesPattern(badQueryIgnoreKeyspaces);
     }
 
     public boolean isAutoRepairEnabled()

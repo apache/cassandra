@@ -19,20 +19,14 @@
 package org.apache.cassandra.db.monitoring;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.service.MonitoringService;
-import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.transport.SimpleClient;
 
 import org.junit.*;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -168,7 +162,7 @@ public class InvalidConfigurationTest extends CQLTester
         {
             // ignore
         }
-        ((BadQueriesInSystemLog) DatabaseDescriptor.getBadQueryReporter()).clear();
+        DatabaseDescriptor.getBadQueryReporter().clearUnsafe(false);
     }
 
     private int getIncorrectConsistencyLevelStatsAfterApplyQuery(String query, ConsistencyLevel cl, Object... values)
@@ -183,7 +177,7 @@ public class InvalidConfigurationTest extends CQLTester
         }
         int count = DatabaseDescriptor.getBadQueryReporter().getStats(BadQuery.BadQueryCategory.INCORRECT_CONSISTENCY_LEVEL);
 
-        ((BadQueriesInSystemLog) DatabaseDescriptor.getBadQueryReporter()).clear();
+        DatabaseDescriptor.getBadQueryReporter().clearUnsafe(false);
         assertEquals(0, DatabaseDescriptor.getBadQueryReporter().getStats(BadQuery.BadQueryCategory.INCORRECT_CONSISTENCY_LEVEL));
         return count;
     }

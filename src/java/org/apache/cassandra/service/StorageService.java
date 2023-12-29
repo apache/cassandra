@@ -87,6 +87,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.audit.AuditUsersCacheService;
 import org.apache.cassandra.cql3.QueryHandler;
+import org.apache.cassandra.db.monitoring.MonitoringSchemaChangeListener;
 import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
 import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
@@ -1465,6 +1466,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             BadQuery.setup();
         }
         MonitoringService.instance.setBadQueryTracingStatus(DatabaseDescriptor.isBadQueryTracingEnabled());
+        Schema.instance.registerListener(new MonitoringSchemaChangeListener());
     }
 
     private void doAutoRepairSetup()

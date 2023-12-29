@@ -17,10 +17,17 @@
  */
 package org.apache.cassandra.db.monitoring;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.regex.Pattern;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import junit.framework.Assert;
 import org.apache.cassandra.SchemaLoader;
@@ -32,8 +39,6 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.db.monitoring.BadQueriesInSystemLog;
-import org.apache.cassandra.db.monitoring.BadQuery;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -42,7 +47,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.MonitoringService;
 import org.apache.cassandra.transport.ProtocolVersion;
 
-public class BadQueryInSyslogTest extends CQLTester
+@RunWith(Parameterized.class)
+public class BadQueryTest extends CQLTester
 {
     private static final String KEYSPACE = "ks";
     private static final String TABLE = "tbl";
@@ -51,15 +57,23 @@ public class BadQueryInSyslogTest extends CQLTester
     private static ColumnMetadata v;
     private static ColumnMetadata s;
     private static ProtocolVersion protocolVersion = ProtocolVersion.V4;
-    private static BadQueriesInSystemLog bq;
+    private static IBadQueryReporter bq;
     ColumnFamilyStore cfs;
     long originalBadQueryWriteMaxPartitionSizeInbytes;
     long originalBadQueryReadMaxPartitionSizeInbytes;
 
-    public BadQueryInSyslogTest()
+    public BadQueryTest(String badQueryReporter)
     {
         requireNetwork();
+        DatabaseDescriptor.setBadQueryReporter(badQueryReporter);
+        bq = DatabaseDescriptor.getBadQueryReporter();
         BadQuery.setup();
+    }
+
+    @Parameters()
+    public static List<String> generateData()
+    {
+        return Arrays.asList("BadQueriesInSystemLog", "BadQueriesInTable");
     }
 
     @BeforeClass
@@ -77,8 +91,6 @@ public class BadQueryInSyslogTest extends CQLTester
         cfm = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
         v = cfm.getColumn(new ColumnIdentifier("v", true));
         s = cfm.getColumn(new ColumnIdentifier("s", true));
-        DatabaseDescriptor.setBadQueryReporter("BadQueriesInSystemLog");
-        bq = (BadQueriesInSystemLog) DatabaseDescriptor.getBadQueryReporter();
     }
 
     @Before
@@ -93,9 +105,10 @@ public class BadQueryInSyslogTest extends CQLTester
             // View already exists
         }
         MonitoringService.instance.setBadQueryTracingFraction(1.0);
+        MonitoringService.instance.getBadQueryIgnoreKeyspaces().clear();
         cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE);
         cfs.truncateBlocking();
-        bq.clear();
+        bq.clearUnsafe(true);
         // clear metric for large parition reads and writes
         cfs.metric.largePartitionReadSize.dec(cfs.metric.largePartitionReadSize.getCount());
         cfs.metric.largePartitionWriteSize.dec(cfs.metric.largePartitionWriteSize.getCount());
@@ -124,10 +137,9 @@ public class BadQueryInSyslogTest extends CQLTester
     }
 
     @Test
-    public void testLargeWritesWithTracingEnabled() throws Throwable
+    public void testLargeWritesWithTracingEnabled()
     {
         DatabaseDescriptor.setBadQueryTracingStatus(true);
-
         MonitoringService.instance.setBadQueryWriteMaxPartitionSizeInbytes(0);
         executeCQL();
         Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.LARGE_PARTITION_WRITE).size() > 0);
@@ -135,7 +147,7 @@ public class BadQueryInSyslogTest extends CQLTester
     }
 
     @Test
-    public void testLargeReadsWithTracingEnabled() throws Throwable
+    public void testLargeReadsWithTracingEnabled()
     {
         DatabaseDescriptor.setBadQueryTracingStatus(true);
 
@@ -146,7 +158,7 @@ public class BadQueryInSyslogTest extends CQLTester
     }
 
     @Test
-    public void testSlowReadWithTracingEnabled() throws Throwable
+    public void testSlowReadWithTracingEnabled()
     {
         DatabaseDescriptor.setBadQueryTracingStatus(true);
 
@@ -156,7 +168,41 @@ public class BadQueryInSyslogTest extends CQLTester
     }
 
     @Test
-    public void testTooManyTombstonesWithTracingEnabled() throws Throwable
+    public void testIgnoreKeyspacePattern()
+    {
+        DatabaseDescriptor.setBadQueryTracingStatus(true);
+        MonitoringService.instance.setBadQueryIgnoreKeyspacesPattern(Pattern.compile("system.*|.*staging.*|.*test.*|health|pingless|" + KEYSPACE));
+        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.SLOW_READ_LOCAL).size() == 0);
+        // below is same as testSlowReadWithTracingEnabled, if keypsace is not ignored, the count will increase
+        MonitoringService.instance.setBadQueryReadSlowLocalLatencyInms(Integer.MIN_VALUE);
+        executeCQL();
+        Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.SLOW_READ_LOCAL).size() == 0);
+    }
+
+    @Test
+    public void testIgnoreKeyspaceUpdateWithKeyspaceCreateAndDrop()
+    {
+        DatabaseDescriptor.setBadQueryTracingStatus(true);
+        MonitoringService.instance.setBadQueryIgnoreKeyspacesPattern(Pattern.compile("test.*"));
+        String keyspace = "test_keyspace";
+        Assert.assertFalse(MonitoringService.instance.getBadQueryIgnoreKeyspaces().contains(keyspace));
+
+        TableMetadata tableMetadata = TableMetadata.builder(keyspace, TABLE)
+                                       .addPartitionKeyColumn("k", UTF8Type.instance)
+                                       .addStaticColumn("s", UTF8Type.instance)
+                                       .addClusteringColumn("i", IntegerType.instance)
+                                       .addRegularColumn("v", UTF8Type.instance)
+                                       .build();
+        // create
+        SchemaLoader.createKeyspace(keyspace, KeyspaceParams.simple(1), tableMetadata);
+        Assert.assertTrue(MonitoringService.instance.getBadQueryIgnoreKeyspaces().contains(keyspace));
+
+        schemaChange(String.format("DROP KEYSPACE %s", keyspace));
+        Assert.assertFalse(MonitoringService.instance.getBadQueryIgnoreKeyspaces().contains(keyspace));
+    }
+
+    @Test
+    public void testTooManyTombstonesWithTracingEnabled()
     {
         DatabaseDescriptor.setBadQueryTracingStatus(true);
 
@@ -166,7 +212,7 @@ public class BadQueryInSyslogTest extends CQLTester
     }
 
     @Test
-    public void testLargeWritesWithTracingDisabled() throws Throwable
+    public void testLargeWritesWithTracingDisabled()
     {
         DatabaseDescriptor.setBadQueryTracingStatus(false);
 
@@ -177,7 +223,7 @@ public class BadQueryInSyslogTest extends CQLTester
     }
 
     @Test
-    public void testLargeReadsWithTracingDisabled() throws Throwable
+    public void testLargeReadsWithTracingDisabled()
     {
         DatabaseDescriptor.setBadQueryTracingStatus(false);
 
@@ -188,7 +234,7 @@ public class BadQueryInSyslogTest extends CQLTester
     }
 
     @Test
-    public void testSlowReadWithTracingDisabled() throws Throwable
+    public void testSlowReadWithTracingDisabled()
     {
         DatabaseDescriptor.setBadQueryTracingStatus(false);
 
@@ -198,7 +244,7 @@ public class BadQueryInSyslogTest extends CQLTester
     }
 
     @Test
-    public void testTooManyTombstonesWithTracingDisabled() throws Throwable
+    public void testTooManyTombstonesWithTracingDisabled()
     {
         DatabaseDescriptor.setBadQueryTracingStatus(false);
 

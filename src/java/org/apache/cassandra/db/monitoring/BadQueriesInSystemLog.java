@@ -39,12 +39,9 @@ import com.google.common.annotations.VisibleForTesting;
  * Report badqueries in system log file. We cannot log each and every query in
  * system log file hence this class is designed to log some samples at periodic interval
  */
-public class BadQueriesInSystemLog implements IBadQueryReporter
+public class BadQueriesInSystemLog extends BadQueryReporter
 {
     private static final Logger logger = LoggerFactory.getLogger(BadQueriesInSystemLog.class);
-    //Store different types of bad queries in this queue and limit this queue to fix size.
-    private static final Map<BadQuery.BadQueryCategory, ConcurrentLinkedQueue<BadQueryTypes>> BAD_QUERY_CATEGORY_QUEUES = new HashMap<>();
-    private static final Map<BadQuery.BadQueryCategory, AtomicInteger> CURRENT_SAMPLES = new HashMap<>();
 
     static
     {
@@ -63,28 +60,6 @@ public class BadQueriesInSystemLog implements IBadQueryReporter
                 DatabaseDescriptor.getBadQueryLoggingInterval(),
                 TimeUnit.SECONDS);
         BadQueryMetrics.setup();
-    }
-
-    @VisibleForTesting
-    public Map<BadQuery.BadQueryCategory, ConcurrentLinkedQueue<BadQueryTypes>> getBadQueryCategoryQueues()
-    {
-        return Collections.unmodifiableMap(BAD_QUERY_CATEGORY_QUEUES);
-    }
-
-    @VisibleForTesting
-    public void clear()
-    {
-        Iterator<Map.Entry<BadQuery.BadQueryCategory, ConcurrentLinkedQueue<BadQueryTypes>>> iter = BAD_QUERY_CATEGORY_QUEUES.entrySet().iterator();
-        while (iter.hasNext())
-        {
-            Map.Entry<BadQuery.BadQueryCategory, ConcurrentLinkedQueue<BadQueryTypes>> entry = iter.next();
-            entry.getValue().clear();
-        }
-        Iterator<Map.Entry<BadQuery.BadQueryCategory, AtomicInteger>> iterator =  CURRENT_SAMPLES.entrySet().iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<BadQuery.BadQueryCategory, AtomicInteger> entry = iterator.next();
-            entry.getValue().set(0);
-        }
     }
 
     @Override
@@ -108,12 +83,6 @@ public class BadQueriesInSystemLog implements IBadQueryReporter
                 }
             }
         }
-    }
-
-    @Override
-    public int getStats(BadQuery.BadQueryCategory type)
-    {
-        return CURRENT_SAMPLES.get(type).get();
     }
 
     /**

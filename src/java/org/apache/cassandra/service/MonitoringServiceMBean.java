@@ -61,7 +61,7 @@ public interface MonitoringServiceMBean
 
     public void setBadQueryTombstoneLimit(int badQueryTombstoneLimit);
 
-    public Pattern getBadQueryIgnoreKeyspaces();
+    public Pattern getBadQueryIgnoreKeyspacesPattern();
 
-    public void setBadQueryIgnoreKeyspaces(Pattern badQueryIgnoreKeyspaces);
+    public void setBadQueryIgnoreKeyspacesPattern(Pattern badQueryIgnoreKeyspaces);
 }

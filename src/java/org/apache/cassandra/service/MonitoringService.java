@@ -17,11 +17,11 @@
  */
 package org.apache.cassandra.service;
 
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.utils.MBeanWrapper;
 
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
-import java.lang.management.ManagementFactory;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 public class MonitoringService implements MonitoringServiceMBean
@@ -38,7 +38,8 @@ public class MonitoringService implements MonitoringServiceMBean
     private int badQueryReadSlowCoordLatencyInms;
     private int badQueryWriteSlowCoordLatencyInms;
     private int badQueryTombstoneLimit;
-    private Pattern badQueryIgnoreKeyspaces;
+    private Pattern badQueryIgnoreKeyspacesPattern;
+    private Set<String> badQueryIgnoreKeyspaces = new HashSet<>();
 
     public static final MonitoringService instance = new MonitoringService();
 
@@ -156,13 +157,35 @@ public class MonitoringService implements MonitoringServiceMBean
         this.badQueryTombstoneLimit = badQueryTombstoneLimit;
     }
 
-    public Pattern getBadQueryIgnoreKeyspaces()
+    public Pattern getBadQueryIgnoreKeyspacesPattern()
+    {
+        return badQueryIgnoreKeyspacesPattern;
+    }
+
+    public void setBadQueryIgnoreKeyspacesPattern(Pattern badQueryIgnoreKeyspacesPattern)
+    {
+        this.badQueryIgnoreKeyspacesPattern = badQueryIgnoreKeyspacesPattern;
+        refreshBadQueryIgnoreKeyspaceCache();
+    }
+
+    public Set<String> getBadQueryIgnoreKeyspaces()
     {
         return badQueryIgnoreKeyspaces;
     }
 
-    public void setBadQueryIgnoreKeyspaces(Pattern badQueryIgnoreKeyspaces)
+    public void refreshBadQueryIgnoreKeyspaceCache()
     {
-        this.badQueryIgnoreKeyspaces = badQueryIgnoreKeyspaces;
+        Set<String> ignoreKeyspaces = new HashSet<>();
+        if (badQueryIgnoreKeyspacesPattern != null)
+        {
+            for (String keyspace: Schema.instance.getKeyspaces())
+            {
+                if (badQueryIgnoreKeyspacesPattern.matcher(keyspace).matches())
+                {
+                    ignoreKeyspaces.add(keyspace);
+                }
+            }
+        }
+        badQueryIgnoreKeyspaces = ignoreKeyspaces;
     }
 }

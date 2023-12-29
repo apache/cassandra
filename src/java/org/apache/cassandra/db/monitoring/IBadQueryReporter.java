@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.db.monitoring;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentLinkedQueue;
+
 /**
  * Bad query reporter. All the badqueries happening currently will be reported here.
  * User will have to provide specific implementation about how to consume them.
@@ -48,4 +51,17 @@ public interface IBadQueryReporter
      * @return current stats for given category.
      */
     int getStats(BadQuery.BadQueryCategory type);
+
+    /**
+     * get bad query queues.
+     *
+     * @return current badquery category queues.
+     */
+    public Map<BadQuery.BadQueryCategory, ConcurrentLinkedQueue<BadQueryTypes>> getBadQueryCategoryQueues();
+
+    /**
+     * Clear the badquery category queues
+     * @param clearVisitedCache
+     */
+    public void clearUnsafe(boolean clearVisitedCache);
 }
