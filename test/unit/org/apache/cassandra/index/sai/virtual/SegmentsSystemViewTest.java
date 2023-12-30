@@ -128,7 +128,7 @@ public class SegmentsSystemViewTest extends SAITester
             SegmentBuilder.updateLastValidSegmentRowId(lastValidSegmentRowId);
 
             // compaction to rewrite segments
-            StorageService.instance.upgradeSSTables(KEYSPACE, false, currentTable());
+            StorageService.instance.upgradeSSTables(KEYSPACE, false, 0, currentTable());
 
             List<Object[]> segmentRows = new ArrayList<>();
 

@@ -64,6 +64,7 @@ import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.transformations.Startup;
 import org.assertj.core.api.Assertions;
 
+import static java.util.Collections.emptyMap;
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -158,21 +159,21 @@ public class StorageServiceServerTest
     public void testSnapshotWithFlush() throws IOException
     {
         // no need to insert extra data, even an "empty" database will have a little information in the system keyspace
-        StorageService.instance.takeSnapshot(UUID.randomUUID().toString());
+        StorageService.instance.takeSnapshot(UUID.randomUUID().toString(), Map.of("skipFlush", "false"));
     }
 
     @Test
     public void testTableSnapshot() throws IOException
     {
         // no need to insert extra data, even an "empty" database will have a little information in the system keyspace
-        StorageService.instance.takeTableSnapshot(SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspaceTables.KEYSPACES, UUID.randomUUID().toString());
+        StorageService.instance.takeSnapshot(UUID.randomUUID().toString(), emptyMap(), SchemaConstants.SCHEMA_KEYSPACE_NAME + '.' + SchemaKeyspaceTables.KEYSPACES);
     }
 
     @Test
     public void testSnapshot() throws IOException
     {
         // no need to insert extra data, even an "empty" database will have a little information in the system keyspace
-        StorageService.instance.takeSnapshot(UUID.randomUUID().toString(), SchemaConstants.SCHEMA_KEYSPACE_NAME);
+        StorageService.instance.takeSnapshot(UUID.randomUUID().toString(), emptyMap(), SchemaKeyspaceTables.KEYSPACES);
     }
 
     @Test

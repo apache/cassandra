@@ -170,7 +170,7 @@ public class TableMetricTest extends TestBaseImpl
             Assert.assertTrue("Unable to find table mbean for " + keyspace + "." + table,
                               mbeans.isRegistered(ColumnFamilyStore.getTableMBeanName(keyspace, table, false)));
             Assert.assertTrue("Unable to find column family mbean for " + keyspace + "." + table,
-                              mbeans.isRegistered(ColumnFamilyStore.getColumnFamilieMBeanName(keyspace, table, false)));
+                              mbeans.isRegistered(ColumnFamilyStore.getTableMBeanName(keyspace, table, false)));
         });
     }
 
@@ -182,7 +182,7 @@ public class TableMetricTest extends TestBaseImpl
             Assert.assertFalse("Found table mbean for " + keyspace + "." + table,
                                mbeans.isRegistered(ColumnFamilyStore.getTableMBeanName(keyspace, table, false)));
             Assert.assertFalse("Found column family mbean for " + keyspace + "." + table,
-                               mbeans.isRegistered(ColumnFamilyStore.getColumnFamilieMBeanName(keyspace, table, false)));
+                               mbeans.isRegistered(ColumnFamilyStore.getTableMBeanName(keyspace, table, false)));
         });
     }
 

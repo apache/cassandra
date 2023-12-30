@@ -475,7 +475,7 @@ public abstract class SAITester extends CQLTester
     {
         try
         {
-            StorageService.instance.upgradeSSTables(KEYSPACE, false, currentTable());
+            StorageService.instance.upgradeSSTables(KEYSPACE, false, 0, currentTable());
         }
         catch (Throwable e)
         {

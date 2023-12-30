@@ -36,13 +36,6 @@ import org.apache.cassandra.utils.BreaksJMX;
  */
 public interface ColumnFamilyStoreMBean
 {
-    /**
-     * @return the name of the column family
-     */
-    /** @deprecated See CASSANDRA-9448 */
-    @Deprecated(since = "3.0")
-    public String getColumnFamilyName();
-
     public String getTableName();
 
     /**

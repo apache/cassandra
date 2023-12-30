@@ -282,9 +282,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public final String name;
     public final TableMetadataRef metadata;
     private final String mbeanName;
-    /** @deprecated See CASSANDRA-9448 */
-    @Deprecated(since = "3.0")
-    private final String oldMBeanName;
     private volatile boolean valid = true;
 
     private volatile Memtable.Factory memtableFactory;
@@ -553,16 +550,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         {
             // register the mbean
             mbeanName = getTableMBeanName(getKeyspaceName(), name, isIndex());
-            oldMBeanName = getColumnFamilieMBeanName(getKeyspaceName(), name, isIndex());
-
-            String[] objectNames = {mbeanName, oldMBeanName};
-            for (String objectName : objectNames)
-                MBeanWrapper.instance.registerMBean(this, objectName);
+            MBeanWrapper.instance.registerMBean(this, mbeanName);
         }
         else
         {
             mbeanName = null;
-            oldMBeanName= null;
         }
         writeHandler = new CassandraTableWriteHandler(this);
         streamManager = new CassandraStreamManager(this);
@@ -580,13 +572,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return String.format("org.apache.cassandra.db:type=%s,keyspace=%s,table=%s",
                       isIndex ? "IndexTables" : "Tables",
                       ks, name);
-    }
-
-    public static String getColumnFamilieMBeanName(String ks, String name, boolean isIndex)
-    {
-       return String.format("org.apache.cassandra.db:type=%s,keyspace=%s,columnfamily=%s",
-                            isIndex ? "IndexColumnFamilies" : "ColumnFamilies",
-                            ks, name);
     }
 
     public void updateSpeculationThreshold()
@@ -738,12 +723,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     void unregisterMBean() throws MalformedObjectNameException
     {
-        ObjectName[] objectNames = {new ObjectName(mbeanName), new ObjectName(oldMBeanName)};
-        for (ObjectName objectName : objectNames)
-        {
-            if (MBeanWrapper.instance.isRegistered(objectName))
-                MBeanWrapper.instance.unregisterMBean(objectName);
-        }
+        ObjectName objectName = new ObjectName(mbeanName);
+
+        if (MBeanWrapper.instance.isRegistered(objectName))
+            MBeanWrapper.instance.unregisterMBean(objectName);
 
         // unregister metrics
         metric.release();
@@ -927,13 +910,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         {
             throw new RuntimeException(e);
         }
-    }
-
-    /** @deprecated See CASSANDRA-9448 */
-    @Deprecated(since = "3.0")
-    public String getColumnFamilyName()
-    {
-        return getTableName();
     }
 
     public String getTableName()

@@ -46,10 +46,8 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkBindValueSet;
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 
 /**
@@ -464,14 +462,6 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         {
             checkNotNull(value, "Unsupported null value for column %s", column.name);
             checkBindValueSet(value, "Unsupported unset value for column %s", column.name);
-        }
-
-        /** @deprecated See CASSANDRA-6377 */
-        @Deprecated(since = "3.5")
-        public void validateForIndexing()
-        {
-            checkFalse(value.remaining() > FBUtilities.MAX_UNSIGNED_SHORT,
-                       "Index expression values may not be larger than 64K");
         }
 
         /**

@@ -481,7 +481,6 @@ public class Config
     @Replaces(oldName = "cache_load_timeout_seconds", converter = Converters.NEGATIVE_SECONDS_DURATION, deprecated = true)
     public DurationSpec.IntSecondsBound cache_load_timeout = new DurationSpec.IntSecondsBound("30s");
 
-    private static boolean isClientMode = false;
     private static Supplier<Config> overrideLoadConfig = null;
 
     @Replaces(oldName = "networking_cache_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
@@ -787,15 +786,6 @@ public class Config
     public StorageAttachedIndexOptions sai_options = new StorageAttachedIndexOptions();
 
     /**
-     * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()} See CASSANDRA-12550
-     */
-    @Deprecated(since = "3.10")
-    public static boolean isClientMode()
-    {
-        return isClientMode;
-    }
-
-    /**
      * If true, when rows with duplicate clustering keys are detected during a read or compaction
      * a snapshot will be taken. In the read case, each a snapshot request will be issued to each
      * replica involved in the query, for compaction the snapshot will be created locally.
@@ -822,18 +812,6 @@ public class Config
 
     // see CASSANDRA-17048 and the comment in cassandra.yaml
     public boolean uuid_sstable_identifiers_enabled = false;
-
-    /**
-     * Client mode means that the process is a pure client, that uses C* code base but does
-     * not read or write local C* database files.
-     *
-     * @deprecated migrate to {@link DatabaseDescriptor#clientInitialization(boolean)} See CASSANDRA-12550
-     */
-    @Deprecated(since = "3.10")
-    public static void setClientMode(boolean clientMode)
-    {
-        isClientMode = clientMode;
-    }
 
     public volatile int consecutive_message_errors_threshold = 1;
 

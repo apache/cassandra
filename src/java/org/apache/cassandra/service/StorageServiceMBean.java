@@ -261,24 +261,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     public List<String> getNaturalEndpointsWithPort(String keysapceName, ByteBuffer key);
 
     /**
-     * @deprecated use {@link #takeSnapshot(String tag, Map options, String... entities)} instead. See CASSANDRA-10907
-     */
-    @Deprecated(since = "3.4")
-    public void takeSnapshot(String tag, String... keyspaceNames) throws IOException;
-
-    /**
-     * @deprecated use {@link #takeSnapshot(String tag, Map options, String... entities)} instead. See CASSANDRA-10907
-     */
-    @Deprecated(since = "3.4")
-    public void takeTableSnapshot(String keyspaceName, String tableName, String tag) throws IOException;
-
-    /**
-     * @deprecated use {@link #takeSnapshot(String tag, Map options, String... entities)} instead. See CASSANDRA-10907
-     */
-    @Deprecated(since = "3.4")
-    public void takeMultipleTableSnapshot(String tag, String... tableList) throws IOException;
-
-    /**
      * Takes the snapshot of a multiple column family from different keyspaces. A snapshot name must be specified.
      *
      * @param tag
@@ -364,9 +346,6 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     public void forceKeyspaceCompaction(boolean splitOutput, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
 
-    /** @deprecated See CASSANDRA-11179 */
-    @Deprecated(since = "3.5")
-    public int relocateSSTables(String keyspace, String ... cfnames) throws IOException, ExecutionException, InterruptedException;
     public int relocateSSTables(int jobs, String keyspace, String ... cfnames) throws IOException, ExecutionException, InterruptedException;
 
     /**
@@ -393,10 +372,7 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /**
      * Trigger a cleanup of keys on a single keyspace
-     * @deprecated See CASSANDRA-11179
      */
-    @Deprecated(since = "3.5")
-    public int forceKeyspaceCleanup(String keyspaceName, String... tables) throws IOException, ExecutionException, InterruptedException;
     public int forceKeyspaceCleanup(int jobs, String keyspaceName, String... tables) throws IOException, ExecutionException, InterruptedException;
 
     /**
@@ -404,21 +380,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      * If tableNames array is empty, all CFs are scrubbed.
      *
      * Scrubbed CFs will be snapshotted first, if disableSnapshot is false
-     * @deprecated See CASSANDRA-11179
      */
-    @Deprecated(since = "3.5")
-    default int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
-    {
-        return scrub(disableSnapshot, skipCorrupted, checkData, 0, keyspaceName, tableNames);
-    }
-
-    /** @deprecated See CASSANDRA-14092 */
-    @Deprecated(since = "3.11")
-    default int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, int jobs, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
-    {
-        return scrub(disableSnapshot, skipCorrupted, checkData, false, jobs, keyspaceName, columnFamilies);
-    }
-
     public int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, boolean reinsertOverflowedTTL, int jobs, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
 
     /**
@@ -433,11 +395,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     /**
      * Rewrite all sstables to the latest version.
      * Unlike scrub, it doesn't skip bad rows and do not snapshot sstables first.
-     * @deprecated See CASSANDRA-11179
-     */
-    @Deprecated(since = "3.5")
-    public int upgradeSSTables(String keyspaceName, boolean excludeCurrentVersion, String... tableNames) throws IOException, ExecutionException, InterruptedException;
-    /** @deprecated See CASSANDRA-16837 */
+     *
+     * @deprecated See CASSANDRA-16837
+     **/
     @Deprecated(since = "4.1")
     default int upgradeSSTables(String keyspaceName, boolean excludeCurrentVersion, int jobs, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
