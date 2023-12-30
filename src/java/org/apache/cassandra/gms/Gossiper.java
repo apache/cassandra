@@ -2396,12 +2396,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         int totalPolls = 0;
         int numOkay = 0;
         int epSize = Gossiper.instance.getEndpointCount();
+        int liveSize = Gossiper.instance.getLiveMembers().size();
         while (numOkay < GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED)
         {
             Uninterruptibles.sleepUninterruptibly(GOSSIP_SETTLE_POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
             int currentSize = Gossiper.instance.getEndpointCount();
+            int currentLive = Gossiper.instance.getLiveMembers().size();
             totalPolls++;
-            if (currentSize == epSize)
+            if (currentSize == epSize && currentLive == liveSize)
             {
                 logger.debug("Gossip looks settled.");
                 numOkay++;
@@ -2412,6 +2414,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
                 numOkay = 0;
             }
             epSize = currentSize;
+            liveSize = currentLive;
             if (forceAfter > 0 && totalPolls > forceAfter)
             {
                 logger.warn("Gossip not settled but startup forced by cassandra.skip_wait_for_gossip_to_settle. Gossip total polls: {}",
