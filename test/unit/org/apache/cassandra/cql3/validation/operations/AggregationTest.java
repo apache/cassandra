@@ -17,32 +17,11 @@
  */
 package org.apache.cassandra.cql3.validation.operations;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.math.RoundingMode;
-import java.nio.ByteBuffer;
-import java.text.SimpleDateFormat;
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.Collections;
-import java.util.Date;
-import java.util.Locale;
-import java.util.TimeZone;
-import java.util.concurrent.ThreadLocalRandom;
-
-import org.apache.commons.lang3.time.DateUtils;
-
-import org.junit.Test;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.joran.ReconfigureOnChangeTask;
 import ch.qos.logback.classic.spi.TurboFilterList;
 import ch.qos.logback.classic.turbo.ReconfigureOnChangeFilter;
 import ch.qos.logback.classic.turbo.TurboFilter;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -51,18 +30,28 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.commons.lang3.time.DateUtils;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.math.RoundingMode;
+import java.nio.ByteBuffer;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 import static ch.qos.logback.core.CoreConstants.RECONFIGURE_ON_CHANGE_TASK;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class AggregationTest extends CQLTester
 {
@@ -1384,10 +1373,11 @@ public class AggregationTest extends CQLTester
     @Test
     public void testWrongKeyspace() throws Throwable
     {
+        String otherKeyspace = createKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
         String typeName = createType("CREATE TYPE %s (txt text, i int)");
         String type = KEYSPACE + '.' + typeName;
 
-        String fState = createFunction(KEYSPACE_PER_TEST,
+        String fState = createFunction(otherKeyspace,
                                        "int, int",
                                        "CREATE FUNCTION %s(a int, b int) " +
                                        "CALLED ON NULL INPUT " +
@@ -1395,7 +1385,7 @@ public class AggregationTest extends CQLTester
                                        "LANGUAGE java " +
                                        "AS 'return Double.valueOf(1.0);'");
 
-        String fFinal = createFunction(KEYSPACE_PER_TEST,
+        String fFinal = createFunction(otherKeyspace,
                                        "int",
                                        "CREATE FUNCTION %s(a int) " +
                                        "CALLED ON NULL INPUT " +
@@ -1420,29 +1410,29 @@ public class AggregationTest extends CQLTester
                                        "AS 'return Integer.valueOf(1);';");
 
         assertInvalidMessage(String.format("Statement on keyspace %s cannot refer to a user type in keyspace %s; user types can only be used in the keyspace they are defined in",
-                                           KEYSPACE_PER_TEST, KEYSPACE),
-                             "CREATE AGGREGATE " + KEYSPACE_PER_TEST + ".test_wrong_ks(int) " +
+                                           otherKeyspace, KEYSPACE),
+                             "CREATE AGGREGATE " + otherKeyspace + ".test_wrong_ks(int) " +
                              "SFUNC " + shortFunctionName(fState) + ' ' +
                              "STYPE " + type + " " +
                              "FINALFUNC " + shortFunctionName(fFinal) + ' ' +
                              "INITCOND 1");
 
         assertInvalidMessage("mismatched input", // specifying a function using "keyspace.functionname" is a syntax error
-                             "CREATE AGGREGATE " + KEYSPACE_PER_TEST + ".test_wrong_ks(int) " +
+                             "CREATE AGGREGATE " + otherKeyspace + ".test_wrong_ks(int) " +
                              "SFUNC " + fStateWrong + ' ' +
                              "STYPE " + type + " " +
                              "FINALFUNC " + shortFunctionName(fFinal) + ' ' +
                              "INITCOND 1");
 
         assertInvalidMessage("expecting EOF", // specifying a function using "keyspace.functionname" is a syntax error
-                             "CREATE AGGREGATE " + KEYSPACE_PER_TEST + ".test_wrong_ks(int) " +
+                             "CREATE AGGREGATE " + otherKeyspace + ".test_wrong_ks(int) " +
                              "SFUNC " + shortFunctionName(fState) + ' ' +
                              "STYPE " + type + " " +
                              "FINALFUNC " + fFinalWrong + ' ' +
                              "INITCOND 1");
 
         assertInvalidMessage("expecting EOF", // specifying a function using "keyspace.functionname" is a syntax error
-                             "CREATE AGGREGATE " + KEYSPACE_PER_TEST + ".test_wrong_ks(int) " +
+                             "CREATE AGGREGATE " + otherKeyspace + ".test_wrong_ks(int) " +
                              "SFUNC " + shortFunctionName(fState) + ' ' +
                              "STYPE " + type + ' ' +
                              "FINALFUNC " + SchemaConstants.SYSTEM_KEYSPACE_NAME + ".min " +
@@ -2162,10 +2152,11 @@ public class AggregationTest extends CQLTester
     @Test
     public void testRejectInvalidAggregateNamesOnCreation()
     {
+        String otherKeyspace = createKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
         for (String funcName : Arrays.asList("my/fancy/aggregate", "my_other[fancy]aggregate"))
         {
             assertThatThrownBy(() -> {
-                createAggregateOverload(String.format("%s.\"%s\"", KEYSPACE_PER_TEST, funcName), "int",
+                createAggregateOverload(String.format("%s.\"%s\"", otherKeyspace, funcName), "int",
                                         " CREATE AGGREGATE IF NOT EXISTS %s(text, text)\n" +
                                         " SFUNC func\n" +
                                         " STYPE map<text,bigint>\n" +

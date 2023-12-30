@@ -209,8 +209,9 @@ public class ColumnMaskWithUDFTest extends ColumnMaskTester
     @Test
     public void testUDFInOtherKeyspace() throws Throwable
     {
+        String otherKeyspace = createKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}");
         assertMaskingFails("Masking function %s() doesn't belong to the same keyspace as the table",
-                           createFunction(KEYSPACE_PER_TEST,
+                           createFunction(otherKeyspace,
                                           "int",
                                           "CREATE FUNCTION %s (input int) " +
                                           "CALLED ON NULL INPUT " +

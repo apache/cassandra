@@ -28,13 +28,13 @@ import java.util.Random;
 import java.util.Set;
 
 import org.apache.commons.lang3.StringUtils;
-
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
@@ -929,6 +929,14 @@ public class CompactionsCQLTest extends CQLTester
     private void loadTestSStables(ColumnFamilyStore cfs, File ksDir) throws IOException
     {
         Keyspace.open(cfs.getKeyspaceName()).getColumnFamilyStore(cfs.name).truncateBlocking();
+
+        // After truncation, the SSTableReaders are closed and the global tidier is triggered to delete the files.
+        // File deletion is executed asynchrnously thus it can span the operations called after truncateBlocking.
+        // This is unfortunate for this test because both the deleted sstable and the copied sstable have the same
+        // identifier and if the sstable deletion is not finished bofore we copy the sstable, the deletion may actually
+        // delete the copied sstable. To avoid this, we wait for the deletion to finish before copying the sstable.
+        ScheduledExecutors.nonPeriodicTasks.submit(() -> {}).awaitUninterruptibly();
+
         for (File cfDir : cfs.getDirectories().getCFDirectories())
         {
             File tableDir = new File(ksDir, cfs.name);

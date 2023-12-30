@@ -47,7 +47,7 @@ public class GuardrailTablesTest extends ThresholdTester
     @Override
     protected long currentValue()
     {
-        return Keyspace.open(KEYSPACE_PER_TEST).getColumnFamilyStores().size();
+        return Keyspace.open(KEYSPACE).getColumnFamilyStores().size();
     }
 
     @Test
@@ -74,13 +74,13 @@ public class GuardrailTablesTest extends ThresholdTester
         assertCreateTableFails();
 
         // drop a table and hit the warn/fail threshold again
-        dropTable(t2);
+        schemaChange(String.format("DROP TABLE %s.%s", KEYSPACE, t2));
         String t3 = assertCreateTableWarns();
         assertCreateTableFails();
 
         // drop two tables and hit the warn/fail threshold again
-        dropTable(t1);
-        dropTable(t3);
+        schemaChange(String.format("DROP TABLE %s.%s", KEYSPACE, t1));
+        schemaChange(String.format("DROP TABLE %s.%s", KEYSPACE, t3));
         assertCreateTableValid();
         assertCreateTableWarns();
         assertCreateTableFails();
@@ -89,12 +89,6 @@ public class GuardrailTablesTest extends ThresholdTester
         testExcludedUsers(this::createTableQuery,
                           this::createTableQuery,
                           this::createTableQuery);
-    }
-
-    @Override
-    protected void dropTable(String tableName)
-    {
-        super.dropTable(format("DROP TABLE %s.%s", KEYSPACE_PER_TEST, tableName));
     }
 
     private String assertCreateTableValid() throws Throwable
@@ -128,6 +122,6 @@ public class GuardrailTablesTest extends ThresholdTester
 
     private String createTableQuery(String tableName)
     {
-        return format("CREATE TABLE %s.%s (k1 int, v int, PRIMARY KEY((k1)))", KEYSPACE_PER_TEST, tableName);
+        return format("CREATE TABLE %s.%s (k1 int, v int, PRIMARY KEY((k1)))", KEYSPACE, tableName);
     }
 }

@@ -26,7 +26,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -41,7 +40,7 @@ public class SSTablesIteratedTest extends CQLTester
 {
     private void executeAndCheck(String query, int numSSTables, Object[]... rows) throws Throwable
     {
-        ColumnFamilyStore cfs = getCurrentColumnFamilyStore(KEYSPACE_PER_TEST);
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
 
         ((ClearableHistogram) cfs.metric.sstablesPerReadHistogram.cf).clear(); // resets counts
 
@@ -57,7 +56,7 @@ public class SSTablesIteratedTest extends CQLTester
     private void executeAndCheckRangeQuery(String query, int numSSTables, Object[]... rows) throws Throwable
     {
         logger.info("Executing query: {} with parameters: {}", query, Arrays.toString(rows));
-        ColumnFamilyStore cfs = getCurrentColumnFamilyStore(KEYSPACE_PER_TEST);
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
 
         ((ClearableHistogram) cfs.metric.sstablesPerRangeReadHistogram.cf).clear(); // resets counts
 
@@ -73,21 +72,9 @@ public class SSTablesIteratedTest extends CQLTester
     @Override
     protected String createTable(String query)
     {
-        String ret = super.createTable(KEYSPACE_PER_TEST, query);
-        disableCompaction(KEYSPACE_PER_TEST);
+        String ret = super.createTable(query);
+        disableCompaction(KEYSPACE);
         return ret;
-    }
-
-    @Override
-    protected UntypedResultSet execute(String query, Object... values)
-    {
-        return executeFormattedQuery(formatQuery(KEYSPACE_PER_TEST, query), values);
-    }
-
-    @Override
-    public void flush()
-    {
-        super.flush(KEYSPACE_PER_TEST);
     }
 
     @Test
@@ -1694,25 +1681,25 @@ public class SSTablesIteratedTest extends CQLTester
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 2, 2);
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 3, 3);
         flush();
-        assertEquals(1, getCurrentColumnFamilyStore(KEYSPACE_PER_TEST).getLiveSSTables().size());
+        assertEquals(1, getCurrentColumnFamilyStore().getLiveSSTables().size());
 
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 2, 4);
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 3, 5);
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 4, 6);
         flush();
-        assertEquals(2, getCurrentColumnFamilyStore(KEYSPACE_PER_TEST).getLiveSSTables().size());
+        assertEquals(2, getCurrentColumnFamilyStore().getLiveSSTables().size());
 
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 3, 7);
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 4, 8);
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 5, 9);
         flush();
-        assertEquals(3, getCurrentColumnFamilyStore(KEYSPACE_PER_TEST).getLiveSSTables().size());
+        assertEquals(3, getCurrentColumnFamilyStore().getLiveSSTables().size());
 
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 4, 10);
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 5, 11);
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 6, 12);
         flush();
-        assertEquals(4, getCurrentColumnFamilyStore(KEYSPACE_PER_TEST).getLiveSSTables().size());
+        assertEquals(4, getCurrentColumnFamilyStore().getLiveSSTables().size());
 
         // point query - test whether sstables are skipped due to not covering the requested slice
         executeAndCheck("SELECT * FROM %s WHERE pk = 1 AND c = 0", 0);
@@ -1742,25 +1729,25 @@ public class SSTablesIteratedTest extends CQLTester
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 2, 2);
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 3, 3);
         flush();
-        assertEquals(1, getCurrentColumnFamilyStore(KEYSPACE_PER_TEST).getLiveSSTables().size());
+        assertEquals(1, getCurrentColumnFamilyStore().getLiveSSTables().size());
 
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 2, 4);
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 3, 5);
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 4, 6);
         flush();
-        assertEquals(2, getCurrentColumnFamilyStore(KEYSPACE_PER_TEST).getLiveSSTables().size());
+        assertEquals(2, getCurrentColumnFamilyStore().getLiveSSTables().size());
 
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 3, 7);
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 4, 8);
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 5, 9);
         flush();
-        assertEquals(3, getCurrentColumnFamilyStore(KEYSPACE_PER_TEST).getLiveSSTables().size());
+        assertEquals(3, getCurrentColumnFamilyStore().getLiveSSTables().size());
 
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 4, 10);
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 5, 11);
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 6, 12);
         flush();
-        assertEquals(4, getCurrentColumnFamilyStore(KEYSPACE_PER_TEST).getLiveSSTables().size());
+        assertEquals(4, getCurrentColumnFamilyStore().getLiveSSTables().size());
 
         // point query - test whether sstables are skipped due to not covering the requested slice
         executeAndCheckRangeQuery("SELECT * FROM %s WHERE c = 0 ALLOW FILTERING", 0);
@@ -1804,25 +1791,25 @@ public class SSTablesIteratedTest extends CQLTester
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", k[2], 2, 2);
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", k[3], 3, 3);
         flush();
-        assertEquals(1, getCurrentColumnFamilyStore(KEYSPACE_PER_TEST).getLiveSSTables().size());
+        assertEquals(1, getCurrentColumnFamilyStore().getLiveSSTables().size());
 
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", k[2], 2, 4);
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", k[3], 3, 5);
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", k[4], 4, 6);
         flush();
-        assertEquals(2, getCurrentColumnFamilyStore(KEYSPACE_PER_TEST).getLiveSSTables().size());
+        assertEquals(2, getCurrentColumnFamilyStore().getLiveSSTables().size());
 
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", k[3], 3, 7);
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", k[4], 4, 8);
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", k[5], 5, 9);
         flush();
-        assertEquals(3, getCurrentColumnFamilyStore(KEYSPACE_PER_TEST).getLiveSSTables().size());
+        assertEquals(3, getCurrentColumnFamilyStore().getLiveSSTables().size());
 
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", k[4], 4, 10);
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", k[5], 5, 11);
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", k[6], 6, 12);
         flush();
-        assertEquals(4, getCurrentColumnFamilyStore(KEYSPACE_PER_TEST).getLiveSSTables().size());
+        assertEquals(4, getCurrentColumnFamilyStore().getLiveSSTables().size());
 
         // range query - test whether sstables are skipped due to not covering the requested slice
         executeAndCheckRangeQuery("SELECT * FROM %s WHERE TOKEN (pk) <= " + t[0], 0);

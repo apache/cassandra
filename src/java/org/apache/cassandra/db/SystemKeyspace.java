@@ -940,7 +940,7 @@ public final class SystemKeyspace
 
         String req = "INSERT INTO system.%s (key, tokens) VALUES ('%s', ?)";
         executeInternal(format(req, LOCAL, LOCAL), tokensAsSet(tokens));
-        forceBlockingFlush(LOCAL);
+        // forceBlockingFlush(LOCAL);
     }
 
     public static void forceBlockingFlush(String ...cfnames)

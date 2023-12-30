@@ -392,12 +392,12 @@ public class InsertUpdateIfConditionTest extends CQLTester
     @Test
     public void testDropCreateKeyspaceIfNotExists() throws Throwable
     {
-        String keyspace =  KEYSPACE_PER_TEST;
+        String keyspace = createKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
 
-        dropPerTestKeyspace();
+        schemaChange("DROP KEYSPACE IF EXISTS " + keyspace);
 
         // try dropping when doesn't exist
-        dropPerTestKeyspace();
+        schemaChange("DROP KEYSPACE IF EXISTS " + keyspace);
 
         // create and confirm
         schemaChange("CREATE KEYSPACE IF NOT EXISTS " + keyspace + " WITH replication = { 'class':'SimpleStrategy', 'replication_factor':1} and durable_writes = true ");

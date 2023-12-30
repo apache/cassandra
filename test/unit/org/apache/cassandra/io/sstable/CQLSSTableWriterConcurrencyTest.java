@@ -26,7 +26,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -47,18 +46,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class CQLSSTableWriterConcurrencyTest extends CQLTester
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(CQLSSTableWriterTest.class);
+
     @Rule
     public TemporaryFolder tempFolder = new TemporaryFolder();
-
-    @BeforeClass
-    public static void setUpClass()
-    {
-        CQLTester.setUpClass();
-    }
 
     @Test
     public void testConcurrentSchemaModification() throws InterruptedException, IOException
     {
+        // we cannot use KEYSPACE because KEYSPACE is dropped after test; this test mixes use of Schema.instance in
+        // client and in server mode and the affected keyspace cannot be dropoped as a consequence
+        String ks = "test_concurrent_schema_modification_ks";
+        schemaChange("CREATE KEYSPACE " + ks + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
+
         String schema = "CREATE TABLE %s ("
                         + "  k int PRIMARY KEY,"
                         + "  v1 text,"
@@ -80,15 +79,15 @@ public class CQLSSTableWriterConcurrencyTest extends CQLTester
         for (int i = 0; i < nThreads; i++)
         {
             tableNames[i] = String.format("table_%02d", i);
-            fullQueries[i] = String.format(schema, KEYSPACE + '.' + tableNames[i]);
+            fullQueries[i] = String.format(schema, ks + '.' + tableNames[i]);
             LOGGER.info(fullQueries[i]);
 
             if (i % 2 != 0)
             {
                 // dataDir and insert statement are only needed for the CQLSSTableWriter class
-                dataDirs[i] = new File(Paths.get(baseDataDir, KEYSPACE, tableNames[i]));
+                dataDirs[i] = new File(Paths.get(baseDataDir, ks, tableNames[i]));
                 assert dataDirs[i].tryCreateDirectories();
-                insertStatements[i] = String.format("INSERT INTO %s.%s (k, v1, v2) VALUES (?, ?, ?)", KEYSPACE, tableNames[i]);
+                insertStatements[i] = String.format("INSERT INTO %s.%s (k, v1, v2) VALUES (?, ?, ?)", ks, tableNames[i]);
             }
 
             final int finalI = i;
@@ -105,7 +104,7 @@ public class CQLSSTableWriterConcurrencyTest extends CQLTester
                         // If another thread modified the Schema without the proper synchronization, it's possible
                         // that the table metadata was swapped out and calling the Keyspace#getColumnFamilyStore
                         // method will produce an IllegalArgumentException
-                        Schema.instance.getKeyspaceInstance(KEYSPACE).getColumnFamilyStore(tableNames[finalI]);
+                        Schema.instance.getKeyspaceInstance(ks).getColumnFamilyStore(tableNames[finalI]);
                     }
                     else
                     {

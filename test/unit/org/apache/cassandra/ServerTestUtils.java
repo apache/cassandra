@@ -38,6 +38,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummarySupport;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.locator.AbstractEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
@@ -173,7 +174,7 @@ public final class ServerTestUtils
     {
         if (directory.exists())
         {
-            Arrays.stream(directory.tryList()).forEach(File::deleteRecursive);
+            Arrays.stream(directory.tryList()).forEach(file -> PathUtils.deleteRecursive(file.toPath(), true));
         }
     }
 

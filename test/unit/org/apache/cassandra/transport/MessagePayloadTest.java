@@ -23,7 +23,6 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Map;
 
-import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -32,11 +31,11 @@ import org.junit.Test;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.BatchQueryOptions;
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.BatchStatement;
-import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
@@ -96,19 +95,6 @@ public class MessagePayloadTest extends CQLTester
         catch (IllegalAccessException | NoSuchFieldException e)
         {
             throw new RuntimeException(e);
-        }
-    }
-
-    @After
-    public void dropCreatedTable()
-    {
-        try
-        {
-            QueryProcessor.executeOnceInternal("DROP TABLE " + KEYSPACE + ".atable");
-        }
-        catch (Throwable t)
-        {
-            // ignore
         }
     }
 

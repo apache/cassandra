@@ -348,8 +348,11 @@ public final class PathUtils
         String [] cmd = new String[]{ "rm", quietly ? "-rdf" : "-rd", path.toAbsolutePath().toString() };
         try
         {
-            if (!quietly && !Files.exists(path))
-                throw new NoSuchFileException(path.toString());
+            if (!Files.exists(path))
+                if (quietly)
+                    return;
+                else
+                    throw new NoSuchFileException(path.toString());
 
             Process p = Runtime.getRuntime().exec(cmd);
             int result = p.waitFor();
@@ -372,7 +375,8 @@ public final class PathUtils
         }
         catch (IOException e)
         {
-            throw propagateUnchecked(e, path, true);
+            if (!quietly)
+                throw propagateUnchecked(e, path, true);
         }
         catch (InterruptedException e)
         {
@@ -381,24 +385,32 @@ public final class PathUtils
         }
     }
 
+    public static void deleteRecursive(Path path)
+    {
+        deleteRecursive(path, false);
+    }
+
     /**
      * Deletes all files and subdirectories under "path".
      * @param path file to be deleted
      * @throws FSWriteError if any part of the tree cannot be deleted
      */
-    public static void deleteRecursive(Path path)
+    public static void deleteRecursive(Path path, boolean queitly)
     {
         if (USE_NIX_RECURSIVE_DELETE.getBoolean() && path.getFileSystem() == java.nio.file.FileSystems.getDefault())
         {
-            deleteRecursiveUsingNixCommand(path, false);
+            deleteRecursiveUsingNixCommand(path, queitly);
             return;
         }
 
         if (isDirectory(path))
-            forEach(path, PathUtils::deleteRecursive);
+            forEach(path, p -> deleteRecursive(p, queitly));
 
         // The directory is now empty, so now it can be smoked
-        delete(path);
+        if (queitly)
+            tryDelete(path);
+        else
+            delete(path);
     }
 
     /**

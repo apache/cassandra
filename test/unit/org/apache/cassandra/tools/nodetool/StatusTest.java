@@ -24,6 +24,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
@@ -45,6 +47,9 @@ public class StatusTest extends CQLTester
         startJMXServer();
         localHostId = StorageService.instance.getLocalHostId();
         token = StorageService.instance.getTokens().get(0);
+
+        // flushing is needed if we want some non-zero data size reported in the status output
+        Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).flush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
     }
 
     /**
@@ -72,11 +77,11 @@ public class StatusTest extends CQLTester
     public void testOutputWhileBootstrapping()
     {
         // Deleting these tables will simulate we're bootstrapping
+        schemaChange("DROP KEYSPACE " + KEYSPACE);
         schemaChange("DROP KEYSPACE " + SchemaConstants.TRACE_KEYSPACE_NAME);
-        schemaChange("DROP KEYSPACE " + CQLTester.KEYSPACE);
-        schemaChange("DROP KEYSPACE " + CQLTester.KEYSPACE_PER_TEST);
 
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("status");
+        logger.info("Tool output: {}", tool.getStdout());
         tool.assertOnCleanExit();
         String[] lines = PATTERN.split(tool.getStdout());
 

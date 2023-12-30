@@ -134,7 +134,7 @@ public class UFTest extends CQLTester
     @Test
     public void testFunctionDropOnKeyspaceDrop() throws Throwable
     {
-        String fSin = createFunction(KEYSPACE_PER_TEST, "double",
+        String fSin = createFunction(KEYSPACE, "double",
                                      "CREATE FUNCTION %s ( input double ) " +
                                      "CALLED ON NULL INPUT " +
                                      "RETURNS double " +
@@ -145,12 +145,12 @@ public class UFTest extends CQLTester
 
         Assert.assertEquals(1, Schema.instance.getUserFunctions(parseFunctionName(fSin)).size());
 
-        assertRows(execute("SELECT function_name, language FROM system_schema.functions WHERE keyspace_name=?", KEYSPACE_PER_TEST),
+        assertRows(execute("SELECT function_name, language FROM system_schema.functions WHERE keyspace_name=?", KEYSPACE),
                    row(fSinName.name, "java"));
 
-        dropPerTestKeyspace();
+        schemaChange("DROP KEYSPACE " + KEYSPACE);
 
-        assertRows(execute("SELECT function_name, language FROM system_schema.functions WHERE keyspace_name=?", KEYSPACE_PER_TEST));
+        assertRows(execute("SELECT function_name, language FROM system_schema.functions WHERE keyspace_name=?", KEYSPACE));
 
         Assert.assertEquals(0, Schema.instance.getUserFunctions(fSinName).size());
     }
@@ -160,7 +160,8 @@ public class UFTest extends CQLTester
     {
         createTable("CREATE TABLE %s (key int PRIMARY KEY, d double)");
 
-        String fSin = createFunction(KEYSPACE_PER_TEST, "double",
+        String otherKeyspace = createKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}");
+        String fSin = createFunction(otherKeyspace, "double",
                                      "CREATE FUNCTION %s ( input double ) " +
                                      "CALLED ON NULL INPUT " +
                                      "RETURNS double " +
@@ -218,7 +219,7 @@ public class UFTest extends CQLTester
         Assert.assertNotNull(QueryProcessor.instance.getPrepared(preparedSelect1.statementId));
         Assert.assertNotNull(QueryProcessor.instance.getPrepared(preparedInsert1.statementId));
 
-        dropPerTestKeyspace();
+        schemaChange("DROP KEYSPACE " + otherKeyspace);
 
         // again, only the 2 statements referencing the function should be removed from cache
         // this time because the statements select from tables in KEYSPACE, only the function
@@ -271,7 +272,7 @@ public class UFTest extends CQLTester
                 literalArgs = null;
         }
 
-        createTable("CREATE TABLE %s (" +
+        createTable(KEYSPACE, "CREATE TABLE %s (" +
                     " key int PRIMARY KEY," +
                     " val " + collectionType + ')');
 
@@ -314,9 +315,10 @@ public class UFTest extends CQLTester
                                                                ClientState.forInternalCalls());
         Assert.assertNotNull(QueryProcessor.instance.getPrepared(control.statementId));
 
+        String otherKeyspace = createKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}");
         // a function that we'll drop and verify that statements which use it to
         // provide a DelayedValue are removed from the cache in QueryProcessor
-        String function = createFunction(KEYSPACE_PER_TEST, "double",
+        String function = createFunction(otherKeyspace, "double",
                                         "CREATE FUNCTION %s ( input double ) " +
                                         "CALLED ON NULL INPUT " +
                                         "RETURNS double " +
@@ -337,7 +339,7 @@ public class UFTest extends CQLTester
         // remain present in the cache. Likewise, if we actually drop the function itself the control
         // statement should not be removed, but the others should be
         if (dropKeyspace)
-            dropPerTestKeyspace();
+            schemaChange("DROP KEYSPACE " + otherKeyspace);
         else
             execute("DROP FUNCTION " + function);
 
@@ -356,7 +358,7 @@ public class UFTest extends CQLTester
         execute("INSERT INTO %s(key, d) VALUES (?, ?)", 3, 3d);
 
         // simple creation
-        String fSin = createFunction(KEYSPACE_PER_TEST, "double",
+        String fSin = createFunction(KEYSPACE, "double",
                                      "CREATE FUNCTION %s ( input double ) " +
                                      "CALLED ON NULL INPUT " +
                                      "RETURNS double " +
@@ -439,7 +441,7 @@ public class UFTest extends CQLTester
 
         execute("INSERT INTO %s(v) VALUES (?)", "aaa");
 
-        String fRepeat = createFunction(KEYSPACE_PER_TEST, "text,int",
+        String fRepeat = createFunction(KEYSPACE, "text,int",
                                         "CREATE FUNCTION %s(v text, n int) " +
                                         "RETURNS NULL ON NULL INPUT " +
                                         "RETURNS text " +
@@ -458,7 +460,7 @@ public class UFTest extends CQLTester
     {
         createTable("CREATE TABLE %s (k int, v text, PRIMARY KEY(k, v)) WITH CLUSTERING ORDER BY (v DESC)");
 
-        String fRepeat = createFunction(KEYSPACE_PER_TEST, "text",
+        String fRepeat = createFunction(KEYSPACE, "text",
                                         "CREATE FUNCTION %s(v text) " +
                                         "RETURNS NULL ON NULL INPUT " +
                                         "RETURNS text " +
@@ -475,7 +477,7 @@ public class UFTest extends CQLTester
 
         execute("INSERT INTO %s(k, v) VALUES (?, ?)", "f2", 1);
 
-        String fOverload = createFunction(KEYSPACE_PER_TEST, "varchar",
+        String fOverload = createFunction(KEYSPACE, "varchar",
                                           "CREATE FUNCTION %s ( input varchar ) " +
                                           "RETURNS NULL ON NULL INPUT " +
                                           "RETURNS text " +
@@ -552,7 +554,7 @@ public class UFTest extends CQLTester
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 2, 2d);
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 3, 3d);
 
-        String fName = createFunction(KEYSPACE_PER_TEST, "double",
+        String fName = createFunction(KEYSPACE, "double",
                 "CREATE FUNCTION %s( input double ) " +
                 "CALLED ON NULL INPUT " +
                 "RETURNS double " +
@@ -594,9 +596,10 @@ public class UFTest extends CQLTester
     {
         createTable("CREATE TABLE %s (key int primary key, val double)");
 
-        execute("CREATE TABLE " + KEYSPACE_PER_TEST + ".second_tab (key int primary key, val double)");
+        String otherKeyspace = createKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}");
+        execute("CREATE TABLE " + otherKeyspace + ".second_tab (key int primary key, val double)");
 
-        String fName = createFunction(KEYSPACE_PER_TEST, "double",
+        String fName = createFunction(otherKeyspace, "double",
                                       "CREATE OR REPLACE FUNCTION %s(val double) " +
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS double " +
@@ -609,10 +612,10 @@ public class UFTest extends CQLTester
         assertInvalidMessage("Unknown function",
                              "SELECT key, val, " + parseFunctionName(fName).name + "(val) FROM %s");
 
-        execute("INSERT INTO " + KEYSPACE_PER_TEST + ".second_tab (key, val) VALUES (?, ?)", 1, 1d);
-        execute("INSERT INTO " + KEYSPACE_PER_TEST + ".second_tab (key, val) VALUES (?, ?)", 2, 2d);
-        execute("INSERT INTO " + KEYSPACE_PER_TEST + ".second_tab (key, val) VALUES (?, ?)", 3, 3d);
-        assertRows(execute("SELECT key, val, " + fName + "(val) FROM " + KEYSPACE_PER_TEST + ".second_tab"),
+        execute("INSERT INTO " + otherKeyspace + ".second_tab (key, val) VALUES (?, ?)", 1, 1d);
+        execute("INSERT INTO " + otherKeyspace + ".second_tab (key, val) VALUES (?, ?)", 2, 2d);
+        execute("INSERT INTO " + otherKeyspace + ".second_tab (key, val) VALUES (?, ?)", 3, 3d);
+        assertRows(execute("SELECT key, val, " + fName + "(val) FROM " + otherKeyspace + ".second_tab"),
                    row(1, 1d, 1d),
                    row(2, 2d, 2d),
                    row(3, 3d, 3d)
@@ -622,28 +625,28 @@ public class UFTest extends CQLTester
     @Test
     public void testFunctionWithReservedName() throws Throwable
     {
-        execute("CREATE TABLE " + KEYSPACE_PER_TEST + ".second_tab (key int primary key, val double)");
+        execute("CREATE TABLE " + KEYSPACE + ".second_tab (key int primary key, val double)");
 
-        String fName = createFunction(KEYSPACE_PER_TEST, "",
+        String fName = createFunction(KEYSPACE, "",
                                       "CREATE OR REPLACE FUNCTION %s() " +
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS timestamp " +
                                       "LANGUAGE JAVA " +
                                       "AS 'return null;';");
 
-        execute("INSERT INTO " + KEYSPACE_PER_TEST + ".second_tab (key, val) VALUES (?, ?)", 1, 1d);
-        execute("INSERT INTO " + KEYSPACE_PER_TEST + ".second_tab (key, val) VALUES (?, ?)", 2, 2d);
-        execute("INSERT INTO " + KEYSPACE_PER_TEST + ".second_tab (key, val) VALUES (?, ?)", 3, 3d);
+        execute("INSERT INTO " + KEYSPACE + ".second_tab (key, val) VALUES (?, ?)", 1, 1d);
+        execute("INSERT INTO " + KEYSPACE + ".second_tab (key, val) VALUES (?, ?)", 2, 2d);
+        execute("INSERT INTO " + KEYSPACE + ".second_tab (key, val) VALUES (?, ?)", 3, 3d);
 
         // ensure that system now() is executed
-        UntypedResultSet rows = execute("SELECT key, val, now() FROM " + KEYSPACE_PER_TEST + ".second_tab");
+        UntypedResultSet rows = execute("SELECT key, val, now() FROM " + KEYSPACE + ".second_tab");
         Assert.assertEquals(3, rows.size());
         UntypedResultSet.Row row = rows.iterator().next();
         Date ts = row.getTimestamp(row.getColumns().get(2).name.toString());
         Assert.assertNotNull(ts);
 
         // ensure that KEYSPACE_PER_TEST's now() is executed
-        rows = execute("SELECT key, val, " + fName + "() FROM " + KEYSPACE_PER_TEST + ".second_tab");
+        rows = execute("SELECT key, val, " + fName + "() FROM " + KEYSPACE + ".second_tab");
         Assert.assertEquals(3, rows.size());
         row = rows.iterator().next();
         Assert.assertFalse(row.has(row.getColumns().get(2).name.toString()));
@@ -706,10 +709,9 @@ public class UFTest extends CQLTester
     @Test
     public void testFunctionAfterOnDropKeyspace() throws Throwable
     {
-        dropPerTestKeyspace();
-
-        assertInvalidMessage("Keyspace '" + KEYSPACE_PER_TEST + "' doesn't exist",
-                             "CREATE OR REPLACE FUNCTION " + KEYSPACE_PER_TEST + ".jnft(val double) " +
+        schemaChange("DROP KEYSPACE " + KEYSPACE);
+        assertInvalidMessage("Keyspace '" + KEYSPACE + "' doesn't exist",
+                             "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".jnft(val double) " +
                              "RETURNS NULL ON NULL INPUT " +
                              "RETURNS double " +
                              "LANGUAGE JAVA\n" +
@@ -719,20 +721,21 @@ public class UFTest extends CQLTester
     @Test
     public void testWrongKeyspace() throws Throwable
     {
+        String otherKeyspace = createKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}");
         String typeName = createType("CREATE TYPE %s (txt text, i int)");
         String type = KEYSPACE + '.' + typeName;
 
         assertInvalidMessage(String.format("Statement on keyspace %s cannot refer to a user type in keyspace %s; user types can only be used in the keyspace they are defined in",
-                                           KEYSPACE_PER_TEST, KEYSPACE),
-                             "CREATE FUNCTION " + KEYSPACE_PER_TEST + ".test_wrong_ks( val int ) " +
+                                           otherKeyspace, KEYSPACE),
+                             "CREATE FUNCTION " + otherKeyspace + ".test_wrong_ks( val int ) " +
                              "CALLED ON NULL INPUT " +
                              "RETURNS " + type + " " +
                              "LANGUAGE java\n" +
                              "AS $$return val;$$;");
 
         assertInvalidMessage(String.format("Statement on keyspace %s cannot refer to a user type in keyspace %s; user types can only be used in the keyspace they are defined in",
-                                           KEYSPACE_PER_TEST, KEYSPACE),
-                             "CREATE FUNCTION " + KEYSPACE_PER_TEST + ".test_wrong_ks( val " + type + " ) " +
+                                           otherKeyspace, KEYSPACE),
+                             "CREATE FUNCTION " + otherKeyspace + ".test_wrong_ks( val " + type + " ) " +
                              "CALLED ON NULL INPUT " +
                              "RETURNS int " +
                              "LANGUAGE java\n" +
@@ -833,14 +836,14 @@ public class UFTest extends CQLTester
         createTable("CREATE TABLE %s (key int primary key, dval double)");
         execute("INSERT INTO %s (key, dval) VALUES (?, ?)", 1, 1d);
 
-        String fName = createFunction(KEYSPACE_PER_TEST, "double",
+        String fName = createFunction(KEYSPACE, "double",
                                       "CREATE OR REPLACE FUNCTION %s(val double) " +
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS double " +
                                       "LANGUAGE JAVA\n" +
                                       "AS 'throw new RuntimeException();';");
 
-        KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(KEYSPACE_PER_TEST);
+        KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(KEYSPACE);
         UDFunction f = (UDFunction) ksm.userFunctions.get(parseFunctionName(fName)).iterator().next();
 
         UDFunction broken = UDFunction.createBrokenFunction(f.name(),
@@ -863,7 +866,7 @@ public class UFTest extends CQLTester
         createTable("CREATE TABLE %s (key int primary key, dval double)");
         execute("INSERT INTO %s (key, dval) VALUES (?, ?)", 1, 1d);
 
-        String fName = createFunction(KEYSPACE_PER_TEST, "double",
+        String fName = createFunction(KEYSPACE, "double",
                                       "CREATE OR REPLACE FUNCTION %s(val double) " +
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS double " +
@@ -896,84 +899,84 @@ public class UFTest extends CQLTester
         createTable("CREATE TABLE %s (key int primary key, sval text, aval ascii, bval blob, empty_int int)");
         execute("INSERT INTO %s (key, sval, aval, bval, empty_int) VALUES (?, ?, ?, ?, blob_as_int(0x))", 1, "", "", ByteBuffer.allocate(0));
 
-        String fNameSRC = createFunction(KEYSPACE_PER_TEST, "text",
+        String fNameSRC = createFunction(KEYSPACE, "text",
                                          "CREATE OR REPLACE FUNCTION %s(val text) " +
                                          "CALLED ON NULL INPUT " +
                                          "RETURNS text " +
                                          "LANGUAGE JAVA\n" +
                                          "AS 'return val;'");
 
-        String fNameSCC = createFunction(KEYSPACE_PER_TEST, "text",
+        String fNameSCC = createFunction(KEYSPACE, "text",
                                          "CREATE OR REPLACE FUNCTION %s(val text) " +
                                          "CALLED ON NULL INPUT " +
                                          "RETURNS text " +
                                          "LANGUAGE JAVA\n" +
                                          "AS 'return \"\";'");
 
-        String fNameSRN = createFunction(KEYSPACE_PER_TEST, "text",
+        String fNameSRN = createFunction(KEYSPACE, "text",
                                          "CREATE OR REPLACE FUNCTION %s(val text) " +
                                          "RETURNS NULL ON NULL INPUT " +
                                          "RETURNS text " +
                                          "LANGUAGE JAVA\n" +
                                          "AS 'return val;'");
 
-        String fNameSCN = createFunction(KEYSPACE_PER_TEST, "text",
+        String fNameSCN = createFunction(KEYSPACE, "text",
                                          "CREATE OR REPLACE FUNCTION %s(val text) " +
                                          "RETURNS NULL ON NULL INPUT " +
                                          "RETURNS text " +
                                          "LANGUAGE JAVA\n" +
                                          "AS 'return \"\";'");
 
-        String fNameBRC = createFunction(KEYSPACE_PER_TEST, "blob",
+        String fNameBRC = createFunction(KEYSPACE, "blob",
                                          "CREATE OR REPLACE FUNCTION %s(val blob) " +
                                          "CALLED ON NULL INPUT " +
                                          "RETURNS blob " +
                                          "LANGUAGE JAVA\n" +
                                          "AS 'return val;'");
 
-        String fNameBCC = createFunction(KEYSPACE_PER_TEST, "blob",
+        String fNameBCC = createFunction(KEYSPACE, "blob",
                                          "CREATE OR REPLACE FUNCTION %s(val blob) " +
                                          "CALLED ON NULL INPUT " +
                                          "RETURNS blob " +
                                          "LANGUAGE JAVA\n" +
                                          "AS 'return ByteBuffer.allocate(0);'");
 
-        String fNameBRN = createFunction(KEYSPACE_PER_TEST, "blob",
+        String fNameBRN = createFunction(KEYSPACE, "blob",
                                          "CREATE OR REPLACE FUNCTION %s(val blob) " +
                                          "RETURNS NULL ON NULL INPUT " +
                                          "RETURNS blob " +
                                          "LANGUAGE JAVA\n" +
                                          "AS 'return val;'");
 
-        String fNameBCN = createFunction(KEYSPACE_PER_TEST, "blob",
+        String fNameBCN = createFunction(KEYSPACE, "blob",
                                          "CREATE OR REPLACE FUNCTION %s(val blob) " +
                                          "RETURNS NULL ON NULL INPUT " +
                                          "RETURNS blob " +
                                          "LANGUAGE JAVA\n" +
                                          "AS 'return ByteBuffer.allocate(0);'");
 
-        String fNameIRC = createFunction(KEYSPACE_PER_TEST, "int",
+        String fNameIRC = createFunction(KEYSPACE, "int",
                                          "CREATE OR REPLACE FUNCTION %s(val int) " +
                                          "CALLED ON NULL INPUT " +
                                          "RETURNS int " +
                                          "LANGUAGE JAVA\n" +
                                          "AS 'return val;'");
 
-        String fNameICC = createFunction(KEYSPACE_PER_TEST, "int",
+        String fNameICC = createFunction(KEYSPACE, "int",
                                          "CREATE OR REPLACE FUNCTION %s(val int) " +
                                          "CALLED ON NULL INPUT " +
                                          "RETURNS int " +
                                          "LANGUAGE JAVA\n" +
                                          "AS 'return 0;'");
 
-        String fNameIRN = createFunction(KEYSPACE_PER_TEST, "int",
+        String fNameIRN = createFunction(KEYSPACE, "int",
                                          "CREATE OR REPLACE FUNCTION %s(val int) " +
                                          "RETURNS NULL ON NULL INPUT " +
                                          "RETURNS int " +
                                          "LANGUAGE JAVA\n" +
                                          "AS 'return val;'");
 
-        String fNameICN = createFunction(KEYSPACE_PER_TEST, "int",
+        String fNameICN = createFunction(KEYSPACE, "int",
                                          "CREATE OR REPLACE FUNCTION %s(val int) " +
                                          "RETURNS NULL ON NULL INPUT " +
                                          "RETURNS int " +
@@ -1004,7 +1007,7 @@ public class UFTest extends CQLTester
         for (String funcName : Arrays.asList("my/fancy/func", "my_other[fancy]func"))
         {
             assertThatThrownBy(() -> {
-                createFunctionOverload(String.format("%s.\"%s\"", KEYSPACE_PER_TEST, funcName), "int",
+                createFunctionOverload(String.format("%s.\"%s\"", KEYSPACE, funcName), "int",
                                        "CREATE OR REPLACE FUNCTION %s(val int) " +
                                        "RETURNS NULL ON NULL INPUT " +
                                        "RETURNS int " +

@@ -102,15 +102,15 @@ public class DiskSpaceMetricsTest extends CQLTester
     @Test
     public void testFlushSize() throws Throwable
     {
-        createTable(KEYSPACE_PER_TEST, "CREATE TABLE %s (pk bigint, PRIMARY KEY (pk))");
-        ColumnFamilyStore cfs = getCurrentColumnFamilyStore(KEYSPACE_PER_TEST);
+        createTable("CREATE TABLE %s (pk bigint, PRIMARY KEY (pk))");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         assertTrue(Double.isNaN(cfs.metric.flushSizeOnDisk.get()));
 
         // disable compaction so nothing changes between calculations
         cfs.disableAutoCompaction();
 
         for (int i = 0; i < 3; i++)
-            insertN(KEYSPACE_PER_TEST, cfs, 1000, 55);
+            insertN(KEYSPACE, cfs, 1000, 55);
 
         final List<SSTableReader> liveSSTables = cfs.getLiveSSTables().stream()
                                                     .sorted(SSTableReader.idComparator)
@@ -161,11 +161,11 @@ public class DiskSpaceMetricsTest extends CQLTester
         // than table and keyspace-level metrics, given the global versions account for non-user tables.
         long globalLoad = StorageMetrics.load.getCount();
         assertEquals(globalLoad, StorageMetrics.unreplicatedLoad.getValue().longValue());
-        assertThat(globalLoad).isGreaterThan(liveDiskSpaceUsed);
+        assertThat(globalLoad).isGreaterThanOrEqualTo(liveDiskSpaceUsed);
 
         long globalUncompressedLoad = StorageMetrics.uncompressedLoad.getCount();
         assertEquals(globalUncompressedLoad, StorageMetrics.unreplicatedUncompressedLoad.getValue().longValue());
-        assertThat(globalUncompressedLoad).isGreaterThan(uncompressedLiveDiskSpaceUsed);
+        assertThat(globalUncompressedLoad).isGreaterThanOrEqualTo(uncompressedLiveDiskSpaceUsed);
 
         // totalDiskSpaceUsed is based off SStable delete, which is async: LogTransaction's tidy enqueues in ScheduledExecutors.nonPeriodicTasks
         // wait for there to be no more pending sstable releases

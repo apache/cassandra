@@ -21,7 +21,6 @@ package org.apache.cassandra.config;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-
 import javax.annotation.Nullable;
 
 import com.google.common.primitives.Ints;
@@ -317,8 +316,8 @@ public enum CassandraRelevantProperties
     JAVA_VM_NAME("java.vm.name"),
     JOIN_RING("cassandra.join_ring", "true"),
     /**
-     * {@link StorageCompatibilityMode} mode sets how the node will behave, sstable or messaging versions to use etc according to a yaml setting. 
-     * But many tests don't load the config hence we need to force it otherwise they would run always under the default. Config is null for junits 
+     * {@link StorageCompatibilityMode} mode sets how the node will behave, sstable or messaging versions to use etc according to a yaml setting.
+     * But many tests don't load the config hence we need to force it otherwise they would run always under the default. Config is null for junits
      * that don't load the config. Get from env var that CI/build.xml sets.
      *
      * This is a dev/CI only property. Do not use otherwise.
@@ -378,7 +377,7 @@ public enum CassandraRelevantProperties
      * This is an optimization used in unit tests becuase we never restart a node there. The only node is stopoped
      * when the JVM terminates. Therefore, we can use such optimization and not wait unnecessarily. */
     NON_GRACEFUL_SHUTDOWN("cassandra.test.messagingService.nonGracefulShutdown"),
-    /** for specific tests */
+
     /** This property indicates whether disable_mbean_registration is true */
     ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION("org.apache.cassandra.disable_mbean_registration"),
     /** Operating system architecture. */
@@ -484,6 +483,15 @@ public enum CassandraRelevantProperties
     SET_SEP_THREAD_NAME("cassandra.set_sep_thread_name", "true"),
     SHUTDOWN_ANNOUNCE_DELAY_IN_MS("cassandra.shutdown_announce_in_ms", "2000"),
     SIZE_RECORDER_INTERVAL("cassandra.size_recorder_interval", "300"),
+
+    /**
+     * When a table is dropped, we flush all the dirty tables as part of recycling the commitlog segments. This can
+     * slow down tests execution as we drop all the tables in the after-test hook. It is safe to disable this
+     * behaviour for unit tests after-test hook as those tests never restart a node and thus do not replay the commitlog.
+     * See discussion on this ticket for details https://issues.apache.org/jira/browse/CASSANDRA-16986.
+     */
+    SKIP_FORCE_RECYCLE_COMMITLOG_SEGMENTS_ON_DROP_TABLE("cassandra.test.skip_force_recycle_commitlog_segments_on_table_drop", "true"),
+
     SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE("cassandra.skip_paxos_repair_on_topology_change"),
     /** If necessary for operational purposes, permit certain keyspaces to be ignored for paxos topology repairs. */
     SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_KEYSPACES("cassandra.skip_paxos_repair_on_topology_change_keyspaces"),
@@ -537,11 +545,6 @@ public enum CassandraRelevantProperties
     TEST_ENCRYPTION("cassandra.test.encryption", "false"),
     TEST_FAIL_MV_LOCKS_COUNT("cassandra.test.fail_mv_locks_count", "0"),
     TEST_FAIL_WRITES_KS("cassandra.test.fail_writes_ks", ""),
-    /** Flush changes of {@link org.apache.cassandra.schema.SchemaKeyspace} after each schema modification. In production,
-     * we always do that. However, tests which do not restart nodes may disable this functionality in order to run
-     * faster. Note that this is disabled for unit tests but if an individual test requires schema to be flushed, it
-     * can be also done manually for that particular case: {@code flush(SchemaConstants.SCHEMA_KEYSPACE_NAME);}. */
-    TEST_FLUSH_LOCAL_SCHEMA_CHANGES("cassandra.test.flush_local_schema_changes", "true"),
     TEST_IGNORE_SIGAR("cassandra.test.ignore_sigar"),
     TEST_INVALID_LEGACY_SSTABLE_ROOT("invalid-legacy-sstable-root"),
     TEST_JVM_DTEST_DISABLE_SSL("cassandra.test.disable_ssl"),
@@ -584,7 +587,13 @@ public enum CassandraRelevantProperties
     UCS_SURVIVAL_FACTOR("unified_compaction.survival_factor", "1"),
     UCS_TARGET_SSTABLE_SIZE("unified_compaction.target_sstable_size", "1GiB"),
     UDF_EXECUTOR_THREAD_KEEPALIVE_MS("cassandra.udf_executor_thread_keepalive_ms", "30000"),
+
+    /** Disables flushing changes of {@link org.apache.cassandra.schema.SchemaKeyspace}, {@link org.apache.cassandra.db.SystemKeyspace}, and {@link org.apache.cassandra.schema.SystemDistributedKeyspace} after each change. schema modification. In production,
+     * we always do that. However, tests which do not restart nodes may disable this functionality in order to run
+     * faster. Note that this is disabled for unit tests but if an individual test requires schema to be flushed, it
+     * can be also done manually for that particular case: {@code flush(SchemaConstants.SCHEMA_KEYSPACE_NAME);}. */
     UNSAFE_SYSTEM("cassandra.unsafesystem"),
+
     /** User's home directory. */
     USER_HOME("user.home"),
     /** When enabled, recursive directory deletion will be executed using a unix command `rm -rf` instead of traversing
@@ -592,8 +601,8 @@ public enum CassandraRelevantProperties
     USE_NIX_RECURSIVE_DELETE("cassandra.use_nix_recursive_delete"),
     /** Gossiper compute expiration timeout. Default value 3 days. */
     VERY_LONG_TIME_MS("cassandra.very_long_time_ms", "259200000"),
-    WAIT_FOR_TRACING_EVENTS_TIMEOUT_SECS("cassandra.wait_for_tracing_events_timeout_secs", "0");
-
+    WAIT_FOR_TRACING_EVENTS_TIMEOUT_SECS("cassandra.wait_for_tracing_events_timeout_secs", "0"),
+    ;
     static
     {
         CassandraRelevantProperties[] values = CassandraRelevantProperties.values();

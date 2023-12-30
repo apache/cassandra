@@ -25,6 +25,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tools.ToolRunner;
@@ -42,6 +44,12 @@ public class RingTest extends CQLTester
         requireNetwork();
         startJMXServer();
         token = StorageService.instance.getTokens().get(0);
+
+        // we want a single table for all test cases
+        schemaChange("CREATE KEYSPACE IF NOT EXISTS ring_test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}");
+        schemaChange("CREATE TABLE IF NOT EXISTS ring_test.test (id int PRIMARY KEY, value text)");
+        QueryProcessor.executeInternal("INSERT INTO ring_test.test (id, value) VALUES (1, 'one')");
+        ColumnFamilyStore.getIfExists("ring_test", "test").forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
     }
 
     /**

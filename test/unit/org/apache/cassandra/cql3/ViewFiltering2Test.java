@@ -174,8 +174,6 @@ public class ViewFiltering2Test extends ViewAbstractParameterizedTest
         {
             throw new RuntimeException("MV creation with non primary column restrictions failed.", e);
         }
-
-        dropTable("DROP TABLE %s");
     }
 
     @Test
@@ -270,9 +268,6 @@ public class ViewFiltering2Test extends ViewAbstractParameterizedTest
                                 row(0, 0, 1, 0),
                                 row(0, 1, 1, 0)
         );
-
-        dropView();
-        dropTable("DROP TABLE %s");
     }
 
     @Test

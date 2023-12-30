@@ -19,14 +19,10 @@
 package org.apache.cassandra.db.guardrails;
 
 
-import java.util.concurrent.TimeUnit;
-
-import org.junit.After;
 import org.junit.Test;
 
 import org.apache.cassandra.config.Converters;
 import org.apache.cassandra.schema.Schema;
-import org.awaitility.Awaitility;
 
 import static java.lang.String.format;
 
@@ -35,7 +31,7 @@ import static java.lang.String.format;
  */
 public class GuardrailKeyspacesTest extends ThresholdTester
 {
-    private static final int WARN_THRESHOLD = 3; // CQLTester creates two keyspaces
+    private static final int WARN_THRESHOLD = 2; // CQLTester creates one keyspace
     private static final int FAIL_THRESHOLD = WARN_THRESHOLD + 1;
 
     public GuardrailKeyspacesTest()
@@ -54,20 +50,6 @@ public class GuardrailKeyspacesTest extends ThresholdTester
         return Schema.instance.getUserKeyspaces().size();
     }
 
-    @After
-    public void afterTest() throws Throwable
-    {
-        // CQLTester deletes keyspaces after tests, but does so asynchronously
-        super.afterTest();
-
-        // Wait until only cql_test_keyspace remains
-        Awaitility.await()
-                  .atMost(10, TimeUnit.MINUTES)
-                  .pollDelay(0, TimeUnit.MILLISECONDS)
-                  .pollInterval(10, TimeUnit.MILLISECONDS)
-                  .until(() -> Schema.instance.getUserKeyspaces().size() == 1);
-    }
-    
     @Test
     public void testCreateKeyspace() throws Throwable
     {

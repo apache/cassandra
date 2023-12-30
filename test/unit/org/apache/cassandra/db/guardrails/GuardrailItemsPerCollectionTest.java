@@ -24,7 +24,6 @@ import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import org.junit.After;
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -51,14 +50,6 @@ public class GuardrailItemsPerCollectionTest extends ThresholdTester
               Guardrails::setItemsPerCollectionThreshold,
               Guardrails::getItemsPerCollectionWarnThreshold,
               Guardrails::getItemsPerCollectionFailThreshold);
-    }
-
-    @After
-    public void after()
-    {
-        // immediately drop the created table so its async cleanup doesn't interfere with the next tests
-        if (currentTable() != null)
-            dropTable("DROP TABLE %s");
     }
 
     @Test
