@@ -31,6 +31,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.harry.sut.TokenPlacementModel;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -60,9 +61,9 @@ public class OperationalEquivalenceTest extends CMSTestBase
     }
 
     // Private to this class for now as this is only a limited implementation
-    private static class TransientReplicationFactor extends PlacementSimulator.ReplicationFactor
+    private static class TransientReplicationFactor extends TokenPlacementModel.ReplicationFactor
     {
-        private final PlacementSimulator.Lookup lookup = new PlacementSimulator.DefaultLookup();
+        private final TokenPlacementModel.Lookup lookup = new TokenPlacementModel.DefaultLookup();
         private final int dcs;
         private final int full;
         private final int trans;
@@ -96,7 +97,7 @@ public class OperationalEquivalenceTest extends CMSTestBase
             throw new IllegalStateException("Does not work with transient replication");
         }
 
-        public PlacementSimulator.ReplicatedRanges replicate(PlacementSimulator.Range[] ranges, List<PlacementSimulator.Node> nodes)
+        public TokenPlacementModel.ReplicatedRanges replicate(TokenPlacementModel.Range[] ranges, List<TokenPlacementModel.Node> nodes)
         {
             throw new IllegalStateException("Does not work with transient replication (yet)");
         }
@@ -105,28 +106,28 @@ public class OperationalEquivalenceTest extends CMSTestBase
     @Test
     public void testMove() throws Exception
     {
-        testMove(new PlacementSimulator.SimpleReplicationFactor(2));
-        testMove(new PlacementSimulator.SimpleReplicationFactor(3));
-        testMove(new PlacementSimulator.SimpleReplicationFactor(5));
+        testMove(new TokenPlacementModel.SimpleReplicationFactor(2));
+        testMove(new TokenPlacementModel.SimpleReplicationFactor(3));
+        testMove(new TokenPlacementModel.SimpleReplicationFactor(5));
 
-        testMove(new PlacementSimulator.NtsReplicationFactor(1, 2));
-        testMove(new PlacementSimulator.NtsReplicationFactor(1, 3));
-        testMove(new PlacementSimulator.NtsReplicationFactor(1, 5));
+        testMove(new TokenPlacementModel.NtsReplicationFactor(1, 2));
+        testMove(new TokenPlacementModel.NtsReplicationFactor(1, 3));
+        testMove(new TokenPlacementModel.NtsReplicationFactor(1, 5));
 
-        testMove(new PlacementSimulator.NtsReplicationFactor(3, 2));
-        testMove(new PlacementSimulator.NtsReplicationFactor(3, 3));
-        testMove(new PlacementSimulator.NtsReplicationFactor(3, 5));
+        testMove(new TokenPlacementModel.NtsReplicationFactor(3, 2));
+        testMove(new TokenPlacementModel.NtsReplicationFactor(3, 3));
+        testMove(new TokenPlacementModel.NtsReplicationFactor(3, 5));
 
         testMove(new TransientReplicationFactor(3, 3, 1));
         testMove(new TransientReplicationFactor(3, 3, 2));
     }
 
-    public void testMove(PlacementSimulator.ReplicationFactor rf) throws Exception
+    public void testMove(TokenPlacementModel.ReplicationFactor rf) throws Exception
     {
-        PlacementSimulator.NodeFactory nodeFactory = PlacementSimulator.nodeFactory();
+        TokenPlacementModel.NodeFactory nodeFactory = TokenPlacementModel.nodeFactory();
 
         ClusterMetadata withMove = null;
-        List<PlacementSimulator.Node> equivalentNodes = new ArrayList<>();
+        List<TokenPlacementModel.Node> equivalentNodes = new ArrayList<>();
         int nodes = 30;
         try (CMSSut sut = new CMSSut(AtomicLongBackedProcessor::new, false, rf))
         {
@@ -134,14 +135,14 @@ public class OperationalEquivalenceTest extends CMSTestBase
             for (int i = 0; i < nodes; i++)
             {
                 int dc = toDc(i, rf);
-                PlacementSimulator.Node node = nodeFactory.make(counter.incrementAndGet(), dc, 1);
+                TokenPlacementModel.Node node = nodeFactory.make(counter.incrementAndGet(), dc, 1);
                 sut.service.commit(new Register(new NodeAddresses(node.addr()), new Location(node.dc(), node.rack()), NodeVersion.CURRENT));
                 sut.service.commit(new UnsafeJoin(node.nodeId(), Collections.singleton(node.longToken()), sut.service.placementProvider()));
                 equivalentNodes.add(node);
             }
 
-            PlacementSimulator.Node toMove = equivalentNodes.get(rng.nextInt(equivalentNodes.size()));
-            PlacementSimulator.Node moved = toMove.withNewToken();
+            TokenPlacementModel.Node toMove = equivalentNodes.get(rng.nextInt(equivalentNodes.size()));
+            TokenPlacementModel.Node moved = toMove.withNewToken();
             equivalentNodes.set(equivalentNodes.indexOf(toMove), moved);
 
             Move plan = SimulatedOperation.prepareMove(sut, toMove, moved.longToken()).get();
@@ -156,12 +157,12 @@ public class OperationalEquivalenceTest extends CMSTestBase
                          withMove.placements);
     }
 
-    private static ClusterMetadata simulateAndCompare(PlacementSimulator.ReplicationFactor rf, List<PlacementSimulator.Node> nodes) throws Exception
+    private static ClusterMetadata simulateAndCompare(TokenPlacementModel.ReplicationFactor rf, List<TokenPlacementModel.Node> nodes) throws Exception
     {
         Collections.shuffle(nodes, rng);
         try (CMSSut sut = new CMSSut(AtomicLongBackedProcessor::new, false, rf))
         {
-            for (PlacementSimulator.Node node : nodes)
+            for (TokenPlacementModel.Node node : nodes)
             {
                 sut.service.commit(new Register(new NodeAddresses(node.addr()), new Location(node.dc(), node.rack()), NodeVersion.CURRENT));
                 sut.service.commit(new UnsafeJoin(node.nodeId(), Collections.singleton(node.longToken()), sut.service.placementProvider()));
@@ -196,7 +197,7 @@ public class OperationalEquivalenceTest extends CMSTestBase
     {
         return ep.stream().sorted(Replica::compareTo).collect(Collectors.toList());
     }
-    private static int toDc(int i, PlacementSimulator.ReplicationFactor rf)
+    private static int toDc(int i, TokenPlacementModel.ReplicationFactor rf)
     {
         return (i % rf.dcs()) + 1;
     }

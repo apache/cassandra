@@ -44,7 +44,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.distributed.test.log.PlacementSimulator.SimulatedPlacements;
+import org.apache.cassandra.harry.sut.TokenPlacementModel;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.CMSPlacementStrategy;
@@ -65,8 +65,8 @@ import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.SealPeriod;
 
-import static org.apache.cassandra.distributed.test.log.PlacementSimulator.Node;
-import static org.apache.cassandra.distributed.test.log.PlacementSimulator.nodeFactoryHumanReadable;
+import static org.apache.cassandra.distributed.test.log.PlacementSimulator.*;
+import static org.apache.cassandra.harry.sut.TokenPlacementModel.*;
 
 public class MetadataChangeSimulationTest extends CMSTestBase
 {
@@ -88,7 +88,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         {
             for (int rf : new int[]{ 2, 3, 5 })
             {
-                simulate(50, new PlacementSimulator.NtsReplicationFactor(3, rf), concurrency);
+                simulate(50, new NtsReplicationFactor(3, rf), concurrency);
             }
         }
     }
@@ -100,7 +100,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         {
             for (int rf : new int[]{ 2, 3, 5 })
             {
-                simulate(50, new PlacementSimulator.SimpleReplicationFactor(rf), concurrency);
+                simulate(50, new SimpleReplicationFactor(rf), concurrency);
             }
         }
     }
@@ -110,49 +110,49 @@ public class MetadataChangeSimulationTest extends CMSTestBase
     {
         for (int i = 0; i < 4; i++)
         {
-            testMoveReal(new PlacementSimulator.NtsReplicationFactor(1, 3), i, 150, 4);
-            testMoveReal(new PlacementSimulator.NtsReplicationFactor(1, 3), i, 350, 4);
-            testMoveReal(new PlacementSimulator.NtsReplicationFactor(1, 3), i, 550, 4);
+            testMoveReal(new NtsReplicationFactor(1, 3), i, 150, 4);
+            testMoveReal(new NtsReplicationFactor(1, 3), i, 350, 4);
+            testMoveReal(new NtsReplicationFactor(1, 3), i, 550, 4);
         }
 
         for (int i = 0; i < 5; i++)
         {
-            testMoveReal(new PlacementSimulator.NtsReplicationFactor(1, 3), i, 150, 5);
-            testMoveReal(new PlacementSimulator.NtsReplicationFactor(1, 3), i, 350, 5);
-            testMoveReal(new PlacementSimulator.NtsReplicationFactor(1, 3), i, 650, 5);
+            testMoveReal(new NtsReplicationFactor(1, 3), i, 150, 5);
+            testMoveReal(new NtsReplicationFactor(1, 3), i, 350, 5);
+            testMoveReal(new NtsReplicationFactor(1, 3), i, 650, 5);
         }
 
         for (int i = 0; i < 10; i++)
         {
-            testMoveReal(new PlacementSimulator.NtsReplicationFactor(1, 3), i, 150, 10);
-            testMoveReal(new PlacementSimulator.NtsReplicationFactor(1, 3), i, 550, 10);
-            testMoveReal(new PlacementSimulator.NtsReplicationFactor(1, 3), i, 1050, 10);
+            testMoveReal(new NtsReplicationFactor(1, 3), i, 150, 10);
+            testMoveReal(new NtsReplicationFactor(1, 3), i, 550, 10);
+            testMoveReal(new NtsReplicationFactor(1, 3), i, 1050, 10);
         }
 
         for (int i = 0; i < 9; i++)
         {
-            testMoveReal(new PlacementSimulator.NtsReplicationFactor(3, 3), i, 350, 9);
-            testMoveReal(new PlacementSimulator.NtsReplicationFactor(3, 3), i, 550, 9);
-            testMoveReal(new PlacementSimulator.NtsReplicationFactor(3, 3), i, 1050, 9);
+            testMoveReal(new NtsReplicationFactor(3, 3), i, 350, 9);
+            testMoveReal(new NtsReplicationFactor(3, 3), i, 550, 9);
+            testMoveReal(new NtsReplicationFactor(3, 3), i, 1050, 9);
         }
 
         for (int i = 0; i < 10; i++)
         {
-            testMoveReal(new PlacementSimulator.NtsReplicationFactor(3, 3), i, 350, 10);
-            testMoveReal(new PlacementSimulator.NtsReplicationFactor(3, 3), i, 550, 10);
-            testMoveReal(new PlacementSimulator.NtsReplicationFactor(3, 3), i, 1050, 10);
+            testMoveReal(new NtsReplicationFactor(3, 3), i, 350, 10);
+            testMoveReal(new NtsReplicationFactor(3, 3), i, 550, 10);
+            testMoveReal(new NtsReplicationFactor(3, 3), i, 1050, 10);
         }
 
         for (int i = 0; i < 18; i++)
         {
-            testMoveReal(new PlacementSimulator.NtsReplicationFactor(3, 3), i, 350, 18);
-            testMoveReal(new PlacementSimulator.NtsReplicationFactor(3, 3), i, 1050, 18);
-            testMoveReal(new PlacementSimulator.NtsReplicationFactor(3, 3), i, 2050, 18);
+            testMoveReal(new NtsReplicationFactor(3, 3), i, 350, 18);
+            testMoveReal(new NtsReplicationFactor(3, 3), i, 1050, 18);
+            testMoveReal(new NtsReplicationFactor(3, 3), i, 2050, 18);
         }
 
     }
 
-    public void testMoveReal(PlacementSimulator.ReplicationFactor rf, int moveNodeId, long moveToken, int numberOfNodes) throws Throwable
+    public void testMoveReal(ReplicationFactor rf, int moveNodeId, long moveToken, int numberOfNodes) throws Throwable
     {
         try (CMSTestBase.CMSSut sut = new CMSTestBase.CMSSut(AtomicLongBackedProcessor::new, false, rf))
         {
@@ -181,14 +181,14 @@ public class MetadataChangeSimulationTest extends CMSTestBase
     @Test
     public void testLeaveReal() throws Throwable
     {
-        testLeaveReal(new PlacementSimulator.NtsReplicationFactor(1, 3), 1);
-        testLeaveReal(new PlacementSimulator.NtsReplicationFactor(1, 3), 5);
-        testLeaveReal(new PlacementSimulator.NtsReplicationFactor(3, 3), 1);
-        testLeaveReal(new PlacementSimulator.NtsReplicationFactor(3, 3), 5);
+        testLeaveReal(new NtsReplicationFactor(1, 3), 1);
+        testLeaveReal(new NtsReplicationFactor(1, 3), 5);
+        testLeaveReal(new NtsReplicationFactor(3, 3), 1);
+        testLeaveReal(new NtsReplicationFactor(3, 3), 5);
 
     }
 
-    public void testLeaveReal(PlacementSimulator.ReplicationFactor rf, int decomNodeId) throws Throwable
+    public void testLeaveReal(ReplicationFactor rf, int decomNodeId) throws Throwable
     {
         try (CMSTestBase.CMSSut sut = new CMSTestBase.CMSSut(AtomicLongBackedProcessor::new, false, rf))
         {
@@ -217,11 +217,11 @@ public class MetadataChangeSimulationTest extends CMSTestBase
     @Test
     public void testJoinReal() throws Throwable
     {
-        testJoinReal(new PlacementSimulator.NtsReplicationFactor(3, 3), 1);
-        testJoinReal(new PlacementSimulator.NtsReplicationFactor(3, 3), 5);
+        testJoinReal(new NtsReplicationFactor(3, 3), 1);
+        testJoinReal(new NtsReplicationFactor(3, 3), 5);
     }
 
-    public void testJoinReal(PlacementSimulator.ReplicationFactor rf, int joinNodeId) throws Throwable
+    public void testJoinReal(ReplicationFactor rf, int joinNodeId) throws Throwable
     {
         try (CMSTestBase.CMSSut sut = new CMSTestBase.CMSSut(AtomicLongBackedProcessor::new, false, rf))
         {
@@ -250,14 +250,14 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         }
     }
 
-    public void simulate(int toBootstrap, PlacementSimulator.ReplicationFactor rf, int concurrency) throws Throwable
+    public void simulate(int toBootstrap, ReplicationFactor rf, int concurrency) throws Throwable
     {
         System.out.printf("RUNNING SIMULATION. TO BOOTSTRAP: %s, RF: %s, CONCURRENCY: %s%n",
                           toBootstrap, rf, concurrency);
         long startTime = System.currentTimeMillis();
         ModelChecker<ModelState, CMSSut> modelChecker = new ModelChecker<>();
         ClusterMetadataService.unsetInstance();
-        modelChecker.init(ModelState.empty(PlacementSimulator.nodeFactory(), toBootstrap, concurrency),
+        modelChecker.init(ModelState.empty(nodeFactory(), toBootstrap, concurrency),
                           new CMSSut(AtomicLongBackedProcessor::new, false, rf))
                     // Sequentially bootstrap rf nodes first
                     .step((state, sut) -> state.currentNodes.isEmpty(),
@@ -380,7 +380,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         Random random = new Random(1L);
         for (int i = 0; i < 10; i++)
         {
-            PlacementSimulator.ReplicationFactor ntsRf = new PlacementSimulator.NtsReplicationFactor(3, 3);
+            ReplicationFactor ntsRf = new NtsReplicationFactor(3, 3);
             Map<String, Integer> cmsRf = new HashMap<>();
             for (String s : ntsRf.asMap().keySet())
                 cmsRf.put(s, 3);
@@ -389,12 +389,12 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         }
     }
 
-    public void simulateBounces(PlacementSimulator.ReplicationFactor rf, CMSPlacementStrategy CMSConfigurationStrategy, Random random) throws Throwable
+    public void simulateBounces(ReplicationFactor rf, CMSPlacementStrategy CMSConfigurationStrategy, Random random) throws Throwable
     {
 
         try(CMSSut sut = new CMSSut(AtomicLongBackedProcessor::new, false, rf))
         {
-            ModelState state = ModelState.empty(PlacementSimulator.nodeFactory(), 300, 1);
+            ModelState state = ModelState.empty(nodeFactory(), 300, 1);
 
             for (Map.Entry<String, Integer> e : rf.asMap().entrySet())
             {
@@ -553,16 +553,16 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         return sb.toString();
     }
 
-    public static void match(PlacementForRange actual, Map<PlacementSimulator.Range, List<Node>> predicted) throws Throwable
+    public static void match(PlacementForRange actual, Map<TokenPlacementModel.Range, List<Node>> predicted) throws Throwable
     {
         Map<Range<Token>, VersionedEndpoints.ForRange> actualGroups = actual.replicaGroups();
         assert predicted.size() == actualGroups.size() :
         String.format("\nPredicted:\n%s(%d)" +
                       "\nActual:\n%s(%d)", toString(predicted), predicted.size(), toString(actual.replicaGroups()), actualGroups.size());
 
-        for (Map.Entry<PlacementSimulator.Range, List<Node>> entry : predicted.entrySet())
+        for (Map.Entry<TokenPlacementModel.Range, List<Node>> entry : predicted.entrySet())
         {
-            PlacementSimulator.Range range = entry.getKey();
+            TokenPlacementModel.Range range = entry.getKey();
             List<Node> predictedNodes = entry.getValue();
             Range<Token> predictedRange = new Range<Token>(new Murmur3Partitioner.LongToken(range.start),
                                                            new Murmur3Partitioner.LongToken(range.end));
@@ -653,7 +653,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
     }
 
     public static void validatePlacements(IPartitioner partitioner,
-                                          PlacementSimulator.ReplicationFactor rf,
+                                          ReplicationFactor rf,
                                           ModelState modelState,
                                           DataPlacements placements)
     {
@@ -678,7 +678,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         Assert.assertEquals(new TreeSet<>(l), new TreeSet<>(r));
     }
 
-    public static void validatePlacementsInternal(PlacementSimulator.ReplicationFactor rf, List<SimulatedOperation> opStates, List<Range<Token>> expectedRanges, PlacementForRange placements, boolean allowPending)
+    public static void validatePlacementsInternal(ReplicationFactor rf, List<SimulatedOperation> opStates, List<Range<Token>> expectedRanges, PlacementForRange placements, boolean allowPending)
     {
         int overreplicated = 0;
         for (Range<Token> range : expectedRanges)
@@ -719,7 +719,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
             }
         }
 
-        if (allowPending && rf instanceof PlacementSimulator.SimpleReplicationFactor)
+        if (allowPending && rf instanceof SimpleReplicationFactor)
         {
             int bootstrappingNodes = 0;
             int movingNodes = 0;
