@@ -115,13 +115,13 @@ public class SortedLocalRangesTest
         assertEquals(sortedRanges.hashCode(), sortedRanges.hashCode());
 
         assertFalse(sortedRanges.isOutOfDate());
-        assertTrue(sortedRanges.getRanges().isEmpty());
+        assertEquals(1, sortedRanges.getRanges().size());
         assertEquals(ringVersion, sortedRanges.getRingVersion());
 
-        // if there are no ranges, the splitter will return an array with the maximum token regardless of how many splits
+        // split(x) returns 1 range for all x <= 1
         assertEquals(1, sortedRanges.split(0).size());
-        assertEquals(1, sortedRanges.split(1).size());
-        assertEquals(1, sortedRanges.split(2).size());
+        for (int i = 1; i <= 10; i++)
+            assertEquals(i, sortedRanges.split(i).size());
     }
 
     @Test

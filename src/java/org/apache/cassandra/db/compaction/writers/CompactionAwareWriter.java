@@ -196,7 +196,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
      */
     protected boolean maybeSwitchLocation(DecoratedKey key)
     {
-        if (diskBoundaries == null)
+        if (key == null || diskBoundaries == null)
         {
             if (locationIndex < 0)
             {

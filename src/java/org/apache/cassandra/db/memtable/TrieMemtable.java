@@ -142,7 +142,12 @@ public class TrieMemtable extends AbstractAllocatorMemtable
     @VisibleForTesting
     public static final String SHARD_COUNT_PROPERTY = "cassandra.trie.memtable.shard.count";
 
-    public static volatile int SHARD_COUNT = Integer.getInteger(SHARD_COUNT_PROPERTY, FBUtilities.getAvailableProcessors());
+    public static volatile int SHARD_COUNT = Integer.getInteger(SHARD_COUNT_PROPERTY, autoShardCount());
+
+    private static int autoShardCount()
+    {
+        return 4 * FBUtilities.getAvailableProcessors();
+    }
 
     // only to be used by init(), to setup the very first memtable for the cfs
     TrieMemtable(AtomicReference<CommitLogPosition> commitLogLowerBound, TableMetadataRef metadataRef, Owner owner)
@@ -280,6 +285,11 @@ public class TrieMemtable extends AbstractAllocatorMemtable
         for (MemtableShard shard : shards)
             total += shard.size();
         return total;
+    }
+
+    public int getShardCount()
+    {
+        return shards.length;
     }
 
     public long rowCount(final ColumnFilter columnFilter, final DataRange dataRange)
@@ -808,7 +818,7 @@ public class TrieMemtable extends AbstractAllocatorMemtable
         {
             if ("auto".equalsIgnoreCase(shardCount))
             {
-                SHARD_COUNT = FBUtilities.getAvailableProcessors();
+                SHARD_COUNT = autoShardCount();
             }
             else
             {
@@ -818,7 +828,8 @@ public class TrieMemtable extends AbstractAllocatorMemtable
                 }
                 catch (NumberFormatException ex)
                 {
-                    logger.warn("Unable to parse {} as valid value for shard count", shardCount);
+                    logger.warn("Unable to parse {} as valid value for shard count; leaving it as {}",
+                                shardCount, SHARD_COUNT);
                     return;
                 }
             }

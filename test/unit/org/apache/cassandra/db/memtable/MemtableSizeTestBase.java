@@ -35,6 +35,7 @@ import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.memory.SlabAllocator;
 import org.github.jamm.MemoryMeter;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -72,8 +73,6 @@ public abstract class MemtableSizeTestBase extends CQLTester
     // Must be within 3% of the real usage. We are actually more precise than this, but the threshold is set higher to
     // avoid flakes. For on-heap allocators we allow for extra overheads below.
     final int MAX_DIFFERENCE_PERCENT = 3;
-    // Slab overhead, added when the memtable uses heap_buffers.
-    final int SLAB_OVERHEAD = 1024 * 1024;
     // Extra leniency for unslabbed buffers. We are not as precise there, and it's not a mode in real use.
     final int UNSLABBED_EXTRA_PERCENT = 2;
 
@@ -168,7 +167,7 @@ public abstract class MemtableSizeTestBase extends CQLTester
                               cfs.getTracker().getView().getCurrentMemtable());
 
             Memtable.MemoryUsage usage = Memtable.getMemoryUsage(memtable);
-            long actualHeap = usage.ownsOnHeap;
+            long calculatedHeap = usage.ownsOnHeap;
             System.out.println(String.format("Memtable in %s mode: %d ops, %s serialized bytes, %s",
                                              DatabaseDescriptor.getMemtableAllocationType(),
                                              memtable.getOperations(),
@@ -179,26 +178,29 @@ public abstract class MemtableSizeTestBase extends CQLTester
             System.out.println("Memtable deep size " +
                                FBUtilities.prettyPrintMemory(deepSizeAfter));
 
-            long expectedHeap = deepSizeAfter - deepSizeBefore;
-            long max_difference = MAX_DIFFERENCE_PERCENT * expectedHeap / 100;
-            long trie_overhead = memtable instanceof TrieMemtable ? ((TrieMemtable) memtable).unusedReservedMemory() : 0;
+            long actualHeap = deepSizeAfter - deepSizeBefore;
+            long maxDifference = MAX_DIFFERENCE_PERCENT * actualHeap / 100;
+            long trieOverhead = memtable instanceof TrieMemtable ? ((TrieMemtable) memtable).unusedReservedMemory() : 0;
+            calculatedHeap += trieOverhead;    // adjust trie memory with unused buffer space if on-heap
             switch (DatabaseDescriptor.getMemtableAllocationType())
             {
                 case heap_buffers:
-                    max_difference += SLAB_OVERHEAD;
-                    actualHeap += trie_overhead;    // adjust trie memory with unused buffer space if on-heap
+                    // MemoryUsage only counts the memory actually used by cells,
+                    // so add in the slab overhead to match what MemoryMeter sees
+                    int slabCount = memtable instanceof TrieMemtable ? ((TrieMemtable) memtable).getShardCount() : 1;
+                    maxDifference += (long) SlabAllocator.REGION_SIZE * slabCount;
                     break;
                 case unslabbed_heap_buffers:
-                    max_difference += expectedHeap * UNSLABBED_EXTRA_PERCENT / 100;   // We are not as precise for this
-                    actualHeap += trie_overhead;    // adjust trie memory with unused buffer space if on-heap
+                    // add a hardcoded slack factor
+                    maxDifference += actualHeap * UNSLABBED_EXTRA_PERCENT / 100;
                     break;
             }
-            String message = String.format("Expected heap usage close to %s, got %s, %s difference.\n",
-                                           FBUtilities.prettyPrintMemory(expectedHeap),
+            String message = String.format("Actual heap usage is %s, got %s, %s difference.\n",
                                            FBUtilities.prettyPrintMemory(actualHeap),
-                                           FBUtilities.prettyPrintMemory(expectedHeap - actualHeap));
+                                           FBUtilities.prettyPrintMemory(calculatedHeap),
+                                           FBUtilities.prettyPrintMemory(actualHeap - calculatedHeap));
             System.out.println(message);
-            Assert.assertTrue(message, Math.abs(actualHeap - expectedHeap) <= max_difference);
+            Assert.assertTrue(message, Math.abs(calculatedHeap - actualHeap) <= maxDifference);
         }
         finally
         {
