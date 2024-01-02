@@ -20,7 +20,6 @@ package org.apache.cassandra.index.sai.plan;
 
 import java.nio.ByteBuffer;
 import java.util.Comparator;
-import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -41,7 +40,6 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.BaseRowIterator;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
-import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.utils.InMemoryPartitionIterator;
@@ -187,7 +185,6 @@ public class VectorTopKProcessor
         if (e.operator() != Operator.ANN)
             return null;
 
-        Optional<Index> index = sim.getBestIndexFor(e);
-        return (StorageAttachedIndex) index.filter(i -> i instanceof StorageAttachedIndex).orElse(null);
+        return sim.getBestIndexFor(e, StorageAttachedIndex.class).orElse(null);
     }
 }
