@@ -548,10 +548,15 @@ public class StorageAttachedIndex implements Index
     public Callable<?> getTruncateTask(long truncatedAt)
     {
         /*
-         * index files will be removed as part of base sstable lifecycle in
-         * {@link LogTransaction#delete(java.io.File)} asynchronously.
+         * index files will be removed as part of base sstable lifecycle in {@link LogTransaction#delete(java.io.File)}
+         * asynchronously, but we need to mark the index queryable because if the truncation is during the initial
+         * build of the index it won't get marked queryable by the build.
          */
-        return null;
+        return () -> {
+            logger.info(indexContext.logMessage("Making index queryable during table truncation"));
+            baseCfs.indexManager.makeIndexQueryable(this, Status.BUILD_SUCCEEDED);
+            return null;
+        };
     }
 
     @Override
