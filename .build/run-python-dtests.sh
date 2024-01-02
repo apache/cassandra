@@ -74,7 +74,7 @@ if [ "${java_version}" -eq 17 ] && [[ "${target}" == "dtest-upgrade" ]] ; then
 fi
 
 python_version=$(python -V 2>&1 | awk '{print $2}' | awk -F'.' '{print $1"."$2}')
-python_regx_supported_versions="^(3.7|3.8|3.11)$"
+python_regx_supported_versions="^(3.8|3.9|3.10|3.11)$"
 [[ $python_version =~ $python_regx_supported_versions ]] || { echo "Python ${python_version} not supported."; exit 1; }
 
 # check project is already built. no cleaning is done, so jenkins unstash works, beware.

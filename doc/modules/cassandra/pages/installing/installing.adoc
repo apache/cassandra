@@ -23,7 +23,7 @@ Deploying on older Linux versions is not recommended unless you have previous ex
 
 include::cassandra:partial$java_version.adoc[]
 
-* To use the CQL shell `cqlsh`, install the latest version of Python 3.7+.
+* To use the CQL shell `cqlsh`, install the latest version of Python 3.8-3.11.
 
 To verify that you have the correct version of Python installed, type `python --version`.
 

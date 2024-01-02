@@ -69,10 +69,10 @@ if [[ ! "${java_version}" =~ $regx_java_version ]]; then
     exit 1
 fi
 
-# allow python version override, otherwise default to current python version or 3.7
+# allow python version override, otherwise default to current python version or 3.8
 if [ "x" == "x${python_version}" ] ; then
     command -v python >/dev/null 2>&1 && python_version="$(python -V 2>&1 | awk '{print $2}' | awk -F'.' '{print $1"."$2}')"
-    python_version="${python_version:-3.7}"
+    python_version="${python_version:-3.8}"
 fi
 
 # print debug information on versions
