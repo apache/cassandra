@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import javax.net.ssl.SSLException;
+
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableSet;
 
@@ -103,6 +105,10 @@ public class ExceptionHandlers
             {
                 ClientMetrics.instance.markUnknownException();
                 logger.trace("Native exception in client networking", cause);
+            }
+            else if (Throwables.anyCauseMatches(cause, t -> t instanceof SSLException))
+            {
+                NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES, "SSLException in client networking with peer {} {}", ctx.channel().remoteAddress(), cause.getMessage());
             }
             else
             {
