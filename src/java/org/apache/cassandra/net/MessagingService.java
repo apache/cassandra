@@ -259,7 +259,7 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
     static AcceptVersions accept_streaming;
     static
     {
-        if (DatabaseDescriptor.isClientOrToolInitialized())
+        if (DatabaseDescriptor.isClientInitialized())
         {
             accept_messaging = new AcceptVersions(minimum_version, maximum_version);
             accept_streaming = new AcceptVersions(minimum_version, maximum_version);
