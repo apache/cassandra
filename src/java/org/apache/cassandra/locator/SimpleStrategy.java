@@ -42,7 +42,7 @@ import org.apache.cassandra.service.StorageService;
  */
 public class SimpleStrategy extends AbstractReplicationStrategy
 {
-    private static final String REPLICATION_FACTOR = "replication_factor";
+    public static final String REPLICATION_FACTOR = "replication_factor";
     private static final Logger logger = LoggerFactory.getLogger(SimpleStrategy.class);
     private final ReplicationFactor rf;
 

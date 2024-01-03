@@ -573,15 +573,12 @@ public class CompactionManager implements CompactionManagerMBean
     public AllSSTableOpStatus performCleanup(final ColumnFamilyStore cfStore, int jobs) throws InterruptedException, ExecutionException
     {
         assert !cfStore.isIndex();
-
-        if (nodeHasPendingRangesForKeyspace(cfStore))
+        Keyspace keyspace = cfStore.keyspace;
+        if (!StorageService.instance.getTokenMetadata().getPendingRanges(keyspace.getName(), FBUtilities.getBroadcastAddressAndPort()).isEmpty())
         {
             logger.info("Cleanup cannot run while node has pending ranges for keyspace {} table {}, wait for node addition/decommission to complete and try again", cfStore.keyspace.getName(), cfStore.getTableName());
             return AllSSTableOpStatus.ABORTED;
         }
-
-        Keyspace keyspace = cfStore.keyspace;
-
         // if local ranges is empty, it means no data should remain
         final RangesAtEndpoint replicas = StorageService.instance.getLocalReplicas(keyspace.getName());
         final Set<Range<Token>> allRanges = replicas.ranges();
@@ -633,11 +630,6 @@ public class CompactionManager implements CompactionManagerMBean
                 doCleanupOne(cfStore, txn, cleanupStrategy, replicas.ranges(), hasIndexes);
             }
         }, jobs, OperationType.CLEANUP);
-    }
-
-    private boolean nodeHasPendingRangesForKeyspace(ColumnFamilyStore cfs)
-    {
-        return !StorageService.instance.getTokenMetadata().getPendingRanges(cfs.keyspace.getName(), FBUtilities.getBroadcastAddress()).isEmpty();
     }
 
     public AllSSTableOpStatus performGarbageCollection(final ColumnFamilyStore cfStore, TombstoneOption tombstoneOption, int jobs) throws InterruptedException, ExecutionException

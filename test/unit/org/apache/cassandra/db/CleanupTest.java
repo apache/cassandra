@@ -32,6 +32,8 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -446,7 +448,7 @@ public class CleanupTest
     {
         IEndpointSnitch snitch = new PropertyFileSnitch();
         DatabaseDescriptor.setEndpointSnitch(snitch);
-        return new SimpleStrategy(keyspace, new TokenMetadata(), DatabaseDescriptor.getEndpointSnitch(), Collections.emptyMap());
+        return new SimpleStrategy(keyspace, new TokenMetadata(), DatabaseDescriptor.getEndpointSnitch(), ImmutableMap.of(SimpleStrategy.REPLICATION_FACTOR, "1"));
     }
 
     private static BytesToken token(byte ... value)
