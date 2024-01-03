@@ -1553,7 +1553,7 @@ public class DatabaseDescriptor
 
     private static void applyCompatibilityMode()
     {
-        if (isClientOrToolInitialized())
+        if (isClientInitialized())
             // tools or clients should not limit the sstable formats they support
             storageCompatibilityMode = StorageCompatibilityMode.NONE;
         else if (conf != null && conf.storage_compatibility_mode != null)
