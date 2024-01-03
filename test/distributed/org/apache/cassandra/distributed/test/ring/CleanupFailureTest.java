@@ -42,11 +42,11 @@ public class CleanupFailureTest extends TestBaseImpl
     @Test
     public void cleanupDuringDecommissionTest() throws Throwable
     {
-        try (Cluster cluster = builder().withNodes(2)
-                                        .withTokenSupplier(evenlyDistributedTokens(2))
-                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(2, "dc0", "rack0"))
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
-                                        .start())
+        try (Cluster cluster = init(builder().withNodes(2)
+                                             .withTokenSupplier(evenlyDistributedTokens(2))
+                                             .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(2, "dc0", "rack0"))
+                                             .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                             .start(), 1))
         {
             IInvokableInstance nodeToDecommission = cluster.get(1);
             IInvokableInstance nodeToRemainInCluster = cluster.get(2);
@@ -56,7 +56,7 @@ public class CleanupFailureTest extends TestBaseImpl
 
             // Add data to cluster while node is decomissioning
             int numRows = 100;
-            createKeyspaceWithTable(cluster, 1);
+            cluster.schemaChange("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
             insertData(cluster, 1, numRows, ConsistencyLevel.ONE);
 
             // Check data before cleanup on nodeToRemainInCluster
@@ -78,11 +78,11 @@ public class CleanupFailureTest extends TestBaseImpl
         int originalNodeCount = 1;
         int expandedNodeCount = originalNodeCount + 1;
 
-        try (Cluster cluster = builder().withNodes(originalNodeCount)
-                                        .withTokenSupplier(evenlyDistributedTokens(expandedNodeCount))
-                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
-                                        .start())
+        try (Cluster cluster = init(builder().withNodes(originalNodeCount)
+                                             .withTokenSupplier(evenlyDistributedTokens(expandedNodeCount))
+                                             .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
+                                             .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                             .start(), 2))
         {
             IInstanceConfig config = cluster.newInstanceConfig();
             IInvokableInstance bootstrappingNode = cluster.bootstrap(config);
@@ -94,7 +94,7 @@ public class CleanupFailureTest extends TestBaseImpl
 
             // Add data to cluster while node is bootstrapping
             int numRows = 100;
-            createKeyspaceWithTable(cluster, 2);
+            cluster.schemaChange("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
             insertData(cluster, 1, numRows, ConsistencyLevel.ONE);
 
             // Check data before cleanup on bootstrappingNode
@@ -107,12 +107,6 @@ public class CleanupFailureTest extends TestBaseImpl
             // Check data after cleanup on bootstrappingNode
             assertEquals(numRows, bootstrappingNode.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
         }
-    }
-
-    private void createKeyspaceWithTable(Cluster cluster, int rf)
-    {
-        cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + rf + "};");
-        cluster.schemaChange("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
     }
 
     private void insertData(Cluster cluster, int node, int numberOfRows, ConsistencyLevel cl)
