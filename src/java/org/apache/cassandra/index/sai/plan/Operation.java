@@ -387,8 +387,7 @@ public class Operation
         @Override
         FilterTree filterTree(boolean strict)
         {
-            // TODO: Push down strict evaluation to the filter tree, where we can actually identify partial updates
-            return new FilterTree(strict ? BooleanOperator.AND : BooleanOperator.OR, expressionMap);
+            return new FilterTree(BooleanOperator.AND, expressionMap, strict);
         }
 
         @Override
@@ -420,7 +419,7 @@ public class Operation
         FilterTree filterTree(boolean strict)
         {
             // There should only be one expression, so AND/OR would both work here. 
-            return new FilterTree(BooleanOperator.AND, expressionMap);
+            return new FilterTree(BooleanOperator.AND, expressionMap, true);
         }
 
         public ExpressionNode(RowFilter.Expression expression)

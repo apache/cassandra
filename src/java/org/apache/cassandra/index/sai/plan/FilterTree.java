@@ -26,6 +26,7 @@ import java.util.ListIterator;
 import com.google.common.collect.ListMultimap;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -43,14 +44,16 @@ import static org.apache.cassandra.index.sai.plan.Operation.BooleanOperator;
  */
 public class FilterTree
 {
-    protected final BooleanOperator op;
+    protected final BooleanOperator baseOperator;
     protected final ListMultimap<ColumnMetadata, Expression> expressions;
     protected final List<FilterTree> children = new ArrayList<>();
+    private final boolean strict;
 
-    FilterTree(BooleanOperator operation, ListMultimap<ColumnMetadata, Expression> expressions)
+    FilterTree(BooleanOperator baseOperator, ListMultimap<ColumnMetadata, Expression> expressions, boolean strict)
     {
-        this.op = operation;
+        this.baseOperator = baseOperator;
         this.expressions = expressions;
+        this.strict = strict;
     }
 
     void addChild(FilterTree child)
@@ -63,7 +66,7 @@ public class FilterTree
         boolean result = localSatisfiedBy(key, unfiltered, staticRow);
 
         for (FilterTree child : children)
-            result = op.apply(result, child.isSatisfiedBy(key, unfiltered, staticRow));
+            result = baseOperator.apply(result, child.isSatisfiedBy(key, unfiltered, staticRow));
 
         return result;
     }
@@ -74,9 +77,8 @@ public class FilterTree
             return false;
 
         final long now = FBUtilities.nowInSeconds();
-        boolean result = op == BooleanOperator.AND;
-        
-        // TODO: Examine the timestamps from queried columns and determine whether we actually want strict evaluation.
+        BooleanOperator localOperator = getLocalOperator((Row) unfiltered, staticRow);
+        boolean result = localOperator == BooleanOperator.AND;
 
         Iterator<ColumnMetadata> columnIterator = expressions.keySet().iterator();
         while (columnIterator.hasNext())
@@ -98,25 +100,60 @@ public class FilterTree
                 if (filter.getIndexTermType().isNonFrozenCollection())
                 {
                     Iterator<ByteBuffer> valueIterator = filter.getIndexTermType().valuesOf(row, now);
-                    result = op.apply(result, collectionMatch(valueIterator, filter));
+                    result = localOperator.apply(result, collectionMatch(valueIterator, filter));
                 }
                 else
                 {
                     ByteBuffer value = filter.getIndexTermType().valueOf(key, row, now);
-                    result = op.apply(result, singletonMatch(value, filter));
+                    result = localOperator.apply(result, singletonMatch(value, filter));
                 }
 
                 // If the operation is an AND then exit early if we get a single false
-                if (op == BooleanOperator.AND && !result)
+                if (localOperator == BooleanOperator.AND && !result)
                     return false;
 
                 // TODO: Test this in OperationTest?
                 // If the operation is an OR then exit early if we get a single true
-                if (op == BooleanOperator.OR && result)
+                if (localOperator == BooleanOperator.OR && result)
                     return true;
             }
         }
         return result;
+    }
+
+    private BooleanOperator getLocalOperator(Row unfiltered, Row staticRow)
+    {
+        // This is an AND query, but the coordinator has indicated strict filtering might not be allowed... 
+        if (baseOperator == BooleanOperator.AND && !strict)
+        {
+            Long lastTimestamp = null;
+            Iterator<ColumnMetadata> columns = expressions.keySet().iterator();
+
+            while (columns.hasNext())
+            {
+                ColumnMetadata column = columns.next();
+                Row row = column.kind == Kind.STATIC ? staticRow : unfiltered;
+                ColumnData data = row.getColumnData(column);
+
+                if (data == null)
+                {
+                    // Degrade to non-strict filtering if we're missing a value for a filtered column, as it could be
+                    // partially updated on another replica.
+                    return BooleanOperator.OR;
+                }
+
+                if (lastTimestamp == null)
+                    lastTimestamp = data.maxTimestamp();
+
+                if (lastTimestamp != data.maxTimestamp())
+                {
+                    // Degrade to non-strict filtering on a partial update (i.e. cells w/ different timestamps).
+                    return BooleanOperator.OR;
+                }
+            }
+        }
+
+        return baseOperator;
     }
 
     private boolean singletonMatch(ByteBuffer value, Expression filter)
