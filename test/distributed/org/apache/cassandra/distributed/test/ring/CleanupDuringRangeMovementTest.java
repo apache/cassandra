@@ -51,11 +51,11 @@ public class CleanupDuringRangeMovementTest extends TestBaseImpl
     public void cleanupDuringDecommissionTest() throws Throwable
     {
         ExecutorService executor = Executors.newSingleThreadExecutor();
-        try (Cluster cluster = builder().withNodes(2)
-                                        .withTokenSupplier(evenlyDistributedTokens(2))
-                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(2, "dc0", "rack0"))
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
-                                        .start())
+        try (Cluster cluster = init(builder().withNodes(2)
+                                             .withTokenSupplier(evenlyDistributedTokens(2))
+                                             .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(2, "dc0", "rack0"))
+                                             .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                             .start(), 1))
         {
             IInvokableInstance cmsInstance = cluster.get(1);
             IInvokableInstance nodeToDecommission = cluster.get(2);
@@ -64,7 +64,7 @@ public class CleanupDuringRangeMovementTest extends TestBaseImpl
             // Create table before starting decommission as at the moment schema changes are not permitted
             // while range movements are in-flight. Additionally, pausing the CMS instance to block the
             // leave sequence from completing would also block the commit of the schema transformation
-            createKeyspaceWithTable(cluster, 1);
+            cluster.schemaChange("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
             // Prime the CMS node to pause before the finish leave event is committed
             Callable<?> pending = pauseBeforeCommit(cmsInstance, (e) -> e instanceof PrepareLeave.FinishLeave);
@@ -99,16 +99,16 @@ public class CleanupDuringRangeMovementTest extends TestBaseImpl
         int originalNodeCount = 1;
         int expandedNodeCount = originalNodeCount + 1;
 
-        try (Cluster cluster = builder().withNodes(originalNodeCount)
-                                        .withTokenSupplier(evenlyDistributedTokens(expandedNodeCount))
-                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
-                                        .start())
+        try (Cluster cluster = init(builder().withNodes(originalNodeCount)
+                                             .withTokenSupplier(evenlyDistributedTokens(expandedNodeCount))
+                                             .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
+                                             .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                             .start(), 2))
         {
             // Create table before starting bootstrap as at the moment schema changes are not permitted
             // while range movements are in-flight. Additionally, pausing the CMS instance to block the
             // leave sequence from completing would also block the commit of the schema transformation
-            createKeyspaceWithTable(cluster, 2);
+            cluster.schemaChange("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
             IInvokableInstance cmsInstance = cluster.get(1);
             IInstanceConfig config = cluster.newInstanceConfig()
@@ -138,12 +138,6 @@ public class CleanupDuringRangeMovementTest extends TestBaseImpl
             unpauseCommits(cmsInstance);
             bootstrapFuture.get();
         }
-    }
-
-    private void createKeyspaceWithTable(Cluster cluster, int rf)
-    {
-        cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + rf + "};");
-        cluster.schemaChange("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
     }
 
     private void insertData(Cluster cluster, int node, int numberOfRows, ConsistencyLevel cl)
