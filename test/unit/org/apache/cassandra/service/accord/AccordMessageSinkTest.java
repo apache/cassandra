@@ -20,6 +20,8 @@ package org.apache.cassandra.service.accord;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
+
+import accord.topology.TopologyUtils;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -27,7 +29,6 @@ import accord.Utils;
 import accord.api.Agent;
 import accord.impl.AbstractFetchCoordinator;
 import accord.impl.IntKey;
-import accord.impl.TopologyUtils;
 import accord.local.Node;
 import accord.messages.InformOfTxnId;
 import accord.messages.MessageType;
@@ -56,7 +57,7 @@ public class AccordMessageSinkTest
 {
     private static final Node.Id node = new Node.Id(1);
     private static final AccordEndpointMapper mapping = SimpleAccordEndpointMapper.INSTANCE;
-    private static final Topology topology = TopologyUtils.initialTopology(new Node.Id[] {node}, Ranges.of(IntKey.range(0, 100)), 1);
+    private static final Topology topology = TopologyUtils.initialTopology(new Node.Id[] { node}, Ranges.of(IntKey.range(0, 100)), 1);
     private static final Topologies topologies = new Topologies.Single((a, b, ignore) -> 0, topology);
 
     private static final MessageDelivery messaging = Mockito.mock(MessageDelivery.class);
