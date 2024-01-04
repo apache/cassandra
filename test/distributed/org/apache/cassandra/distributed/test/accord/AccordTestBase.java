@@ -27,11 +27,14 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import com.google.common.base.Splitter;
 import com.google.common.primitives.Ints;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -133,7 +136,13 @@ public abstract class AccordTestBase extends TestBaseImpl
 
     public static void ensureTableIsAccordManaged(Cluster cluster, String ksname, String tableName)
     {
-        cluster.get(1).runOnInstance(() -> AccordService.instance().ensureTableIsAccordManaged(ksname, tableName));
+        cluster.get(1).runOnInstance(() -> {
+            // TODO: remove when accord enabled is handled via schema
+            TableMetadata metadata = Schema.instance.getTableMetadata(ksname, tableName);
+            if (metadata == null)
+                return; // bad plumbing from shared utils....
+            AccordService.instance().ensureTableIsAccordManaged(metadata.id);
+        });
     }
 
     protected void test(List<String> ddls, FailingConsumer<Cluster> fn) throws Exception

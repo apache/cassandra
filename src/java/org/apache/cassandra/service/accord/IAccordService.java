@@ -45,8 +45,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.api.AccordRoutableKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.schema.TableId;
@@ -154,13 +152,6 @@ public interface IAccordService
     }
 
     void ensureTableIsAccordManaged(TableId tableId);
-
-    default void ensureTableIsAccordManaged(String keyspace, String table)
-    {
-        // TODO: remove when accord enabled is handled via schema
-        TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
-        ensureTableIsAccordManaged(metadata.id);
-    }
 
     default void ensureKeyspaceIsAccordManaged(String keyspace)
     {
