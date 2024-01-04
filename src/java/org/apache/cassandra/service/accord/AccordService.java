@@ -28,6 +28,9 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+
+import accord.coordinate.TopologyMismatch;
+import org.apache.cassandra.cql3.statements.RequestValidations;
 import org.apache.cassandra.tcm.transformations.AddAccordTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -467,6 +470,10 @@ public class AccordService implements IAccordService, Shutdownable
                 // Coordinator "could" query the accord state to see whats going on but that doesn't exist yet.
                 // Protocol also doesn't have a way to denote "unknown" outcome, so using a timeout as the closest match
                 throw newPreempted(txnId, txn, consistencyLevel);
+            }
+            if (cause instanceof TopologyMismatch)
+            {
+                throw RequestValidations.invalidRequest(cause.getMessage());
             }
             metrics.failures.mark();
             throw new RuntimeException(cause);
