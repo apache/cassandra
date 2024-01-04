@@ -24,6 +24,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
+
+import accord.topology.TopologyUtils;
 import org.apache.cassandra.schema.*;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -35,7 +37,6 @@ import accord.api.Data;
 import accord.api.RoutingKey;
 import accord.api.Update;
 import accord.api.Write;
-import accord.impl.TopologyUtils;
 import accord.local.Node;
 import accord.messages.PreAccept;
 import accord.messages.TxnRequest;
@@ -208,7 +209,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
         {
             TxnId id = toTxnId(event);
             Ranges ranges = Ranges.of(new TokenRange(AccordRoutingKey.SentinelKey.min(tableId), AccordRoutingKey.SentinelKey.max(tableId)));
-            Topologies topologies = Utils.topologies(TopologyUtils.initialTopology(new Node.Id[] {node}, ranges, 3));
+            Topologies topologies = Utils.topologies(TopologyUtils.initialTopology(new Node.Id[] { node}, ranges, 3));
             Keys keys = Keys.of(toKey(0));
             Txn txn = new Txn.InMemory(keys, new TxnRead(new TxnNamedRead[0], keys, null), TxnQuery.ALL, new NoopUpdate());
             FullRoute<?> route = route();
