@@ -76,11 +76,11 @@ public final class SystemInfo
     }
 
     /**
-     * @return The name of the current platform. (e.g. Linux)
+     * @return The PlatformEnum for the current platform. (e.g. Linux, Windows, AIX, etc.)
      */
-    public String platform()
+    public PlatformEnum platform()
     {
-        return oshi.SystemInfo.getCurrentPlatform().name();
+        return oshi.SystemInfo.getCurrentPlatform();
     }
 
     /**

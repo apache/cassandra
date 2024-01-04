@@ -424,19 +424,13 @@ public class StartupChecks
         {
             if (options.isDisabled(getStartupCheckType()))
                 return;
-
-            Optional<String> degradations = new SystemInfo().isDegraded();
-
-            if (degradations.isPresent())
-                logger.warn("Cassandra server running in degraded mode. " + degradations.get());
-            else
-                logger.info("Checked OS settings and found them configured for optimal performance.");
+            new SystemInfo().isDegraded().ifPresent( s -> logger.warn("Cassandra server running in degraded mode. " + s));
         }
     };
 
     public static final StartupCheck checkReadAheadKbSetting = new StartupCheck()
     {
-        // This value is in KB.
+        // This value is in KB.git 
         private static final long MAX_RECOMMENDED_READ_AHEAD_KB_SETTING = 128;
 
         /**
