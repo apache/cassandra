@@ -51,7 +51,7 @@ public class SAIUtil
     {
         assertGossipEnabled(cluster);
         final List<String> indexes = getIndexes(cluster, keyspace);
-        await().atMost(60, TimeUnit.SECONDS).pollInterval(1, TimeUnit.SECONDS)
+        await().atMost(60, TimeUnit.SECONDS).pollInterval(500, TimeUnit.MILLISECONDS)
                .untilAsserted(() -> assertIndexStatus(cluster, keyspace, indexes, Index.Status.BUILD_SUCCEEDED));
     }
 
@@ -63,7 +63,7 @@ public class SAIUtil
         assertGossipEnabled(cluster);
         final List<String> indexes = getIndexes(cluster, keyspace);
         InetAddressAndPort addressAndPort = nodeAddress(cluster.get(node).broadcastAddress());
-        await().atMost(60, TimeUnit.SECONDS).pollInterval(1, TimeUnit.SECONDS)
+        await().atMost(60, TimeUnit.SECONDS).pollInterval(500, TimeUnit.MILLISECONDS)
                .untilAsserted(() -> assertIndexStatus(cluster, keyspace, indexes, Index.Status.BUILD_FAILED, ImmutableList.of(addressAndPort)));
     }
 

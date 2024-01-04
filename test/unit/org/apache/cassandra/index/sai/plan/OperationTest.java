@@ -209,23 +209,27 @@ public class OperationTest
         node.add(new Operation.ExpressionNode(new SimpleExpression(timestamp, Operator.GTE, LongType.instance.decompose(10L))));
         node.add(new Operation.ExpressionNode(new SimpleExpression(age, Operator.EQ, Int32Type.instance.decompose(5))));
 
-        filterTree = node.buildFilter(controller, true);
+        FilterTree filterTreeStrict = node.buildFilter(controller, true);
+        FilterTree filterTreeNonStrict = node.buildFilter(controller, false);
 
-        row = buildRow(buildCell(age, instance.decompose(6), System.currentTimeMillis()),
-                                  buildCell(timestamp, LongType.instance.decompose(11L), System.currentTimeMillis()));
+        long startTime = System.currentTimeMillis();
+        row = buildRow(buildCell(age, instance.decompose(6), startTime),
+                       buildCell(timestamp, LongType.instance.decompose(11L), startTime + 1));
 
-        assertFalse(filterTree.isSatisfiedBy(key, row, staticRow));
+        assertFalse(filterTreeStrict.isSatisfiedBy(key, row, staticRow));
+        assertTrue(filterTreeNonStrict.isSatisfiedBy(key, row, staticRow)); // matches on timestamp >= 10
 
-        row = buildRow(buildCell(age, instance.decompose(5), System.currentTimeMillis()),
-                                  buildCell(timestamp, LongType.instance.decompose(22L), System.currentTimeMillis()));
+        row = buildRow(buildCell(age, instance.decompose(5), startTime + 2),
+                       buildCell(timestamp, LongType.instance.decompose(22L), startTime + 3));
 
-        assertTrue(filterTree.isSatisfiedBy(key, row, staticRow));
+        assertTrue(filterTreeStrict.isSatisfiedBy(key, row, staticRow));
+        assertTrue(filterTreeNonStrict.isSatisfiedBy(key, row, staticRow));
 
-        row = buildRow(buildCell(age, instance.decompose(5), System.currentTimeMillis()),
-                                  buildCell(timestamp, LongType.instance.decompose(9L), System.currentTimeMillis()));
+        row = buildRow(buildCell(age, instance.decompose(5), startTime + 4),
+                       buildCell(timestamp, LongType.instance.decompose(9L), startTime + 5));
 
-        assertFalse(filterTree.isSatisfiedBy(key, row, staticRow));
-
+        assertFalse(filterTreeStrict.isSatisfiedBy(key, row, staticRow));
+        assertTrue(filterTreeNonStrict.isSatisfiedBy(key, row, staticRow)); // matches on age = 5
     }
 
     @Test

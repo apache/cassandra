@@ -121,7 +121,7 @@ public class FilterTree
         return result;
     }
 
-    private BooleanOperator getLocalOperator(Row unfiltered, Row staticRow)
+    private BooleanOperator getLocalOperator(Row regularRow, Row staticRow)
     {
         // This is an AND query, but the coordinator has indicated strict filtering might not be allowed... 
         if (baseOperator == BooleanOperator.AND && !strict)
@@ -132,7 +132,7 @@ public class FilterTree
             while (columns.hasNext())
             {
                 ColumnMetadata column = columns.next();
-                Row row = column.kind == Kind.STATIC ? staticRow : unfiltered;
+                Row row = column.kind == Kind.STATIC ? staticRow : regularRow;
                 ColumnData data = row.getColumnData(column);
 
                 if (data == null)
