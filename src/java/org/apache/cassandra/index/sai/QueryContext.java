@@ -66,13 +66,9 @@ public class QueryContext
     private final LongAdder triePostingsSkips = new LongAdder();
     private final LongAdder triePostingsDecodes = new LongAdder();
 
-    private final LongAdder tokenSkippingCacheHits = new LongAdder();
-    private final LongAdder tokenSkippingLookups = new LongAdder();
-
     private final LongAdder queryTimeouts = new LongAdder();
 
-    private final LongAdder hnswVectorsAccessed = new LongAdder();
-    private final LongAdder hnswVectorCacheHits = new LongAdder();
+    private final LongAdder annNodesVisited = new LongAdder();
 
     private final LongAdder shadowedKeysLoopCount = new LongAdder();
     private final NavigableSet<PrimaryKey> shadowedPrimaryKeys = new ConcurrentSkipListSet<>();
@@ -138,25 +134,13 @@ public class QueryContext
     {
         triePostingsDecodes.add(val);
     }
-    public void addTokenSkippingCacheHits(long val)
-    {
-        tokenSkippingCacheHits.add(val);
-    }
-    public void addTokenSkippingLookups(long val)
-    {
-        tokenSkippingLookups.add(val);
-    }
     public void addQueryTimeouts(long val)
     {
         queryTimeouts.add(val);
     }
-    public void addHnswVectorsAccessed(long val)
+    public void addAnnNodesVisited(long val)
     {
-        hnswVectorsAccessed.add(val);
-    }
-    public void addHnswVectorCacheHits(long val)
-    {
-        hnswVectorCacheHits.add(val);
+        annNodesVisited.add(val);
     }
 
     public void addShadowedKeysLoopCount(long val)
@@ -209,25 +193,13 @@ public class QueryContext
     {
         return triePostingsDecodes.longValue();
     }
-    public long tokenSkippingCacheHits()
-    {
-        return tokenSkippingCacheHits.longValue();
-    }
-    public long tokenSkippingLookups()
-    {
-        return tokenSkippingLookups.longValue();
-    }
     public long queryTimeouts()
     {
         return queryTimeouts.longValue();
     }
-    public long hnswVectorsAccessed()
+    public long annNodesVisited()
     {
-        return hnswVectorsAccessed.longValue();
-    }
-    public long hnswVectorCacheHits()
-    {
-        return hnswVectorCacheHits.longValue();
+        return annNodesVisited.longValue();
     }
 
     public void checkpoint()

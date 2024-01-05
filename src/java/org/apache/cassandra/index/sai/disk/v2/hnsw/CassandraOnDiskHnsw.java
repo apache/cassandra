@@ -118,6 +118,7 @@ public class CassandraOnDiskHnsw extends JVectorLuceneOnDiskGraph
                                              view,
                                              LuceneCompat.bits(ordinalsMap.ignoringDeleted(acceptBits)),
                                              Integer.MAX_VALUE);
+            context.addAnnNodesVisited(queue.visitedCount());
             Tracing.trace("HNSW search visited {} nodes to return {} results", queue.visitedCount(), queue.size());
             return annRowIdsToPostings(queue);
         }
@@ -236,13 +237,9 @@ public class CassandraOnDiskHnsw extends JVectorLuceneOnDiskGraph
         @Override
         public float[] vectorValue(int i) throws IOException
         {
-            queryContext.addHnswVectorsAccessed(1);
             var cached = vectorCache.get(i);
             if (cached != null)
-            {
-                queryContext.addHnswVectorCacheHits(1);
                 return cached;
-            }
 
             return vectors.vectorValue(i);
         }
