@@ -277,6 +277,9 @@ public class TableMetrics
     public final TableMeter rowIndexSizeAborts;
     public final TableHistogram rowIndexSize;
 
+    public final TableMeter tooManySSTableIndexesReadWarnings;
+    public final TableMeter tooManySSTableIndexesReadAborts;
+
     public final ImmutableMap<SSTableFormat<?, ?>, ImmutableMap<String, Gauge<? extends Number>>> formatSpecificGauges;
 
     private static Pair<Long, Long> totalNonSystemTablesSize(Predicate<SSTableReader> predicate)
@@ -856,6 +859,9 @@ public class TableMetrics
         rowIndexSizeWarnings = createTableMeter("RowIndexSizeWarnings", cfs.keyspace.metric.rowIndexSizeWarnings);
         rowIndexSizeAborts = createTableMeter("RowIndexSizeAborts", cfs.keyspace.metric.rowIndexSizeAborts);
         rowIndexSize = createTableHistogram("RowIndexSize", cfs.keyspace.metric.rowIndexSize, false);
+
+        tooManySSTableIndexesReadWarnings = createTableMeter("TooManySSTableIndexesReadWarnings", cfs.keyspace.metric.tooManySSTableIndexesReadWarnings);
+        tooManySSTableIndexesReadAborts = createTableMeter("TooManySSTableIndexesReadAborts", cfs.keyspace.metric.tooManySSTableIndexesReadAborts);
 
         formatSpecificGauges = createFormatSpecificGauges(cfs);
     }

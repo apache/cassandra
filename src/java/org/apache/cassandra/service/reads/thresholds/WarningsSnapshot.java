@@ -30,19 +30,27 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.exceptions.ReadSizeAbortException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.TombstoneAbortException;
+import org.apache.cassandra.exceptions.QueryReferencesTooManyIndexesAbortException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
 public class WarningsSnapshot
 {
-    private static final WarningsSnapshot EMPTY = new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY);
+    private static final WarningsSnapshot EMPTY = new WarningsSnapshot(Warnings.EMPTY,
+                                                                       Warnings.EMPTY,
+                                                                       Warnings.EMPTY,
+                                                                       Warnings.EMPTY);
 
-    public final Warnings tombstones, localReadSize, rowIndexReadSize;
+    public final Warnings tombstones, localReadSize, rowIndexReadSize, indexReadSSTablesCount;
 
-    private WarningsSnapshot(Warnings tombstones, Warnings localReadSize, Warnings rowIndexReadSize)
+    private WarningsSnapshot(Warnings tombstones,
+                             Warnings localReadSize,
+                             Warnings rowIndexReadSize,
+                             Warnings indexReadSSTablesCount)
     {
         this.tombstones = tombstones;
         this.localReadSize = localReadSize;
         this.rowIndexReadSize = rowIndexReadSize;
+        this.indexReadSSTablesCount = indexReadSSTablesCount;
     }
 
     public static WarningsSnapshot empty()
@@ -50,11 +58,18 @@ public class WarningsSnapshot
         return EMPTY;
     }
 
-    public static WarningsSnapshot create(Warnings tombstones, Warnings localReadSize, Warnings rowIndexTooLarge)
+    public static WarningsSnapshot create(Warnings tombstones,
+                                          Warnings localReadSize,
+                                          Warnings rowIndexTooLarge,
+                                          Warnings indexReadSSTablesCount)
     {
-        if (tombstones == localReadSize && tombstones == rowIndexTooLarge && tombstones == Warnings.EMPTY)
+        if (tombstones == localReadSize
+            && tombstones == rowIndexTooLarge
+            && tombstones == indexReadSSTablesCount
+            && tombstones == Warnings.EMPTY)
             return EMPTY;
-        return new WarningsSnapshot(tombstones, localReadSize, rowIndexTooLarge);
+
+        return new WarningsSnapshot(tombstones, localReadSize, rowIndexTooLarge, indexReadSSTablesCount);
     }
 
     public static WarningsSnapshot merge(WarningsSnapshot... values)
@@ -83,13 +98,16 @@ public class WarningsSnapshot
     {
         if (other == null || other == EMPTY)
             return this;
-        return WarningsSnapshot.create(tombstones.merge(other.tombstones), localReadSize.merge(other.localReadSize), rowIndexReadSize.merge(other.rowIndexReadSize));
+        return WarningsSnapshot.create(tombstones.merge(other.tombstones),
+                                       localReadSize.merge(other.localReadSize),
+                                       rowIndexReadSize.merge(other.rowIndexReadSize),
+                                       indexReadSSTablesCount.merge(other.indexReadSSTablesCount));
     }
 
     public void maybeAbort(ReadCommand command, ConsistencyLevel cl, int received, int blockFor, boolean isDataPresent, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
     {
         if (!tombstones.aborts.instances.isEmpty())
-            throw new TombstoneAbortException(tombstones.aborts.instances.size(), tombstones.aborts.maxValue, command.toCQLString(), isDataPresent,
+            throw new TombstoneAbortException(tombstoneAbortMessage(tombstones.aborts.instances.size(), tombstones.aborts.maxValue, command.toCQLString()), tombstones.aborts.instances.size(), tombstones.aborts.maxValue, isDataPresent,
                                               cl, received, blockFor, failureReasonByEndpoint);
 
         if (!localReadSize.aborts.instances.isEmpty())
@@ -99,6 +117,13 @@ public class WarningsSnapshot
         if (!rowIndexReadSize.aborts.instances.isEmpty())
             throw new ReadSizeAbortException(rowIndexReadSizeAbortMessage(rowIndexReadSize.aborts.instances.size(), rowIndexReadSize.aborts.maxValue, command.toCQLString()),
                                              cl, received, blockFor, isDataPresent, failureReasonByEndpoint);
+
+        if (!indexReadSSTablesCount.aborts.instances.isEmpty())
+            throw new QueryReferencesTooManyIndexesAbortException(tooManyIndexesReadAbortMessage(indexReadSSTablesCount.aborts.instances.size(), indexReadSSTablesCount.aborts.maxValue, command.toCQLString()),
+                                                                  indexReadSSTablesCount.aborts.instances.size(),
+                                                                  indexReadSSTablesCount.aborts.maxValue,
+                                                                  isDataPresent,
+                                                                  cl, received, blockFor, failureReasonByEndpoint);
     }
 
     @VisibleForTesting
@@ -110,11 +135,11 @@ public class WarningsSnapshot
     @VisibleForTesting
     public static String tombstoneWarnMessage(int nodes, long tombstones, String cql)
     {
-        return String.format("%s nodes scanned up to %s tombstones and issued tombstone warnings for query %s  (see tombstone_warn_threshold)", nodes, tombstones, cql);
+        return String.format("%s nodes scanned up to %s tombstones and issued tombstone warnings for query %s (see tombstone_warn_threshold)", nodes, tombstones, cql);
     }
 
     @VisibleForTesting
-    public static String localReadSizeAbortMessage(long nodes, long bytes, String cql)
+    public static String localReadSizeAbortMessage(int nodes, long bytes, String cql)
     {
         return String.format("%s nodes loaded over %s bytes and aborted the query %s (see local_read_size_fail_threshold)", nodes, bytes, cql);
     }
@@ -122,11 +147,11 @@ public class WarningsSnapshot
     @VisibleForTesting
     public static String localReadSizeWarnMessage(int nodes, long bytes, String cql)
     {
-        return String.format("%s nodes loaded over %s bytes and issued local read size warnings for query %s  (see local_read_size_warn_threshold)", nodes, bytes, cql);
+        return String.format("%s nodes loaded over %s bytes and issued local read size warnings for query %s (see local_read_size_warn_threshold)", nodes, bytes, cql);
     }
 
     @VisibleForTesting
-    public static String rowIndexReadSizeAbortMessage(long nodes, long bytes, String cql)
+    public static String rowIndexReadSizeAbortMessage(int nodes, long bytes, String cql)
     {
         return String.format("%s nodes loaded over %s bytes in RowIndexEntry and aborted the query %s (see row_index_size_fail_threshold)", nodes, bytes, cql);
     }
@@ -134,7 +159,21 @@ public class WarningsSnapshot
     @VisibleForTesting
     public static String rowIndexSizeWarnMessage(int nodes, long bytes, String cql)
     {
-        return String.format("%s nodes loaded over %s bytes in RowIndexEntry and issued warnings for query %s  (see row_index_size_warn_threshold)", nodes, bytes, cql);
+        return String.format("%s nodes loaded over %s bytes in RowIndexEntry and issued warnings for query %s (see row_index_size_warn_threshold)", nodes, bytes, cql);
+    }
+
+    @VisibleForTesting
+    public static String tooManyIndexesReadWarnMessage(int nodes, long value, String cql)
+    {
+        return String.format("%s nodes referenced more than allowed number of indexes without restrictions on partition key, maximum on a node being %s indexes, " +
+                             "and issued warnings for query %s (see sai_sstable_indexes_per_query_warn_threshold)", nodes, value, cql);
+    }
+
+    @VisibleForTesting
+    public static String tooManyIndexesReadAbortMessage(int nodes, long value, String cql)
+    {
+        return String.format("%s nodes referenced %s SSTable indexes for a query without restrictions on partition key " +
+                             "and aborted the query %s (see sai_sstable_indexes_per_query_fail_threshold)", nodes, value, cql);
     }
 
     @Override
@@ -293,7 +332,7 @@ public class WarningsSnapshot
         public Builder tombstonesWarning(Counter counter)
         {
             Objects.requireNonNull(counter);
-            snapshot = snapshot.merge(new WarningsSnapshot(new Warnings(counter, Counter.EMPTY), Warnings.EMPTY, Warnings.EMPTY));
+            snapshot = snapshot.merge(new WarningsSnapshot(new Warnings(counter, Counter.EMPTY), Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY));
             return this;
         }
 
@@ -305,7 +344,7 @@ public class WarningsSnapshot
         public Builder tombstonesAbort(Counter counter)
         {
             Objects.requireNonNull(counter);
-            snapshot = snapshot.merge(new WarningsSnapshot(new Warnings(Counter.EMPTY, counter), Warnings.EMPTY, Warnings.EMPTY));
+            snapshot = snapshot.merge(new WarningsSnapshot(new Warnings(Counter.EMPTY, counter), Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY));
             return this;
         }
 
@@ -317,7 +356,7 @@ public class WarningsSnapshot
         public Builder localReadSizeWarning(Counter counter)
         {
             Objects.requireNonNull(counter);
-            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, new Warnings(counter, Counter.EMPTY), Warnings.EMPTY));
+            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, new Warnings(counter, Counter.EMPTY), Warnings.EMPTY, Warnings.EMPTY));
             return this;
         }
 
@@ -329,21 +368,35 @@ public class WarningsSnapshot
         public Builder localReadSizeAbort(Counter counter)
         {
             Objects.requireNonNull(counter);
-            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, new Warnings(Counter.EMPTY, counter), Warnings.EMPTY));
+            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, new Warnings(Counter.EMPTY, counter), Warnings.EMPTY, Warnings.EMPTY));
             return this;
         }
 
         public Builder rowIndexSizeWarning(Counter counter)
         {
             Objects.requireNonNull(counter);
-            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, new Warnings(counter, Counter.EMPTY)));
+            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, new Warnings(counter, Counter.EMPTY), Warnings.EMPTY));
             return this;
         }
 
         public Builder rowIndexSizeAbort(Counter counter)
         {
             Objects.requireNonNull(counter);
-            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, new Warnings(Counter.EMPTY, counter)));
+            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, new Warnings(Counter.EMPTY, counter), Warnings.EMPTY));
+            return this;
+        }
+
+        public Builder indexReadSSTablesWarning(Counter counter)
+        {
+            Objects.requireNonNull(counter);
+            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, new Warnings(Counter.EMPTY, counter), new Warnings(counter, Counter.EMPTY)));
+            return this;
+        }
+
+        public Builder indexReadSSTablesAbort(Counter counter)
+        {
+            Objects.requireNonNull(counter);
+            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY, new Warnings(Counter.EMPTY, counter)));
             return this;
         }
 
