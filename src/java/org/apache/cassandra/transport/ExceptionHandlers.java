@@ -24,6 +24,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLHandshakeException;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableSet;
@@ -135,9 +136,13 @@ public class ExceptionHandlers
             ClientMetrics.instance.markUnknownException();
             logger.trace("Native exception in client networking", cause);
         }
+        else if (Throwables.anyCauseMatches(cause, t -> t instanceof SSLHandshakeException))
+        {
+            ClientMetrics.instance.markSSLHandshakeException();
+            NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES, "SSLHandshakeException in client networking with peer {} {}", clientAddress, cause.getMessage());
+        }
         else if (Throwables.anyCauseMatches(cause, t -> t instanceof SSLException))
         {
-            ClientMetrics.instance.markSslHandshakeException();
             NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES, "SSLException in client networking with peer {} {}", clientAddress, cause.getMessage());
         }
         else
