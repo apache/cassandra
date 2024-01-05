@@ -76,6 +76,35 @@ public class FileUtilsTest
     }
 
     @Test
+    public void testStringifyFileSize() throws Exception
+    {
+        // test straightforward conversions for each unit
+        assertEquals("FileUtils.stringifyFileSize() failed to stringify a whole number of bytes",
+                     "256 bytes", FileUtils.stringifyFileSize(256L));
+        assertEquals("FileUtils.stringifyFileSize() failed to stringify a whole number of kibibytes",
+                     "2 KiB", FileUtils.stringifyFileSize(2048L));
+        assertEquals("FileUtils.stringifyFileSize() failed to stringify a whole number of mebibytes",
+                     "4 MiB", FileUtils.stringifyFileSize(4194304L));
+        assertEquals("FileUtils.stringifyFileSize() failed to stringify a whole number of gibibytes",
+                     "3 GiB", FileUtils.stringifyFileSize(3221225472L));
+        assertEquals("FileUtils.stringifyFileSize() failed to stringify a whole number of tebibytes",
+                     "5 TiB", FileUtils.stringifyFileSize(5497558138880L));
+        // test conversions of fractional units
+        assertEquals("FileUtils.stringifyFileSize() failed to stringify a rational number of kibibytes",
+                     "1.5 KiB", FileUtils.stringifyFileSize(1536L));
+        assertEquals("FileUtils.stringifyFileSize() failed to stringify a rational number of kibibytes",
+                     "4.33 KiB", FileUtils.stringifyFileSize(4434L));
+        assertEquals("FileUtils.stringifyFileSize() failed to stringify a rational number of mebibytes",
+                     "2.25 MiB", FileUtils.stringifyFileSize(2359296L));
+        assertEquals("FileUtils.stringifyFileSize() failed to stringify a rational number of mebibytes",
+                     "3.14 MiB", FileUtils.stringifyFileSize(3292529L));
+        assertEquals("FileUtils.stringifyFileSize() failed to stringify a rational number of gibibytes",
+                     "1.21 GiB", FileUtils.stringifyFileSize(1299227607L));
+        assertEquals("FileUtils.stringifyFileSize() failed to stringify a rational number of tebibytes",
+                     "6.02 TiB", FileUtils.stringifyFileSize(6621259022467L));
+    }
+
+    @Test
     public void testTruncate() throws IOException
     {
         File file = FileUtils.createDeletableTempFile("testTruncate", "1");
