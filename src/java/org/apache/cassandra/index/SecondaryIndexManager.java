@@ -1278,13 +1278,13 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         return indexes.values().stream().filter((i) -> i.supportsExpression(expression.column(), expression.operator())).findFirst();
     }
 
-    public <T extends Index> Set<T> getBestIndexFor(RowFilter.Expression expression, Class<T> indexType)
+    public <T extends Index> Optional<T> getBestIndexFor(RowFilter.Expression expression, Class<T> indexType)
     {
         return indexes.values()
                       .stream()
                       .filter(i -> indexType.isInstance(i) && i.supportsExpression(expression.column(), expression.operator()))
                       .map(indexType::cast)
-                      .collect(Collectors.toSet());
+                      .findFirst();
     }
 
     /**

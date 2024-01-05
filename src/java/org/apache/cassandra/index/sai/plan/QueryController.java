@@ -23,8 +23,9 @@ import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nullable;
 
 import com.google.common.collect.Lists;
 
@@ -135,10 +136,10 @@ public class QueryController
         return ranges;
     }
 
+    @Nullable
     public StorageAttachedIndex indexFor(RowFilter.Expression expression)
     {
-        Set<StorageAttachedIndex> indexes = cfs.indexManager.getBestIndexFor(expression, StorageAttachedIndex.class);
-        return indexes.isEmpty() ? null : indexes.iterator().next();
+        return cfs.indexManager.getBestIndexFor(expression, StorageAttachedIndex.class).orElse(null);
     }
 
     public boolean hasAnalyzer(RowFilter.Expression expression)
