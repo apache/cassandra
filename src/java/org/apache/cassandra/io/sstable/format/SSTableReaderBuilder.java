@@ -38,6 +38,7 @@ import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
+import org.apache.cassandra.io.storage.StorageProvider;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
@@ -89,20 +90,14 @@ public abstract class SSTableReaderBuilder
 
     public abstract SSTableReader build();
 
-    @SuppressWarnings("resource")
     public static FileHandle.Builder defaultIndexHandleBuilder(Descriptor descriptor, Component component)
     {
-        return new FileHandle.Builder(descriptor.fileFor(component))
-                .mmapped(DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap)
-                .withChunkCache(ChunkCache.instance);
+        return StorageProvider.instance.fileHandleBuilderFor(descriptor, component);
     }
 
-    @SuppressWarnings("resource")
     public static FileHandle.Builder defaultDataHandleBuilder(Descriptor descriptor)
     {
-        return new FileHandle.Builder(descriptor.fileFor(Component.DATA))
-                .mmapped(DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap)
-                .withChunkCache(ChunkCache.instance);
+        return StorageProvider.instance.fileHandleBuilderFor(descriptor, Component.DATA);
     }
 
     /**

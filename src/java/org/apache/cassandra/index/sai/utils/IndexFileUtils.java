@@ -84,15 +84,10 @@ public class IndexFileUtils
         return IndexInputReader.create(handle);
     }
 
-    public IndexInput openBlockingInput(File file)
+    public IndexInput openBlockingInput(FileHandle fileHandle)
     {
-        try (final FileHandle.Builder builder = new FileHandle.Builder(file))
-        {
-            final FileHandle fileHandle = builder.complete();
-            final RandomAccessReader randomReader = fileHandle.createReader();
-
-            return IndexInputReader.create(randomReader, fileHandle::close);
-        }
+        final RandomAccessReader randomReader = fileHandle.createReader();
+        return IndexInputReader.create(randomReader, fileHandle::close);
     }
 
     public interface ChecksumWriter
