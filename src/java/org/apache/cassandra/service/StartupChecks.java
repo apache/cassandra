@@ -422,15 +422,18 @@ public class StartupChecks
         @Override
         public void execute(StartupChecksOptions options)
         {
-            if (options.isDisabled(getStartupCheckType()))
-                return;
-            new SystemInfo().isDegraded().ifPresent( s -> logger.warn("Cassandra server running in degraded mode. " + s));
+            Optional<String> degradations = new SystemInfo().isDegraded();
+
+            if (degradations.isPresent())
+                    logger.warn("Cassandra server running in degraded mode. " + degradations.get());
+            else
+                    logger.info("Checked OS settings and found them configured for optimal performance.");
         }
     };
 
     public static final StartupCheck checkReadAheadKbSetting = new StartupCheck()
     {
-        // This value is in KB.git 
+        // This value is in KB.
         private static final long MAX_RECOMMENDED_READ_AHEAD_KB_SETTING = 128;
 
         /**
