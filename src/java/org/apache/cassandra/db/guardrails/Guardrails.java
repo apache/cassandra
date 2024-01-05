@@ -486,6 +486,21 @@ public final class Guardrails implements GuardrailsMBean
                      format("The modification to table %s has a timestamp %s before the minimum allowable %s threshold %s",
                             what, value, isWarning ? "warning" : "failure", threshold));
 
+    public static final MaxThreshold saiSSTableIndexesPerQuery =
+    new MaxThreshold("sai_sstable_indexes_per_query",
+                     "High number of referenced indexes per query may negatively effect performance",
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getSaiSSTableIndexesPerQueryWarnThreshold(),
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getSaiSSTableIndexesPerQueryFailThreshold(),
+                     ((isWarning, what, value, threshold) ->
+                      format("The number of SSTable indexes queried on index %s violated %s threshold value %s with value %s",
+                             what, isWarning ? "warning" : "failure", threshold, value)));
+
+    public static final EnableFlag nonPartitionRestrictedIndexQueryEnabled =
+    new EnableFlag("non_partition_restricted_index_query_enabled",
+                   "Executing a query on secondary indexes without partition key restriction might degrade performance",
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getNonPartitionRestrictedQueryEnabled(),
+                   "Non-partition key restricted query");
+
     private Guardrails()
     {
         MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
@@ -1219,6 +1234,36 @@ public final class Guardrails implements GuardrailsMBean
     public void setMinimumTimestampThreshold(String warnSeconds, String failSeconds)
     {
         DEFAULT_CONFIG.setMinimumTimestampThreshold(durationFromString(warnSeconds), durationFromString(failSeconds));
+    }
+
+    @Override
+    public int getSaiSSTableIndexesPerQueryWarnThreshold()
+    {
+        return DEFAULT_CONFIG.getSaiSSTableIndexesPerQueryWarnThreshold();
+    }
+
+    @Override
+    public int getSaiSSTableIndexesPerQueryFailThreshold()
+    {
+        return DEFAULT_CONFIG.getSaiSSTableIndexesPerQueryFailThreshold();
+    }
+
+    @Override
+    public void setSaiSSTableIndexesPerQueryThreshold(int warn, int fail)
+    {
+        DEFAULT_CONFIG.setSaiSSTableIndexesPerQueryThreshold(warn, fail);
+    }
+
+    @Override
+    public boolean getNonPartitionRestrictedQueryEnabled()
+    {
+        return DEFAULT_CONFIG.getNonPartitionRestrictedQueryEnabled();
+    }
+
+    @Override
+    public void setNonPartitionRestrictedQueryEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setNonPartitionRestrictedQueryEnabled(enabled);
     }
 
     private static String toCSV(Set<String> values)

@@ -404,7 +404,12 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         boolean isPartitionRangeQuery = restrictions.isKeyRange() || restrictions.usesSecondaryIndexing();
 
         if (isPartitionRangeQuery)
+        {
+            if (restrictions.isKeyRange() && restrictions.usesSecondaryIndexing() && !SchemaConstants.isLocalSystemKeyspace(table.keyspace))
+                Guardrails.nonPartitionRestrictedIndexQueryEnabled.ensureEnabled(state);
+
             return getRangeCommand(options, state, columnFilter, limit, nowInSec);
+        }
 
         return getSliceCommands(options, state, columnFilter, limit, nowInSec);
     }

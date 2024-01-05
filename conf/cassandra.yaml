@@ -2082,6 +2082,15 @@ drop_compact_storage_enabled: false
 # if zero_ttl_on_twcs_enabled is set to false, this property is irrelevant as such statements will fail.
 #zero_ttl_on_twcs_warned: true
 
+# Guardrail enabling secondary index queries that do not restrict on partition key (defaults to true)
+#non_partition_restricted_index_query_enabled: true
+# Maximum number of referenced SAI indexes on a replica when executing a SELECT query
+# before emitting a warning (defaults to 32)
+#sai_sstable_indexes_per_query_warn_threshold: 32
+# Maximum number of referenced SAI indexes on a replica when executing a SELECT query
+# before emitting a failure (defaults to -1 to disable)
+#sai_sstable_indexes_per_query_fail_threshold: -1
+
 # The default secondary index implementation when CREATE INDEX does not specify one via USING.
 # ex. "legacy_local_table" - (default) legacy secondary index, implemented as a hidden table
 # ex. "sai" - "storage-attched" index, implemented via optimized SSTable/Memtable-attached indexes

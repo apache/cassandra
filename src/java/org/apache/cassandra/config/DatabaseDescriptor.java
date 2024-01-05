@@ -5132,4 +5132,14 @@ public class DatabaseDescriptor
     {
         return conf.unsafe_tcm_mode;
     }
+
+    public static int getSaiSSTableIndexesPerQueryWarnThreshold()
+    {
+        return conf.sai_sstable_indexes_per_query_warn_threshold;
+    }
+
+    public static int getSaiSSTableIndexesPerQueryFailThreshold()
+    {
+        return conf.sai_sstable_indexes_per_query_fail_threshold;
+    }
 }

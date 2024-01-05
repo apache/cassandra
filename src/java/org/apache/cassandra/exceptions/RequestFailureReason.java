@@ -41,8 +41,8 @@ public enum RequestFailureReason
     NOT_CMS                  (7),
     INVALID_ROUTING          (8),
     COORDINATOR_BEHIND       (9),
+    READ_TOO_MANY_INDEXES    (10),
     ;
-
 
     public static final Serializer serializer = new Serializer();
 
