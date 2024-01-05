@@ -493,8 +493,7 @@ public class StorageAttachedIndex implements Index
     @Override
     public boolean isQueryable(Status status)
     {
-        // consider unknown status as queryable, because gossip may not be up-to-date for newly joining nodes.
-        return status == Status.BUILD_SUCCEEDED || status == Status.UNKNOWN;
+        return status == Status.BUILD_SUCCEEDED;
     }
 
     @Override

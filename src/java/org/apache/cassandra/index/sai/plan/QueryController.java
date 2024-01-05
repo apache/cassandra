@@ -45,6 +45,8 @@ import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
@@ -182,10 +184,14 @@ public class QueryController
      * which are unioned and returned.
      * <p>
      * The results from each call to {@link IndexSearchResultIterator#build(Expression, Collection, AbstractBounds, QueryContext, boolean)}
-     * are added to either a {@link KeyRangeIntersectionIterator} (if strict filtering is enabled) or a 
-     * {@link KeyRangeUnionIterator} (if strict filtering is not enabled) and returned.
-     * 
-     * TODO: Restructure this method comment a bit once things settle
+     * are added to a {@link KeyRangeIntersectionIterator} and returned if strict filtering is allowed.
+     * <p>
+     * If strict filtering is not allowed, indexes are split into two groups according to the repaired status of their 
+     * backing SSTables. Results from searches over the repaired group are added to a 
+     * {@link KeyRangeIntersectionIterator}, which is then added, along with results from searches on the unrepaired
+     * set, to a top-level {@link KeyRangeUnionIterator}, and returned. This is done to ensure that AND queries do not
+     * prematurely filter out matches on un-repaired partial updates. Post-filtering must also take this into
+     * account. (see {@link FilterTree#isSatisfiedBy(DecoratedKey, Unfiltered, Row)})
      */
     public KeyRangeIterator.Builder getIndexQueryResults(Collection<Expression> expressions)
     {
@@ -215,9 +221,10 @@ public class QueryController
 
                 for (Pair<Expression, Collection<SSTableIndex>> queryViewPair : queryView.view)
                 {
-                    // TODO: can we size these any more intelligently?
-                    List<SSTableIndex> repaired = new ArrayList<>();
-                    List<SSTableIndex> unrepaired = new ArrayList<>();
+                    // The initial sizes here reflect little more than an effort to avoid resizing for 
+                    // partition-restricted searches w/ LCS:
+                    List<SSTableIndex> repaired = new ArrayList<>(5);
+                    List<SSTableIndex> unrepaired = new ArrayList<>(5);
 
                     // Split SSTable indexes into repaired and un-reparired:
                     for (SSTableIndex index : queryViewPair.right)

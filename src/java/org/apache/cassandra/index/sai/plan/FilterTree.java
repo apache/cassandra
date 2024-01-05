@@ -112,7 +112,6 @@ public class FilterTree
                 if (localOperator == BooleanOperator.AND && !result)
                     return false;
 
-                // TODO: Test this in OperationTest?
                 // If the operation is an OR then exit early if we get a single true
                 if (localOperator == BooleanOperator.OR && result)
                     return true;
@@ -136,20 +135,15 @@ public class FilterTree
                 ColumnData data = row.getColumnData(column);
 
                 if (data == null)
-                {
                     // Degrade to non-strict filtering if we're missing a value for a filtered column, as it could be
                     // partially updated on another replica.
                     return BooleanOperator.OR;
-                }
 
                 if (lastTimestamp == null)
                     lastTimestamp = data.maxTimestamp();
-
-                if (lastTimestamp != data.maxTimestamp())
-                {
+                else if (lastTimestamp != data.maxTimestamp())
                     // Degrade to non-strict filtering on a partial update (i.e. cells w/ different timestamps).
                     return BooleanOperator.OR;
-                }
             }
         }
 

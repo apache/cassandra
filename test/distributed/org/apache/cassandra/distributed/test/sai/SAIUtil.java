@@ -26,8 +26,6 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableList;
-
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstance;
@@ -51,20 +49,8 @@ public class SAIUtil
     {
         assertGossipEnabled(cluster);
         final List<String> indexes = getIndexes(cluster, keyspace);
-        await().atMost(60, TimeUnit.SECONDS).pollInterval(500, TimeUnit.MILLISECONDS)
-               .untilAsserted(() -> assertIndexStatus(cluster, keyspace, indexes, Index.Status.BUILD_SUCCEEDED));
-    }
-
-    /**
-     * Waits until all indexes in the given keyspace become non-queryable on a specific node.
-     */
-    public static void waitForIndexNonQueryable(Cluster cluster, String keyspace, int node)
-    {
-        assertGossipEnabled(cluster);
-        final List<String> indexes = getIndexes(cluster, keyspace);
-        InetAddressAndPort addressAndPort = nodeAddress(cluster.get(node).broadcastAddress());
-        await().atMost(60, TimeUnit.SECONDS).pollInterval(500, TimeUnit.MILLISECONDS)
-               .untilAsserted(() -> assertIndexStatus(cluster, keyspace, indexes, Index.Status.BUILD_FAILED, ImmutableList.of(addressAndPort)));
+        await().atMost(60, TimeUnit.SECONDS)
+               .untilAsserted(() -> assertIndexesQueryable(cluster, keyspace, indexes));
     }
 
     /**
@@ -73,7 +59,8 @@ public class SAIUtil
     public static void waitForIndexQueryable(Cluster cluster, String keyspace, String index)
     {
         assertGossipEnabled(cluster);
-        await().atMost(60, TimeUnit.SECONDS).untilAsserted(() -> assertIndexQueryable(cluster, keyspace, index));
+        await().atMost(60, TimeUnit.SECONDS)
+               .untilAsserted(() -> assertIndexQueryable(cluster, keyspace, index));
     }
 
     private static void assertGossipEnabled(Cluster cluster)
@@ -90,23 +77,20 @@ public class SAIUtil
      */
     public static void assertIndexQueryable(Cluster cluster, String keyspace, String index)
     {
-        assertIndexStatus(cluster, keyspace, Collections.singleton(index), Index.Status.BUILD_SUCCEEDED);
+        assertIndexesQueryable(cluster, keyspace, Collections.singleton(index));
     }
 
     /**
      * Checks if all indexes are known to be queryable, by pulling index state from local {{@link SecondaryIndexManager}}.
      * Requires gossip.
      */
-    private static void assertIndexStatus(Cluster cluster, String keyspace, final Iterable<String> indexes, Index.Status expectedStatus)
-    {
-        List<InetAddressAndPort> nodes = 
-            cluster.stream().map(node -> nodeAddress(node.broadcastAddress())).collect(Collectors.toList());
-        assertIndexStatus(cluster, keyspace, indexes, expectedStatus, nodes);
-    }
-
-    private static void assertIndexStatus(Cluster cluster, String keyspace, Iterable<String> indexes, Index.Status expectedStatus, List<InetAddressAndPort> nodes)
+    private static void assertIndexesQueryable(Cluster cluster, String keyspace, final Iterable<String> indexes)
     {
         IInvokableInstance localNode = cluster.get(1);
+        final List<InetAddressAndPort> nodes =
+            cluster.stream()
+                   .map(node -> nodeAddress(node.broadcastAddress()))
+                   .collect(Collectors.toList());
 
         localNode.runOnInstance(() -> {
             for (String index : indexes)
@@ -114,8 +98,8 @@ public class SAIUtil
                 for (InetAddressAndPort node : nodes)
                 {
                     Index.Status status = IndexStatusManager.instance.getIndexStatus(node, keyspace, index);
-                    assert status == expectedStatus
-                           : "Expecting index " + index + " with status " + expectedStatus + " on node " + node + " but was " + status;
+                    assert status == Index.Status.BUILD_SUCCEEDED
+                        : "Index " + index + " not queryable on node " + node + " (status = " + status + ')';
                 }
             }
         });

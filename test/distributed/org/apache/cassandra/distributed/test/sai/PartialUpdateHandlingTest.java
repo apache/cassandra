@@ -36,15 +36,16 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.cql3.statements.StatementType;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.index.Index;
-import org.apache.cassandra.index.SecondaryIndexManager;
+import org.apache.cassandra.index.IndexStatusManager;
 import org.apache.cassandra.index.sai.plan.Expression;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -52,7 +53,6 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.index.sai.plan.Expression.IndexOperator.EQ;
 import static org.apache.cassandra.index.sai.plan.Expression.IndexOperator.RANGE;
-import static org.junit.Assert.assertEquals;
 
 /**
  * SAI queries, like all filtering queries, must correctly resolve divergent views of row data across replicas. In
@@ -386,17 +386,20 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
 
             select.append(String.join(" AND ", clauses));
 
+            InetAddressAndPort node2AddressAndPort = InetAddressAndPort.getByAddress(CLUSTER.get(2).broadcastAddress());
+            Map<String, Index.Status> node2IndexStatusFrom1;
+            Map<String, Index.Status> node2IndexStatusFrom3;
+
             // Make sure node 2, which is the only complete replica, can't participate in a QUORUM...
             if (specification.readCL == QUORUM)
             {
-                CLUSTER.get(2).runOnInstance(() -> {
-                    Keyspace keyspace = Objects.requireNonNull(Schema.instance.getKeyspaceInstance(KEYSPACE));
-                    SecondaryIndexManager sim = keyspace.getColumnFamilyStore(TEST_TABLE_NAME).indexManager;
-                    for (String s : Arrays.asList("pk2_idx", "ck_idx", "s_idx", "a_idx", "b_idx"))
-                        sim.makeIndexNonQueryable(sim.getIndexByName(s), Index.Status.BUILD_FAILED);
-                });
-
-                SAIUtil.waitForIndexNonQueryable(CLUSTER, KEYSPACE, 2);
+                node2IndexStatusFrom1 = CLUSTER.get(1).callsOnInstance(() -> IndexStatusManager.instance.peerIndexStatus.remove(node2AddressAndPort)).call();
+                node2IndexStatusFrom3 = CLUSTER.get(3).callsOnInstance(() -> IndexStatusManager.instance.peerIndexStatus.remove(node2AddressAndPort)).call();
+            }
+            else
+            {
+                node2IndexStatusFrom1 = null;
+                node2IndexStatusFrom3 = null;
             }
 
             Object[][] result = CLUSTER.coordinator(1).execute(select.toString(), specification.readCL);
@@ -404,14 +407,10 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
             // ...but bring it back up immediately after we make the query:
             if (specification.readCL == QUORUM)
             {
-                CLUSTER.get(2).runOnInstance(() -> {
-                    Keyspace keyspace = Objects.requireNonNull(Schema.instance.getKeyspaceInstance(KEYSPACE));
-                    SecondaryIndexManager sim = keyspace.getColumnFamilyStore(TEST_TABLE_NAME).indexManager;
-                    for (String s : Arrays.asList("pk2_idx", "ck_idx", "s_idx", "a_idx", "b_idx"))
-                        sim.makeIndexQueryable(sim.getIndexByName(s), Index.Status.BUILD_SUCCEEDED);
-                });
-
-                SAIUtil.waitForIndexQueryable(CLUSTER, KEYSPACE);
+                assertNotNull(node2IndexStatusFrom1);
+                assertNotNull(node2IndexStatusFrom3);
+                CLUSTER.get(1).runOnInstance(() -> IndexStatusManager.instance.peerIndexStatus.put(node2AddressAndPort, node2IndexStatusFrom1));
+                CLUSTER.get(3).runOnInstance(() -> IndexStatusManager.instance.peerIndexStatus.put(node2AddressAndPort, node2IndexStatusFrom3));
             }
 
             return result;
@@ -490,7 +489,7 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
             model.validatePrevious();
 
         // In DELETE scenarios, which always have existing data, (negative) validation is already complete by now:
-        if (specification.partialUpdateType == StatementType.UPDATE)
+        if (specification.partialUpdateType == StatementType.INSERT)
             model.validateCurrent();
     }
 
