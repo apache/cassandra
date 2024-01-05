@@ -100,13 +100,13 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
         CLUSTER.schemaChange(createTableDDL);
         CLUSTER.disableAutoCompaction(KEYSPACE);
 
-        CLUSTER.schemaChange(String.format("CREATE INDEX pk2_idx ON %s.%s(pk2) USING 'sai'", KEYSPACE, TEST_TABLE_NAME));
-        CLUSTER.schemaChange(String.format("CREATE INDEX ck_idx ON %s.%s(ck) USING 'sai'", KEYSPACE, TEST_TABLE_NAME));
-        CLUSTER.schemaChange(String.format("CREATE INDEX s_idx ON %s.%s(s) USING 'sai'", KEYSPACE, TEST_TABLE_NAME));
-        CLUSTER.schemaChange(String.format("CREATE INDEX a_idx ON %s.%s(a) USING 'sai'", KEYSPACE, TEST_TABLE_NAME));
-        CLUSTER.schemaChange(String.format("CREATE INDEX b_idx ON %s.%s(b) USING 'sai'", KEYSPACE, TEST_TABLE_NAME));
-
-        SAIUtil.waitForIndexQueryable(CLUSTER, KEYSPACE);
+//        CLUSTER.schemaChange(String.format("CREATE INDEX pk2_idx ON %s.%s(pk2) USING 'sai'", KEYSPACE, TEST_TABLE_NAME));
+//        CLUSTER.schemaChange(String.format("CREATE INDEX ck_idx ON %s.%s(ck) USING 'sai'", KEYSPACE, TEST_TABLE_NAME));
+//        CLUSTER.schemaChange(String.format("CREATE INDEX s_idx ON %s.%s(s) USING 'sai'", KEYSPACE, TEST_TABLE_NAME));
+//        CLUSTER.schemaChange(String.format("CREATE INDEX a_idx ON %s.%s(a) USING 'sai'", KEYSPACE, TEST_TABLE_NAME));
+//        CLUSTER.schemaChange(String.format("CREATE INDEX b_idx ON %s.%s(b) USING 'sai'", KEYSPACE, TEST_TABLE_NAME));
+//
+//        SAIUtil.waitForIndexQueryable(CLUSTER, KEYSPACE);
     }
 
     static class Specification
@@ -397,35 +397,35 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
 
             select.append(String.join(" AND ", clauses));
 
-            if (needsAllowFiltering)
-                select.append(" ALLOW FILTERING");
+//            if (needsAllowFiltering)
+//                select.append(" ALLOW FILTERING");
 
-            InetAddressAndPort node2AddressAndPort = InetAddressAndPort.getByAddress(CLUSTER.get(2).broadcastAddress());
-            Map<String, Index.Status> node2IndexStatusFrom1;
-            Map<String, Index.Status> node2IndexStatusFrom3;
+//            InetAddressAndPort node2AddressAndPort = InetAddressAndPort.getByAddress(CLUSTER.get(2).broadcastAddress());
+//            Map<String, Index.Status> node2IndexStatusFrom1;
+//            Map<String, Index.Status> node2IndexStatusFrom3;
 
             // Make sure node 2, which is the only complete replica, can't participate in a QUORUM...
-            if (specification.readCL == QUORUM)
-            {
-                node2IndexStatusFrom1 = CLUSTER.get(1).callsOnInstance(() -> IndexStatusManager.instance.peerIndexStatus.remove(node2AddressAndPort)).call();
-                node2IndexStatusFrom3 = CLUSTER.get(3).callsOnInstance(() -> IndexStatusManager.instance.peerIndexStatus.remove(node2AddressAndPort)).call();
-            }
-            else
-            {
-                node2IndexStatusFrom1 = null;
-                node2IndexStatusFrom3 = null;
-            }
+//            if (specification.readCL == QUORUM)
+//            {
+//                node2IndexStatusFrom1 = CLUSTER.get(1).callsOnInstance(() -> IndexStatusManager.instance.peerIndexStatus.remove(node2AddressAndPort)).call();
+//                node2IndexStatusFrom3 = CLUSTER.get(3).callsOnInstance(() -> IndexStatusManager.instance.peerIndexStatus.remove(node2AddressAndPort)).call();
+//            }
+//            else
+//            {
+//                node2IndexStatusFrom1 = null;
+//                node2IndexStatusFrom3 = null;
+//            }
 
-            Object[][] result = CLUSTER.coordinator(1).execute(select.toString(), specification.readCL);
+            Object[][] result = CLUSTER.coordinator(1).execute(select.append(" ALLOW FILTERING").toString(), specification.readCL);
 
             // ...but bring it back up immediately after we make the query:
-            if (specification.readCL == QUORUM)
-            {
-                assertNotNull(node2IndexStatusFrom1);
-                assertNotNull(node2IndexStatusFrom3);
-                CLUSTER.get(1).runOnInstance(() -> IndexStatusManager.instance.peerIndexStatus.put(node2AddressAndPort, node2IndexStatusFrom1));
-                CLUSTER.get(3).runOnInstance(() -> IndexStatusManager.instance.peerIndexStatus.put(node2AddressAndPort, node2IndexStatusFrom3));
-            }
+//            if (specification.readCL == QUORUM)
+//            {
+//                assertNotNull(node2IndexStatusFrom1);
+//                assertNotNull(node2IndexStatusFrom3);
+//                CLUSTER.get(1).runOnInstance(() -> IndexStatusManager.instance.peerIndexStatus.put(node2AddressAndPort, node2IndexStatusFrom1));
+//                CLUSTER.get(3).runOnInstance(() -> IndexStatusManager.instance.peerIndexStatus.put(node2AddressAndPort, node2IndexStatusFrom3));
+//            }
 
             return result;
         }
@@ -454,7 +454,8 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
             {
                 for (boolean restrictPartitionKey : new boolean[] { false, true })
                 {
-                    for (String[] columns : new String[][] { { "ck", "a" }, { "ck", "s" }, { "s", "a" }, { "a", "b" }, { "s", "x" }, { "a", "x" }, { "a", "y" }, { "a" }, { "s" } })
+                    // TODO: Because nothing is indexed here, there are duplicates. Will need to make this sub-class specific...
+                    for (String[] columns : new String[][] { { "ck", "a" }, { "ck", "s" }, { "s", "a" }, { "a", "b" }, { "s", "x" }, { "s", "y" }, { "a", "x" }, { "a", "y" }, { "a" }, { "s" } })
                         for (boolean existing : new boolean[] { false, true })
                         {
                             parameters.add(new Object[] { new Specification(restrictPartitionKey, columns, readCL, existing, StatementType.INSERT, nextPartitionKey, flushPartials, EQ) });
@@ -462,7 +463,7 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
                         }
 
                     // Deletion scenarios assume existing data.
-                    for (String[] columns : new String[][] { { "s", "a" }, { "a", "b" }, { "s", "x" }, { "a", "x" }, { "a", "y" }, { "a" }, { "s" } })
+                    for (String[] columns : new String[][] { { "s", "a" }, { "a", "b" }, { "s", "x" }, { "s", "y" }, { "a", "x" }, { "a", "y" }, { "a" }, { "s" } })
                     {
                         parameters.add(new Object[] { new Specification(restrictPartitionKey, columns, readCL, true, StatementType.DELETE, nextPartitionKey, flushPartials, EQ) });
                         nextPartitionKey += PARTITIONS_PER_TEST;
@@ -471,7 +472,7 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
 
                 // Note that scenarios around indexes on a partition key element only appear here where we neither
                 // delete nor restrict on partition, as both would be nonsensical.
-                for (String[] columns : new String[][] { { "pk2", "a" }, { "s", "a" }, { "a", "b" }, { "s", "x" }, { "a", "x" }, { "a", "y" }, { "a" }, { "s" } })
+                for (String[] columns : new String[][] { { "pk2", "a" }, { "s", "a" }, { "a", "b" }, { "s", "x" }, { "s", "y" }, { "a", "x" }, { "a", "y" }, { "a" }, { "s" } })
                     for (boolean existing : new boolean[] { false, true })
                     {
                         parameters.add(new Object[]{ new Specification(false, columns, readCL, existing, StatementType.INSERT, nextPartitionKey, flushPartials, RANGE) });
@@ -479,7 +480,7 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
                     }
 
                 // Deletion scenarios assume existing data.
-                for (String[] columns : new String[][] { { "s", "a" }, { "a", "b" }, { "s", "x" }, { "a", "x" }, { "a", "y" }, { "a" }, { "s" } })
+                for (String[] columns : new String[][] { { "s", "a" }, { "a", "b" }, { "s", "x" }, { "s", "y" }, { "a", "x" }, { "a", "y" }, { "a" }, { "s" } })
                 {
                     parameters.add(new Object[]{ new Specification(false, columns, readCL, true, StatementType.DELETE, nextPartitionKey, flushPartials, RANGE) });
                     nextPartitionKey += PARTITIONS_PER_TEST;

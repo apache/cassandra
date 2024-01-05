@@ -320,6 +320,11 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         return sb.toString();
     }
 
+    public RowFilter strict()
+    {
+        return new CQLFilter(expressions, true);
+    }
+
     private static class CQLFilter extends RowFilter
     {
         static CQLFilter NONE = new CQLFilter(Collections.emptyList(), false);
@@ -380,8 +385,18 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                         return null;
 
                     for (Expression e : rowLevelExpressions)
-                        if (!e.isSatisfiedBy(metadata, pk, purged))
-                            return null;
+                    {
+                        if (e.isSatisfiedBy(metadata, pk, purged))
+                        {
+                            if (!isStrict())
+                                return row;
+                        }
+                        else
+                        {
+                            if (isStrict())
+                                return null;
+                        }
+                    }
 
                     return row;
                 }
