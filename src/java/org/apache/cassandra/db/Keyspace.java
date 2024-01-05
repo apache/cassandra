@@ -585,7 +585,7 @@ public class Keyspace
         try
         {
             // throttle internal traffic received as part of the replication
-            CassandraResourceUtilization.instance.throttle(mutation.getKeyspaceName(), false, true);
+            CassandraResourceUtilization.instance.throttle(mutation.getKeyspaceName(), mutation.getTableNames(), false, true);
         }
         catch (OverloadedException e)
         {

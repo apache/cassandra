@@ -26,6 +26,6 @@ public class GetRateLimiterConfig extends NodeTool.NodeToolCmd {
     @Override
     public void execute(NodeProbe probe)
     {
-        System.out.println(probe.getThrottlingOptions());
+        System.out.println(probe.getThrottlingOptionsToString());
     }
 }

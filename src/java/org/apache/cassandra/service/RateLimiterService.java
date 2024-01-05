@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.service;
 
+import org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization;
 import org.apache.cassandra.service.throttler.dynamic.ThrottlingOptions;
 import org.apache.cassandra.utils.MBeanWrapper;
 
@@ -36,23 +37,30 @@ public class RateLimiterService implements RateLimiterServiceMBean {
         MBeanWrapper.instance.registerMBean(instance, MBEAN_NAME);
     }
 
-    @Override
     public void setThrottlingOptions(ThrottlingOptions throttlingOptions)
     {
         this.throttlingOptions = throttlingOptions;
-
-        // ensure ignoreKeyspacesPattern aligns with ignore_keyspaces. This is because in the input throttlingOptions,
-        // ignoreKeyspacesPattern might be not in sync with ignore_keyspaces, especially when the input comes from
-        // DatabaseDescriptor which only updates the member variables that have literal representation in cassandra.yaml.
-        // ignoreKeyspacesPattern doesn't have a literal representation in cassandra.yaml, as it is derived from
-        // ignore_keyspaces.
-        this.throttlingOptions.setIgnoreKeyspaces(throttlingOptions.ignore_keyspaces);
     }
 
-    @Override
     public ThrottlingOptions getThrottlingOptions()
     {
         return throttlingOptions;
+    }
+
+    @Override
+    public String getThrottlingOptionsToString()
+    {
+        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
+        StringBuilder sb = new StringBuilder();
+        sb.append(this.throttlingOptions.toString());
+        sb.append("\n\n");
+        sb.append("All table filters: ");
+        sb.append(cassandraResourceUtilization.tableFiltersRefresher.allFiltersToString());
+        sb.append("\n");
+        sb.append("All keyspace filters: ");
+        sb.append(cassandraResourceUtilization.keyspaceFiltersRefresher.allFiltersToString());
+
+        return sb.toString();
     }
 
     // setters for individual parameters starts from here
@@ -140,9 +148,10 @@ public class RateLimiterService implements RateLimiterServiceMBean {
         this.throttlingOptions.setAggressiveThrottlingLatencyRatio(aggressiveThrottlingLatencyRatio);
     }
 
-    public void setIgnoreKeyspaces(String ignoreKeyspaces)
+    public void setIgnoreKeyspacesRegex(String ignoreKeyspacesRegex)
     {
-        this.throttlingOptions.setIgnoreKeyspaces(ignoreKeyspaces);
+        this.throttlingOptions.setIgnoreKeyspacesRegex(ignoreKeyspacesRegex);
+        CassandraResourceUtilization.instance.syncIgnoreKeyspaceFilter();
     }
 
     @Override
@@ -167,5 +176,33 @@ public class RateLimiterService implements RateLimiterServiceMBean {
     public void setThrottleMutationReplicaTraffic(boolean throttleMutationReplicaTraffic)
     {
         this.throttlingOptions.setThrottleMutationReplicaTraffic(throttleMutationReplicaTraffic);
+    }
+
+    @Override
+    public void setHardBlockCoordReadsTablesRegex(String hardBlockCoordReadsTablesRegex)
+    {
+        this.throttlingOptions.setHardBlockCoordReadsTablesRegex(hardBlockCoordReadsTablesRegex);
+        CassandraResourceUtilization.instance.syncHardBlockCoordReadsTablesFilter();
+    }
+
+    @Override
+    public void setHardBlockCoordWritesTablesRegex(String hardBlockCoordWritesTablesRegex)
+    {
+        this.throttlingOptions.setHardBlockCoordWritesTablesRegex(hardBlockCoordWritesTablesRegex);
+        CassandraResourceUtilization.instance.syncHardBlockCoordWritesTablesFilter();
+    }
+
+    @Override
+    public void setHardBlockReplicaReadsTablesRegex(String hardBlockReplicaReadsTablesRegex)
+    {
+        this.throttlingOptions.setHardBlockReplicaReadsTablesRegex(hardBlockReplicaReadsTablesRegex);
+        CassandraResourceUtilization.instance.syncHardBlockReplicaReadsTablesFilter();
+    }
+
+    @Override
+    public void setHardBlockReplicaWritesTablesRegex(String hardBlockReplicaWritesTablesRegex)
+    {
+        this.throttlingOptions.setHardBlockReplicaWritesTablesRegex(hardBlockReplicaWritesTablesRegex);
+        CassandraResourceUtilization.instance.syncHardBlockReplicaWritesTablesFilter();
     }
 }

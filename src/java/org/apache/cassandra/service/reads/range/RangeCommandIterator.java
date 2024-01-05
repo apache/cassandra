@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.apache.cassandra.schema.TableMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -122,7 +123,8 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
     {
         try
         {
-            CassandraResourceUtilization.instance.throttle(command.metadata().keyspace, true, false);
+            TableMetadata metadata = command.metadata();
+            CassandraResourceUtilization.instance.throttle(metadata.keyspace, Collections.singleton(metadata.name), true, false);
             DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(command, consistencyLevel);
             while (sentQueryIterator == null || !sentQueryIterator.hasNext())
             {

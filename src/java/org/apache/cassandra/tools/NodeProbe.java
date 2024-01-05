@@ -111,7 +111,6 @@ import org.apache.cassandra.service.RateLimiterServiceMBean;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageProxyMBean;
 import org.apache.cassandra.service.StorageServiceMBean;
-import org.apache.cassandra.service.throttler.dynamic.ThrottlingOptions;
 import org.apache.cassandra.streaming.StreamManagerMBean;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
@@ -2434,9 +2433,9 @@ public class NodeProbe implements AutoCloseable
         rateLimiterProxy.setAggressiveThrottlingLatencyRatio(aggressiveThrottlingLatencyRatio);
     }
 
-    public void setIgnoreKeyspaces(String ignoreKeyspaces)
+    public void setThrottingOptionsIgnoreKeyspacesRegex(String ignoreKeyspacesRegex)
     {
-        rateLimiterProxy.setIgnoreKeyspaces(ignoreKeyspaces);
+        rateLimiterProxy.setIgnoreKeyspacesRegex(ignoreKeyspacesRegex);
     }
 
     public void setThrottleReadReplicaTraffic(boolean throttleReadReplicaTraffic)
@@ -2449,9 +2448,29 @@ public class NodeProbe implements AutoCloseable
         rateLimiterProxy.setThrottleMutationReplicaTraffic(throttleMutationReplicaTraffic);
     }
 
-    public ThrottlingOptions getThrottlingOptions()
+    public void setThrottlingOptionsHardBlockCoordReadsTablesRegex(String hardBlockCoordReadsTablesRegex)
     {
-        return rateLimiterProxy.getThrottlingOptions();
+        rateLimiterProxy.setHardBlockCoordReadsTablesRegex(hardBlockCoordReadsTablesRegex);
+    }
+
+    public void setThrottlingOptionsHardBlockCoordWritesTablesRegex(String hardBlockCoordWritesTablesRegex)
+    {
+        rateLimiterProxy.setHardBlockCoordWritesTablesRegex(hardBlockCoordWritesTablesRegex);
+    }
+
+    public void setThrottlingOptionsHardBlockReplicaReadsTablesRegex(String hardBlockReplicaReadsTablesRegex)
+    {
+        rateLimiterProxy.setHardBlockReplicaReadsTablesRegex(hardBlockReplicaReadsTablesRegex);
+    }
+
+    public void setThrottlingOptionsHardBlockReplicaWritesTablesRegex(String hardBlockReplicaWritesTablesRegex)
+    {
+        rateLimiterProxy.setHardBlockReplicaWritesTablesRegex(hardBlockReplicaWritesTablesRegex);
+    }
+
+    public String getThrottlingOptionsToString()
+    {
+        return rateLimiterProxy.getThrottlingOptionsToString();
     }
 
     public void setRepairPriorityForHosts(Set<InetAddressAndPort> hosts)

@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.concurrent.Callable;
 
 import org.junit.BeforeClass;
@@ -287,7 +288,7 @@ public class RateLimiterTest extends TestBaseImpl
         }
 
         @SuppressWarnings("unused")
-        public static boolean throttleUserTraffic(String keyspaceName, boolean reads, boolean replicationTraffic,
+        public static boolean throttleUserTraffic(String keyspaceName, Collection<String> tables, boolean reads, boolean replicationTraffic,
                                                   @SuperCall Callable<Boolean> zuper) throws Exception
 
         {

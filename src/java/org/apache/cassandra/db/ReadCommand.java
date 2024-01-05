@@ -414,7 +414,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
     {
         // throttle internal traffic received as part of the replication
-        CassandraResourceUtilization.instance.throttle(metadata().keyspace, true, true);
+        CassandraResourceUtilization.instance.throttle(metadata().keyspace, Collections.singleton(metadata().name), true, true);
         long startTimeNanos = nanoTime();
 
         COMMAND.set(this);

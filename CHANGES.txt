@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-26536] Add circuit breaker for table level traffic
  * [SO-24942] Speculative read retry in case of throttling during blocking read repair
  * [SO-26016] Fix a bug where current throttling percentage can grow too fast
  * [SO-25750] Segregate read vs. write replication throttling

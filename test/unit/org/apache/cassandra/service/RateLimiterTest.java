@@ -54,6 +54,7 @@ import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetri
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.writeMetrics;
 import static org.apache.cassandra.net.ParamType.RESPOND_TO;
 import static org.apache.cassandra.net.Verb.MUTATION_REQ;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.spy;
@@ -61,6 +62,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -71,6 +73,7 @@ import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 public class RateLimiterTest extends CQLTester {
     private static final String KEYSPACE = "ks_for_rate_limiter";
     private static final String TABLE = "table";
+    private static final Collection SINGLETON_TABLE = Collections.singleton(TABLE);
 
     private static TableMetadata metadata;
     private static DecoratedKey key;
@@ -104,13 +107,13 @@ public class RateLimiterTest extends CQLTester {
     {
         mockCassResrcUtil = spy(originalCassandraRescourceUtilization);
         CassandraResourceUtilization.instance = mockCassResrcUtil;
-        when(mockCassResrcUtil.throttleUserTraffic(eq(KEYSPACE), anyBoolean(), anyBoolean())).thenReturn(true);
+        when(mockCassResrcUtil.throttleUserTraffic(eq(KEYSPACE), anySet(), anyBoolean(), anyBoolean())).thenReturn(true);
     }
 
     @After
     public void resetUserThrottle()
     {
-        verify(mockCassResrcUtil).throttleUserTraffic(eq(KEYSPACE), anyBoolean(), anyBoolean());
+        verify(mockCassResrcUtil).throttleUserTraffic(eq(KEYSPACE), anySet(), anyBoolean(), anyBoolean());
         CassandraResourceUtilization.instance = originalCassandraRescourceUtilization;
     }
 
@@ -332,7 +335,7 @@ public class RateLimiterTest extends CQLTester {
         // The following function invocation is to avoid the following error during this unit test case because we mock
         // "CassandraResourceUtilization.instance" for all test cases
         // "Actually, there were zero interactions with this mock."
-        CassandraResourceUtilization.instance.throttleUserTraffic(KEYSPACE, true, false);
+        CassandraResourceUtilization.instance.throttleUserTraffic(KEYSPACE, SINGLETON_TABLE, true, false);
 
         Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint = new HashMap<>();
         failureReasonByEndpoint.put(InetAddressAndPort.getLocalHost(), RequestFailureReason.TRAFFIC_THROTTLED);
@@ -345,7 +348,7 @@ public class RateLimiterTest extends CQLTester {
         // The following function invocation is to avoid the following error during this unit test case because we mock
         // "CassandraResourceUtilization.instance" for all test cases
         // "Actually, there were zero interactions with this mock."
-        CassandraResourceUtilization.instance.throttleUserTraffic(KEYSPACE, true, false);
+        CassandraResourceUtilization.instance.throttleUserTraffic(KEYSPACE, SINGLETON_TABLE, true, false);
 
         Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint = new HashMap<>();
         failureReasonByEndpoint.put(InetAddressAndPort.getLocalHost(), RequestFailureReason.TIMEOUT);

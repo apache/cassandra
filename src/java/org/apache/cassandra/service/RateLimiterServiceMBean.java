@@ -17,19 +17,12 @@
  */
 package org.apache.cassandra.service;
 
-import org.apache.cassandra.service.throttler.dynamic.ThrottlingOptions;
-
 public interface RateLimiterServiceMBean
 {
     /**
-     * Set throttling options
-     */
-    public void setThrottlingOptions(ThrottlingOptions throttlingOptions);
-
-    /**
      * Get throttling options
      */
-    public ThrottlingOptions getThrottlingOptions();
+    public String getThrottlingOptionsToString();
 
     /**
      * Set enabled
@@ -102,9 +95,9 @@ public interface RateLimiterServiceMBean
     public void setAggressiveThrottlingLatencyRatio(double aggressiveThrottlingLatencyRatio);
 
     /**
-     * Set ignore_keyspaces
+     * Set ignore_keyspaces_regex
      */
-    public void setIgnoreKeyspaces(String ignoreKeyspaces);
+    public void setIgnoreKeyspacesRegex(String ignoreKeyspacesRegex);
 
     /**
      * Set health_check_init_delay_in_sec
@@ -125,4 +118,24 @@ public interface RateLimiterServiceMBean
      * Set throttle_mutation_replica_traffic
      */
     public void setThrottleMutationReplicaTraffic(boolean throttleMutationReplicaTraffic);
+
+    /**
+     * Set hard_block_coord_reads_tables_regex
+     */
+    public void setHardBlockCoordReadsTablesRegex(String hardBlockCoordReadsTablesRegex);
+
+    /**
+     * Set hard_block_coord_writes_tables_regex
+     */
+    public void setHardBlockCoordWritesTablesRegex(String hardBlockCoordWritesTablesRegex);
+
+    /**
+     * Set hard_block_replica_reads_tables_regex
+     */
+    public void setHardBlockReplicaReadsTablesRegex(String hardBlockReplicaReadsTablesRegex);
+
+    /**
+     * Set hard_block_replica_writes_tables_regex
+     */
+    public void setHardBlockReplicaWritesTablesRegex(String hardBlockReplicaWritesTables);
 }

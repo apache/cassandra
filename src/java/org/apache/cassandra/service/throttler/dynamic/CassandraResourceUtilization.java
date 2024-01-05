@@ -18,9 +18,9 @@
 
 package org.apache.cassandra.service.throttler.dynamic;
 
-import java.net.InetAddress;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
+import java.util.Collection;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
@@ -65,6 +65,7 @@ public class CassandraResourceUtilization
     private static final String MUTATION_THREAD_POOL = "MutationStage";
     private static double MAX_THROTTLING = 1.0;
 
+    public boolean isSetupComplete = false;
     public volatile double currentThrottlingPercentage;
     public ScheduledExecutorPlus reportThread = executorFactory().scheduled(false, "CassandraResourceUtilization", Thread.MAX_PRIORITY);
     public ResourcesStats resourcesStats;
@@ -75,6 +76,14 @@ public class CassandraResourceUtilization
     public Map<String, Boolean> readAggressiveThorttlingKeyspaces = new ConcurrentHashMap<>();
     public Map<String, Boolean> mutationAggressiveThorttlingKeyspaces = new ConcurrentHashMap<>();
     public volatile boolean shouldThrottle = false;
+
+    public KeyspaceFiltersRefresher keyspaceFiltersRefresher = new KeyspaceFiltersRefresher();
+    public KeyspaceFilter ignoreKeyspacesFilter = new KeyspaceFilter(keyspaceFiltersRefresher, "ignore_keyspaces");
+    public TableFiltersRefresher tableFiltersRefresher = new TableFiltersRefresher();
+    public TableFilter hardBlockCoordReadsTablesFilter = new TableFilter(tableFiltersRefresher, "hard_block_coord_reads");
+    public TableFilter hardBlockCoordWritesTablesFilter= new TableFilter(tableFiltersRefresher, "hard_block_coord_writes");
+    public TableFilter hardBlockReplicaReadsTablesFilter = new TableFilter(tableFiltersRefresher, "hard_block_replica_reads");
+    public TableFilter hardBlockReplicaWritesTablesFilter= new TableFilter(tableFiltersRefresher, "hard_block_replica_writes");
 
     public static CassandraResourceUtilization instance = new CassandraResourceUtilization();
 
@@ -97,10 +106,61 @@ public class CassandraResourceUtilization
     public void setup(boolean continuousHealthCheck)
     {
         resourceUtilzation.setup();
+        setupFilters();
+
         if (continuousHealthCheck)
         {
-            reportThread.scheduleAtFixedRate(() -> fetchCurrentHealth(), throttlingOptions.getHealthCheckInitDelayInSec(), throttlingOptions.getHealthCheckPeriodInSec(), TimeUnit.SECONDS);
+            startHealthCheckThread();
         }
+
+        isSetupComplete = true; // this line should be the last line in this method
+    }
+
+    public void startHealthCheckThread()
+    {
+        reportThread.scheduleAtFixedRate(() -> fetchCurrentHealth(), throttlingOptions.getHealthCheckInitDelayInSec(), throttlingOptions.getHealthCheckPeriodInSec(), TimeUnit.SECONDS);
+    }
+
+    public void setupFilters()
+    {
+        syncAllFilters();
+
+        keyspaceFiltersRefresher.registerSchemaChangeListener();
+        tableFiltersRefresher.registerSchemaChangeListener();
+    }
+
+    public void syncIgnoreKeyspaceFilter()
+    {
+        ignoreKeyspacesFilter.setRegexPatternAndRefresh(throttlingOptions.getIgnoreKeyspacesRegex());
+    }
+
+    public void syncHardBlockCoordReadsTablesFilter()
+    {
+        hardBlockCoordReadsTablesFilter.setRegexPatternAndRefresh(throttlingOptions.getHardBlockCoordReadsTablesRegex());
+    }
+
+    public void syncHardBlockCoordWritesTablesFilter()
+    {
+        hardBlockCoordWritesTablesFilter.setRegexPatternAndRefresh(throttlingOptions.getHardBlockCoordWritesTablesRegex());
+    }
+
+    public void syncHardBlockReplicaReadsTablesFilter()
+    {
+        hardBlockReplicaReadsTablesFilter.setRegexPatternAndRefresh(throttlingOptions.getHardBlockReplicaReadsTablesRegex());
+    }
+
+    public void syncHardBlockReplicaWritesTablesFilter()
+    {
+        hardBlockReplicaWritesTablesFilter.setRegexPatternAndRefresh(throttlingOptions.getHardBlockReplicaWritesTablesRegex());
+    }
+
+    public void syncAllFilters()
+    {
+        syncIgnoreKeyspaceFilter();
+        syncHardBlockCoordReadsTablesFilter();
+        syncHardBlockCoordWritesTablesFilter();
+        syncHardBlockReplicaReadsTablesFilter();
+        syncHardBlockReplicaWritesTablesFilter();
     }
 
     public void fetchCurrentHealth()
@@ -266,15 +326,25 @@ public class CassandraResourceUtilization
         return sb.toString();
     }
 
-    public boolean throttleUserTraffic(String keyspaceName, boolean reads, boolean replicationTraffic)
+    public boolean throttleUserTraffic(String keyspaceName, Collection<String> tables, boolean reads, boolean replicationTraffic)
     {
+        if (!isSetupComplete)
+        {
+            return false;
+        }
+
         if (!throttlingOptions.isEnabled())
         {
             throttlingMetrics.disableThrottling.inc();
             return false;
         }
+
+        if (decideHardBlock(keyspaceName, tables, reads, replicationTraffic)) {
+            return true;
+        }
+
         KeyspaceThrottlingMetrics ksThrottlingMetrics = KeyspaceThrottlingMetricsManager.getMetrics(keyspaceName);
-        if (throttlingOptions.getIgnoreKeyspacesPattern().matcher(keyspaceName.toLowerCase()).matches())
+        if (ignoreKeyspacesFilter.matches(keyspaceName.toLowerCase()))
         {
             ksThrottlingMetrics.skipKSThrottling.inc();
             return false;
@@ -300,11 +370,31 @@ public class CassandraResourceUtilization
         return false;
     }
 
-    public void throttle(String keyspaceName, boolean reads, boolean replicationTraffic) throws OverloadedException
+    public void throttle(String keyspaceName, Collection<String> tables, boolean reads, boolean replicationTraffic) throws OverloadedException
     {
-        if (throttleUserTraffic(keyspaceName, reads, replicationTraffic)) {
+        if (throttleUserTraffic(keyspaceName, tables, reads, replicationTraffic)) {
             throw buildOverloadeExceptionDuetoRateLimiter();
         }
+    }
+
+    public boolean decideHardBlock(String keyspace, Collection<String> tables, boolean reads, boolean replicationTraffic) {
+        TableFilter filter;
+        if (reads && replicationTraffic) {
+            filter = hardBlockReplicaReadsTablesFilter;
+        } else if (!reads && replicationTraffic) {
+            filter = hardBlockReplicaWritesTablesFilter;
+        } else if (reads && !replicationTraffic) {
+            filter = hardBlockCoordReadsTablesFilter;
+        } else {
+            filter = hardBlockCoordWritesTablesFilter;
+        }
+
+        for (String table : tables) {
+            if (filter.matches(keyspace, table)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public boolean decideThrottling(String ksName, KeyspaceMetrics metrics, boolean reads, KeyspaceThrottlingMetrics ksThrottlingMetrics)

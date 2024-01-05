@@ -18,40 +18,72 @@
 
 package org.apache.cassandra.service.throttler.dynamic;
 
-import java.io.Serializable;
-import java.util.regex.Pattern;
-
-public class ThrottlingOptions implements Serializable
+public class ThrottlingOptions
 {
     // Also, adjust the default values based on the POC
     // TODO: think of the need to declare the following variables a vilotale, given they can be modified by nodetool at runtime
+    public boolean enabled;
 
-    // By default, we'd like to have rate limiter disabled.
-    // When the field 'throttling_options' dones't exist in cassandra.yaml, which is the default, DatabaseDescriptor
-    // will refer to the default value here.
-    public boolean enabled = false;
+    public long cpu_threshold_cur;
+    public long cpu_threshold_one_minute;
+    public int pending_reads_threshold_cur;
+    public int pending_reads_threshold_one_minute;
+    public int pending_mutations_threshold_cur;
+    public int pending_mutations_threshold_one_minute;
+    public int pending_native_transport_threshold_cur;
+    public int pending_native_transport_threshold_one_minute;
+    public double percentage_of_traffic_to_throttling;
+    public int more_aggressive_throttling_after_in_sec;
+    public int reset_after_no_throttling_seen_in_sec;
+    public double aggressive_throttling_qps_ratio;
+    public double aggressive_throttling_latency_ratio;
+    public String ignore_keyspaces_regex;
+    public int health_check_init_delay_in_sec;
+    public int health_check_freq_in_sec;
+    public boolean throttle_read_replica_traffic;
+    public boolean throttle_mutation_replica_traffic;
+    public String hard_block_coord_reads_tables_regex;
+    public String hard_block_coord_writes_tables_regex;
+    public String hard_block_replica_reads_tables_regex;
+    public String hard_block_replica_writes_tables_regex;
 
-    public long cpu_threshold_cur = 35;
-    public long cpu_threshold_one_minute = 35;
-    public int pending_reads_threshold_cur = 0;
-    public int pending_reads_threshold_one_minute = 0;
-    public int pending_mutations_threshold_cur = 0;
-    public int pending_mutations_threshold_one_minute = 0;
-    public int pending_native_transport_threshold_cur = 0;
-    public int pending_native_transport_threshold_one_minute = 0;
-    public double percentage_of_traffic_to_throttling = 0.1;
-    public int more_aggressive_throttling_after_in_sec = 1 * 60; // 1 minutes
-    public int reset_after_no_throttling_seen_in_sec = 15 * 60; // 15 minutes
-    public double aggressive_throttling_qps_ratio = 4;
-    public double aggressive_throttling_latency_ratio = 4;
-    public String ignore_keyspaces = "system.*|pingless";
-    public int health_check_init_delay_in_sec = 60;
-    public int health_check_freq_in_sec = 1;
-    public boolean throttle_read_replica_traffic = true;
-    public boolean throttle_mutation_replica_traffic = true;
+    public ThrottlingOptions()
+    {
+        setToDefault();
+    }
 
-    private Pattern ignoreKeyspacesPattern = Pattern.compile(ignore_keyspaces);
+    public void setToDefault()
+    {
+        // By default, we'd like to have rate limiter disabled.
+        // When the field 'throttling_options' dones't exist in cassandra.yaml, which is the default, DatabaseDescriptor
+        // will refer to the default values here.
+        enabled = false;
 
+        cpu_threshold_cur = 35;
+        cpu_threshold_one_minute = 35;
+        pending_reads_threshold_cur = 0;
+        pending_reads_threshold_one_minute = 0;
+        pending_mutations_threshold_cur = 0;
+        pending_mutations_threshold_one_minute = 0;
+        pending_native_transport_threshold_cur = 0;
+        pending_native_transport_threshold_one_minute = 0;
+        percentage_of_traffic_to_throttling = 0.1;
+        more_aggressive_throttling_after_in_sec = 1 * 60; // 1 minutes
+        reset_after_no_throttling_seen_in_sec = 15 * 60; // 15 minutes
+        aggressive_throttling_qps_ratio = 4;
+        aggressive_throttling_latency_ratio = 4;
+        ignore_keyspaces_regex = "system.*|pingless";
+        health_check_init_delay_in_sec = 60;
+        health_check_freq_in_sec = 1;
+        throttle_read_replica_traffic = true;
+        throttle_mutation_replica_traffic = true;
+        hard_block_coord_reads_tables_regex = "";
+        hard_block_coord_writes_tables_regex = "";
+        hard_block_replica_reads_tables_regex = "";
+        hard_block_replica_writes_tables_regex = "";
+    }
+
+    // getters and setters
     public boolean isEnabled()
     {
         return enabled;
@@ -192,15 +224,14 @@ public class ThrottlingOptions implements Serializable
         this.aggressive_throttling_latency_ratio = aggressive_throttling_latency_ratio;
     }
 
-    public Pattern getIgnoreKeyspacesPattern()
+    public String getIgnoreKeyspacesRegex()
     {
-        return ignoreKeyspacesPattern;
+        return ignore_keyspaces_regex;
     }
 
-    public void setIgnoreKeyspaces(String ignoreKeyspaces)
+    public void setIgnoreKeyspacesRegex(String ignoreKeyspacesRegex)
     {
-        ignore_keyspaces = ignoreKeyspaces;
-        ignoreKeyspacesPattern = Pattern.compile(ignoreKeyspaces);
+        ignore_keyspaces_regex = ignoreKeyspacesRegex;
     }
 
     public int getHealthCheckInitDelayInSec()
@@ -243,6 +274,44 @@ public class ThrottlingOptions implements Serializable
         this.throttle_mutation_replica_traffic = throttleMutationReplicationTraffic;
     }
 
+    public String getHardBlockCoordReadsTablesRegex() {
+        return hard_block_coord_reads_tables_regex;
+    }
+
+    public void setHardBlockCoordReadsTablesRegex(String hardBlockCoordReadsTablesRegex)
+    {
+        this.hard_block_coord_reads_tables_regex = hardBlockCoordReadsTablesRegex;
+    }
+
+    public String getHardBlockCoordWritesTablesRegex() {
+        return hard_block_coord_writes_tables_regex;
+    }
+
+    public void setHardBlockCoordWritesTablesRegex(String hardBlockCoordWritesTablesRegex)
+    {
+        this.hard_block_coord_writes_tables_regex = hardBlockCoordWritesTablesRegex;
+    }
+
+    public String getHardBlockReplicaReadsTablesRegex() {
+        return hard_block_replica_reads_tables_regex;
+    }
+
+    public void setHardBlockReplicaReadsTablesRegex(String hardBlockReplicaReadsTablesRegex)
+    {
+        this.hard_block_replica_reads_tables_regex = hardBlockReplicaReadsTablesRegex;
+    }
+
+    public String getHardBlockReplicaWritesTablesRegex()
+    {
+        return hard_block_replica_writes_tables_regex;
+    }
+
+    public void setHardBlockReplicaWritesTablesRegex(String hardBlockReplicaWritesTablesRegex)
+    {
+        this.hard_block_replica_writes_tables_regex = hardBlockReplicaWritesTablesRegex;
+    }
+
+    // used in nodetool getratelimiterconfig
     public String toString()
     {
         return "enabled: " + enabled + "\n" +
@@ -259,10 +328,15 @@ public class ThrottlingOptions implements Serializable
                "reset after no throttling seen in seconds: " + reset_after_no_throttling_seen_in_sec + "\n" +
                "aggressive throttling qps ratio: " + aggressive_throttling_qps_ratio + "\n" +
                "aggressive throttling latency ratio: " + aggressive_throttling_latency_ratio + "\n" +
-               "ignore keyspaces: " + ignore_keyspaces + "\n" +
+               "ignore keyspaces regex: " + ignore_keyspaces_regex + "\n" +
                "health initial delay in sec: " + health_check_init_delay_in_sec + "\n" +
                "health check frequency in sec: " + health_check_freq_in_sec + "\n" +
                "throttle read replica traffic: " + throttle_read_replica_traffic + "\n" +
-               "throttle mutation replica traffic: " + throttle_mutation_replica_traffic;
+               "throttle mutation replica traffic: " + throttle_mutation_replica_traffic + "\n" +
+               "hard block coordinator reads for tables regex: " + hard_block_coord_reads_tables_regex + "\n" +
+               "hard block coordinator writes for tables regex: " + hard_block_coord_writes_tables_regex + "\n" +
+               "hard block replica reads for tables regex: " + hard_block_replica_reads_tables_regex + "\n" +
+               "hard block replica writes for tables regex: " + hard_block_replica_writes_tables_regex + "\n" +
+               "";
     }
 }
