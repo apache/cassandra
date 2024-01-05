@@ -418,7 +418,7 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
                         int cmp = 1; // Need to initialize. The value is irrelevant.
                         for ( ; i + keysToSkip < keysInRange.size(); keysToSkip++)
                         {
-                            var nextPrimaryKey = keys.get(i + keysToSkip);
+                            var nextPrimaryKey = keysInRange.get(i + keysToSkip);
                             cmp = nextPrimaryKey.compareTo(ceilingPrimaryKey);
                             if (cmp >= 0)
                                 break;

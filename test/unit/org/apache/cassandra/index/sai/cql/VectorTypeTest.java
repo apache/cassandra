@@ -35,6 +35,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.sai.disk.v1.SegmentBuilder;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.tracing.TracingTestImpl;
@@ -1013,5 +1014,47 @@ public class VectorTypeTest extends VectorTester
             assertRows(execute("SELECT a FROM %s WHERE val = 'A' ORDER BY vec ANN OF [1,50] LIMIT 1"),
                        row(50));
         });
+    }
+
+    // search across multiple sstables each with multiple segments, verify results with and without non-ann filtering
+    @Test
+    public void multipleSSTablesAndMultipleSegmentsTest() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, constant boolean, val vector<float, 2>, PRIMARY KEY(pk))");
+        disableCompaction(KEYSPACE);
+
+        int vectorCountPerSSTable = getRandom().nextIntBetween(200, 400);
+        int pk = 0;
+
+        // 50 rows per segment to ensure certain kinds of skipping
+        SegmentBuilder.updateLastValidSegmentRowId(50);
+
+        // create multiple sstables to ensure that not all PKs have the same source table
+        for (int i = 0; i < 6; i++)
+        {
+            for (int row = 0; row < vectorCountPerSSTable; row++)
+                // Create random vectors, we're only testing internal consistency
+                execute("INSERT INTO %s (pk, constant, val) VALUES (?, ?, ?)", pk++, true,
+                        vector(getRandom().nextIntBetween(1, 400), getRandom().nextIntBetween(1, 400)));
+            flush();
+        }
+
+        // create indexes on existing sstable to produce multiple segments
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'euclidean'}");
+        createIndex("CREATE CUSTOM INDEX ON %s(constant) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        // query multiple on-disk indexes
+        int limit = getRandom().nextIntBetween(5,25);
+        // Pick a vector in the middle of the distribution
+        UntypedResultSet unfilteredResults = execute("SELECT pk FROM %s ORDER BY val ANN OF [200,200] LIMIT ?", limit);
+        UntypedResultSet filteredResults = execute("SELECT pk FROM %s WHERE constant = true ORDER BY val ANN OF [200,200] LIMIT ?", limit);
+
+        // Extract the primary keys while retaining order
+        var unfilteredRows = unfilteredResults.stream().map(row -> row.getInt("pk")).toArray();
+        var filteredRows = filteredResults.stream().map(row -> row.getInt("pk")).toArray();
+
+        // Assert that the results are the same
+        assertThat(filteredRows).containsExactly(unfilteredRows);
     }
 }
