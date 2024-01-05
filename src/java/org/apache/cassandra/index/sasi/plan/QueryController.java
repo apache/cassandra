@@ -20,6 +20,8 @@ package org.apache.cassandra.index.sasi.plan;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -32,7 +34,6 @@ import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sasi.SASIIndex;
 import org.apache.cassandra.index.sasi.SSTableIndex;
 import org.apache.cassandra.index.sasi.TermIterator;
@@ -90,12 +91,11 @@ public class QueryController
         return cfs.metadata().partitionKeyType;
     }
 
+    @Nullable
     public ColumnIndex getIndex(RowFilter.Expression expression)
     {
-        Optional<Index> index = cfs.indexManager.getBestIndexFor(expression);
-        return index.isPresent() ? ((SASIIndex) index.get()).getIndex() : null;
+        return cfs.indexManager.getBestIndexFor(expression, SASIIndex.class).map(SASIIndex::getIndex).orElse(null);
     }
-
 
     public UnfilteredRowIterator getPartition(DecoratedKey key, ReadExecutionController executionController)
     {
