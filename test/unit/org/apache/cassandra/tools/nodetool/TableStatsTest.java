@@ -160,12 +160,12 @@ public class TableStatsTest extends CQLTester
     }
 
     @Test
-    public void testHumanReadableArg()
+    public void testNoHumanReadableArg()
     {
-        Arrays.asList("-H", "--human-readable").forEach(arg -> {
+        Arrays.asList("--no-human-readable").forEach(arg -> {
             ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", arg);
             tool.assertOnCleanExit();
-            assertThat(tool.getStdout()).contains(" KiB");
+            assertThat(tool.getStdout()).doesNotContain(" KiB");
         });
     }
 
