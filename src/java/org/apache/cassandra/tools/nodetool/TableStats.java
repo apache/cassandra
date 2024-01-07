@@ -36,10 +36,10 @@ public class TableStats extends NodeToolCmd
     @Option(name = "-i", description = "Ignore the list of tables and display the remaining tables")
     private boolean ignore = false;
 
-    @Option(title = "human_readable",
-            name = {"-H", "--human-readable"},
-            description = "Display bytes in human readable form, i.e. KiB, MiB, GiB, TiB")
-    private boolean humanReadable = false;
+    @Option(title = "no_human_readable",
+            name = {"--no-human-readable"},
+            description = "Disable displaying bytes in human readable form, i.e. KiB, MiB, GiB, TiB")
+    private boolean noHumanReadable = false;
 
     @Option(title = "format",
             name = {"-F", "--format"},
@@ -98,7 +98,7 @@ public class TableStats extends NodeToolCmd
             throw new IllegalArgumentException("argument for top must be a positive integer.");
         }
 
-        StatsHolder holder = new TableStatsHolder(probe, humanReadable, ignore, tableNames, sortKey, top, locationCheck);
+        StatsHolder holder = new TableStatsHolder(probe, !noHumanReadable, ignore, tableNames, sortKey, top, locationCheck);
         // print out the keyspace and table statistics
         StatsPrinter printer = TableStatsPrinter.from(outputFormat, !sortKey.isEmpty());
         printer.print(holder, probe.output().out);
