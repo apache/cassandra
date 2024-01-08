@@ -1,4 +1,5 @@
 5.0-beta2
+ * Make CQLSSTableWriter to support building of SAI indexes (CASSANDRA-18714)
  * Append additional JVM options when using JDK17+ (CASSANDRA-19001)
  * Upgrade Python driver to 3.29.0 (CASSANDRA-19245)
  * Creating a SASI index after creating an SAI index does not break secondary index queries (CASSANDRA-18939)

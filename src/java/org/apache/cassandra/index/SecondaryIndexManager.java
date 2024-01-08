@@ -238,7 +238,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         {
             try
             {
-                Callable<?> call = index.getInitializationTask();
+                Callable<?> call = DatabaseDescriptor.isDaemonInitialized() ? index.getInitializationTask() : null;
                 if (call != null)
                     initialBuildTask = new FutureTask<>(call);
             }
@@ -502,6 +502,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      *
      * @param sstables SSTables for which indexes in the group should be built
      * @param throwOnIncomplete whether to throw an error if any index in the group is incomplete
+     * @param validateChecksum whether to validate checksum or not
      *
      * @return true if all indexes in all groups are complete and valid
      *         false if an index in any group is incomplete and {@code throwOnIncomplete} is false 
@@ -509,14 +510,14 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      * @throws IllegalStateException if {@code throwOnIncomplete} is true and an index in any group is incomplete
      * @throws UncheckedIOException if there is a problem validating any on-disk component in any group
      */
-    public boolean validateSSTableAttachedIndexes(Collection<SSTableReader> sstables, boolean throwOnIncomplete)
+    public boolean validateSSTableAttachedIndexes(Collection<SSTableReader> sstables, boolean throwOnIncomplete, boolean validateChecksum)
     {
         boolean complete = true;
 
         for (Index.Group group : indexGroups.values())
         {
             if (group.getIndexes().stream().anyMatch(Index::isSSTableAttached))
-                complete &= group.validateSSTableAttachedIndexes(sstables, throwOnIncomplete);
+                complete &= group.validateSSTableAttachedIndexes(sstables, throwOnIncomplete, validateChecksum);
         }
 
         return complete;

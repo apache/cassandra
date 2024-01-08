@@ -324,7 +324,8 @@ public abstract class AbstractReplicationStrategy
         try
         {
             Constructor<? extends AbstractReplicationStrategy> constructor = strategyClass.getConstructor(parameterTypes);
-            strategy = constructor.newInstance(keyspaceName, tokenMetadata, snitch, strategyOptions);
+            IEndpointSnitch endpointSnitch = snitch == null && DatabaseDescriptor.isClientOrToolInitialized() ? new SimpleSnitch() : snitch;
+            strategy = constructor.newInstance(keyspaceName, tokenMetadata, endpointSnitch, strategyOptions);
         }
         catch (InvocationTargetException e)
         {
