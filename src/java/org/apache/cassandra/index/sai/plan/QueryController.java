@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -51,6 +52,7 @@ import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
@@ -69,6 +71,7 @@ import org.apache.cassandra.index.sai.utils.RangeAntiJoinIterator;
 import org.apache.cassandra.index.sai.utils.RangeIntersectionIterator;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.RangeUnionIterator;
+import org.apache.cassandra.index.sai.utils.SoftLimitUtil;
 import org.apache.cassandra.index.sai.utils.TermIterator;
 import org.apache.cassandra.index.sai.view.View;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -85,6 +88,41 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_VECTOR
 public class QueryController
 {
     private static final Logger logger = LoggerFactory.getLogger(QueryController.class);
+
+    /**
+     * How likely we want the soft limit to be high enough, so that we get sufficient number of rows
+     * without having to retry. The closer this is to 1.0, the higher the soft limit will be relative to
+     * the exact limit (i.e. we'll ask for more rows speculatively in case we would have to throw some of them out due
+     * to tombstones / updates / expired TTLs / not matching the post-filter).
+     * Setting it too high may cause the queries to be more expensive, because they would be fetching too many rows.
+     * Setting it too low will cause frequent retries.
+     */
+    private static final double SOFT_LIMIT_CONFIDENCE = 0.90;
+
+    /**
+     * Constants used in cost-based query optimization.
+     * Those costs are abstract, they don't represent any physical resource unit.
+     * What matters are ratios between them, not the absolute values.
+     */
+    static class Costs
+    {
+        /**
+         * The cost to get a single PrimaryKey from the index, *without* looking it up in the sstable.
+         */
+        static final float INDEX_KEY_FETCH_COST = 1.0f;
+        /**
+         * How much additional effort it costs to get a PrimaryKey from the index if we have to intersect indexes.
+         * Intersections are more costly because of index skipping.
+         */
+        static final float INDEX_INTERSECTION_PENALTY = 4.0f;
+        /**
+         * The cost to fetch a full row from the storage and apply filters to it.
+         * Deserializing rows is costly.
+         * In the future this should be replaced by a better model taking into account the data size
+         * and number of columns.
+         */
+        static final float ROW_MATERIALIZE_COST = 200.0f;
+    }
 
     // for testing
     public static boolean allowSpeculativeLimits = true;
@@ -218,6 +256,120 @@ public class QueryController
         return command.queryMemtableAndDisk(cfs, executionController);
     }
 
+    public RangeIterator buildIterator()
+    {
+        var filterOperation = filterOperation();
+        var orderings = filterOperation.expressions()
+                                       .stream().filter(e -> e.operator() == Operator.ANN).collect(Collectors.toList());
+        assert orderings.size() <= 1;
+        if (filterOperation.expressions().size() == 1 && filterOperation.children().isEmpty() && orderings.size() == 1)
+            // If we only have one expression, we just use the ANN index to order and limit.
+            return getTopKRows(orderings.get(0));
+
+        // We already decided we need to do first sort then filter, so no need to open the index iterator:
+        if (queryContext.filterSortOrder() == QueryContext.FilterSortOrder.SORT_THEN_FILTER)
+        {
+            assert queryContext.postFilterSelectivityEstimate() != null;
+            return getTopKRows(orderings.get(0));
+        }
+
+        var nonOrderingExpressions = filterOperation.expressions().stream()
+                                                    .filter(e -> e.operator() != Operator.ANN)
+                                                    .collect(Collectors.toList());
+        var iter = Operation.Node.buildTree(nonOrderingExpressions, filterOperation.children(), filterOperation.isDisjunction()).analyzeTree(this).rangeIterator(this);
+
+        if (orderings.isEmpty())
+            return iter;
+
+        if (queryContext.filterSortOrder() == null)
+        {
+            QueryContext.FilterSortOrder order = decideFilterSortOrder(filterOperation, iter);
+            queryContext.setFilterSortOrder(order);
+        }
+        
+        if (queryContext.filterSortOrder() == QueryContext.FilterSortOrder.SORT_THEN_FILTER)
+        {
+            queryContext.setPostFilterSelectivityEstimate(estimateSelectivity(iter));
+            FileUtils.closeQuietly(iter);
+            return getTopKRows(orderings.get(0));
+        }
+
+        return getTopKRows(iter, orderings.get(0));
+    }
+
+    private QueryContext.FilterSortOrder decideFilterSortOrder(RowFilter.FilterElement filter, RangeIterator iter)
+    {
+        double sortThenFilterCost = estimateSortThenFilterCost(iter);
+        double filterThenSortCost = estimateFilterThenSortCost(filter, iter);
+        QueryContext.FilterSortOrder order = sortThenFilterCost < filterThenSortCost
+               ? QueryContext.FilterSortOrder.SORT_THEN_FILTER
+               : QueryContext.FilterSortOrder.FILTER_THEN_SORT;
+        logger.debug("Decided filter sort order {} (costs: SORT_THEN_FILTER = {}, FILTER_THEN_SORT = {})",
+                     order, sortThenFilterCost, filterThenSortCost);
+        return order;
+    }
+
+    private double estimateFilterThenSortCost(RowFilter.FilterElement filter, RangeIterator iter)
+    {
+        // Unions are cheap but intersections have higher costs because of skipping on the iterators,
+        // so we add a penalty for each intersection used in the filter.
+        float intersectionPenalty = intersectionPenalty(filter);
+        // TODO: account for shadowed keys once we collect stats
+        long primaryKeysFetchedFromIndex = iter.getMaxKeys();
+        long materializedRows = Math.min(getExactLimit(), primaryKeysFetchedFromIndex);
+        return primaryKeysFetchedFromIndex * Costs.INDEX_KEY_FETCH_COST * (1.0f + intersectionPenalty)
+               + materializedRows * Costs.ROW_MATERIALIZE_COST;
+    }
+
+    private double estimateSortThenFilterCost(RangeIterator iter)
+    {
+        float selectivity = estimateSelectivity(iter);
+        int materializedRows = SoftLimitUtil.softLimit(getExactLimit(), SOFT_LIMIT_CONFIDENCE, selectivity);
+        return materializedRows * Costs.ROW_MATERIALIZE_COST;
+    }
+
+    /**
+     * Estimates additional cost of performing index intersections (AND operator).
+     * If there are no intersections in the filter tree, returns 0.0.
+     */
+    private static float intersectionPenalty(RowFilter.FilterElement elem)
+    {
+        // TODO: This is very crude cost estimation. Ideally we should take into account the selectivity of each
+        // individual filter expression. The worst case can be when there are multiple intersected predicates, where
+        // each has low selectivity (selects many keys), but only very few keys match all of them. Then many posting
+        // list entries must be traversed before we get a key and the cost is high. This code does not take it into
+        // account.
+       return intersectionsCount(elem) * Costs.INDEX_INTERSECTION_PENALTY;
+    }
+
+    /**
+     * Returns the number of intersections in the filter expression tree (includes children).
+     * <p>
+     * Examples:
+     * <ul>
+     *     <li>A OR B is counted as 0</li>
+     *     <li>A AND B is counted as 1</li>
+     *     <li>A AND B AND C is counted as 2</li>
+     *     <li>A OR B AND C is counted as 1</li>
+     * </ul>
+     */
+    private static int intersectionsCount(RowFilter.FilterElement elem)
+    {
+        int nonOrderingExpressionsCount = (int) elem.expressions().stream().filter(e -> e.operator() != Operator.ANN).count();
+        int intersectedExpressionsCount = elem.isDisjunction() ? 0 : nonOrderingExpressionsCount;
+        int intersectionsCount = Math.max(0, intersectedExpressionsCount - 1);
+
+        for (RowFilter.FilterElement child : elem.children())
+            intersectionsCount += intersectionsCount(child);
+
+        return intersectionsCount;
+    }
+
+    public FilterTree buildFilter()
+    {
+        return Operation.Node.buildTree(filterOperation()).buildFilter(this);
+    }
+
     /**
      * Build a {@link RangeIterator.Builder} from the given list of expressions by applying given operation (OR/AND).
      * Building of such builder involves index search, results of which are persisted in the internal resources list
@@ -245,7 +397,7 @@ public class QueryController
             for (Map.Entry<Expression, NavigableSet<SSTableIndex>> e : view)
             {
                 @SuppressWarnings("resource") // RangeIterators are closed by releaseIndexes
-                RangeIterator index = TermIterator.build(e.getKey(), e.getValue(), mergeRange, queryContext, defer, currentSoftLimitEstimate());
+                RangeIterator index = TermIterator.build(e.getKey(), e.getValue(), mergeRange, queryContext, defer, Integer.MAX_VALUE);
 
                 builder.add(index);
             }
@@ -266,7 +418,11 @@ public class QueryController
         assert expression.operator() == Operator.ANN;
         var planExpression = new Expression(getContext(expression))
                              .add(Operator.ANN, expression.getIndexValue().duplicate());
+
         int limit = currentSoftLimitEstimate();
+        queryContext.setSoftLimit(limit);
+        logger.debug("getTopKRows using limit = {}", limit);
+
         // search memtable before referencing sstable indexes; otherwise we may miss newly flushed memtable index
         RangeIterator memtableResults = getContext(expression).searchMemtable(queryContext, planExpression, mergeRange, limit);
 
@@ -308,6 +464,8 @@ public class QueryController
         planExpression.add(Operator.ANN, expression.getIndexValue().duplicate());
 
         int limit = currentSoftLimitEstimate();
+        queryContext.setSoftLimit(limit);
+
         // search memtable before referencing sstable indexes; otherwise we may miss newly flushed memtable index
         RangeIterator memtableResults = this.getContext(expression).limitToTopResults(queryContext, sourceKeys, planExpression, limit);
         var queryView = new QueryViewBuilder(Collections.singleton(planExpression), mergeRange).build();
@@ -392,24 +550,37 @@ public class QueryController
     }
 
     /**
-     * Estimate suggestion for the limit to search extra rows in case if some rows were shadowed.
-     * @return
+     * Estimate suggestion for the limit to search extra rows in case if some rows were shadowed or post-filtered.
      */
     int currentSoftLimitEstimate()
     {
-        var K = getExactLimit();
-        int M = queryContext.getShadowedPrimaryKeys().size();
-        if (!allowSpeculativeLimits)
-            return K + M;
+        int target = getExactLimit();
+        // shadowedCount includes also the keys filtered out by the post-filter
+        int shadowedCount = queryContext.getShadowedPrimaryKeys().size();
+        long fetchedCount = queryContext.rowsMatched() + shadowedCount;
+        int prevSoftLimit = Math.max(target, queryContext.softLimit());
+        float postFilterSelectivity = queryContext.postFilterSelectivityEstimate();
 
-        if (M == 0)
-            return K;
+        boolean firstShadowKeysLoopIteration = queryContext.shadowedKeysLoopCount() == 1;
+        boolean sortBeforeFilter = queryContext.filterSortOrder() == QueryContext.FilterSortOrder.SORT_THEN_FILTER;
 
-        // K+2*M is enough for larger K (> 20)
-        // and does not create too much overhead for small K
-        int limit = K + 2 * M;
+        // On the first iteration we need to rely on estimates for how many keys we can expect to be accepted.
+        // For any subsequent iterations we can do better by looking how many rows were returned in the previous run.
+        float keyAcceptanceProbability = (firstShadowKeysLoopIteration && sortBeforeFilter)
+            ? postFilterSelectivity
+            : (float) Math.max(queryContext.rowsMatched(), 1) / Math.max(fetchedCount, 1);
+
+        int uncappedLimit = SoftLimitUtil.softLimit(target, SOFT_LIMIT_CONFIDENCE, keyAcceptanceProbability);
+
+        // We don't want to get a too high limit, just in case the stats are off, or we hit some statistical fluctuation,
+        // so let's cap at 10x the previous limit.
+        // We also need to try to have some margin for the keys we already know are shadowed.
+        int limit = Math.max(target + shadowedCount, Math.min(uncappedLimit, prevSoftLimit * 10));
+
         if (logger.isDebugEnabled())
-            logger.debug("Soft limit estimate: {} with K={} M={}", limit, K, M);
+            logger.debug("Soft limit estimate: {} with target={} shadowed={}/{} P={}",
+                         limit, target, shadowedCount, fetchedCount, keyAcceptanceProbability);
+
         return limit;
     }
 
@@ -636,5 +807,37 @@ public class QueryController
         {
             throw new AssertionError("Unsupported read command type: " + command.getClass().getName());
         }
+    }
+
+    /**
+     * Returns the fraction of the total rows of the table returned by the index
+     *
+     * @param iterator iterator over the keys from the index(es)
+     */
+    float estimateSelectivity(RangeIterator iterator)
+    {
+        float selectivity = Math.min((float) iterator.getMaxKeys() / estimateTotalAvailableRows(), 1.0f);
+        queryContext.setPostFilterSelectivityEstimate(selectivity);
+        return selectivity;
+    }
+
+    /**
+     * Returns number of rows indexed accross all ssables and memtables
+     */
+    private long estimateTotalAvailableRows()
+    {
+        if (queryContext.totalAvailableRows() != null)
+            return queryContext.totalAvailableRows();
+
+        long memtableRows = StreamSupport.stream(cfs.getAllMemtables().spliterator(), false)
+                                         .mapToLong(Memtable::rowCount)
+                                         .sum();
+        long sstableRows = cfs.getLiveSSTables()
+                              .stream()
+                              .mapToLong(SSTableReader::getTotalRows)
+                              .sum();
+        long totalRows = memtableRows + sstableRows;
+        queryContext.setTotalAvailableRows(totalRows);
+        return totalRows;
     }
 }

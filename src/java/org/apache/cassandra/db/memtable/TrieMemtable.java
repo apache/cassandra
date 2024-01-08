@@ -292,6 +292,14 @@ public class TrieMemtable extends AbstractAllocatorMemtable
         return shards.length;
     }
 
+    @Override
+    public long rowCount()
+    {
+        DataRange range = DataRange.allData(metadata().partitioner);
+        ColumnFilter columnFilter = ColumnFilter.allRegularColumnsBuilder(metadata(), true).build();
+        return rowCount(columnFilter, range);
+    }
+
     public long rowCount(final ColumnFilter columnFilter, final DataRange dataRange)
     {
         int total = 0;

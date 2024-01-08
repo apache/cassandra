@@ -691,6 +691,12 @@ public class ColumnFamilyStoreTest
             }
 
             @Override
+            public long rowCount()
+            {
+                return 0;
+            }
+
+            @Override
             public long getLiveDataSize()
             {
                 return 0;
