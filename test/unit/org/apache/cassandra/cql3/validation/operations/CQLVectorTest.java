@@ -404,7 +404,7 @@ public class CQLVectorTest extends CQLTester.InMemory
         Vector<Integer> vector = vector(1, 2);
         execute("INSERT INTO %s (pk, value) VALUES (0, ?)", vector);
 
-        // identitiy function
+        // identity function
         String f = createFunction(KEYSPACE,
                                   "",
                                   "CREATE FUNCTION %s (x vector<int, 2>) " +

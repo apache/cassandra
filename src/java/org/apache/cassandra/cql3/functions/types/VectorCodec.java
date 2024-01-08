@@ -127,17 +127,19 @@ public abstract class VectorCodec<E> extends TypeCodec<List<E>>
             : String.format("Expected elements of uniform size, observed %d elements with total bytes %d",
                             type.getDimensions(), bytes.remaining());
 
+            ByteBuffer bb = bytes.slice();
             ImmutableList.Builder<E> values = ImmutableList.builder();
             for (int i = 0; i < type.getDimensions(); ++i)
             {
-                ByteBuffer slice = bytes.slice();
-                slice.limit(elementSize);
-                values.add(subtypeCodec.deserialize(slice, protocolVersion));
-                bytes.position(bytes.position() + elementSize);
+                int originalPosition = bb.position();
+                // Set the limit for the current element
+                bb.limit(originalPosition + elementSize);
+                values.add(subtypeCodec.deserialize(bb, protocolVersion));
+                // Move to the start of the next element
+                bb.position(originalPosition + elementSize);
+                // Reset the limit to the end of the buffer
+                bb.limit(bb.capacity());
             }
-
-            // Restore the input ByteBuffer to its original state
-            bytes.rewind();
 
             return values.build();
         }
