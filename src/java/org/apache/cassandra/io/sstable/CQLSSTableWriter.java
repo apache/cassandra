@@ -41,9 +41,14 @@ import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.cql3.functions.types.TypeCodec;
 import org.apache.cassandra.cql3.functions.types.UserType;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
+import org.apache.cassandra.cql3.statements.schema.CreateIndexStatement;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.cql3.statements.schema.CreateTypeStatement;
 import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.Directories.DataDirectory;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -51,10 +56,12 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaTransformations;
@@ -68,6 +75,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JavaDriverUtils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -106,7 +114,7 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
  *   // Close the writer, finalizing the sstable
  *   writer.close();
  * </pre>
- *
+ * <p>
  * Please note that {@code CQLSSTableWriter} is <b>not</b> thread-safe (multiple threads cannot access the
  * same instance). It is however safe to use multiple instances in parallel (even if those instance write
  * sstables for the same table).
@@ -134,8 +142,8 @@ public class CQLSSTableWriter implements Closeable
         this.writer = writer;
         this.modificationStatement = modificationStatement;
         this.boundNames = boundNames;
-        this.typeCodecs = boundNames.stream().map(bn ->  JavaDriverUtils.codecFor(JavaDriverUtils.driverType(bn.type)))
-                                             .collect(Collectors.toList());
+        this.typeCodecs = boundNames.stream().map(bn -> JavaDriverUtils.codecFor(JavaDriverUtils.driverType(bn.type)))
+                                    .collect(Collectors.toList());
     }
 
     /**
@@ -154,7 +162,7 @@ public class CQLSSTableWriter implements Closeable
      * This is a shortcut for {@code addRow(Arrays.asList(values))}.
      *
      * @param values the row values (corresponding to the bind variables of the
-     * modification statement used when creating by this writer).
+     *               modification statement used when creating by this writer).
      * @return this writer.
      */
     public CQLSSTableWriter addRow(Object... values)
@@ -175,7 +183,7 @@ public class CQLSSTableWriter implements Closeable
      * {@link #rawAddRow} instead.
      *
      * @param values the row values (corresponding to the bind variables of the
-     * modification statement used when creating by this writer).
+     *               modification statement used when creating by this writer).
      * @return this writer.
      */
     public CQLSSTableWriter addRow(List<Object> values)
@@ -207,10 +215,10 @@ public class CQLSSTableWriter implements Closeable
      * (in which case the map key must use the exact case of the column).
      *
      * @param values a map of colum name to column values representing the new
-     * row to add. Note that if a column is not part of the map, it's value will
-     * be {@code null}. If the map contains keys that does not correspond to one
-     * of the column of the modification statement used when creating this writer, the
-     * the corresponding value is ignored.
+     *               row to add. Note that if a column is not part of the map, it's value will
+     *               be {@code null}. If the map contains keys that does not correspond to one
+     *               of the column of the modification statement used when creating this writer, the
+     *               the corresponding value is ignored.
      * @return this writer.
      */
     public CQLSSTableWriter addRow(Map<String, Object> values)
@@ -231,7 +239,7 @@ public class CQLSSTableWriter implements Closeable
      * Adds a new row to the writer given already serialized values.
      *
      * @param values the row values (corresponding to the bind variables of the
-     * modification statement used when creating by this writer) as binary.
+     *               modification statement used when creating by this writer) as binary.
      * @return this writer.
      */
     public CQLSSTableWriter rawAddRow(ByteBuffer... values)
@@ -246,7 +254,7 @@ public class CQLSSTableWriter implements Closeable
      * This is a shortcut for {@code rawAddRow(Arrays.asList(values))}.
      *
      * @param values the row values (corresponding to the bind variables of the
-     * modification statement used when creating by this writer) as binary.
+     *               modification statement used when creating by this writer) as binary.
      * @return this writer.
      */
     public CQLSSTableWriter rawAddRow(List<ByteBuffer> values)
@@ -273,7 +281,8 @@ public class CQLSSTableWriter implements Closeable
 
         try
         {
-            if (modificationStatement.hasSlices()) {
+            if (modificationStatement.hasSlices())
+            {
                 Slices slices = modificationStatement.createSlices(options);
 
                 for (ByteBuffer key : keys)
@@ -298,7 +307,7 @@ public class CQLSSTableWriter implements Closeable
         {
             // If we use a BufferedWriter and had a problem writing to disk, the IOException has been
             // wrapped in a SyncException (see BufferedWriter below). We want to extract that IOE.
-            throw (IOException)e.getCause();
+            throw (IOException) e.getCause();
         }
     }
 
@@ -311,10 +320,10 @@ public class CQLSSTableWriter implements Closeable
      * this write.
      *
      * @param values a map of colum name to column values representing the new
-     * row to add. Note that if a column is not part of the map, it's value will
-     * be {@code null}. If the map contains keys that does not correspond to one
-     * of the column of the modification statement used when creating this writer, the
-     * the corresponding value is ignored.
+     *               row to add. Note that if a column is not part of the map, it's value will
+     *               be {@code null}. If the map contains keys that does not correspond to one
+     *               of the column of the modification statement used when creating this writer, the
+     *               the corresponding value is ignored.
      * @return this writer.
      */
     public CQLSSTableWriter rawAddRow(Map<String, ByteBuffer> values)
@@ -368,9 +377,10 @@ public class CQLSSTableWriter implements Closeable
         {
             // For backwards-compatibility with consumers that may be passing
             // an Integer for a Date field, for example.
-            return ((AbstractType)columnSpecification.type).decompose(value);
+            return ((AbstractType) columnSpecification.type).decompose(value);
         }
     }
+
     /**
      * A Builder for a CQLSSTableWriter object.
      */
@@ -382,6 +392,7 @@ public class CQLSSTableWriter implements Closeable
         protected SSTableFormat<?, ?> format = null;
 
         private final List<CreateTypeStatement.Raw> typeStatements;
+        private final List<CreateIndexStatement.Raw> indexStatements;
 
         private File directory;
         private CreateTableStatement.Raw schemaStatement;
@@ -389,10 +400,12 @@ public class CQLSSTableWriter implements Closeable
         private IPartitioner partitioner;
         private boolean sorted = false;
         private long maxSSTableSizeInMiB = -1L;
+        private boolean buildIndexes = true;
 
         protected Builder()
         {
             this.typeStatements = new ArrayList<>();
+            this.indexStatements = new ArrayList<>();
         }
 
         /**
@@ -402,7 +415,6 @@ public class CQLSSTableWriter implements Closeable
          *
          * @param directory the directory to use, which should exists and be writable.
          * @return this builder.
-         *
          * @throws IllegalArgumentException if {@code directory} doesn't exist or is not writable.
          */
         public Builder inDirectory(String directory)
@@ -417,7 +429,6 @@ public class CQLSSTableWriter implements Closeable
          *
          * @param directory the directory to use, which should exists and be writable.
          * @return this builder.
-         *
          * @throws IllegalArgumentException if {@code directory} doesn't exist or is not writable.
          */
         public Builder inDirectory(File directory)
@@ -447,13 +458,26 @@ public class CQLSSTableWriter implements Closeable
          *
          * @param schema the schema of the table for which sstables are to be created.
          * @return this builder.
-         *
          * @throws IllegalArgumentException if {@code schema} is not a valid CREATE TABLE statement
-         * or does not have a fully-qualified table name.
+         *                                  or does not have a fully-qualified table name.
          */
         public Builder forTable(String schema)
         {
             this.schemaStatement = QueryProcessor.parseStatement(schema, CreateTableStatement.Raw.class, "CREATE TABLE");
+            return this;
+        }
+
+        /**
+         * The schema (CREATE INDEX statement) for index to be created for the table. Only SAI indexes are supported.
+         *
+         * @param indexes CQL statements representing SAI indexes to be created.
+         * @return this builder
+         */
+        public Builder withIndexes(String... indexes)
+        {
+            for (String index : indexes)
+                indexStatements.add(QueryProcessor.parseStatement(index, CreateIndexStatement.Raw.class, "CREATE INDEX"));
+
             return this;
         }
 
@@ -483,11 +507,10 @@ public class CQLSSTableWriter implements Closeable
          * This is a mandatory option.
          *
          * @param modificationStatement an insert, update, or delete statement that defines the order
-         * of column values to use.
+         *                              of column values to use.
          * @return this builder.
-         *
          * @throws IllegalArgumentException if {@code modificationStatement} is not a valid insert, update, or delete
-         * statement, does not have a fully-qualified table name or have no bind variables.
+         *                                  statement, does not have a fully-qualified table name or have no bind variables.
          */
         public Builder using(String modificationStatement)
         {
@@ -526,9 +549,9 @@ public class CQLSSTableWriter implements Closeable
          * The default is 128MiB, which should be reasonable for a 1GiB heap. If you experience
          * OOM while using the writer, you should lower this value.
          *
-         * @deprecated This method is deprecated in favor of the new withMaxSSTableSizeInMiB(int size)
          * @param size the size to use in MiB.
          * @return this builder.
+         * @deprecated This method is deprecated in favor of the new withMaxSSTableSizeInMiB(int size)
          */
         @Deprecated(since = "5.0")
         public Builder withBufferSizeInMiB(int size)
@@ -546,9 +569,9 @@ public class CQLSSTableWriter implements Closeable
          * The default is 128MiB, which should be reasonable for a 1GiB heap. If you experience
          * OOM while using the writer, you should lower this value.
          *
-         * @deprecated This method is deprecated in favor of the new withBufferSizeInMiB(int size). See CASSANDRA-17675
          * @param size the size to use in MiB.
          * @return this builder.
+         * @deprecated This method is deprecated in favor of the new withBufferSizeInMiB(int size). See CASSANDRA-17675
          */
         @Deprecated(since = "4.1")
         public Builder withBufferSizeInMB(int size)
@@ -576,6 +599,18 @@ public class CQLSSTableWriter implements Closeable
         public Builder sorted()
         {
             this.sorted = true;
+            return this;
+        }
+
+        /**
+         * Whether indexes should be built and serialized to disk along data. Defaults to true.
+         *
+         * @param buildIndexes true if indexes should be built, false otherwise
+         * @return this builder
+         */
+        public Builder withBuildIndexes(boolean buildIndexes)
+        {
+            this.buildIndexes = buildIndexes;
             return this;
         }
 
@@ -618,6 +653,29 @@ public class CQLSSTableWriter implements Closeable
                     Types types = createTypes(keyspaceName);
                     Schema.instance.transform(SchemaTransformations.addTypes(types, true));
                     tableMetadata = createTable(types);
+
+                    Keyspace.setInitialized();
+
+                    if (buildIndexes && !indexStatements.isEmpty())
+                    {
+                        tableMetadata = applyIndexes(ksm.withSwapped(ksm.tables.with(tableMetadata)));
+                        Keyspace ks = Keyspace.openWithoutSSTables(keyspaceName);
+                        Directories directories = new Directories(tableMetadata, Collections.singleton(new DataDirectory(new File(directory.toPath()))));
+                        ColumnFamilyStore cfs = ColumnFamilyStore.createColumnFamilyStore(ks,
+                                                                                          tableMetadata.name,
+                                                                                          TableMetadataRef.forOfflineTools(tableMetadata),
+                                                                                          directories,
+                                                                                          false,
+                                                                                          false,
+                                                                                          true);
+                        ks.initCfCustom(cfs);
+
+                        // this is the empty directory / leftover from times we initialized ColumnFamilyStore
+                        // it will automatically create directories for keyspace and table on disk after initialization
+                        // we set that directory to the destination of generated SSTables so we just remove empty directories here
+                        new File(directory, keyspaceName).deleteRecursive();
+                    }
+
                     Schema.instance.transform(SchemaTransformations.addTable(tableMetadata, true));
                 }
 
@@ -630,6 +688,13 @@ public class CQLSSTableWriter implements Closeable
 
                 if (format != null)
                     writer.setSSTableFormatType(format);
+
+                if (buildIndexes)
+                {
+                    StorageAttachedIndexGroup saiGroup = StorageAttachedIndexGroup.getIndexGroup(Schema.instance.getColumnFamilyStoreInstance(tableMetadata.id));
+                    if (saiGroup != null)
+                        writer.addIndexGroup(saiGroup);
+                }
 
                 return new CQLSSTableWriter(writer, preparedModificationStatement, preparedModificationStatement.getBindVariables());
             }
@@ -646,6 +711,23 @@ public class CQLSSTableWriter implements Closeable
             for (CreateTypeStatement.Raw st : typeStatements)
                 st.addToRawBuilder(builder);
             return builder.build();
+        }
+
+        /**
+         * Applies any provided index definitions to the target table
+         *
+         * @param ksm the KeyspaceMetadata object that has the table defined
+         * @return an updated TableMetadata instance with the indexe create statements applied
+         */
+        private TableMetadata applyIndexes(KeyspaceMetadata ksm)
+        {
+            ClientState state = ClientState.forInternalCalls();
+            Keyspaces keyspaces = Keyspaces.of(ksm);
+
+            for (CreateIndexStatement.Raw statement : indexStatements)
+                keyspaces = statement.prepare(state).apply(keyspaces);
+
+            return keyspaces.get(ksm.name).get().tables.get(schemaStatement.table()).get();
         }
 
         /**

@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.LongAdder;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.cassandra.db.memtable.TrieMemtable;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.tries.InMemoryTrie;
 import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.utils.IndexEntry;
@@ -45,7 +45,7 @@ public class SegmentTrieBuffer
 
     public SegmentTrieBuffer()
     {
-        trie = new InMemoryTrie<>(TrieMemtable.BUFFER_TYPE);
+        trie = new InMemoryTrie<>(DatabaseDescriptor.getMemtableAllocationType().toBufferType());
         postingsAccumulator = new PostingsAccumulator();
     }
 

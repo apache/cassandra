@@ -178,7 +178,7 @@ public class IndexViewManager
             {
                 if (validation != IndexValidation.NONE)
                 {
-                    if (!sstableContext.indexDescriptor.validatePerIndexComponents(index.termType(), index.identifier(), validation))
+                    if (!sstableContext.indexDescriptor.validatePerIndexComponents(index.termType(), index.identifier(), validation, true, false))
                     {
                         invalid.add(sstableContext);
                         continue;
