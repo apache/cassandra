@@ -110,6 +110,7 @@ public abstract class SimulatedOperation
 
     public static ModelState replace(CMSSut sut, ModelState state, Node toReplace, Node replacement)
     {
+        assert toReplace.tokenIdx() == replacement.tokenIdx();
         ModelState.Transformer transformer = state.transformer();
         new Replace(toReplace, replacement).create(sut, state.simulatedPlacements, transformer);
         return transformer.transform();

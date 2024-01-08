@@ -428,8 +428,8 @@ public class KeyspaceActions extends ClusterActions
         public TokenPlacementModel.Lookup forceToken(int tokenIdx, long token)
         {
             SimulationLookup newLookup = new SimulationLookup();
-            newLookup.overrides.putAll(overrides);
-            newLookup.overrides.put(tokenIdx, token);
+            newLookup.tokenOverrides.putAll(tokenOverrides);
+            newLookup.tokenOverrides.put(tokenIdx, token);
             return newLookup;
         }
     }

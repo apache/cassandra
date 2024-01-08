@@ -17,7 +17,11 @@
  */
 package org.apache.cassandra.locator;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,9 +40,9 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.PlacementForRange;
+import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 
 /**
@@ -159,6 +163,7 @@ public class SimpleStrategy extends AbstractReplicationStrategy
         return Collections.singleton(REPLICATION_FACTOR);
     }
 
+    @SuppressWarnings("unused") // used via reflection
     protected static void prepareOptions(Map<String, String> options, Map<String, String> previousOptions)
     {
         // When altering from NTS to SS, previousOptions could have multiple different RFs for different data centers - so we

@@ -63,11 +63,6 @@ public class TokenRingUtils
         return i;
     }
 
-    public static Token firstToken(List<Token> ring, Token start)
-    {
-        return ring.get(firstTokenIndex(ring, start, false));
-    }
-
     public static Token getPredecessor(List<Token> ring, Token start)
     {
         int idx = firstTokenIndex(ring, start, false);

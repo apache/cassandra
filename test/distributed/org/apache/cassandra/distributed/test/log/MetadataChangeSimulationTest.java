@@ -45,9 +45,9 @@ import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.harry.sut.TokenPlacementModel;
+import org.apache.cassandra.locator.CMSPlacementStrategy;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.CMSPlacementStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
@@ -65,8 +65,13 @@ import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.SealPeriod;
 
-import static org.apache.cassandra.distributed.test.log.PlacementSimulator.*;
-import static org.apache.cassandra.harry.sut.TokenPlacementModel.*;
+import static org.apache.cassandra.distributed.test.log.PlacementSimulator.SimulatedPlacements;
+import static org.apache.cassandra.harry.sut.TokenPlacementModel.Node;
+import static org.apache.cassandra.harry.sut.TokenPlacementModel.NtsReplicationFactor;
+import static org.apache.cassandra.harry.sut.TokenPlacementModel.ReplicationFactor;
+import static org.apache.cassandra.harry.sut.TokenPlacementModel.SimpleReplicationFactor;
+import static org.apache.cassandra.harry.sut.TokenPlacementModel.nodeFactory;
+import static org.apache.cassandra.harry.sut.TokenPlacementModel.nodeFactoryHumanReadable;
 
 public class MetadataChangeSimulationTest extends CMSTestBase
 {
@@ -87,9 +92,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         for (int concurrency : new int[]{ 1, 3, 5 })
         {
             for (int rf : new int[]{ 2, 3, 5 })
-            {
-                simulate(50, new NtsReplicationFactor(3, rf), concurrency);
-            }
+                simulate(50, 0, new NtsReplicationFactor(3, rf), concurrency);
         }
     }
 
@@ -99,9 +102,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         for (int concurrency : new int[]{ 1, 3, 5 })
         {
             for (int rf : new int[]{ 2, 3, 5 })
-            {
-                simulate(50, new SimpleReplicationFactor(rf), concurrency);
-            }
+                simulate(50, 0, new SimpleReplicationFactor(rf), concurrency);
         }
     }
 
@@ -181,11 +182,15 @@ public class MetadataChangeSimulationTest extends CMSTestBase
     @Test
     public void testLeaveReal() throws Throwable
     {
-        testLeaveReal(new NtsReplicationFactor(1, 3), 1);
-        testLeaveReal(new NtsReplicationFactor(1, 3), 5);
-        testLeaveReal(new NtsReplicationFactor(3, 3), 1);
-        testLeaveReal(new NtsReplicationFactor(3, 3), 5);
-
+        for (int i = 1; i <= 12; i++)
+        {
+            testLeaveReal(new SimpleReplicationFactor(3), i);
+            testLeaveReal(new NtsReplicationFactor(1, 3), i);
+            testLeaveReal(new NtsReplicationFactor(1, 3), i);
+            testLeaveReal(new NtsReplicationFactor(3, 3), i);
+            testLeaveReal(new NtsReplicationFactor(3, 3), i);
+            testLeaveReal(new NtsReplicationFactor(3, 3), i);
+        }
     }
 
     public void testLeaveReal(ReplicationFactor rf, int decomNodeId) throws Throwable
@@ -204,6 +209,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                 state = SimulatedOperation.joinWithoutBootstrap(registration.l, sut, registration.r);
             }
 
+            validatePlacements(sut, state);
             state = SimulatedOperation.leave(sut, state, decomNode);
 
             while (!state.inFlightOperations.isEmpty())
@@ -215,10 +221,79 @@ public class MetadataChangeSimulationTest extends CMSTestBase
     }
 
     @Test
+    public void wraparoundStressTest() throws Throwable
+    {
+        wraparoundStressTest(new SimpleReplicationFactor(3));
+    }
+
+    public void wraparoundStressTest(ReplicationFactor rf) throws Throwable
+    {
+        try (CMSTestBase.CMSSut sut = new CMSTestBase.CMSSut(AtomicLongBackedProcessor::new, false, rf))
+        {
+            ModelState state = ModelState.empty(nodeFactoryHumanReadable(), 10, 1);
+            Random rng = new Random(1l);
+            for (int i = 0; i < 20; i++)
+            {
+                long token = rng.nextLong();
+                ModelChecker.Pair<ModelState, Node> registration = registerNewNodeWithToken(state, sut, token, 1, 1);
+                state = SimulatedOperation.joinWithoutBootstrap(registration.l, sut, registration.r);
+            }
+            validatePlacements(sut, state);
+
+            ModelChecker.Pair<ModelState, Node> res = registerNewNodeWithToken(state, sut, Long.MIN_VALUE, 1, 1);
+            Node minTokenNode = res.r;
+            state = res.l;
+
+            boolean isMinJoined = state.currentNodes.stream().anyMatch(n -> n.token() == Long.MIN_VALUE);
+            for (int i = 0; i < 100; i++)
+            {
+                boolean joiningMin = !isMinJoined;
+                if (joiningMin)
+                    state = SimulatedOperation.join(sut, state, minTokenNode);
+                else
+                    state = SimulatedOperation.leave(sut, state, minTokenNode);
+
+                // Join one more node
+                if (rng.nextBoolean())
+                {
+                    res = registerNewNodeWithToken(state, sut, rng.nextLong(), 1, 1);
+                    Node newNode = res.r;
+                    state = res.l;
+                    state = SimulatedOperation.join(sut, state, newNode);
+                    while (!state.inFlightOperations.isEmpty())
+                    {
+                         state = state.inFlightOperations.get(state.inFlightOperations.size() - 1).advance(state);
+                         validatePlacements(sut, state);
+                    }
+                }
+                else
+                {
+                    Node leavingNode = null;
+                    while (leavingNode == null)
+                    {
+                        Node toLeave = state.currentNodes.get(rng.nextInt(state.currentNodes.size() - 1));
+                        if (toLeave.token() != minTokenNode.token())
+                            leavingNode = toLeave;
+                    }
+                    state = SimulatedOperation.leave(sut, state, leavingNode);
+                    while (!state.inFlightOperations.isEmpty())
+                    {
+                        state = state.inFlightOperations.get(state.inFlightOperations.size() - 1).advance(state);
+                        validatePlacements(sut, state);
+                    }
+                }
+                isMinJoined = joiningMin;
+            }
+        }
+    }
+
+    @Test
     public void testJoinReal() throws Throwable
     {
         testJoinReal(new NtsReplicationFactor(3, 3), 1);
         testJoinReal(new NtsReplicationFactor(3, 3), 5);
+        testJoinReal(new SimpleReplicationFactor(3), 10);
+        testJoinReal(new NtsReplicationFactor(3, 3), 10);
     }
 
     public void testJoinReal(ReplicationFactor rf, int joinNodeId) throws Throwable
@@ -250,7 +325,41 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         }
     }
 
-    public void simulate(int toBootstrap, ReplicationFactor rf, int concurrency) throws Throwable
+    @Test
+    public void testReplaceReal() throws Throwable
+    {
+        testReplaceReal(new SimpleReplicationFactor(3), 10);
+        testReplaceReal(new NtsReplicationFactor(3, 3), 10);
+    }
+
+    public void testReplaceReal(ReplicationFactor rf, int replacementId) throws Throwable
+    {
+        try (CMSTestBase.CMSSut sut = new CMSTestBase.CMSSut(AtomicLongBackedProcessor::new, false, rf))
+        {
+            ModelState state = ModelState.empty(nodeFactoryHumanReadable(), 10, 1);
+
+            Node toReplace = null;
+            for (int i = 1; i <= 12; i++)
+            {
+                int dc = (i % rf.dcs()) + 1;
+                ModelChecker.Pair<ModelState, Node> registration = registerNewNode(state, sut, dc, 1);
+                state = SimulatedOperation.joinWithoutBootstrap(registration.l, sut, registration.r);
+                if (replacementId == i)
+                    toReplace = registration.r;
+            }
+
+            ModelChecker.Pair<ModelState, Node> replacement = registerNewNode(state, sut, toReplace.tokenIdx(), toReplace.dcIdx(), toReplace.rackIdx());;
+            state = SimulatedOperation.replace(sut, replacement.l, toReplace, replacement.r);
+
+            while (!state.inFlightOperations.isEmpty())
+            {
+                state = state.inFlightOperations.get(0).advance(state);
+                validatePlacements(sut, state);
+            }
+        }
+    }
+
+    public void simulate(int toBootstrap, int minSteps, ReplicationFactor rf, int concurrency) throws Throwable
     {
         System.out.printf("RUNNING SIMULATION. TO BOOTSTRAP: %s, RF: %s, CONCURRENCY: %s%n",
                           toBootstrap, rf, concurrency);
@@ -371,7 +480,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
 
                         return false;
                     })
-                    .run();
+                    .run(minSteps, Integer.MAX_VALUE);
     }
 
     @Test
@@ -391,7 +500,6 @@ public class MetadataChangeSimulationTest extends CMSTestBase
 
     public void simulateBounces(ReplicationFactor rf, CMSPlacementStrategy CMSConfigurationStrategy, Random random) throws Throwable
     {
-
         try(CMSSut sut = new CMSSut(AtomicLongBackedProcessor::new, false, rf))
         {
             ModelState state = ModelState.empty(nodeFactory(), 300, 1);
@@ -416,7 +524,6 @@ public class MetadataChangeSimulationTest extends CMSTestBase
             {
                 Set<NodeId> bouncing = new HashSet<>();
                 Set<NodeId> replicasFromBouncedReplicaSets = new HashSet<>();
-                int j = 0;
                 outer:
                 for (VersionedEndpoints.ForRange placements : sut.service.metadata().placements.get(rf.asKeyspaceParams().replication).writes.replicaGroups().values())
                 {
@@ -436,7 +543,6 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                         bouncing.add(toBounce);
                         replicasFromBouncedReplicaSets.addAll(replicas);
                     }
-                    j++;
                 }
 
                 int majority = newCms.size() / 2 + 1;
@@ -495,6 +601,14 @@ public class MetadataChangeSimulationTest extends CMSTestBase
     {
         ModelState newState = state.transformer().incrementUniqueNodes().transform();
         Node node = state.nodeFactory.make(newState.uniqueNodes, dcIdx, rackIdx).withToken(tokenIdx);
+        sut.service.commit(new Register(new NodeAddresses(node.addr()), new Location(node.dc(), node.rack()), NodeVersion.CURRENT));
+        return pair(newState, node);
+    }
+
+    private ModelChecker.Pair<ModelState, Node> registerNewNodeWithToken(ModelState state, CMSSut sut, long token, int dcIdx, int rackIdx)
+    {
+        ModelState newState = state.transformer().incrementUniqueNodes().transform();
+        Node node = state.nodeFactory.make(newState.uniqueNodes, dcIdx, rackIdx).overrideToken(token);
         sut.service.commit(new Register(new NodeAddresses(node.addr()), new Location(node.dc(), node.rack()), NodeVersion.CURRENT));
         return pair(newState, node);
     }

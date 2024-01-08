@@ -39,10 +39,10 @@ public class ModelChecker<STATE, SUT>
 
     public void run() throws Throwable
     {
-        run(Integer.MAX_VALUE);
+        run(0, Integer.MAX_VALUE);
     }
 
-    public void run(int maxSteps) throws Throwable
+    public void run(int minSteps, int maxSteps) throws Throwable
     {
         assert exitCondition != null : "Exit condition is not specified";
         assert init != null : "Initial condition is not specified";
@@ -54,7 +54,7 @@ public class ModelChecker<STATE, SUT>
 
         for (int i = 0; i < maxSteps; i++)
         {
-            if (exitCondition.test(state.get()))
+            if (i > minSteps && exitCondition.test(state.get()))
                 return;
 
             // TODO: add randomisation / probability for triggering a specific step
