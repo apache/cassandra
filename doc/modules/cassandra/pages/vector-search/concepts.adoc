@@ -29,6 +29,7 @@ Embeddings capture the semantic meaning of the text, which in turn, allow querie
 
 Large Language Models (LLMs) generate contextual embeddings for the data, and optimize embeddings for queries.  
 Trained embeddings like those produced by LLMs can be used in Natural Language Processing (NLP) tasks such as text classification, sentiment analysis, and machine translation.
+You can embed almost any kind of data and retrieve good results with vector search. As models continue to improve, the quality of results will also continue to improve.
 
 == Storage Attached Indexing (SAI)
 

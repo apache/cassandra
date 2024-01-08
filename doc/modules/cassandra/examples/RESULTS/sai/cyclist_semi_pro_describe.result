@@ -22,8 +22,8 @@ CREATE TABLE cycling.cyclist_semi_pro (
     AND nodesync = {'enabled': 'true', 'incremental': 'true'}
     AND read_repair = 'BLOCKING'
     AND speculative_retry = '99PERCENTILE';
-CREATE CUSTOM INDEX registration_sai_idx ON cycling.cyclist_semi_pro (registration) USING 'StorageAttachedIndex';
-CREATE CUSTOM INDEX country_sai_idx ON cycling.cyclist_semi_pro (country) USING 'StorageAttachedIndex' WITH OPTIONS = {'normalize': 'true', 'case_sensitive': 'false', 'ascii': 'true'};
-CREATE CUSTOM INDEX age_sai_idx ON cycling.cyclist_semi_pro (age) USING 'StorageAttachedIndex';
-CREATE CUSTOM INDEX lastname_sai_idx ON cycling.cyclist_semi_pro (lastname) USING 'StorageAttachedIndex' WITH OPTIONS = {'normalize': 'true', 'case_sensitive': 'false', 'ascii': 'true'};
+CREATE INDEX registration_sai_idx ON cycling.cyclist_semi_pro (registration) USING 'sai';
+CREATE INDEX country_sai_idx ON cycling.cyclist_semi_pro (country) USING 'sai' WITH OPTIONS = {'normalize': 'true', 'case_sensitive': 'false', 'ascii': 'true'};
+CREATE INDEX age_sai_idx ON cycling.cyclist_semi_pro (age) USING 'sai';
+CREATE INDEX lastname_sai_idx ON cycling.cyclist_semi_pro (lastname) USING 'sai' WITH OPTIONS = {'normalize': 'true', 'case_sensitive': 'false', 'ascii': 'true'};
 // end::cyclistSemiProDescribeResults[]

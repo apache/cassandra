@@ -27,6 +27,12 @@ This means that the embeddings should follow the same principles and rules to en
 Using the same embedding library guarantees this compatibility because the library consistently transforms data into vectors in a specific, defined way.
 For example, comparing Word2Vec embeddings with BERT (an LLM) embeddings could be problematic because these models have different architectures and create embeddings in fundamentally different ways.
 
+Thus, the vector data type is a fixed-length vector of floating-point numbers.
+The dimension value is defined by the embedding model you use. 
+Some machine learning libraries will tell you the dimension value, but you must define it with the embedding model.
+Selecting an embedding model for your dataset that creates good structure by ensuring related objects are nearby each other in the embedding space is important. 
+You may need to test out different embedding models to determine which one works best for your dataset.
+
 == Preprocessing embeddings vectors
 
 Normalizing is about scaling the data so it has a length of one. 
@@ -130,3 +136,30 @@ Your {cassandra} database using Vector Search efficiently distributes data and a
 Continuously evaluate and iterate the data to refine search results against known truth and user feedback. 
 This also helps identify areas for improvement. 
 Iteratively refining the vector representations, similarity metrics, indexing techniques, or preprocessing steps can lead to better search performance and user satisfaction.
+
+== Use cases
+
+Vector databases with well-optimized embeddings allow for new ways to search and associate data, generating results which previously would not have been possible with traditional databases.
+
+Examples:
+
+* Search for items that are similar to a given item, without needing to know the exact item name or IDs
+* Retrieve documents based on similarity of context and content rather than exact string or keyword matches
+* Expand search results across dissimilar items, such as searching for a product and retrieving contextually similar products from a different category
+* Execute word similarity searches, and suggest to users ways to rephrase queries or passages
+* Encode text, images, audio, or video as queries and retrieve media that are conceptually, visually, audibly, or contextually similar to the input
+* Reduce time spent on metadata and curation by automatically generating associations for data
+* Improve data quality by automatically identifying and removing duplicates
+
+== Best practices
+
+* Store relevant metadata about a vector in other columns in your table. For example, if your vector is an image, store the original image in the same table.
+* Select a pre-trained model based on the queries you will need to make to your database.
+
+== Limitations
+
+While the vector embeddings can replace or augment some functions of a traditional database, vector embeddings are not a replacement for other data types. Embeddings are best applied as a supplement to existing data because of the limitations:
+
+* Vector embeddings are not human-readable. Embeddings are not recommended when seeking to 
+directly retrieve data from a table.
+* The model might not be able to capture all relevant information from the data, leading to incorrect or incomplete results.
