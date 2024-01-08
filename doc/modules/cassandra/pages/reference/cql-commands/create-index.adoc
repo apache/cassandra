@@ -1,9 +1,22 @@
 = CREATE INDEX
-:description: Defines a new index for a single column of a table.
+:description: Defines a new secondary index (2i) or storage-attached index (SAI) for a single column of a table.
 
 {description}
 
-{product} supports creating an index on most columns, including the partition and cluster columns of a `PRIMARY KEY`, collections, and static columns. For maps, you can index using the key, value, or entries (a key:value pair).
+{product} supports creating a secondary index or storage-attached index on most columns, including the partition and cluster columns of a `PRIMARY KEY`, collections, and static columns. 
+For maps, you can index using the key, value, or entries (a key:value pair).
+
+All column date types except the following are supported for SAI indexes:
+
+* `counter`
+* geospatial types: `PointType`, `LineStringType`, `PolygonType`
+* non-frozen user-defined type (UDT)
+
+.One exception 
+****
+You cannot define an SAI index based on the partition key when it's comprised of only one column.
+If you attempt to create an SAI index in this case, SAI issues an error message.
+****
 
 *See also:* xref:cassandra:reference/cql-commands/create-custom-index.adoc[CREATE CUSTOM INDEX] for Storage-Attached Indexes (SAI), xref:cassandra:reference/cql-commands/drop-index.adoc[DROP INDEX]
 
@@ -19,14 +32,13 @@ include::example$BNF/index_name.bnf[]
 // tag::syntax[]
 ----
 CREATE INDEX [ IF NOT EXISTS ] <index_name>
-  ON [<keyspace_name>.]<table_name>
-  ([ ( KEYS | FULL ) ] <column_name>)
-  (ENTRIES <column_name>)
+  ON [<keyspace_name>.]<table_name> 
+  ( [ ( KEYS | FULL | ENTRIES ) ] <column_name>)
     //   | [ (KEYS(<map_name>)) ]
     // | [ (VALUES(<map_name>)) ]
     // | [ (ENTRIES(<map_name>)) ]
-   [USING 'sai'
-  [ WITH OPTIONS = { <option_map> } ]];
+   [USING 'sai']
+  [ WITH OPTIONS = { <option_map> } ];
 ----
 // end::syntax[]
 
@@ -38,22 +50,75 @@ include::cassandra:partial$cql-syntax-legend.adoc[]
 
 == Required parameters
 
-*table_name*::
-Name of the table to index.
+[cols="1,3"]  
+|===
 
-*column_name*::
-Name of the column to index.
+| Parameter | Description
+
+| table_name
+| Name of the table to index.
+
+| column_name
+| Name of the column to index.
+SAI allows only alphanumeric characters and underscores in names.
+SAI returns `InvalidRequestException` if you try to define an index on a column name that contains other characters, and does not create the index.
+|===
 
 == Optional parameters
 
-*index_name*::
-Name of the index.
-Enclose in quotes to use special characters or preserve capitalization.
-If no name is specified, {product} names the index: `<table_name>_<column_name>_idx`.
+[cols="1,3"]  
+|===
 
-*keyspace_name*::
-Name of the keyspace that contains the table to index.
+| Parameter | Description
+
+| index_name
+| Name of the index.
+Enclose in quotes to use special characters or preserve capitalization.
+If no name is specified, {product} names the index as `<table_name>\_<column_name>\_idx`.
+
+| keyspace_name
+| Name of the keyspace that contains the table to index.
 If no name is specified, the current keyspace is used.
+
+| map_name
+| Used with xref:cassandra:developing/collections/collection-create.adoc[collections], identifier of the `map_name` specified in `CREATE TABLE` ...
+`map(<map_name>)`.
+The regular column syntax applies for collection types `list` and `set`.
+
+| option_map
+| Define options in JSON simple format.
++
+[cols="100,223"]
+!===
+! Option ! Description
+
+! `case_sensitive`
+! Ignore case in matching string values.
+Default: `true`.
+
+! `normalize`
+! When set to `true`, perform https://unicode.org/faq/normalization.html[Unicode normalization] on indexed strings.
+SAI supports Normalization Form C (NFC) Unicode.
+When set to `true`, SAI normalizes the different versions of a given Unicode character to a single version, retaining all the marks and symbols in the index.
+For example, SAI would change the character Å (U+212B) to Å (U+00C5).
+
+When implementations keep strings in a normalized form, equivalent strings have a unique binary representation.
+See https://unicode.org/reports/tr15/[Unicode Standard Annex #15, Unicode Normalization Forms].
+
+Default: `false`.
+
+! `ascii`
+! When set to `true`, SAI converts alphabetic, numeric, and symbolic characters that are not in the Basic Latin Unicode block (the first 127 ASCII characters) to the ASCII equivalent, if one exists.
+For example, this option changes à to a.
+Default: `false`.
+
+! similarity_function
+!  Vector search relies on computing the similarity or distance between vectors to identify relevant matches. 
+The similarity function is used to compute the similarity between two vectors. 
+Valid options are: EUCLIDEAN, DOT_PRODUCT, COSINE
+Default: `COSINE`
+!===
+|===
 
 == Usage notes
 
@@ -65,9 +130,37 @@ Before creating an index, be aware of when and xref:cassandra:developing/indexin
 
 *Restriction:* Indexing counter columns is not supported.
 
+=== SAI indexes
+
+You can define an SAI index on one of the columns in a table's composite partition key, i.e., a partition key comprised of multiple columns.
+If you need to query based on one of those columns, an SAI index is a helpful option. 
+In fact, you can define an SAI index on each column in a composite partition key, if needed.
+
+Defining one or more SAI indexes based on any column in a database table allows queries to use the indexed column to filter results. 
+
+=== SAI query operators
+
+SAI supports the following query operators for tables with SAI indexes:
+
+include::cassandra:partial$sai/supported-query-operators-list.adoc[]
+
+SAI does not supports the following query operators for tables with SAI indexes:
+
+include::cassandra:partial$sai/notSupportedOperators.adoc[]
+
+See the xref:cassandra:developing/indexing/sai/sai-overview.adoc[SAI section].
+
 == Examples
 
-=== Creating an index on a clustering column
+// LLP
+// Need all of these for both 2i, SASI, and SAI:
+// Create index on non-primary key column
+// Create index on primary key column - partition key?
+// on a composite partition key
+// Create index on primary key column - clustering key
+// set, list, map - key, value, entries, full
+
+=== Creating a SAI index on a clustering column
 
 Define a table having a xref:cassandra:reference/cql-commands/create-table.adoc#cqlPKcomposite[composite partition key], and then create an index on a clustering column.
 

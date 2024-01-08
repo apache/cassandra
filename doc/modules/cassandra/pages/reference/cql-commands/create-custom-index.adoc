@@ -53,7 +53,7 @@ include::cassandra:partial$cql-syntax-legend.adoc[]
 
 index_name::
 Optional identifier for index.
-If no name is specified, the default is used, `<table_name>_<column_name>_idx`.
+If no name is specified, the default used is `<table_name>\_<column_name>\_idx`.
 Enclose in quotes to use special characters or to preserve capitalization.
 
 column_name::
@@ -119,7 +119,7 @@ include::cassandra:example$CQL/sai/cyclist_semi_pro_sai_indices.cql[tag=createQu
 ----
 
 For sample queries that find data in `cycling.cyclist_semi_pro` via these sample SAI indexes, see xref:cassandra:getting-started/sai-quickstart.adoc#saiQuickStart__saiQuickStartSubmitQueries[Submit CQL queries].
-Also refer xref:cassandra:developing/indexing/sai/sai-query.adoc[Examine SAI column index and query rules].
+Also refer xref:cassandra:developing/indexing/sai/sai-query.adoc[Querying with SAI].
 
 [[saiCollectionsExamples]]
 === SAI collection map examples with keys, values, and entries

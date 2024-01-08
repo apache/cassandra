@@ -55,7 +55,7 @@ Valid values:
 
 * `TRUE`- create CDC log
 * `FALSE`- do not create CDC log
-*comments = 'some text that describes the table'* ::
+*comment = 'some text that describes the table'* ::
 Provide documentation on the table.
 
 [TIP]
