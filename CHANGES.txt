@@ -1,4 +1,5 @@
 5.0-beta2
+ * Fix data corruption in VectorCodec when using heap buffers (CASSANDRA-19167)
  * Avoid over-skipping of key iterators from static column indexes during mixed intersections (CASSANDRA-19278)
  * Make concurrent_index_builders configurable at runtime (CASSANDRA-19266)
  * Fix storage_compatibility_mode for streaming (CASSANDRA-19126)
