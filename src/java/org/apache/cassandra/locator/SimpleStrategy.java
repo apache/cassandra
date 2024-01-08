@@ -17,12 +17,15 @@
  */
 package org.apache.cassandra.locator;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -36,9 +39,9 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.PlacementForRange;
+import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 
 /**
@@ -157,14 +160,5 @@ public class SimpleStrategy extends AbstractReplicationStrategy
     public Collection<String> recognizedOptions(ClusterMetadata metadata)
     {
         return Collections.singleton(REPLICATION_FACTOR);
-    }
-
-    protected static void prepareOptions(Map<String, String> options, Map<String, String> previousOptions)
-    {
-        // When altering from NTS to SS, previousOptions could have multiple different RFs for different data centers - so we
-        // will instead default to DefaultRF configuration if RF is not mentioned with the alter statement
-        String rf = previousOptions.containsKey(REPLICATION_FACTOR) ? previousOptions.get(REPLICATION_FACTOR)
-                                                                    : Integer.toString(DatabaseDescriptor.getDefaultKeyspaceRF());
-        options.putIfAbsent(REPLICATION_FACTOR, rf);
     }
 }
