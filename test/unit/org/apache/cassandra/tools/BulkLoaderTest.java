@@ -82,7 +82,9 @@ public class BulkLoaderTest extends OfflineToolUtils
         if (!(tool.getException().getCause().getCause().getCause() instanceof NoHostAvailableException))
             throw tool.getException();
 
-        assertNoUnexpectedThreadsStarted(null, new String[] { "globalEventExecutor-1-1", "globalEventExecutor-1-2" });
+        assertNoUnexpectedThreadsStarted(null, new String[] { "globalEventExecutor-1-1", "globalEventExecutor-1-2",
+                                                                                 // the driver isn't expected to terminate threads on close synchronously (CASSANDRA-19000)
+                                                                                 "cluster[0-9]-nio-worker-[0-9]" });
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();
