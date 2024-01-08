@@ -88,7 +88,7 @@ public class TokenMetadataTest
 
         ExecutorService pool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() + 1);
         
-        int invalidations = 1024;
+        int invalidations = 2048;
         
         for (int i = 0; i < invalidations; i++)
             pool.execute(() -> tmd.invalidateCachedRings());
