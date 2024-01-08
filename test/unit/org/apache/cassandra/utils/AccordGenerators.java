@@ -117,10 +117,23 @@ public class AccordGenerators
 
     public static Gen<AccordRoutingKey> routingKeyGen(Gen<TableId> tableIdGen, Gen<Token> tokenGen)
     {
+        return routingKeyGen(tableIdGen, Gens.enums().all(AccordRoutingKey.RoutingKeyKind.class), tokenGen);
+    }
+
+    public static Gen<AccordRoutingKey> routingKeyGen(Gen<TableId> tableIdGen, Gen<AccordRoutingKey.RoutingKeyKind> kindGen, Gen<Token> tokenGen)
+    {
         return rs -> {
             TableId tableId = tableIdGen.next(rs);
-            if (rs.nextBoolean()) return new AccordRoutingKey.TokenKey(tableId, tokenGen.next(rs));
-            else return rs.nextBoolean() ? AccordRoutingKey.SentinelKey.min(tableId) : AccordRoutingKey.SentinelKey.max(tableId);
+            AccordRoutingKey.RoutingKeyKind kind = kindGen.next(rs);
+            switch (kind)
+            {
+                case TOKEN:
+                    return new AccordRoutingKey.TokenKey(tableId, tokenGen.next(rs));
+                case SENTINEL:
+                    return rs.nextBoolean() ? AccordRoutingKey.SentinelKey.min(tableId) : AccordRoutingKey.SentinelKey.max(tableId);
+                default:
+                    throw new AssertionError("Unknown kind: " + kind);
+            }
         };
     }
 
