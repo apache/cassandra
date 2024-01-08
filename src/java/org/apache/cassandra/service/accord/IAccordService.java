@@ -132,7 +132,7 @@ public interface IAccordService
         Set<TableId> allTables = new HashSet<>();
         Set<TableId> newTables = new HashSet<>();
         txn.keys().forEach(key -> {
-            TableId table = ((AccordRoutableKey) key).table();
+            TableId table = key instanceof AccordRoutableKey ? ((AccordRoutableKey) key).table() : ((TokenRange) key).table();
             if (allTables.add(table) && !isAccordManagedTable(table))
                 newTables.add(table);
         });
