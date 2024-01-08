@@ -343,7 +343,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
     }
 
     @Override
-    public boolean validateSSTableAttachedIndexes(Collection<SSTableReader> sstables, boolean throwOnIncomplete)
+    public boolean validateSSTableAttachedIndexes(Collection<SSTableReader> sstables, boolean throwOnIncomplete, boolean validateChecksum)
     {
         boolean complete = true;
 
@@ -353,21 +353,21 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
 
             if (indexDescriptor.isPerSSTableIndexBuildComplete())
             {
-                indexDescriptor.checksumPerSSTableComponents();
+                indexDescriptor.validatePerSSTableComponents(IndexValidation.CHECKSUM, validateChecksum, true);
 
                 for (StorageAttachedIndex index : indexes)
                 {
                     if (indexDescriptor.isPerColumnIndexBuildComplete(index.identifier()))
-                        indexDescriptor.checksumPerIndexComponents(index.termType(), index.identifier());
+                        indexDescriptor.validatePerIndexComponents(index.termType(), index.identifier(), IndexValidation.CHECKSUM, validateChecksum, true);
                     else if (throwOnIncomplete)
-                        throw new IllegalStateException(indexDescriptor.logMessage("Incomplete per-column index build"));
+                        throw new IllegalStateException(indexDescriptor.logMessage("Incomplete per-column index build for SSTable " + sstable.descriptor.toString()));
                     else
                         complete = false;
                 }
             }
             else if (throwOnIncomplete)
             {
-                throw new IllegalStateException(indexDescriptor.logMessage("Incomplete per-SSTable index build"));
+                throw new IllegalStateException(indexDescriptor.logMessage("Incomplete per-SSTable index build" + sstable.descriptor.toString()));
             }
             else
             {
@@ -375,7 +375,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
             }
         }
 
-        return complete;    
+        return complete;
     }
 
     /**

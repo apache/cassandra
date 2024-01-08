@@ -32,6 +32,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.index.Index;
+import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IVerifier;
@@ -83,7 +87,7 @@ public class SSTableImporter
         List<String> failedDirectories = new ArrayList<>();
 
         // verify first to avoid starting to copy sstables to the data directories and then have to abort.
-        if (options.verifySSTables || options.verifyTokens)
+        if (options.verifySSTables || options.verifyTokens || options.failOnMissingIndex)
         {
             for (Pair<Directories.SSTableLister, String> listerPair : listers)
             {
@@ -97,7 +101,39 @@ public class SSTableImporter
                         try
                         {
                             abortIfDraining();
-                            verifySSTableForImport(descriptor, entry.getValue(), options.verifyTokens, options.verifySSTables, options.extendedVerify);
+
+                            if (options.failOnMissingIndex)
+                            {
+                                Index.Group saiIndexGroup = cfs.indexManager.getIndexGroup(StorageAttachedIndexGroup.GROUP_KEY);
+                                if (saiIndexGroup != null)
+                                {
+                                    IndexDescriptor indexDescriptor = IndexDescriptor.create(descriptor,
+                                                                                             cfs.getPartitioner(),
+                                                                                             cfs.metadata().comparator);
+
+                                    String keyspace = cfs.getKeyspaceName();
+                                    String table = cfs.getTableName();
+
+                                    if (!indexDescriptor.isPerSSTableIndexBuildComplete())
+                                        throw new IllegalStateException(String.format("Missing SAI index to import for SSTable %s on %s.%s",
+                                                                                      indexDescriptor.sstableDescriptor.toString(),
+                                                                                      keyspace,
+                                                                                      table));
+
+                                    for (Index index : saiIndexGroup.getIndexes())
+                                    {
+                                        IndexIdentifier indexIdentifier = new IndexIdentifier(keyspace, table, index.getIndexMetadata().name);
+                                        if (!indexDescriptor.isPerColumnIndexBuildComplete(indexIdentifier))
+                                            throw new IllegalStateException(String.format("Missing SAI index to import for index %s on %s.%s",
+                                                                                          index.getIndexMetadata().name,
+                                                                                          keyspace,
+                                                                                          table));
+                                    }
+                                }
+                            }
+
+                            if (options.verifySSTables || options.verifyTokens)
+                                verifySSTableForImport(descriptor, entry.getValue(), options.verifyTokens, options.verifySSTables, options.extendedVerify);
                         }
                         catch (Throwable t)
                         {
@@ -188,7 +224,7 @@ public class SSTableImporter
             abortIfDraining();
 
             // Validate existing SSTable-attached indexes, and then build any that are missing:
-            if (!cfs.indexManager.validateSSTableAttachedIndexes(newSSTables, false))
+            if (!cfs.indexManager.validateSSTableAttachedIndexes(newSSTables, false, options.validateIndexChecksum))
                 cfs.indexManager.buildSSTableAttachedIndexesBlocking(newSSTables);
 
             cfs.getTracker().addSSTables(newSSTables);
@@ -441,8 +477,13 @@ public class SSTableImporter
         private final boolean invalidateCaches;
         private final boolean extendedVerify;
         private final boolean copyData;
+        private final boolean failOnMissingIndex;
+        public final boolean validateIndexChecksum;
 
-        public Options(Set<String> srcPaths, boolean resetLevel, boolean clearRepaired, boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches, boolean extendedVerify, boolean copyData)
+        public Options(Set<String> srcPaths, boolean resetLevel, boolean clearRepaired,
+                       boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches,
+                       boolean extendedVerify, boolean copyData, boolean failOnMissingIndex,
+                       boolean validateIndexChecksum)
         {
             this.srcPaths = srcPaths;
             this.resetLevel = resetLevel;
@@ -452,6 +493,8 @@ public class SSTableImporter
             this.invalidateCaches = invalidateCaches;
             this.extendedVerify = extendedVerify;
             this.copyData = copyData;
+            this.failOnMissingIndex = failOnMissingIndex;
+            this.validateIndexChecksum = validateIndexChecksum;
         }
 
         public static Builder options(String srcDir)
@@ -481,6 +524,8 @@ public class SSTableImporter
                    ", invalidateCaches=" + invalidateCaches +
                    ", extendedVerify=" + extendedVerify +
                    ", copyData= " + copyData +
+                   ", failOnMissingIndex= " + failOnMissingIndex +
+                   ", validateIndexChecksum= " + validateIndexChecksum +
                    '}';
         }
 
@@ -494,6 +539,8 @@ public class SSTableImporter
             private boolean invalidateCaches = false;
             private boolean extendedVerify = false;
             private boolean copyData = false;
+            private boolean failOnMissingIndex = false;
+            private boolean validateIndexChecksum = true;
 
             private Builder(Set<String> srcPath)
             {
@@ -543,9 +590,24 @@ public class SSTableImporter
                 return this;
             }
 
+            public Builder failOnMissingIndex(boolean value)
+            {
+                failOnMissingIndex = value;
+                return this;
+            }
+
+            public Builder validateIndexChecksum(boolean value)
+            {
+                validateIndexChecksum = value;
+                return this;
+            }
+
             public Options build()
             {
-                return new Options(srcPaths, resetLevel, clearRepaired, verifySSTables, verifyTokens, invalidateCaches, extendedVerify, copyData);
+                return new Options(srcPaths, resetLevel, clearRepaired,
+                                   verifySSTables, verifyTokens, invalidateCaches,
+                                   extendedVerify, copyData, failOnMissingIndex,
+                                   validateIndexChecksum);
             }
         }
     }

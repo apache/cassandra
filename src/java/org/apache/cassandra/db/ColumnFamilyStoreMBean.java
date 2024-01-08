@@ -189,12 +189,12 @@ public interface ColumnFamilyStoreMBean
     /** @deprecated See CASSANDRA-16407 */
     @Deprecated(since = "4.0")
     public List<String> importNewSSTables(Set<String> srcPaths,
-                                           boolean resetLevel,
-                                           boolean clearRepaired,
-                                           boolean verifySSTables,
-                                           boolean verifyTokens,
-                                           boolean invalidateCaches,
-                                           boolean extendedVerify);
+                                          boolean resetLevel,
+                                          boolean clearRepaired,
+                                          boolean verifySSTables,
+                                          boolean verifyTokens,
+                                          boolean invalidateCaches,
+                                          boolean extendedVerify);
 
     /**
      * Load new sstables from the given directory
@@ -210,6 +210,8 @@ public interface ColumnFamilyStoreMBean
      *
      * @return list of failed import directories
      */
+    /** @deprecated See CASSANDRA-18714 */
+    @Deprecated(since = "5.0")
     public List<String> importNewSSTables(Set<String> srcPaths,
                                           boolean resetLevel,
                                           boolean clearRepaired,
@@ -218,6 +220,33 @@ public interface ColumnFamilyStoreMBean
                                           boolean invalidateCaches,
                                           boolean extendedVerify,
                                           boolean copyData);
+
+    /**
+     * Load new sstables from the given directory
+     *
+     * @param srcPaths the path to the new sstables - if it is an empty set, the data directories will be scanned
+     * @param resetLevel if the level should be reset to 0 on the new sstables
+     * @param clearRepaired if repaired info should be wiped from the new sstables
+     * @param verifySSTables if the new sstables should be verified that they are not corrupt
+     * @param verifyTokens if the tokens in the new sstables should be verified that they are owned by the current node
+     * @param invalidateCaches if row cache should be invalidated for the keys in the new sstables
+     * @param extendedVerify if we should run an extended verify checking all values in the new sstables
+     * @param copyData if we should copy data from source paths instead of moving them
+     * @param validateIndexChecksum if we should also validate checksum for SAI indexes
+     * @param failOnMissingIndex if loading should fail when SSTables do not contain built SAI indexes too
+     *
+     * @return list of failed import directories
+     */
+    public List<String> importNewSSTables(Set<String> srcPaths,
+                                          boolean resetLevel,
+                                          boolean clearRepaired,
+                                          boolean verifySSTables,
+                                          boolean verifyTokens,
+                                          boolean invalidateCaches,
+                                          boolean extendedVerify,
+                                          boolean copyData,
+                                          boolean failOnMissingIndex,
+                                          boolean validateIndexChecksum);
 
     /** @deprecated See CASSANDRA-6719 */
     @Deprecated(since = "4.0")

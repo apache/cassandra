@@ -23,7 +23,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
@@ -33,6 +34,7 @@ import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -49,12 +51,14 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
     protected SSTableFormat<?, ?> format = DatabaseDescriptor.getSelectedSSTableFormat();
     protected static final AtomicReference<SSTableId> id = new AtomicReference<>(SSTableIdFactory.instance.defaultBuilder().generator(Stream.empty()).get());
     protected boolean makeRangeAware = false;
+    protected final Collection<Index.Group> indexGroups;
 
     protected AbstractSSTableSimpleWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns)
     {
         this.metadata = metadata;
         this.directory = directory;
         this.columns = columns;
+        indexGroups = new ArrayList<>();
     }
 
     protected void setSSTableFormatType(SSTableFormat<?, ?> type)
@@ -65,6 +69,11 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
     protected void setRangeAwareWriting(boolean makeRangeAware)
     {
         this.makeRangeAware = makeRangeAware;
+    }
+
+    protected void addIndexGroup(Index.Group indexGroup)
+    {
+        this.indexGroups.add(indexGroup);
     }
 
     protected SSTableTxnWriter createWriter(SSTable.Owner owner) throws IOException
@@ -81,7 +90,7 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
                                        ActiveRepairService.NO_PENDING_REPAIR,
                                        false,
                                        header,
-                                       Collections.emptySet(),
+                                       indexGroups,
                                        owner);
     }
 
