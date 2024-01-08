@@ -146,13 +146,15 @@ RUN bash -c 'source ~/env3.7/bin/activate && \
 RUN sudo update-java-alternatives --set java-1.11.0-openjdk-$(dpkg --print-architecture)
 
 # Initialize the CCM git repo as well as this also can fail to clone
+# TODO Move binary:5.0* to above once GA
 RUN /bin/bash -c 'source ~/env3.7/bin/activate && \
     ccm create -n 1 -v git:trunk test && ccm remove test && \
     ccm create -n 1 -v git:cassandra-5.0 test && ccm remove test && \
-    ccm create --quiet -n 1 -v binary:5.0-alpha1 test && ccm remove test '
+    ccm create --quiet -n 1 -v binary:5.0-beta1 test && ccm remove test '
 
 # the .git subdirectories to pip installed cassandra-driver breaks virtualenv-clone, so just remove them
-RUN rm -rf ${BUILD_HOME}/env*/src/cassandra-driver/.git
+#  and other directories we don't need in image
+RUN rm -rf ${BUILD_HOME}/env*/src/cassandra-driver/.git /home/cassandra-tmp/.m2 /tmp/ccm-*.tar.gz
 # fix permissions, runtime user has different uid/gid
 RUN chmod -R og+wx ${BUILD_HOME}/.ccm ${BUILD_HOME}/env* ${BUILD_HOME}/.cache
 
