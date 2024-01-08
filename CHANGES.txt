@@ -1,4 +1,5 @@
 4.0.12
+ * Revert unnecessary read lock acquisition when reading ring version in TokenMetadata introduced in CASSANDRA-16286 (CASSANDRA-19107)
  * Support max SSTable size in sorted CQLSSTableWriter (CASSANDRA-18941)
  * Fix nodetool repair_admin summarize-pending command to not throw exception (CASSANDRA-19014)
  * Fix cassandra-stress in simplenative mode with prepared statements (CASSANDRA-18744)
