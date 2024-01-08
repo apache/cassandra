@@ -15,11 +15,11 @@ SAI combines:
 
 include::cassandra:partial$sai/support-databases.adoc[]
 
-After creating your database, a keyspace, and one or more tables, use `+CREATE CUSTOM INDEX ...
-USING 'StorageAttachedIndex'+` to define one or more SAI indexes on the table.
+After creating your database, a keyspace, and one or more tables, use `+CREATE INDEX ...
+USING 'sai'+` to define one or more SAI indexes on the table.
 For Cassandra databases, use `cqlsh`.
-The same `+CREATE CUSTOM INDEX ...
-USING 'StorageAttachedIndex'+` command is available for both.
+The same `+CREATE INDEX ...
+USING 'sai'+` command is available for both.
 See xref:cassandra:getting-started/sai-quickstart.adoc[SAI quickstart].
 
 == What configuration settings should I use with SAI?
@@ -89,8 +89,8 @@ The features, by design, are intentionally simple and easy to use.
 
 At a high level, SAI indexes are:
 
-* Created and dropped per column via CQL `+CREATE CUSTOM INDEX ...
-USING 'StorageAttachedIndex'+` commands and `DROP INDEX` commands.
+* Created and dropped per column via CQL `+CREATE INDEX ...
+USING 'sai'+` commands and `DROP INDEX` commands.
 Start in xref:cassandra:getting-started/sai-quickstart.adoc[SAI quickstart].
 
 * Rebuilt and backed up via nodetool.
@@ -203,15 +203,15 @@ SELECT * FROM audit WHERE text_map CONTAINS KEY 'Giovani';
 For query examples with `CONTAINS` clauses that take advantage of SAI collection maps, lists, and sets, be sure to see xref:developing/cql/indexing/sai/collections.adoc[SAI collection map examples with keys, values, and entries].
 ====
 
-== On the `CREATE CUSTOM INDEX` command for SAI, what options are available?
+== On the `CREATE INDEX` command for SAI, what options are available?
 
 Use the `WITH OPTIONS` clause to indicate how SAI should handle case sensitivity and special characters in the index.
 For example, given a string column `lastname`:
 
 [source,language-cql]
 ----
-CREATE CUSTOM INDEX lastname_sai_idx ON cycling.cyclist_semi_pro (lastname)
-  USING 'StorageAttachedIndex' WITH OPTIONS =
+CREATE INDEX lastname_sai_idx ON cycling.cyclist_semi_pro (lastname)
+  USING 'sai' WITH OPTIONS =
   {'case_sensitive': 'false', 'normalize': 'true', 'ascii': 'true'};
 ----
 

@@ -6,17 +6,17 @@ DROP INDEX IF EXISTS cycling.country_sai_idx;
 DROP INDEX IF EXISTS cycling.registration_sai_idx;
 
 // tag::createQuickStartIndices[]
-CREATE CUSTOM INDEX lastname_sai_idx ON cycling.cyclist_semi_pro (lastname) 
-USING 'StorageAttachedIndex' 
+CREATE INDEX lastname_sai_idx ON cycling.cyclist_semi_pro (lastname) 
+USING 'sai' 
 WITH OPTIONS = {'case_sensitive': 'false', 'normalize': 'true', 'ascii': 'true'}; 
 
-CREATE CUSTOM INDEX age_sai_idx ON cycling.cyclist_semi_pro (age) 
-USING 'StorageAttachedIndex';
+CREATE INDEX age_sai_idx ON cycling.cyclist_semi_pro (age) 
+USING 'sai';
 
-CREATE CUSTOM INDEX country_sai_idx ON cycling.cyclist_semi_pro (country) 
-USING 'StorageAttachedIndex'
+CREATE INDEX country_sai_idx ON cycling.cyclist_semi_pro (country) 
+USING 'sai'
 WITH OPTIONS = {'case_sensitive': 'false', 'normalize': 'true', 'ascii': 'true'}; 
 
-CREATE CUSTOM INDEX registration_sai_idx ON cycling.cyclist_semi_pro (registration) 
-USING 'StorageAttachedIndex'; 
+CREATE INDEX registration_sai_idx ON cycling.cyclist_semi_pro (registration) 
+USING 'sai'; 
 // end::createQuickStartIndices[]
