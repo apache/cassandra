@@ -663,8 +663,12 @@ public class Mutation implements IMutation, Supplier<Mutation>
 
         public PartitionUpdateCollector add(PartitionUpdate partitionUpdate)
         {
-            assert partitionUpdate != null;
-            assert partitionUpdate.partitionKey().getPartitioner() == key.getPartitioner();
+            assert partitionUpdate != null : "Null updates are not allowed";
+            assert partitionUpdate.partitionKey().getPartitioner() == key.getPartitioner(): String.format("Update to key %s with partitioner %s (%s) had an update (%s) with a different partitioner! %s (%s)",
+                                                                                                          key,
+                                                                                                          key.getPartitioner(), key.getPartitioner().getClass(),
+                                                                                                          partitionUpdate,
+                                                                                                          partitionUpdate.partitionKey().getPartitioner(), partitionUpdate.partitionKey().getPartitioner().getClass());
             // note that ImmutableMap.Builder only allows put:ing the same key once, it will fail during build() below otherwise
             modifications.put(partitionUpdate.metadata().id, partitionUpdate);
             empty = false;

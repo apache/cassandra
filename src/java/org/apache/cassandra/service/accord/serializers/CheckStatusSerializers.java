@@ -45,6 +45,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.NullableSerializer;
 
 import static accord.messages.CheckStatus.SerializationSupport.createOk;
 
@@ -78,6 +79,8 @@ public class CheckStatusSerializers
         }
     };
 
+    public static final IVersionedSerializer<FoundKnown> foundKnownNullable = NullableSerializer.wrap(foundKnown);
+
     public static final IVersionedSerializer<FoundKnownMap> foundKnownMap = new IVersionedSerializer<>()
     {
         @Override
@@ -88,7 +91,7 @@ public class CheckStatusSerializers
             for (int i = 0 ; i <= size ; ++i)
                 KeySerializers.routingKey.serialize(knownMap.startAt(i), out, version);
             for (int i = 0 ; i < size ; ++i)
-                foundKnown.serialize(knownMap.valueAt(i), out, version);
+                foundKnownNullable.serialize(knownMap.valueAt(i), out, version);
         }
 
         @Override
@@ -100,7 +103,7 @@ public class CheckStatusSerializers
                 starts[i] = KeySerializers.routingKey.deserialize(in, version);
             FoundKnown[] values = new FoundKnown[size];
             for (int i = 0 ; i < size ; ++i)
-                values[i] = foundKnown.deserialize(in, version);
+                values[i] = foundKnownNullable.deserialize(in, version);
             return FoundKnownMap.SerializerSupport.create(true, starts, values);
         }
 
@@ -112,7 +115,7 @@ public class CheckStatusSerializers
             for (int i = 0 ; i <= size ; ++i)
                 result += KeySerializers.routingKey.serializedSize(knownMap.startAt(i), version);
             for (int i = 0 ; i < size ; ++i)
-                result += foundKnown.serializedSize(knownMap.valueAt(i), version);
+                result += foundKnownNullable.serializedSize(knownMap.valueAt(i), version);
             return result;
         }
     };
