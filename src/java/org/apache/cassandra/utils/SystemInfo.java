@@ -93,7 +93,7 @@ public final class SystemInfo
     public long getMaxProcess()
     {
         // this check only works on Linux systems.  Errors fall through to return default.
-        if (oshi.SystemInfo.getCurrentPlatform() == PlatformEnum.LINUX)
+        if (platform() == PlatformEnum.LINUX)
         {
             String path = format("/proc/%s/limits", getPid());
             try
