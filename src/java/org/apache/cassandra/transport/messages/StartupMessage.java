@@ -122,19 +122,24 @@ public class StartupMessage extends Message.Request
         }
 
         IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
-        if (authenticator.requireAuthentication()) {
+        if (authenticator.requireAuthentication())
+        {
             // If the authenticator supports early certificate authentication, attempt to authenticate with certificates.
-            if (authenticator.supportsEarlyCertificateAuthentication()) {
+            if (authenticator.supportsEarlyCertificateAuthentication())
+            {
                 IAuthenticator.SaslNegotiator negotiator = ((ServerConnection) connection).getSaslNegotiator(state);
                 // If the negotiator determines that certificate authentication is required, attempt to authenticate on it.
-                if (negotiator.requiresCertificateAuthentication()) {
+                if (negotiator.requiresCertificateAuthentication())
+                {
                     // Attempt to authenticate the user.
                     return AuthUtil.handleLogin(connection, state, EMPTY_CLIENT_RESPONSE, (negotiationComplete, challenge) ->
                     {
-                        if (negotiationComplete) {
+                        if (negotiationComplete)
+                        {
                             // Authentication was successful, proceed.
                             return new ReadyMessage();
-                        } else {
+                        } else
+                        {
                             // It's expected that any negotiator that requires a challenge will likely not support early
                             // certificate authentication, in this case we can just go through the traditional auth flow.
                             return new AuthenticateMessage(DatabaseDescriptor.getAuthenticator().getClass().getName());

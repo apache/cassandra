@@ -30,7 +30,7 @@ import org.apache.cassandra.transport.Connection;
 import org.apache.cassandra.transport.Message.Response;
 import org.apache.cassandra.transport.ServerConnection;
 
-public class AuthUtil
+public final class AuthUtil
 {
 
     /**
@@ -89,5 +89,12 @@ public class AuthUtil
             AuthEvents.instance.notifyAuthFailure(queryState, e);
             return ErrorMessage.fromException(e);
         }
+    }
+
+    /**
+     * The class must not be instantiated.
+     */
+    private AuthUtil()
+    {
     }
 }

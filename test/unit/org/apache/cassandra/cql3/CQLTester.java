@@ -500,7 +500,8 @@ public abstract class CQLTester
         return allArgs;
     }
 
-    protected static void requireAuthentication() {
+    protected static void requireAuthentication()
+    {
         requireAuthentication(new AuthTestUtils.LocalPasswordAuthenticator());
     }
 
