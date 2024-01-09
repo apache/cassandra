@@ -73,7 +73,7 @@ public final class DroppedColumn
     {
         return String.format("DROPPED COLUMN RECORD %s %s%s USING TIMESTAMP %d",
                              column.name.toCQLString(),
-                             column.type.asCQL3Type(),
+                             column.type.asCQL3Type().toSchemaString(),
                              column.isStatic() ? " static" : "",
                              droppedTime);
     }

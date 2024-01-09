@@ -91,14 +91,12 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement implement
         if (newKeyspace.params.replication.klass.equals(LocalStrategy.class))
             throw ire("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
 
-        newKeyspace.params.validate(keyspaceName);
+        newKeyspace.validate();
 
         validateNoRangeMovements();
         validateTransientReplication(keyspace.createReplicationStrategy(), newKeyspace.createReplicationStrategy());
 
-        Keyspaces res = schema.withAddedOrUpdated(newKeyspace);
-
-        return res;
+        return schema.withAddedOrUpdated(newKeyspace);
     }
 
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)

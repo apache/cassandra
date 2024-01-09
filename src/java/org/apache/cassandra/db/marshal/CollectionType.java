@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Iterator;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.Lists;
@@ -38,11 +40,10 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * The abstract validator that is the base for maps, sets and lists (both frozen and non-frozen).
- *
- * Please note that this comparator shouldn't be used "manually" (as a custom
- * type for instance).
+ * <p>
+ * Please note that this comparator shouldn't be used "manually" (as a custom type for instance).
  */
-public abstract class CollectionType<T> extends AbstractType<T>
+public abstract class CollectionType<T> extends MultiCellCapableType<T>
 {
     public static CellPath.Serializer cellPathSerializer = new CollectionPathSerializer();
 
@@ -75,9 +76,9 @@ public abstract class CollectionType<T> extends AbstractType<T>
 
     public final Kind kind;
 
-    protected CollectionType(ComparisonType comparisonType, Kind kind)
+    protected CollectionType(Kind kind, ImmutableList<AbstractType<?>> subTypes, boolean isMultiCell)
     {
-        super(comparisonType);
+        super(subTypes, isMultiCell);
         this.kind = kind;
     }
 
@@ -134,12 +135,6 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return kind == Kind.MAP;
     }
 
-    @Override
-    public boolean isFreezable()
-    {
-        return true;
-    }
-
     // Overrided by maps
     protected int collectionSize(List<ByteBuffer> values)
     {
@@ -155,55 +150,35 @@ public abstract class CollectionType<T> extends AbstractType<T>
     }
 
     @Override
-    public boolean isCompatibleWith(AbstractType<?> previous)
+    protected boolean isCompatibleWhenFrozenWith(AbstractType<?> previous)
     {
-        if (this == previous)
-            return true;
-
-        if (!getClass().equals(previous.getClass()))
-            return false;
-
-        CollectionType tprev = (CollectionType) previous;
-        if (this.isMultiCell() != tprev.isMultiCell())
-            return false;
-
-        // subclasses should handle compatibility checks for frozen collections
-        if (!this.isMultiCell())
-            return isCompatibleWithFrozen(tprev);
-
-        if (!this.nameComparator().isCompatibleWith(tprev.nameComparator()))
-            return false;
-
-        // the value comparator is only used for Cell values, so sorting doesn't matter
-        return this.valueComparator().isValueCompatibleWith(tprev.valueComparator());
+        // When frozen, the full collection is a blob, so everything must be sorted-compatible for the whole blob to
+        // be sorted-compatible. Note that for lists and sets, the first condition will always be true (as their
+        // nameComparator() is hard-coded), but this method is not so performance sensitive that it's worth bothering.
+        CollectionType<?> prev = (CollectionType<?>)previous;
+        return nameComparator().isCompatibleWith(prev.nameComparator())
+               && valueComparator().isCompatibleWith(prev.valueComparator());
     }
 
     @Override
-    public boolean isValueCompatibleWithInternal(AbstractType<?> previous)
+    protected boolean isCompatibleWhenNonFrozenWith(AbstractType<?> previous)
     {
-        // for multi-cell collections, compatibility and value-compatibility are the same
-        if (this.isMultiCell())
-            return isCompatibleWith(previous);
-
-        if (this == previous)
-            return true;
-
-        if (!getClass().equals(previous.getClass()))
-            return false;
-
-        CollectionType tprev = (CollectionType) previous;
-        if (this.isMultiCell() != tprev.isMultiCell())
-            return false;
-
-        // subclasses should handle compatibility checks for frozen collections
-        return isValueCompatibleWithFrozen(tprev);
+        // When multi-cell, the name comparator is the one used to compare cell-path so must be sorted-compatible
+        // (same remarks than in isCompatibleWhenFrozenWith for lists and sets), but the value comparator is never used
+        // for sorting so value-compatibility is enough.
+        CollectionType<?> prev = (CollectionType<?>)previous;
+        return nameComparator().isCompatibleWith(prev.nameComparator())
+               && valueComparator().isValueCompatibleWith(prev.valueComparator());
     }
 
-    /** A version of isCompatibleWith() to deal with non-multicell (frozen) collections */
-    protected abstract boolean isCompatibleWithFrozen(CollectionType<?> previous);
-
-    /** A version of isValueCompatibleWith() to deal with non-multicell (frozen) collections */
-    protected abstract boolean isValueCompatibleWithFrozen(CollectionType<?> previous);
+    @Override
+    protected boolean isValueCompatibleWhenFrozenWith(AbstractType<?> previous)
+    {
+        // When frozen, the full collection is a blob, so value-compatibility is all we care for everything.
+        CollectionType<?> prev = (CollectionType<?>)previous;
+        return nameComparator().isValueCompatibleWith(prev.nameComparator())
+               && valueComparator().isValueCompatibleWith(prev.valueComparator());
+    }
 
     public CQL3Type asCQL3Type()
     {
@@ -211,29 +186,9 @@ public abstract class CollectionType<T> extends AbstractType<T>
     }
 
     @Override
-    public boolean equals(Object o)
+    protected boolean equalsNoFrozenNoSubtypes(AbstractType<?> that)
     {
-        if (this == o)
-            return true;
-
-        if (!(o instanceof CollectionType))
-            return false;
-
-        CollectionType other = (CollectionType)o;
-
-        if (kind != other.kind)
-            return false;
-
-        if (isMultiCell() != other.isMultiCell())
-            return false;
-
-        return nameComparator().equals(other.nameComparator()) && valueComparator().equals(other.valueComparator());
-    }
-
-    @Override
-    public String toString()
-    {
-        return this.toString(false);
+        return kind == ((CollectionType<?>)that).kind;
     }
 
     private static class CollectionPathSerializer implements CellPath.Serializer

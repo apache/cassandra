@@ -81,7 +81,13 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
         if (null == type)
             throw ire("Type %s.%s doesn't exist", keyspaceName, typeName);
 
-        return schema.withAddedOrUpdated(keyspace.withUpdatedUserType(apply(keyspace, type)));
+        UserType updated = apply(keyspace, type);
+        CreateTypeStatement.validate(updated);
+
+        KeyspaceMetadata newKeyspace = keyspace.withUpdatedUserType(updated);
+        newKeyspace.validate();
+
+        return schema.withAddedOrUpdated(newKeyspace);
     }
 
     abstract UserType apply(KeyspaceMetadata keyspace, UserType type);

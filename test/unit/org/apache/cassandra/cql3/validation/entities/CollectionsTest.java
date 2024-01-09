@@ -1762,15 +1762,15 @@ public class CollectionsTest extends CQLTester
     {
         String type = createType("CREATE TYPE %s (s set<int>, m map<text, text>)");
 
-        assertInvalidMessage("Non-frozen UDTs are not allowed inside collections",
+        assertInvalidMessage("non-frozen user types are only supported at top-level",
                              "CREATE TABLE " + KEYSPACE + ".t (k int PRIMARY KEY, v map<text, " + type + ">)");
 
         String mapType = "map<text, frozen<" + type + ">>";
         for (boolean frozen : new boolean[]{false, true})
         {
-            mapType = frozen ? "frozen<" + mapType + ">" : mapType;
+            mapType = frozen ? "frozen<" + mapType + '>' : mapType;
 
-            createTable("CREATE TABLE %s (k int PRIMARY KEY, v " + mapType + ")");
+            createTable("CREATE TABLE %s (k int PRIMARY KEY, v " + mapType + ')');
 
             execute("INSERT INTO %s(k, v) VALUES (0, ?)", map("abc", userType("s", set(2, 4, 6), "m", map("a", "v1", "d", "v2"))));
 
@@ -1782,16 +1782,16 @@ public class CollectionsTest extends CQLTester
             });
         }
 
-        assertInvalidMessage("Non-frozen UDTs with nested non-frozen collections are not supported",
-                             "CREATE TABLE " + KEYSPACE + ".t (k int PRIMARY KEY, v " + type + ")");
+        assertInvalidMessage("non-frozen collections are only supported at top-level",
+                             "CREATE TABLE " + KEYSPACE + ".t (k int PRIMARY KEY, v " + type + ')');
 
         type = createType("CREATE TYPE %s (s frozen<set<int>>, m frozen<map<text, text>>)");
 
         for (boolean frozen : new boolean[]{false, true})
         {
-            type = frozen ? "frozen<" + type + ">" : type;
+            type = frozen ? "frozen<" + type + '>' : type;
 
-            createTable("CREATE TABLE %s (k int PRIMARY KEY, v " + type + ")");
+            createTable("CREATE TABLE %s (k int PRIMARY KEY, v " + type + ')');
 
             execute("INSERT INTO %s(k, v) VALUES (0, ?)", userType("s", set(2, 4, 6), "m", map("a", "v1", "d", "v2")));
 
@@ -1889,7 +1889,7 @@ public class CollectionsTest extends CQLTester
                              "INSERT INTO %s (k, s) VALUES (0, ?)",
                              set(tuple(1, "1", 1.0, 1), tuple(2, "2", 2.0, 2)));
 
-        assertInvalidMessage("Invalid set literal for s: value (1, '1', 1.0, 1) is not of type frozen<tuple<int, text, double>>",
+        assertInvalidMessage("Invalid set literal for s: value (1, '1', 1.0, 1) is not of type tuple<int, text, double>",
                              "INSERT INTO %s (k, s) VALUES (0, {(1, '1', 1.0, 1)})");
 
         createTable("CREATE TABLE %s (k int PRIMARY KEY, l frozen<list<tuple<int, text, double>>>)");
@@ -1897,7 +1897,7 @@ public class CollectionsTest extends CQLTester
                              "INSERT INTO %s (k, l) VALUES (0, ?)",
                              list(tuple(1, "1", 1.0, 1), tuple(2, "2", 2.0, 2)));
 
-        assertInvalidMessage("Invalid list literal for l: value (1, '1', 1.0, 1) is not of type frozen<tuple<int, text, double>>",
+        assertInvalidMessage("Invalid list literal for l: value (1, '1', 1.0, 1) is not of type tuple<int, text, double>",
                              "INSERT INTO %s (k, l) VALUES (0, [(1, '1', 1.0, 1)])");
 
         createTable("CREATE TABLE %s (k int PRIMARY KEY, m frozen<map<tuple<int, text, double>, int>>)");
@@ -1905,7 +1905,7 @@ public class CollectionsTest extends CQLTester
                              "INSERT INTO %s (k, m) VALUES (0, ?)",
                              map(tuple(1, "1", 1.0, 1), 1, tuple(2, "2", 2.0, 2), 2));
 
-        assertInvalidMessage("Invalid map literal for m: key (1, '1', 1.0, 1) is not of type frozen<tuple<int, text, double>>",
+        assertInvalidMessage("Invalid map literal for m: key (1, '1', 1.0, 1) is not of type tuple<int, text, double>",
                              "INSERT INTO %s (k, m) VALUES (0, {(1, '1', 1.0, 1) : 1})");
 
         createTable("CREATE TABLE %s (k int PRIMARY KEY, m frozen<map<int, tuple<int, text, double>>>)");
@@ -1913,7 +1913,7 @@ public class CollectionsTest extends CQLTester
                              "INSERT INTO %s (k, m) VALUES (0, ?)",
                              map(1, tuple(1, "1", 1.0, 1), 2, tuple(2, "2", 2.0, 2)));
 
-        assertInvalidMessage("Invalid map literal for m: value (1, '1', 1.0, 1) is not of type frozen<tuple<int, text, double>>",
+        assertInvalidMessage("Invalid map literal for m: value (1, '1', 1.0, 1) is not of type tuple<int, text, double>",
                              "INSERT INTO %s (k, m) VALUES (0, {1 : (1, '1', 1.0, 1)})");
     }
 

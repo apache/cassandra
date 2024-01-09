@@ -28,6 +28,7 @@ import com.google.common.collect.MapMaker;
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.ByteBufferCloner;
@@ -193,6 +194,21 @@ public class ColumnIdentifier implements IMeasurableMemory, Comparable<ColumnIde
     public String toCQLString()
     {
         return maybeQuote(text);
+    }
+
+    public static String toCQLString(ByteBuffer name)
+    {
+        try
+        {
+            return maybeQuote(UTF8Type.instance.getString(name));
+        }
+        catch (MarshalException e)
+        {
+            // Note: some (hopefully very, very rare) legacy tables (from thrift) could have column names that
+            // are not text-based, so this could theoretically be triggered. Usually, ColumnIdentifier handles this,
+            // but this method is called in places where it's not worth bothering.
+            return ByteBufferUtil.toDebugHexString(name);
+        }
     }
 
     public long unsharedHeapSize()

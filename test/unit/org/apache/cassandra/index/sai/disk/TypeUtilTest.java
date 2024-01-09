@@ -106,8 +106,8 @@ public class TypeUtilTest extends SaiRandomizedTest
         {
             TupleType type = new TupleType(Arrays.asList(elementType.getType(), elementType.getType()), true);
             assertFalse(TypeUtil.isFrozenCollection(type));
-            assertTrue(TypeUtil.isFrozen(type));
-            assertTrue(TypeUtil.isLiteral(type));
+            assertFalse(TypeUtil.isFrozen(type));
+            assertFalse(TypeUtil.isLiteral(type));
 
             type = new TupleType(Arrays.asList(elementType.getType(), elementType.getType()), false);
             assertFalse(TypeUtil.isFrozenCollection(type));

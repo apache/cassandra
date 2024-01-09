@@ -17,8 +17,8 @@
  */
 package org.apache.cassandra.cql3.validation.entities;
 
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
@@ -803,10 +803,10 @@ public class FrozenCollectionsTest extends CQLTester
         assertInvalid("DELETE m[?] FROM %s WHERE k=?", 0, 0);
 
         assertInvalidCreateWithMessage("CREATE TABLE %s (k int PRIMARY KEY, t set<set<int>>)",
-                "Non-frozen collections are not allowed inside collections");
+                                       "non-frozen collections are only supported at top-level");
 
         assertInvalidCreateWithMessage("CREATE TABLE %s (k int PRIMARY KEY, t frozen<set<counter>>)",
-                                       "Counters are not allowed inside collections");
+                                       "counters are not allowed within collections");
 
         assertInvalidCreateWithMessage("CREATE TABLE %s (k int PRIMARY KEY, t frozen<text>)",
                 "frozen<> is only allowed on collections, tuples, and user-defined types");
@@ -1373,10 +1373,9 @@ public class FrozenCollectionsTest extends CQLTester
         assertEquals("MapType(ListType(Int32Type),Int32Type)", clean(m.toString(true)));
 
         // tuple<set<int>>
-        List<AbstractType<?>> types = new ArrayList<>();
-        types.add(SetType.getInstance(Int32Type.instance, true));
+        List<AbstractType<?>> types = Collections.singletonList(SetType.getInstance(Int32Type.instance, true));
         TupleType tuple = new TupleType(types);
-        assertEquals("TupleType(SetType(Int32Type))", clean(tuple.toString()));
+        assertEquals("FrozenType(TupleType(SetType(Int32Type)))", clean(tuple.toString()));
     }
 
     @Test

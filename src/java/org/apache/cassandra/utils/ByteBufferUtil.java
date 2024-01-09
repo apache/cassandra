@@ -924,4 +924,23 @@ public class ByteBufferUtil
 
         return n;
     }
+
+    /**
+     * Essentially the same as {@link #bytesToHex(ByteBuffer)} (though it prepends "0x" for clarity) but takes care of
+     * not output a string too long if the value is too big. This is to be used for error/debug message where we don't
+     * want to blow things up.
+     *
+     * @param bytes the bytes to convert to hexadecimal string.
+     * @return a string representation of {@code bytes} that may be only partial if {@code bytes} is too big.
+     */
+    public static String toDebugHexString(ByteBuffer bytes)
+    {
+        int maxSize = 50; // kind of arbitrary tbh but that's not hugely important
+        if (bytes.remaining() > maxSize)
+        {
+            bytes = bytes.duplicate();
+            bytes.limit(bytes.position() + maxSize);
+        }
+        return "0x" + bytesToHex(bytes);
+    }
 }

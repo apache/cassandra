@@ -29,7 +29,6 @@ import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.cql3.statements.RawKeyspaceAwareStatement;
@@ -255,11 +254,11 @@ public final class CreateIndexStatement extends AlterSchemaStatement
         if (column.isPartitionKey() && table.partitionKeyColumns().size() == 1)
             throw ire("Cannot create secondary index on the only partition key column %s", column);
 
-        if (column.type.isFrozenCollection() && target.type != Type.FULL)
+        if (column.type.isCollection() && !column.type.isMultiCell() && target.type != Type.FULL)
             throw ire("Cannot create %s() index on frozen column %s. Frozen collections are immutable and must be fully " +
                       "indexed by using the 'full(%s)' modifier", target.type, column, column);
 
-        if (!column.type.isFrozenCollection() && target.type == Type.FULL)
+        if ((!column.type.isCollection() || column.type.isMultiCell()) && target.type == Type.FULL)
             throw ire("full() indexes can only be created on frozen collections");
 
         if (!column.type.isCollection() && target.type != Type.SIMPLE)

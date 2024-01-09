@@ -22,7 +22,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestValidationException;
 
 public class CountersTest extends CQLTester
 {
@@ -34,7 +34,7 @@ public class CountersTest extends CQLTester
     public void testRegularCounters() throws Throwable
     {
         assertInvalidThrowMessage("Cannot mix counter and non counter columns in the same table",
-                                  InvalidRequestException.class,
+                                  RequestValidationException.class,
                                   String.format("CREATE TABLE %s.%s (id bigint PRIMARY KEY, count counter, things set<text>)", KEYSPACE, createTableName()));
     }
 
@@ -42,11 +42,14 @@ public class CountersTest extends CQLTester
     public void testCannotAlterWithNonCounterColumn() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, c counter)");
-        assertInvalidThrowMessage("Cannot have a non counter column (\"t\") in a counter table",
-                ConfigurationException.class, formatQuery("ALTER TABLE %s ADD t text"));
+        assertInvalidThrowMessage("Invalid type text for column t: Cannot mix counter and non counter columns in the same table",
+                                  ConfigurationException.class,
+                                  formatQuery("ALTER TABLE %s ADD t text"));
+
         createTable("CREATE TABLE %s (k int PRIMARY KEY, t text)");
-        assertInvalidThrowMessage("Cannot have a counter column (\"c\") in a non counter table",
-                                  ConfigurationException.class, formatQuery("ALTER TABLE %s ADD c counter"));
+        assertInvalidThrowMessage("Invalid type counter for column c: Cannot mix counter and non counter columns in the same table",
+                                  ConfigurationException.class,
+                                  formatQuery("ALTER TABLE %s ADD c counter"));
     }
 
     /**
@@ -55,17 +58,34 @@ public class CountersTest extends CQLTester
     @Test
     public void testCountersOnCollections() throws Throwable
     {
-        String tableName = KEYSPACE + "." + createTableName();
-        assertInvalidThrow(InvalidRequestException.class,
+        String tableName = KEYSPACE + '.' + createTableName();
+        assertInvalidThrow(RequestValidationException.class,
                            String.format("CREATE TABLE %s (k int PRIMARY KEY, l list<counter>)", tableName));
 
-        tableName = KEYSPACE + "." + createTableName();
-        assertInvalidThrow(InvalidRequestException.class,
+        tableName = KEYSPACE + '.' + createTableName();
+        assertInvalidThrow(RequestValidationException.class,
                            String.format("CREATE TABLE %s (k int PRIMARY KEY, s set<counter>)", tableName));
 
-        tableName = KEYSPACE + "." + createTableName();
-        assertInvalidThrow(InvalidRequestException.class,
+        tableName = KEYSPACE + '.' + createTableName();
+        assertInvalidThrow(RequestValidationException.class,
                            String.format("CREATE TABLE %s (k int PRIMARY KEY, m map<text, counter>)", tableName));
+    }
+
+    /**
+     * Migrated from user_types_test.py::TestUserTypes::test_no_counters_in_user_types
+     */
+    @Test
+    public void testCountersOnUserTypes() throws Throwable
+    {
+        String typeName = KEYSPACE + '.' + createTypeName();
+        assertInvalidThrowMessage("A user type cannot contain counters",
+                                  RequestValidationException.class,
+                                  String.format("CREATE TYPE %s (a counter)", typeName));
+
+        typeName = KEYSPACE + '.' + createType("CREATE TYPE %s (a int)");
+        assertInvalidThrowMessage("A user type cannot contain counters",
+                                  RequestValidationException.class,
+                                  String.format("ALTER TYPE %s ADD b counter", typeName));
     }
 
     @Test
@@ -172,8 +192,11 @@ public class CountersTest extends CQLTester
     @Test
     public void testProhibitReversedCounterAsPartOfPrimaryKey() throws Throwable
     {
-        assertInvalidThrowMessage("counter type is not supported for PRIMARY KEY column 'a'",
-                                  InvalidRequestException.class, String.format("CREATE TABLE %s.%s (a counter, b int, PRIMARY KEY (b, a)) WITH CLUSTERING ORDER BY (a desc);", KEYSPACE, createTableName()));
+        assertInvalidThrowMessage("counters are not supported within PRIMARY KEY columns",
+                                  RequestValidationException.class,
+                                  String.format("CREATE TABLE %s.%s (a counter, b int, PRIMARY KEY (b, a)) WITH CLUSTERING ORDER BY (a desc);",
+                                                KEYSPACE,
+                                                createTableName()));
     }
 
     /**

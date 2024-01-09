@@ -163,9 +163,9 @@ public final class JsonTransformer
                 }
 
                 int i = 0;
-                while (keyBytes.remaining() > 0 && i < compositeType.getComponents().size())
+                while (keyBytes.remaining() > 0 && i < compositeType.subTypes().size())
                 {
-                    AbstractType<?> colType = compositeType.getComponents().get(i);
+                    AbstractType<?> colType = compositeType.subTypes().get(i);
 
                     ByteBuffer value = ByteBufferUtil.readBytesWithShortLength(keyBytes);
                     String colValue = colType.getString(value);

@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+import com.google.common.collect.ImmutableList;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -133,6 +134,6 @@ public class CompositeAndTupleTypesTest
     @Test
     public void composite()
     {
-        testSerializationDeserialization(CompositeType::new, CompositeType::build);
+        testSerializationDeserialization(types -> new CompositeType(ImmutableList.copyOf(types)), CompositeType::build);
     }
 }

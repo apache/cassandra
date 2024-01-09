@@ -55,7 +55,7 @@ public class TupleTypeTest extends CQLTester
         String[] valueTypes = {"frozen<tuple<int, text, double>>", "tuple<int, text, double>"};
         for (String valueType : valueTypes)
         {
-            createTable("CREATE TABLE %s (k int PRIMARY KEY, t " + valueType + ")");
+            createTable("CREATE TABLE %s (k int PRIMARY KEY, t " + valueType + ')');
 
             execute("INSERT INTO %s (k, t) VALUES (?, ?)", 0, tuple(3, "foo", 3.4));
             execute("INSERT INTO %s (k, t) VALUES (?, ?)", 1, tuple(8, "bar", 0.2));
@@ -136,7 +136,7 @@ public class TupleTypeTest extends CQLTester
             row(0, 4, tuple(null, "1"))
         );
 
-        assertInvalidMessage("Invalid tuple literal: too many elements. Type frozen<tuple<int, text>> expects 2 but got 3",
+        assertInvalidMessage("Invalid tuple literal: too many elements. Type tuple<int, text> expects 2 but got 3",
                              "INSERT INTO %s(k, t) VALUES (1,'1:2:3')");
     }
 
@@ -147,7 +147,7 @@ public class TupleTypeTest extends CQLTester
 
         assertInvalidSyntax("INSERT INTO %s (k, t) VALUES (0, ())");
 
-        assertInvalidMessage("Invalid tuple literal for t: too many elements. Type frozen<tuple<int, text, double>> expects 3 but got 4",
+        assertInvalidMessage("Invalid tuple literal for t: too many elements. Type tuple<int, text, double> expects 3 but got 4",
                              "INSERT INTO %s (k, t) VALUES (0, (2, 'foo', 3.1, 'bar'))");
 
         createTable("CREATE TABLE %s (k int PRIMARY KEY, t frozen<tuple<int, tuple<int, text, double>>>)");
@@ -155,7 +155,7 @@ public class TupleTypeTest extends CQLTester
                              "INSERT INTO %s (k, t) VALUES (0, ?)",
                              tuple(1, tuple(1, "1", 1.0, 1)));
 
-        assertInvalidMessage("Invalid tuple literal for t: component 1 is not of type frozen<tuple<int, text, double>>",
+        assertInvalidMessage("Invalid tuple literal for t: component 1 is not of type tuple<int, text, double>",
                              "INSERT INTO %s (k, t) VALUES (0, (1, (1, '1', 1.0, 1)))");
     }
 

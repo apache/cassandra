@@ -20,6 +20,9 @@ package org.apache.cassandra.db.marshal;
 
 import org.junit.Test;
 
+import org.apache.cassandra.cql3.CQL3Type;
+import org.assertj.core.api.Assertions;
+
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
@@ -28,7 +31,7 @@ public class ReversedTypeTest
     @Test
     public void testReverseComparison()
     {
-        ReversedType<Long> t = ReversedType.getInstance(LongType.instance);
+        AbstractType<Long> t = ReversedType.getInstance(LongType.instance);
 
         assert t.compare(bytes(2L), bytes(4L)) > 0;
         assert t.compare(bytes(4L), bytes(2L)) < 0;
@@ -36,5 +39,18 @@ public class ReversedTypeTest
         // the empty byte buffer is always the smaller
         assert t.compare(EMPTY_BYTE_BUFFER, bytes(2L)) > 0;
         assert t.compare(bytes(2L), EMPTY_BYTE_BUFFER) < 0;
+    }
+
+    @Test
+    public void testReverseOfReversed()
+    {
+        for (CQL3Type.Native cql3Type : CQL3Type.Native.values())
+        {
+            AbstractType<?> type = cql3Type.getType();
+            AbstractType<?> reversed = ReversedType.getInstance(type);
+            Assertions.assertThat(type)
+                      .isNotEqualTo(reversed)
+                      .isEqualTo(ReversedType.getInstance(reversed));
+        }
     }
 }

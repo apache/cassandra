@@ -231,7 +231,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                     throw ire("Cannot re-add previously dropped column '%s' of type %s, incompatible with previous type %s",
                               name,
                               type.asCQL3Type(),
-                              droppedColumn.type.asCQL3Type());
+                              droppedColumn.type.asCQL3Type().toSchemaString());
                 }
 
                 if (droppedColumn.isStatic() != isStatic)

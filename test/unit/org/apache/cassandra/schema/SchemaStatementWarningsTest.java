@@ -52,7 +52,7 @@ public class SchemaStatementWarningsTest extends CQLTester
     @BMRules(rules = { @BMRule(name = "client warning 1",
                                targetClass = "CreateKeyspaceStatement",
                                targetMethod = "apply",
-                               targetLocation = "AT INVOKE KeyspaceParams.validate",
+                               targetLocation = "AT INVOKE KeyspaceMetadata.validate",
                                action = "org.apache.cassandra.schema.SchemaStatementWarningsTest.addWarn()"),
                        @BMRule(name = "client warning 2",
                                targetClass = "CreateKeyspaceStatement",

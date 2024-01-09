@@ -1777,7 +1777,7 @@ comparatorType returns [CQL3Type.Raw t]
     | s=STRING_LITERAL
       {
         try {
-            $t = CQL3Type.Raw.from(new CQL3Type.Custom($s.text));
+            $t = CQL3Type.Raw.custom($s.text);
         } catch (SyntaxException e) {
             addRecognitionError("Cannot parse type " + $s.text + ": " + e.getMessage());
         } catch (ConfigurationException e) {

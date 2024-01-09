@@ -74,8 +74,6 @@ public class ClusteringComparator implements Comparator<Clusterable>
         this.indexReverseComparator = (o1, o2) -> ClusteringComparator.this.compare((ClusteringPrefix<?>) o1.firstName,
                                                                                     (ClusteringPrefix<?>) o2.firstName);
         this.reverseComparator = (c1, c2) -> ClusteringComparator.this.compare(c2, c1);
-        for (AbstractType<?> type : clusteringTypes)
-            type.checkComparable(); // this should already be enforced by TableMetadata.Builder.addColumn, but we check again for other constructors
     }
 
     /**

@@ -217,9 +217,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         if (kind.isPrimaryKeyKind() || !type.isMultiCell())
             return null;
 
-        AbstractType<?> nameComparator = type.isCollection()
-                                       ? ((CollectionType) type).nameComparator()
-                                       : ((UserType) type).nameComparator();
+        AbstractType<?> nameComparator = ((MultiCellCapableType<?>) type).nameComparator();
 
 
         return (path1, path2) ->
@@ -566,5 +564,15 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     public AbstractType<?> getExactTypeIfKnown(String keyspace)
     {
         return type;
+    }
+
+    /**
+     * Validate whether the column definition is valid (mostly, that the type is valid for the type of column this is).
+     *
+     * @param isCounterTable whether the table the column is part of is a counter table.
+     */
+    public void validate(boolean isCounterTable)
+    {
+        type.validateForColumn(name.bytes, kind.isPrimaryKeyKind(), isCounterTable);
     }
 }

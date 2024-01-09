@@ -28,7 +28,6 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
@@ -70,10 +69,8 @@ public class CompositeType extends AbstractCompositeType
 {
     private static final int STATIC_MARKER = 0xFFFF;
 
-    public final List<AbstractType<?>> types;
-
     // interning instances
-    private static final ConcurrentMap<List<AbstractType<?>>, CompositeType> instances = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<ImmutableList<AbstractType<?>>, CompositeType> instances = new ConcurrentHashMap<>();
 
     public static CompositeType getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
     {
@@ -82,10 +79,10 @@ public class CompositeType extends AbstractCompositeType
 
     public static CompositeType getInstance(Iterable<AbstractType<?>> types)
     {
-        return getInstance(Lists.newArrayList(types));
+        return getInstance(ImmutableList.copyOf(types));
     }
 
-    public static CompositeType getInstance(AbstractType... types)
+    public static CompositeType getInstance(AbstractType<?>... types)
     {
         return getInstance(Arrays.asList(types));
     }
@@ -93,7 +90,7 @@ public class CompositeType extends AbstractCompositeType
     @Override
     public CompositeType overrideKeyspace(Function<String, String> overrideKeyspace)
     {
-        return getInstance(types.stream().map(t -> t.overrideKeyspace(overrideKeyspace)).collect(Collectors.toList()));
+        return getInstance(subTypes.stream().map(t -> t.overrideKeyspace(overrideKeyspace)).collect(Collectors.toList()));
     }
 
     protected static int startingOffsetInternal(boolean isStatic)
@@ -136,25 +133,31 @@ public class CompositeType extends AbstractCompositeType
         return true;
     }
 
-    public static CompositeType getInstance(List<AbstractType<?>> types)
+    public static CompositeType getInstance(ImmutableList<AbstractType<?>> types)
     {
         assert types != null && !types.isEmpty();
-        CompositeType t = instances.get(types);
-        return null == t
-             ? instances.computeIfAbsent(types, CompositeType::new)
-             : t;
+        return getInstance(instances, types, () -> new CompositeType(types));
     }
 
-    protected CompositeType(List<AbstractType<?>> types)
+    protected CompositeType(ImmutableList<AbstractType<?>> types)
     {
-        this.types = ImmutableList.copyOf(types);
+        super(types);
+    }
+
+    @Override
+    public AbstractType<?> with(ImmutableList<AbstractType<?>> subTypes, boolean isMultiCell)
+    {
+        if (isMultiCell)
+            throw new IllegalArgumentException("Cannot create a multi-cell CompositeType");
+
+        return getInstance(subTypes);
     }
 
     protected <V> AbstractType<?> getComparator(int i, V value, ValueAccessor<V> accessor, int offset)
     {
         try
         {
-            return types.get(i);
+            return subTypes.get(i);
         }
         catch (IndexOutOfBoundsException e)
         {
@@ -174,7 +177,7 @@ public class CompositeType extends AbstractCompositeType
 
     protected <V> AbstractType<?> getAndAppendComparator(int i, V value, ValueAccessor<V> accessor, StringBuilder sb, int offset)
     {
-        return types.get(i);
+        return subTypes.get(i);
     }
 
     @Override
@@ -183,7 +186,7 @@ public class CompositeType extends AbstractCompositeType
         if (data == null || accessor.isEmpty(data))
             return null;
 
-        ByteSource[] srcs = new ByteSource[types.size() * 2 + 1];
+        ByteSource[] srcs = new ByteSource[subTypes.size() * 2 + 1];
         int length = accessor.size(data);
 
         // statics go first
@@ -201,7 +204,7 @@ public class CompositeType extends AbstractCompositeType
 
             int componentLength = accessor.getUnsignedShort(data, offset);
             offset += 2;
-            srcs[i * 2 + 1] = types.get(i).asComparableBytes(accessor, accessor.slice(data, offset, componentLength), version);
+            srcs[i * 2 + 1] = subTypes.get(i).asComparableBytes(accessor, accessor.slice(data, offset, componentLength), version);
             offset += componentLength;
             lastEoc = accessor.getByte(data, offset);
             offset += 1;
@@ -234,17 +237,17 @@ public class CompositeType extends AbstractCompositeType
         int separator = comparableBytes.next();
         boolean isStatic = ByteSourceInverse.nextComponentNull(separator);
         int i = 0;
-        V[] buffers = accessor.createArray(types.size());
+        V[] buffers = accessor.createArray(subTypes.size());
         byte lastEoc = 0;
 
-        while ((separator = comparableBytes.next()) != ByteSource.TERMINATOR && i < types.size())
+        while ((separator = comparableBytes.next()) != ByteSource.TERMINATOR && i < subTypes.size())
         {
             // Only the end-of-component byte of the last component of this composite can be non-zero, so the
             // component before can't have a non-zero end-of-component byte.
             assert lastEoc == 0 : lastEoc;
 
             // Get the next type and decode its payload.
-            AbstractType<?> type = types.get(i);
+            AbstractType<?> type = subTypes.get(i);
             V decoded = type.fromComparableBytes(accessor,
                                                  ByteSourceInverse.nextComponentSource(comparableBytes, separator),
                                                  version);
@@ -257,14 +260,14 @@ public class CompositeType extends AbstractCompositeType
 
     protected ParsedComparator parseComparator(int i, String part)
     {
-        return new StaticParsedComparator(types.get(i), part);
+        return new StaticParsedComparator(subTypes.get(i), part);
     }
 
     protected <V> AbstractType<?> validateComparator(int i, V value, ValueAccessor<V> accessor, int offset) throws MarshalException
     {
-        if (i >= types.size())
+        if (i >= subTypes.size())
             throw new MarshalException("Too many bytes for comparator");
-        return types.get(i);
+        return subTypes.get(i);
     }
 
     protected <V> int getComparatorSize(V value, ValueAccessor<V> accessor, int offset)
@@ -272,14 +275,15 @@ public class CompositeType extends AbstractCompositeType
         return 0;
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public ByteBuffer decompose(Object... objects)
     {
-        assert objects.length == types.size();
+        assert objects.length == subTypes.size();
 
         ByteBuffer[] serialized = new ByteBuffer[objects.length];
         for (int i = 0; i < objects.length; i++)
         {
-            ByteBuffer buffer = ((AbstractType) types.get(i)).decompose(objects[i]);
+            ByteBuffer buffer = ((AbstractType) subTypes.get(i)).decompose(objects[i]);
             serialized[i] = buffer;
         }
         return build(ByteBufferAccessor.instance, serialized);
@@ -290,7 +294,7 @@ public class CompositeType extends AbstractCompositeType
     {
         // Assume all components, we'll trunk the array afterwards if need be, but
         // most names will be complete.
-        ByteBuffer[] l = new ByteBuffer[types.size()];
+        ByteBuffer[] l = new ByteBuffer[subTypes.size()];
         ByteBuffer bb = name.duplicate();
         readStatic(bb);
         int i = 0;
@@ -341,12 +345,6 @@ public class CompositeType extends AbstractCompositeType
     }
 
     @Override
-    public List<AbstractType<?>> getComponents()
-    {
-        return types;
-    }
-
-    @Override
     public boolean isCompatibleWith(AbstractType<?> previous)
     {
         if (this == previous)
@@ -357,13 +355,13 @@ public class CompositeType extends AbstractCompositeType
 
         // Extending with new components is fine
         CompositeType cp = (CompositeType)previous;
-        if (types.size() < cp.types.size())
+        if (subTypes.size() < cp.subTypes.size())
             return false;
 
-        for (int i = 0; i < cp.types.size(); i++)
+        for (int i = 0; i < cp.subTypes.size(); i++)
         {
-            AbstractType tprev = cp.types.get(i);
-            AbstractType tnew = types.get(i);
+            AbstractType<?> tprev = cp.subTypes.get(i);
+            AbstractType<?> tnew = subTypes.get(i);
             if (!tnew.isCompatibleWith(tprev))
                 return false;
         }
@@ -381,13 +379,13 @@ public class CompositeType extends AbstractCompositeType
 
         // Extending with new components is fine
         CompositeType cp = (CompositeType) otherType;
-        if (types.size() < cp.types.size())
+        if (subTypes.size() < cp.subTypes.size())
             return false;
 
-        for (int i = 0; i < cp.types.size(); i++)
+        for (int i = 0; i < cp.subTypes.size(); i++)
         {
-            AbstractType tprev = cp.types.get(i);
-            AbstractType tnew = types.get(i);
+            AbstractType<?> tprev = cp.subTypes.get(i);
+            AbstractType<?> tnew = subTypes.get(i);
             if (!tnew.isValueCompatibleWith(tprev))
                 return false;
         }
@@ -397,7 +395,7 @@ public class CompositeType extends AbstractCompositeType
     @Override
     public <V> boolean referencesUserType(V name, ValueAccessor<V> accessor)
     {
-        return any(types, t -> t.referencesUserType(name, accessor));
+        return any(subTypes, t -> t.referencesUserType(name, accessor));
     }
 
     @Override
@@ -406,15 +404,9 @@ public class CompositeType extends AbstractCompositeType
         if (!referencesUserType(udt.name))
             return this;
 
-        instances.remove(types);
+        instances.remove(subTypes);
 
-        return getInstance(transform(types, t -> t.withUpdatedUserType(udt)));
-    }
-
-    @Override
-    public AbstractType<?> expandUserTypes()
-    {
-        return getInstance(transform(types, AbstractType::expandUserTypes));
+        return getInstance(transform(subTypes, t -> t.withUpdatedUserType(udt)));
     }
 
     private static class StaticParsedComparator implements ParsedComparator
@@ -447,9 +439,11 @@ public class CompositeType extends AbstractCompositeType
     }
 
     @Override
-    public String toString()
+    public String toString(boolean ignoreFreezing)
     {
-        return getClass().getName() + TypeParser.stringifyTypeParameters(types);
+        // Subtypes will always be frozen (since CompositeType always is), but we don't include it in the string
+        // representation (so that we ignore our parameter).
+        return getClass().getName() + TypeParser.stringifyTypeParameters(subTypes, true);
     }
 
     @SafeVarargs

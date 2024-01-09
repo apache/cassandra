@@ -25,13 +25,10 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.db.marshal.CollectionType.Kind;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.serializers.CollectionSerializer;
@@ -43,7 +40,7 @@ import static java.util.stream.Collectors.toList;
 
 public interface CQL3Type
 {
-    static final Logger logger = LoggerFactory.getLogger(CQL3Type.class);
+    Logger logger = LoggerFactory.getLogger(CQL3Type.class);
 
     default boolean isCollection()
     {
@@ -55,7 +52,7 @@ public interface CQL3Type
         return false;
     }
 
-    public AbstractType<?> getType();
+    AbstractType<?> getType();
 
     /**
      * Generates CQL literal from a binary value of this type.
@@ -65,7 +62,48 @@ public interface CQL3Type
      */
     String toCQLLiteral(ByteBuffer bytes, ProtocolVersion version);
 
-    public enum Native implements CQL3Type
+
+    /**
+     * Generates the string representation of this type, with options regarding the addition of frozen.
+     * <p>
+     * This exists only to provide proper {@code toString} and {@link #toSchemaString} implementations and would
+     * be protected if this was an abstract class rather than an interface (but we cannot change it to an abstract
+     * class easily since {@link Native} is an enum).
+     *
+     * @param alreadyFrozen whether the type is within an already frozen type. If {@code true}, and unless
+     * {@code forceFrozen} is also {@code true} and this type is a complex frozen type itself, the returned
+     * representation will omit the 'frozen<>' prefix. Otherwise, the 'frozen<>' prefix will be included if this type
+     * is (complex and) frozen.
+     * @param forceFrozen force the repetition of 'frozen<>' prefixes before complex frozen types, even if the
+     * context is already frozen. See {@link #toSchemaString} as to why we need this.
+     * @return the type string representation (with or without a 'frozen<>' based on {@code alreadyFrozen} and
+     * {@code forceFrozen}).
+     */
+    String toString(boolean alreadyFrozen, boolean forceFrozen);
+
+    /**
+     * Generate the string representation of this type, like {@code toString}, but where the 'frozen<>' is
+     * repeated for every frozen complex types, even if it is already present as at higher level (and is such
+     * unnecessary). In other words, this will generate {@code frozen<list<frozen<set<int>>>>} when
+     * {@code toString} only generates {@code frozen<list<set<int>>>}.
+     * <p>
+     * This generally shouldn't be used since it is a less readable, wasteful representation, but we use it for
+     * column types in the schema for the following historical reason: before DB-3084, the default {@code toString}
+     * representation was behaving like this method, and drivers have indirectly "relied" on it in the sense that while
+     * types on the drivers side have a {@code isFrozen()} method, it only returns {@code true} if the type has an
+     * explicit "frozen<>" prefix just before it. Meaning that reading {@code frozen<list<set<int>>>} in the schema,
+     * the driver (at least the java one) will return that the list is frozen, but not the set.
+     * <p>
+     * So to avoid risks in breaking external consumers, we preserve the verbose, if wasteful, representation in the
+     * schema. We may remove this when we've coordinated fixing the drivers side to always set their {@code isFrozen} to
+     * {@code true} for subtypes of frozen types, no matter what the representation says.
+     */
+    default String toSchemaString()
+    {
+        return toString(false, true);
+    }
+
+    enum Native implements CQL3Type
     {
         ASCII       (AsciiType.instance),
         BIGINT      (LongType.instance),
@@ -97,6 +135,7 @@ public interface CQL3Type
             this.type = type;
         }
 
+        @Override
         public AbstractType<?> getType()
         {
             return type;
@@ -115,24 +154,25 @@ public interface CQL3Type
         }
 
         @Override
-        public String toString()
+        public String toString(boolean alreadyFrozen, boolean forceFrozen)
         {
             return super.toString().toLowerCase();
         }
+
+        @Override
+        public String toString()
+        {
+            return toString(false, false);
+        }
     }
 
-    public static class Custom implements CQL3Type
+    class Custom implements CQL3Type
     {
         private final AbstractType<?> type;
 
         public Custom(AbstractType<?> type)
         {
             this.type = type;
-        }
-
-        public Custom(String className) throws SyntaxException, ConfigurationException
-        {
-            this(TypeParser.parse(className));
         }
 
         public AbstractType<?> getType()
@@ -150,7 +190,7 @@ public interface CQL3Type
         @Override
         public final boolean equals(Object o)
         {
-            if(!(o instanceof Custom))
+            if (!(o instanceof Custom))
                 return false;
 
             Custom that = (Custom)o;
@@ -164,26 +204,34 @@ public interface CQL3Type
         }
 
         @Override
-        public String toString()
+        public String toString(boolean alreadyFrozen, boolean forceFrozen)
         {
             return "'" + type + '\'';
         }
+
+        @Override
+        public String toString()
+        {
+            return toString(false, false);
+        }
     }
 
-    public static class Collection implements CQL3Type
+    class Collection implements CQL3Type
     {
-        private final CollectionType type;
+        private final CollectionType<?> type;
 
-        public Collection(CollectionType type)
+        public Collection(CollectionType<?> type)
         {
             this.type = type;
         }
 
+        @Override
         public AbstractType<?> getType()
         {
             return type;
         }
 
+        @Override
         public boolean isCollection()
         {
             return true;
@@ -203,15 +251,15 @@ public interface CQL3Type
             switch (type.kind)
             {
                 case LIST:
-                    CQL3Type elements = ((ListType) type).getElementsType().asCQL3Type();
+                    CQL3Type listElements = ((ListType<?>) type).getElementsType().asCQL3Type();
                     target.append('[');
-                    generateSetOrListCQLLiteral(buffer, version, target, size, elements);
+                    generateSetOrListCQLLiteral(buffer, version, target, size, listElements);
                     target.append(']');
                     break;
                 case SET:
-                    elements = ((SetType) type).getElementsType().asCQL3Type();
+                    CQL3Type setElements = ((SetType<?>) type).getElementsType().asCQL3Type();
                     target.append('{');
-                    generateSetOrListCQLLiteral(buffer, version, target, size, elements);
+                    generateSetOrListCQLLiteral(buffer, version, target, size, setElements);
                     target.append('}');
                     break;
                 case MAP:
@@ -225,8 +273,8 @@ public interface CQL3Type
 
         private void generateMapCQLLiteral(ByteBuffer buffer, ProtocolVersion version, StringBuilder target, int size)
         {
-            CQL3Type keys = ((MapType) type).getKeysType().asCQL3Type();
-            CQL3Type values = ((MapType) type).getValuesType().asCQL3Type();
+            CQL3Type keys = ((MapType<?, ?>) type).getKeysType().asCQL3Type();
+            CQL3Type values = ((MapType<?, ?>) type).getValuesType().asCQL3Type();
             int offset = 0;
             for (int i = 0; i < size; i++)
             {
@@ -272,36 +320,44 @@ public interface CQL3Type
         }
 
         @Override
-        public String toString()
+        public String toString(boolean alreadyFrozen, boolean forceFrozen)
         {
-            boolean isFrozen = !this.type.isMultiCell();
-            StringBuilder sb = new StringBuilder(isFrozen ? "frozen<" : "");
+            boolean addFrozen = !this.type.isMultiCell() && (!alreadyFrozen || forceFrozen);
+            alreadyFrozen = !this.type.isMultiCell() || alreadyFrozen;
+            StringBuilder sb = new StringBuilder(addFrozen ? "frozen<" : "");
             switch (type.kind)
             {
                 case LIST:
-                    AbstractType<?> listType = ((ListType)type).getElementsType();
-                    sb.append("list<").append(listType.asCQL3Type());
+                    AbstractType<?> listType = ((ListType<?>) type).getElementsType();
+                    sb.append("list<").append(listType.asCQL3Type().toString(alreadyFrozen, forceFrozen));
                     break;
                 case SET:
-                    AbstractType<?> setType = ((SetType)type).getElementsType();
-                    sb.append("set<").append(setType.asCQL3Type());
+                    AbstractType<?> setType = ((SetType<?>) type).getElementsType();
+                    sb.append("set<").append(setType.asCQL3Type().toString(alreadyFrozen, forceFrozen));
                     break;
                 case MAP:
-                    AbstractType<?> keysType = ((MapType)type).getKeysType();
-                    AbstractType<?> valuesType = ((MapType)type).getValuesType();
-                    sb.append("map<").append(keysType.asCQL3Type()).append(", ").append(valuesType.asCQL3Type());
+                    AbstractType<?> keysType = ((MapType<?, ?>) type).getKeysType();
+                    AbstractType<?> valuesType = ((MapType<?, ?>) type).getValuesType();
+                    sb.append("map<").append(keysType.asCQL3Type().toString(alreadyFrozen, forceFrozen))
+                      .append(", ").append(valuesType.asCQL3Type().toString(alreadyFrozen, forceFrozen));
                     break;
                 default:
                     throw new AssertionError();
             }
             sb.append('>');
-            if (isFrozen)
+            if (addFrozen)
                 sb.append('>');
             return sb.toString();
         }
+
+        @Override
+        public String toString()
+        {
+            return toString(false, false);
+        }
     }
 
-    public static class UserDefined implements CQL3Type
+    class UserDefined implements CQL3Type
     {
         // Keeping this separatly from type just to simplify toString()
         private final String name;
@@ -318,11 +374,13 @@ public interface CQL3Type
             return new UserDefined(UTF8Type.instance.compose(type.name), type);
         }
 
+        @Override
         public boolean isUDT()
         {
             return true;
         }
 
+        @Override
         public AbstractType<?> getType()
         {
             return type;
@@ -389,16 +447,22 @@ public interface CQL3Type
         }
 
         @Override
-        public String toString()
+        public String toString(boolean alreadyFrozen, boolean forceFrozen)
         {
-            if (type.isMultiCell())
+            if (type.isMultiCell() || (alreadyFrozen && !forceFrozen))
                 return ColumnIdentifier.maybeQuote(name);
             else
                 return "frozen<" + ColumnIdentifier.maybeQuote(name) + '>';
         }
+
+        @Override
+        public String toString()
+        {
+            return toString(false, false);
+        }
     }
 
-    public static class Tuple implements CQL3Type
+    class Tuple implements CQL3Type
     {
         private final TupleType type;
 
@@ -412,11 +476,13 @@ public interface CQL3Type
             return new Tuple(type);
         }
 
+        @Override
         public AbstractType<?> getType()
         {
             return type;
         }
 
+        @Override
         public String toCQLLiteral(ByteBuffer buffer, ProtocolVersion version)
         {
             if (buffer == null)
@@ -476,34 +542,41 @@ public interface CQL3Type
         }
 
         @Override
-        public String toString()
+        public String toString(boolean alreadyFrozen, boolean forceFrozen)
         {
-            return toString(true);
-        }
-
-        public String toString(boolean withFrozen)
-        {
-            StringBuilder sb = new StringBuilder();
-            if (withFrozen)
-                sb.append("frozen<");
+            // As tuples are frozen by default, we don't output the frozen<> prefix even when frozen, unless forceFrozen
+            // is explicitly provided. Note that in practice, the type should never be non-frozen unless forceFrozen
+            // is called: if that were to happen, either:
+            //  1. we'd have built a non-frozen tuple for something other than a dropped column
+            //  2. or we'd be calling toString() for a dropped column type, rather that toSchemaString()
+            // Both of which being bugs.
+            assert forceFrozen || !type.isMultiCell() : type + " should have been frozen/non-multi-cell";
+            boolean addFrozen = !type.isMultiCell() && forceFrozen;
+            alreadyFrozen = !type.isMultiCell() || alreadyFrozen;
+            StringBuilder sb = new StringBuilder(addFrozen ? "frozen<" : "");
             sb.append("tuple<");
             for (int i = 0; i < type.size(); i++)
             {
                 if (i > 0)
                     sb.append(", ");
-                sb.append(type.type(i).asCQL3Type());
+                sb.append(type.type(i).asCQL3Type().toString(alreadyFrozen, forceFrozen));
             }
             sb.append('>');
-            if (withFrozen)
+            if (addFrozen)
                 sb.append('>');
-
             return sb.toString();
+        }
+
+        @Override
+        public String toString()
+        {
+            return toString(false, false);
         }
     }
 
     // For UserTypes, we need to know the current keyspace to resolve the
     // actual type used, so Raw is a "not yet prepared" CQL3Type.
-    public abstract class Raw
+    abstract class Raw
     {
         protected final boolean frozen;
 
@@ -552,6 +625,12 @@ public interface CQL3Type
             throw new InvalidRequestException(message);
         }
 
+        /**
+         * Prepare this raw type given the current keyspace to obtain a proper {@link CQL3Type}.
+         *
+         * @param keyspace the keyspace the type is part of.
+         * @return the prepared type.
+         */
         public CQL3Type prepare(String keyspace)
         {
             KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspace);
@@ -560,6 +639,14 @@ public interface CQL3Type
             return prepare(keyspace, ksm.types);
         }
 
+        /**
+         * Prepare this raw type given the current keyspace and its defined user types to obtain a proper
+         * {@link CQL3Type}.
+         *
+         * @param keyspace the keyspace the type is part of.
+         * @param udts user types defined in {@code keyspace}, which this type may rely on.
+         * @return the prepared type.
+         */
         public abstract CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException;
 
         public CQL3Type prepareInternal(String keyspace, Types udts) throws InvalidRequestException
@@ -575,6 +662,11 @@ public interface CQL3Type
         public static Raw from(CQL3Type type)
         {
             return new RawType(type, false);
+        }
+
+        public static Raw custom(String className)
+        {
+            return new RawCustom(className, false);
         }
 
         public static Raw userType(UTName name)
@@ -612,21 +704,25 @@ public interface CQL3Type
                 this.type = type;
             }
 
-            public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
+            @Override
+            public CQL3Type prepare(String keyspace, Types udts)
             {
                 return type;
             }
 
+            @Override
             public boolean supportsFreezing()
             {
                 return false;
             }
 
+            @Override
             public boolean isCounter()
             {
                 return type == Native.COUNTER;
             }
 
+            @Override
             public boolean isDuration()
             {
                 return type == Native.DURATION;
@@ -642,6 +738,52 @@ public interface CQL3Type
             public String toString()
             {
                 return type.toString();
+            }
+        }
+
+        private static class RawCustom extends Raw
+        {
+            private final String className;
+
+            private RawCustom(String className, boolean frozen)
+            {
+                super(frozen);
+                this.className = className;
+            }
+
+            @Override
+            public boolean supportsFreezing()
+            {
+                // Technically, we cannot know if the resulting type may be frozen or not, so allow the frozen keyword,
+                // but it might well basically do nothing when used.
+                return true;
+            }
+
+            @Override
+            public RawCustom freeze() throws InvalidRequestException
+            {
+                return new RawCustom(className, true);
+            }
+
+            @Override
+            public CQL3Type prepare(String keyspace, Types udts)
+            {
+                AbstractType<?> type = TypeParser.parse(className);
+                if (frozen)
+                    type = type.freeze();
+                return new Custom(type);
+            }
+
+            @Override
+            public void forEachUserType(Consumer<UTName> userTypeNameConsumer)
+            {
+                // no-op
+            }
+
+            @Override
+            public String toString()
+            {
+                return '"' + className + '"';
             }
         }
 
@@ -675,21 +817,19 @@ public interface CQL3Type
                 return new RawCollection(kind, frozenKeys, frozenValues, true);
             }
 
+            @Override
             public boolean supportsFreezing()
             {
                 return true;
             }
 
-            public boolean isCollection()
-            {
-                return true;
-            }
-
+            @Override
             public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
             {
                 return prepare(keyspace, udts, false);
             }
 
+            @Override
             public CQL3Type prepareInternal(String keyspace, Types udts)
             {
                 return prepare(keyspace, udts, true);
@@ -698,28 +838,6 @@ public interface CQL3Type
             public CQL3Type prepare(String keyspace, Types udts, boolean isInternal) throws InvalidRequestException
             {
                 assert values != null : "Got null values type for a collection";
-
-                // skip if innerType is tuple, since tuple is implicitly forzen
-                if (!frozen && values.supportsFreezing() && !values.frozen && !values.isTuple())
-                    throwNestedNonFrozenError(values);
-
-                // we represent supercolumns as maps, internally, and we do allow counters in supercolumns. Thus,
-                // for internal type parsing (think schema) we have to make an exception and allow counters as (map) values
-                if (values.isCounter() && !isInternal)
-                    throw new InvalidRequestException("Counters are not allowed inside collections: " + this);
-
-                if (values.isDuration() && kind == Kind.SET)
-                    throw new InvalidRequestException("Durations are not allowed inside sets: " + this);
-
-                if (keys != null)
-                {
-                    if (keys.isCounter())
-                        throw new InvalidRequestException("Counters are not allowed inside collections: " + this);
-                    if (keys.isDuration())
-                        throw new InvalidRequestException("Durations are not allowed as map keys: " + this);
-                    if (!frozen && keys.supportsFreezing() && !keys.frozen)
-                        throwNestedNonFrozenError(keys);
-                }
 
                 AbstractType<?> valueType = values.prepare(keyspace, udts).getType();
                 switch (kind)
@@ -735,14 +853,7 @@ public interface CQL3Type
                 throw new AssertionError();
             }
 
-            private void throwNestedNonFrozenError(Raw innerType)
-            {
-                if (innerType instanceof RawCollection)
-                    throw new InvalidRequestException("Non-frozen collections are not allowed inside collections: " + this);
-                else if (innerType.isUDT())
-                    throw new InvalidRequestException("Non-frozen UDTs are not allowed inside collections: " + this);
-            }
-
+            @Override
             public boolean referencesUserType(String name)
             {
                 return (keys != null && keys.referencesUserType(name)) || values.referencesUserType(name);
@@ -782,6 +893,7 @@ public interface CQL3Type
                 this.name = name;
             }
 
+            @Override
             public String keyspace()
             {
                 return name.getKeyspace();
@@ -799,6 +911,7 @@ public interface CQL3Type
                 return new RawUT(name, true);
             }
 
+            @Override
             public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
             {
                 if (name.hasKeyspace())
@@ -824,16 +937,19 @@ public interface CQL3Type
                 return new UserDefined(name.toString(), type);
             }
 
+            @Override
             public boolean referencesUserType(String name)
             {
                 return this.name.getStringTypeName().equals(name);
             }
 
+            @Override
             public boolean supportsFreezing()
             {
                 return true;
             }
 
+            @Override
             public boolean isUDT()
             {
                 return true;
@@ -861,6 +977,7 @@ public interface CQL3Type
                                   .collect(toList());
             }
 
+            @Override
             public boolean supportsFreezing()
             {
                 return true;
@@ -872,6 +989,7 @@ public interface CQL3Type
                 return this;
             }
 
+            @Override
             public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
             {
                 List<AbstractType<?>> ts = new ArrayList<>(types.size());
@@ -885,11 +1003,13 @@ public interface CQL3Type
                 return new Tuple(new TupleType(ts));
             }
 
+            @Override
             public boolean isTuple()
             {
                 return true;
             }
 
+            @Override
             public boolean referencesUserType(String name)
             {
                 return types.stream().anyMatch(t -> t.referencesUserType(name));

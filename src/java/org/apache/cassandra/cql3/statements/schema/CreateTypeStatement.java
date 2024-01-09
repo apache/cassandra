@@ -96,21 +96,14 @@ public final class CreateTypeStatement extends AlterSchemaStatement
             if (!usedNames.add(name))
                 throw ire("Duplicate field name '%s' in type '%s'", name, typeName);
 
-        for (CQL3Type.Raw type : rawFieldTypes)
-        {
-            if (type.isCounter())
-                throw ire("A user type cannot contain counters");
-
-            if (type.isUDT() && !type.isFrozen())
-                throw ire("A user type cannot contain non-frozen UDTs");
-        }
-
         List<AbstractType<?>> fieldTypes =
             rawFieldTypes.stream()
                          .map(t -> t.prepare(keyspaceName, keyspace.types).getType())
                          .collect(toList());
 
         UserType udt = new UserType(keyspaceName, bytes(typeName), fieldNames, fieldTypes, true);
+        validate(udt);
+
         return schema.withAddedOrUpdated(keyspace.withSwapped(keyspace.types.with(udt)));
     }
 
@@ -155,13 +148,38 @@ public final class CreateTypeStatement extends AlterSchemaStatement
      *                      the created type may depend on).
      * @return the created type.
      */
-    public UserType createType(Types existingTypes)
+    private UserType createType(Types existingTypes)
     {
         List<AbstractType<?>> fieldTypes = rawFieldTypes.stream()
                                                         .map(t -> t.prepare(keyspaceName, existingTypes).getType())
                                                         .collect(toList());
         UserType type = new UserType(keyspaceName, bytes(typeName), fieldNames, fieldTypes, true);
+        validate(type);
         return type;
+    }
+
+    /**
+     * Ensures that the created UDT is valid/allowed.
+     *
+     * <p>Note: most type validation is done through {@link AbstractType#validateForColumn} because almost no type
+     * is intrinsically invalid unless used as a column type (for instance, we don't to declare a column with a
+     * {@code set<counter>} type, but there is no reason to forbid in a SELECT clause a UDF that would take 2 separate
+     * counter values and put them in a set, so {@code set<counter>} is not intrinsically invalid and that goes
+     * for basically all the validation in {@link AbstractType#validateForColumn}).
+     *
+     * <p>But with that said, as UDTs are created separately from their use, it makes sense for user-friendliness to
+     * be a tad more restrictive: if a UDT cannot ever be used as a column type, it's almost sure this is a user error,
+     * and waiting until the type is used to throw said error might be annoying. So we don't allow creating types that
+     * simply cannot be ever used as column types, even if this is in practice an arbitrary limitation in a way (some
+     * user may "legitimately" want to create a type for the sole purpose of using it as the return type of a UDF and
+     * use it in the same way that for the {@code set<counter>} example above, and we disallow that).
+     */
+    static void validate(UserType type)
+    {
+        // The only thing that is always disallowed is the use of counters with a UDT. Anything else might be ok,
+        // though possibly only if the type is used frozen.
+        if (type.referencesCounter())
+            throw ire("A user type cannot contain counters");
     }
 
     public static final class Raw extends RawKeyspaceAwareStatement<CreateTypeStatement>

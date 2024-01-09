@@ -22,6 +22,9 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
+
 import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.Maps;
 import org.apache.cassandra.cql3.Term;
@@ -43,10 +46,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     private static final ConcurrentHashMap<Pair<AbstractType<?>, AbstractType<?>>, MapType> instances = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<Pair<AbstractType<?>, AbstractType<?>>, MapType> frozenInstances = new ConcurrentHashMap<>();
 
-    private final AbstractType<K> keys;
-    private final AbstractType<V> values;
     private final MapSerializer<K, V> serializer;
-    private final boolean isMultiCell;
 
     public static MapType<?, ?> getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
     {
@@ -57,23 +57,24 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
         return getInstance(l.get(0), l.get(1), true);
     }
 
+    @SuppressWarnings("unchecked")
     public static <K, V> MapType<K, V> getInstance(AbstractType<K> keys, AbstractType<V> values, boolean isMultiCell)
     {
-        ConcurrentHashMap<Pair<AbstractType<?>, AbstractType<?>>, MapType> internMap = isMultiCell ? instances : frozenInstances;
-        Pair<AbstractType<?>, AbstractType<?>> p = Pair.create(keys, values);
-        MapType<K, V> t = internMap.get(p);
-        return null == t
-             ? internMap.computeIfAbsent(p, k -> new MapType<>(k.left, k.right, isMultiCell))
-             : t;
+        return getInstance(isMultiCell ? instances : frozenInstances,
+                           Pair.create(keys, values),
+                           () -> new MapType<>(keys, values, isMultiCell));
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public MapType<K,V> overrideKeyspace(Function<String, String> overrideKeyspace)
     {
-        AbstractType<K> newKeyType = keys.overrideKeyspace(overrideKeyspace);
-        AbstractType<V> newValueType = values.overrideKeyspace(overrideKeyspace);
-        if (newKeyType == keys && newValueType == values)
+        AbstractType<K> oldKeyType = getKeysType();
+        AbstractType<V> oldValueType = getValuesType();
+
+        AbstractType<K> newKeyType = oldKeyType.overrideKeyspace(overrideKeyspace);
+        AbstractType<V> newValueType = oldValueType.overrideKeyspace(overrideKeyspace);
+
+        if (newKeyType == oldKeyType && newValueType == oldValueType)
             return this;
 
         return getInstance(newKeyType, newValueType, isMultiCell());
@@ -81,36 +82,30 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
 
     private MapType(AbstractType<K> keys, AbstractType<V> values, boolean isMultiCell)
     {
-        super(ComparisonType.CUSTOM, Kind.MAP);
-        this.keys = keys;
-        this.values = values;
+        super(Kind.MAP, ImmutableList.of(keys, values), isMultiCell);
         this.serializer = MapSerializer.getInstance(keys.getSerializer(),
                                                     values.getSerializer(),
                                                     keys.comparatorSet);
-        this.isMultiCell = isMultiCell;
     }
 
     @Override
-    public <T> boolean referencesUserType(T name, ValueAccessor<T> accessor)
+    @SuppressWarnings("unchecked")
+    public MapType<K, V> with(ImmutableList<AbstractType<?>> subTypes, boolean isMultiCell)
     {
-        return keys.referencesUserType(name, accessor) || values.referencesUserType(name, accessor);
+        Preconditions.checkArgument(subTypes.size() == 2,
+                                    "Invalid number of subTypes for MapType (got %s)", subTypes.size());
+        return getInstance((AbstractType<K>)subTypes.get(0), (AbstractType<V>)subTypes.get(1), isMultiCell);
     }
 
     @Override
     public MapType<?,?> withUpdatedUserType(UserType udt)
     {
-        if (!referencesUserType(udt.name))
-            return this;
+        // If our subtypes do contain the UDT and this is requested, there is a fair chance we won't be re-using an
+        // instance with our own exact subtypes, so clean up the interned instance.
+        if (referencesUserType(udt.name))
+            (isMultiCell() ? instances : frozenInstances).remove(Pair.create(getKeysType(), getValuesType()));
 
-        (isMultiCell ? instances : frozenInstances).remove(Pair.create(keys, values));
-
-        return getInstance(keys.withUpdatedUserType(udt), values.withUpdatedUserType(udt), isMultiCell);
-    }
-
-    @Override
-    public AbstractType<?> expandUserTypes()
-    {
-        return getInstance(keys.expandUserTypes(), values.expandUserTypes(), isMultiCell);
+        return (MapType<?, ?>) super.withUpdatedUserType(udt);
     }
 
     @Override
@@ -120,83 +115,34 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
         return getValuesType().referencesDuration();
     }
 
+    @SuppressWarnings("unchecked")
     public AbstractType<K> getKeysType()
     {
-        return keys;
+        return (AbstractType<K>) subTypes.get(0);
     }
 
+    @SuppressWarnings("unchecked")
     public AbstractType<V> getValuesType()
     {
-        return values;
+        return (AbstractType<V>) subTypes.get(1);
     }
 
+    @Override
     public AbstractType<K> nameComparator()
     {
-        return keys;
+        return getKeysType();
     }
 
+    @Override
     public AbstractType<V> valueComparator()
     {
-        return values;
+        return getValuesType();
     }
 
     @Override
-    public boolean isMultiCell()
-    {
-        return isMultiCell;
-    }
-
-    @Override
-    public List<AbstractType<?>> subTypes()
-    {
-        return Arrays.asList(keys, values);
-    }
-
-    @Override
-    public AbstractType<?> freeze()
-    {
-        if (isMultiCell)
-            return getInstance(this.keys, this.values, false);
-        else
-            return this;
-    }
-
-    @Override
-    public AbstractType<?> freezeNestedMulticellTypes()
-    {
-        if (!isMultiCell())
-            return this;
-
-        AbstractType<?> keyType = (keys.isFreezable() && keys.isMultiCell())
-                                ? keys.freeze()
-                                : keys.freezeNestedMulticellTypes();
-
-        AbstractType<?> valueType = (values.isFreezable() && values.isMultiCell())
-                                  ? values.freeze()
-                                  : values.freezeNestedMulticellTypes();
-
-        return getInstance(keyType, valueType, isMultiCell);
-    }
-
-    @Override
-    public boolean isCompatibleWithFrozen(CollectionType<?> previous)
-    {
-        assert !isMultiCell;
-        MapType tprev = (MapType) previous;
-        return keys.isCompatibleWith(tprev.keys) && values.isCompatibleWith(tprev.values);
-    }
-
-    @Override
-    public boolean isValueCompatibleWithFrozen(CollectionType<?> previous)
-    {
-        assert !isMultiCell;
-        MapType tprev = (MapType) previous;
-        return keys.isCompatibleWith(tprev.keys) && values.isValueCompatibleWith(tprev.values);
-    }
-
     public <RL, TR> int compareCustom(RL left, ValueAccessor<RL> accessorL, TR right, ValueAccessor<TR> accessorR)
     {
-        return compareMaps(keys, values, left, accessorL, right, accessorR);
+        return compareMaps(getKeysType(), getValuesType(), left, accessorL, right, accessorR);
     }
 
     public static <TL, TR> int compareMaps(AbstractType<?> keysComparator, AbstractType<?> valuesComparator, TL left, ValueAccessor<TL> accessorL, TR right, ValueAccessor<TR> accessorR)
@@ -235,13 +181,13 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     }
 
     @Override
-    public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V data, Version version)
+    public <T> ByteSource asComparableBytes(ValueAccessor<T> accessor, T data, Version version)
     {
         return asComparableBytesMap(getKeysType(), getValuesType(), accessor, data, version);
     }
 
     @Override
-    public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, Version version)
+    public <T> T fromComparableBytes(ValueAccessor<T> accessor, ByteSource.Peekable comparableBytes, Version version)
     {
         return fromComparableBytesMap(accessor, comparableBytes, version, getKeysType(), getValuesType());
     }
@@ -312,23 +258,25 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
         return values.size() / 2;
     }
 
+    @Override
     public String toString(boolean ignoreFreezing)
     {
         boolean includeFrozenType = !ignoreFreezing && !isMultiCell();
 
         StringBuilder sb = new StringBuilder();
         if (includeFrozenType)
-            sb.append(FrozenType.class.getName()).append("(");
-        sb.append(getClass().getName()).append(TypeParser.stringifyTypeParameters(Arrays.asList(keys, values), ignoreFreezing || !isMultiCell));
+            sb.append(FrozenType.class.getName()).append('(');
+        sb.append(getClass().getName())
+          .append(TypeParser.stringifyTypeParameters(subTypes, ignoreFreezing || !isMultiCell()));
         if (includeFrozenType)
-            sb.append(")");
+            sb.append(')');
         return sb.toString();
     }
 
     public List<ByteBuffer> serializedValues(Iterator<Cell<?>> cells)
     {
-        assert isMultiCell;
-        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>();
+        assert isMultiCell();
+        List<ByteBuffer> bbs = new ArrayList<>();
         while (cells.hasNext())
         {
             Cell<?> c = cells.next();
@@ -348,9 +296,11 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
             throw new MarshalException(String.format(
                     "Expected a map, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
 
-        Map<Object, Object> map = (Map<Object, Object>) parsed;
+        Map<?, ?> map = (Map<?, ?>) parsed;
         Map<Term, Term> terms = new HashMap<>(map.size());
-        for (Map.Entry<Object, Object> entry : map.entrySet())
+        AbstractType<K> keys = getKeysType();
+        AbstractType<V> values = getValuesType();
+        for (Map.Entry<?, ?> entry : map.entrySet())
         {
             if (entry.getKey() == null)
                 throw new MarshalException("Invalid null key in map");
@@ -370,6 +320,8 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
         StringBuilder sb = new StringBuilder("{");
         int size = CollectionSerializer.readCollectionSize(value, ByteBufferAccessor.instance, protocolVersion);
         int offset = CollectionSerializer.sizeOfCollectionSize(size, protocolVersion);
+        AbstractType<K> keys = getKeysType();
+        AbstractType<V> values = getValuesType();
         for (int i = 0; i < size; i++)
         {
             if (i > 0)
@@ -389,6 +341,6 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
             offset += CollectionSerializer.sizeOfValue(vv, ByteBufferAccessor.instance, protocolVersion);
             sb.append(values.toJSONString(vv, protocolVersion));
         }
-        return sb.append("}").toString();
+        return sb.append('}').toString();
     }
 }

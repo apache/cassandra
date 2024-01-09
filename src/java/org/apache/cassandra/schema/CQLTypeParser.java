@@ -50,7 +50,7 @@ public final class CQLTypeParser
         if (udt != null)
             return udt;
 
-        return parseRaw(unparsed).prepareInternal(keyspace, userTypes).getType();
+        return parseRaw(unparsed).prepare(keyspace, userTypes).getType();
     }
 
     static CQL3Type.Raw parseRaw(String type)

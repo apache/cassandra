@@ -75,6 +75,7 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.rows.RowIterators;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.exceptions.InvalidColumnTypeException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata.ClusteringOrder;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
@@ -540,7 +541,7 @@ public final class SchemaKeyspace
         mutation.update(Types)
                 .row(type.getNameAsString())
                 .add("field_names", type.fieldNames().stream().map(FieldIdentifier::toString).collect(toList()))
-                .add("field_types", type.fieldTypes().stream().map(AbstractType::asCQL3Type).map(CQL3Type::toString).collect(toList()));
+                .add("field_types", type.fieldTypes().stream().map(AbstractType::asCQL3Type).map(CQL3Type::toSchemaString).collect(toList()));
     }
 
     private static void addDropTypeToSchemaMutation(UserType type, Mutation.SimpleBuilder builder)
@@ -726,7 +727,7 @@ public final class SchemaKeyspace
                .add("kind", column.kind.toString().toLowerCase())
                .add("position", column.position())
                .add("clustering_order", column.clusteringOrder().toString().toLowerCase())
-               .add("type", type.asCQL3Type().toString());
+               .add("type", type.asCQL3Type().toSchemaString());
     }
 
     private static void dropColumnFromSchemaMutation(TableMetadata table, ColumnMetadata column, Mutation.SimpleBuilder builder)
@@ -740,7 +741,7 @@ public final class SchemaKeyspace
         builder.update(DroppedColumns)
                .row(table.name, column.column.name.toString())
                .add("dropped_time", new Date(TimeUnit.MICROSECONDS.toMillis(column.droppedTime)))
-               .add("type", column.column.type.asCQL3Type().toString())
+               .add("type", column.column.type.asCQL3Type().toSchemaString())
                .add("kind", column.column.kind.toString().toLowerCase());
     }
 
@@ -985,10 +986,11 @@ public final class SchemaKeyspace
         UntypedResultSet.Row row = rows.one();
 
         Set<TableMetadata.Flag> flags = TableMetadata.Flag.fromStringSet(row.getFrozenSet("flags", UTF8Type.instance));
+        boolean isCounter = flags.contains(TableMetadata.Flag.COUNTER);
         return TableMetadata.builder(keyspaceName, tableName, TableId.fromUUID(row.getUUID("id")))
                             .flags(flags)
                             .params(createTableParamsFromRow(row))
-                            .addColumns(fetchColumns(keyspaceName, tableName, types))
+                            .addColumns(fetchColumns(keyspaceName, tableName, types, isCounter))
                             .droppedColumns(fetchDroppedColumns(keyspaceName, tableName))
                             .indexes(fetchIndexes(keyspaceName, tableName))
                             .triggers(fetchTriggers(keyspaceName, tableName))
@@ -1021,7 +1023,7 @@ public final class SchemaKeyspace
                           .build();
     }
 
-    private static List<ColumnMetadata> fetchColumns(String keyspace, String table, Types types)
+    private static List<ColumnMetadata> fetchColumns(String keyspace, String table, Types types, boolean isCounterTable)
     {
         String query = format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, COLUMNS);
         UntypedResultSet columnRows = query(query, keyspace, table);
@@ -1029,7 +1031,7 @@ public final class SchemaKeyspace
             throw new MissingColumns("Columns not found in schema table for " + keyspace + '.' + table);
 
         List<ColumnMetadata> columns = new ArrayList<>();
-        columnRows.forEach(row -> columns.add(createColumnFromRow(row, types)));
+        columnRows.forEach(row -> columns.add(createColumnFromRow(row, types, isCounterTable)));
 
         if (columns.stream().noneMatch(ColumnMetadata::isPartitionKey))
             throw new MissingColumns("No partition key columns found in schema table for " + keyspace + "." + table);
@@ -1037,8 +1039,35 @@ public final class SchemaKeyspace
         return columns;
     }
 
+    private static AbstractType<?> validate(String keyspace,
+                                            String table,
+                                            ByteBuffer name,
+                                            AbstractType<?> type,
+                                            boolean isPrimaryKeyColumn,
+                                            boolean isCounterTable)
+    {
+        try
+        {
+            type.validateForColumn(name, isPrimaryKeyColumn, isCounterTable);
+            return type;
+        }
+        catch (InvalidColumnTypeException e)
+        {
+            AbstractType<?> fixed = e.tryFix();
+            if (fixed == null)
+                throw e;
+
+            logger.error("Error reading schema for table {}.{}, column {} had invalid type {} (invalid because: {}). "
+                         + "This was likely the result of a previous bug and the type was automatically converted to "
+                         + "valid type {}. If this is incorrect, or this message repeats itself, please contact "
+                         + "DataStax support", keyspace, table, ColumnIdentifier.toCQLString(name), type.asCQL3Type(),
+                         e.getMessage(), fixed.asCQL3Type());
+            return fixed;
+        }
+    }
+
     @VisibleForTesting
-    static ColumnMetadata createColumnFromRow(UntypedResultSet.Row row, Types types)
+    static ColumnMetadata createColumnFromRow(UntypedResultSet.Row row, Types types, boolean isCounterTable)
     {
         String keyspace = row.getString("keyspace_name");
         String table = row.getString("table_name");
@@ -1052,7 +1081,10 @@ public final class SchemaKeyspace
         if (order == ClusteringOrder.DESC)
             type = ReversedType.getInstance(type);
 
-        ColumnIdentifier name = new ColumnIdentifier(row.getBytes("column_name_bytes"), row.getString("column_name"));
+        ByteBuffer columnNameBytes = row.getBytes("column_name_bytes");
+        type = validate(keyspace, table, columnNameBytes, type, kind.isPrimaryKeyKind(), isCounterTable);
+
+        ColumnIdentifier name = new ColumnIdentifier(columnNameBytes, row.getString("column_name"));
 
         return new ColumnMetadata(keyspace, table, name, type, position, kind);
     }
@@ -1145,7 +1177,7 @@ public final class SchemaKeyspace
         boolean includeAll = row.getBoolean("include_all_columns");
         String whereClauseString = row.getString("where_clause");
 
-        List<ColumnMetadata> columns = fetchColumns(keyspaceName, viewName, types);
+        List<ColumnMetadata> columns = fetchColumns(keyspaceName, viewName, types, false);
 
         TableMetadata metadata =
             TableMetadata.builder(keyspaceName, viewName, TableId.fromUUID(row.getUUID("id")))

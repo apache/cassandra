@@ -115,10 +115,10 @@ public final class AbstractTypeGenerators
 
     public static Gen<AbstractType<?>> typeGen(int maxDepth)
     {
-        return typeGen(maxDepth, TYPE_KIND_GEN, VERY_SMALL_POSITIVE_SIZE_GEN);
+        return typeGen(maxDepth, TYPE_KIND_GEN, VERY_SMALL_POSITIVE_SIZE_GEN, true);
     }
 
-    public static Gen<AbstractType<?>> typeGen(int maxDepth, Gen<TypeKind> typeKindGen, Gen<Integer> sizeGen)
+    public static Gen<AbstractType<?>> typeGen(int maxDepth, Gen<TypeKind> typeKindGen, Gen<Integer> sizeGen, boolean isTopLevel)
     {
         assert maxDepth >= 0 : "max depth must be positive or zero; given " + maxDepth;
         boolean atBottom = maxDepth == 0;
@@ -130,15 +130,15 @@ public final class AbstractTypeGenerators
                 case PRIMITIVE:
                     return PRIMITIVE_TYPE_GEN.generate(rnd);
                 case SET:
-                    return setTypeGen(atBottom ? PRIMITIVE_TYPE_GEN : typeGen(maxDepth - 1, typeKindGen, sizeGen)).generate(rnd);
+                    return setTypeGen(atBottom ? PRIMITIVE_TYPE_GEN : typeGen(maxDepth - 1, typeKindGen, sizeGen, false), isTopLevel).generate(rnd);
                 case LIST:
-                    return listTypeGen(atBottom ? PRIMITIVE_TYPE_GEN : typeGen(maxDepth - 1, typeKindGen, sizeGen)).generate(rnd);
+                    return listTypeGen(atBottom ? PRIMITIVE_TYPE_GEN : typeGen(maxDepth - 1, typeKindGen, sizeGen, false), isTopLevel).generate(rnd);
                 case MAP:
-                    return mapTypeGen(atBottom ? PRIMITIVE_TYPE_GEN : typeGen(maxDepth - 1, typeKindGen, sizeGen)).generate(rnd);
+                    return mapTypeGen(atBottom ? PRIMITIVE_TYPE_GEN : typeGen(maxDepth - 1, typeKindGen, sizeGen, false), isTopLevel).generate(rnd);
                 case TUPLE:
-                    return tupleTypeGen(atBottom ? PRIMITIVE_TYPE_GEN : typeGen(maxDepth - 1, typeKindGen, sizeGen), sizeGen).generate(rnd);
+                    return tupleTypeGen(atBottom ? PRIMITIVE_TYPE_GEN : typeGen(maxDepth - 1, typeKindGen, sizeGen, false), sizeGen).generate(rnd);
                 case UDT:
-                    return userTypeGen(atBottom ? PRIMITIVE_TYPE_GEN : typeGen(maxDepth - 1, typeKindGen, sizeGen), sizeGen).generate(rnd);
+                    return userTypeGen(atBottom ? PRIMITIVE_TYPE_GEN : typeGen(maxDepth - 1, typeKindGen, sizeGen, false), sizeGen, isTopLevel).generate(rnd);
                 default:
                     throw new IllegalArgumentException("Unknown kind: " + kind);
             }
@@ -153,7 +153,12 @@ public final class AbstractTypeGenerators
 
     public static Gen<SetType<?>> setTypeGen(Gen<AbstractType<?>> typeGen)
     {
-        return rnd -> SetType.getInstance(typeGen.generate(rnd), BOOLEAN_GEN.generate(rnd));
+        return setTypeGen(typeGen, true);
+    }
+
+    public static Gen<SetType<?>> setTypeGen(Gen<AbstractType<?>> typeGen, boolean isTopLevel)
+    {
+        return rnd -> SetType.getInstance(typeGen.generate(rnd), isTopLevel ? BOOLEAN_GEN.generate(rnd) : false);
     }
 
     @SuppressWarnings("unused")
@@ -164,7 +169,12 @@ public final class AbstractTypeGenerators
 
     public static Gen<ListType<?>> listTypeGen(Gen<AbstractType<?>> typeGen)
     {
-        return rnd -> ListType.getInstance(typeGen.generate(rnd), BOOLEAN_GEN.generate(rnd));
+        return listTypeGen(typeGen, true);
+    }
+
+    public static Gen<ListType<?>> listTypeGen(Gen<AbstractType<?>> typeGen, boolean isTopLevel)
+    {
+        return rnd -> ListType.getInstance(typeGen.generate(rnd), isTopLevel ? BOOLEAN_GEN.generate(rnd) : false);
     }
 
     @SuppressWarnings("unused")
@@ -178,9 +188,19 @@ public final class AbstractTypeGenerators
         return mapTypeGen(typeGen, typeGen);
     }
 
+    public static Gen<MapType<?, ?>> mapTypeGen(Gen<AbstractType<?>> typeGen, boolean isTopLevel)
+    {
+        return mapTypeGen(typeGen, typeGen, isTopLevel);
+    }
+
     public static Gen<MapType<?, ?>> mapTypeGen(Gen<AbstractType<?>> keyGen, Gen<AbstractType<?>> valueGen)
     {
-        return rnd -> MapType.getInstance(keyGen.generate(rnd), valueGen.generate(rnd), BOOLEAN_GEN.generate(rnd));
+        return mapTypeGen(keyGen, valueGen, true);
+    }
+
+    public static Gen<MapType<?, ?>> mapTypeGen(Gen<AbstractType<?>> keyGen, Gen<AbstractType<?>> valueGen, boolean isTopLevel)
+    {
+        return rnd -> MapType.getInstance(keyGen.generate(rnd), valueGen.generate(rnd), isTopLevel ? BOOLEAN_GEN.generate(rnd) : false);
     }
 
     public static Gen<TupleType> tupleTypeGen()
@@ -216,9 +236,14 @@ public final class AbstractTypeGenerators
 
     public static Gen<UserType> userTypeGen(Gen<AbstractType<?>> elementGen, Gen<Integer> sizeGen)
     {
+        return userTypeGen(elementGen, sizeGen, true);
+    }
+
+    public static Gen<UserType> userTypeGen(Gen<AbstractType<?>> elementGen, Gen<Integer> sizeGen, boolean isTopLevel)
+    {
         Gen<FieldIdentifier> fieldNameGen = IDENTIFIER_GEN.map(FieldIdentifier::forQuoted);
         return rnd -> {
-            boolean multiCell = BOOLEAN_GEN.generate(rnd);
+            boolean multiCell = isTopLevel ? BOOLEAN_GEN.generate(rnd) : false;
             int numElements = sizeGen.generate(rnd);
             List<AbstractType<?>> fieldTypes = new ArrayList<>(numElements);
             LinkedHashSet<FieldIdentifier> fieldNames = new LinkedHashSet<>(numElements);
@@ -328,7 +353,7 @@ public final class AbstractTypeGenerators
         @SuppressWarnings("unchecked")
         private TupleGen(TupleType tupleType, Gen<Integer> sizeGen)
         {
-            this.elementsSupport = tupleType.allTypes().stream().map(t -> getTypeSupport((AbstractType<Object>) t, sizeGen)).collect(Collectors.toList());
+            this.elementsSupport = tupleType.subTypes().stream().map(t -> getTypeSupport((AbstractType<Object>) t, sizeGen)).collect(Collectors.toList());
         }
 
         public ByteBuffer generate(RandomnessSource rnd)

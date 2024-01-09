@@ -23,6 +23,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.BytesSerializer;
@@ -38,9 +40,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
 {
-    protected AbstractCompositeType()
+    protected AbstractCompositeType(ImmutableList<AbstractType<?>> subTypes)
     {
-        super(ComparisonType.CUSTOM);
+        super(ComparisonType.CUSTOM, false, subTypes);
     }
 
     public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
@@ -102,7 +104,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
      */
     public ByteBuffer[] split(ByteBuffer bb)
     {
-        List<ByteBuffer> l = new ArrayList<ByteBuffer>();
+        List<ByteBuffer> l = new ArrayList<>();
         boolean isStatic = readIsStatic(bb, ByteBufferAccessor.instance);
         int offset = startingOffset(isStatic);
 

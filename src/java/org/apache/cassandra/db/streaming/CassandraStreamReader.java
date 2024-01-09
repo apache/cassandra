@@ -146,8 +146,9 @@ public class CassandraStreamReader implements IStreamReader
 
     protected SerializationHeader getHeader(TableMetadata metadata) throws UnknownColumnException
     {
-        return header != null? header.toHeader(metadata) : null; //pre-3.0 sstable have no SerializationHeader
+        return header != null? header.toHeader("stream from " + session.peer, metadata) : null; //pre-3.0 sstable have no SerializationHeader
     }
+
     @SuppressWarnings("resource")
     protected SSTableMultiWriter createWriter(ColumnFamilyStore cfs, long totalSize, long repairedAt, UUID pendingRepair, SSTableFormat.Type format) throws IOException
     {

@@ -221,8 +221,8 @@ public class DescribeStatementTest extends CQLTester
             assertRowsNet(executeDescribeNet("DESCRIBE FUNCTION " + function),
                           row(KEYSPACE_PER_TEST,
                               "function",
-                              shortFunctionName(function) + "(tuple<int>, list<frozen<tuple<int, text>>>, tuple<frozen<tuple<int, text>>, text>)",
-                              "CREATE FUNCTION " + function + "(t tuple<int>, l list<frozen<tuple<int, text>>>, nt tuple<frozen<tuple<int, text>>, text>)\n" +
+                              shortFunctionName(function) + "(tuple<int>, list<tuple<int, text>>, tuple<tuple<int, text>, text>)",
+                              "CREATE FUNCTION " + function + "(t tuple<int>, l list<tuple<int, text>>, nt tuple<tuple<int, text>, text>)\n" +
                               "    CALLED ON NULL INPUT\n" +
                               "    RETURNS tuple<int, text>\n" +
                               "    LANGUAGE java\n" +
@@ -954,7 +954,7 @@ public class DescribeStatementTest extends CQLTester
                "    textcol text,\n" +
                "    timestampcol timestamp,\n" +
                "    tinyintcol tinyint,\n" +
-               "    tuplecol frozen<tuple<text, int, frozen<tuple<timestamp>>>>,\n" +
+               "    tuplecol tuple<text, int, tuple<timestamp>>,\n" +
                "    uuidcol uuid,\n" +
                "    varcharcol text,\n" +
                "    varintcol varint,\n" +

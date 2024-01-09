@@ -161,11 +161,6 @@ public final class Keyspaces implements Iterable<KeyspaceMetadata>
                         .build();
     }
 
-    public void validate()
-    {
-        keyspaces.values().forEach(KeyspaceMetadata::validate);
-    }
-
     @Override
     public boolean equals(Object o)
     {

@@ -40,9 +40,9 @@ import static org.junit.Assert.assertEquals;
 
 /**
  * Verifies that the string representations of {@link AbstractType} and {@link CQL3Type} are as expected and compatible.
- *
+ * </p>
  * C* 3.0 is known to <em>not</em> enclose a frozen UDT in a "frozen bracket" in the {@link AbstractType}.
- * The string representation of a frozuen UDT using the {@link CQL3Type} type hierarchy is correct in C* 3.0.
+ * The string representation of a frozen UDT using the {@link CQL3Type} type hierarchy is correct in C* 3.0.
  */
 public class TupleTypesRepresentationTest
 {
@@ -129,7 +129,7 @@ public class TupleTypesRepresentationTest
                    ", cqlType=" + cqlType + '\n' +
                    ", droppedType=" + droppedType + '\n' +
                    ", droppedCqlTypeString='" + droppedCqlTypeString + "'\n" +
-                   ", droppedCqlType=" + droppedCqlType + '\n' +
+                   ", droppedCqlType=" + droppedCqlType.toSchemaString() + '\n' +
                    '}';
         }
     }
@@ -142,7 +142,7 @@ public class TupleTypesRepresentationTest
             "'foobar'");
 
     private static final TypeDef tuple_text__text_ = new TypeDef(
-            "org.apache.cassandra.db.marshal.TupleType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.UTF8Type)",
+            "org.apache.cassandra.db.marshal.FrozenType(org.apache.cassandra.db.marshal.TupleType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.UTF8Type))",
             "tuple<text, text>",
             "frozen<tuple<text, text>>",
             false,
@@ -206,9 +206,7 @@ public class TupleTypesRepresentationTest
             "{'foo':'bar'}");
 
     private static final TypeDef list_frozen_tuple_text__text___ = new TypeDef(
-            // in consequence, this should be:
-            // "org.apache.cassandra.db.marshal.ListType(org.apache.cassandra.db.marshal.FrozenType(org.apache.cassandra.db.marshal.TupleType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.UTF8Type)))",
-            "org.apache.cassandra.db.marshal.ListType(org.apache.cassandra.db.marshal.TupleType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.UTF8Type))",
+            "org.apache.cassandra.db.marshal.ListType(org.apache.cassandra.db.marshal.FrozenType(org.apache.cassandra.db.marshal.TupleType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.UTF8Type)))",
             "list<frozen<tuple<text, text>>>",
             "list<frozen<tuple<text, text>>>",
             true,
@@ -216,15 +214,13 @@ public class TupleTypesRepresentationTest
 
     private static final TypeDef frozen_list_tuple_text__text___ = new TypeDef(
             "org.apache.cassandra.db.marshal.FrozenType(org.apache.cassandra.db.marshal.ListType(org.apache.cassandra.db.marshal.TupleType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.UTF8Type)))",
-            "frozen<list<frozen<tuple<text, text>>>>",
+            "frozen<list<tuple<text, text>>>",
             "frozen<list<frozen<tuple<text, text>>>>",
             true,
             "[('foo','bar')]");
 
     private static final TypeDef set_frozen_tuple_text__text___ = new TypeDef(
-            // in consequence, this should be:
-            // "org.apache.cassandra.db.marshal.SetType(org.apache.cassandra.db.marshal.FrozenType(org.apache.cassandra.db.marshal.TupleType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.UTF8Type)))",
-            "org.apache.cassandra.db.marshal.SetType(org.apache.cassandra.db.marshal.TupleType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.UTF8Type))",
+            "org.apache.cassandra.db.marshal.SetType(org.apache.cassandra.db.marshal.FrozenType(org.apache.cassandra.db.marshal.TupleType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.UTF8Type)))",
             "set<frozen<tuple<text, text>>>",
             "set<frozen<tuple<text, text>>>",
             true,
@@ -232,15 +228,13 @@ public class TupleTypesRepresentationTest
 
     private static final TypeDef frozen_set_tuple_text__text___ = new TypeDef(
             "org.apache.cassandra.db.marshal.FrozenType(org.apache.cassandra.db.marshal.SetType(org.apache.cassandra.db.marshal.TupleType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.UTF8Type)))",
-            "frozen<set<frozen<tuple<text, text>>>>",
+            "frozen<set<tuple<text, text>>>",
             "frozen<set<frozen<tuple<text, text>>>>",
             true,
             "{('foo','bar')}");
 
     private static final TypeDef map_text__frozen_tuple_text__text___ = new TypeDef(
-            // in consequence, this should be:
-            // "org.apache.cassandra.db.marshal.MapType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.FrozenType(org.apache.cassandra.db.marshal.TupleType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.UTF8Type)))",
-            "org.apache.cassandra.db.marshal.MapType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.TupleType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.UTF8Type))",
+            "org.apache.cassandra.db.marshal.MapType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.FrozenType(org.apache.cassandra.db.marshal.TupleType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.UTF8Type)))",
             "map<text, frozen<tuple<text, text>>>",
             "map<text, frozen<tuple<text, text>>>",
             true,
@@ -248,7 +242,7 @@ public class TupleTypesRepresentationTest
 
     private static final TypeDef frozen_map_text__tuple_text__text___ = new TypeDef(
             "org.apache.cassandra.db.marshal.FrozenType(org.apache.cassandra.db.marshal.MapType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.TupleType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.UTF8Type)))",
-            "frozen<map<text, frozen<tuple<text, text>>>>",
+            "frozen<map<text, tuple<text, text>>>",
             "frozen<map<text, frozen<tuple<text, text>>>>",
             true,
             "{'foobar':('foo','bar')}");
@@ -262,7 +256,7 @@ public class TupleTypesRepresentationTest
 
     private static final TypeDef frozen_list_i_udt__ = new TypeDef(
             "org.apache.cassandra.db.marshal.FrozenType(org.apache.cassandra.db.marshal.ListType(org.apache.cassandra.db.marshal.UserType(ks,695f756474,61:org.apache.cassandra.db.marshal.UTF8Type,62:org.apache.cassandra.db.marshal.UTF8Type)))",
-            "frozen<list<frozen<i_udt>>>",
+            "frozen<list<i_udt>>",
             "frozen<list<frozen<tuple<text, text>>>>",
             true,
             "[{a:'foo',b:'bar'}]");
@@ -276,7 +270,7 @@ public class TupleTypesRepresentationTest
 
     private static final TypeDef frozen_set_i_udt__ = new TypeDef(
             "org.apache.cassandra.db.marshal.FrozenType(org.apache.cassandra.db.marshal.SetType(org.apache.cassandra.db.marshal.UserType(ks,695f756474,61:org.apache.cassandra.db.marshal.UTF8Type,62:org.apache.cassandra.db.marshal.UTF8Type)))",
-            "frozen<set<frozen<i_udt>>>",
+            "frozen<set<i_udt>>",
             "frozen<set<frozen<tuple<text, text>>>>",
             true,
             "{{a:'foo',b:'bar'}}");
@@ -290,7 +284,7 @@ public class TupleTypesRepresentationTest
 
     private static final TypeDef frozen_map_text__i_udt__ = new TypeDef(
             "org.apache.cassandra.db.marshal.FrozenType(org.apache.cassandra.db.marshal.MapType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.UserType(ks,695f756474,61:org.apache.cassandra.db.marshal.UTF8Type,62:org.apache.cassandra.db.marshal.UTF8Type)))",
-            "frozen<map<text, frozen<i_udt>>>",
+            "frozen<map<text, i_udt>>",
             "frozen<map<text, frozen<tuple<text, text>>>>",
             true,
             "{'foobar':{a:'foo',b:'bar'}}");
@@ -375,16 +369,13 @@ public class TupleTypesRepresentationTest
         {
             try
             {
-                assertEquals(typeDef.toString() + "\n typeString vs type\n", typeDef.typeString, typeDef.type.toString());
-                assertEquals(typeDef.toString() + "\n typeString vs cqlType.getType()\n", typeDef.typeString, typeDef.cqlType.getType().toString());
+                assertEquals(typeDef + "\n typeString vs type\n", typeDef.typeString, typeDef.type.toString());
+                assertEquals(typeDef + "\n typeString vs cqlType.getType()\n", typeDef.typeString, typeDef.cqlType.getType().toString());
                 AbstractType<?> expanded = typeDef.type.expandUserTypes();
                 CQL3Type expandedCQL = expanded.asCQL3Type();
-                // Note: cannot include this commented-out assertion, because the parsed CQL3Type instance for
-                // 'frozen<list<tuple<text, text>>>' returns 'frozen<list<frozen<tuple<text, text>>>>' via it's CQL3Type.toString()
-                // implementation.
-                assertEquals(typeDef.toString() + "\n droppedCqlType\n", typeDef.droppedCqlType, expandedCQL);
-                assertEquals(typeDef.toString() + "\n droppedCqlTypeString\n", typeDef.droppedCqlTypeString, expandedCQL.toString());
-                assertEquals(typeDef.toString() + "\n multiCell\n", typeDef.type.isMultiCell(), typeDef.droppedType.isMultiCell());
+                assertEquals(typeDef + "\n droppedCqlType\n", typeDef.droppedCqlType, expandedCQL);
+                assertEquals(typeDef + "\n droppedCqlTypeString\n", typeDef.droppedCqlTypeString, expandedCQL.toSchemaString());
+                assertEquals(typeDef + "\n multiCell\n", typeDef.type.isMultiCell(), typeDef.droppedType.isMultiCell());
 
                 AbstractType<?> parsedType = TypeParser.parse(typeDef.typeString);
                 assertEquals(typeDef.toString(), typeDef.typeString, parsedType.toString());

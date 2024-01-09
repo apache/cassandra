@@ -396,8 +396,8 @@ public abstract class SSTableHeaderFix
         {
             // Note, the logic is similar as just calling 'fixType()' using the composite partition key,
             // but the log messages should use the composite partition key column names.
-            List<AbstractType<?>> headerKeyComponents = ((CompositeType) headerKeyType).types;
-            List<AbstractType<?>> schemaKeyComponents = ((CompositeType) schemaKeyType).types;
+            List<AbstractType<?>> headerKeyComponents = headerKeyType.subTypes();
+            List<AbstractType<?>> schemaKeyComponents = schemaKeyType.subTypes();
             if (headerKeyComponents.size() != schemaKeyComponents.size())
             {
                 // different number of components in composite partition keys - very suspicious
@@ -738,15 +738,15 @@ public abstract class SSTableHeaderFix
 
     private AbstractType<?> fixTypeInnerComposite(CompositeType cHeader, CompositeType cSchema, boolean droppedColumnMode)
     {
-        if (cHeader.types.size() != cSchema.types.size())
+        if (cHeader.subTypes().size() != cSchema.subTypes().size())
             // different number of components - bummer...
             return null;
-        List<AbstractType<?>> cHeaderFixed = new ArrayList<>(cHeader.types.size());
+        List<AbstractType<?>> cHeaderFixed = new ArrayList<>(cHeader.subTypes().size());
         boolean anyChanged = false;
-        for (int i = 0; i < cHeader.types.size(); i++)
+        for (int i = 0; i < cHeader.subTypes().size(); i++)
         {
-            AbstractType<?> cHeaderComp = cHeader.types.get(i);
-            AbstractType<?> cHeaderCompFixed = fixTypeInner(cHeaderComp, cSchema.types.get(i), droppedColumnMode);
+            AbstractType<?> cHeaderComp = cHeader.subTypes().get(i);
+            AbstractType<?> cHeaderCompFixed = fixTypeInner(cHeaderComp, cSchema.subTypes().get(i), droppedColumnMode);
             if (cHeaderCompFixed == null)
                 // incompatible, bummer...
                 return null;

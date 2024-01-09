@@ -136,7 +136,7 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
     }
 
     @Override
-    public String toString()
+    public String toString(boolean ignoreFreezing)
     {
         return String.format("%s(%s)", getClass().getName(), partitioner.getClass().getName());
     }

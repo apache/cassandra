@@ -93,11 +93,11 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement implemen
         }
 
         KeyspaceMetadata keyspace = KeyspaceMetadata.create(keyspaceName, attrs.asNewKeyspaceParams());
+        keyspace.validate();
 
         if (keyspace.params.replication.klass.equals(LocalStrategy.class))
             throw ire("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
 
-        keyspace.params.validate(keyspaceName);
         return schema.withAddedOrUpdated(keyspace);
     }
 

@@ -172,7 +172,7 @@ public class BigFormat implements SSTableFormat
                 SerializationHeader.Component headerComponent = (SerializationHeader.Component)
                                                                 descriptor.getMetadataSerializer()
                                                                           .deserialize(descriptor, MetadataType.HEADER);
-                SerializationHeader header = headerComponent.toHeader(metadata);
+                SerializationHeader header = headerComponent.toHeader(descriptor.toString(), metadata);
                 BigTableRowIndexEntry.Serializer serializer = new BigTableRowIndexEntry.Serializer(descriptor.version, header);
                 return BigTablePartitionIndexIterator.create(iFile, serializer);
             }

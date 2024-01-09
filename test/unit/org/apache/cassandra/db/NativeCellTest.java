@@ -116,7 +116,7 @@ public class NativeCellTest
         return new ColumnMetadata("",
                                   "",
                                   ColumnIdentifier.getInterned(uuid.toString(), false),
-                                    isComplex ? new SetType<>(BytesType.instance, true) : BytesType.instance,
+                                    isComplex ? SetType.getInstance(BytesType.instance, true) : BytesType.instance,
                                   -1,
                                   ColumnMetadata.Kind.REGULAR);
     }

@@ -19,7 +19,6 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.filter.*;
@@ -320,8 +319,8 @@ public class DataRange
         {
             CompositeType ct = (CompositeType)type;
             ByteBuffer[] values = ct.split(key);
-            for (int i = 0; i < ct.types.size(); i++)
-                sb.append(i == 0 ? "" : ", ").append(ct.types.get(i).getString(values[i]));
+            for (int i = 0; i < ct.subTypes().size(); i++)
+                sb.append(i == 0 ? "" : ", ").append(ct.subTypes().get(i).getString(values[i]));
         }
         else
         {

@@ -191,10 +191,10 @@ public class TermSelectionTest extends CQLTester
                             tuple(tuple("three", "three"), tuple("three", "three", 3L, "three")))));
 
         // single element tuple: tuple(t) incompatible with tuple(long, long)
-        assertInvalidMessage("(t) is not of the expected type: frozen<tuple<bigint, bigint>>",
+        assertInvalidMessage("(t) is not of the expected type: tuple<bigint, bigint>",
                              "SELECT [(CAST(pk AS BIGINT), CAST(ck AS BIGINT)), (t)] FROM %s");
 
-        assertInvalidMessage("(cast(ck as bigint)) is not of the expected type: frozen<tuple<text, text>>",
+        assertInvalidMessage("(cast(ck as bigint)) is not of the expected type: tuple<text, text>",
                              "SELECT [(t, t), (CAST(ck AS BIGINT))] FROM %s");
 
         // single element tuple: tuple(long) compatible with tuple(long, long)
@@ -308,7 +308,7 @@ public class TermSelectionTest extends CQLTester
                            tuple(tuple("three", "three"), tuple("three", "three", 3L, "three")))));
 
         // getExactType for (t) is null
-        assertInvalidMessage("(t) is not of the expected type: frozen<tuple<bigint, bigint>>",
+        assertInvalidMessage("(t) is not of the expected type: tuple<bigint, bigint>",
                              "SELECT {(CAST(pk AS BIGINT), CAST(ck AS BIGINT)), (t), (CAST(pk AS BIGINT), CAST(ck AS BIGINT))} FROM %s");
 
         // Test UDTs nested within Sets
@@ -465,7 +465,7 @@ public class TermSelectionTest extends CQLTester
 
 
         // Test Litteral Set with Duration elements
-        assertInvalidMessage("Durations are not allowed inside sets: set<duration>",
+        assertInvalidMessage("Durations are not allowed inside sets: frozen<set<duration>>",
                              "SELECT pk, ck, (set<duration>){2d, 1mo} FROM %s");
 
         assertInvalidMessage("Invalid field selection: system.min(ck) of type int is not a user type",
@@ -494,7 +494,7 @@ public class TermSelectionTest extends CQLTester
                    row(map(2, Duration.from("10h"))),
                    row(map(3, Duration.from("11h"))));
 
-        assertInvalidMessage("Durations are not allowed as map keys: map<duration, int>",
+        assertInvalidMessage("Durations are not allowed as map keys: frozen<map<duration, int>>",
                              "SELECT (map<duration, int>){d1 : ck, d2 :ck} FROM %s");
     }
 
@@ -502,7 +502,7 @@ public class TermSelectionTest extends CQLTester
     public void testSelectUDTLiteral() throws Throwable
     {
         String type = createType("CREATE TYPE %s(a int, b text)");
-        createTable("CREATE TABLE %s (k int PRIMARY KEY, v " + type + ")");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v " + type + ')');
 
         execute("INSERT INTO %s(k, v) VALUES (?, ?)", 0, userType("a", 3, "b", "foo"));
 

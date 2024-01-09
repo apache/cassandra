@@ -24,10 +24,16 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.exceptions.InvalidColumnTypeException;
 import org.apache.cassandra.exceptions.UnknownColumnException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
@@ -43,6 +49,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SerializationHeader
 {
+    private static final Logger logger = LoggerFactory.getLogger(SerializationHeader.class);
+
     public static final Serializer serializer = new Serializer();
 
     private final boolean isForSSTable;
@@ -83,7 +91,7 @@ public class SerializationHeader
         // kind of ok because those stats are only used for optimizing the underlying storage format and so we
         // just have to strive for as good as possible. Currently, we stick to a relatively naive merge of existing
         // global stats because it's simple and probably good enough in most situation but we could probably
-        // improve our marging of inaccuracy through the use of more fine-grained stats in the future.
+        // improve our merging of inaccuracy through the use of more fine-grained stats in the future.
         // Note however that to avoid seeing our accuracy degrade through successive compactions, we don't base
         // our stats merging on the compacted files headers, which as we just said can be somewhat inaccurate,
         // but rather on their stats stored in StatsMetadata that are fully accurate.
@@ -307,19 +315,92 @@ public class SerializationHeader
             return MetadataType.HEADER;
         }
 
-        public SerializationHeader toHeader(TableMetadata metadata) throws UnknownColumnException
+        private static AbstractType<?> validateType(String descriptor,
+                                                    TableMetadata table,
+                                                    ByteBuffer columnName,
+                                                    AbstractType<?> type,
+                                                    boolean isPrimaryKeyColumn)
+        {
+            try
+            {
+                type.validateForColumn(columnName, isPrimaryKeyColumn, table.isCounter());
+                return type;
+            }
+            catch (InvalidColumnTypeException e)
+            {
+                AbstractType<?> fixed = e.tryFix();
+                if (fixed == null)
+                {
+                    // We don't know how to fix. We log an error here, so we know where the problem is coming from. But we
+                    // otherwise use the type verbatim in the off chance that the type breakage doesn't impact anything.
+                    logger.error("Error reading SSTable header {}, the type for column {} in {} is {}, which is " +
+                                 "invalid ({}); Will continue with that type, but something may break.",
+                                 descriptor, ColumnIdentifier.toCQLString(columnName), table, type.asCQL3Type(),
+                                 e.getMessage());
+                    return type;
+                }
+                else
+                {
+                    logger.warn("Error reading SSTable header {}, the type for column {} in {} is {}, which is " +
+                                "invalid ({}); Will continue with modified valid type {}, but please contact " +
+                                "support if this is incorrect",
+                                descriptor, ColumnIdentifier.toCQLString(columnName), table, type.asCQL3Type(),
+                                e.getMessage(), fixed.asCQL3Type());
+                    return fixed;
+                }
+            }
+        }
+
+        private static AbstractType<?> validatePartitionKeyType(String descriptor,
+                                                                TableMetadata table,
+                                                                AbstractType<?> fullType)
+        {
+            List<ColumnMetadata> pkColumns = table.partitionKeyColumns();
+            int pkCount = pkColumns.size();
+
+            if (pkCount == 1)
+                return validateType(descriptor, table, pkColumns.get(0).name.bytes, fullType, true);
+
+            List<AbstractType<?>> subTypes = fullType.subTypes();
+            assert fullType instanceof CompositeType && subTypes.size() == pkCount
+                    : String.format("In %s, got %s as table %s partition key type but partition key is %s",
+                                    descriptor, fullType, table, pkColumns);
+
+            return CompositeType.getInstance(validatePKTypes(descriptor, table, pkColumns, subTypes));
+        }
+
+        private static List<AbstractType<?>> validatePKTypes(String descriptor,
+                                                             TableMetadata table,
+                                                             List<ColumnMetadata> columns,
+                                                             List<AbstractType<?>> types)
+        {
+            int count = types.size();
+            List<AbstractType<?>> updated = new ArrayList<>(count);
+            for (int i = 0; i < count; i++)
+            {
+                updated.add(validateType(descriptor,
+                                         table,
+                                         columns.get(i).name.bytes,
+                                         types.get(i),
+                                         true));
+            }
+            return updated;
+        }
+
+        public SerializationHeader toHeader(String descriptor, TableMetadata metadata) throws UnknownColumnException
         {
             Map<ByteBuffer, AbstractType<?>> typeMap = new HashMap<>(staticColumns.size() + regularColumns.size());
-
             RegularAndStaticColumns.Builder builder = RegularAndStaticColumns.builder();
+
             for (Map<ByteBuffer, AbstractType<?>> map : ImmutableList.of(staticColumns, regularColumns))
             {
                 boolean isStatic = map == staticColumns;
                 for (Map.Entry<ByteBuffer, AbstractType<?>> e : map.entrySet())
                 {
                     ByteBuffer name = e.getKey();
-                    AbstractType<?> other = typeMap.put(name, e.getValue());
-                    if (other != null && !other.equals(e.getValue()))
+                    AbstractType<?> type = validateType(descriptor, metadata, name, e.getValue(), false);
+                    AbstractType<?> other = typeMap.put(name, type);
+                    if (other != null && !other.equals(type))
                         throw new IllegalStateException("Column " + name + " occurs as both regular and static with types " + other + "and " + e.getValue());
 
                     ColumnMetadata column = metadata.getColumn(name);
@@ -332,7 +413,7 @@ public class SerializationHeader
 
                         // If we don't find the definition, it could be we have data for a dropped column, and we shouldn't
                         // fail deserialization because of that. So we grab a "fake" ColumnDefinition that ensure proper
-                        // deserialization. The column will be ignore later on anyway.
+                        // deserialization. The column will be ignored later on anyway.
                         column = metadata.getDroppedColumn(name, isStatic);
                         if (column == null)
                             throw new UnknownColumnException("Unknown column " + UTF8Type.instance.getString(name) + " during deserialization");
@@ -341,7 +422,18 @@ public class SerializationHeader
                 }
             }
 
-            return new SerializationHeader(true, keyType, clusteringTypes, builder.build(), stats, typeMap);
+            AbstractType<?> partitionKeys = validatePartitionKeyType(descriptor, metadata, keyType);
+            List<AbstractType<?>> clusterings = validatePKTypes(descriptor,
+                                                                metadata,
+                                                                metadata.clusteringColumns(),
+                                                                clusteringTypes);
+
+            return new SerializationHeader(true,
+                                           partitionKeys,
+                                           clusterings,
+                                           builder.build(),
+                                           stats,
+                                           typeMap);
         }
 
         @Override
