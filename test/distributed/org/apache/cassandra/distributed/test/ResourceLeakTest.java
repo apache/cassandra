@@ -91,7 +91,7 @@ public class ResourceLeakTest extends TestBaseImpl
      */
     private static Long getProcessId()
     {
-        long pid = new SystemInfo().getPid();
+        long pid = SystemInfo.instance().getPid();
 
         if (pid >= 0)
             return Long.valueOf(pid);

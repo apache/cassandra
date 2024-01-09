@@ -422,7 +422,7 @@ public class StartupChecks
         @Override
         public void execute(StartupChecksOptions options)
         {
-            Optional<String> degradations = new SystemInfo().isDegraded();
+            Optional<String> degradations = SystemInfo.instance().isDegraded();
 
             if (degradations.isPresent())
                     logger.warn("Cassandra server running in degraded mode. " + degradations.get());

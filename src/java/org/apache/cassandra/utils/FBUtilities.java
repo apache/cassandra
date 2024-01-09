@@ -137,7 +137,7 @@ public class FBUtilities
 
     private static int availableProcessors = CASSANDRA_AVAILABLE_PROCESSORS.getInt(DatabaseDescriptor.getAvailableProcessors());
 
-    private static volatile Supplier<Semver> kernelVersionSupplier = Suppliers.memoize(() -> new SystemInfo().getKernelVersion());
+    private static volatile Supplier<Semver> kernelVersionSupplier = Suppliers.memoize(() -> SystemInfo.instance().getKernelVersion());
 
     public static void setAvailableProcessors(int value)
     {

@@ -59,6 +59,30 @@ public final class SystemInfo
 
     private static final Pattern SPACES_PATTERN = Pattern.compile("\\s+");
 
+    private static Supplier<SystemInfo> provider = () -> new SystemInfo();
+
+    /**
+     * Sets the Supplier of the SystemInfo.
+     * <p>
+     *     If {@code null} is passed as the provider the provider will be reset to the default provider.
+     * </p>
+     * @param provider the Supplier of SystemInfo that will be used for {@code instance} calls. May be null.
+     */
+    public static void setProvider(Supplier<SystemInfo> provider) {
+        SystemInfo.provider = provider == null ? () -> new SystemInfo() : provider;
+    }
+
+    /**
+     * Gets an instance of SystemInfo.  Whether the SystemInfo instance is new or memoized depends upon the
+     * implementation of the provider specified by {@code setProvider}.  By default a new version of SystemInfo
+     * is created on every call.
+     * @return
+     */
+    public static SystemInfo instance()
+    {
+        return provider.get();
+    }
+
     /**
      * The oshi.SystemInfo has the following note:
      * Platform-specific Hardware and Software objects are retrieved via memoized suppliers. To conserve memory at the
@@ -70,7 +94,8 @@ public final class SystemInfo
      */
     private final oshi.SystemInfo si;
 
-    public SystemInfo()
+    // package private for testing
+    SystemInfo()
     {
         si = new oshi.SystemInfo();
     }

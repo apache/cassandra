@@ -29,7 +29,7 @@ public class SystemInfoTest {
     public void testGetKernelVersion()
     {
         Assume.assumeTrue(FBUtilities.isLinux);
-        Semver kernelVersion = new SystemInfo().getKernelVersion();
+        Semver kernelVersion = SystemInfo.instance().getKernelVersion();
         assertThat(kernelVersion).isGreaterThan(new Semver("0.0.0", Semver.SemverType.LOOSE));
         assertThat(kernelVersion).isLessThan(new Semver("100.0.0", Semver.SemverType.LOOSE));
     }
