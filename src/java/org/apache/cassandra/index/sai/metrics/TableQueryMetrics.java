@@ -40,6 +40,10 @@ public class TableQueryMetrics extends AbstractMetrics
     private final Counter totalRowsFiltered;
     private final Counter totalQueriesCompleted;
 
+    private final Counter sortThenFilterQueriesCompleted;
+    private final Counter filterThenSortQueriesCompleted;
+
+
     public TableQueryMetrics(TableMetadata table)
     {
         super(table.keyspace, table.name, TABLE_QUERY_METRIC_TYPE);
@@ -50,6 +54,9 @@ public class TableQueryMetrics extends AbstractMetrics
         totalRowsFiltered = Metrics.counter(createMetricName("TotalRowsFiltered"));
         totalQueriesCompleted = Metrics.counter(createMetricName("TotalQueriesCompleted"));
         totalQueryTimeouts = Metrics.counter(createMetricName("TotalQueryTimeouts"));
+
+        sortThenFilterQueriesCompleted = Metrics.counter(createMetricName("SortThenFilterQueriesCompleted"));
+        filterThenSortQueriesCompleted = Metrics.counter(createMetricName("FilterThenSortQueriesCompleted"));
     }
 
     public void record(QueryContext queryContext)
@@ -166,6 +173,11 @@ public class TableQueryMetrics extends AbstractMetrics
 
             this.rowsFiltered.update(rowsFiltered);
             totalRowsFiltered.inc(rowsFiltered);
+
+            if (queryContext.filterSortOrder() == QueryContext.FilterSortOrder.SORT_THEN_FILTER)
+                sortThenFilterQueriesCompleted.inc();
+            else if (queryContext.filterSortOrder() == QueryContext.FilterSortOrder.FILTER_THEN_SORT)
+                filterThenSortQueriesCompleted.inc();
 
             if (Tracing.isTracing())
             {
