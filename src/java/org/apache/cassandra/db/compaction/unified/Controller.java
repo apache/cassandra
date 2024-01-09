@@ -487,12 +487,14 @@ public class Controller
             }
         }
 
+        // preserve the configuration for later use during min_sstable_size.
+        long targetSSTableSize = DEFAULT_TARGET_SSTABLE_SIZE;
         s = options.remove(TARGET_SSTABLE_SIZE_OPTION);
         if (s != null)
         {
             try
             {
-                long targetSSTableSize = FBUtilities.parseHumanReadableBytes(s);
+                targetSSTableSize = FBUtilities.parseHumanReadableBytes(s);
                 if (targetSSTableSize < MIN_TARGET_SSTABLE_SIZE)
                 {
                     throw new ConfigurationException(String.format("%s %s is not acceptable, size must be at least %s",
@@ -596,10 +598,16 @@ public class Controller
             try
             {
                 long sizeInBytes = FBUtilities.parseHumanReadableBytes(s);
+                // zero is a valid option to disable feature
                 if (sizeInBytes < 0)
-                    throw new ConfigurationException(String.format("Invalid configuration, %s should be positive: %s",
+                    throw new ConfigurationException(String.format("Invalid configuration, %s should be greater than or equal to 0 (zero)",
+                                                                   MIN_SSTABLE_SIZE_OPTION));
+                int limit = (int) Math.ceil(targetSSTableSize * INVERSE_SQRT_2);
+                if (sizeInBytes >= limit)
+                    throw new ConfigurationException(String.format("Invalid configuration, %s (%s) should be less than the target size minimum: %s",
                                                                    MIN_SSTABLE_SIZE_OPTION,
-                                                                   s));
+                                                                   FBUtilities.prettyPrintMemory(sizeInBytes),
+                                                                   FBUtilities.prettyPrintMemory(limit)));
             }
             catch (NumberFormatException e)
             {

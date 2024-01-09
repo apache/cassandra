@@ -32,9 +32,9 @@ import org.apache.cassandra.index.sai.disk.PerColumnIndexWriter;
 import org.apache.cassandra.index.sai.disk.RowMapping;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.disk.v1.bbtree.BlockBalancedTreeIterator;
 import org.apache.cassandra.index.sai.disk.v1.bbtree.NumericIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
+import org.apache.cassandra.index.sai.disk.v1.segment.SegmentWriter;
 import org.apache.cassandra.index.sai.disk.v1.trie.LiteralIndexWriter;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
 import org.apache.cassandra.index.sai.memory.MemtableTermsIterator;
@@ -122,7 +122,7 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
 
                 try (MemtableTermsIterator terms = new MemtableTermsIterator(memtable.getMinTerm(), memtable.getMaxTerm(), iterator))
                 {
-                    long cellCount = flush(terms, rowMapping.maxSSTableRowId);
+                    long cellCount = flush(terms);
 
                     completeIndexFlush(cellCount, start, stopwatch);
                 }
@@ -137,28 +137,15 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
         }
     }
 
-    private long flush(MemtableTermsIterator terms, long maxSSTableRowId) throws IOException
+    private long flush(MemtableTermsIterator terms) throws IOException
     {
-        long numRows;
-        SegmentMetadata.ComponentMetadataMap indexMetas;
+        SegmentWriter writer = indexTermType.isLiteral() ? new LiteralIndexWriter(indexDescriptor, indexIdentifier)
+                                                         : new NumericIndexWriter(indexDescriptor,
+                                                                                  indexIdentifier,
+                                                                                  indexTermType.fixedSizeOf());
 
-        if (indexTermType.isLiteral())
-        {
-            try (LiteralIndexWriter writer = new LiteralIndexWriter(indexDescriptor, indexIdentifier))
-            {
-                indexMetas = writer.writeCompleteSegment(terms);
-                numRows = writer.getPostingsCount();
-            }
-        }
-        else
-        {
-            NumericIndexWriter writer = new NumericIndexWriter(indexDescriptor,
-                                                               indexIdentifier,
-                                                               indexTermType.fixedSizeOf(),
-                                                               maxSSTableRowId);
-            indexMetas = writer.writeCompleteSegment(BlockBalancedTreeIterator.fromTermsIterator(terms, indexTermType));
-            numRows = writer.getValueCount();
-        }
+        SegmentMetadata.ComponentMetadataMap indexMetas = writer.writeCompleteSegment(terms);
+        long numRows = writer.getNumberOfRows();
 
         // If no rows were written we need to delete any created column index components
         // so that the index is correctly identified as being empty (only having a completion marker)
@@ -179,9 +166,9 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
                                                        terms.getMaxTerm(),
                                                        indexMetas);
 
-    try (MetadataWriter writer = new MetadataWriter(indexDescriptor.openPerIndexOutput(IndexComponent.META, indexIdentifier)))
+        try (MetadataWriter metadataWriter = new MetadataWriter(indexDescriptor.openPerIndexOutput(IndexComponent.META, indexIdentifier)))
         {
-            SegmentMetadata.write(writer, Collections.singletonList(metadata));
+            SegmentMetadata.write(metadataWriter, Collections.singletonList(metadata));
         }
 
         return numRows;

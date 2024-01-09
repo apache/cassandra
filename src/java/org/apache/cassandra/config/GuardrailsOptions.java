@@ -89,6 +89,10 @@ public class GuardrailsOptions implements GuardrailsConfig
         validateMaxRFThreshold(config.maximum_replication_factor_warn_threshold, config.maximum_replication_factor_fail_threshold);
         validateTimestampThreshold(config.maximum_timestamp_warn_threshold, config.maximum_timestamp_fail_threshold, "maximum_timestamp");
         validateTimestampThreshold(config.minimum_timestamp_warn_threshold, config.minimum_timestamp_fail_threshold, "minimum_timestamp");
+        validateMaxLongThreshold(config.sai_sstable_indexes_per_query_warn_threshold,
+                                 config.sai_sstable_indexes_per_query_fail_threshold,
+                                 "sai_sstable_indexes_per_query",
+                                 false);
     }
 
     @Override
@@ -912,6 +916,48 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   fail,
                                   () -> config.minimum_timestamp_fail_threshold,
                                   x -> config.minimum_timestamp_fail_threshold = x);
+    }
+
+    @Override
+    public int getSaiSSTableIndexesPerQueryWarnThreshold()
+    {
+        return config.sai_sstable_indexes_per_query_warn_threshold;
+    }
+
+    @Override
+    public int getSaiSSTableIndexesPerQueryFailThreshold()
+    {
+        return config.sai_sstable_indexes_per_query_fail_threshold;
+    }
+
+    @Override
+    public void setSaiSSTableIndexesPerQueryThreshold(int warn, int fail)
+    {
+        validateMaxIntThreshold(warn, fail, "sai_sstable_indexes_per_query");
+        updatePropertyWithLogging("sai_sstable_indexes_per_query_warn_threshold",
+                                  warn,
+                                  () -> config.sai_sstable_indexes_per_query_warn_threshold,
+                                  x -> config.sai_sstable_indexes_per_query_warn_threshold = x);
+
+        updatePropertyWithLogging("sai_sstable_indexes_per_query_fail_threshold",
+                                  fail,
+                                  () -> config.sai_sstable_indexes_per_query_fail_threshold,
+                                  x -> config.sai_sstable_indexes_per_query_fail_threshold = x);
+    }
+
+    @Override
+    public boolean getNonPartitionRestrictedQueryEnabled()
+    {
+        return config.non_partition_restricted_index_query_enabled;
+    }
+
+    @Override
+    public void setNonPartitionRestrictedQueryEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("non_partition_restricted_index_query_enabled",
+                                  enabled,
+                                  () -> config.non_partition_restricted_index_query_enabled,
+                                  x -> config.non_partition_restricted_index_query_enabled = x);
     }
 
     private static <T> void updatePropertyWithLogging(String propertyName, T newValue, Supplier<T> getter, Consumer<T> setter)

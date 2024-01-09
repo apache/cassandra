@@ -33,7 +33,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.distributed.test.log.PlacementSimulator;
+import org.apache.cassandra.harry.sut.TokenPlacementModel;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.ActionListener;
@@ -64,7 +64,7 @@ public class KeyspaceActions extends ClusterActions
 
     final EnumSet<TopologyChange> ops = EnumSet.noneOf(TopologyChange.class);
     final NodeLookup nodeLookup;
-    final PlacementSimulator.NodeFactory factory;
+    final TokenPlacementModel.NodeFactory factory;
     final int[] minRf, initialRf, maxRf;
     final int[] membersOfQuorumDcs;
 
@@ -97,7 +97,7 @@ public class KeyspaceActions extends ClusterActions
 
         this.nodeLookup = simulated.snitch;
 
-        this.factory = new PlacementSimulator.NodeFactory(new SimulationLookup());
+        this.factory = new TokenPlacementModel.NodeFactory(new SimulationLookup());
         int[] dcSizes = new int[options.initialRf.length];
         for (int dc : nodeLookup.nodeToDc)
             ++dcSizes[dc];
@@ -183,16 +183,16 @@ public class KeyspaceActions extends ClusterActions
         }));
     }
 
-    private PlacementSimulator.ReplicatedRanges placements(NodesByDc nodesByDc, NodeLookup lookup, int[] rfs)
+    private TokenPlacementModel.ReplicatedRanges placements(NodesByDc nodesByDc, int[] rfs)
     {
-        List<PlacementSimulator.Node> nodes = new ArrayList<>();
+        List<TokenPlacementModel.Node> nodes = new ArrayList<>();
         for (int dcIdx = 0; dcIdx < nodesByDc.dcs.length; dcIdx++)
         {
             int[] nodesInDc = nodesByDc.dcs[dcIdx];
             for (int i = 0; i < nodesByDc.dcSizes[dcIdx]; i++)
             {
                 int nodeIdx = nodesInDc[i];
-                PlacementSimulator.Node node = factory.make(nodeIdx,nodeIdx, 1);
+                TokenPlacementModel.Node node = factory.make(nodeIdx,nodeIdx, 1);
                 nodes.add(node);
                 assert node.token() == tokenOf(nodeIdx);
             }
@@ -202,11 +202,12 @@ public class KeyspaceActions extends ClusterActions
         for (int i = 0; i < rfs.length; i++)
             rf.put(factory.lookup().dc(i + 1), rfs[i]);
 
-        return new PlacementSimulator.NtsReplicationFactor(rfs).replicate(nodes);
+        nodes.sort(TokenPlacementModel.Node::compareTo);
+        return new TokenPlacementModel.NtsReplicationFactor(rfs).replicate(nodes);
     }
 
-    private Topology recomputeTopology(PlacementSimulator.ReplicatedRanges readPlacements,
-                                       PlacementSimulator.ReplicatedRanges writePlacements)
+    private Topology recomputeTopology(TokenPlacementModel.ReplicatedRanges readPlacements,
+                                       TokenPlacementModel.ReplicatedRanges writePlacements)
     {
         int[][] replicasForKey = new int[primaryKeys.length][];
         int[][] pendingReplicasForKey = new int[primaryKeys.length][];
@@ -214,14 +215,14 @@ public class KeyspaceActions extends ClusterActions
         {
             int primaryKey = primaryKeys[i];
             LongToken token = new Murmur3Partitioner().getToken(Int32Type.instance.decompose(primaryKey));
-            List<PlacementSimulator.Node> readReplicas = readPlacements.replicasFor(token.token);
-            List<PlacementSimulator.Node> writeReplicas = writePlacements.replicasFor(token.token);
+            List<TokenPlacementModel.Node> readReplicas = readPlacements.replicasFor(token.token);
+            List<TokenPlacementModel.Node> writeReplicas = writePlacements.replicasFor(token.token);
 
-            replicasForKey[i] = readReplicas.stream().mapToInt(PlacementSimulator.Node::idx).toArray();
-            Set<PlacementSimulator.Node> pendingReplicas = new HashSet<>(writeReplicas);
+            replicasForKey[i] = readReplicas.stream().mapToInt(TokenPlacementModel.Node::idx).toArray();
+            Set<TokenPlacementModel.Node> pendingReplicas = new HashSet<>(writeReplicas);
             pendingReplicas.removeAll(readReplicas);
-            replicasForKey[i] = readReplicas.stream().mapToInt(PlacementSimulator.Node::idx).toArray();
-            pendingReplicasForKey[i] = pendingReplicas.stream().mapToInt(PlacementSimulator.Node::idx).toArray();
+            replicasForKey[i] = readReplicas.stream().mapToInt(TokenPlacementModel.Node::idx).toArray();
+            pendingReplicasForKey[i] = pendingReplicas.stream().mapToInt(TokenPlacementModel.Node::idx).toArray();
         }
 
         int[] membersOfRing = joined.toArray();
@@ -261,10 +262,10 @@ public class KeyspaceActions extends ClusterActions
                 case JOIN:
                 {
                     Topology before = topology;
-                    PlacementSimulator.ReplicatedRanges placementsBefore = placements(joined, nodeLookup, currentRf);
+                    TokenPlacementModel.ReplicatedRanges placementsBefore = placements(joined, currentRf);
                     int join = registered.removeRandom(random, dc);
                     joined.add(join);
-                    PlacementSimulator.ReplicatedRanges placementsAfter = placements(joined, nodeLookup, currentRf);
+                    TokenPlacementModel.ReplicatedRanges placementsAfter = placements(joined, currentRf);
                     Topology during = recomputeTopology(placementsBefore, placementsAfter);
                     updateTopology(during);
                     Topology after = recomputeTopology(placementsAfter, placementsAfter);
@@ -274,20 +275,18 @@ public class KeyspaceActions extends ClusterActions
                 case REPLACE:
                 {
                     Topology before = topology;
-                    PlacementSimulator.ReplicatedRanges placementsBefore = placements(joined, nodeLookup, currentRf);
+                    TokenPlacementModel.ReplicatedRanges placementsBefore = placements(joined, currentRf);
                     int join = registered.removeRandom(random, dc);
                     int leave = joined.selectRandom(random, dc);
                     joined.add(join);
                     joined.remove(leave);
                     left.add(leave);
-                    PlacementSimulator.ReplicatedRanges placementsAfter = placements(joined, nodeLookup, currentRf);
+                    TokenPlacementModel.ReplicatedRanges placementsAfter = placements(joined, currentRf);
                     nodeLookup.setTokenOf(join, nodeLookup.tokenOf(leave));
                     Topology during = recomputeTopology(placementsBefore, placementsAfter);
                     updateTopology(during);
                     Topology after = recomputeTopology(placementsAfter, placementsAfter);
-                    Action action = null;
-                    //TODO p
-                    //new OnClusterReplace(KeyspaceActions.this, before, during, after, leave, join);
+                    Action action = new OnClusterReplace(KeyspaceActions.this, before, during, after, leave, join);
                     return scheduleAndUpdateTopologyOnCompletion(action, after);
                     // if replication factor is 2, cannot perform safe replacements
                     // however can have operations that began earlier during RF=2
@@ -297,10 +296,10 @@ public class KeyspaceActions extends ClusterActions
                 case LEAVE:
                 {
                     Topology before = topology;
-                    PlacementSimulator.ReplicatedRanges placementsBefore = placements(joined, nodeLookup, currentRf);
+                    TokenPlacementModel.ReplicatedRanges placementsBefore = placements(joined, currentRf);
                     int leave = joined.removeRandom(random, dc);
                     left.add(leave);
-                    PlacementSimulator.ReplicatedRanges placementsAfter = placements(joined, nodeLookup, currentRf);
+                    TokenPlacementModel.ReplicatedRanges placementsAfter = placements(joined, currentRf);
                     Topology during = recomputeTopology(placementsBefore, placementsAfter);
                     updateTopology(during);
                     Topology after = recomputeTopology(placementsAfter, placementsAfter);
@@ -376,7 +375,7 @@ public class KeyspaceActions extends ClusterActions
 
     private Topology recomputeTopology()
     {
-        PlacementSimulator.ReplicatedRanges ranges = placements(joined, nodeLookup, currentRf);
+        TokenPlacementModel.ReplicatedRanges ranges = placements(joined, currentRf);
         return recomputeTopology(ranges, ranges);
     }
 
@@ -409,7 +408,7 @@ public class KeyspaceActions extends ClusterActions
         return Long.parseLong(cluster.get(nodeLookup.tokenOf(node)).config().getString("initial_token"));
     }
 
-    public class SimulationLookup extends PlacementSimulator.DefaultLookup
+    public class SimulationLookup extends TokenPlacementModel.DefaultLookup
     {
         public String dc(int dcIdx)
         {
@@ -426,7 +425,7 @@ public class KeyspaceActions extends ClusterActions
             return Long.parseLong(cluster.get(nodeLookup.tokenOf(tokenIdx)).config().getString("initial_token"));
         }
 
-        public PlacementSimulator.Lookup forceToken(int tokenIdx, long token)
+        public TokenPlacementModel.Lookup forceToken(int tokenIdx, long token)
         {
             SimulationLookup newLookup = new SimulationLookup();
             newLookup.overrides.putAll(overrides);

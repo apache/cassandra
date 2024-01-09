@@ -44,6 +44,7 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
@@ -96,7 +97,7 @@ public class SSTableLoaderTest
                 KeyspaceParams.simple(1),
                 SchemaLoader.standardCFMD(KEYSPACE2, CF_STANDARD1),
                 SchemaLoader.standardCFMD(KEYSPACE2, CF_STANDARD2));
-
+        MessagingService.instance().waitUntilListeningUnchecked();
         StorageService.instance.initServer();
     }
 

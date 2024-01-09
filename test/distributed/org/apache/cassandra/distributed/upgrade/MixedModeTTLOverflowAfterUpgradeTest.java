@@ -20,54 +20,40 @@ package org.apache.cassandra.distributed.upgrade;
 
 import org.junit.Test;
 
-import org.apache.cassandra.utils.StorageCompatibilityMode;
-
-import static org.apache.cassandra.distributed.upgrade.MixedModeTTLOverflowUpgradeTest.assertPolicyTriggersAt2038;
-import static org.apache.cassandra.distributed.upgrade.MixedModeTTLOverflowUpgradeTest.assertPolicyTriggersAt2106;
-import static org.apache.cassandra.distributed.upgrade.MixedModeTTLOverflowUpgradeTest.restartNodeWithCompatibilityMode;
 import static org.apache.cassandra.utils.StorageCompatibilityMode.NONE;
 import static org.apache.cassandra.utils.StorageCompatibilityMode.UPGRADING;
 
-/**
- * Tests TTL the overflow policy triggers at the correct limit: year 2038 <=nb or 2186 >=oa
- * <p>
- * <=oa overflow policy triggers at year 2038. That could be <=4.1 or 5.0 with 4.x storage compatibility
- * >oa overflow policy triggers at year 2106. That is >=5.0 using >=5.x storage compatibility
- *
- * @see StorageCompatibilityMode
- */
-public class MixedModeTTLOverflowAfterUpgradeTest extends UpgradeTestBase
+public class MixedModeTTLOverflowAfterUpgradeTest extends MixedModeTTLOverflowUpgradeTestBase
 {
     @Test
     public void testTTLOverflowAfterUpgrade() throws Throwable
     {
-        MixedModeTTLOverflowUpgradeTest.testTTLOverflow((cluster, node) -> {
+        testTTLOverflow((cluster, node) -> {
+            cluster.disableAutoCompaction(KEYSPACE);
             if (node == 1) // only node1 is upgraded, and the cluster is in mixed versions mode
             {
-                assertPolicyTriggersAt2038(cluster.coordinator(1));
-                assertPolicyTriggersAt2038(cluster.coordinator(2));
+                verify(Step.NODE1_40_NODE2_PREV, cluster, true);
             }
             else // both nodes have been upgraded, and the cluster isn't in mixed version mode anymore
             {
-                assertPolicyTriggersAt2038(cluster.coordinator(1));
-                assertPolicyTriggersAt2038(cluster.coordinator(2));
+                verify(Step.NODE1_40_NODE2_40, cluster, true);
 
-                // We restart one node on 5.0 >oa hence 2038 should still be the limit as the other node is 5.0 <=oa
-                // We're on compatibility mode where oa and oa nodes are a possibility
+                // We restart node1 with compatibility mode UPGRADING
                 restartNodeWithCompatibilityMode(cluster, 1, UPGRADING);
-                assertPolicyTriggersAt2038(cluster.coordinator(1));
-                assertPolicyTriggersAt2038(cluster.coordinator(2));
+                // since node2 is still in 4.0 compatibility mode, the limit should remain 2038
+                verify(Step.NODE1_UPGRADING_NODE2_40, cluster, true);
 
-                // We restart the other node so they're all on 5.0 >oa hence 2106 should be the limit
+                // We restart node2 in UPGRADING compatibility mode
                 restartNodeWithCompatibilityMode(cluster, 2, UPGRADING);
-                assertPolicyTriggersAt2106(cluster.coordinator(1));
-                assertPolicyTriggersAt2106(cluster.coordinator(2));
+                // Both nodes are in UPGRADING compatibility mode, so the limit should be 2106
+                verify(Step.NODE1_UPGRADING_NODE2_UPGRADING, cluster, false);
 
-                // We restart the cluster out of compatibility mode once everything is 5.0oa TTL 2106
+                // We restart the cluster out of compatibility mode, so the limit should be 2106
                 restartNodeWithCompatibilityMode(cluster, 1, NONE);
+                verify(Step.NODE1_NONE_NODE2_UPGRADING, cluster, false);
+
                 restartNodeWithCompatibilityMode(cluster, 2, NONE);
-                assertPolicyTriggersAt2106(cluster.coordinator(1));
-                assertPolicyTriggersAt2106(cluster.coordinator(2));
+                verify(Step.NODE1_NONE_NODE2_NONE, cluster, false);
             }
         });
     }

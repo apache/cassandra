@@ -264,6 +264,9 @@ public enum CassandraRelevantProperties
     @Deprecated(since = "4.1")
     IGNORE_DC("cassandra.ignore_dc"),
     IGNORE_DYNAMIC_SNITCH_SEVERITY("cassandra.ignore_dynamic_snitch_severity"),
+
+    IGNORE_KERNEL_BUG_1057843_CHECK("cassandra.ignore_kernel_bug_1057843_check"),
+
     IGNORE_MISSING_NATIVE_FILE_HINTS("cassandra.require_native_file_hints"),
     /** @deprecated should be removed in favor of enable flag of relevant startup check (checkRack) */
     /** @deprecated See CASSANDRA-17797 */
@@ -320,7 +323,7 @@ public enum CassandraRelevantProperties
      *
      * This is a dev/CI only property. Do not use otherwise.
      */
-    JUNIT_STORAGE_COMPATIBILITY_MODE("cassandra.junit_storage_compatibility_mode", StorageCompatibilityMode.CASSANDRA_4.toString()),
+    JUNIT_STORAGE_COMPATIBILITY_MODE("cassandra.junit_storage_compatibility_mode", StorageCompatibilityMode.NONE.toString()),
     /** startup checks properties */
     LIBJEMALLOC("cassandra.libjemalloc"),
     /** Line separator ("\n" on UNIX). */
@@ -453,7 +456,7 @@ public enum CassandraRelevantProperties
     SAI_SORTED_TERMS_PARTITION_BLOCK_SHIFT("cassandra.sai.sorted_terms_partition_block_shift", "4"),
 
     SAI_TEST_BALANCED_TREE_DEBUG_ENABLED("cassandra.sai.test.balanced_tree_debug_enabled", "false"),
-    SAI_TEST_DISABLE_TIMEOUT("cassandra.sai.test.disable.timeout", "false"),
+    SAI_TEST_DISABLE_TIMEOUT("cassandra.sai.test.timeout_disabled", "false"),
 
     /** Whether to allow the user to specify custom options to the hnsw index */
     SAI_VECTOR_ALLOW_CUSTOM_PARAMETERS("cassandra.sai.vector.allow_custom_parameters", "false"),
@@ -563,6 +566,7 @@ public enum CassandraRelevantProperties
      * faster. Note that this is disabled for unit tests but if an individual test requires schema to be flushed, it
      * can be also done manually for that particular case: {@code flush(SchemaConstants.SCHEMA_KEYSPACE_NAME);}. */
     TEST_FLUSH_LOCAL_SCHEMA_CHANGES("cassandra.test.flush_local_schema_changes", "true"),
+    TEST_HARRY_SWITCH_AFTER("cassandra.test.harry.progression.switch-after", "1"),
     TEST_IGNORE_SIGAR("cassandra.test.ignore_sigar"),
     TEST_INVALID_LEGACY_SSTABLE_ROOT("invalid-legacy-sstable-root"),
     TEST_JVM_DTEST_DISABLE_SSL("cassandra.test.disable_ssl"),
@@ -618,7 +622,6 @@ public enum CassandraRelevantProperties
     VERY_LONG_TIME_MS("cassandra.very_long_time_ms", "259200000"),
     WAIT_FOR_TRACING_EVENTS_TIMEOUT_SECS("cassandra.wait_for_tracing_events_timeout_secs", "0"),
     ;
-
 
     static
     {

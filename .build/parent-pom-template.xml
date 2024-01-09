@@ -514,12 +514,6 @@
         </exclusions>
       </dependency>
       <dependency>
-        <groupId>org.apache.cassandra</groupId>
-        <artifactId>harry-core</artifactId>
-        <version>0.0.2</version>
-        <scope>test</scope>
-      </dependency>
-      <dependency>
         <groupId>org.reflections</groupId>
         <artifactId>reflections</artifactId>
         <version>0.10.2</version>
@@ -1231,6 +1225,11 @@
         <groupId>ch.obermuhlner</groupId>
         <artifactId>big-math</artifactId>
         <version>2.3.0</version>
+      </dependency>
+      <dependency>
+        <groupId>com.vdurmont</groupId>
+        <artifactId>semver4j</artifactId>
+        <version>3.1.0</version>
       </dependency>
     </dependencies>
   </dependencyManagement>

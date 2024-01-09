@@ -140,6 +140,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.UNSAFE_SYS
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.BYTES_PER_SECOND;
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
+import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
 import static org.apache.cassandra.db.ConsistencyLevel.ALL;
 import static org.apache.cassandra.db.ConsistencyLevel.EACH_QUORUM;
 import static org.apache.cassandra.db.ConsistencyLevel.LOCAL_QUORUM;
@@ -1241,8 +1242,8 @@ public class DatabaseDescriptor
 
         try
         {
-            SSLFactory.validateSslContext("Internode messaging", conf.server_encryption_options, true, true);
-            SSLFactory.validateSslContext("Native transport", conf.client_encryption_options, conf.client_encryption_options.require_client_auth, true);
+            SSLFactory.validateSslContext("Internode messaging", conf.server_encryption_options, REQUIRED, true);
+            SSLFactory.validateSslContext("Native transport", conf.client_encryption_options, conf.client_encryption_options.getClientAuth(), true);
             SSLFactory.initHotReloading(conf.server_encryption_options, conf.client_encryption_options, false);
         }
         catch (IOException e)
@@ -5022,7 +5023,7 @@ public class DatabaseDescriptor
     {
         // Config is null for junits that don't load the config. Get from env var that CI/build.xml sets
         if (conf == null)
-            return CassandraRelevantProperties.JUNIT_STORAGE_COMPATIBILITY_MODE.getEnum(StorageCompatibilityMode.CASSANDRA_4);
+            return CassandraRelevantProperties.JUNIT_STORAGE_COMPATIBILITY_MODE.getEnum(StorageCompatibilityMode.NONE);
         else
             return conf.storage_compatibility_mode;
     }
@@ -5130,5 +5131,15 @@ public class DatabaseDescriptor
     public static boolean getUnsafeTCMMode()
     {
         return conf.unsafe_tcm_mode;
+    }
+
+    public static int getSaiSSTableIndexesPerQueryWarnThreshold()
+    {
+        return conf.sai_sstable_indexes_per_query_warn_threshold;
+    }
+
+    public static int getSaiSSTableIndexesPerQueryFailThreshold()
+    {
+        return conf.sai_sstable_indexes_per_query_fail_threshold;
     }
 }

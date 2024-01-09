@@ -24,17 +24,16 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import harry.core.Run;
-import harry.data.ResultSetRow;
-import harry.model.Model;
-import harry.model.SelectHelper;
-import harry.model.sut.TokenPlacementModel;
-import harry.model.sut.injvm.QuiescentLocalStateChecker;
-import harry.operations.CompiledStatement;
-import harry.operations.Query;
+import org.apache.cassandra.harry.core.Run;
+import org.apache.cassandra.harry.data.ResultSetRow;
+import org.apache.cassandra.harry.model.Model;
+import org.apache.cassandra.harry.model.SelectHelper;
+import org.apache.cassandra.harry.operations.CompiledStatement;
+import org.apache.cassandra.harry.operations.Query;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstance;
-import org.apache.cassandra.simulator.SimulatorUtils;
+import org.apache.cassandra.harry.sut.TokenPlacementModel;
+import org.apache.cassandra.harry.sut.injvm.QuiescentLocalStateChecker;
 import org.apache.cassandra.simulator.systems.InterceptedExecution;
 import org.apache.cassandra.simulator.systems.InterceptingExecutor;
 import org.apache.cassandra.simulator.systems.SimulatedAction;
@@ -115,7 +114,7 @@ public class HarryValidatingQuery extends SimulatedAction
                             if (!throwables.isEmpty())
                             {
                                 logger.error(String.format("Could not validate %d out of %d replicas %s", throwables.size(), replicas.size(), replicas), throwables.get(0));
-                                SimulatorUtils.failWithOOM();
+                                System.exit(0);
                             }
                         }
 
@@ -125,7 +124,7 @@ public class HarryValidatingQuery extends SimulatedAction
                         {
                             IInstance instance = cluster
                                                  .stream()
-                                                 .filter((n) -> n.config().broadcastAddress().toString().equals(node.id))
+                                                 .filter((n) -> n.config().broadcastAddress().toString().equals(node.id()))
                                                  .findFirst()
                                                  .get();
                             return instance.executeInternal(statement, bindings);

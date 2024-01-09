@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra.index.sai.disk.v1.trie;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -27,84 +27,71 @@ import org.apache.commons.lang3.mutable.MutableLong;
 
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.v1.segment.SegmentWriter;
+import org.apache.cassandra.index.sai.utils.IndexEntry;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
 import org.apache.cassandra.index.sai.disk.v1.postings.PostingsWriter;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.postings.PostingList;
-import org.apache.cassandra.index.sai.utils.TermsIterator;
-import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 /**
  * Builds an on-disk inverted index structure: terms dictionary and postings lists.
  */
 @NotThreadSafe
-public class LiteralIndexWriter implements Closeable
+public class LiteralIndexWriter implements SegmentWriter
 {
-    private final TrieTermsDictionaryWriter termsDictionaryWriter;
-    private final PostingsWriter postingsWriter;
+    private final IndexDescriptor indexDescriptor;
+    private final IndexIdentifier indexIdentifier;
     private long postingsAdded;
 
-    public LiteralIndexWriter(IndexDescriptor indexDescriptor, IndexIdentifier indexIdentifier) throws IOException
+    public LiteralIndexWriter(IndexDescriptor indexDescriptor, IndexIdentifier indexIdentifier)
     {
-        this.termsDictionaryWriter = new TrieTermsDictionaryWriter(indexDescriptor, indexIdentifier);
-        this.postingsWriter = new PostingsWriter(indexDescriptor, indexIdentifier);
+        this.indexDescriptor = indexDescriptor;
+        this.indexIdentifier = indexIdentifier;
     }
 
-    /**
-     * Appends a set of terms and associated postings to their respective overall SSTable component files.
-     *
-     * @param terms an iterator of terms with their associated postings
-     *
-     * @return metadata describing the location of this inverted index in the overall SSTable
-     *         terms and postings component files
-     */
-    public SegmentMetadata.ComponentMetadataMap writeCompleteSegment(TermsIterator terms) throws IOException
+    @Override
+    public SegmentMetadata.ComponentMetadataMap writeCompleteSegment(Iterator<IndexEntry> iterator) throws IOException
     {
-        // Terms and postings writers are opened in append mode with pointers at the end of their respective files.
-        long termsOffset = termsDictionaryWriter.getStartOffset();
-        long postingsOffset = postingsWriter.getStartOffset();
-
-        while (terms.hasNext())
-        {
-            ByteComparable term = terms.next();
-            try (PostingList postings = terms.postings())
-            {
-                long offset = postingsWriter.write(postings);
-                termsDictionaryWriter.add(term, offset);
-            }
-        }
-        postingsAdded = postingsWriter.getTotalPostings();
-        MutableLong footerPointer = new MutableLong();
-        long termsRoot = termsDictionaryWriter.complete(footerPointer);
-        postingsWriter.complete();
-
-        long termsLength = termsDictionaryWriter.getFilePointer() - termsOffset;
-        long postingsLength = postingsWriter.getFilePointer() - postingsOffset;
-
         SegmentMetadata.ComponentMetadataMap components = new SegmentMetadata.ComponentMetadataMap();
 
-        Map<String,String> map = new HashMap<>(2);
-        map.put(SAICodecUtils.FOOTER_POINTER, footerPointer.getValue().toString());
+        try (TrieTermsDictionaryWriter termsDictionaryWriter = new TrieTermsDictionaryWriter(indexDescriptor, indexIdentifier);
+             PostingsWriter postingsWriter = new PostingsWriter(indexDescriptor, indexIdentifier))
+        {
+            // Terms and postings writers are opened in append mode with pointers at the end of their respective files.
+            long termsOffset = termsDictionaryWriter.getStartOffset();
+            long postingsOffset = postingsWriter.getStartOffset();
 
-        // Postings list file pointers are stored directly in TERMS_DATA, so a root is not needed.
-        components.put(IndexComponent.POSTING_LISTS, -1, postingsOffset, postingsLength);
-        components.put(IndexComponent.TERMS_DATA, termsRoot, termsOffset, termsLength, map);
+            while (iterator.hasNext())
+            {
+                IndexEntry indexEntry = iterator.next();
+                try (PostingList postings = indexEntry.postingList)
+                {
+                    long offset = postingsWriter.write(postings);
+                    termsDictionaryWriter.add(indexEntry.term, offset);
+                }
+            }
+            postingsAdded = postingsWriter.getTotalPostings();
+            MutableLong footerPointer = new MutableLong();
+            long termsRoot = termsDictionaryWriter.complete(footerPointer);
+            postingsWriter.complete();
 
+            long termsLength = termsDictionaryWriter.getFilePointer() - termsOffset;
+            long postingsLength = postingsWriter.getFilePointer() - postingsOffset;
+
+            Map<String, String> map = new HashMap<>(2);
+            map.put(SAICodecUtils.FOOTER_POINTER, footerPointer.getValue().toString());
+
+            // Postings list file pointers are stored directly in TERMS_DATA, so a root is not needed.
+            components.put(IndexComponent.POSTING_LISTS, -1, postingsOffset, postingsLength);
+            components.put(IndexComponent.TERMS_DATA, termsRoot, termsOffset, termsLength, map);
+        }
         return components;
     }
 
     @Override
-    public void close() throws IOException
-    {
-        postingsWriter.close();
-        termsDictionaryWriter.close();
-    }
-
-    /**
-     * @return total number of row IDs added to posting lists
-     */
-    public long getPostingsCount()
+    public long getNumberOfRows()
     {
         return postingsAdded;
     }

@@ -16,17 +16,23 @@ If you would like to contribute to this documentation, you are welcome to do so 
 
 | xref:cassandra:new/index.adoc[What's new in 5.0] | What's new in Cassandra 5.0
 
+| xref:cassandra:overview/index.adoc[Overview] | Cassandra's features
+
 | xref:cassandra:architecture/index.adoc[Architecture] | Cassandra's big picture
 
 | xref:cassandra:developing/data-modeling/index.adoc[Data modeling] | Hint: it's not relational
 
 | xref:cassandra:developing/cql/index.adoc[Cassandra Query Language (CQL)] | CQL reference documentation
 
-| xref:cassandra:getting-started/configuration/index.adoc[Configuration] | Cassandra's handles and knobs
+| xref:cassandra:getting-started/configuring.adoc[Configuring] | Cassandra's handles and knobs
 
-| xref:cassandra:managing/operating/index.adoc[Operation] | The operator's corner
+| xref:cassandra:managing/operating/index.adoc[Operating] | The operator's corner
 
 | xref:cassandra:managing/tools/index.adoc[Tools] | cqlsh, nodetool, and others
+
+| xref:cassandra:vector-search/overview.adoc[Vector Search] | Vector Search
+
+| xref:cassandra:reference/index.adoc[Reference] | Reference
 
 | xref:cassandra:troubleshooting/index.adoc[Troubleshooting] | What to look for when you have a problem
 

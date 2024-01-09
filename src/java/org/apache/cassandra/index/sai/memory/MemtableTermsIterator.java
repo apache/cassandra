@@ -24,6 +24,7 @@ import com.google.common.base.Preconditions;
 
 import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.cursors.LongCursor;
+import org.apache.cassandra.index.sai.utils.IndexEntry;
 import org.apache.cassandra.index.sai.utils.TermsIterator;
 import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.utils.Pair;
@@ -69,7 +70,29 @@ public class MemtableTermsIterator implements TermsIterator
     public void close() {}
 
     @Override
-    public PostingList postings()
+    public boolean hasNext()
+    {
+        return iterator.hasNext();
+    }
+
+    @Override
+    public IndexEntry next()
+    {
+        current = iterator.next();
+        return IndexEntry.create(current.left, postings());
+    }
+
+    public long getMaxSSTableRowId()
+    {
+        return maxSSTableRowId;
+    }
+
+    public long getMinSSTableRowId()
+    {
+        return minSSTableRowId;
+    }
+
+    private PostingList postings()
     {
         final LongArrayList list = current.right;
 
@@ -108,28 +131,5 @@ public class MemtableTermsIterator implements TermsIterator
                 throw new UnsupportedOperationException();
             }
         };
-    }
-
-    @Override
-    public boolean hasNext()
-    {
-        return iterator.hasNext();
-    }
-
-    @Override
-    public ByteComparable next()
-    {
-        current = iterator.next();
-        return current.left;
-    }
-
-    public long getMaxSSTableRowId()
-    {
-        return maxSSTableRowId;
-    }
-
-    public long getMinSSTableRowId()
-    {
-        return minSSTableRowId;
     }
 }

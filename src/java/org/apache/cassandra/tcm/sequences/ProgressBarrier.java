@@ -194,6 +194,7 @@ public class ProgressBarrier
         for (InetAddressAndPort peer : superset)
             requests.add(new WatermarkRequest(peer, messagingService, waitFor));
 
+        long start = Clock.Global.nanoTime();
         Retry.Deadline deadline = Retry.Deadline.after(TimeUnit.MILLISECONDS.toNanos(TIMEOUT_MILLIS),
                                                       new Retry.Backoff(DatabaseDescriptor.getCmsDefaultRetryMaxTries(),
                                                                         (int) BACKOFF_MILLIS,
@@ -241,8 +242,8 @@ public class ProgressBarrier
 
         Set<InetAddressAndPort> remaining = new HashSet<>(superset);
         remaining.removeAll(collected);
-        logger.warn("Could not collect {} of nodes for a progress barrier for epoch {} to finish within {}ms. Nodes that have not responded: {}",
-                    cl, waitFor, TimeUnit.NANOSECONDS.toMillis(Clock.Global.nanoTime() - deadline.deadlineNanos), remaining);
+        logger.warn("Could not collect {} of nodes for a progress barrier for epoch {} to finish within {}ms. Nodes that have not responded: {}. {}",
+                    cl, waitFor, TimeUnit.NANOSECONDS.toMillis(deadline.deadlineNanos - start), remaining, deadline);
         return false;
     }
 
@@ -554,6 +555,17 @@ public class ProgressBarrier
         {
             condition = new AsyncPromise<>();
             messagingService.sendWithCallback(Message.out(Verb.TCM_CURRENT_EPOCH_REQ, ClusterMetadata.current().epoch), to, this);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "WatermarkRequest{" +
+                   "condition=" + condition +
+                   ", to=" + to +
+                   ", messagingService=" + messagingService +
+                   ", waitFor=" + waitFor +
+                   '}';
         }
     }
 

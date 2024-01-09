@@ -1,0 +1,5 @@
+= Logging
+
+* xref:cassandra:managing/operating/auditlogging.adoc[Audit logging]
+* xref:cassandra:managing/operating/audit_logging.adoc[Audit logging 2]
+* xref:cassandra:managing/operating/fqllogging.adoc[Full query logging]

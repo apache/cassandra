@@ -25,12 +25,11 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import harry.core.Run;
-import harry.model.OpSelectors;
-import harry.operations.CompiledStatement;
-import harry.runner.DataTracker;
-import harry.visitors.MutatingRowVisitor;
-import harry.visitors.VisitExecutor;
+import org.apache.cassandra.harry.core.Run;
+import org.apache.cassandra.harry.operations.CompiledStatement;
+import org.apache.cassandra.harry.tracker.DataTracker;
+import org.apache.cassandra.harry.visitors.MutatingRowVisitor;
+import org.apache.cassandra.harry.visitors.VisitExecutor;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.impl.Query;
 import org.apache.cassandra.simulator.Action;
@@ -123,29 +122,23 @@ public class SimulatedVisitExectuor extends VisitExecutor
         return current;
     }
 
+    @Override
     protected void beforeLts(long lts, long pd)
     {
         this.lts.add(lts);
     }
 
-    protected void afterBatch(long lts, long pd, long m)
-    {
-    }
-
-    protected void beforeBatch(long lts, long pd, long m)
-    {
-    }
-
-    public void operation(long lts, long pd, long cd, long m, long opId, OpSelectors.OperationKind opType)
-    {
-        CompiledStatement statement = rowVisitor.perform(opType, lts, pd, cd, opId);
-        statements.add(statement.cql());
-        Collections.addAll(bindings, statement.bindings());
-    }
-
+    @Override
     protected void afterLts(long lts, long pd)
     {
+    }
 
+    @Override
+    protected void operation(Operation operation)
+    {
+        CompiledStatement statement = rowVisitor.perform(operation);
+        statements.add(statement.cql());
+        Collections.addAll(bindings, statement.bindings());
     }
 
     public void shutdown() throws InterruptedException

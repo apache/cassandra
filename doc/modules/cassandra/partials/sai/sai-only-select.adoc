@@ -1,0 +1,4 @@
+[IMPORTANT]
+====
+SAI only supports `SELECT` queries, but not `UPDATE` or `DELETE` queries.
+====

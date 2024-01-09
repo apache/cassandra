@@ -33,32 +33,37 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import javax.inject.Inject;
 
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import harry.core.Configuration;
-import harry.core.Run;
-import harry.ddl.ColumnSpec;
-import harry.ddl.SchemaGenerators;
-import harry.ddl.SchemaSpec;
-import harry.generators.Surjections;
-import harry.model.clock.OffsetClock;
-import harry.model.sut.SystemUnderTest;
-import harry.model.sut.TokenPlacementModel;
-import harry.operations.Query;
-import harry.runner.DefaultDataTracker;
-import harry.visitors.GeneratingVisitor;
+import org.apache.cassandra.harry.clock.OffsetClock;
+import org.apache.cassandra.harry.core.Configuration;
+import org.apache.cassandra.harry.core.Run;
+import org.apache.cassandra.harry.ddl.ColumnSpec;
+import org.apache.cassandra.harry.ddl.SchemaGenerators;
+import org.apache.cassandra.harry.ddl.SchemaSpec;
+import org.apache.cassandra.harry.gen.Surjections;
+import org.apache.cassandra.harry.operations.Query;
+import org.apache.cassandra.harry.sut.SystemUnderTest;
+import org.apache.cassandra.harry.sut.injvm.InJvmSut;
+import org.apache.cassandra.harry.tracker.DefaultDataTracker;
+import org.apache.cassandra.harry.visitors.GeneratingVisitor;
+import io.airlift.airline.Command;
+import io.airlift.airline.HelpOption;
+import io.airlift.airline.Option;
+import io.airlift.airline.SingleCommand;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
-import org.apache.cassandra.distributed.fuzz.HarryHelper;
-import org.apache.cassandra.distributed.fuzz.InJvmSut;
+import org.apache.cassandra.harry.HarryHelper;
 import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.harry.sut.TokenPlacementModel;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.ReplicationParams;
@@ -66,13 +71,16 @@ import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.ActionSchedule;
 import org.apache.cassandra.simulator.Actions;
+import org.apache.cassandra.simulator.AlwaysDeliverNetworkScheduler;
 import org.apache.cassandra.simulator.ClusterSimulation;
 import org.apache.cassandra.simulator.Debug;
+import org.apache.cassandra.simulator.FixedLossNetworkScheduler;
 import org.apache.cassandra.simulator.FutureActionScheduler;
 import org.apache.cassandra.simulator.OrderOn;
 import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.RunnableActionScheduler;
 import org.apache.cassandra.simulator.Simulation;
+import org.apache.cassandra.simulator.SimulationRunner;
 import org.apache.cassandra.simulator.SimulatorUtils;
 import org.apache.cassandra.simulator.cluster.ClusterActionListener.NoOpListener;
 import org.apache.cassandra.simulator.cluster.ClusterActions;
@@ -95,28 +103,113 @@ import org.apache.cassandra.utils.CloseableIterator;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
-import static org.apache.cassandra.simulator.ActionSchedule.Mode.TIME_LIMITED;
+import static org.apache.cassandra.harry.sut.TokenPlacementModel.constantLookup;
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.UNLIMITED;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.Options.noActions;
 
+
+/**
+ * In order to run these tests in your IDE, you need to first build a simulator jara
+ *
+ *    ant simulator-jars
+ *
+ * And then run your test using the following settings (omit add-* if you are running on jdk8):
+ *
+        -Dstorage-config=$MODULE_DIR$/test/conf
+        -Djava.awt.headless=true
+        -javaagent:$MODULE_DIR$/lib/jamm-0.4.0.jar
+        -ea
+        -Dcassandra.debugrefcount=true
+        -Xss384k
+        -XX:SoftRefLRUPolicyMSPerMB=0
+        -XX:ActiveProcessorCount=2
+        -XX:HeapDumpPath=build/test
+        -Dcassandra.test.driver.connection_timeout_ms=10000
+        -Dcassandra.test.driver.read_timeout_ms=24000
+        -Dcassandra.memtable_row_overhead_computation_step=100
+        -Dcassandra.test.use_prepared=true
+        -Dcassandra.test.sstableformatdevelopment=true
+        -Djava.security.egd=file:/dev/urandom
+        -Dcassandra.testtag=.jdk11
+        -Dcassandra.keepBriefBrief=true
+        -Dcassandra.allow_simplestrategy=true
+        -Dcassandra.strict.runtime.checks=true
+        -Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true
+        -Dcassandra.test.flush_local_schema_changes=false
+        -Dcassandra.test.messagingService.nonGracefulShutdown=true
+        -Dcassandra.use_nix_recursive_delete=true
+        -Dcie-cassandra.disable_schema_drop_log=true
+        -Dlogback.configurationFile=file://$MODULE_DIR$/test/conf/logback-simulator.xml
+        -Dcassandra.ring_delay_ms=10000
+        -Dcassandra.tolerate_sstable_size=true
+        -Dcassandra.skip_sync=true
+        -Dcassandra.debugrefcount=false
+        -Dcassandra.test.simulator.determinismcheck=strict
+        -Dcassandra.test.simulator.print_asm=none
+        -javaagent:$MODULE_DIR$/build/test/lib/jars/simulator-asm.jar
+        -Xbootclasspath/a:$MODULE_DIR$/build/test/lib/jars/simulator-bootstrap.jar
+        -XX:ActiveProcessorCount=4
+        -XX:-TieredCompilation
+        -XX:-BackgroundCompilation
+        -XX:CICompilerCount=1
+        -XX:Tier4CompileThreshold=1000
+        -XX:ReservedCodeCacheSize=256M
+        -Xmx16G
+        -Xmx4G
+        --add-exports java.base/jdk.internal.misc=ALL-UNNAMED
+        --add-exports java.base/jdk.internal.ref=ALL-UNNAMED
+        --add-exports java.base/sun.nio.ch=ALL-UNNAMED
+        --add-exports java.management.rmi/com.sun.jmx.remote.internal.rmi=ALL-UNNAMED
+        --add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED
+        --add-exports java.rmi/sun.rmi.server=ALL-UNNAMED
+        --add-exports java.sql/java.sql=ALL-UNNAMED
+        --add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED
+        --add-opens java.base/java.lang.module=ALL-UNNAMED
+        --add-opens java.base/java.net=ALL-UNNAMED
+        --add-opens java.base/jdk.internal.loader=ALL-UNNAMED
+        --add-opens java.base/jdk.internal.ref=ALL-UNNAMED
+        --add-opens java.base/jdk.internal.reflect=ALL-UNNAMED
+        --add-opens java.base/jdk.internal.math=ALL-UNNAMED
+        --add-opens java.base/jdk.internal.module=ALL-UNNAMED
+        --add-opens java.base/jdk.internal.util.jar=ALL-UNNAMED
+        --add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED
+        --add-opens jdk.management.jfr/jdk.management.jfr=ALL-UNNAMED
+        --add-opens java.desktop/com.sun.beans.introspect=ALL-UNNAMED
+ */
+@Command(name = "harry", description = "Harry simulation test")
 public class HarrySimulatorTest
 {
     private static final Logger logger = LoggerFactory.getLogger(HarrySimulatorTest.class);
 
+    @Inject
+    public HelpOption helpOption;
+    @Option(name = { "-r", "--rows-per-phase"}, description = "Number of rows to check at each phase of the test")
+    public int rowsPerPhase = 10;
+    @Option(name = {"--nodes-per-dc"}, description = "How many nodes per dc for replication")
+    public int nodesPerDc = 3;
+
     public static void main(String... args) throws Throwable
     {
-        new HarrySimulatorTest().harryTest();
-        System.exit(0);
+        HarrySimulatorTest test = SingleCommand.singleCommand(HarrySimulatorTest.class).parse(args);
+        if (test.helpOption.showHelpIfRequested())
+            return;
+        test.harryTest();
+        System.exit(1);
     }
 
     @Test
-    public void harryTest() throws Exception
+    public void test() throws Exception
+    {
+        rowsPerPhase = 1;
+        harryTest();
+    }
+
+    private void harryTest() throws Exception
     {
         int bootstrapNode1 = 4;
         int bootstrapNode2 = 8;
         int bootstrapNode3 = 12;
-        int rowsPerPhase = 1000;
-        int nodesPerDc = 3;
+
         StringBuilder rfString = new StringBuilder();
         Map<String, Integer> rfMap = new HashMap<>();
         for (int i = 0; i < 3; i++)
@@ -132,7 +225,23 @@ public class HarrySimulatorTest
 
         ConsistencyLevel cl = ALL;
 
-        simulate(HarryHelper.defaultConfiguration()
+        simulate((config) -> config
+                             .failures(new HaltOnError())
+                             .threadCount(1000)
+                             .readTimeoutNanos(SECONDS.toNanos(5))
+                             .writeTimeoutNanos(SECONDS.toNanos(5))
+                             .readTimeoutNanos(SECONDS.toNanos(10))
+                             .nodes(12, 12)
+                             .dcs(3, 3),
+                 (config) -> config.set("cms_default_max_retries", 100)
+                                   .set("request_timeout", "10000ms")
+                                   .set("progress_barrier_min_consistency_level", ALL)
+                                   .set("progress_barrier_default_consistency_level", ALL)
+                                   .set("progress_barrier_timeout", "600000ms")
+                                   // Backoff should be larger than read timeout, since otherwise we will simply saturate the stage with retries
+                                   .set("progress_barrier_backoff", "1000ms")
+                                   .set("cms_await_timeout", "600000ms"),
+                 HarryHelper.defaultConfiguration()
                             .setSchemaProvider(new Configuration.SchemaProviderConfiguration()
                             {
                                 private final Surjections.Surjection<SchemaSpec> schema = schemaSpecGen("harry", "tbl");
@@ -141,16 +250,16 @@ public class HarrySimulatorTest
                                     return schema.inflate(l);
                                 }
                             })
-
                             .setPartitionDescriptorSelector(new Configuration.DefaultPDSelectorConfiguration(2, 1))
                             .setClusteringDescriptorSelector(HarryHelper.singleRowPerModification().setMaxPartitionSize(100).build()),
+                 arr(),
                  (simulation) -> {
                      simulation.cluster.stream().forEach((IInvokableInstance i) -> {
                          simulation.simulated.failureDetector.markUp(i.config().broadcastAddress());
                      });
 
                      List<ActionSchedule.Work> work = new ArrayList<>();
-                     work.add(work(run(() -> {
+                     work.add(work("Set up", run(() -> {
                          for (Map.Entry<String, List<TokenPlacementModel.Node>> e : simulation.nodeState.nodesByDc.entrySet())
                          {
                              List<TokenPlacementModel.Node> nodesInDc = e.getValue();
@@ -161,21 +270,31 @@ public class HarrySimulatorTest
                              }
                          }
                      })));
-                     work.add(work(lazy(() -> simulation.clusterActions.initializeCluster(new ClusterActions.InitialConfiguration(simulation.nodeState.joined(), new int[0])))));
-                     work.add(work(reconfigureCMS(simulation.simulated, simulation.cluster, 2, true)));
-                     work.add(work(simulation.clusterActions.schemaChange(1,
+                     work.add(work("Initial configuration",
+                                   lazy(() -> simulation.clusterActions.initializeCluster(new ClusterActions.InitialConfiguration(simulation.nodeState.joined(), new int[0])))));
+
+                     work.add(work("Reconfigure CMS",
+                                   reconfigureCMS(simulation.simulated, simulation.cluster, 2, true)));
+                     work.add(work("Create Keyspace",
+                                   simulation.clusterActions.schemaChange(1,
                                                                           String.format("CREATE KEYSPACE %s WITH replication = {'class': 'NetworkTopologyStrategy', " + rfString + "};",
                                                                                         simulation.harryRun.schemaSpec.keyspace))));
-                     work.add(work(simulation.clusterActions.schemaChange(1,
+                     work.add(work("Create table",
+                                   simulation.clusterActions.schemaChange(1,
                                                                           simulation.harryRun.schemaSpec.compile().cql())));
-                     work.add(work(HarrySimulatorTest.generate(rowsPerPhase, simulation, cl)));
-
-
                      simulation.cluster.stream().forEach(i -> {
-                         work.add(work(lazy(simulation.simulated, i, () -> logger.info(ClusterMetadata.current().epoch.toString()))));
+                         work.add(work("Output epoch",
+                                       lazy(simulation.simulated, i, () -> logger.warn(ClusterMetadata.current().epoch.toString()))));
                      });
-                     work.add(work(lazy(() -> validateAllLocal(simulation, simulation.nodeState.ring, rf))));
 
+                     work.add(interleave("Start generating", HarrySimulatorTest.generate(rowsPerPhase, simulation, cl)));
+                     work.add(work("Validate all data locally",
+                                   lazy(() -> validateAllLocal(simulation, simulation.nodeState.ring, rf))));
+
+                     return arr(work.toArray(new ActionSchedule.Work[0]));
+                 },
+                 (simulation) -> {
+                     List<ActionSchedule.Work> work = new ArrayList<>();
                      List<Integer> registeredNodes = new ArrayList<>(Arrays.asList(bootstrapNode1, bootstrapNode2, bootstrapNode3));
                      List<Integer> bootstrappedNodes = new ArrayList<>();
                      while (!registeredNodes.isEmpty() || !bootstrappedNodes.isEmpty())
@@ -191,53 +310,47 @@ public class HarrySimulatorTest
                          {
                              node = registeredNodes.remove(0);
                              long token = simulation.simulated.random.uniform(Long.MIN_VALUE, Long.MAX_VALUE);
-                             work.add(work(ActionList.of(bootstrap(simulation.simulated, simulation.cluster, token, node)),
-                                           generate(rowsPerPhase, simulation, cl)
+                             work.add(interleave("Bootstrap and generate data",
+                                                 ActionList.of(bootstrap(simulation.simulated, simulation.cluster, token, node)),
+                                                 generate(rowsPerPhase, simulation, cl)
                              ));
                              simulation.cluster.stream().forEach(i -> {
-                                 work.add(work(lazy(simulation.simulated, i, () -> logger.info(ClusterMetadata.current().epoch.toString()))));
+                                 work.add(work("Output epoch",
+                                               lazy(simulation.simulated, i, () -> logger.warn(ClusterMetadata.current().epoch.toString()))));
                              });
-                             work.add(work(run(() -> simulation.nodeState.bootstrap(node, token))));
-                             work.add(work(assertNodeState(simulation.simulated, simulation.cluster, node,NodeState.JOINED)));
+                             work.add(work("Bootstrap",
+                                           run(() -> simulation.nodeState.bootstrap(node, token))));
+                             work.add(work("Check node state",
+                                           assertNodeState(simulation.simulated, simulation.cluster, node, NodeState.JOINED)));
                              bootstrappedNodes.add(node);
                          }
                          else
                          {
                              assert !bootstrappedNodes.isEmpty();
                              node = bootstrappedNodes.remove(0);
-                             work.add(work(ActionList.of(decommission(simulation.simulated, simulation.cluster, node)),
-                                           generate(rowsPerPhase, simulation, cl)
+                             work.add(interleave("Decommission and generate data",
+                                                 ActionList.of(decommission(simulation.simulated, simulation.cluster, node)),
+                                                 generate(rowsPerPhase, simulation, cl)
                              ));
                              simulation.cluster.stream().forEach(i -> {
-                                 work.add(work(lazy(simulation.simulated, i, () -> logger.info(ClusterMetadata.current().epoch.toString()))));
+                                 work.add(work("Output epoch",
+                                               lazy(simulation.simulated, i, () -> logger.warn(ClusterMetadata.current().epoch.toString()))));
                              });
-                             work.add(work(run(() -> simulation.nodeState.decommission(node))));
-                             work.add(work(assertNodeState(simulation.simulated, simulation.cluster, node,NodeState.LEFT)));
+                             work.add(work("Decommission",
+                                           run(() -> simulation.nodeState.decommission(node))));
+                             work.add(work("Check node state", assertNodeState(simulation.simulated, simulation.cluster, node, NodeState.LEFT)));
                          }
-                         work.add(work(lazy(() -> validateAllLocal(simulation, simulation.nodeState.ring, rf))));
+                         work.add(work("Validate data locally",
+                                       lazy(() -> validateAllLocal(simulation, simulation.nodeState.ring, rf))));
                          boolean tmp = shouldBootstrap;
-                         work.add(work(run(() -> System.out.printf("Finished %s of %d and data validation!\n", tmp ? "bootstrap" : "decommission", node))));
+                         work.add(work("Output message",
+                                       run(() -> logger.warn("Finished {} of {} and data validation!\n", tmp ? "bootstrap" : "decommission", node))));
                      }
-                     work.add(work(run(() -> System.out.println("Finished!"))));
+                     work.add(work("Output message",
+                                   run(() -> logger.warn("Finished!"))));
 
                      return arr(work.toArray(new ActionSchedule.Work[0]));
-                 },
-                 (config) -> config.set("cms_default_max_retries", 10)
-                                   .set("progress_barrier_min_consistency_level", ALL)
-                                   .set("progress_barrier_default_consistency_level", ALL)
-                                   .set("progress_barrier_timeout", "600000ms")
-                                   // Backoff should be larger than read timeout, since otherwise we will simply saturate the stage with retries
-                                   .set("progress_barrier_backoff", "11000ms")
-                                   .set("cms_await_timeout", "20000ms"),
-                 arr(),
-                 (config) -> config
-                             .failures(new HaltOnError())
-                             .threadCount(1000)
-                             .readTimeoutNanos(SECONDS.toNanos(5))
-                             .writeTimeoutNanos(SECONDS.toNanos(5))
-                             .readTimeoutNanos(SECONDS.toNanos(10))
-                             .nodes(12, 12)
-                             .dcs(3, 3)
+                 }
         );
     }
 
@@ -248,9 +361,8 @@ public class HarrySimulatorTest
      * we are testing to both reduce the noise and the surface for potential investigations. This also
      * has a nice side effect of making simulations slightly faster.
      */
-    static abstract class HarrySimulation implements Simulation
+    static class HarrySimulation implements Simulation
     {
-        protected final Configuration.ConfigurationBuilder harryConfig;
         protected final ClusterActions clusterActions;
         protected final SimulatedNodeState nodeState;
         protected final Run harryRun;
@@ -258,32 +370,67 @@ public class HarrySimulatorTest
         protected final SimulatedSystems simulated;
         protected final RunnableActionScheduler scheduler;
         protected final Cluster cluster;
+        protected final Function<HarrySimulation, ActionSchedule.Work[]> schedule;
 
-        public HarrySimulation(SimulatedSystems simulated, RunnableActionScheduler scheduler, Cluster cluster, Configuration.ConfigurationBuilder harryConfig)
+        public HarrySimulation(SimulatedSystems simulated, RunnableActionScheduler scheduler, Cluster cluster, Run run, Function<HarrySimulation, ActionSchedule.Work[]> schedule)
+        {
+            this(simulated, scheduler, cluster, run, SimulatedNodeState::new, schedule);
+        }
+
+        protected HarrySimulation(SimulatedSystems simulated,
+                                  RunnableActionScheduler scheduler,
+                                  Cluster cluster,
+                                  Run run,
+                                  Function<HarrySimulation, SimulatedNodeState> nodeState,
+                                  Function<HarrySimulation, ActionSchedule.Work[]> schedule)
         {
             this.simulated = simulated;
             this.scheduler = scheduler;
             this.cluster = cluster;
 
-            this.harryConfig = harryConfig;
+            this.harryRun = run;
             Options options = noActions(cluster.size());
             this.clusterActions = new ClusterActions(simulated, cluster,
                                                      options, new NoOpListener(), new Debug(new EnumMap<>(Debug.Info.class), new int[0]));
 
-            InJvmSut sut = new InJvmSut(cluster) {
-                public void shutdown()
-                {
-                    // Let simulation shut down the cluster, as it uses `nanoTime`
-                }
-            };
-
-            Configuration configuration = harryConfig.setClock(() -> new OffsetClock(1000)) // todo: potentially integrate approximate clock with Simulator
-                                                     .setSUT(() -> sut)
-                                                     .build();
-            this.harryRun = configuration.createRun();
-            this.nodeState = new SimulatedNodeState(this);
+            this.nodeState = nodeState.apply(this);
+            this.schedule = schedule;
         }
 
+        public HarrySimulation withScheduler(RunnableActionScheduler scheduler)
+        {
+            return new HarrySimulation(simulated, scheduler, cluster, harryRun, (ignore) -> nodeState, schedule);
+        }
+
+        public HarrySimulation withSchedulers(Function<HarrySimulation, Map<Verb, FutureActionScheduler>> schedulers)
+        {
+            Map<Verb, FutureActionScheduler> perVerbFutureActionScheduler = schedulers.apply(this);
+            SimulatedSystems simulated = new SimulatedSystems(this.simulated.random,
+                                                              this.simulated.time,
+                                                              this.simulated.delivery,
+                                                              this.simulated.execution,
+                                                              this.simulated.ballots,
+                                                              this.simulated.failureDetector,
+                                                              this.simulated.snitch,
+                                                              this.simulated.futureScheduler,
+                                                              perVerbFutureActionScheduler,
+                                                              this.simulated.debug,
+                                                              this.simulated.failures);
+            return new HarrySimulation(simulated, scheduler, cluster, harryRun, (ignore) -> nodeState, schedule);
+        }
+
+        public HarrySimulation withSchedule(Function<HarrySimulation, ActionSchedule.Work[]> schedule)
+        {
+            return new HarrySimulation(simulated, scheduler, cluster, harryRun, (ignore) -> nodeState, schedule);
+        }
+
+        @Override
+        public CloseableIterator<?> iterator()
+        {
+            return new ActionSchedule(simulated.time, simulated.futureScheduler, () -> 0L, scheduler, schedule.apply(this));
+        }
+
+        @Override
         public void run()
         {
             try (CloseableIterator<?> iter = iterator())
@@ -303,26 +450,23 @@ public class HarrySimulatorTest
         protected final Configuration.ConfigurationBuilder harryConfig;
         protected final Consumer<IInstanceConfig> configUpdater;
 
-        protected final Function<HarrySimulation, ActionSchedule.Work[]> work;
-
         HarrySimulationBuilder(Configuration.ConfigurationBuilder harryConfig,
-                               Consumer<IInstanceConfig> configUpdater,
-                               Function<HarrySimulation, ActionSchedule.Work[]> work
-        )
+                               Consumer<IInstanceConfig> configUpdater)
         {
             this.harryConfig = harryConfig;
             this.configUpdater = configUpdater;
-            this.work = work;
         }
 
+        @Override
         public Map<Verb, FutureActionScheduler> perVerbFutureActionSchedulers(int nodeCount, SimulatedTime time, RandomSource random)
         {
             return HarrySimulatorTest.networkSchedulers(nodeCount, time, random);
         }
 
+        @Override
         public FutureActionScheduler futureActionScheduler(int nodeCount, SimulatedTime time, RandomSource random)
         {
-            return new AlwaysDeliverNetworkScheduler(time, random);
+            return new AlwaysDeliverNetworkScheduler(time);
         }
 
         @Override
@@ -332,17 +476,27 @@ public class HarrySimulatorTest
             random.reset(seed);
             this.harryConfig.setSeed(seed);
 
-            return new ClusterSimulation<>(random, seed, 1, this,
-                                           configUpdater,
-                                           (simulated, scheduler, cluster, options) -> new HarrySimulation(simulated, scheduler, cluster, harryConfig)
-                                           {
 
-                                               @Override
-                                               public CloseableIterator<?> iterator()
+            return new ClusterSimulation<>(random, seed, 1, this, configUpdater,
+                                           (simulated, scheduler, cluster, options) -> {
+
+                                               InJvmSut sut = new InJvmSut(cluster)
                                                {
-                                                   // ok; and scheduler jitter is here
-                                                   return new ActionSchedule(simulated.time, simulated.futureScheduler, () -> 0L, scheduler, work.apply(this));
-                                               }
+                                                   public void shutdown()
+                                                   {
+                                                       // Let simulation shut down the cluster, as it uses `nanoTime`
+                                                   }
+                                               };
+
+                                               Configuration configuration = harryConfig.setClock(() -> new OffsetClock(1000))
+                                                                                        .setSUT(() -> sut)
+                                                                                        .build();
+                                               return new HarrySimulation(simulated,
+                                                                          scheduler,
+                                                                          cluster,
+                                                                          configuration.createRun(),
+                                                                          // No work initially
+                                                                          (sim) -> new ActionSchedule.Work[0]);
                                            });
         }
     }
@@ -350,17 +504,44 @@ public class HarrySimulatorTest
     /**
      * Simulation entrypoint; syntax sugar for creating a simulation.
      */
-    public static void simulate(Configuration.ConfigurationBuilder harryConfig,
-                                Function<HarrySimulation, ActionSchedule.Work[]> work,
-                                Consumer<IInstanceConfig> instanceConfigUpdater,
-                                String[] properties,
-                                Consumer<ClusterSimulation.Builder<HarrySimulation>> configure) throws IOException
+    static void simulate(Consumer<ClusterSimulation.Builder<HarrySimulation>> configure,
+                         Consumer<IInstanceConfig> instanceConfigUpdater,
+                         Configuration.ConfigurationBuilder harryConfig,
+                         String[] properties,
+                         Function<HarrySimulation, ActionSchedule.Work[]>... phases) throws IOException
     {
         try (WithProperties p = new WithProperties().with(properties))
         {
-            SimulationTestBase.simulate(new HarrySimulationBuilder(harryConfig, instanceConfigUpdater, work),
-                                        configure);
-        };
+            HarrySimulationBuilder factory = new HarrySimulationBuilder(harryConfig, instanceConfigUpdater);
+
+            SimulationRunner.beforeAll();
+            long seed = System.currentTimeMillis();
+            // Development seed:
+            //long seed = 1687184561194L;
+            System.out.println("Simulation seed: " + seed + "L");
+            configure.accept(factory);
+            try (ClusterSimulation<HarrySimulation> clusterSimulation = factory.create(seed))
+            {
+                try
+                {
+                    HarrySimulation simulation = clusterSimulation.simulation();
+
+                    // For better determinism during startup, we allow instances to fully start (including daemon work)
+                    for (int i = 0; i < phases.length; i++)
+                    {
+                        HarrySimulation current = simulation;
+                        if (i == 0)
+                            current = current.withScheduler(new RunnableActionScheduler.Immediate()).withSchedulers((s) -> Collections.emptyMap());
+                        current.withSchedule(phases[i]).run();
+                    }
+                }
+                catch (Throwable t)
+                {
+                    throw new AssertionError(String.format("Failed on seed %s", Long.toHexString(seed)),
+                                             t);
+                }
+            }
+        }
     }
 
     /**
@@ -390,11 +571,11 @@ public class HarrySimulatorTest
         for (Verb verb : Verb.values())
         {
             if (extremelyLossy.contains(verb))
-                schedulers.put(verb, new FixedLossNetworkScheduler(nodes, random, time, KindOfSequence.UNIFORM, .2f, .3f));
+                schedulers.put(verb, new FixedLossNetworkScheduler(nodes, random, time, KindOfSequence.UNIFORM, .15f, .20f));
             else if (somewhatLossy.contains(verb))
                 schedulers.put(verb, new FixedLossNetworkScheduler(nodes, random, time, KindOfSequence.UNIFORM, .1f, .15f));
             else if (somewhatSlow.contains(verb))
-                schedulers.put(verb, new AlwaysDeliverNetworkScheduler(time, random, TimeUnit.MILLISECONDS.toNanos(100)));
+                schedulers.put(verb, new AlwaysDeliverNetworkScheduler(time, TimeUnit.MILLISECONDS.toNanos(100)));
         }
         return schedulers;
     }
@@ -505,7 +686,7 @@ public class HarrySimulatorTest
                         NodeState actual = ClusterMetadata.current().myNodeState();
                         if (!actual.toString().equals(expected.toString()))
                         {
-                            logger.info("Node {} state ({}) is not as expected {}", i, actual, expected);
+                            logger.error("Node {} state ({}) is not as expected {}", i, actual, expected);
                             SimulatorUtils.failWithOOM();
                         }
                     });
@@ -597,7 +778,7 @@ public class HarrySimulatorTest
                                             List<Action> actions = new ArrayList<>();
                                             long maxLts = simulation.harryRun.tracker.maxStarted();
                                             long maxPosition = simulation.harryRun.pdSelector.maxPosition(maxLts);
-                                            logger.info("Starting validation of {} written partitions. Highest LTS is {}. Ring view: {}", maxPosition, maxLts, simulation.nodeState);
+                                            logger.warn("Starting validation of {} written partitions. Highest LTS is {}. Ring view: {}", maxPosition, maxLts, simulation.nodeState);
                                             for (int position = 0; position < maxPosition; position++)
                                             {
                                                 long minLts = simulation.harryRun.pdSelector.minLtsAt(position);
@@ -610,27 +791,27 @@ public class HarrySimulatorTest
                                         });
     }
 
-    // todo rename
-    private static ActionSchedule.Work work(Action... actions)
+    private static ActionSchedule.Work work(String toString, Action... actions)
     {
-        return new ActionSchedule.Work(UNLIMITED, Collections.singletonList(ActionList.of(actions).setStrictlySequential()));
+        return new ActionSchedule.Work(UNLIMITED, Collections.singletonList(ActionList.of(actions).setStrictlySequential())) {
+            @Override
+            public String toString()
+            {
+                return toString;
+            }
+        };
     }
 
-    private static ActionSchedule.Work work(ActionList... actions)
+    private static ActionSchedule.Work interleave(String toString, ActionList... actions)
     {
-        return new ActionSchedule.Work(UNLIMITED, Arrays.asList(actions));
+        return new ActionSchedule.Work(UNLIMITED, Arrays.asList(actions)) {
+            @Override
+            public String toString()
+            {
+                return toString;
+            }
+        };
     }
-
-    private static ActionSchedule.Work interleave(long nanos, Action... actions)
-    {
-        return new ActionSchedule.Work(TIME_LIMITED, nanos, Collections.singletonList(ActionList.of(actions)));
-    }
-
-    private static ActionSchedule.Work interleave(Action... actions)
-    {
-        return new ActionSchedule.Work(UNLIMITED, Collections.singletonList(ActionList.of(actions)));
-    }
-
 
     /**
      * Simple simulated node state. Used to closely track what is going on in the cluster and
@@ -654,12 +835,14 @@ public class HarrySimulatorTest
                 IInstanceConfig config = simulation.cluster.get(nodeId).config();
 
                 InetAddressAndPort addr = InetAddressAndPort.getByAddress(config.broadcastAddress());
-                TokenPlacementModel.Node node = new TokenPlacementModel.Node(Long.parseLong(config.getString("initial_token")),
-                                                                             addr.toString(),
-                                                                             new TokenPlacementModel.Location(simulation.clusterActions.snitch.get().getDatacenter(addr),
-                                                                                                              simulation.clusterActions.snitch.get().getRack(addr)));
+
+                TokenPlacementModel.Node node = new TokenPlacementModel.Node(0, 0, 0, 0,
+                                                                             constantLookup(addr.toString(),
+                                                                                            Long.parseLong(config.getString("initial_token")),
+                                                                                            simulation.clusterActions.snitch.get().getDatacenter(addr),
+                                                                                            simulation.clusterActions.snitch.get().getRack(addr)));
                 nodesLookup[i] = node;
-                nodesByDc.computeIfAbsent(node.location.dc, (k) -> new ArrayList<>()).add(node);
+                nodesByDc.computeIfAbsent(node.dc(), (k) -> new ArrayList<>()).add(node);
                 idByAddr.put(addr.toString(), config.num());
             }
             this.ring = new ArrayList<>();
@@ -670,7 +853,7 @@ public class HarrySimulatorTest
             int[] joined = new int[ring.size()];
             for (int i = 0; i < ring.size(); i++)
             {
-                joined[i] = idByAddr.get(ring.get(i).id);
+                joined[i] = idByAddr.get(ring.get(i).id());
             }
             return joined;
         }
@@ -714,7 +897,7 @@ public class HarrySimulatorTest
             for (TokenPlacementModel.Node node : ring)
             {
                 if (prev != null)
-                    assert node.token > prev.token : "Ring doesn't seem to be sorted: " + ring;
+                    assert node.token() > prev.token() : "Ring doesn't seem to be sorted: " + ring;
                 prev = node;
             }
         }
@@ -735,14 +918,18 @@ public class HarrySimulatorTest
             for (TokenPlacementModel.Node node : ring)
             {
                 if (prev != null)
-                    assert node.token > prev.token : "Ring doesn't seem to be sorted: " + ring;
+                    assert node.token() > prev.token() : "Ring doesn't seem to be sorted: " + ring;
                 prev = node;
             }
 
         }
         private static TokenPlacementModel.Node withToken(TokenPlacementModel.Node node, long token)
         {
-            return new TokenPlacementModel.Node(token, node.id, node.location);
+            return new TokenPlacementModel.Node(0, 0, 0, 0,
+                                                constantLookup(node.id(),
+                                                               token,
+                                                               node.dc(),
+                                                               node.rack()));
         }
 
         public String toString()

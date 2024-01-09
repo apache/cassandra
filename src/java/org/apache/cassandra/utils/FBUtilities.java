@@ -37,6 +37,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -46,11 +47,13 @@ import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Scanner;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.CRC32;
@@ -60,12 +63,14 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
-import com.google.common.collect.ImmutableList;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Suppliers;
+import com.google.common.collect.ImmutableList;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.vdurmont.semver4j.Semver;
 import org.apache.cassandra.audit.IAuditLogger;
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.auth.IAuthenticator;
@@ -133,9 +138,17 @@ public class FBUtilities
 
     private static int availableProcessors = CASSANDRA_AVAILABLE_PROCESSORS.getInt(DatabaseDescriptor.getAvailableProcessors());
 
+    private static volatile Supplier<Semver> kernelVersionSupplier = Suppliers.memoize(FBUtilities::getKernelVersionFromUname);
+
     public static void setAvailableProcessors(int value)
     {
         availableProcessors = value;
+    }
+
+    @VisibleForTesting
+    public static void setKernelVersionSupplier(Supplier<Semver> supplier)
+    {
+        kernelVersionSupplier = supplier;
     }
 
     public static int getAvailableProcessors()
@@ -431,14 +444,11 @@ public class FBUtilities
         return previousReleaseVersionString;
     }
 
-    private static Properties getVersionProperties()
-    {
+    private static final Supplier<Properties> loadedProperties = Suppliers.memoize(() -> {
         try (InputStream in = FBUtilities.class.getClassLoader().getResourceAsStream("org/apache/cassandra/config/version.properties"))
         {
             if (in == null)
-            {
                 return null;
-            }
             Properties props = new Properties();
             props.load(in);
             return props;
@@ -449,11 +459,11 @@ public class FBUtilities
             logger.warn("Unable to load version.properties", e);
             return null;
         }
-    }
+    });
 
     public static String getReleaseVersionString()
     {
-        Properties props = getVersionProperties();
+        Properties props = loadedProperties.get();
         if (props == null)
             return RELEASE_VERSION.getString(UNKNOWN_RELEASE_VERSION);
         return props.getProperty("CassandraVersion");
@@ -461,7 +471,7 @@ public class FBUtilities
 
     public static String getGitSHA()
     {
-        Properties props = getVersionProperties();
+        Properties props = loadedProperties.get();
         if (props == null)
             return GIT_SHA.getString(UNKNOWN_GIT_SHA);
         return props.getProperty("GitSHA", UNKNOWN_GIT_SHA);
@@ -1136,6 +1146,66 @@ public class FBUtilities
         }
     }
 
+    /**
+     * Starts and waits for the given <code>cmd</code> to finish. If the process does not finish within <code>timeout</code>,
+     * it will be destroyed.
+     *
+     * @param env        additional environment variables to set
+     * @param timeout    timeout for the process to finish, or zero/null to wait forever
+     * @param outBufSize the maximum size of the collected std output; the overflow will be discarded
+     * @param errBufSize the maximum size of the collected std error; the overflow will be discarded
+     * @param cmd        the command to execute
+     * @return the std output of the process up to the size specified by <code>outBufSize</code>
+     */
+    public static String exec(Map<String, String> env, Duration timeout, int outBufSize, int errBufSize, String... cmd) throws IOException, TimeoutException, InterruptedException
+    {
+        if (env == null)
+            env = Map.of();
+        if (timeout == null)
+            timeout = Duration.ZERO;
+
+        ProcessBuilder processBuilder = new ProcessBuilder(cmd);
+        processBuilder.environment().putAll(env);
+        Process process = processBuilder.start();
+        try (DataOutputBuffer err = new DataOutputBuffer();
+             DataOutputBuffer out = new DataOutputBuffer();
+             OutputStream overflowSink = OutputStream.nullOutputStream())
+        {
+            boolean completed;
+            if (timeout.isZero())
+            {
+                process.waitFor();
+                completed = true;
+            }
+            else
+            {
+                completed = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            }
+
+            copy(process.getInputStream(), out, outBufSize);
+            long outOverflow = process.getInputStream().transferTo(overflowSink);
+
+            copy(process.getErrorStream(), err, errBufSize);
+            long errOverflow = process.getErrorStream().transferTo(overflowSink);
+
+            if (!completed)
+            {
+                process.destroyForcibly();
+                logger.error("Command {} did not complete in {}, killed forcibly:\noutput:\n{}\n(truncated {} bytes)\nerror:\n{}\n(truncated {} bytes)",
+                            Arrays.toString(cmd), timeout, out.asString(), outOverflow, err.asString(), errOverflow);
+                throw new TimeoutException("Command " + Arrays.toString(cmd) + " did not complete in " + timeout);
+            }
+            int r = process.exitValue();
+            if (r != 0)
+            {
+                logger.error("Command {} failed with exit code {}:\noutput:\n{}\n(truncated {} bytes)\nerror:\n{}\n(truncated {} bytes)",
+                            Arrays.toString(cmd), r, out.asString(), outOverflow, err.asString(), errOverflow);
+                throw new IOException("Command " + Arrays.toString(cmd) + " failed with exit code " + r);
+            }
+            return out.asString();
+        }
+    }
+
     public static void updateChecksumInt(Checksum checksum, int v)
     {
         checksum.update((v >>> 24) & 0xFF);
@@ -1375,5 +1445,54 @@ public class FBUtilities
         {
             logger.warn("Closing {} had an unexpected exception", o, e);
         }
+    }
+
+    public static Semver getKernelVersion()
+    {
+        return kernelVersionSupplier.get();
+    }
+
+    @VisibleForTesting
+    static Semver getKernelVersionFromUname()
+    {
+        // TODO rewrite this method with Oshi when it is eventually included in the project
+        if (!isLinux)
+            return null;
+
+        try
+        {
+            String output = exec(Map.of(), Duration.ofSeconds(5), 1024, 1024, "uname", "-r");
+
+            if (output.isEmpty())
+                throw new RuntimeException("Error while trying to get kernel version, 'uname -r' returned empty output");
+
+            return parseKernelVersion(output);
+        }
+        catch (IOException | TimeoutException e)
+        {
+            throw new RuntimeException("Error while trying to get kernel version", e);
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+    }
+
+    @VisibleForTesting
+    static Semver parseKernelVersion(String versionString)
+    {
+        Preconditions.checkNotNull(versionString, "kernel version cannot be null");
+        try (Scanner scanner = new Scanner(versionString))
+        {
+            while (scanner.hasNextLine())
+            {
+                String version = scanner.nextLine().trim();
+                if (version.isEmpty())
+                    continue;
+                return new Semver(version, Semver.SemverType.LOOSE);
+            }
+        }
+        throw new IllegalArgumentException("Error while trying to parse kernel version - no version found");
     }
 }

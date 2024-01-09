@@ -51,6 +51,7 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.StorageService;
@@ -87,6 +88,7 @@ public class CQLSSTableWriterTest
         SchemaLoader.cleanupAndLeaveDirs();
         Keyspace.setInitialized();
         ServerTestUtils.prepareServerNoRegister();
+        MessagingService.instance().waitUntilListeningUnchecked();
         StorageService.instance.initServer();
     }
 

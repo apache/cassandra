@@ -28,13 +28,15 @@ import org.apache.cassandra.net.ParamType;
 
 public class WarningContext
 {
-    private static EnumSet<ParamType> SUPPORTED = EnumSet.of(ParamType.TOMBSTONE_WARNING, ParamType.TOMBSTONE_FAIL,
+    private static final EnumSet<ParamType> SUPPORTED = EnumSet.of(ParamType.TOMBSTONE_WARNING, ParamType.TOMBSTONE_FAIL,
                                                              ParamType.LOCAL_READ_SIZE_WARN, ParamType.LOCAL_READ_SIZE_FAIL,
-                                                             ParamType.ROW_INDEX_READ_SIZE_WARN, ParamType.ROW_INDEX_READ_SIZE_FAIL);
+                                                             ParamType.ROW_INDEX_READ_SIZE_WARN, ParamType.ROW_INDEX_READ_SIZE_FAIL,
+                                                             ParamType.TOO_MANY_REFERENCED_INDEXES_WARN, ParamType.TOO_MANY_REFERENCED_INDEXES_FAIL);
 
     final WarnAbortCounter tombstones = new WarnAbortCounter();
     final WarnAbortCounter localReadSize = new WarnAbortCounter();
     final WarnAbortCounter rowIndexReadSize = new WarnAbortCounter();
+    final WarnAbortCounter indexReadSSTablesCount = new WarnAbortCounter();
 
     public static boolean isSupported(Set<ParamType> keys)
     {
@@ -64,6 +66,11 @@ public class WarningContext
                 case TOMBSTONE_WARNING:
                     counter = tombstones;
                     break;
+                case TOO_MANY_REFERENCED_INDEXES_FAIL:
+                    reason = RequestFailureReason.READ_TOO_MANY_INDEXES;
+                case TOO_MANY_REFERENCED_INDEXES_WARN:
+                    counter = indexReadSSTablesCount;
+                    break;
             }
             if (reason != null)
             {
@@ -78,6 +85,6 @@ public class WarningContext
 
     public WarningsSnapshot snapshot()
     {
-        return WarningsSnapshot.create(tombstones.snapshot(), localReadSize.snapshot(), rowIndexReadSize.snapshot());
+        return WarningsSnapshot.create(tombstones.snapshot(), localReadSize.snapshot(), rowIndexReadSize.snapshot(), indexReadSSTablesCount.snapshot());
     }
 }

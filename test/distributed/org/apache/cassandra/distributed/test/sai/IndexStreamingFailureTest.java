@@ -19,26 +19,21 @@
 package org.apache.cassandra.distributed.test.sai;
 
 import java.io.IOException;
-import java.util.concurrent.Callable;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
-import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
-import org.apache.cassandra.index.sai.utils.IndexIdentifier;
-import org.apache.cassandra.utils.Throwables;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IndexInput;
 
@@ -52,42 +47,41 @@ public class IndexStreamingFailureTest extends TestBaseImpl
 {
     public static final String TEST_ERROR_MESSAGE = "Injected failure!";
     
-    private static Cluster cluster;
-    
-    @BeforeClass
-    public static void startup() throws IOException
-    {
-        cluster = init(Cluster.build(2).withConfig(c -> c.with(NETWORK, GOSSIP))
-                                       .withInstanceInitializer(ByteBuddyHelper::installErrors)
-                                       .start());
-
-        cluster.disableAutoCompaction(KEYSPACE);
-    }
-
-    @AfterClass
-    public static void shutdown()
-    {
-        if (cluster != null)
-            cluster.close();
-    }
-
     @Test
     public void testAvailabilityAfterFailedNonEntireFileStreaming() throws Exception
     {
-        cluster.get(2).runOnInstance(()-> ByteBuddyHelper.failFlush = true);
-        cluster.get(2).runOnInstance(()-> ByteBuddyHelper.failValidation = false);
-        testAvailabilityAfterStreaming("non_entire_file_test", false);
+        try (Cluster cluster = init(Cluster.build(2).withConfig(c -> c.with(NETWORK, GOSSIP))
+                                                    .withInstanceInitializer((classLoader, threadGroup, num, generation) -> {
+                                                        // We only want to install the error on node 2 the first time it
+                                                        // is started.
+                                                        if (num == 2 && generation == 0)
+                                                            ByteBuddyHelper.installFlushError(classLoader);
+                                                    })
+                                                    .start()))
+        {
+            cluster.disableAutoCompaction(KEYSPACE);
+            testAvailabilityAfterStreaming(cluster, "non_entire_file_test", false);
+        }
     }
 
     @Test
     public void testAvailabilityAfterFailedEntireFileStreaming() throws Exception
     {
-        cluster.get(2).runOnInstance(()-> ByteBuddyHelper.failFlush = false);
-        cluster.get(2).runOnInstance(()-> ByteBuddyHelper.failValidation = true);
-        testAvailabilityAfterStreaming("entire_file_test", true);
+        try (Cluster cluster = init(Cluster.build(2).withConfig(c -> c.with(NETWORK, GOSSIP))
+                                           .withInstanceInitializer((classLoader, threadGroup, num, generation) -> {
+                                               // We only want to install the error on node 2 the first time it
+                                               // is started.
+                                               if (num == 2 && generation == 0)
+                                                   ByteBuddyHelper.installValidateChecksumError(classLoader);
+                                           })
+                                           .start()))
+        {
+            cluster.disableAutoCompaction(KEYSPACE);
+            testAvailabilityAfterStreaming(cluster, "entire_file_test", true);
+        }
     }
 
-    private void testAvailabilityAfterStreaming(String table, boolean streamEntireSSTables) throws Exception
+    private void testAvailabilityAfterStreaming(Cluster cluster, String table, boolean streamEntireSSTables)
     {
         String indexName = table + "_v_index";
         cluster.schemaChange(String.format("CREATE TABLE %s.%s (pk int PRIMARY KEY, v text)", KEYSPACE, table));
@@ -119,7 +113,7 @@ public class IndexStreamingFailureTest extends TestBaseImpl
         assertThat(rs.length).isEqualTo(0);
 
         // On restart, ensure that the index remains querable and does not include the data we attempted to stream. 
-        second.shutdown().get();
+        ClusterUtils.stopUnchecked(second);
         second.startup();
 
         // On restart, the base table should be unchanged...
@@ -130,9 +124,8 @@ public class IndexStreamingFailureTest extends TestBaseImpl
         rs = second.executeInternal(String.format("SELECT pk FROM %s.%s WHERE v = ?", KEYSPACE, table), "v1");
         assertThat(rs.length).isEqualTo(0);
 
-        // Disable failure injection, and verify that the index is queryable and has the newly streamed data:
-        second.runOnInstance(()-> ByteBuddyHelper.failFlush = false);
-        second.runOnInstance(()-> ByteBuddyHelper.failValidation = false);
+        // ...and the failure injection will be disabled so repair and verify that the index is queryable
+        // and has the newly streamed data:
         second.nodetoolResult("repair", KEYSPACE).asserts().success();
 
         rs = second.executeInternal(String.format("SELECT pk FROM %s.%s WHERE v = ?", KEYSPACE, table), "v1");
@@ -141,57 +134,34 @@ public class IndexStreamingFailureTest extends TestBaseImpl
 
     public static class ByteBuddyHelper
     {
-        volatile static boolean failFlush = false;
-        volatile static boolean failValidation = false;
-        
-        static void installErrors(ClassLoader loader, int node)
+        static void installFlushError(ClassLoader loader)
         {
-            if (node == 2)
-            {
-                new ByteBuddy().rebase(SegmentBuilder.class)
-                               .method(named("flush"))
-                               .intercept(MethodDelegation.to(ByteBuddyHelper.class))
-                               .make()
-                               .load(loader, ClassLoadingStrategy.Default.INJECTION);
+            new ByteBuddy().redefine(SegmentBuilder.class)
+                           .method(named("flush"))
+                           .intercept(MethodDelegation.to(ByteBuddyHelper.class))
+                           .make()
+                           .load(loader, ClassLoadingStrategy.Default.INJECTION);
+        }
 
-                new ByteBuddy().rebase(SAICodecUtils.class)
-                               .method(named("validateChecksum"))
-                               .intercept(MethodDelegation.to(ByteBuddyHelper.class))
-                               .make()
-                               .load(loader, ClassLoadingStrategy.Default.INJECTION);
-            }
+        static void installValidateChecksumError(ClassLoader loader)
+        {
+            new ByteBuddy().redefine(SAICodecUtils.class)
+                           .method(named("validateChecksum"))
+                           .intercept(MethodDelegation.to(ByteBuddyHelper.class))
+                           .make()
+                           .load(loader, ClassLoadingStrategy.Default.INJECTION);
         }
 
         @SuppressWarnings("unused")
-        public static SegmentMetadata flush(IndexDescriptor indexDescriptor, IndexIdentifier indexIdentifier, @SuperCall Callable<SegmentMetadata> zuper) throws IOException
+        public static SegmentMetadata flush(IndexDescriptor indexDescriptor) throws IOException
         {
-            if (failFlush)
-                throw new IOException(TEST_ERROR_MESSAGE);
-
-            try
-            {
-                return zuper.call();
-            }
-            catch (Exception e)
-            {
-                throw Throwables.unchecked(e);
-            }
+            throw new IOException(TEST_ERROR_MESSAGE);
         }
 
         @SuppressWarnings("unused")
-        public static void validateChecksum(IndexInput input, @SuperCall Callable<Void> zuper) throws IOException
+        public static void validateChecksum(IndexInput input) throws IOException
         {
-            if (failValidation)
-                throw new CorruptIndexException(TEST_ERROR_MESSAGE, "Test resource");
-
-            try
-            {
-                zuper.call();
-            }
-            catch (Exception e)
-            {
-                throw Throwables.unchecked(e);
-            }
+            throw new CorruptIndexException(TEST_ERROR_MESSAGE, "Test resource");
         }
     }
 }

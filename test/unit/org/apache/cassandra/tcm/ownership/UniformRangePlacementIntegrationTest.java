@@ -32,7 +32,7 @@ import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.distributed.test.log.CMSTestBase;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.distributed.test.log.MetadataChangeSimulationTest;
-import org.apache.cassandra.distributed.test.log.PlacementSimulator;
+import org.apache.cassandra.harry.sut.TokenPlacementModel;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
@@ -41,7 +41,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 
 public class UniformRangePlacementIntegrationTest
 {
-    private static final PlacementSimulator.ReplicationFactor RF = new PlacementSimulator.NtsReplicationFactor(3, 3);
+    private static final TokenPlacementModel.ReplicationFactor RF = new TokenPlacementModel.NtsReplicationFactor(3, 3);
     private CMSTestBase.CMSSut sut;
     @BeforeClass
     public static void beforeClass()
@@ -68,29 +68,29 @@ public class UniformRangePlacementIntegrationTest
         UniformRangePlacement rangePlacement = new UniformRangePlacement();
         Random rng = new Random(1);
         int idx = 1;
-        PlacementSimulator.NodeFactory factory = PlacementSimulator.nodeFactory();
-        List<PlacementSimulator.Node> nodes = new ArrayList<>();
+        TokenPlacementModel.NodeFactory factory = TokenPlacementModel.nodeFactory();
+        List<TokenPlacementModel.Node> nodes = new ArrayList<>();
         for (int i = 0; i < 5; i++)
         {
             for (int j = 1; j <= 3; j++)
             {
                 int dc = j;
                 int rack = (rng.nextInt(3) + 1);
-                PlacementSimulator.Node node = factory.make(idx, dc, rack);
+                TokenPlacementModel.Node node = factory.make(idx, dc, rack);
                 ClusterMetadataTestHelper.register(idx, node.dc(), node.rack());
                 ClusterMetadataTestHelper.join(idx, node.token());
                 nodes.add(node);
                 idx++;
             }
         }
-        nodes.sort(PlacementSimulator.Node::compareTo);
+        nodes.sort(TokenPlacementModel.Node::compareTo);
 
         ClusterMetadataService.instance().processor().fetchLogAndWait();
         DataPlacements placements = rangePlacement.calculatePlacements(ClusterMetadata.current().epoch,
                                                                        ClusterMetadata.current(),
                                                                        Keyspaces.of(ClusterMetadata.current().schema.getKeyspaces().get("test").get()));
 
-        PlacementSimulator.ReplicatedRanges predicted = RF.replicate(nodes);
+        TokenPlacementModel.ReplicatedRanges predicted = RF.replicate(nodes);
 
         ReplicationParams replicationParams = ClusterMetadata.current().schema.getKeyspaces().get("test").get().params.replication;
         MetadataChangeSimulationTest.match(placements.get(replicationParams).reads,
