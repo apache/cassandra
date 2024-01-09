@@ -226,6 +226,8 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
 
         public static final Version CURRENT;
 
+        private static final Logger logger = LoggerFactory.getLogger(Version.class);
+
         static
         {
              if (DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5))

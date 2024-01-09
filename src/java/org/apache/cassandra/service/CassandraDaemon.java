@@ -277,6 +277,10 @@ public class CassandraDaemon
         {
             exitOrFail(e.returnCode, e.getMessage(), e.getCause());
         }
+        catch (Exception | Error e)
+        {
+            throw new AssertionError("Can't initialize cluster metadata service. Maybe for incompatibility issues and you can try upgrade strategies");
+        }
 
         QueryProcessor.registerStatementInvalidatingListener();
 
