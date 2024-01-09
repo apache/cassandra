@@ -271,7 +271,7 @@ public class CassandraDaemon
         }
         catch (InterruptedException | ExecutionException | IOException e)
         {
-            throw new AssertionError("Can't initialize cluster metadata service");
+            throw new AssertionError("Can't initialize cluster metadata service", e);
         }
         catch (StartupException e)
         {
