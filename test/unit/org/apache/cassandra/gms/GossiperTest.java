@@ -196,6 +196,28 @@ public class GossiperTest
     }
 
     @Test
+    public void testAssassinatedNodeWillNotContributeToVersionCalculation() throws Exception
+    {
+        int initialNodeCount = 3;
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, initialNodeCount);
+        for (int i = 0; i < initialNodeCount; i++)
+        {
+            Gossiper.instance.injectApplicationState(hosts.get(i), ApplicationState.RELEASE_VERSION, new VersionedValue.VersionedValueFactory(null).releaseVersion(SystemKeyspace.CURRENT_VERSION.toString()));
+        }
+        Gossiper.instance.start(1);
+        Gossiper.instance.expireUpgradeFromVersion();
+
+        // assassinate a non-existing node
+        Gossiper.instance.assassinateEndpoint("127.0.0.4");
+
+        assertTrue(Gossiper.instance.endpointStateMap.containsKey(InetAddressAndPort.getByName("127.0.0.4")));
+        assertNull(Gossiper.instance.upgradeFromVersionSupplier.get().value());
+        assertTrue(Gossiper.instance.upgradeFromVersionSupplier.get().canMemoize());
+        assertFalse(Gossiper.instance.hasMajorVersion3OrUnknownNodes());
+        assertFalse(Gossiper.instance.isUpgradingFromVersionLowerThan(CassandraVersion.CASSANDRA_3_4));
+    }
+
+    @Test
     public void testLargeGenerationJump() throws UnknownHostException, InterruptedException
     {
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
