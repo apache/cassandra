@@ -95,9 +95,9 @@ public interface RateLimiterServiceMBean
     public void setAggressiveThrottlingLatencyRatio(double aggressiveThrottlingLatencyRatio);
 
     /**
-     * Set ignore_keyspaces_regex
+     * Set ignore_tables_regex
      */
-    public void setIgnoreKeyspacesRegex(String ignoreKeyspacesRegex);
+    public void setIgnoreTablesRegex(String ignoreTablesRegex);
 
     /**
      * Set health_check_init_delay_in_sec

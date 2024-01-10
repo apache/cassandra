@@ -57,8 +57,6 @@ public class RateLimiterService implements RateLimiterServiceMBean {
         sb.append("All table filters: ");
         sb.append(cassandraResourceUtilization.tableFiltersRefresher.allFiltersToString());
         sb.append("\n");
-        sb.append("All keyspace filters: ");
-        sb.append(cassandraResourceUtilization.keyspaceFiltersRefresher.allFiltersToString());
 
         return sb.toString();
     }
@@ -148,10 +146,10 @@ public class RateLimiterService implements RateLimiterServiceMBean {
         this.throttlingOptions.setAggressiveThrottlingLatencyRatio(aggressiveThrottlingLatencyRatio);
     }
 
-    public void setIgnoreKeyspacesRegex(String ignoreKeyspacesRegex)
+    public void setIgnoreTablesRegex(String ignoreTablesRegex)
     {
-        this.throttlingOptions.setIgnoreKeyspacesRegex(ignoreKeyspacesRegex);
-        CassandraResourceUtilization.instance.syncIgnoreKeyspaceFilter();
+        this.throttlingOptions.setIgnoreTablesRegex(ignoreTablesRegex);
+        CassandraResourceUtilization.instance.syncIgnoreTablesFilter();
     }
 
     @Override

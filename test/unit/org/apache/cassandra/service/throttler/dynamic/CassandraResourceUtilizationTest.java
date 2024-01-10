@@ -20,7 +20,6 @@ package org.apache.cassandra.service.throttler.dynamic;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.RateLimiterService;
 import org.junit.Assert;
 import org.junit.Before;
@@ -53,8 +52,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.LinkedList;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -63,7 +62,7 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
 
 public class CassandraResourceUtilizationTest extends CQLTester
 {
-    private static final String ALL_SYSTEM_KEYSPACES_AND_PINGLESS = "system.*|pingless";
+    private static final String ALL_SYSTEM_KEYSPACES_TABLES_AND_PINGLESS_TABLES = "^system.*\\..+|^pingless\\..+";
     private static final String KEYSPACE_THROTTLE = "ks_throttle";
     private static final String TABLE = "tbl";
     private static final Collection SINGLETON_TABLE = Collections.singleton(TABLE);
@@ -459,16 +458,16 @@ public class CassandraResourceUtilizationTest extends CQLTester
     }
 
     @Test
-    public void testIgnoreKeyspaceFilterWithKeyspaceCreateAndDrop()
+    public void testIgnoreTablesFilterWithKeyspaceCreateAndDrop()
     {
         CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
         ThrottlingOptions throttlingOptions = cassandraResourceUtilization.throttlingOptions;
-        throttlingOptions.setIgnoreKeyspacesRegex("system.*|pingless|cass_ru_test.*");
-        cassandraResourceUtilization.syncIgnoreKeyspaceFilter();
+        throttlingOptions.setIgnoreTablesRegex(ALL_SYSTEM_KEYSPACES_TABLES_AND_PINGLESS_TABLES + "|^cass_ru_test_keyspace.test_table");
+        cassandraResourceUtilization.syncIgnoreTablesFilter();
 
         String newKeyspace = "cass_ru_test_keyspace";
         String newTable = "test_table";
-        Assert.assertFalse(cassandraResourceUtilization.ignoreKeyspacesFilter.matches(newKeyspace));
+        Assert.assertFalse(cassandraResourceUtilization.ignoreTablesFilter.matches(newKeyspace, newTable));
 
         TableMetadata tableMetadata = TableMetadata.builder(newKeyspace, newTable)
                 .addPartitionKeyColumn("k", UTF8Type.instance)
@@ -479,26 +478,27 @@ public class CassandraResourceUtilizationTest extends CQLTester
 
         // create keyspace
         SchemaLoader.createKeyspace(newKeyspace, KeyspaceParams.simple(1), tableMetadata);
-        Assert.assertTrue(cassandraResourceUtilization.ignoreKeyspacesFilter.matches(newKeyspace));
+        Assert.assertTrue(cassandraResourceUtilization.ignoreTablesFilter.matches(newKeyspace, newTable));
 
         // drop keyspace
         schemaChange(String.format("DROP KEYSPACE %s", newKeyspace));
-        Assert.assertFalse(cassandraResourceUtilization.ignoreKeyspacesFilter.matches(newKeyspace));
+        Assert.assertFalse(cassandraResourceUtilization.ignoreTablesFilter.matches(newKeyspace, newTable));
     }
 
     @Test
     public void testSkipSystemKS()
     {
         CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
+        cassandraResourceUtilization.isSetupComplete = true;
 
         KeyspaceThrottlingMetrics systemAuthMetrics = KeyspaceThrottlingMetricsManager.getMetrics("system_auth");
         Assert.assertEquals(0, systemAuthMetrics.skipKSThrottling.getCount());
-        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic("system_auth", SINGLETON_TABLE, true, false));
+        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic("system_auth", Collections.singleton("roles"), true, false));
         Assert.assertEquals(1, systemAuthMetrics.skipKSThrottling.getCount());
 
         KeyspaceThrottlingMetrics systemMetrics = KeyspaceThrottlingMetricsManager.getMetrics("system_traces");
         Assert.assertEquals(0, systemMetrics.skipKSThrottling.getCount());
-        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic("system_traces", SINGLETON_TABLE, true, false));
+        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic("system_traces", Collections.singleton("events"), true, false));
         Assert.assertEquals(1, systemMetrics.skipKSThrottling.getCount());
 
         KeyspaceThrottlingMetrics userKSMetrics = KeyspaceThrottlingMetricsManager.getMetrics(KEYSPACE_THROTTLE);
@@ -512,8 +512,9 @@ public class CassandraResourceUtilizationTest extends CQLTester
     {
         CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
 
-        cassandraResourceUtilization.throttlingOptions.setIgnoreKeyspacesRegex(ALL_SYSTEM_KEYSPACES_AND_PINGLESS + "|" + KEYSPACE_THROTTLE);
-        cassandraResourceUtilization.syncIgnoreKeyspaceFilter();
+        cassandraResourceUtilization.throttlingOptions.setIgnoreTablesRegex(ALL_SYSTEM_KEYSPACES_TABLES_AND_PINGLESS_TABLES +
+                "|" + KEYSPACE_THROTTLE + "\\." + TABLE);
+        cassandraResourceUtilization.syncIgnoreTablesFilter();
         KeyspaceThrottlingMetrics userKSMetrics = KeyspaceThrottlingMetricsManager.getMetrics(KEYSPACE_THROTTLE);
         Assert.assertEquals(0, userKSMetrics.skipKSThrottling.getCount());
         Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, SINGLETON_TABLE, true, false));
@@ -1042,18 +1043,21 @@ public class CassandraResourceUtilizationTest extends CQLTester
             cassandraResourceUtilization.setup(false);
             Assert.assertTrue(cassandraResourceUtilization.isSetupComplete);
 
-            // ensure all the system keyspaces exist in the cache of ignore_keyspace filter after
-            // cassandraResourceUtilization.setup()
-            for (String keyspace : SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES)
-                assert cassandraResourceUtilization.ignoreKeyspacesFilter.matches(keyspace);
-            for (String keyspace : SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES)
+            // ensure all the system keyspaces exist in the cache of ignore_tables filter after
+            // cassandraResourceUtilization.setup() is called.
+            // For simplicity, we check one table of each system keyspace.
+            String[][] systemKeyspaceTables = new String[][]
             {
-                if (keyspace.equals(SchemaConstants.THROTTLE_KEYSPACE_NAME) ||
-                        keyspace.equals(SchemaConstants.BAD_QUERY_MONITOR_KEYSPACE_NAME))
-                {
-                    continue;
-                }
-                assert cassandraResourceUtilization.ignoreKeyspacesFilter.matches(keyspace);
+                new String[]{"system","peers"},
+                new String[]{"system_schema","keyspaces"},
+                new String[]{"system_traces","events"},
+                new String[]{"system_auth","role_members"},
+                new String[]{"system_distributed","parent_repair_history"},
+                new String[]{"system_auto_repair","auto_repair_history"},
+            };
+            for (String[] keyspaceAndTable : systemKeyspaceTables)
+            {
+                assert cassandraResourceUtilization.ignoreTablesFilter.matches(keyspaceAndTable[0], keyspaceAndTable[1]);
             }
         }
     }

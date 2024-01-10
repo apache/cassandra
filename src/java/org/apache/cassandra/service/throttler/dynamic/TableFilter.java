@@ -23,7 +23,10 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.commons.lang3.StringUtils;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -91,7 +94,10 @@ public class TableFilter
         sb.append(", regex = ");
         sb.append(regexPattern.pattern());
         sb.append(", list derived from the regex = [ ");
-        for (String s : set)
+        // sort the items in the hashSet for better readability
+        List<String> list = new ArrayList<>(set);
+        Collections.sort(list);
+        for (String s : list)
         {
             sb.append(s);
             sb.append(" ");

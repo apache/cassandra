@@ -37,7 +37,7 @@ public class ThrottlingOptions
     public int reset_after_no_throttling_seen_in_sec;
     public double aggressive_throttling_qps_ratio;
     public double aggressive_throttling_latency_ratio;
-    public String ignore_keyspaces_regex;
+    public String ignore_tables_regex;
     public int health_check_init_delay_in_sec;
     public int health_check_freq_in_sec;
     public boolean throttle_read_replica_traffic;
@@ -72,7 +72,7 @@ public class ThrottlingOptions
         reset_after_no_throttling_seen_in_sec = 15 * 60; // 15 minutes
         aggressive_throttling_qps_ratio = 4;
         aggressive_throttling_latency_ratio = 4;
-        ignore_keyspaces_regex = "system.*|pingless";
+        ignore_tables_regex = "^system.*\\..+|^pingless\\..+";
         health_check_init_delay_in_sec = 60;
         health_check_freq_in_sec = 1;
         throttle_read_replica_traffic = true;
@@ -224,14 +224,14 @@ public class ThrottlingOptions
         this.aggressive_throttling_latency_ratio = aggressive_throttling_latency_ratio;
     }
 
-    public String getIgnoreKeyspacesRegex()
+    public String getIgnoreTablesRegex()
     {
-        return ignore_keyspaces_regex;
+        return ignore_tables_regex;
     }
 
-    public void setIgnoreKeyspacesRegex(String ignoreKeyspacesRegex)
+    public void setIgnoreTablesRegex(String ignoreTablesRegex)
     {
-        ignore_keyspaces_regex = ignoreKeyspacesRegex;
+        ignore_tables_regex = ignoreTablesRegex;
     }
 
     public int getHealthCheckInitDelayInSec()
@@ -328,7 +328,7 @@ public class ThrottlingOptions
                "reset after no throttling seen in seconds: " + reset_after_no_throttling_seen_in_sec + "\n" +
                "aggressive throttling qps ratio: " + aggressive_throttling_qps_ratio + "\n" +
                "aggressive throttling latency ratio: " + aggressive_throttling_latency_ratio + "\n" +
-               "ignore keyspaces regex: " + ignore_keyspaces_regex + "\n" +
+               "ignore tables regex: " + ignore_tables_regex + "\n" +
                "health initial delay in sec: " + health_check_init_delay_in_sec + "\n" +
                "health check frequency in sec: " + health_check_freq_in_sec + "\n" +
                "throttle read replica traffic: " + throttle_read_replica_traffic + "\n" +

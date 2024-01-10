@@ -39,7 +39,7 @@ public class ThrottlingOptionsTest
         Assert.assertEquals(15 * 60, throttlingOptions.getResetAfterNoThrottlingSeenInSec());
         Assert.assertEquals(4, throttlingOptions.getAggressiveThrottlingQpsRatio(), 0.0);
         Assert.assertEquals(4, throttlingOptions.getAggressiveThrottlingLatencyRatio(), 0.0);
-        Assert.assertEquals("system.*|pingless", throttlingOptions.getIgnoreKeyspacesRegex());
+        Assert.assertEquals("^system.*\\..+|^pingless\\..+", throttlingOptions.getIgnoreTablesRegex());
         Assert.assertEquals("", throttlingOptions.getHardBlockCoordReadsTablesRegex());
         Assert.assertEquals("", throttlingOptions.getHardBlockCoordWritesTablesRegex());
         Assert.assertEquals("", throttlingOptions.getHardBlockReplicaReadsTablesRegex());

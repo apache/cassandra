@@ -2433,9 +2433,9 @@ public class NodeProbe implements AutoCloseable
         rateLimiterProxy.setAggressiveThrottlingLatencyRatio(aggressiveThrottlingLatencyRatio);
     }
 
-    public void setThrottingOptionsIgnoreKeyspacesRegex(String ignoreKeyspacesRegex)
+    public void setThrottingOptionsIgnoreTablesRegex(String ignoreTablesRegex)
     {
-        rateLimiterProxy.setIgnoreKeyspacesRegex(ignoreKeyspacesRegex);
+        rateLimiterProxy.setIgnoreTablesRegex(ignoreTablesRegex);
     }
 
     public void setThrottleReadReplicaTraffic(boolean throttleReadReplicaTraffic)

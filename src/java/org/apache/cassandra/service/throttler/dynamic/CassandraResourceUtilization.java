@@ -77,13 +77,12 @@ public class CassandraResourceUtilization
     public Map<String, Boolean> mutationAggressiveThorttlingKeyspaces = new ConcurrentHashMap<>();
     public volatile boolean shouldThrottle = false;
 
-    public KeyspaceFiltersRefresher keyspaceFiltersRefresher = new KeyspaceFiltersRefresher();
-    public KeyspaceFilter ignoreKeyspacesFilter = new KeyspaceFilter(keyspaceFiltersRefresher, "ignore_keyspaces");
     public TableFiltersRefresher tableFiltersRefresher = new TableFiltersRefresher();
-    public TableFilter hardBlockCoordReadsTablesFilter = new TableFilter(tableFiltersRefresher, "hard_block_coord_reads");
-    public TableFilter hardBlockCoordWritesTablesFilter= new TableFilter(tableFiltersRefresher, "hard_block_coord_writes");
-    public TableFilter hardBlockReplicaReadsTablesFilter = new TableFilter(tableFiltersRefresher, "hard_block_replica_reads");
-    public TableFilter hardBlockReplicaWritesTablesFilter= new TableFilter(tableFiltersRefresher, "hard_block_replica_writes");
+    public TableFilter ignoreTablesFilter = new TableFilter(tableFiltersRefresher, "ignore_tables");
+    public TableFilter hardBlockCoordReadsTablesFilter = new TableFilter(tableFiltersRefresher, "hard_block_coord_reads_tables");
+    public TableFilter hardBlockCoordWritesTablesFilter= new TableFilter(tableFiltersRefresher, "hard_block_coord_writes_tables");
+    public TableFilter hardBlockReplicaReadsTablesFilter = new TableFilter(tableFiltersRefresher, "hard_block_replica_reads_tables");
+    public TableFilter hardBlockReplicaWritesTablesFilter= new TableFilter(tableFiltersRefresher, "hard_block_replica_writes_tables");
 
     public static CassandraResourceUtilization instance = new CassandraResourceUtilization();
 
@@ -125,13 +124,12 @@ public class CassandraResourceUtilization
     {
         syncAllFilters();
 
-        keyspaceFiltersRefresher.registerSchemaChangeListener();
         tableFiltersRefresher.registerSchemaChangeListener();
     }
 
-    public void syncIgnoreKeyspaceFilter()
+    public void syncIgnoreTablesFilter()
     {
-        ignoreKeyspacesFilter.setRegexPatternAndRefresh(throttlingOptions.getIgnoreKeyspacesRegex());
+        ignoreTablesFilter.setRegexPatternAndRefresh(throttlingOptions.getIgnoreTablesRegex());
     }
 
     public void syncHardBlockCoordReadsTablesFilter()
@@ -156,7 +154,7 @@ public class CassandraResourceUtilization
 
     public void syncAllFilters()
     {
-        syncIgnoreKeyspaceFilter();
+        syncIgnoreTablesFilter();
         syncHardBlockCoordReadsTablesFilter();
         syncHardBlockCoordWritesTablesFilter();
         syncHardBlockReplicaReadsTablesFilter();
@@ -344,11 +342,12 @@ public class CassandraResourceUtilization
         }
 
         KeyspaceThrottlingMetrics ksThrottlingMetrics = KeyspaceThrottlingMetricsManager.getMetrics(keyspaceName);
-        if (ignoreKeyspacesFilter.matches(keyspaceName.toLowerCase()))
+        if (applyTableFilter(ignoreTablesFilter, keyspaceName, tables))
         {
             ksThrottlingMetrics.skipKSThrottling.inc();
             return false;
         }
+
         if (replicationTraffic)
         {
             if (reads && !throttlingOptions.getThrottleReadReplicaTraffic())
@@ -388,7 +387,11 @@ public class CassandraResourceUtilization
         } else {
             filter = hardBlockCoordWritesTablesFilter;
         }
+        return applyTableFilter(filter, keyspace, tables);
+    }
 
+    // returns true if the table filter matches any of the tables
+    public boolean applyTableFilter(TableFilter filter, String keyspace, Collection<String> tables) {
         for (String table : tables) {
             if (filter.matches(keyspace, table)) {
                 return true;

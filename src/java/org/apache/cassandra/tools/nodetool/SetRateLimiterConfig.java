@@ -38,7 +38,7 @@ public class SetRateLimiterConfig extends NodeTool.NodeToolCmd
                     "pendingnativetransportthresholdcur|pendingnativetransportthresholdoneminute|" +
                     "percentageoftraffictothrottling|moreaggressivethrottlingafterinsec|" +
                     "resetafternothrottlingseeninsec|aggressivethrottlingqpsratio|aggressivethrottlinglatencyratio|" +
-                    "ignorekeyspacesregex|throttlereadreplicatraffic|throttlemutationreplicatraffic|" +
+                    "ignoretablesregex|throttlereadreplicatraffic|throttlemutationreplicatraffic|" +
                     "hardblockcoordreadstablesregex|hardblockcoordwritestablesregex|" +
                     "hardblockreplicareadstablesregex|hardblockreplicawritestablesregex]",
             required = true)
@@ -107,9 +107,9 @@ public class SetRateLimiterConfig extends NodeTool.NodeToolCmd
         {
             probe.setThrottlingOptionsAggressiveThrottlingLatencyRatio(Double.parseDouble(paramVal));
         }
-        else if (paramType.equals("ignorekeyspacesregex"))
+        else if (paramType.equals("ignoretablesregex"))
         {
-            probe.setThrottingOptionsIgnoreKeyspacesRegex(paramVal);
+            probe.setThrottingOptionsIgnoreTablesRegex(paramVal);
         }
         else if (paramType.equals("throttlereadreplicatraffic"))
         {
