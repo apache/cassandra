@@ -90,7 +90,6 @@ public final class RemoteProcessor implements Processor
             {
                 log.waitForHighestConsecutive();
             }
-
             return result;
         }
         catch (Exception e)
