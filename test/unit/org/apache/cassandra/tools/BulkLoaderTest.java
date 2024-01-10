@@ -101,7 +101,9 @@ public class BulkLoaderTest extends OfflineToolUtils
                                                         "cluster[0-9]-connection-reaper-[0-9]",
                                                         "Attach Listener",
                                                         "process reaper",
-                                                        "JNA Cleaner"},
+                                                        "JNA Cleaner",
+                                                        // the driver isn't expected to terminate threads on close synchronously (CASSANDRA-19000)
+                                                        "cluster[0-9]-nio-worker-[0-9]" },
                                          false);
     assertSchemaNotLoaded();
     assertCLSMNotLoaded();
