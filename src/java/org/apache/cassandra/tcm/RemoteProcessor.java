@@ -85,7 +85,11 @@ public final class RemoteProcessor implements Processor
                 log.append(success.replication.entries());
                 log.awaitAtLeast(success.epoch);
             }
-
+            else
+            {
+                if (result.failure().rejected)
+                    fetchLogAndWait();
+            }
             return result;
         }
         catch (Exception e)
