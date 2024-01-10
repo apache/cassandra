@@ -24,6 +24,9 @@ import java.util.HashSet;
 import java.util.Set;
 
 import org.apache.cassandra.service.accord.AccordFastPath;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.utils.FBUtilities;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -92,6 +95,7 @@ public class AccordSimpleFastPathTest extends TestBaseImpl
             InetAddressAndPort node1Addr = InetAddressAndPort.getByAddress(cluster.get(1).broadcastAddress());
             InetAddressAndPort node2Addr = InetAddressAndPort.getByAddress(cluster.get(2).broadcastAddress());
             InetAddressAndPort node3Addr = InetAddressAndPort.getByAddress(cluster.get(3).broadcastAddress());
+            int node3Id = cluster.get(3).callOnInstance(() -> ClusterMetadata.current().directory.peerId(FBUtilities.getBroadcastAddressAndPort()).id());
             long preShutDownEpoch = cluster.stream().map(ii -> ii.callOnInstance(() -> {
                 ClusterMetadata cm = ClusterMetadata.current();
                 AccordFastPath accordFastPath = cm.accordFastPath;
@@ -110,11 +114,11 @@ public class AccordSimpleFastPathTest extends TestBaseImpl
             });
 
             cluster.get(1, 2).forEach(ii -> ii.runOnInstance(() -> {
+                ClusterMetadataService.instance().fetchLogFromCMS(Epoch.create(preShutDownEpoch + 1));
                 ClusterMetadata cm = ClusterMetadata.current();
                 AccordFastPath accordFastPath = cm.accordFastPath;
                 Assert.assertEquals(preShutDownEpoch + 1, cm.epoch.getEpoch());
-                Assert.assertEquals(idSet(3), accordFastPath.unavailableIds());
-                Assert.assertFalse(accordFastPath.unavailableIds().contains(id(3)));
+                Assert.assertEquals(idSet(node3Id), accordFastPath.unavailableIds());
             }));
 
             // confirm a duplicate conviction doesn't create a new epoch

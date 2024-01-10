@@ -330,6 +330,7 @@ public abstract class AccordFastPathCoordinator implements ChangeListener, Confi
     @Override
     public AsyncResult<Void> onTopologyUpdate(Topology topology, boolean startSync)
     {
+        updatePeers(topology);
         return SUCCESS;
     }
 
