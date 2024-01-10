@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.fuzz.ring;
+package org.apache.cassandra.distributed.upgrade;
 
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
@@ -27,7 +27,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 
-import org.apache.cassandra.distributed.upgrade.UpgradeTestBase;
 import org.apache.cassandra.harry.HarryHelper;
 import org.apache.cassandra.harry.core.Configuration;
 import org.apache.cassandra.harry.ddl.SchemaSpec;
