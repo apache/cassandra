@@ -42,6 +42,7 @@ import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.io.compress.DeflateCompressor;
 import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.compress.NoopCompressor;
+import org.apache.cassandra.io.compress.QPLCompressor;
 import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.io.compress.ZstdCompressor;
 
@@ -70,7 +71,8 @@ public class SimpleReadWriteTest extends TestBaseImpl
                                                               LZ4Compressor.class.getSimpleName(),
                                                               DeflateCompressor.class.getSimpleName(),
                                                               SnappyCompressor.class.getSimpleName(),
-                                                              ZstdCompressor.class.getSimpleName() };
+                                                              ZstdCompressor.class.getSimpleName(),
+                                                              QPLCompressor.class.getSimpleName()};
     private static final int SECOND_SSTABLE_INTERVAL = 2;
     private static final int MEMTABLE_INTERVAL = 5;
 

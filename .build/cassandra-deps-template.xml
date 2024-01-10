@@ -380,5 +380,9 @@
       <groupId>com.vdurmont</groupId>
       <artifactId>semver4j</artifactId>
     </dependency>
+    <dependency>
+      <groupId>com.intel.qpl</groupId>
+      <artifactId>qpl-java</artifactId>
+    </dependency>
   </dependencies>
 </project>

@@ -45,7 +45,8 @@ public class CompressorTest
             DeflateCompressor.create(Collections.<String, String>emptyMap()),
             SnappyCompressor.create(Collections.<String, String>emptyMap()),
             ZstdCompressor.create(Collections.emptyMap()),
-            NoopCompressor.create(Collections.emptyMap())
+            NoopCompressor.create(Collections.emptyMap()),
+            QPLCompressor.create(Collections.emptyMap())
     };
 
     @Test
@@ -184,6 +185,13 @@ public class CompressorTest
     public void testZstdByteBuffers() throws IOException
     {
         compressor = ZstdCompressor.create(Collections.<String, String>emptyMap());
+        testByteBuffers();
+    }
+
+    @Test
+    public void testQPLByteBuffers() throws IOException
+    {
+        compressor = QPLCompressor.create(Collections.<String, String>emptyMap());
         testByteBuffers();
     }
 

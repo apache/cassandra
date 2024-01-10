@@ -40,7 +40,8 @@ public class CompressorPerformance
                 LZ4Compressor.create(Collections.emptyMap()),
                 SnappyCompressor.instance,
                 ZstdCompressor.getOrCreate(ZstdCompressor.FAST_COMPRESSION_LEVEL),
-                ZstdCompressor.getOrCreate(ZstdCompressor.DEFAULT_COMPRESSION_LEVEL)
+                ZstdCompressor.getOrCreate(ZstdCompressor.DEFAULT_COMPRESSION_LEVEL),
+                QPLCompressor.create(Collections.emptyMap())
         })
         {
             for (BufferType in: BufferType.values())

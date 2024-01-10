@@ -178,6 +178,19 @@ public final class CompressionParams
         return new CompressionParams(compressor, DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, DEFAULT_MIN_COMPRESS_RATIO, Collections.emptyMap());
     }
 
+    @VisibleForTesting
+    public static CompressionParams qpl()
+    {
+        return qpl(DEFAULT_CHUNK_LENGTH);
+    }
+
+    @VisibleForTesting
+    public static CompressionParams qpl(int chunkLength)
+    {
+        QPLCompressor compressor = QPLCompressor.create(Collections.emptyMap());
+        return new CompressionParams(compressor, chunkLength, Integer.MAX_VALUE, DEFAULT_MIN_COMPRESS_RATIO, Collections.emptyMap());
+    }
+
     public CompressionParams(String sstableCompressorClass, Map<String, String> otherOptions, int chunkLength, double minCompressRatio) throws ConfigurationException
     {
         this(createCompressor(parseCompressorClass(sstableCompressorClass), otherOptions), chunkLength, calcMaxCompressedLength(chunkLength, minCompressRatio), minCompressRatio, otherOptions);
