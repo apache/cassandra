@@ -196,6 +196,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
      * This property and anything that checks it should be removed in 5.0
      */
     private volatile boolean upgradeInProgressPossible = true;
+    private volatile boolean hasNodeWithUnknownVersion = false;
 
     public void clearUnsafe()
     {
@@ -232,7 +233,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
             return CURRENT_NODE_VERSION;
 
         // Check the release version of all the peers it heard of. Not necessary the peer that it has/had contacted with.
-        boolean allHostsHaveKnownVersion = true;
+        hasNodeWithUnknownVersion = false;
         for (InetAddressAndPort host : endpointStateMap.keySet())
         {
             if (justRemovedEndpoints.containsKey(host))
@@ -242,7 +243,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
 
             //Raced with changes to gossip state, wait until next iteration
             if (version == null)
-                allHostsHaveKnownVersion = false;
+                hasNodeWithUnknownVersion = true;
             else if (version.compareTo(minVersion) < 0)
                 minVersion = version;
         }
@@ -250,7 +251,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         if (minVersion.compareTo(SystemKeyspace.CURRENT_VERSION) < 0)
             return new ExpiringMemoizingSupplier.Memoized<>(minVersion);
 
-        if (!allHostsHaveKnownVersion)
+        if (hasNodeWithUnknownVersion)
             return new ExpiringMemoizingSupplier.NotMemoized<>(minVersion);
 
         upgradeInProgressPossible = false;
@@ -1621,7 +1622,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
     public void applyStateLocally(Map<InetAddressAndPort, EndpointState> epStateMap)
     {
         checkProperThreadForStateMutation();
-        boolean hasMajorVersion3Nodes = hasMajorVersion3Nodes();
+        boolean hasMajorVersion3Nodes = hasMajorVersion3OrUnknownNodes();
         for (Entry<InetAddressAndPort, EndpointState> entry : order(epStateMap))
         {
             InetAddressAndPort ep = entry.getKey();
@@ -1636,6 +1637,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
 
             EndpointState localEpStatePtr = endpointStateMap.get(ep);
             EndpointState remoteState = entry.getValue();
+
             if (!hasMajorVersion3Nodes)
                 remoteState.removeMajorVersion3LegacyApplicationStates();
 
@@ -2457,12 +2459,12 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
      * Returns {@code false} only if the information about the version of each node in the cluster is available and
      * ALL the nodes are on 4.0+ (regardless of the patch version).
      */
-    public boolean hasMajorVersion3Nodes()
+    public boolean hasMajorVersion3OrUnknownNodes()
     {
         return isUpgradingFromVersionLowerThan(CassandraVersion.CASSANDRA_4_0) || // this is quite obvious
                // however if we discovered only nodes at current version so far (in particular only this node),
                // but still there are nodes with unknown version, we also want to report that the cluster may have nodes at 3.x
-               upgradeInProgressPossible && !isUpgradingFromVersionLowerThan(SystemKeyspace.CURRENT_VERSION.familyLowerBound.get());
+               hasNodeWithUnknownVersion;
     }
 
     /**
