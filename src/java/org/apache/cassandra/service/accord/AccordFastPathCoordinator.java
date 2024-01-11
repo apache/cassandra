@@ -203,7 +203,8 @@ public abstract class AccordFastPathCoordinator implements ChangeListener, Confi
         @Override
         void updateFastPath(Node.Id node, Status status, long updateTimeMillis, long updateDelayMillis)
         {
-            ClusterMetadataService.instance().commit(new ReconfigureAccordFastPath(node, status, updateTimeMillis, updateDelayMillis));
+            ClusterMetadataService.instance().commit(new ReconfigureAccordFastPath(node, status, updateTimeMillis, updateDelayMillis),
+                    metadata -> metadata, ((code, message) -> null));
         }
 
         @Override
