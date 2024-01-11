@@ -95,7 +95,7 @@ public class ClusterMetadataUpgradeHarryTest extends UpgradeTestBase
                     new FlaggedRunner(config.createRun(),
                                       config,
                                       asList(pool("Writer", 1, MutatingVisitor::new),
-                                             pool("Reader", 1, (run) -> new RandomPartitionValidator(run, new Configuration.QuiescentCheckerConfig(), QueryLogger.NO_OP.NO_OP))),
+                                             pool("Reader", 1, (run) -> new RandomPartitionValidator(run, new Configuration.QuiescentCheckerConfig(), QueryLogger.NO_OP))),
                                       stopLatch).run();
                 }
                 catch (Throwable e)
