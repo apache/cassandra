@@ -90,8 +90,8 @@ public class CommandStoreSerializers
         public long serializedSize(R map, int version)
         {
             long size = TypeSizes.BOOL_SIZE;
-            size += TypeSizes.sizeofUnsignedVInt(size);
             int mapSize = map.size();
+            size += TypeSizes.sizeofUnsignedVInt(mapSize);
             for (int i=0; i<mapSize; i++)
             {
                 size += KeySerializers.routingKey.serializedSize(map.startAt(i), version);
