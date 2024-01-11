@@ -210,6 +210,7 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
 
     private void fail(Throwable throwable)
     {
+        commandStore.agent().onUncaughtException(throwable);
         commandStore.checkInStoreThread();
         Invariants.nonNull(throwable);
 
