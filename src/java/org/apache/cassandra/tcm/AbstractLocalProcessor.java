@@ -80,7 +80,7 @@ public abstract class AbstractLocalProcessor implements Processor
                 {
                     return maybeFailure(entryId,
                                         lastKnown,
-                                        () -> new Commit.Result.Failure(result.rejected().code, result.rejected().reason, true));
+                                        () -> Commit.Result.rejected(result.rejected().code, result.rejected().reason, toReplication(lastKnown)));
                 }
 
                 continue;
@@ -119,11 +119,10 @@ public abstract class AbstractLocalProcessor implements Processor
                 retryPolicy.maybeSleep();
             }
         }
-        return new Commit.Result.Failure(SERVER_ERROR,
-                                         String.format("Could not perform commit after %d/%d tries. Time remaining: %dms",
-                                                       retryPolicy.tries, retryPolicy.maxTries,
-                                                       TimeUnit.NANOSECONDS.toMillis(retryPolicy.remainingNanos())),
-                                         false);
+        return Commit.Result.failed(SERVER_ERROR,
+                                    String.format("Could not perform commit after %d/%d tries. Time remaining: %dms",
+                                                  retryPolicy.tries, retryPolicy.maxTries,
+                                                  TimeUnit.NANOSECONDS.toMillis(retryPolicy.remainingNanos())));
     }
 
     public Commit.Result maybeFailure(Entry.Id entryId, Epoch lastKnown, Supplier<Commit.Result.Failure> orElse)

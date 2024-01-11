@@ -24,9 +24,11 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
@@ -42,7 +44,7 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class LogReplicationSmokeTest extends TestBaseImpl
+public class LogReplicationTest extends TestBaseImpl
 {
     @Test
     public void testRequestingPeerWatermarks() throws Throwable
@@ -70,6 +72,40 @@ public class LogReplicationSmokeTest extends TestBaseImpl
             assertTrue(currentEpoch.is(expectedEpoch));
             int currentVal = getConsistentValue(cluster);
             assertEquals(expectedVal, currentVal);
+        }
+    }
+
+    @Test
+    public void testCatchUpOnRejection() throws Throwable
+    {
+        try (Cluster cluster = builder().withNodes(3)
+                                        .withConfig(config -> config.with(GOSSIP).with(NETWORK))
+                                        .start())
+        {
+            init(cluster);
+            IInvokableInstance cmsNode = cluster.get(1);
+            ClusterUtils.waitForCMSToQuiesce(cluster, cmsNode);
+
+            cluster.coordinator(1).execute("CREATE KEYSPACE only_once WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};",
+                                           ConsistencyLevel.ONE);
+
+            long cmsEpoch = cluster.get(1).callsOnInstance(() -> ClusterMetadata.current().epoch.getEpoch()).call();
+            long epochBefore = cluster.get(2).callsOnInstance(() -> ClusterMetadata.current().epoch.getEpoch()).call();
+            Assert.assertTrue(cmsEpoch > epochBefore);
+            // should get rejected
+            try
+            {
+                cluster.coordinator(2).execute("CREATE KEYSPACE only_once WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};",
+                                               ConsistencyLevel.ONE);
+                Assert.fail("Creation should have failed");
+            }
+            catch (Throwable t)
+            {
+                Assert.assertTrue(t.getMessage().contains("Cannot add existing keyspace"));
+                System.out.println("t.getMessage() = " + t.getMessage());
+            }
+            long epochAfter = cluster.get(2).callsOnInstance(() -> ClusterMetadata.current().epoch.getEpoch()).call();
+            Assert.assertTrue(epochAfter > epochBefore);
         }
     }
 

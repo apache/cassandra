@@ -117,8 +117,11 @@ public class Commit
     }
 
     static volatile Result.Serializer resultSerializerCache;
-    public static interface Result
+    public interface Result
     {
+        IVersionedSerializer<Result> defaultMessageSerializer = new Serializer(NodeVersion.CURRENT.serializationVersion());
+
+        Replication replication();
         boolean isSuccess();
         boolean isFailure();
 
@@ -131,7 +134,6 @@ public class Commit
         {
             return (Failure) this;
         }
-        IVersionedSerializer<Result> defaultMessageSerializer = new Serializer(NodeVersion.CURRENT.serializationVersion());
 
         static IVersionedSerializer<Result> messageSerializer(Version version)
         {
@@ -163,6 +165,12 @@ public class Commit
                        '}';
             }
 
+            @Override
+            public Replication replication()
+            {
+                return replication;
+            }
+
             public boolean isSuccess()
             {
                 return true;
@@ -174,6 +182,16 @@ public class Commit
             }
         }
 
+        static Failure rejected(ExceptionCode exceptionCode, String reason, Replication replication)
+        {
+            return new Failure(exceptionCode, reason, replication, true);
+        }
+
+        static Failure failed(ExceptionCode exceptionCode, String message)
+        {
+            return new Failure(exceptionCode, message, Replication.EMPTY, false);
+        }
+
         final class Failure implements Result
         {
             public final ExceptionCode code;
@@ -181,8 +199,9 @@ public class Commit
             // Rejection means that we were able to linearize the operation,
             // but it was rejected by the internal logic of the transformation.
             public final boolean rejected;
+            public final Replication replication;
 
-            public Failure(ExceptionCode code, String message, boolean rejected)
+            private Failure(ExceptionCode code, String message, Replication replication, boolean rejected)
             {
                 if (message == null)
                     message = "";
@@ -190,6 +209,7 @@ public class Commit
                 // TypeSizes#sizeOf encoder only allows strings that are up to Short.MAX_VALUE bytes large
                 this.message =  message.substring(0, Math.min(message.length(), Short.MAX_VALUE));
                 this.rejected = rejected;
+                this.replication = replication;
             }
 
             @Override
@@ -200,6 +220,12 @@ public class Commit
                        "message='" + message + '\'' +
                        "rejected=" + rejected +
                        '}';
+            }
+
+            @Override
+            public Replication replication()
+            {
+                return replication;
             }
 
             public boolean isSuccess()
@@ -233,7 +259,7 @@ public class Commit
                 {
                     out.writeByte(SUCCESS);
                     out.writeUnsignedVInt32(serializationVersion.asInt());
-                    Replication.serializer.serialize(t.success().replication, out, serializationVersion);
+                    Replication.serializer.serialize(t.replication(), out, serializationVersion);
                     Epoch.serializer.serialize(t.success().epoch, out, serializationVersion);
                 }
                 else
@@ -243,6 +269,8 @@ public class Commit
                     out.writeByte(failure.rejected ? REJECTED : FAILED);
                     out.writeUnsignedVInt32(failure.code.value);
                     out.writeUTF(failure.message);
+                    out.writeUnsignedVInt32(serializationVersion.asInt());
+                    Replication.serializer.serialize(t.replication(), out, serializationVersion);
                 }
             }
 
@@ -259,8 +287,13 @@ public class Commit
                 }
                 else
                 {
-                    return new Failure(ExceptionCode.fromValue(in.readUnsignedVInt32()),
-                                       in.readUTF(),
+                    ExceptionCode exceptionCode = ExceptionCode.fromValue(in.readUnsignedVInt32());
+                    String message = in.readUTF();
+                    Version deserializationVersion = Version.fromInt(in.readUnsignedVInt32());
+                    Replication delta = Replication.serializer.deserialize(in, deserializationVersion);
+                    return new Failure(exceptionCode,
+                                       message,
+                                       delta,
                                        b == REJECTED);
                 }
             }
@@ -272,7 +305,7 @@ public class Commit
                 if (t instanceof Success)
                 {
                     size += VIntCoding.computeUnsignedVIntSize(serializationVersion.asInt());
-                    size += Replication.serializer.serializedSize(t.success().replication, serializationVersion);
+                    size += Replication.serializer.serializedSize(t.replication(), serializationVersion);
                     size += Epoch.serializer.serializedSize(t.success().epoch, serializationVersion);
                 }
                 else
@@ -280,6 +313,8 @@ public class Commit
                     assert t instanceof Failure;
                     size += VIntCoding.computeUnsignedVIntSize(((Failure) t).code.value);
                     size += TypeSizes.sizeof(((Failure)t).message);
+                    size += VIntCoding.computeUnsignedVIntSize(serializationVersion.asInt());
+                    size += Replication.serializer.serializedSize(t.replication(), serializationVersion);
                 }
                 return size;
             }
