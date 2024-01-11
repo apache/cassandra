@@ -30,6 +30,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import accord.coordinate.Invalidated;
 import com.google.common.base.Splitter;
 import com.google.common.primitives.Ints;
 import org.apache.cassandra.schema.Schema;
@@ -347,6 +348,12 @@ public abstract class AccordTestBase extends TestBaseImpl
         return result;
     }
 
+    private static boolean hasRootCause(RuntimeException ex, Class<? extends RuntimeException> klass)
+    {
+        return AssertionUtils.rootCauseIs(klass).matches(ex);
+
+    }
+
     private static SimpleQueryResult executeWithRetry0(int count, Cluster cluster, String check, Object... boundValues)
     {
         try
@@ -355,7 +362,7 @@ public abstract class AccordTestBase extends TestBaseImpl
         }
         catch (RuntimeException ex)
         {
-            if (count <= MAX_RETRIES && (AssertionUtils.rootCauseIs(ReadPreemptedException.class).matches(ex) || AssertionUtils.rootCauseIs(WritePreemptedException.class).matches(ex)))
+            if (count <= MAX_RETRIES && (hasRootCause(ex, ReadPreemptedException.class) || hasRootCause(ex, WritePreemptedException.class) || hasRootCause(ex, Invalidated.class)))
             {
                 logger.warn("[Retry attempt={}] Preempted failure for\n{}", count, check);
                 return executeWithRetry0(count + 1, cluster, check, boundValues);
