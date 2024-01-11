@@ -234,13 +234,17 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
 
         // Check the release version of all the peers it heard of. Not necessary the peer that it has/had contacted with.
         hasNodeWithUnknownVersion = false;
-        for (InetAddressAndPort host : endpointStateMap.keySet())
+        for (Entry<InetAddressAndPort, EndpointState> entry : endpointStateMap.entrySet())
         {
-            if (justRemovedEndpoints.containsKey(host))
+
+            if (justRemovedEndpoints.containsKey(entry.getKey()))
                 continue;
 
-            CassandraVersion version = getReleaseVersion(host);
+            CassandraVersion version = getReleaseVersion(entry.getKey());
 
+            // if it is dead state, we skip the version check
+            if (isDeadState(entry.getValue()))
+                continue;
             //Raced with changes to gossip state, wait until next iteration
             if (version == null)
                 hasNodeWithUnknownVersion = true;
