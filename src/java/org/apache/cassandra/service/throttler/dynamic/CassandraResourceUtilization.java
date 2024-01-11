@@ -28,6 +28,7 @@ import java.util.Date;
 import java.util.Map;
 import java.util.TimeZone;
 
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.OverloadedException;
@@ -337,11 +338,11 @@ public class CassandraResourceUtilization
             return false;
         }
 
-        if (decideHardBlock(keyspaceName, tables, reads, replicationTraffic)) {
+        KeyspaceThrottlingMetrics ksThrottlingMetrics = KeyspaceThrottlingMetricsManager.getMetrics(keyspaceName);
+        if (decideHardBlock(keyspaceName, tables, reads, replicationTraffic, ksThrottlingMetrics)) {
             return true;
         }
 
-        KeyspaceThrottlingMetrics ksThrottlingMetrics = KeyspaceThrottlingMetricsManager.getMetrics(keyspaceName);
         if (applyTableFilter(ignoreTablesFilter, keyspaceName, tables))
         {
             ksThrottlingMetrics.skipKSThrottling.inc();
@@ -371,29 +372,50 @@ public class CassandraResourceUtilization
 
     public void throttle(String keyspaceName, Collection<String> tables, boolean reads, boolean replicationTraffic) throws OverloadedException
     {
-        if (throttleUserTraffic(keyspaceName, tables, reads, replicationTraffic)) {
+        if (throttleUserTraffic(keyspaceName, tables, reads, replicationTraffic))
+        {
             throw buildOverloadeExceptionDuetoRateLimiter();
         }
     }
 
-    public boolean decideHardBlock(String keyspace, Collection<String> tables, boolean reads, boolean replicationTraffic) {
+    public boolean decideHardBlock(String keyspace, Collection<String> tables, boolean reads,
+                                   boolean replicationTraffic, KeyspaceThrottlingMetrics ksThrottlingMetrics)
+    {
         TableFilter filter;
-        if (reads && replicationTraffic) {
+        Counter counter;
+        if (reads && replicationTraffic)
+        {
             filter = hardBlockReplicaReadsTablesFilter;
-        } else if (!reads && replicationTraffic) {
+            counter = ksThrottlingMetrics.hardBlockReplicaReads;
+        } else if (!reads && replicationTraffic)
+        {
             filter = hardBlockReplicaWritesTablesFilter;
-        } else if (reads && !replicationTraffic) {
+            counter = ksThrottlingMetrics.hardBlockReplicaWrites;
+        } else if (reads && !replicationTraffic)
+        {
             filter = hardBlockCoordReadsTablesFilter;
-        } else {
+            counter = ksThrottlingMetrics.hardBlockCoordReads;
+        } else
+        {
             filter = hardBlockCoordWritesTablesFilter;
+            counter = ksThrottlingMetrics.hardBlockCoordWrites;
         }
-        return applyTableFilter(filter, keyspace, tables);
+
+        boolean shouldBlock = applyTableFilter(filter, keyspace, tables);
+        if (shouldBlock)
+        {
+            counter.inc();
+        }
+        return shouldBlock;
     }
 
     // returns true if the table filter matches any of the tables
-    public boolean applyTableFilter(TableFilter filter, String keyspace, Collection<String> tables) {
-        for (String table : tables) {
-            if (filter.matches(keyspace, table)) {
+    public boolean applyTableFilter(TableFilter filter, String keyspace, Collection<String> tables)
+    {
+        for (String table : tables)
+        {
+            if (filter.matches(keyspace, table))
+            {
                 return true;
             }
         }

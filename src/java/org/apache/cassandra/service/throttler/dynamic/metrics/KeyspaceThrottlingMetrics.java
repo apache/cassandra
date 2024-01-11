@@ -39,6 +39,10 @@ public class KeyspaceThrottlingMetrics
     public Counter noReadThrottling;
     public Counter noWriteThrottling;
     public Counter aggressiveThrottling;
+    public Counter hardBlockCoordReads;
+    public Counter hardBlockCoordWrites;
+    public Counter hardBlockReplicaReads;
+    public Counter hardBlockReplicaWrites;
 
 
     public KeyspaceThrottlingMetrics(String ksName) {
@@ -58,5 +62,9 @@ public class KeyspaceThrottlingMetrics
         noReadThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("NoReadThrottling"));
         noWriteThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("NoWriteThrottling"));
         aggressiveThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("AggressiveThrottling"));
+        hardBlockCoordReads = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("HardBlockCoordReads"));
+        hardBlockCoordWrites = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("HardBlockCoordWrites"));
+        hardBlockReplicaReads = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("HardBlockReplicaReads"));
+        hardBlockReplicaWrites = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("HardBlockReplicaWrites"));
     }
 }

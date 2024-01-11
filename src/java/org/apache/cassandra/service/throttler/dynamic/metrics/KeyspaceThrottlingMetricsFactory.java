@@ -21,7 +21,6 @@ package org.apache.cassandra.service.throttler.dynamic.metrics;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.KeyspaceMetrics;
 import org.apache.cassandra.metrics.MetricNameFactory;
-import org.apache.cassandra.metrics.TableMetrics;
 
 public class KeyspaceThrottlingMetricsFactory implements MetricNameFactory
 {
