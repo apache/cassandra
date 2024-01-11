@@ -23,6 +23,8 @@ import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import com.vdurmont.semver4j.Semver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,7 +41,7 @@ import static java.util.Optional.of;
  * An abstraction of System information, this class provides access to system information without specifying how
  * it is retrieved.
  */
-public final class SystemInfo
+public class SystemInfo
 {
     // TODO: Determine memlock limits if possible
     // TODO: Determine if file system is remote or local
@@ -48,9 +50,14 @@ public final class SystemInfo
     private static final Logger logger = LoggerFactory.getLogger(SystemInfo.class);
 
     private static final long INFINITY = -1L;
-    private static final long EXPECTED_MIN_NOFILE = 10000L; // number of files that can be opened
-    private static final long EXPECTED_NPROC = 32768L; // number of processes
-    private static final long EXPECTED_AS = 0x7FFFFFFFL; // address space
+    static final long EXPECTED_MIN_NUMBER_OF_OPENED_FILES = 10000L; // number of files that can be opened
+    static final long EXPECTED_MIN_NUMBER_OF_PROCESSES = 32768L; // number of processes
+    static final long EXPECTED_ADDRESS_SPACE = 0x7FFFFFFFL; // address space
+
+    static final String OPEN_FILES_VIOLATION_MESSAGE = format("Minimum value for max open files should be >= %s. ", EXPECTED_MIN_NUMBER_OF_OPENED_FILES);
+    static final String NUMBER_OF_PROCESSES_VIOLATION_MESSAGE = format("Number of processes should be >= %s. ", EXPECTED_MIN_NUMBER_OF_PROCESSES);
+    static final String ADDRESS_SPACE_VIOLATION_MESSAGE = format("Amount of available address space should be >= %s. ", EXPECTED_ADDRESS_SPACE);
+    static final String SWAP_VIOLATION_MESSAGE = "Swap should be disabled. ";
 
     /**
      * The default number of processes that are reported if the actual value can not be retrieved.
@@ -58,30 +65,6 @@ public final class SystemInfo
     private static final long DEFAULT_MAX_PROCESSES = 1024;
 
     private static final Pattern SPACES_PATTERN = Pattern.compile("\\s+");
-
-    private static Supplier<SystemInfo> provider = () -> new SystemInfo();
-
-    /**
-     * Sets the Supplier of the SystemInfo.
-     * <p>
-     *     If {@code null} is passed as the provider the provider will be reset to the default provider.
-     * </p>
-     * @param provider the Supplier of SystemInfo that will be used for {@code instance} calls. May be null.
-     */
-    public static void setProvider(Supplier<SystemInfo> provider) {
-        SystemInfo.provider = provider == null ? () -> new SystemInfo() : provider;
-    }
-
-    /**
-     * Gets an instance of SystemInfo.  Whether the SystemInfo instance is new or memoized depends upon the
-     * implementation of the provider specified by {@code setProvider}.  By default a new version of SystemInfo
-     * is created on every call.
-     * @return
-     */
-    public static SystemInfo instance()
-    {
-        return provider.get();
-    }
 
     /**
      * The oshi.SystemInfo has the following note:
@@ -94,8 +77,7 @@ public final class SystemInfo
      */
     private final oshi.SystemInfo si;
 
-    // package private for testing
-    SystemInfo()
+    public SystemInfo()
     {
         si = new oshi.SystemInfo();
     }
@@ -137,9 +119,9 @@ public final class SystemInfo
                         return "unlimited".equals(limit) ? INFINITY : Long.parseLong(limit);
                     }
                 }
-                logger.error( "'Max processes' not found in "+path);
+                logger.error("'Max processes' not found in {}", path);
             }
-            catch (Throwable t)
+            catch (Exception t)
             {
                 logger.error(format("Unable to read %s", path), t);
             }
@@ -205,21 +187,21 @@ public final class SystemInfo
     {
         Supplier<String> expectedNumProc = () -> {
             // only check proc on nproc linux
-            if (oshi.SystemInfo.getCurrentPlatform() == PlatformEnum.LINUX)
-                return invalid(getMaxProcess(), EXPECTED_NPROC) ? format("Number of processes should be >= %s. ", EXPECTED_NPROC)
-                                                                : null;
+            if (platform() == PlatformEnum.LINUX)
+                return invalid(getMaxProcess(), EXPECTED_MIN_NUMBER_OF_PROCESSES) ? NUMBER_OF_PROCESSES_VIOLATION_MESSAGE
+                                                                                  : null;
             else
-                return format("System is running %s, Linux OS is recommended", platform());
+                return format("System is running %s, Linux OS is recommended. ", platform());
         };
 
-        Supplier<String> swapShouldBeDisabled = () -> (getSwapSize() > 0) ? "Swap should be disabled. " : null;
+        Supplier<String> swapShouldBeDisabled = () -> (getSwapSize() > 0) ? SWAP_VIOLATION_MESSAGE : null;
 
-        Supplier<String> expectedAddressSpace = () -> invalid(getVirtualMemoryMax(), EXPECTED_AS)
-                                                      ? format("Amount of available address space should be >= %s. ", EXPECTED_AS)
+        Supplier<String> expectedAddressSpace = () -> invalid(getVirtualMemoryMax(), EXPECTED_ADDRESS_SPACE)
+                                                      ? ADDRESS_SPACE_VIOLATION_MESSAGE
                                                       : null;
 
-        Supplier<String> expectedMinNoFile = () -> invalid(getMaxOpenFiles(), EXPECTED_MIN_NOFILE)
-                                                   ? format("Minimum value for max open files should be >= %s. ", EXPECTED_MIN_NOFILE)
+        Supplier<String> expectedMinNoFile = () -> invalid(getMaxOpenFiles(), EXPECTED_MIN_NUMBER_OF_OPENED_FILES)
+                                                   ? OPEN_FILES_VIOLATION_MESSAGE
                                                    : null;
 
         StringBuilder sb = new StringBuilder();

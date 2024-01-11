@@ -73,7 +73,6 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JavaUtils;
 import org.apache.cassandra.utils.NativeLibrary;
-import org.apache.cassandra.utils.SystemInfo;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PORT;
@@ -422,12 +421,12 @@ public class StartupChecks
         @Override
         public void execute(StartupChecksOptions options)
         {
-            Optional<String> degradations = SystemInfo.instance().isDegraded();
+            Optional<String> degradations = FBUtilities.getSystemInfo().isDegraded();
 
             if (degradations.isPresent())
-                    logger.warn("Cassandra server running in degraded mode. " + degradations.get());
+                logger.warn("Cassandra server running in degraded mode. " + degradations.get());
             else
-                    logger.info("Checked OS settings and found them configured for optimal performance.");
+                logger.info("Checked OS settings and found them configured for optimal performance.");
         }
     };
 
