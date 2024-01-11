@@ -8,6 +8,7 @@
  * Allow empty keystore_password in encryption_options (CASSANDRA-18778)
  * Skip ColumnFamilyStore#topPartitions initialization when client or tool mode (CASSANDRA-18697)
 Merged from 4.0:
+ * Skip version check if an endpoint is dead state in Gossiper#upgradeFromVersionSupplier (CASSANDRA-19187)
  * Fix Gossiper::hasMajorVersion3Nodes to return false during minor upgrade (CASSANDRA-18999)
  * Revert unnecessary read lock acquisition when reading ring version in TokenMetadata introduced in CASSANDRA-16286 (CASSANDRA-19107)
  * Support max SSTable size in sorted CQLSSTableWriter (CASSANDRA-18941)
