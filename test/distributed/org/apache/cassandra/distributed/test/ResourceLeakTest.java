@@ -41,6 +41,7 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.JMXUtil;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SystemInfo;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -91,7 +92,7 @@ public class ResourceLeakTest extends TestBaseImpl
      */
     private static Long getProcessId()
     {
-        long pid = SystemInfo.instance().getPid();
+        long pid = FBUtilities.getSystemInfo().getPid();
 
         if (pid >= 0)
             return Long.valueOf(pid);
