@@ -69,6 +69,20 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
     }
 
     @Override
+    public boolean hasUpdate()
+    {
+        boolean hasUpdate = AccordSafeState.super.hasUpdate();
+
+        // cfk initialization is legal, but doesn't need to be propagated to the cache (and would
+        // cause an exception to be thrown if it were). Making an exception on the cache side could
+        // throw away applied cfk updates as well, so it's special cased here
+        if (hasUpdate && original == null && current != null && current.commands().isEmpty())
+            return false;
+
+        return hasUpdate;
+    }
+
+    @Override
     public AccordCachingState<RoutableKey, CommandsForKey> global()
     {
         checkNotInvalidated();
