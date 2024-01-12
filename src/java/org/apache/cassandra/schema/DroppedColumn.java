@@ -40,6 +40,7 @@ public final class DroppedColumn
      */
     public DroppedColumn(ColumnMetadata column, long droppedTime)
     {
+        assert column.isDropped() : column.debugString() + " should be dropped";
         this.column = column;
         this.droppedTime = droppedTime;
     }

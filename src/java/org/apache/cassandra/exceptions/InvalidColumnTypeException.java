@@ -32,11 +32,13 @@ public class InvalidColumnTypeException extends ConfigurationException
     private final AbstractType<?> invalidType;
     private final boolean isPrimaryKeyColumn;
     private final boolean isCounterTable;
+    private final boolean isDroppedColumn;
 
     public InvalidColumnTypeException(ByteBuffer name,
                                       AbstractType<?> invalidType,
                                       boolean isPrimaryKeyColumn,
                                       boolean isCounterTable,
+                                      boolean isDroppedColumn,
                                       String reason)
     {
         super(msg(name, invalidType, reason));
@@ -44,6 +46,7 @@ public class InvalidColumnTypeException extends ConfigurationException
         this.invalidType = invalidType;
         this.isPrimaryKeyColumn = isPrimaryKeyColumn;
         this.isCounterTable = isCounterTable;
+        this.isDroppedColumn = isDroppedColumn;
     }
 
     private static String msg(ByteBuffer name,
@@ -71,7 +74,7 @@ public class InvalidColumnTypeException extends ConfigurationException
             try
             {
                 // Make doubly sure the fixed type is valid before returning it.
-                fixed.validateForColumn(name, isPrimaryKeyColumn, isCounterTable);
+                fixed.validateForColumn(name, isPrimaryKeyColumn, isCounterTable, isDroppedColumn);
                 return fixed;
             }
             catch (InvalidColumnTypeException e2)
@@ -92,10 +95,14 @@ public class InvalidColumnTypeException extends ConfigurationException
         }
         else
         {
-            // Here again, it's mainly issues of frozen-ness that are fixable, namely if a multi-cell type has
-            // non-frozen subtypes. In which case, we just freeze all sub-types.
+            // Here again, it's mainly issues of frozen-ness that are fixable, namely multi-cell types that either:
+            // - are tuples, yet not for a dropped column (and so _should_ be frozen). In which case we freeze it.
+            // - has non-frozen subtypes. In which case, we just freeze all subtypes.
             if (invalidType.isMultiCell())
-                return invalidType.with(AbstractType.freeze(invalidType.subTypes()), true);
+            {
+                boolean isMultiCell = !invalidType.isTuple() || isDroppedColumn;
+                return invalidType.with(AbstractType.freeze(invalidType.subTypes()), isMultiCell);
+            }
 
         }
         // In other case, we don't know how to fix (at least somewhat auto-magically) and will have to fail.

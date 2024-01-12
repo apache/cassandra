@@ -388,7 +388,7 @@ public class CQL3TypeLiteralTest
         checkForEachUserType(CQL3Type.Raw.list(CQL3Type.Raw.userType(name1)), name1);
         checkForEachUserType(CQL3Type.Raw.set(CQL3Type.Raw.userType(name1)), name1);
         checkForEachUserType(CQL3Type.Raw.map(CQL3Type.Raw.userType(name1), CQL3Type.Raw.userType(name2)), name1, name2);
-        checkForEachUserType(CQL3Type.Raw.tuple(Arrays.asList(CQL3Type.Raw.userType(name1), CQL3Type.Raw.userType(name2))), name1, name2);
+        checkForEachUserType(CQL3Type.Raw.tuple(Arrays.asList(CQL3Type.Raw.userType(name1), CQL3Type.Raw.userType(name2)), true), name1, name2);
     }
 
     private void checkForEachUserType(CQL3Type.Raw t, UTName... expectedNames)

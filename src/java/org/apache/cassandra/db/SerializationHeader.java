@@ -321,9 +321,19 @@ public class SerializationHeader
                                                     AbstractType<?> type,
                                                     boolean isPrimaryKeyColumn)
         {
+            boolean dropped = table.getDroppedColumn(columnName) != null;
+            if (!dropped && type.isTuple() && type.isMultiCell())
+            {
+                logger.error("Error reading SSTable header {}, the type for column {} in {} is not-frozen {}, " +
+                             "but the column isn't marked as dropped, which is invalid; " +
+                             "Will continue with that type, but something may break.",
+                             descriptor, ColumnIdentifier.toCQLString(columnName), table, type.asCQL3Type().toSchemaString());
+                dropped = true;
+            }
+
             try
             {
-                type.validateForColumn(columnName, isPrimaryKeyColumn, table.isCounter());
+                type.validateForColumn(columnName, isPrimaryKeyColumn, table.isCounter(), dropped);
                 return type;
             }
             catch (InvalidColumnTypeException e)
@@ -343,7 +353,7 @@ public class SerializationHeader
                 {
                     logger.warn("Error reading SSTable header {}, the type for column {} in {} is {}, which is " +
                                 "invalid ({}); Will continue with modified valid type {}, but please contact " +
-                                "support if this is incorrect",
+                                "support if this is incorrect.",
                                 descriptor, ColumnIdentifier.toCQLString(columnName), table, type.asCQL3Type(),
                                 e.getMessage(), fixed.asCQL3Type());
                     return fixed;

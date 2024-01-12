@@ -22,16 +22,17 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Predicate;
+import java.util.stream.IntStream;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.marshal.BytesType;
 import org.junit.AfterClass;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.junit.Assert;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -49,6 +50,8 @@ import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public class ColumnsTest
 {
+    private final static Logger logger = LoggerFactory.getLogger(ColumnsTest.class);
+
     static
     {
         DatabaseDescriptor.daemonInitialization();
@@ -58,8 +61,12 @@ public class ColumnsTest
     private static final TableMetadata TABLE_METADATA = MockSchema.newCFS().metadata();
 
     @Test
-    public void testDeserializeCorruption() throws IOException
+    public void testDeserializeCorruption()
     {
+        // Tests ability to detect deserialization corruption when a different superset was used for serialization
+        // In particular, when encoded a column with an index that is larger than the size of the superset
+        // (in other cases detecting corruption is rather impossible with the current serialization format)
+
         ColumnsCheck check = randomSmall(1, 0, 3, 0);
         Columns superset = check.columns;
         List<ColumnMetadata> minus1 = new ArrayList<>(check.definitions);
@@ -67,18 +74,46 @@ public class ColumnsTest
         Columns minus2 = check.columns
                 .without(check.columns.getSimple(3))
                 .without(check.columns.getSimple(2));
+        assertDeserializationCorruption(minus1, superset, minus2);
+
+        // the missing column is the last one, so we encode 5th column in the bitmap but the superset has only 4 elements
+        testDeserializationCorruption(randomSmall(0, 0, 5, 0), IntStream.of(4), IntStream.of(0));
+
+        // the missing column is the last one, so we encode 100th column but the superset has only 99 elements
+        testDeserializationCorruption(randomHuge(0, 0, 100, 0), IntStream.of(99), IntStream.of(0));
+    }
+
+    private static void testDeserializationCorruption(ColumnsCheck check, IntStream dropFromSubset, IntStream dropFromSuperset)
+    {
+        List<ColumnMetadata> subset = new ArrayList<>(check.definitions);
+        for (Iterator<Integer> i = dropFromSubset.iterator(); i.hasNext(); )
+            subset.remove(check.definitions.get(i.next()));
+
+        Columns deserSuperset = check.columns;
+        for (Iterator<Integer> i = dropFromSuperset.iterator(); i.hasNext(); )
+            deserSuperset = deserSuperset.without(check.definitions.get(i.next()));
+
+        assertDeserializationCorruption(subset, check.columns, deserSuperset);
+    }
+
+    private static void assertDeserializationCorruption(Collection<ColumnMetadata> subset, Columns serSuperset, Columns deserSuperset)
+    {
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
-            // serialize a subset
-            Columns.serializer.serializeSubset(minus1, superset, out);
+            Columns.serializer.serializeSubset(subset, serSuperset, out);
             try (DataInputBuffer in = new DataInputBuffer(out.toByteArray()))
             {
-                Columns.serializer.deserializeSubset(minus2, in);
-                Assert.assertFalse(true);
+                Columns.serializer.deserializeSubset(deserSuperset, in);
+                Assert.fail();
             }
             catch (IOException e)
             {
+                logger.info("Expected exception", e);
             }
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
         }
     }
 

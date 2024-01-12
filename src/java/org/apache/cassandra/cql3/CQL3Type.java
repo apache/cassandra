@@ -25,6 +25,7 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.schema.CQLTypeParser;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -82,21 +83,31 @@ public interface CQL3Type
     String toString(boolean alreadyFrozen, boolean forceFrozen);
 
     /**
-     * Generate the string representation of this type, like {@code toString}, but where the 'frozen<>' is
-     * repeated for every frozen complex types, even if it is already present as at higher level (and is such
-     * unnecessary). In other words, this will generate {@code frozen<list<frozen<set<int>>>>} when
-     * {@code toString} only generates {@code frozen<list<set<int>>>}.
-     * <p>
-     * This generally shouldn't be used since it is a less readable, wasteful representation, but we use it for
-     * column types in the schema for the following historical reason: before DB-3084, the default {@code toString}
-     * representation was behaving like this method, and drivers have indirectly "relied" on it in the sense that while
-     * types on the drivers side have a {@code isFrozen()} method, it only returns {@code true} if the type has an
-     * explicit "frozen<>" prefix just before it. Meaning that reading {@code frozen<list<set<int>>>} in the schema,
-     * the driver (at least the java one) will return that the list is frozen, but not the set.
-     * <p>
-     * So to avoid risks in breaking external consumers, we preserve the verbose, if wasteful, representation in the
-     * schema. We may remove this when we've coordinated fixing the drivers side to always set their {@code isFrozen} to
-     * {@code true} for subtypes of frozen types, no matter what the representation says.
+     * Generate the string representation of this type, like {@code toString()}, but more suitable for schema in the
+     * following 2 ways:
+     *   1. tuples that are frozen have an explicit 'frozen<>' prefix. The reason being that while tuples are frozen by
+     *      default in CQL, we internally replace user types by equivalent tuples when recording dropped columns, and
+     *      that forces us to have "some" support for non-frozen tuples. And thus including an explicit 'frozen<>' is
+     *      _necessary_ to ensure we can distinguish before frozen and non-frozen tuple in that specific case. Note
+     *      this does mean the schema uses a special parsing method ({@link CQLTypeParser#parseDroppedType}) for the
+     *      type of dropped columns.
+     *   2. the 'frozen<>' prefix is repeated for every frozen complex types, even if it is already present at a
+     *      higher level (and is such unnecessary). In other words, this will generate
+     *      {@code frozen<list<frozen<set<int>>>>} while {@code toString()} only generates {@code frozen<list<set<int>>>}.
+     *
+     * <p>Note this representation is still a valid representation which can be parsed back by
+     * {@link CQLTypeParser#parse} and so, since it is a less readable representation, should generally be avoided.
+     * But we use it for column types in the schema, primarily due to point 1. above, but also for the following
+     * historical reason: before DB-3084, the default {@code toString()} representation was behaving like this method,
+     * and drivers have indirectly "relied" on it in the sense that while types on the drivers side have a
+     * {@code isFrozen()} method, it only returns {@code true} if the type have an explicit "frozen<>" prefix just
+     * before it. Meaning that reading {@code frozen<list<set<int>>>} in the schema, the driver (at least the java one)
+     * will return that the list is frozen, but not the set. And indirectly, NGDG was also relying on this to some
+     * extent at the time of this writing.
+     *
+     * <p>We may remove the 2nd part of this method when we've coordinated fixing the drivers side to always set their
+     * {@code isFrozen} to {@code true} for sub-types of frozen types, but for now, to avoid risks in breaking external
+     * consumers, we preserve the verbose, if wasteful, representation in the schema.
      */
     default String toSchemaString()
     {
@@ -691,7 +702,17 @@ public interface CQL3Type
 
         public static Raw tuple(List<CQL3Type.Raw> ts)
         {
-            return new RawTuple(ts);
+            return new RawTuple(ts, false, false);
+        }
+
+        public static Raw tuple(List<CQL3Type.Raw> ts, boolean frozenDefault)
+        {
+            return new RawTuple(ts, false, frozenDefault);
+        }
+
+        private static Raw freezeIfSupported(Raw type)
+        {
+            return type != null && type.supportsFreezing() ? type.freeze() : type;
         }
 
         private static class RawType extends Raw
@@ -804,17 +825,7 @@ public interface CQL3Type
             @Override
             public RawCollection freeze()
             {
-                CQL3Type.Raw frozenKeys =
-                    null != keys && keys.supportsFreezing()
-                  ? keys.freeze()
-                  : keys;
-
-                CQL3Type.Raw frozenValues =
-                    null != values && values.supportsFreezing()
-                  ? values.freeze()
-                  : values;
-
-                return new RawCollection(kind, frozenKeys, frozenValues, true);
+                return new RawCollection(kind, Raw.freezeIfSupported(keys), Raw.freezeIfSupported(values), true);
             }
 
             @Override
@@ -968,13 +979,13 @@ public interface CQL3Type
         private static class RawTuple extends Raw
         {
             private final List<CQL3Type.Raw> types;
+            private final boolean frozenByDefault;
 
-            private RawTuple(List<CQL3Type.Raw> types)
+            private RawTuple(List<CQL3Type.Raw> types, boolean frozen, boolean frozenByDefault)
             {
-                super(true);
-                this.types = types.stream()
-                                  .map(t -> t.supportsFreezing() ? t.freeze() : t)
-                                  .collect(toList());
+                super(frozen);
+                this.types = types;
+                this.frozenByDefault = frozenByDefault;
             }
 
             @Override
@@ -984,23 +995,30 @@ public interface CQL3Type
             }
 
             @Override
-            public RawTuple freeze()
+            public RawTuple freeze() throws InvalidRequestException
             {
-                return this;
+                List<CQL3Type.Raw> frozenTypes = types.stream().map(Raw::freezeIfSupported).collect(toList());
+                return new RawTuple(frozenTypes, true, frozenByDefault);
             }
 
             @Override
             public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
             {
-                List<AbstractType<?>> ts = new ArrayList<>(types.size());
-                for (CQL3Type.Raw t : types)
+                // Externally, tuples are frozen by default, so should always be frozen. But because we store UDTs as
+                // tuples in dropped types (so we don't have to store separately the definition of dropped UDT) and we
+                // now support non-frozen UDTs, we have to at least internally support non-frozen tuples. Note however
+                // that we only support non-frozen UDTs at "top-level", any such UDTs can only have frozen subtypes, so
+                // we can safely freeze any subtype.
+                RawTuple frozenTuple = freeze();
+                List<AbstractType<?>> ts = new ArrayList<>(frozenTuple.types.size());
+                for (CQL3Type.Raw t : frozenTuple.types)
                 {
-                    if (t.isCounter())
-                        throw new InvalidRequestException("Counters are not allowed inside tuples");
-
                     ts.add(t.prepare(keyspace, udts).getType());
                 }
-                return new Tuple(new TupleType(ts));
+
+                // The inner types have been frozen, as mentioned above, the top-level type is also frozen unless it
+                // has !frozenByDefault (and wasn't manually frozen, so !frozen).
+                return new Tuple(new TupleType(ts, !frozen && !frozenByDefault));
             }
 
             @Override

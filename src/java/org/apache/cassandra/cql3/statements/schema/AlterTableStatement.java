@@ -37,7 +37,6 @@ import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.QualifiedName;
@@ -298,14 +297,6 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
             if (currentColumn.isPrimaryKeyColumn())
                 throw ire("Cannot drop PRIMARY KEY column %s", column);
-
-            /*
-             * Cannot allow dropping top-level columns of user defined types that aren't frozen because we cannot convert
-             * the type into an equivalent tuple: we only support frozen tuples currently. And as such we cannot persist
-             * the correct type in system_schema.dropped_columns.
-             */
-            if (currentColumn.type.isUDT() && currentColumn.type.isMultiCell())
-                throw ire("Cannot drop non-frozen column %s of user type %s", column, currentColumn.type.asCQL3Type());
 
             // TODO: some day try and find a way to not rely on Keyspace/IndexManager/Index to find dependent indexes
             Set<IndexMetadata> dependentIndexes = Keyspace.openAndGetStore(table).indexManager.getDependentIndexes(currentColumn);

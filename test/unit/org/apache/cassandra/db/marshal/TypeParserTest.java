@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -18,16 +18,22 @@
  */
 package org.apache.cassandra.db.marshal;
 
+import java.util.Arrays;
+import java.util.List;
+
+import com.google.common.collect.ImmutableMap;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.fail;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
+
+import static org.apache.cassandra.Util.makeUDT;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.fail;
 
 public class TypeParserTest
 {
@@ -104,5 +110,53 @@ public class TypeParserTest
             assertSame(type, TypeParser.parse(type.toString()));
         }
         assertSame(DatabaseDescriptor.getPartitioner().partitionOrdering(), TypeParser.parse("PartitionerDefinedOrder"));
+    }
+
+    @Test
+    public void testTuple()
+    {
+        List<TupleType> tupleTypes = Arrays.asList(
+                new TupleType(Arrays.asList(UTF8Type.instance, Int32Type.instance), false),
+                new TupleType(Arrays.asList(UTF8Type.instance, Int32Type.instance), true),
+                new TupleType(Arrays.asList(UTF8Type.instance, new TupleType(Arrays.asList(Int32Type.instance, LongType.instance), false)), false),
+                new TupleType(Arrays.asList(UTF8Type.instance, new TupleType(Arrays.asList(Int32Type.instance, LongType.instance), false)), true),
+                new TupleType(Arrays.asList(UTF8Type.instance, new TupleType(Arrays.asList(Int32Type.instance, LongType.instance), true)), false),
+                new TupleType(Arrays.asList(UTF8Type.instance, new TupleType(Arrays.asList(Int32Type.instance, LongType.instance), true)), true),
+                new TupleType(Arrays.asList(UTF8Type.instance, makeUDT("udt", ImmutableMap.of("a", UTF8Type.instance, "b", LongType.instance), false)), false),
+                new TupleType(Arrays.asList(UTF8Type.instance, makeUDT("udt", ImmutableMap.of("a", UTF8Type.instance, "b", LongType.instance), false)), true),
+                new TupleType(Arrays.asList(UTF8Type.instance, makeUDT("udt", ImmutableMap.of("a", UTF8Type.instance, "b", LongType.instance), true)), false),
+                new TupleType(Arrays.asList(UTF8Type.instance, makeUDT("udt", ImmutableMap.of("a", UTF8Type.instance, "b", LongType.instance), true)), true)
+        );
+
+        for (TupleType tupleType : tupleTypes)
+        {
+            assertEquals(tupleType, TypeParser.parse(tupleType.toString()));
+            assertEquals(tupleType.freeze(), TypeParser.parse(tupleType.freeze().toString()));
+            assertEquals(tupleType.expandUserTypes(), TypeParser.parse(tupleType.expandUserTypes().toString()));
+        }
+    }
+
+    @Test
+    public void testParseUDT()
+    {
+        List<UserType> userTypes = Arrays.asList(
+                makeUDT("udt", ImmutableMap.of("a", UTF8Type.instance, "b", LongType.instance), false),
+                makeUDT("udt", ImmutableMap.of("a", UTF8Type.instance, "b", LongType.instance), true),
+                makeUDT("udt", ImmutableMap.of("a", UTF8Type.instance, "b", new TupleType(Arrays.asList(Int32Type.instance, LongType.instance), false)), false),
+                makeUDT("udt", ImmutableMap.of("a", UTF8Type.instance, "b", new TupleType(Arrays.asList(Int32Type.instance, LongType.instance), false)), true),
+                makeUDT("udt", ImmutableMap.of("a", UTF8Type.instance, "b", new TupleType(Arrays.asList(Int32Type.instance, LongType.instance), true)), false),
+                makeUDT("udt", ImmutableMap.of("a", UTF8Type.instance, "b", new TupleType(Arrays.asList(Int32Type.instance, LongType.instance), true)), true),
+                makeUDT("udt", ImmutableMap.of("a", UTF8Type.instance, "b", makeUDT("udt2", ImmutableMap.of("a", UTF8Type.instance, "b", LongType.instance), false)), false),
+                makeUDT("udt", ImmutableMap.of("a", UTF8Type.instance, "b", makeUDT("udt2", ImmutableMap.of("a", UTF8Type.instance, "b", LongType.instance), false)), true),
+                makeUDT("udt", ImmutableMap.of("a", UTF8Type.instance, "b", makeUDT("udt2", ImmutableMap.of("a", UTF8Type.instance, "b", LongType.instance), true)), false),
+                makeUDT("udt", ImmutableMap.of("a", UTF8Type.instance, "b", makeUDT("udt2", ImmutableMap.of("a", UTF8Type.instance, "b", LongType.instance), true)), true)
+        );
+
+        for (UserType userType : userTypes)
+        {
+            assertEquals(userType, TypeParser.parse(userType.toString()));
+            assertEquals(userType.freeze(), TypeParser.parse(userType.freeze().toString()));
+            assertEquals(userType.expandUserTypes(), TypeParser.parse(userType.expandUserTypes().toString()));
+        }
     }
 }

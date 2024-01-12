@@ -99,8 +99,7 @@ public class TupleType extends MultiCellCapableType<ByteBuffer>
     public static TupleType getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
     {
         List<AbstractType<?>> types = parser.getTypeParameters();
-        types.replaceAll(AbstractType::freeze);
-        return new TupleType(types);
+        return new TupleType(types, true);
     }
 
     @Override
@@ -514,7 +513,7 @@ public class TupleType extends MultiCellCapableType<ByteBuffer>
         sb.append(getClass().getName());
         // FrozenType applies to anything nested (it wouldn't make sense otherwise) and so we only put once at the
         // highest level. So we can ignore freezing in the subtypes if either we're already within a frozen type
-        // (we're a sub-type ourselves and frozenType has been included at the outer level), or we're frozen.
+        // (we're a subtype ourselves and frozenType has been included at the outer level), or we're frozen.
         sb.append(stringifyTypeParameters(ignoreFreezing || !isMultiCell()));
         if (includeFrozenType)
             sb.append(')');

@@ -57,6 +57,7 @@ import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.assertj.core.api.Assertions;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -505,6 +506,57 @@ public class SchemaCQLHelperTest extends CQLTester
 
         Assert.assertTrue(cfs.getDirectories().getSnapshotManifestFile(SNAPSHOT).exists());
         Assert.assertFalse(cfs.getDirectories().getSnapshotSchemaFile(SNAPSHOT).exists());
+    }
+
+    @Test
+    public void testDroppedType()
+    {
+        String typeA = createType("CREATE TYPE %s (a1 varint, a2 varint, a3 varint);");
+        String typeB = createType("CREATE TYPE %s (b1 frozen<" + typeA + ">, b2 frozen<" + typeA + ">, b3 frozen<" + typeA + ">);");
+
+        String tableName = createTable("CREATE TABLE IF NOT EXISTS %s (" +
+                                       "pk1 varint," +
+                                       "ck1 varint," +
+                                       "reg1 " + typeB + ',' +
+                                       "reg2 varint," +
+                                       "PRIMARY KEY (pk1, ck1));");
+
+        alterTable("ALTER TABLE %s DROP reg1 USING TIMESTAMP 10000;");
+
+        Runnable validate = () -> {
+            try
+            {
+                ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(tableName);
+                cfs.snapshot(SNAPSHOT);
+                String schema = Files.asCharSource(cfs.getDirectories().getSnapshotSchemaFile(SNAPSHOT).toJavaIOFile(),
+                                                   Charset.defaultCharset()).read();
+
+                Assertions.assertThat(schema)
+                          .startsWith("CREATE TABLE IF NOT EXISTS " + keyspace() + '.' + tableName + " (\n" +
+                                      "    pk1 varint,\n" +
+                                      "    ck1 varint,\n" +
+                                      "    reg2 varint,\n" +
+                                      "    PRIMARY KEY (pk1, ck1)\n)");
+
+                // Note that the dropped record will have converted the initial UDT to a tuple. Further, that tuple
+                // will be genuinely non-frozen (the parsing code will interpret it as non-frozen).
+                Assertions.assertThat(schema)
+                          .contains("DROPPED COLUMN RECORD reg1 tuple<" +
+                                    "frozen<tuple<varint, varint, varint>>, " +
+                                    "frozen<tuple<varint, varint, varint>>, " +
+                                    "frozen<tuple<varint, varint, varint>>>");
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
+        };
+
+        // Validate before and after the type drop
+        validate.run();
+        schemaChange("DROP TYPE " + keyspace() + '.' + typeB);
+        schemaChange("DROP TYPE " + keyspace() + '.' + typeA);
+        validate.run();
     }
 
     @Test

@@ -74,6 +74,11 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
     private final Object[] columns;
     private final int complexIdx; // Index of the first complex column
 
+    /**
+     * The columns passed to this constructor MUST BE SORTED with natural order - this is not checked in the constructor!
+     * The constructor remains private to ensure that this invariant is maintained - all the methods that call it
+     * ensure that the columns are properly sorted.
+     */
     private Columns(Object[] columns, int complexIdx)
     {
         assert complexIdx <= BTree.size(columns);
@@ -705,7 +710,18 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
                     int skipped = 0;
                     while (true)
                     {
-                        int nextMissingIndex = skipped < delta ? (int)in.readUnsignedVInt() : supersetCount;
+                        int nextMissingIndex;
+                        if (skipped < delta)
+                        {
+                            nextMissingIndex = (int) in.readUnsignedVInt();
+                            if (nextMissingIndex >= supersetCount)
+                                throw new IOException("Invalid Columns subset bytes; encoded not existing column: " + nextMissingIndex);
+                        }
+                        else
+                        {
+                            nextMissingIndex = supersetCount;
+                        }
+
                         while (idx < nextMissingIndex)
                         {
                             ColumnMetadata def = iter.next();

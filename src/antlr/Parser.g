@@ -811,7 +811,7 @@ tableProperty[CreateTableStatement.Raw stmt]
              K_TO noncol_ident '(' mockVertex ')'
              {stmt.attrs.addProperty("dse_edge_label_property", "edge");}
     | K_DROPPED K_COLUMN K_RECORD
-          k=ident v=comparatorType (K_STATIC {isStatic = true;})?
+          k=ident v=comparatorTypeWithMultiCellTuple (K_STATIC {isStatic = true;})?
           K_USING K_TIMESTAMP t=INTEGER
       {
           stmt.attrs.addDroppedColumnRecord(k, v, isStatic, Long.parseLong($t.text));
@@ -1761,10 +1761,9 @@ inMarkerForTuple returns [Tuples.INRaw marker]
     | ':' name=noncol_ident { $marker = newTupleINBindVariables(name); }
     ;
 
-comparatorType returns [CQL3Type.Raw t]
+comparatorTypeWithoutTuples returns [CQL3Type.Raw t]
     : n=native_type     { $t = CQL3Type.Raw.from(n); }
     | c=collection_type { $t = c; }
-    | tt=tuple_type     { $t = tt; }
     | id=userTypeName   { $t = CQL3Type.Raw.userType(id); }
     | K_FROZEN '<' f=comparatorType '>'
       {
@@ -1784,6 +1783,16 @@ comparatorType returns [CQL3Type.Raw t]
             addRecognitionError("Error setting type " + $s.text + ": " + e.getMessage());
         }
       }
+    ;
+
+// Force frozen tuples.
+comparatorType returns [CQL3Type.Raw t]
+    : ct=comparatorTypeWithoutTuples     { $t = ct; }
+    | tt=tuple_types                     { $t = CQL3Type.Raw.tuple(tt, true); }
+    ;
+comparatorTypeWithMultiCellTuple returns [CQL3Type.Raw t]
+    : ct=comparatorTypeWithoutTuples     { $t = ct; }
+    | tt=tuple_types                     { $t = CQL3Type.Raw.tuple(tt, false); }
     ;
 
 native_type returns [CQL3Type t]
@@ -1823,10 +1832,8 @@ collection_type returns [CQL3Type.Raw pt]
         { if (t != null) $pt = CQL3Type.Raw.set(t); }
     ;
 
-tuple_type returns [CQL3Type.Raw t]
-    @init {List<CQL3Type.Raw> types = new ArrayList<>();}
-    @after {$t = CQL3Type.Raw.tuple(types);}
-    : K_TUPLE '<' t1=comparatorType { types.add(t1); } (',' tn=comparatorType { types.add(tn); })* '>'
+tuple_types returns [List<CQL3Type.Raw> types]
+    : K_TUPLE '<' t1=comparatorType { $types = new ArrayList<>(); $types.add(t1); } (',' tn=comparatorType { $types.add(tn); })* '>'
     ;
 
 username

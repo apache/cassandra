@@ -45,6 +45,8 @@ public class AbstractTypeSerializer
             serialize(type, out);
     }
 
+    // Used only in serialization header, when deserializing a type from the sstable header,
+    // not used in commit log or internode transport.
     public AbstractType<?> deserialize(DataInputPlus in) throws IOException
     {
         ByteBuffer raw = ByteBufferUtil.readWithVIntLength(in);

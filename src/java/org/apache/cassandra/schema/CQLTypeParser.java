@@ -53,6 +53,35 @@ public final class CQLTypeParser
         return parseRaw(unparsed).prepare(keyspace, userTypes).getType();
     }
 
+    /**
+     * Parse the type for a dropped column in the schema.
+     * </p>
+     * The reason we need a specific method for this is that when we record dropped column types, we "expand" user
+     * types into tuples ({@link AbstractType#expandUserTypes()}) and this in order to save us from having to preserve
+     * dropped user types definitions. But a consequence of that expansion is that we have to have some support for
+     * non-frozen tuples, since the dropped type could be a non-frozen UDT, and that differs from normal CQL where
+     * tuples are frozen by default and {@code tuple<X, Y>} is indistinguishable from {@code frozen<tuple<X, Y>>}. So,
+     * to handle this, we rely on the fact that types for dropped columns will have been recorded using
+     * {@link CQL3Type#toSchemaString()}, which explicitly handles the frozen/non-frozen difference for tuples, which
+     * this method makes use of.
+     * </p>
+     * Concretely, while {@link #parse(String, String, Types)} will return a frozen type for {@code tuple<...>}
+     * (since again, tuple are frozen by default in CQL), this method will return a non-frozen type.
+     */
+    public static AbstractType<?> parseDroppedType(String keyspace, String unparsed)
+    {
+
+        // fast path for the common case of a primitive type
+        if (PRIMITIVE_TYPES.contains(unparsed.toLowerCase()))
+            return CQL3Type.Native.valueOf(unparsed.toUpperCase()).getType();
+
+        // We can't have UDT in dropped types...
+        CQL3Type.Raw rawType = CQLFragmentParser.parseAny(CqlParser::comparatorTypeWithMultiCellTuple,
+                                                          unparsed,
+                                                          "CQL dropped type");
+        return rawType.prepare(keyspace, Types.none()).getType();
+    }
+
     static CQL3Type.Raw parseRaw(String type)
     {
         return CQLFragmentParser.parseAny(CqlParser::comparatorType, type, "CQL type");

@@ -29,22 +29,28 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.TupleType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeSupport;
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
 
+import static java.util.Arrays.asList;
+import static org.apache.cassandra.Util.makeUDT;
 import static org.apache.cassandra.db.SchemaCQLHelper.toCqlType;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.getTypeSupport;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.primitiveTypeGen;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.tupleTypeGen;
 import static org.apache.cassandra.utils.FailingConsumer.orFail;
 import static org.apache.cassandra.utils.Generators.filter;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.quicktheories.QuickTheory.qt;
 
 public class TupleTypeTest extends CQLTester
@@ -320,6 +326,57 @@ public class TupleTypeTest extends CQLTester
         }));
     }
 
+    /**
+     * This test verifies if the tuple type is properly parsed from CQL. In particular, it checks that when a column is 
+     * defined as a tuple, the tuple type is implicitly frozen, which applies also to all the nested tuples and UDTs.
+     * For dropped columns we chech that the top level type (and only it) is not automatically frozen.
+     */
+    @Test
+    public void testCreateTuples()
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, t tuple<int, text>) " +
+                    "WITH DROPPED COLUMN RECORD dropped tuple<int, text> USING TIMESTAMP 1680702275400000 ");
+        assertThat(getColumn("t").type).isEqualTo(new TupleType(asList(Int32Type.instance, UTF8Type.instance), false));
+        assertThat(getDroppedColumn("dropped").type)
+                .isEqualTo(new TupleType(asList(Int32Type.instance, UTF8Type.instance), true));
+
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, t frozen<tuple<int, text>>) " +
+                    "WITH DROPPED COLUMN RECORD dropped frozen<tuple<int, text>> USING TIMESTAMP 1680702275400000");
+        assertThat(getColumn("t").type).isEqualTo(new TupleType(asList(Int32Type.instance, UTF8Type.instance), false));
+        assertThat(getDroppedColumn("dropped").type)
+                .isEqualTo(new TupleType(asList(Int32Type.instance, UTF8Type.instance), false));
+
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, t tuple<int, tuple<int, text>>) " +
+                    "WITH DROPPED COLUMN RECORD dropped tuple<int, tuple<int, text>> USING TIMESTAMP 1680702275400000");
+        assertThat(getColumn("t").type)
+                .isEqualTo(new TupleType(asList(Int32Type.instance, new TupleType(asList(Int32Type.instance, UTF8Type.instance), false)), false));
+        assertThat(getDroppedColumn("dropped").type)
+                .isEqualTo(new TupleType(asList(Int32Type.instance, new TupleType(asList(Int32Type.instance, UTF8Type.instance), false)), true));
+
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, t frozen<tuple<int, frozen<tuple<int, text>>>>) " +
+                    "WITH DROPPED COLUMN RECORD dropped frozen<tuple<int, frozen<tuple<int, text>>>> USING TIMESTAMP 1680702275400000");
+        assertThat(getColumn("t").type)
+                .isEqualTo(new TupleType(asList(Int32Type.instance, new TupleType(asList(Int32Type.instance, UTF8Type.instance), false)), false));
+        assertThat(getDroppedColumn("dropped").type)
+                .isEqualTo(new TupleType(asList(Int32Type.instance, new TupleType(asList(Int32Type.instance, UTF8Type.instance), false)), false));
+
+        String udt = createType("CREATE TYPE %s (a int, b text)");
+
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, t tuple<int, frozen<" + udt + ">>) " +
+                    "WITH DROPPED COLUMN RECORD dropped tuple<int, frozen<tuple<int, text>>> USING TIMESTAMP 1680702275400000");
+        assertThat(getColumn("t").type)
+                .isEqualTo(new TupleType(asList(Int32Type.instance, makeUDT(keyspace(), udt, ImmutableMap.of("a", Int32Type.instance, "b", UTF8Type.instance), false)), false));
+        assertThat(getDroppedColumn("dropped").type).
+                isEqualTo(new TupleType(asList(Int32Type.instance, new TupleType(asList(Int32Type.instance, UTF8Type.instance), false)), true));
+
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, t tuple<int, " + udt + ">) " +
+                    "WITH DROPPED COLUMN RECORD dropped tuple<int, tuple<int, text>> USING TIMESTAMP 1680702275400000");
+        assertThat(getColumn("t").type)
+                .isEqualTo(new TupleType(asList(Int32Type.instance, makeUDT(keyspace(), udt, ImmutableMap.of("a", Int32Type.instance, "b", UTF8Type.instance), false)), false));
+        assertThat(getDroppedColumn("dropped").type)
+                .isEqualTo(new TupleType(asList(Int32Type.instance, new TupleType(asList(Int32Type.instance, UTF8Type.instance), false)), true));
+    }
+
     private static final class TypeAndRows
     {
         TupleType type;
@@ -380,14 +437,6 @@ public class TupleTypeTest extends CQLTester
         };
 
         abstract <T> Comparator<T> apply(Comparator<T> c);
-    }
-
-    private static List<Object[]> toObjects(UntypedResultSet results)
-    {
-        List<Object[]> rows = new ArrayList<>(results.size());
-        for (UntypedResultSet.Row row : results)
-            rows.add(results.metadata().stream().map(c -> c.type.compose(row.getBlob(c.name.toString()))).toArray());
-        return rows;
     }
 }
 

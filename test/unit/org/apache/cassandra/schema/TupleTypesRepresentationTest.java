@@ -113,7 +113,7 @@ public class TupleTypesRepresentationTest
                                        .prepare(keyspace, types);
             type = cqlType.getType();
 
-            droppedCqlType = CQLFragmentParser.parseAny(CqlParser::comparatorType, droppedCqlTypeString, "dropped type")
+            droppedCqlType = CQLFragmentParser.parseAny(CqlParser::comparatorTypeWithMultiCellTuple, droppedCqlTypeString, "dropped type")
                                               .prepare(keyspace, types);
             // NOTE: TupleType is *always* parsed as frozen, but never toString()'d with the surrounding FrozenType
             droppedType = droppedCqlType.getType();
@@ -148,13 +148,12 @@ public class TupleTypesRepresentationTest
             false,
             "('foo','bar')");
 
-    // Currently, dropped non-frozen-UDT columns are recorded as frozen<tuple<...>>, which is technically wrong
-    //private static final TypeDef mc_udt = new TypeDef(
-    //        "org.apache.cassandra.db.marshal.UserType(ks,6d635f756474,61:org.apache.cassandra.db.marshal.UTF8Type,62:org.apache.cassandra.db.marshal.UTF8Type)",
-    //        "mc_udt",
-    //        "tuple<text, text>",
-    //        true,
-    //        "{a:'foo',b:'bar'}");
+    private static final TypeDef mc_udt = new TypeDef(
+            "org.apache.cassandra.db.marshal.UserType(ks,6d635f756474,61:org.apache.cassandra.db.marshal.UTF8Type,62:org.apache.cassandra.db.marshal.UTF8Type)",
+            "mc_udt",
+            "tuple<text, text>",
+            true,
+            "{a:'foo',b:'bar'}");
 
     private static final TypeDef frozen_f_udt_ = new TypeDef(
             "org.apache.cassandra.db.marshal.FrozenType(org.apache.cassandra.db.marshal.UserType(ks,665f756474,61:org.apache.cassandra.db.marshal.UTF8Type,62:org.apache.cassandra.db.marshal.UTF8Type))",
@@ -292,6 +291,7 @@ public class TupleTypesRepresentationTest
     private static final TypeDef[] allTypes = {
             text,
             tuple_text__text_,
+            mc_udt,
             frozen_f_udt_,
             list_text_,
             frozen_list_text__,

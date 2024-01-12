@@ -20,6 +20,7 @@ package org.apache.cassandra.schema;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -178,6 +179,12 @@ public class TableMetadata implements SchemaElement
         clusteringColumns = ImmutableList.copyOf(builder.clusteringColumns);
         regularAndStaticColumns = RegularAndStaticColumns.builder().addAll(builder.regularAndStaticColumns).build();
         columns = ImmutableMap.copyOf(builder.columns);
+
+        assert columns.values().stream().noneMatch(ColumnMetadata::isDropped) :
+                "Invalid columns (contains dropped): " + columns.values()
+                                                                .stream()
+                                                                .map(ColumnMetadata::debugString)
+                                                                .collect(Collectors.joining(", "));
 
         indexes = builder.indexes;
         triggers = builder.triggers;

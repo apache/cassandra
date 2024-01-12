@@ -39,6 +39,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -63,6 +64,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.db.AbstractReadCommandBuilder;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringComparator;
@@ -88,6 +90,8 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.partitions.Partition;
@@ -1280,6 +1284,7 @@ public class Util
                     ApplicationState.STATUS_WITH_PORT,
                     new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(token)));
     }
+
     public static boolean isListeningOn(InetSocketAddress address)
     {
         try (ServerSocket socket = new ServerSocket())
@@ -1291,5 +1296,22 @@ public class Util
         {
             return true;
         }
+    }
+
+    public static UserType makeUDT(String name, Map<String, AbstractType<?>> fields, boolean multicell)
+    {
+        return makeUDT("ks", name, fields, multicell);
+    }
+
+    public static UserType makeUDT(String ks, String name, Map<String, AbstractType<?>> fields, boolean multicell)
+    {
+        List<FieldIdentifier> fieldNames = new ArrayList<>(fields.size());
+        List<AbstractType<?>> fieldTypes = new ArrayList<>(fields.size());
+        for (Map.Entry<String, AbstractType<?>> entry : fields.entrySet())
+        {
+            fieldNames.add(FieldIdentifier.forUnquoted(entry.getKey()));
+            fieldTypes.add(entry.getValue());
+        }
+        return new UserType(ks, UTF8Type.instance.decompose(name), fieldNames, fieldTypes, multicell);
     }
 }

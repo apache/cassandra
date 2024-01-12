@@ -579,7 +579,7 @@ public class TermSelectionTest extends CQLTester
         assertColumnSpec(boundNames.get(0), "[selection]", Int32Type.instance);
         assertColumnSpec(boundNames.get(1), "adecimal", DecimalType.instance);
         assertColumnSpec(boundNames.get(2), "[selection]", UTF8Type.instance);
-        assertColumnSpec(boundNames.get(3), "atuple", TypeParser.parse("TupleType(Int32Type,UTF8Type)"));
+        assertColumnSpec(boundNames.get(3), "atuple", TypeParser.parse("TupleType(Int32Type,UTF8Type)").freeze());
         assertColumnSpec(boundNames.get(4), "pk", Int32Type.instance);
 
 
@@ -590,7 +590,7 @@ public class TermSelectionTest extends CQLTester
         assertColumnSpec(resultNames.get(0), "(int)?", Int32Type.instance);
         assertColumnSpec(resultNames.get(1), "(decimal)?", DecimalType.instance);
         assertColumnSpec(resultNames.get(2), "(text)?", UTF8Type.instance);
-        assertColumnSpec(resultNames.get(3), "(tuple<int, text>)?", TypeParser.parse("TupleType(Int32Type,UTF8Type)"));
+        assertColumnSpec(resultNames.get(3), "(tuple<int, text>)?", TypeParser.parse("TupleType(Int32Type,UTF8Type)").freeze());
         assertColumnSpec(resultNames.get(4), "pk", Int32Type.instance);
         assertColumnSpec(resultNames.get(5), "ck", Int32Type.instance);
         assertColumnSpec(resultNames.get(6), "t", UTF8Type.instance);
