@@ -1,0 +1,12 @@
+schema:
+  version: 1
+---
+owner:
+  # https://uown.uberinternal.com/assets/99295401-c534-41b4-949d-26efbebc4ad4
+  assetUuid: 99295401-c534-41b4-949d-26efbebc4ad4
+  # Owner information updated from uOwn by assetUuid value.
+  name: cassandra-service
+  managerEmail: gopalmor@uber.com
+reviewers:
+  groups:
+    - cassandra-super-users

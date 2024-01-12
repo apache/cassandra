@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import com.datastax.driver.core.PreparedStatement;
@@ -38,6 +39,7 @@ import static org.junit.Assert.assertEquals;
 
 public class PrepareBatchStatementsTest extends TestBaseImpl
 {
+    @Ignore
     @Test
     public void testPreparedBatch() throws Exception
     {

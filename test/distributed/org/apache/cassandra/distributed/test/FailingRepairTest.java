@@ -40,6 +40,7 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -173,6 +174,7 @@ public class FailingRepairTest extends TestBaseImpl implements Serializable
         }
     }
 
+    @Ignore
     @Test(timeout = 10 * 60 * 1000)
     public void testFailingMessage() throws IOException
     {

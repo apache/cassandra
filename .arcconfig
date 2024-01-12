@@ -1,0 +1,6 @@
+{
+  "project_id": "infra/cassandra",
+  "conduit_uri": "https://code.uberinternal.com/",
+  "git.default-relative-commit": "origin/4.1.3_master",
+  "history.immutable": false
+}

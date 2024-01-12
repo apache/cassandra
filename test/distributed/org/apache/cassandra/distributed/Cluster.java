@@ -69,6 +69,12 @@ public class Cluster extends AbstractCluster<IInvokableInstance>
             super(Cluster::new);
             withVersion(CURRENT_VERSION);
         }
+
+        @Override
+        public Builder withConfig(Consumer<IInstanceConfig> updater)
+        {
+            return super.appendConfig(updater);
+        }
     }
 }
 

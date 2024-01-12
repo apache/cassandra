@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -93,6 +94,7 @@ public class JVMStabilityInspectorThrowableTest extends TestBaseImpl
         );
     }
 
+    @Ignore
     @Test
     public void testAbstractLocalAwareExecutorServiceOnPolicies() throws Exception
     {

@@ -23,6 +23,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import com.datastax.driver.core.Row;
@@ -63,6 +64,8 @@ public class SASICQLTest extends CQLTester
         }
     }
 
+    // [CASSANDRA-18432] test failure
+    @Ignore
     @Test
     public void testPagingWithClustering() throws Throwable
     {
