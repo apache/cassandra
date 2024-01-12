@@ -1360,4 +1360,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     void setPaxosRepairRaceWait(boolean paxosRepairCoordinatorWait);
 
     boolean getPaxosRepairRaceWait();
+    // Comma delimited list of "nodeId=dc:rack" or "endpoint=dc:rack"
+    void alterTopology(String updates);
 }

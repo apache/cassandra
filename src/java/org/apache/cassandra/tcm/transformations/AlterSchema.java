@@ -224,7 +224,7 @@ public class AlterSchema implements Transformation
             calculatedPlacements.forEach((params, newPlacement) -> {
                 DataPlacement previousPlacement = prev.placements.get(params);
                 // Preserve placement versioning that has resulted from natural application where possible
-                if (previousPlacement.equals(newPlacement))
+                if (previousPlacement.equivalentTo(newPlacement))
                     newPlacementsBuilder.with(params, previousPlacement);
                 else
                     newPlacementsBuilder.with(params, newPlacement);

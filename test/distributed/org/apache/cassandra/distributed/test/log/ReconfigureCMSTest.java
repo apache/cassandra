@@ -134,7 +134,7 @@ public class ReconfigureCMSTest extends FuzzTestBase
                 assertEquals(2, metadata.fullCMSMembers().size());
                 ReplicationParams params = ReplicationParams.meta(metadata);
                 DataPlacement placements = metadata.placements.get(params);
-                assertEquals(placements.reads, placements.writes);
+                assertTrue(placements.reads.equivalentTo(placements.writes));
                 assertEquals(metadata.fullCMSMembers().size(), Integer.parseInt(params.asMap().get("dc0")));
             });
 
@@ -159,7 +159,7 @@ public class ReconfigureCMSTest extends FuzzTestBase
                 Assert.assertTrue(metadata.fullCMSMembers().contains(FBUtilities.getBroadcastAddressAndPort()));
                 assertEquals(3, metadata.fullCMSMembers().size());
                 DataPlacement placements = metadata.placements.get(ReplicationParams.meta(metadata));
-                assertEquals(placements.reads, placements.writes);
+                Assert.assertTrue(placements.reads.equivalentTo(placements.writes));
             });
         }
     }

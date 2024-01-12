@@ -343,6 +343,20 @@ public class ModelState
             return this;
         }
 
+        public Transformer withUpdatedRacks(Map<Node, String> updates)
+        {
+            assert currentNodes.containsAll(updates.keySet());
+            List<Node> newNodes = new ArrayList<>();
+            currentNodes.forEach(node -> {
+               if (updates.containsKey(node))
+                   newNodes.add(node.withNewRack(updates.get(node)));
+               else
+                   newNodes.add(node);
+            });
+            currentNodes = newNodes;
+            return this;
+        }
+
         public Transformer updateSimulation(PlacementSimulator.SimulatedPlacements simulatedPlacements)
         {
             this.simulatedPlacements = simulatedPlacements;

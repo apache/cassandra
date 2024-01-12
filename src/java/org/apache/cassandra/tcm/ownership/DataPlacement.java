@@ -184,6 +184,11 @@ public class DataPlacement
         return Objects.hash(reads, writes);
     }
 
+    public boolean equivalentTo(DataPlacement other)
+    {
+        return reads.equivalentTo(other.reads) && writes.equivalentTo(other.writes);
+    }
+
     public static class Serializer implements MetadataSerializer<DataPlacement>
     {
         private final IPartitioner partitioner;

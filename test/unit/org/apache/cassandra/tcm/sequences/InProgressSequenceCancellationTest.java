@@ -34,7 +34,6 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -44,10 +43,8 @@ import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
-import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PlacementDeltas;
-import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.PrepareReplace;
@@ -304,41 +301,14 @@ public class InProgressSequenceCancellationTest
 
     private void assertRelevantMetadata(ClusterMetadata first, ClusterMetadata second)
     {
-        assertPlacementsEquivalent(first.placements, second.placements);
-        assertTrue(first.directory.isEquivalent(second.directory));
-        assertTrue(first.tokenMap.isEquivalent(second.tokenMap));
+        assertTrue(first.placements.equivalentTo(second.placements));
+        assertTrue(first.directory.equivalentTo(second.directory));
+        assertTrue(first.tokenMap.equivalentTo(second.tokenMap));
         assertEquals(first.lockedRanges.locked.keySet(), second.lockedRanges.locked.keySet());
     }
 
     private static ClusterMetadata metadata(Directory directory)
     {
         return new ClusterMetadata(Murmur3Partitioner.instance, directory);
-    }
-
-    private void assertPlacementsEquivalent(DataPlacements first, DataPlacements second)
-    {
-        assertEquals(first.keys(), second.keys());
-
-        first.asMap().forEach((params, placement) -> {
-            DataPlacement otherPlacement = second.get(params);
-            ReplicaGroups r1 = placement.reads;
-            ReplicaGroups r2 = otherPlacement.reads;
-            assertEquals(r1.ranges, r2.ranges);
-            r1.forEach((range, e1) -> {
-                EndpointsForRange e2 = r2.forRange(range).get();
-                assertEquals(e1.size(),e2.size());
-                assertTrue(e1.get().stream().allMatch(e2::contains));
-            });
-
-            ReplicaGroups w1 = placement.reads;
-            ReplicaGroups w2 = otherPlacement.reads;
-            assertEquals(w1.ranges, w2.ranges);
-            w1.forEach((range, e1) -> {
-                EndpointsForRange e2 = w2.forRange(range).get();
-                assertEquals(e1.size(),e2.size());
-                assertTrue(e1.get().stream().allMatch(e2::contains));
-            });
-
-        });
     }
 }

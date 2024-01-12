@@ -725,6 +725,7 @@ public class TokenPlacementModel
         long token(int tokenIdx);
         Lookup forceToken(int tokenIdx, long token);
         void reset();
+        int rackIdx(String rack);
 
         default NodeId nodeId(int nodeIdx)
         {
@@ -785,6 +786,11 @@ public class TokenPlacementModel
                 return null;
             }
 
+            public int rackIdx(String rack)
+            {
+                throw new UnsupportedOperationException();
+            }
+
             public void reset()
             {
                 throw new UnsupportedOperationException();
@@ -842,6 +848,11 @@ public class TokenPlacementModel
         public String rack(int rackIdx)
         {
             return String.format("rack%d", rackIdx);
+        }
+
+        public int rackIdx(String rack)
+        {
+            throw new UnsupportedOperationException();
         }
     }
 
@@ -1022,6 +1033,12 @@ public class TokenPlacementModel
         {
             return new Node(tokenIdx, nodeIdx, dcIdx, rackIdx, lookup.forceToken(tokenIdx, override));
         }
+
+        public Node withNewRack(String newRack)
+        {
+            return new Node(tokenIdx, nodeIdx, dcIdx, lookup.rackIdx(newRack), lookup);
+        }
+
         public Murmur3Partitioner.LongToken longToken()
         {
             return new Murmur3Partitioner.LongToken(token());

@@ -115,6 +115,9 @@ public class LegacyStateListener implements ChangeListener.Async
                 // state for the local node.
                 Gossiper.instance.maybeInitializeLocalState(SystemKeyspace.incrementAndGetGeneration());
                 Gossiper.instance.addLocalApplicationState(SCHEMA, StorageService.instance.valueFactory.schema(next.schema.getVersion()));
+                // if the local node's location has changed, update system.local.
+                if (!next.directory.location(change).equals(prev.directory.location(change)))
+                    SystemKeyspace.updateLocation(next.directory.location(change));
             }
 
             if (next.directory.peerState(change) == REGISTERED)
@@ -181,6 +184,8 @@ public class LegacyStateListener implements ChangeListener.Async
     {
         return prev.peerState(nodeId) != next.peerState(nodeId) ||
                !Objects.equals(prev.getNodeAddresses(nodeId), next.getNodeAddresses(nodeId)) ||
-               !Objects.equals(prev.version(nodeId), next.version(nodeId));
+               !Objects.equals(prev.version(nodeId), next.version(nodeId)) ||
+               !Objects.equals(prev.location(nodeId), next.location(nodeId));
+
     }
 }

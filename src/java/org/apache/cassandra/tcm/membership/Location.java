@@ -67,6 +67,18 @@ public class Location
         return datacenter + '/' + rack;
     }
 
+    public static Location fromString(String value)
+    {
+        if (value == null || value.isEmpty())
+            return null;
+
+        String[] parts = value.split(":");
+        if (parts.length < 2)
+            throw new IllegalArgumentException("Invalid datacenter:rack -  " + value);
+        else
+            return new Location(parts[0].trim(), parts[1].trim());
+    }
+
     public static class Serializer implements MetadataSerializer<Location>
     {
         public void serialize(Location t, DataOutputPlus out, Version version) throws IOException
