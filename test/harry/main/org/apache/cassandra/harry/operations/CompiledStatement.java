@@ -41,6 +41,13 @@ public class CompiledStatement
                                      bindings);
     }
 
+    public CompiledStatement withFiltering()
+    {
+        return new CompiledStatement(cql.replace(";",
+                                                 " ALLOW FILTERING;"),
+                                     bindings);
+    }
+
     public Object[] bindings()
     {
         return bindings;

@@ -101,7 +101,6 @@ public class PartitionState implements Iterable<Reconciler.RowState>
                 rows.put(cd, rowState);
         }
         PartitionState ps = new PartitionState(pd, debugCd, staticRow, rows, schema);
-        System.out.println("ps.rows.size() = " + ps.rows.size());
         return ps;
     }
 
