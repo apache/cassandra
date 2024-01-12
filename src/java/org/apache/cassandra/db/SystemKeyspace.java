@@ -975,6 +975,13 @@ public final class SystemKeyspace
         executeInternal(format(req, LOCAL, LOCAL), rack);
     }
 
+    public static synchronized void updateLocation(Location location)
+    {
+        String req = "INSERT INTO system.%s (key, data_center, rack) VALUES ('%s', ?, ?)";
+        executeInternal(format(req, LOCAL, LOCAL), location.datacenter, location.rack);
+        forceBlockingFlush(LOCAL);
+    }
+
     public static Set<String> tokensAsSet(Collection<Token> tokens)
     {
         if (tokens.isEmpty())

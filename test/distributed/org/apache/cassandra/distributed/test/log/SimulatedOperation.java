@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test.log;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -40,10 +41,13 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
+import org.apache.cassandra.tcm.membership.Location;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
 import org.apache.cassandra.tcm.sequences.LeaveStreams;
 import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
+import org.apache.cassandra.tcm.transformations.AlterTopology;
 import org.apache.cassandra.tcm.transformations.CancelInProgressSequence;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
@@ -99,6 +103,23 @@ public abstract class SimulatedOperation
                     .updateSimulation(simulatedState)
                     .transform();
 
+    }
+
+    public static ModelState changeRacks(CMSSut sut, ModelState state, Map<Node, String> updates)
+    {
+        ModelState.Transformer transformer = state.transformer()
+                                                  .withUpdatedRacks(updates)
+                                                  .updateSimulation(state.simulatedPlacements);
+
+        Map<NodeId, Location> serviceUpdates = new HashMap<>();
+        for (Map.Entry<Node, String> entry : updates.entrySet())
+        {
+            Node n = entry.getKey();
+            String rack = entry.getValue();
+            serviceUpdates.put(n.nodeId(), new Location(n.dc(), rack));
+        }
+        sut.service.commit(new AlterTopology(serviceUpdates, sut.service.placementProvider()));
+        return transformer.transform();
     }
 
     public static ModelState leave(CMSSut sut, ModelState state, Node node)

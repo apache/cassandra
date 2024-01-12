@@ -186,6 +186,7 @@ import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.compatibility.GossipHelper;
 import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
@@ -199,6 +200,7 @@ import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.SingleNodeSequences;
 import org.apache.cassandra.tcm.transformations.Assassinate;
 import org.apache.cassandra.tcm.transformations.CancelInProgressSequence;
+import org.apache.cassandra.tcm.transformations.AlterTopology;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.tcm.transformations.Unregister;
@@ -5552,5 +5554,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public boolean getPaxosRepairRaceWait()
     {
         return DatabaseDescriptor.getPaxosRepairRaceWait();
+    }
+
+    public void alterTopology(String changes)
+    {
+        Map<NodeId, Location> updates = AlterTopology.parseArgs(changes, ClusterMetadata.current().directory);
+        logger.info("Received request to modify rack assignments. Proposed changes: {}", updates);
+        if (updates.isEmpty())
+            return;
+
+        AlterTopology transform = new AlterTopology(updates, ClusterMetadataService.instance().placementProvider());
+        ClusterMetadataService.instance()
+                              .commit(transform,
+                                      m -> { logger.info("Rack changes committed successfully"); return m; },
+                                      (c, r) -> {
+                                          throw new IllegalArgumentException("Unable to commit rack changes: " + r);
+                                      });
     }
 }

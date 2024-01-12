@@ -20,30 +20,21 @@ package org.apache.cassandra.schema;
 
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.Transformation;
-import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.transformations.AlterSchema;
 import org.apache.cassandra.triggers.TriggersTest;
 
+import static org.apache.cassandra.tcm.sequences.SequencesUtils.ClearLockedRanges;
+import static org.apache.cassandra.tcm.sequences.SequencesUtils.LockRanges;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class SchemaChangeDuringRangeMovementTest extends CQLTester
 {
-    // at the moment, the detail of the specific LockedRanges doesn't matter, transformations
-    // which are rejected in the presence of locking are rejected whatever is actually locked
-    private static final LockedRanges.AffectedRanges toLock =
-        LockedRanges.AffectedRanges.singleton(ReplicationParams.simple(3),
-                                              new Range<>(DatabaseDescriptor.getPartitioner().getMinimumToken(),
-                                                          DatabaseDescriptor.getPartitioner().getRandomToken()));
-
     @Test
     public void testAlwaysPermittedChanges() throws Throwable
     {
@@ -215,40 +206,5 @@ public class SchemaChangeDuringRangeMovementTest extends CQLTester
 
         metadata = ClusterMetadataService.instance().commit(new ClearLockedRanges());
         assertTrue(metadata.lockedRanges.locked.isEmpty());
-    }
-
-
-    // Custom transforms to lock/unlock an arbitrary set of ranges to
-    // avoid having to actually initiate some range movement
-    private static class LockRanges implements Transformation
-    {
-        @Override
-        public Kind kind()
-        {
-            return Kind.CUSTOM;
-        }
-
-        @Override
-        public Result execute(ClusterMetadata metadata)
-        {
-            LockedRanges newLocked = metadata.lockedRanges.lock(LockedRanges.keyFor(metadata.epoch), toLock);
-            return Transformation.success(metadata.transformer().with(newLocked), toLock);
-        }
-    }
-
-    private static class ClearLockedRanges implements Transformation
-    {
-        @Override
-        public Kind kind()
-        {
-            return Kind.CUSTOM;
-        }
-
-        @Override
-        public Result execute(ClusterMetadata metadata)
-        {
-            LockedRanges newLocked = LockedRanges.EMPTY;
-            return Transformation.success(metadata.transformer().with(newLocked), LockedRanges.AffectedRanges.EMPTY);
-        }
     }
 }

@@ -935,10 +935,10 @@ public class MetadataChangeSimulationTest extends CMSTestBase
             while (!state.inFlightOperations.isEmpty())
             {
                 state = state.inFlightOperations.get(random.nextInt(state.inFlightOperations.size())).advance(state);
-                Assert.assertEquals(allSettled, sut.service.metadata().writePlacementAllSettled(ksm));
+                Assert.assertTrue(allSettled.equivalentTo(sut.service.metadata().writePlacementAllSettled(ksm)));
                 validatePlacements(sut, state);
             }
-            Assert.assertEquals(allSettled, sut.service.metadata().placements.get(ksm.params.replication));
+            Assert.assertTrue(allSettled.equivalentTo(sut.service.metadata().placements.get(ksm.params.replication)));
         }
     }
 }

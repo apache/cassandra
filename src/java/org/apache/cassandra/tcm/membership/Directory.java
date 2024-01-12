@@ -237,7 +237,6 @@ public class Directory implements MetadataValue<Directory>
     {
         InetAddressAndPort endpoint = peers.get(id);
         Location location = locations.get(id);
-
         BTreeMultimap<String, InetAddressAndPort> rackEP = (BTreeMultimap<String, InetAddressAndPort>) racksByDC.get(location.datacenter);
         if (rackEP == null)
             rackEP = BTreeMultimap.empty();
@@ -266,6 +265,26 @@ public class Directory implements MetadataValue<Directory>
         return new Directory(nextId, lastModified, peers, locations, states, versions, hostIds, addresses,
                              endpointsByDC.without(location.datacenter, endpoint),
                              newRacksByDC);
+    }
+
+    public Directory withUpdatedRackAndDc(NodeId id, Location location)
+    {
+        if (!peers.containsKey(id))
+            throw new IllegalArgumentException(String.format("Node %s has no registered location to update", id));
+
+        return withoutRackAndDC(id).withLocation(id, location).withRackAndDC(id);
+    }
+
+    private Directory withLocation(NodeId id, Location location)
+    {
+        if (!locations.containsKey(id))
+            throw new IllegalArgumentException(String.format("Node %s has no registered location to update", id));
+
+        if (locations.get(id).equals(location))
+            return this;
+
+        return new Directory(nextId, lastModified, peers, locations.withForce(id, location), states, versions, hostIds,
+                             addresses, endpointsByDC, racksByDC);
     }
 
     public Directory without(NodeId id)
@@ -665,7 +684,7 @@ public class Directory implements MetadataValue<Directory>
         Directory directory = (Directory) o;
 
         return Objects.equals(lastModified, directory.lastModified) &&
-               isEquivalent(directory);
+               equivalentTo(directory);
     }
 
     private static Pair<NodeVersion, NodeVersion> minMaxVersions(BTreeMap<NodeId, NodeState> states, BTreeMap<NodeId, NodeVersion> versions)
@@ -700,7 +719,7 @@ public class Directory implements MetadataValue<Directory>
      * does not check equality of lastModified
      */
     @VisibleForTesting
-    public boolean isEquivalent(Directory directory)
+    public boolean equivalentTo(Directory directory)
     {
         return nextId == directory.nextId &&
                Objects.equals(peers, directory.peers) &&

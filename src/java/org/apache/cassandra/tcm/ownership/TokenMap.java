@@ -255,7 +255,7 @@ public class TokenMap implements MetadataValue<TokenMap>
         if (!(o instanceof TokenMap)) return false;
         TokenMap tokenMap = (TokenMap) o;
         return Objects.equals(lastModified, tokenMap.lastModified) &&
-               isEquivalent(tokenMap);
+               equivalentTo(tokenMap);
     }
 
     @Override
@@ -269,7 +269,7 @@ public class TokenMap implements MetadataValue<TokenMap>
      *
      * does not check equality of lastModified
      */
-    public boolean isEquivalent(TokenMap tokenMap)
+    public boolean equivalentTo(TokenMap tokenMap)
     {
         return Objects.equals(map, tokenMap.map) &&
                Objects.equals(partitioner, tokenMap.partitioner);
