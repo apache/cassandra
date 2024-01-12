@@ -50,11 +50,11 @@ import org.apache.cassandra.harry.tracker.DataTracker;
  */
 public class AgainstSutChecker implements Model
 {
-    private final OpSelectors.Clock clock;
-    private final SystemUnderTest sut;
-    private final SchemaSpec schema;
-    private final SchemaSpec doubleWriteTable;
-    private final DataTracker tracker;
+    protected final OpSelectors.Clock clock;
+    protected final SystemUnderTest sut;
+    protected final SchemaSpec schema;
+    protected final SchemaSpec doubleWriteTable;
+    protected final DataTracker tracker;
 
     public AgainstSutChecker(DataTracker tracker,
                              OpSelectors.Clock clock,
@@ -72,14 +72,12 @@ public class AgainstSutChecker implements Model
     public void validate(Query query)
     {
         tracker.beginValidation(query.pd);
-        CompiledStatement s1 = query.toSelectStatement(schema.allColumnsSet, true);
-        CompiledStatement s2 = s1.withSchema(schema.keyspace, schema.table,
-                                             doubleWriteTable.keyspace, doubleWriteTable.table);
-        List<ResultSetRow> rows1 = SelectHelper.execute(sut, clock, s1, schema);
-        List<ResultSetRow> rows2 = SelectHelper.execute(sut, clock, s2, doubleWriteTable);
+
+        List<ResultSetRow> rows1 = executeOnMainSchema(query);
+        List<ResultSetRow> rows2 = executeOnDebugSchema(query);
 
         if (rows1.size() != rows2.size())
-            throw new IllegalStateException(String.format("Sizes do not match %d %d", rows1.size(), rows2.size()));
+            throw new IllegalStateException(String.format("Sizes do not match %d %d\n%s\n%s\nQuery:%s\n", rows1.size(), rows2.size(), rows1, rows2, query.toSelectStatement()));
 
         for (int i = 0; i < rows1.size(); i++)
         {
@@ -95,5 +93,17 @@ public class AgainstSutChecker implements Model
         tracker.endValidation(query.pd);
     }
 
+    protected final List<ResultSetRow> executeOnMainSchema(Query query)
+    {
+        CompiledStatement s1 = query.toSelectStatement(schema.allColumnsSet, true);
+        return SelectHelper.execute(sut, clock, s1, schema);
+    }
+
+    protected List<ResultSetRow> executeOnDebugSchema(Query query)
+    {
+        CompiledStatement s2 = query.toSelectStatement(doubleWriteTable.allColumnsSet, true)
+                                    .withSchema(schema.keyspace, schema.table, doubleWriteTable.keyspace, doubleWriteTable.table);
+        return SelectHelper.execute(sut, clock, s2, schema);
+    }
 
 }

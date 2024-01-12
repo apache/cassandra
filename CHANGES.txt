@@ -1,4 +1,5 @@
 5.1
+ * Harry model and in-JVM tests for partition-restricted 2i queries (CASSANDRA-18275)
  * Refactor cqlshmain global constants (CASSANDRA-19201)
  * Remove native_transport_port_ssl (CASSANDRA-19397)
  * Make nodetool reconfigurecms sync by default and add --cancel to be able to cancel ongoing reconfigurations (CASSANDRA-19216)
