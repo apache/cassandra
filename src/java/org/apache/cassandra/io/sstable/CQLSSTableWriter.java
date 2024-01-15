@@ -23,10 +23,12 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Preconditions;
@@ -75,6 +77,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JavaDriverUtils;
+import org.apache.cassandra.utils.Pair;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -123,6 +126,8 @@ public class CQLSSTableWriter implements Closeable
 {
     public static final ByteBuffer UNSET_VALUE = ByteBufferUtil.UNSET_BYTE_BUFFER;
 
+    private static final Map<Pair<String, String>, Pair<TableMetadata, AtomicInteger>> currentTables = new HashMap<>();
+
     static
     {
         CassandraRelevantProperties.FORCE_LOAD_LOCAL_KEYSPACES.setBoolean(true);
@@ -136,14 +141,19 @@ public class CQLSSTableWriter implements Closeable
     private final ModificationStatement modificationStatement;
     private final List<ColumnSpecification> boundNames;
     private final List<TypeCodec> typeCodecs;
+    private final boolean removeSchemaAfterDone;
 
-    private CQLSSTableWriter(AbstractSSTableSimpleWriter writer, ModificationStatement modificationStatement, List<ColumnSpecification> boundNames)
+    private CQLSSTableWriter(AbstractSSTableSimpleWriter writer,
+                             ModificationStatement modificationStatement,
+                             List<ColumnSpecification> boundNames,
+                             boolean removeSchemaAfterDone)
     {
         this.writer = writer;
         this.modificationStatement = modificationStatement;
         this.boundNames = boundNames;
         this.typeCodecs = boundNames.stream().map(bn -> JavaDriverUtils.codecFor(JavaDriverUtils.driverType(bn.type)))
                                     .collect(Collectors.toList());
+        this.removeSchemaAfterDone = removeSchemaAfterDone;
     }
 
     /**
@@ -361,7 +371,37 @@ public class CQLSSTableWriter implements Closeable
      */
     public void close() throws IOException
     {
-        writer.close();
+
+        synchronized (CQLSSTableWriter.class)
+        {
+            TableMetadata metadata = writer.metadata.get();
+            try
+            {
+                writer.close();
+            }
+            finally
+            {
+                Pair<TableMetadata, AtomicInteger> pair = currentTables.get(Pair.create(metadata.keyspace, metadata.name));
+
+                if (pair != null && pair.right().decrementAndGet() == 0 && removeSchemaAfterDone)
+                {
+                    currentTables.remove(pair);
+
+                    KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(metadata.keyspace);
+                    assert ksm != null;
+
+                    Keyspaces keyspaces = Keyspaces.builder().add(ksm)
+                                                   .build()
+                                                   .withAddedOrUpdated(ksm.withSwapped(ksm.tables.without(metadata)));
+
+                    KeyspaceMetadata keyspaceMetadata = keyspaces.getNullable(metadata.keyspace);
+                    assert keyspaceMetadata != null;
+
+                    Schema.instance.transform(schema -> schema.withAddedOrUpdated(keyspaceMetadata), true);
+                    Schema.instance.transform(schema -> schema.without(keyspaceMetadata.name), true);
+                }
+            }
+        }
     }
 
     private ByteBuffer serialize(Object value, TypeCodec codec, ColumnSpecification columnSpecification)
@@ -401,6 +441,7 @@ public class CQLSSTableWriter implements Closeable
         private boolean sorted = false;
         private long maxSSTableSizeInMiB = -1L;
         private boolean buildIndexes = true;
+        private boolean removeSchemaAfterDone = true;
 
         protected Builder()
         {
@@ -614,6 +655,19 @@ public class CQLSSTableWriter implements Closeable
             return this;
         }
 
+        /**
+         * Whether the underlying schema which was created for the purpose of the generation should be
+         * removed when the writing is finished. Defaults to true and should not be changed under normal circumstances.
+         *
+         * @param removeSchemaAfterDone true if underlying schema will be removed, false otherwise.
+         * @return this builder
+         */
+        public Builder removeSchemaAfterDone(boolean removeSchemaAfterDone)
+        {
+            this.removeSchemaAfterDone = removeSchemaAfterDone;
+            return this;
+        }
+
         public CQLSSTableWriter build()
         {
             if (directory == null)
@@ -653,6 +707,7 @@ public class CQLSSTableWriter implements Closeable
                     Types types = createTypes(keyspaceName);
                     Schema.instance.transform(SchemaTransformations.addTypes(types, true));
                     tableMetadata = createTable(types);
+                    tableMetadata = tableMetadata.unbuild().allowAutoSnapshot(false).build();
 
                     Keyspace.setInitialized();
 
@@ -677,6 +732,22 @@ public class CQLSSTableWriter implements Closeable
                     }
 
                     Schema.instance.transform(SchemaTransformations.addTable(tableMetadata, true));
+                    currentTables.put(Pair.create(tableMetadata.keyspace, tableMetadata.name), Pair.create(tableMetadata, new AtomicInteger(1)));
+                }
+                else
+                {
+                    Pair<TableMetadata, AtomicInteger> entry = currentTables.get(Pair.create(tableMetadata.keyspace, tableMetadata.name));
+                    if (entry != null)
+                    {
+                        if (!entry.left.equals(tableMetadata))
+                        {
+                            throw new IllegalStateException();
+                        }
+                        else
+                        {
+                            entry.right.incrementAndGet();
+                        }
+                    }
                 }
 
                 ModificationStatement preparedModificationStatement = prepareModificationStatement();
@@ -696,7 +767,7 @@ public class CQLSSTableWriter implements Closeable
                         writer.addIndexGroup(saiGroup);
                 }
 
-                return new CQLSSTableWriter(writer, preparedModificationStatement, preparedModificationStatement.getBindVariables());
+                return new CQLSSTableWriter(writer, preparedModificationStatement, preparedModificationStatement.getBindVariables(), removeSchemaAfterDone);
             }
         }
 

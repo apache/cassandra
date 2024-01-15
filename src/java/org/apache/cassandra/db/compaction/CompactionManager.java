@@ -121,6 +121,7 @@ import static java.util.Collections.singleton;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.FutureTask.callable;
 import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentCompactors;
+import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentValidations;
 import static org.apache.cassandra.db.compaction.CompactionManager.CompactionExecutor.compactionThreadGroup;
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
@@ -2012,7 +2013,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
 
         public CompactionExecutor()
         {
-            this(executorFactory(), getConcurrentCompactors(), "CompactionExecutor", Integer.MAX_VALUE);
+            this(executorFactory(), DatabaseDescriptor.isClientOrToolInitialized() ? 1 : getConcurrentCompactors(), "CompactionExecutor", Integer.MAX_VALUE);
         }
 
         public CompactionExecutor(int threads, String name, int queueSize)
@@ -2099,15 +2100,15 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
 
         public ValidationExecutor()
         {
-            super(DatabaseDescriptor.getConcurrentValidations(),
+            super(getConcurrentValidations() > 0 ? getConcurrentValidations() : 1,
                   "ValidationExecutor",
                   Integer.MAX_VALUE);
         }
 
         public void adjustPoolSize()
         {
-            setMaximumPoolSize(DatabaseDescriptor.getConcurrentValidations());
-            setCorePoolSize(DatabaseDescriptor.getConcurrentValidations());
+            setMaximumPoolSize(getConcurrentValidations() > 0 ? getConcurrentValidations() : 1);
+            setCorePoolSize(getConcurrentValidations() > 0 ? getConcurrentValidations() : 1);
         }
     }
 

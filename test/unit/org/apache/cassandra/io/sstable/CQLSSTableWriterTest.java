@@ -32,6 +32,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -52,6 +53,7 @@ import org.apache.cassandra.cql3.functions.types.LocalDate;
 import org.apache.cassandra.cql3.functions.types.TypeCodec;
 import org.apache.cassandra.cql3.functions.types.UDTValue;
 import org.apache.cassandra.cql3.functions.types.UserType;
+import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -80,6 +82,8 @@ public abstract class CQLSSTableWriterTest
 {
     private static final AtomicInteger idGen = new AtomicInteger(0);
     private static final int NUMBER_WRITES_IN_RUNNABLE = 10;
+
+    private Supplier<CQLSSTableWriter.Builder> defaultBuilderSupplier = () -> CQLSSTableWriter.builder().removeSchemaAfterDone(false);
 
     @Rule
     public TemporaryFolder tempFolder = new TemporaryFolder();
@@ -110,7 +114,7 @@ public abstract class CQLSSTableWriterTest
                             + "  v2 int"
                             + ")";
             String insert = "INSERT INTO " + qualifiedTable + " (k, v1, v2) VALUES (?, ?, ?)";
-            CQLSSTableWriter writer = CQLSSTableWriter.builder()
+            CQLSSTableWriter writer = defaultBuilderSupplier.get()
                                                       .inDirectory(dataDir)
                                                       .forTable(schema)
                                                       .using(insert).build();
@@ -164,7 +168,7 @@ public abstract class CQLSSTableWriterTest
         String insert = String.format("UPDATE " + qualifiedTable + " SET my_counter = my_counter - ? WHERE my_id = ?");
         try
         {
-            CQLSSTableWriter.builder().inDirectory(dataDir)
+            defaultBuilderSupplier.get().inDirectory(dataDir)
                             .forTable(schema)
                             .withPartitioner(Murmur3Partitioner.instance)
                             .using(insert).build();
@@ -187,7 +191,7 @@ public abstract class CQLSSTableWriterTest
                         + "  v blob"
                         + ")";
         String insert = "INSERT INTO " + qualifiedTable + " (k, v) VALUES (?, ?)";
-        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+        CQLSSTableWriter writer = defaultBuilderSupplier.get()
                                                   .inDirectory(dataDir)
                                                   .using(insert)
                                                   .forTable(schema)
@@ -214,7 +218,7 @@ public abstract class CQLSSTableWriterTest
                         + "  PRIMARY KEY (k)"
                         + ")";
         String insert = "INSERT INTO " + qualifiedTable + " (k, c) VALUES (?, ?)";
-        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+        CQLSSTableWriter writer = defaultBuilderSupplier.get()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using(insert)
@@ -244,7 +248,7 @@ public abstract class CQLSSTableWriterTest
         UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
         assertEquals(2, resultSet.size());
 
-        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+        CQLSSTableWriter writer = defaultBuilderSupplier.get()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using("DELETE FROM " + qualifiedTable +
@@ -275,7 +279,7 @@ public abstract class CQLSSTableWriterTest
                               + ")";
 
         // First, write some rows
-        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+        CQLSSTableWriter writer = defaultBuilderSupplier.get()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using("INSERT INTO " + qualifiedTable + " (k, c1, c2, v) " +
@@ -315,7 +319,7 @@ public abstract class CQLSSTableWriterTest
         assertEquals("d", r4.getString("v"));
         assertFalse(iter.hasNext());
 
-        writer = CQLSSTableWriter.builder()
+        writer = defaultBuilderSupplier.get()
                                  .inDirectory(dataDir)
                                  .forTable(schema)
                                  .using("DELETE FROM " + qualifiedTable +
@@ -349,12 +353,12 @@ public abstract class CQLSSTableWriterTest
                               + "  PRIMARY KEY (k, c1, c2)"
                               + ")";
 
-        CQLSSTableWriter updateWriter = CQLSSTableWriter.builder()
+        CQLSSTableWriter updateWriter = defaultBuilderSupplier.get()
                                                         .inDirectory(dataDir)
                                                         .forTable(schema)
                                                         .using(String.format("UPDATE %s SET v=? WHERE k=? AND c1=? AND c2=?", qualifiedTable))
                                                         .build();
-        CQLSSTableWriter deleteWriter = CQLSSTableWriter.builder()
+        CQLSSTableWriter deleteWriter = defaultBuilderSupplier.get()
                                                         .inDirectory(dataDir)
                                                         .forTable(schema)
                                                         .using(String.format("DELETE FROM %s WHERE k=? AND c1=? and c2>=?", qualifiedTable))
@@ -403,12 +407,12 @@ public abstract class CQLSSTableWriterTest
                               + "  PRIMARY KEY (k, c1, c2)"
                               + ")";
 
-        CQLSSTableWriter updateWriter = CQLSSTableWriter.builder()
+        CQLSSTableWriter updateWriter = defaultBuilderSupplier.get()
                                                         .inDirectory(dataDir)
                                                         .forTable(schema)
                                                         .using(String.format("UPDATE %s SET v=? WHERE k=? AND c1=? AND c2=?", qualifiedTable))
                                                         .build();
-        CQLSSTableWriter deleteWriter = CQLSSTableWriter.builder()
+        CQLSSTableWriter deleteWriter = defaultBuilderSupplier.get()
                                                         .inDirectory(dataDir)
                                                         .forTable(schema)
                                                         .using(String.format("DELETE FROM %s WHERE k=? AND c1=?", qualifiedTable))
@@ -451,7 +455,7 @@ public abstract class CQLSSTableWriterTest
                               + "  PRIMARY KEY (k, c1, c2)"
                               + ")";
 
-        CQLSSTableWriter insertWriter = CQLSSTableWriter.builder()
+        CQLSSTableWriter insertWriter = defaultBuilderSupplier.get()
                                                         .inDirectory(dataDir)
                                                         .forTable(schema)
                                                         .using(String.format("INSERT INTO %s (v, k, c1, c2) values (?, ?, ?, ?)", qualifiedTable))
@@ -459,13 +463,13 @@ public abstract class CQLSSTableWriterTest
 
         // UPDATE does not set the row's liveness information, just the cells'. So when we delete the value from rows
         // added with the updateWriter, the entire row will no longer exist, not just the value.
-        CQLSSTableWriter updateWriter = CQLSSTableWriter.builder()
+        CQLSSTableWriter updateWriter = defaultBuilderSupplier.get()
                                                         .inDirectory(dataDir)
                                                         .forTable(schema)
                                                         .using(String.format("UPDATE %s SET v=? WHERE k=? AND c1=? AND c2=?", qualifiedTable))
                                                         .build();
 
-        CQLSSTableWriter deleteWriter = CQLSSTableWriter.builder()
+        CQLSSTableWriter deleteWriter = defaultBuilderSupplier.get()
                                                         .inDirectory(dataDir)
                                                         .forTable(schema)
                                                         .using("DELETE v FROM " + qualifiedTable +
@@ -547,7 +551,7 @@ public abstract class CQLSSTableWriterTest
                               + "  PRIMARY KEY (k)"
                               + ")";
 
-        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+        CQLSSTableWriter writer = defaultBuilderSupplier.get()
                                                   .inDirectory(dataDir)
                                                   .withType("CREATE TYPE " + keyspace + ".tuple2 (a int, b int)")
                                                   .withType("CREATE TYPE " + keyspace + ".tuple3 (a int, b int, c int)")
@@ -613,7 +617,7 @@ public abstract class CQLSSTableWriterTest
                               + "  PRIMARY KEY (k)"
                               + ")";
 
-        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+        CQLSSTableWriter writer = defaultBuilderSupplier.get()
                                                   .inDirectory(dataDir)
                                                   .withType("CREATE TYPE " + keyspace + ".nested_tuple (c int, tpl frozen<tuple2>)")
                                                   .withType("CREATE TYPE " + keyspace + ".tuple2 (a int, b int)")
@@ -672,7 +676,7 @@ public abstract class CQLSSTableWriterTest
                               + "  PRIMARY KEY (k, c1, c2)"
                               + ")";
 
-        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+        CQLSSTableWriter writer = defaultBuilderSupplier.get()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using("INSERT INTO " + qualifiedTable + " (k, c1, c2, v) " +
@@ -768,7 +772,7 @@ public abstract class CQLSSTableWriterTest
                               + "  PRIMARY KEY (k, c1, c2)"
                               + ")";
 
-        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+        CQLSSTableWriter writer = defaultBuilderSupplier.get()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using("UPDATE " + qualifiedTable + " SET v = ? " +
@@ -810,7 +814,7 @@ public abstract class CQLSSTableWriterTest
                               + "  PRIMARY KEY (k, c1, c2)"
                               + ")";
 
-        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+        CQLSSTableWriter writer = defaultBuilderSupplier.get()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using("INSERT INTO " + qualifiedTable + " (k, c1, c2, v) VALUES (?, ?, ?, text_as_blob(?))")
@@ -852,7 +856,7 @@ public abstract class CQLSSTableWriterTest
                               + "  PRIMARY KEY (k)"
                               + ")";
 
-        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+        CQLSSTableWriter writer = defaultBuilderSupplier.get()
                                                   .inDirectory(dataDir)
                                                   .withType("CREATE TYPE " + keyspace + ".nested_type (a list<tuple<int, int>>)")
                                                   .forTable(schema)
@@ -883,7 +887,7 @@ public abstract class CQLSSTableWriterTest
                         + "  PRIMARY KEY (k)"
                         + ")";
         String insert = "INSERT INTO " + qualifiedTable + " (k, c) VALUES (?, ?)";
-        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+        CQLSSTableWriter writer = defaultBuilderSupplier.get()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using(insert)
@@ -923,7 +927,7 @@ public abstract class CQLSSTableWriterTest
                         + "  PRIMARY KEY (k, c)"
                         + ")";
         String insert = "INSERT INTO " + qualifiedTable + " (k, c) VALUES (?, ?)";
-        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+        CQLSSTableWriter writer = defaultBuilderSupplier.get()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using(insert)
@@ -983,7 +987,7 @@ public abstract class CQLSSTableWriterTest
                         + "  PRIMARY KEY (k, c)"
                         + ")";
         String insert = "INSERT INTO " + qualifiedTable + " (k, c) VALUES (?, ?)";
-        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+        CQLSSTableWriter writer = defaultBuilderSupplier.get()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using(insert)
@@ -1037,7 +1041,7 @@ public abstract class CQLSSTableWriterTest
                         + "  PRIMARY KEY (k, c)"
                         + ")";
         String insert = "INSERT INTO " + qualifiedTable + " (k, c) VALUES (?, ?)";
-        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+        CQLSSTableWriter writer = defaultBuilderSupplier.get()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using(insert)
@@ -1092,7 +1096,7 @@ public abstract class CQLSSTableWriterTest
                               + "  PRIMARY KEY (k)"
                               + ")";
 
-        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+        CQLSSTableWriter writer = defaultBuilderSupplier.get()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using("INSERT INTO " + qualifiedTable +
@@ -1129,7 +1133,7 @@ public abstract class CQLSSTableWriterTest
                               + "  PRIMARY KEY (k)"
                               + ")";
 
-        CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
+        CQLSSTableWriter.Builder builder = defaultBuilderSupplier.get()
                                                            .inDirectory(dataDir)
                                                            .forTable(schema)
                                                            .using("INSERT INTO " + qualifiedTable +
@@ -1166,7 +1170,7 @@ public abstract class CQLSSTableWriterTest
                               + "  PRIMARY KEY (k)"
                               + ")";
 
-        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+        CQLSSTableWriter writer = defaultBuilderSupplier.get()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using("INSERT INTO " + qualifiedTable +
@@ -1203,7 +1207,7 @@ public abstract class CQLSSTableWriterTest
         String schema = "CREATE TABLE " + qualifiedTable + " ("
                         + "  k int PRIMARY KEY,"
                         + "  v blob )";
-        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+        CQLSSTableWriter writer = defaultBuilderSupplier.get()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using("INSERT INTO " + qualifiedTable +
@@ -1234,7 +1238,7 @@ public abstract class CQLSSTableWriterTest
         String schema = "CREATE TABLE " + qualifiedTable + " ("
                         + "  k int PRIMARY KEY,"
                         + "  v blob )";
-        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+        CQLSSTableWriter writer = defaultBuilderSupplier.get()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using("INSERT INTO " + qualifiedTable +
@@ -1293,13 +1297,13 @@ public abstract class CQLSSTableWriterTest
 
         String insert = "INSERT INTO client_test.%s (k, v1, v2) VALUES (?, ?, ?)";
 
-        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+        CQLSSTableWriter writer = defaultBuilderSupplier.get()
                                                   .inDirectory(dataDir)
                                                   .forTable(String.format(schema, table1))
                                                   .using(String.format(insert, table1))
                                                   .build();
 
-        CQLSSTableWriter writer2 = CQLSSTableWriter.builder()
+        CQLSSTableWriter writer2 = defaultBuilderSupplier.get()
                                                    .inDirectory(dataDir)
                                                    .forTable(String.format(schema, table2))
                                                    .using(String.format(insert, table2))
@@ -1321,21 +1325,28 @@ public abstract class CQLSSTableWriterTest
     @Test
     public void testWriteWithSAI() throws Exception
     {
-        writeWithSaiInternal();
-        writeWithSaiInternal();
-    }
-
-    private void writeWithSaiInternal() throws Exception
-    {
         String schema = "CREATE TABLE " + qualifiedTable + " ("
                         + "  k int PRIMARY KEY,"
                         + "  v1 text,"
                         + "  v2 int )";
 
-        String v1Index = "CREATE INDEX idx1 ON " + qualifiedTable + " (v1) USING 'sai'";
-        String v2Index = "CREATE INDEX idx2 ON " + qualifiedTable + " (v2) USING 'sai'";
+        String schema2 = "CREATE TABLE " + qualifiedTable + " ("
+                        + "  k int PRIMARY KEY,"
+                        + "  v1 text,"
+                        + "  v2 int,"
+                        + "  v3 text )";
 
         String insert = "INSERT INTO " + qualifiedTable + " (k, v1, v2) VALUES (?, ?, ?)";
+        String insert2 = "INSERT INTO " + qualifiedTable + " (k, v1, v2, v3) VALUES (?, ?, ?, ?)";
+
+        writeWithSaiInternal(schema, insert, 3);
+        writeWithSaiInternal(schema2, insert2, 4);
+    }
+
+    private void writeWithSaiInternal(String schema, String insert, int columns) throws Exception
+    {
+        String v1Index = "CREATE INDEX idx1 ON " + qualifiedTable + " (v1) USING 'sai'";
+        String v2Index = "CREATE INDEX idx2 ON " + qualifiedTable + " (v2) USING 'sai'";
 
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
@@ -1348,7 +1359,14 @@ public abstract class CQLSSTableWriterTest
 
         int rowCount = 30_000;
         for (int i = 0; i < rowCount; i++)
-            writer.addRow(i, UUID.randomUUID().toString(), i);
+        {
+            if (columns == 3)
+                writer.addRow(i, UUID.randomUUID().toString(), i);
+            else
+                writer.addRow(i, UUID.randomUUID().toString(), i, UUID.randomUUID().toString());
+        }
+
+        ClusteringComparator comparator = Schema.instance.getTableMetadata(keyspace, table).comparator;
 
         writer.close();
 
@@ -1357,7 +1375,7 @@ public abstract class CQLSSTableWriterTest
 
         IndexDescriptor indexDescriptor = IndexDescriptor.create(Descriptor.fromFile(dataFiles[0]),
                                                                  Murmur3Partitioner.instance,
-                                                                 Schema.instance.getTableMetadata(keyspace, table).comparator);
+                                                                 comparator);
 
         assertTrue(indexDescriptor.isPerColumnIndexBuildComplete(new IndexIdentifier(keyspace, table, "idx1")));
         assertTrue(indexDescriptor.isPerColumnIndexBuildComplete(new IndexIdentifier(keyspace, table, "idx2")));
@@ -1379,7 +1397,7 @@ public abstract class CQLSSTableWriterTest
 
         String insert = "INSERT INTO " + qualifiedTable + " (k, v1, v2) VALUES (?, ?, ?)";
 
-        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+        CQLSSTableWriter writer = defaultBuilderSupplier.get()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using(insert)
@@ -1439,7 +1457,7 @@ public abstract class CQLSSTableWriterTest
                             + "  PRIMARY KEY (k, v)"
                             + ")";
             String insert = "INSERT INTO " + qualifiedTable + " (k, v) VALUES (?, ?)";
-            CQLSSTableWriter writer = CQLSSTableWriter.builder()
+            CQLSSTableWriter writer = defaultBuilderSupplier.get()
                                                       .inDirectory(dataDir)
                                                       .forTable(schema)
                                                       .using(insert).build();

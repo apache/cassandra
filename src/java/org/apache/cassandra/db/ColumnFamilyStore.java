@@ -733,11 +733,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     void unregisterMBean() throws MalformedObjectNameException
     {
-        ObjectName[] objectNames = {new ObjectName(mbeanName), new ObjectName(oldMBeanName)};
-        for (ObjectName objectName : objectNames)
+        if (mbeanName != null && oldMBeanName != null)
         {
-            if (MBeanWrapper.instance.isRegistered(objectName))
-                MBeanWrapper.instance.unregisterMBean(objectName);
+            ObjectName[] objectNames = {new ObjectName(mbeanName), new ObjectName(oldMBeanName)};
+            for (ObjectName objectName : objectNames)
+            {
+                if (MBeanWrapper.instance.isRegistered(objectName))
+                    MBeanWrapper.instance.unregisterMBean(objectName);
+            }
         }
 
         // unregister metrics
@@ -2804,10 +2807,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public void unloadCf()
     {
-        if (keyspace.getMetadata().params.durableWrites && !memtableWritesAreDurable())  // need to clear dirty regions
-            forceBlockingFlush(ColumnFamilyStore.FlushReason.DROP);
-        else
-            FBUtilities.waitOnFuture(dumpMemtable());
+        if (DatabaseDescriptor.isDaemonInitialized())
+        {
+            if (keyspace.getMetadata().params.durableWrites && !memtableWritesAreDurable())  // need to clear dirty regions
+                forceBlockingFlush(ColumnFamilyStore.FlushReason.DROP);
+            else
+                FBUtilities.waitOnFuture(dumpMemtable());
+        }
     }
 
     public <V> V runWithCompactionsDisabled(Callable<V> callable, OperationType operationType, boolean interruptValidation, boolean interruptViews)
@@ -3408,7 +3414,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         if (isAutoSnapshotEnabled())
             snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, ColumnFamilyStore.SNAPSHOT_DROP_PREFIX), DatabaseDescriptor.getAutoSnapshotTtl());
 
-        CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
+        if (DatabaseDescriptor.isDaemonInitialized())
+            CommitLog.instance.forceRecycleAllSegments(Collections.singleton(metadata.id));
 
         compactionStrategyManager.shutdown();
 
