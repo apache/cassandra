@@ -86,7 +86,6 @@ import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.sstable.Descriptor;
