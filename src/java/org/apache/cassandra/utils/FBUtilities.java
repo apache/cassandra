@@ -758,7 +758,7 @@ public class FBUtilities
             if (e instanceof ConfigurationException)
                 throw (ConfigurationException) e;
             else
-                throw new ConfigurationException(format("Unable to create an instance of crypto provider for %s", className), e);
+                throw new ConfigurationException(String.format("Unable to create an instance of crypto provider for %s", className), e);
         }
     }
 
