@@ -28,6 +28,7 @@ import accord.utils.async.AsyncResults;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
@@ -203,8 +204,10 @@ public abstract class AccordFastPathCoordinator implements ChangeListener, Confi
         @Override
         void updateFastPath(Node.Id node, Status status, long updateTimeMillis, long updateDelayMillis)
         {
-            ClusterMetadataService.instance().commit(new ReconfigureAccordFastPath(node, status, updateTimeMillis, updateDelayMillis),
-                    metadata -> metadata, ((code, message) -> null));
+            Stage.MISC.submit(() -> {
+                ClusterMetadataService.instance().commit(new ReconfigureAccordFastPath(node, status, updateTimeMillis, updateDelayMillis),
+                        metadata -> metadata, ((code, message) -> null));
+            });
         }
 
         @Override
