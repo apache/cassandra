@@ -384,7 +384,10 @@ public enum CassandraRelevantProperties
     SYSTEM_VIEWS_INCLUDE_INDEXES("cassandra.system_view.include_indexes"),
     VALIDATE_MAX_TERM_SIZE_AT_COORDINATOR("cassandra.sai.validate_max_term_size_at_coordinator"),
     CUSTOM_KEYSPACES_FILTER_PROVIDER("cassandra.custom_keyspaces_filter_provider_class"),
-    CUSTOM_READ_OBSERVER_FACTORY("cassandra.custom_read_observer_factory_class");
+    CUSTOM_READ_OBSERVER_FACTORY("cassandra.custom_read_observer_factory_class"),
+
+    // Allows skipping advising the OS to free cached pages associated with commitlog flushing
+    COMMITLOG_SKIP_FILE_ADVICE("cassandra.commitlog.skip_file_advice");
 
     CassandraRelevantProperties(String key, String defaultVal)
     {

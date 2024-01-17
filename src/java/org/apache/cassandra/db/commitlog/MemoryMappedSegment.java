@@ -22,23 +22,32 @@ import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.INativeLibrary;
 import org.apache.cassandra.utils.SyncUtil;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.COMMITLOG_SKIP_FILE_ADVICE;
 
 /*
  * Memory-mapped segment. Maps the destination channel into an appropriately-sized memory-mapped buffer in which the
  * mutation threads write. On sync forces the buffer to disk.
  * If possible, recycles used segment files to avoid reallocating large chunks of disk.
  */
-public class MemoryMappedSegment extends CommitLogSegment
+class MemoryMappedSegment extends CommitLogSegment
 {
+    @VisibleForTesting
+    static boolean skipFileAdviseToFreePageCache = COMMITLOG_SKIP_FILE_ADVICE.getBoolean();
+
     /**
      * Constructs a new segment file.
      *
      * @param commitLog the commit log it will be used with.
+     * @param manager the commit log segment manager that is linked with {@code commitLog}.
      */
     MemoryMappedSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager)
     {
@@ -90,6 +99,15 @@ public class MemoryMappedSegment extends CommitLogSegment
         {
             throw new FSWriteError(e, getPath());
         }
+
+        if (!skipFileAdviseToFreePageCache)
+        {
+            adviceOnFileToFreePageCache(fd, startMarker, nextMarker, logFile);
+        }
+    }
+
+    void adviceOnFileToFreePageCache(int fd, int startMarker, int nextMarker, File logFile)
+    {
         INativeLibrary.instance.trySkipCache(fd, startMarker, nextMarker, logFile.absolutePath());
     }
 
