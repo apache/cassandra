@@ -72,7 +72,7 @@ public class SimpleReadWriteTest extends TestBaseImpl
                                                               DeflateCompressor.class.getSimpleName(),
                                                               SnappyCompressor.class.getSimpleName(),
                                                               ZstdCompressor.class.getSimpleName(),
-                                                              QPLCompressor.class.getSimpleName()};
+                                                              QPLCompressor.class.getSimpleName() };
     private static final int SECOND_SSTABLE_INTERVAL = 2;
     private static final int MEMTABLE_INTERVAL = 5;
 

@@ -75,7 +75,7 @@ public class RecoveryManagerMissingHeaderTest
             {new ParameterizedClass(SnappyCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
             {new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
             {new ParameterizedClass(ZstdCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
-            {new ParameterizedClass(QPLCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()}});
+            { new ParameterizedClass(QPLCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext() } });
     }
 
     @Before

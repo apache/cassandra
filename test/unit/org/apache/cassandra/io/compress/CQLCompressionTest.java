@@ -258,17 +258,17 @@ public class CQLCompressionTest extends CQLTester
     public void qplParamsTest()
     {
         createTable("create table %s (id int primary key, uh text) with compression = {'class':'QPLCompressor', 'execution_path':'software'}");
-        assertEquals(((QPLCompressor) getCurrentColumnFamilyStore().metadata().params.compression.getSstableCompressor()).executionPath,"software");
+        assertEquals(((QPLCompressor) getCurrentColumnFamilyStore().metadata().params.compression.getSstableCompressor()).executionPath, "software");
         createTable("create table %s (id int primary key, uh text) with compression = {'class':'QPLCompressor', 'execution_path':'software', 'compressor_level':1}");
-        assertEquals(((QPLCompressor)getCurrentColumnFamilyStore().metadata().params.compression.getSstableCompressor()).executionPath, "software");
-        assertEquals(((QPLCompressor)getCurrentColumnFamilyStore().metadata().params.compression.getSstableCompressor()).compressionLevel, (Integer)1);
+        assertEquals(((QPLCompressor) getCurrentColumnFamilyStore().metadata().params.compression.getSstableCompressor()).executionPath, "software");
+        assertEquals(((QPLCompressor) getCurrentColumnFamilyStore().metadata().params.compression.getSstableCompressor()).compressionLevel, (Integer) 1);
         createTable("create table %s (id int primary key, uh text) with compression = {'class':'QPLCompressor', 'execution_path':'software', 'compressor_level':1,'retry_count':12}");
-        assertEquals(((QPLCompressor)getCurrentColumnFamilyStore().metadata().params.compression.getSstableCompressor()).executionPath, "software");
-        assertEquals(((QPLCompressor)getCurrentColumnFamilyStore().metadata().params.compression.getSstableCompressor()).compressionLevel, (Integer)1);
-        assertEquals(((QPLCompressor)getCurrentColumnFamilyStore().metadata().params.compression.getSstableCompressor()).retryCount, (Integer)12);
+        assertEquals(((QPLCompressor) getCurrentColumnFamilyStore().metadata().params.compression.getSstableCompressor()).executionPath, "software");
+        assertEquals(((QPLCompressor) getCurrentColumnFamilyStore().metadata().params.compression.getSstableCompressor()).compressionLevel, (Integer) 1);
+        assertEquals(((QPLCompressor) getCurrentColumnFamilyStore().metadata().params.compression.getSstableCompressor()).retryCount, (Integer) 12);
         createTable("create table %s (id int primary key, uh text) with compression = {'class':'QPLCompressor'}");
-        assertEquals(((QPLCompressor)getCurrentColumnFamilyStore().metadata().params.compression.getSstableCompressor()).compressionLevel, (Integer) QPLCompressor.DEFAULT_COMPRESSION_LEVEL);
-        assertEquals(((QPLCompressor)getCurrentColumnFamilyStore().metadata().params.compression.getSstableCompressor()).retryCount, (Integer) QPLCompressor.DEFAULT_RETRY_COUNT);
+        assertEquals(((QPLCompressor) getCurrentColumnFamilyStore().metadata().params.compression.getSstableCompressor()).compressionLevel, (Integer) QPLCompressor.DEFAULT_COMPRESSION_LEVEL);
+        assertEquals(((QPLCompressor) getCurrentColumnFamilyStore().metadata().params.compression.getSstableCompressor()).retryCount, (Integer) QPLCompressor.DEFAULT_RETRY_COUNT);
     }
 
     @Test(expected = ConfigurationException.class)
@@ -284,7 +284,7 @@ public class CQLCompressionTest extends CQLTester
         }
     }
 
-     @Test(expected = ConfigurationException.class)
+    @Test(expected = ConfigurationException.class)
     public void qplBadRetryCountTest() throws Throwable
     {
         try

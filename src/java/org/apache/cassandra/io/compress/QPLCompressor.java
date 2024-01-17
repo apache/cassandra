@@ -21,23 +21,23 @@ package org.apache.cassandra.io.compress;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-
-import com.google.common.collect.ImmutableMap;
-
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import com.intel.qpl.QPLException;
 import com.intel.qpl.QPLUtils;
-import io.netty.util.concurrent.FastThreadLocal;
-import org.apache.cassandra.exceptions.ConfigurationException;
 
-public class QPLCompressor implements ICompressor {
+import io.netty.util.concurrent.FastThreadLocal;
+
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+public class QPLCompressor implements ICompressor
+{
     private static final Logger logger = LoggerFactory.getLogger(QPLCompressor.class);
     private static final Set<String> VALID_EXECUTION_PATH = new HashSet<>(Arrays.asList("auto", "hardware", "software"));
     private static final Map<String, QPLUtils.ExecutionPaths> executionPathMap = createMap();
@@ -56,14 +56,17 @@ public class QPLCompressor implements ICompressor {
 
     private final Set<Uses> recommendedUses;
 
-    public int initialCompressedBufferLength(int chunkLength) {
-      if (chunkLength <= 0) {
-        return 0;
-      }
-      return com.intel.qpl.QPLCompressor.maxCompressedLength(chunkLength);
+    public int initialCompressedBufferLength(int chunkLength)
+    {
+        if (chunkLength <= 0)
+        {
+            return 0;
+        }
+        return com.intel.qpl.QPLCompressor.maxCompressedLength(chunkLength);
     }
 
-    public static QPLCompressor create(Map<String, String> options) {
+    public static QPLCompressor create(Map<String, String> options)
+    {
         return new QPLCompressor(options);
     }
 
@@ -75,14 +78,17 @@ public class QPLCompressor implements ICompressor {
     Integer retryCount;
     private final FastThreadLocal<com.intel.qpl.QPLCompressor> reusableCompressor;
 
-    private QPLCompressor(Map<String, String> options) {
+    private QPLCompressor(Map<String, String> options)
+    {
         this.executionPath = validateExecutionPath(options.get(QPL_EXECUTION_PATH));
         this.compressionLevel = validateCompressionLevel(options.get(QPL_COMPRESSOR_LEVEL), this.executionPath);
         this.retryCount = validateRetryCount(options.get(QPL_RETRY_COUNT));
-        reusableCompressor = new FastThreadLocal<>() {
+        reusableCompressor = new FastThreadLocal<>()
+        {
             @Override
-            protected com.intel.qpl.QPLCompressor initialValue() {
-                return new com.intel.qpl.QPLCompressor(executionPathMap.get(executionPath),compressionLevel,retryCount);
+            protected com.intel.qpl.QPLCompressor initialValue()
+            {
+                return new com.intel.qpl.QPLCompressor(executionPathMap.get(executionPath), compressionLevel, retryCount);
             }
         };
 
@@ -90,64 +96,86 @@ public class QPLCompressor implements ICompressor {
         logger.trace("Creating QPLCompressor with execution path {}  and compression level {} add retry_count {}.", this.executionPath, this.compressionLevel, this.retryCount);
     }
 
-    public int uncompress(byte[] input, int inputOffset, int inputLength, byte[] output, int outputOffset) throws IOException {
-        try {
-            if (inputLength > 0) {
+    public int uncompress(byte[] input, int inputOffset, int inputLength, byte[] output, int outputOffset) throws IOException
+    {
+        try
+        {
+            if (inputLength > 0)
+            {
                 return reusableCompressor.get().decompress(input, inputOffset, inputLength, output, outputOffset, output.length - outputOffset);
             }
-        } catch (IllegalArgumentException | ArrayIndexOutOfBoundsException |
-                 IllegalStateException | QPLException e) {
-          throw new IOException(e);
+        }
+        catch (IllegalArgumentException | ArrayIndexOutOfBoundsException |
+               IllegalStateException | QPLException e)
+        {
+            throw new IOException(e);
         }
         return 0;
     }
 
-    public void compress(ByteBuffer input, ByteBuffer output) throws IOException {
-        try {
-            if (input.hasRemaining()) {
-                reusableCompressor.get().compress(input,output);
+    public void compress(ByteBuffer input, ByteBuffer output) throws IOException
+    {
+        try
+        {
+            if (input.hasRemaining())
+            {
+                reusableCompressor.get().compress(input, output);
             }
-        } catch (IllegalArgumentException | ArrayIndexOutOfBoundsException |
-                 IllegalStateException | QPLException e) {
-          throw new IOException(e);
+        }
+        catch (IllegalArgumentException | ArrayIndexOutOfBoundsException |
+               IllegalStateException | QPLException e)
+        {
+            throw new IOException(e);
         }
     }
 
-    public void uncompress(ByteBuffer input, ByteBuffer output) throws IOException {
-        try {
-            if (input.hasRemaining()) {
-                reusableCompressor.get().decompress(input,output);
+    public void uncompress(ByteBuffer input, ByteBuffer output) throws IOException
+    {
+        try
+        {
+            if (input.hasRemaining())
+            {
+                reusableCompressor.get().decompress(input, output);
             }
-        } catch (IllegalArgumentException | ArrayIndexOutOfBoundsException |
-                 IllegalStateException | QPLException e) {
-          throw new IOException(e);
+        }
+        catch (IllegalArgumentException | ArrayIndexOutOfBoundsException |
+               IllegalStateException | QPLException e)
+        {
+            throw new IOException(e);
         }
     }
 
-    public BufferType preferredBufferType() {
+    public BufferType preferredBufferType()
+    {
         return BufferType.OFF_HEAP;
     }
 
-    public boolean supports(BufferType bufferType) {
+    public boolean supports(BufferType bufferType)
+    {
         return bufferType == BufferType.OFF_HEAP;
     }
 
-    public Set<String> supportedOptions() {
+    public Set<String> supportedOptions()
+    {
         return new HashSet<>(Arrays.asList(QPL_EXECUTION_PATH, QPL_COMPRESSOR_LEVEL, QPL_RETRY_COUNT));
     }
 
     @Override
-    public Set<Uses> recommendedUses() {
+    public Set<Uses> recommendedUses()
+    {
         return recommendedUses;
     }
 
-    public static String validateExecutionPath(String executionPath) throws ConfigurationException {
+    public static String validateExecutionPath(String executionPath) throws ConfigurationException
+    {
         String validExecPath;
-        if (executionPath == null) {
+        if (executionPath == null)
+        {
             //if hardware path is not available then set it to software path.
             executionPath = DEFAULT_EXECUTION_PATH;
             validExecPath = com.intel.qpl.QPLCompressor.getValidExecutionPath(executionPathMap.get(executionPath)).name();
-            if (!QPLUtils.ExecutionPaths.QPL_PATH_HARDWARE.name().equalsIgnoreCase(validExecPath)) {
+            if (!QPLUtils.ExecutionPaths.QPL_PATH_HARDWARE.name().equalsIgnoreCase(validExecPath))
+            {
                 logger.warn("The execution path 'hardware' is not available hence default it to software.");
                 executionPath = REDIRECT_EXECUTION_PATH;
             }
@@ -155,13 +183,17 @@ public class QPLCompressor implements ICompressor {
         }
 
 
-        if (!VALID_EXECUTION_PATH.contains(executionPath)) {
+        if (!VALID_EXECUTION_PATH.contains(executionPath))
+        {
             throw new ConfigurationException(String.format("Invalid execution path '%s' specified for QPLCompressor parameter '%s'. "
                                                            + "Valid options are %s.", executionPath, QPL_EXECUTION_PATH,
                                                            VALID_EXECUTION_PATH));
-        } else {
-             validExecPath = com.intel.qpl.QPLCompressor.getValidExecutionPath(executionPathMap.get(executionPath)).name();
-            if (!validExecPath.equalsIgnoreCase(executionPathMap.get(executionPath).name())) {
+        }
+        else
+        {
+            validExecPath = com.intel.qpl.QPLCompressor.getValidExecutionPath(executionPathMap.get(executionPath)).name();
+            if (!validExecPath.equalsIgnoreCase(executionPathMap.get(executionPath).name()))
+            {
                 logger.warn("The execution path '{}' is not available hence default it to software.", executionPath);
                 executionPath = REDIRECT_EXECUTION_PATH;
             }
@@ -169,7 +201,8 @@ public class QPLCompressor implements ICompressor {
         }
     }
 
-    public static int validateCompressionLevel(String compressionLevel, String execPath) throws ConfigurationException {
+    public static int validateCompressionLevel(String compressionLevel, String execPath) throws ConfigurationException
+    {
         if (compressionLevel == null)
             return DEFAULT_COMPRESSION_LEVEL;
 
@@ -177,22 +210,27 @@ public class QPLCompressor implements ICompressor {
                                                                + QPL_COMPRESSOR_LEVEL + "'.");
 
         int level;
-        try {
+        try
+        {
             level = Integer.parseInt(compressionLevel);
             if (level < 0)
                 throw ex;
-        } catch (NumberFormatException e) {
+        }
+        catch (NumberFormatException e)
+        {
             throw ex;
         }
 
         int validLevel = com.intel.qpl.QPLCompressor.getValidCompressionLevel(executionPathMap.get(execPath), level);
-        if (level != validLevel) {
+        if (level != validLevel)
+        {
             logger.warn("The compression level '{}' is not supported for {} execution path hence its default to {}.", level, execPath, validLevel);
         }
         return validLevel;
     }
 
-    public static int validateRetryCount(String retryCount) throws ConfigurationException {
+    public static int validateRetryCount(String retryCount) throws ConfigurationException
+    {
         if (retryCount == null)
             return DEFAULT_RETRY_COUNT;
 
@@ -200,19 +238,24 @@ public class QPLCompressor implements ICompressor {
                                                                + QPL_RETRY_COUNT + "'. Value must be >= 0.");
 
         int count;
-        try {
+        try
+        {
             count = Integer.parseInt(retryCount);
-            if (count < 0) {
+            if (count < 0)
+            {
                 throw ex;
             }
-        } catch (NumberFormatException e) {
+        }
+        catch (NumberFormatException e)
+        {
             throw ex;
         }
 
         return count;
     }
 
-    private static Map<String, QPLUtils.ExecutionPaths> createMap() {
+    private static Map<String, QPLUtils.ExecutionPaths> createMap()
+    {
         return ImmutableMap.of("auto", QPLUtils.ExecutionPaths.QPL_PATH_AUTO, "hardware", QPLUtils.ExecutionPaths.QPL_PATH_HARDWARE, "software", QPLUtils.ExecutionPaths.QPL_PATH_SOFTWARE);
     }
 }
