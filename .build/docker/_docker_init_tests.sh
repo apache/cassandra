@@ -36,4 +36,12 @@ if [ -d "${DIST_DIR}/test/logs" ]; then
     find "${DIST_DIR}/test/logs" -type f -name "*.log" | xargs xz -qq
 fi
 popd >/dev/null
+
+# check/clean containerfs (it can leak on host)
+if [ -d /home/cassandra-tmp/.m2/repository ]; then
+    echo "WARN: /home/cassandra-tmp/.m2/repository exists"
+fi
+# these happen when the image hasn't pre-downloaded all the ccm versions used in tests
+rm -rf /tmp/ccm-*.tar.gz
+
 exit ${status}
