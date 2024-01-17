@@ -32,6 +32,7 @@ import accord.messages.CheckStatus;
 import accord.messages.Propagate;
 import accord.messages.ReadData;
 import accord.messages.ReadData.ReadReply;
+import accord.primitives.Ballot;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Ranges;
@@ -94,7 +95,7 @@ public class FetchSerializers
 
     public static final IVersionedSerializer<ReadReply> reply = new IVersionedSerializer<ReadReply>()
     {
-        final ReadData.ReadNack[] nacks = ReadData.ReadNack.values();
+        final ReadData.CommitOrReadNack[] nacks = ReadData.CommitOrReadNack.values();
         final IVersionedSerializer<Data> streamDataSerializer = new CastingSerializer<>(StreamData.class, StreamData.serializer);
 
         @Override
@@ -102,7 +103,7 @@ public class FetchSerializers
         {
             if (!reply.isOk())
             {
-                out.writeByte(1 + ((ReadData.ReadNack) reply).ordinal());
+                out.writeByte(1 + ((ReadData.CommitOrReadNack) reply).ordinal());
                 return;
             }
 
@@ -148,14 +149,15 @@ public class FetchSerializers
             KeySerializers.route.serialize(p.route, out, version);
             CommandSerializers.saveStatus.serialize(p.maxKnowledgeSaveStatus, out, version);
             CommandSerializers.saveStatus.serialize(p.maxSaveStatus, out, version);
+            CommandSerializers.ballot.serialize(p.ballot, out, version);
             CommandSerializers.durability.serialize(p.durability, out, version);
             KeySerializers.nullableRoutingKey.serialize(p.homeKey, out, version);
             KeySerializers.nullableRoutingKey.serialize(p.progressKey, out, version);
             CommandSerializers.known.serialize(p.achieved, out, version);
             CheckStatusSerializers.foundKnownMap.serialize(p.known, out, version);
-            out.writeBoolean(p.isTruncated);
+            out.writeBoolean(p.isShardTruncated);
             CommandSerializers.nullablePartialTxn.serialize(p.partialTxn, out, version);
-            DepsSerializer.nullablePartialDeps.serialize(p.committedDeps, out, version);
+            DepsSerializer.nullablePartialDeps.serialize(p.stableDeps, out, version);
             out.writeLong(p.toEpoch);
             CommandSerializers.nullableTimestamp.serialize(p.committedExecuteAt, out, version);
             CommandSerializers.nullableWrites.serialize(p.writes, out, version);
@@ -168,6 +170,7 @@ public class FetchSerializers
             Route<?> route = KeySerializers.route.deserialize(in, version);
             SaveStatus maxKnowledgeSaveStatus = CommandSerializers.saveStatus.deserialize(in, version);
             SaveStatus maxSaveStatus = CommandSerializers.saveStatus.deserialize(in, version);
+            Ballot ballot = CommandSerializers.ballot.deserialize(in, version);
             Durability durability = CommandSerializers.durability.deserialize(in, version);
             RoutingKey homeKey = KeySerializers.nullableRoutingKey.deserialize(in, version);
             RoutingKey progressKey = KeySerializers.nullableRoutingKey.deserialize(in, version);
@@ -197,6 +200,7 @@ public class FetchSerializers
                                                       route,
                                                       maxKnowledgeSaveStatus,
                                                       maxSaveStatus,
+                                                      ballot,
                                                       durability,
                                                       homeKey,
                                                       progressKey,
@@ -218,6 +222,7 @@ public class FetchSerializers
                  + KeySerializers.route.serializedSize(p.route, version)
                  + CommandSerializers.saveStatus.serializedSize(p.maxKnowledgeSaveStatus, version)
                  + CommandSerializers.saveStatus.serializedSize(p.maxSaveStatus, version)
+                 + CommandSerializers.ballot.serializedSize(p.ballot, version)
                  + CommandSerializers.durability.serializedSize(p.durability, version)
                  + KeySerializers.nullableRoutingKey.serializedSize(p.homeKey, version)
                  + KeySerializers.nullableRoutingKey.serializedSize(p.progressKey, version)
@@ -225,7 +230,7 @@ public class FetchSerializers
                  + CheckStatusSerializers.foundKnownMap.serializedSize(p.known, version)
                  + TypeSizes.BOOL_SIZE
                  + CommandSerializers.nullablePartialTxn.serializedSize(p.partialTxn, version)
-                 + DepsSerializer.nullablePartialDeps.serializedSize(p.committedDeps, version)
+                 + DepsSerializer.nullablePartialDeps.serializedSize(p.stableDeps, version)
                  + TypeSizes.sizeof(p.toEpoch)
                  + CommandSerializers.nullableTimestamp.serializedSize(p.committedExecuteAt, version)
                  + CommandSerializers.nullableWrites.serializedSize(p.writes, version)

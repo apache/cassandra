@@ -820,11 +820,11 @@ public class AccordKeyspace
             addEnumCellIfModified(CommandsColumns.status, Command::saveStatus, builder, timestampMicros, nowInSeconds, original, command);
             addCellIfModified(CommandsColumns.execute_at, Command::executeAt, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
             addCellIfModified(CommandsColumns.promised_ballot, Command::promised, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
-            addCellIfModified(CommandsColumns.accepted_ballot, Command::accepted, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
+            addCellIfModified(CommandsColumns.accepted_ballot, Command::acceptedOrCommitted, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
 
             // TODO review this is just to work around Truncated not being committed but having a status after committed
             // so status claims it is committed.
-            if (!command.isTruncated() && command.isCommitted())
+            if (command.isStable() && !command.isTruncated())
             {
                 Command.Committed committed = command.asCommitted();
                 Command.Committed originalCommitted = original != null && original.isCommitted() ? original.asCommitted() : null;
@@ -1283,8 +1283,11 @@ public class AccordKeyspace
 
         return (deps) ->
         {
-            if (bytes == null || !bytes.hasRemaining())
-                return deps == null ? WaitingOn.EMPTY : WaitingOn.none(deps);
+            if (bytes == null)
+                return null;
+
+            if (!bytes.hasRemaining())
+                return WaitingOn.none(deps);
 
             try
             {

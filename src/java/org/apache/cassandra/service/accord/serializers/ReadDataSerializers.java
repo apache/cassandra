@@ -23,7 +23,7 @@ import java.io.IOException;
 import accord.api.Data;
 import accord.messages.ApplyThenWaitUntilApplied;
 import accord.messages.ReadData;
-import accord.messages.ReadData.ReadNack;
+import accord.messages.ReadData.CommitOrReadNack;
 import accord.messages.ReadData.ReadOk;
 import accord.messages.ReadData.ReadReply;
 import accord.messages.ReadData.ReadType;
@@ -172,7 +172,7 @@ public class ReadDataSerializers
     public static final class ReplySerializer<D extends Data> implements IVersionedSerializer<ReadReply>
     {
         // TODO (now): use something other than ordinal
-        final ReadNack[] nacks = ReadNack.values();
+        final CommitOrReadNack[] nacks = CommitOrReadNack.values();
         private final IVersionedSerializer<D> dataSerializer;
 
         public ReplySerializer(IVersionedSerializer<D> dataSerializer)
@@ -185,7 +185,7 @@ public class ReadDataSerializers
         {
             if (!reply.isOk())
             {
-                out.writeByte(1 + ((ReadNack) reply).ordinal());
+                out.writeByte(1 + ((CommitOrReadNack) reply).ordinal());
                 return;
             }
 

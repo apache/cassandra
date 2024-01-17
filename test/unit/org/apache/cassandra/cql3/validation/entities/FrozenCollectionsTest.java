@@ -41,7 +41,6 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.ServerTestUtils.daemonInitialization;
 import static org.junit.Assert.assertEquals;
 
 public class FrozenCollectionsTest extends CQLTester
