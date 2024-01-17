@@ -231,12 +231,12 @@ public class AccordMetricsTest extends AccordTestBase
         }
     }
 
-    private void assertReplicaMetrics(int node, String scope, long commits, long executions, long applications)
+    private void assertReplicaMetrics(int node, String scope, long stable, long executions, long applications)
     {
         DefaultNameFactory nameFactory = new DefaultNameFactory(AccordMetrics.ACCORD_REPLICA, scope);
         Map<String, Long> metrics = diff(countingMetrics0).get(node);
         Function<String, Long> metric = n -> metrics.get(nameFactory.createMetricName(n).getMetricName());
-        assertThat(metric.apply(AccordMetrics.COMMIT_LATENCY)).isEqualTo(commits);
+        assertThat(metric.apply(AccordMetrics.STABLE_LATENCY)).isEqualTo(stable);
         assertThat(metric.apply(AccordMetrics.EXECUTE_LATENCY)).isEqualTo(executions);
         assertThat(metric.apply(AccordMetrics.APPLY_LATENCY)).isEqualTo(applications);
         assertThat(metric.apply(AccordMetrics.APPLY_DURATION)).isEqualTo(applications);

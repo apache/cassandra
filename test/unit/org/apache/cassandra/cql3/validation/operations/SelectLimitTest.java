@@ -27,8 +27,6 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.service.StorageService;
 
-import static org.apache.cassandra.ServerTestUtils.daemonInitialization;
-
 public class SelectLimitTest extends CQLTester
 {
     // This method will be ran instead of the CQLTester#setUpClass
