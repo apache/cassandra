@@ -75,11 +75,8 @@ public class SingleNodeSAITest extends IntegrationTestBase
                                            Arrays.asList(ColumnSpec.regularColumn("v1", ColumnSpec.asciiType(40, 100)),
                                                          ColumnSpec.regularColumn("v2", ColumnSpec.int64Type),
                                                          ColumnSpec.regularColumn("v3", ColumnSpec.int64Type)),
-                                           List.of(ColumnSpec.staticColumn("s1", ColumnSpec.asciiType(40, 100))),
-                                           false,
-                                           false,
-                                           "LeveledCompactionStrategy",
-                                           false);
+                                           List.of(ColumnSpec.staticColumn("s1", ColumnSpec.asciiType(40, 100))))
+                            .withCompactionStrategy("LeveledCompactionStrategy");
 
         sut.schemaChange(schema.compile().cql());
         sut.schemaChange(schema.cloneWithName(schema.keyspace, schema.table + "_debug").compile().cql());
@@ -218,9 +215,9 @@ public class SingleNodeSAITest extends IntegrationTestBase
                                                         values[random.nextInt(values.length)]));
                     }
 
-                    long pd = history.presetSelector.pdAtPosition(partitionIndex);
+                    long pd = history.pdSelector().pdAtPosition(partitionIndex);
                     FilteringQuery query = new FilteringQuery(pd, false, relations, schema);
-                    Reconciler reconciler = new Reconciler(history.presetSelector, schema, history::visitor);
+                    Reconciler reconciler = new Reconciler(history.pdSelector(), schema, history::visitor);
                     Set<ColumnSpec<?>> columns = new HashSet<>(schema.allColumns);
 
                     PartitionState modelState = reconciler.inflatePartitionState(pd, tracker, query).filter(query);

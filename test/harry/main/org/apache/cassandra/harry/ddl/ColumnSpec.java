@@ -46,6 +46,33 @@ public class ColumnSpec<T>
         this.kind = kind;
     }
 
+
+    public ColumnSpec<T> override(Bijections.Bijection<T> override)
+    {
+        return new ColumnSpec<>(name,
+                                new DataType<>(type.cqlName) {
+                                    @Override
+                                    public int compareLexicographically(long l, long r)
+                                    {
+                                        return type.compareLexicographically(l, r);
+                                    }
+
+                                    @Override
+                                    public boolean isReversed()
+                                    {
+                                        return type.isReversed();
+                                    }
+
+                                    @Override
+                                    public Bijections.Bijection<T> generator()
+                                    {
+                                        return override;
+                                    }
+                                },
+                                kind);
+    }
+
+
     void setColumnIndex(int idx)
     {
         this.columnIndex = idx;
@@ -71,14 +98,14 @@ public class ColumnSpec<T>
         if (o == null || getClass() != o.getClass()) return false;
         ColumnSpec<?> that = (ColumnSpec<?>) o;
         return Objects.equals(name, that.name) &&
-               Objects.equals(type, that.type) &&
+               Objects.equals(type.cqlName, that.type.cqlName) &&
                kind == that.kind;
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(name, type, kind);
+        return Objects.hash(name, type.cqlName, kind);
     }
 
     public String name()
@@ -179,7 +206,7 @@ public class ColumnSpec<T>
             return generator().byteSize();
         }
 
-        public String toString()
+        public final String toString()
         {
             return cqlName;
         }
@@ -189,7 +216,7 @@ public class ColumnSpec<T>
             return cqlName;
         }
 
-        public boolean equals(Object o)
+        public final boolean equals(Object o)
         {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
@@ -197,7 +224,7 @@ public class ColumnSpec<T>
             return Objects.equals(cqlName, dataType.cqlName);
         }
 
-        public int hashCode()
+        public final int hashCode()
         {
             return Objects.hash(cqlName);
         }
@@ -421,17 +448,12 @@ public class ColumnSpec<T>
             return baseType.maxSize();
         }
 
-        public DataType<T> baseType()
-        {
-            return baseType;
-        }
-
         public static <T> DataType<T> getInstance(DataType<T> type)
         {
             ReversedType<T> t = (ReversedType<T>) cache.get(type);
             if (t == null)
                 t = new ReversedType<>(type);
-            assert t.baseType == type : "Type mismatch";
+            assert t.baseType == type : String.format("Type mismatch %s != %s", t.baseType, type);
             return t;
         }
     }

@@ -36,38 +36,44 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
 {
     // TODO: singleton collection for this op class
     private final List<VisitExecutor.BaseOperation> operations;
-    private final PartitionVisitState partitionState;
+    private final PartitionVisitStateImpl partitionState;
 
     private final long lts;
     private final long pd;
 
     private final OpSelectors.PureRng rng;
+
     private final OpSelectors.DescriptorSelector descriptorSelector;
-    private final SchemaSpec schemaSpec;
+    private final ValueHelper valueHelper;
+    private final SchemaSpec schema;
 
     private final Consumer<ReplayingVisitor.Visit> appendToLog;
     private final WithEntropySource rngSupplier = new WithEntropySource();
 
     private int opIdCounter;
 
-    public SingleOperationVisitBuilder(PartitionVisitState partitionState,
+    public SingleOperationVisitBuilder(PartitionVisitStateImpl partitionState,
                                        long lts,
                                        OpSelectors.PureRng rng,
                                        OpSelectors.DescriptorSelector descriptorSelector,
-                                       SchemaSpec schemaSpec,
+                                       SchemaSpec schema,
+                                       ValueHelper valueHelper,
                                        Consumer<ReplayingVisitor.Visit> appendToLog)
     {
-        this.lts = lts;
-        this.partitionState = partitionState;
-        this.pd = partitionState.pd;
-
-        this.appendToLog = appendToLog;
         this.operations = new ArrayList<>();
-        this.opIdCounter = 0;
+        this.partitionState = partitionState;
+
+        this.pd = partitionState.pd;
+        this.lts = lts;
 
         this.rng = rng;
+
         this.descriptorSelector = descriptorSelector;
-        this.schemaSpec = schemaSpec;
+        this.valueHelper = valueHelper;
+        this.schema = schema;
+
+        this.appendToLog = appendToLog;
+        this.opIdCounter = 0;
     }
 
     @Override
@@ -87,7 +93,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
         {
             public long[] vds()
             {
-                return descriptorSelector.vds(pd, cd, lts, opId, kind(), schemaSpec);
+                return descriptorSelector.vds(pd, cd, lts, opId, kind(), schema);
             }
         });
         end();
@@ -95,8 +101,9 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     }
 
     @Override
-    public SingleOperationVisitBuilder insert(int rowIdx, long[] vds)
+    public SingleOperationVisitBuilder insert(int rowIdx, long[] valueIdxs)
     {
+        assert valueIdxs.length == valueHelper.regularColumns.size();
         int opId = opIdCounter++;
         long cd = partitionState.possibleCds[rowIdx];
         operations.add(new GeneratingVisitor.GeneratedWriteOp(lts, pd, cd, opId,
@@ -104,6 +111,13 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
         {
             public long[] vds()
             {
+                long[] vds = new long[valueIdxs.length];
+                for (int i = 0; i < valueHelper.regularColumns.size(); i++)
+                {
+                    vds[i] = valueHelper.descriptorGenerators
+                             .get(valueHelper.regularColumns.get(i).name)
+                             .inflate(valueIdxs[i]);
+                }
                 return vds;
             }
         });
@@ -112,23 +126,39 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     }
 
     @Override
-    public SingleOperationBuilder insert(int rowIdx, long[] vds, long[] sds)
+    public SingleOperationBuilder insert(int rowIdx, long[] valueIdxs, long[] sValueIdxs)
     {
+        assert valueIdxs.length == valueHelper.regularColumns.size();
+        assert sValueIdxs.length == valueHelper.staticColumns.size();
         int opId = opIdCounter++;
         long cd = partitionState.possibleCds[rowIdx];
         operations.add(new GeneratingVisitor.GeneratedWriteWithStaticOp(lts, pd, cd, opId,
                                                                         OpSelectors.OperationKind.INSERT_WITH_STATICS)
         {
             @Override
-            public long[] sds()
+            public long[] vds()
             {
-                return sds;
+                long[] vds = new long[valueIdxs.length];
+                for (int i = 0; i < valueHelper.regularColumns.size(); i++)
+                {
+                    vds[i] = valueHelper.descriptorGenerators
+                             .get(valueHelper.regularColumns.get(i).name)
+                             .inflate(valueIdxs[i]);
+                }
+                return vds;
             }
 
             @Override
-            public long[] vds()
+            public long[] sds()
             {
-                return vds;
+                long[] sds = new long[sValueIdxs.length];
+                for (int i = 0; i < valueHelper.staticColumns.size(); i++)
+                {
+                    sds[i] = valueHelper.descriptorGenerators
+                             .get(valueHelper.staticColumns.get(i).name)
+                             .inflate(sValueIdxs[i]);
+                }
+                return sds;
             }
         });
         end();
@@ -140,7 +170,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     {
         int opId = opIdCounter++;
         operations.add(new GeneratingVisitor.GeneratedDeleteOp(lts, pd, opId, OpSelectors.OperationKind.DELETE_PARTITION,
-                                                               Query.selectPartition(schemaSpec, pd, false)));
+                                                               Query.selectPartition(schema, pd, false)));
         end();
         return this;
     }
@@ -205,7 +235,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
 
                     boolean isMinEq = rng.nextBoolean();
                     boolean isMaxEq = rng.nextBoolean();
-                    query = Query.clusteringRangeQuery(schemaSpec, pd, cd1, cd2, queryDescriptor, isMinEq, isMaxEq, false);
+                    query = Query.clusteringRangeQuery(schema, pd, cd1, cd2, queryDescriptor, isMinEq, isMaxEq, false);
                     break;
                 }
                 catch (IllegalArgumentException retry)
@@ -227,7 +257,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
 
         long cd1 = partitionState.possibleCds[lowBoundRowIdx];
         long cd2 = partitionState.possibleCds[highBoundRowIdx];
-        Query query = Query.clusteringRangeQuery(schemaSpec, pd, cd1, cd2, queryDescriptor, isMinEq, isMaxEq, false);
+        Query query = Query.clusteringRangeQuery(schema, pd, cd1, cd2, queryDescriptor, isMinEq, isMaxEq, false);
         operations.add(new GeneratingVisitor.GeneratedDeleteOp(lts, pd, opId, OpSelectors.OperationKind.DELETE_SLICE, query));
         end();
         return this;
@@ -249,7 +279,7 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
 
                     boolean isGt = rng.nextBoolean();
                     boolean isEquals = rng.nextBoolean();
-                    query = Query.clusteringSliceQuery(schemaSpec, pd, cd, queryDescriptor, isGt, isEquals, false);
+                    query = Query.clusteringSliceQuery(schema, pd, cd, queryDescriptor, isGt, isEquals, false);
                     break;
                 }
                 catch (IllegalArgumentException retry)

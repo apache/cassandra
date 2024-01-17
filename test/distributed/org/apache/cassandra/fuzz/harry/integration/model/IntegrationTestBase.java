@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.fuzz.harry.integration.model;
 
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import org.junit.AfterClass;
@@ -27,6 +28,7 @@ import org.junit.BeforeClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.harry.core.Configuration;
 import org.apache.cassandra.harry.ddl.SchemaGenerators;
 import org.apache.cassandra.harry.ddl.SchemaSpec;
@@ -46,9 +48,14 @@ public class IntegrationTestBase extends TestBaseImpl
     @BeforeClass
     public static void before() throws Throwable
     {
+        init(1, InJvmSutBase.defaultConfig());
+    }
+
+    protected static void init(int nodes, Consumer<IInstanceConfig> cfg) throws Throwable
+    {
         cluster = Cluster.build()
-                         .withNodes(1)
-                         .withConfig(InJvmSutBase.defaultConfig())
+                         .withNodes(nodes)
+                         .withConfig(cfg)
                          .createWithoutStarting();
         cluster.setUncaughtExceptionsFilter(t -> {
             logger.error("Caught exception, reporting during shutdown. Ignoring.", t);
@@ -58,7 +65,6 @@ public class IntegrationTestBase extends TestBaseImpl
         cluster = init(cluster);
         sut = new InJvmSut(cluster);
     }
-
     @AfterClass
     public static void afterClass()
     {
