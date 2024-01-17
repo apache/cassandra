@@ -157,7 +157,7 @@ public class AccordCommandTest
         }));
 
         // check commit
-        Commit commit = Commit.SerializerSupport.create(txnId, route, 1, Commit.Kind.Maximal, executeAt, partialTxn, deps, fullRoute, null);
+        Commit commit = Commit.SerializerSupport.create(txnId, route, 1, Commit.Kind.StableWithTxnAndDeps, Ballot.ZERO, executeAt, partialTxn, deps, fullRoute, null);
         commandStore.appendToJournal(commit);
         getUninterruptibly(commandStore.execute(commit, commit::apply));
 

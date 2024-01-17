@@ -42,6 +42,7 @@ import accord.local.Command;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
+import accord.local.SaveStatus;
 import accord.messages.Accept;
 import accord.messages.Commit;
 import accord.messages.PreAccept;
@@ -162,9 +163,9 @@ public class AsyncOperationTest
         }
     }
 
-    private static Command createCommittedAndPersist(AccordCommandStore commandStore, TxnId txnId, Timestamp executeAt)
+    private static Command createStableAndPersist(AccordCommandStore commandStore, TxnId txnId, Timestamp executeAt)
     {
-        Command command = AccordTestUtils.Commands.committed(txnId, createPartialTxn(0), executeAt);
+        Command command = AccordTestUtils.Commands.stable(txnId, createPartialTxn(0), executeAt);
         AccordSafeCommand safeCommand = new AccordSafeCommand(loaded(txnId, null));
         safeCommand.set(command);
 
@@ -173,7 +174,8 @@ public class AsyncOperationTest
             Commit.SerializerSupport.create(txnId,
                                             command.route().slice(AccordTestUtils.fullRange(command.partialTxn().keys())),
                                             txnId.epoch(),
-                                            Commit.Kind.Maximal,
+                                            Commit.Kind.StableWithTxnAndDeps,
+                                            Ballot.ZERO,
                                             executeAt,
                                             command.partialTxn(),
                                             command.partialDeps(),
@@ -184,17 +186,64 @@ public class AsyncOperationTest
         return command;
     }
 
-    private static Command createCommittedAndPersist(AccordCommandStore commandStore, TxnId txnId)
+    private static Command createStableAndPersist(AccordCommandStore commandStore, TxnId txnId)
     {
-        return createCommittedAndPersist(commandStore, txnId, txnId);
+        return createStableAndPersist(commandStore, txnId, txnId);
     }
 
-    private static Command createCommittedUsingLifeCycle(AccordCommandStore commandStore, TxnId txnId)
+    private static Command createStableUsingFastLifeCycle(AccordCommandStore commandStore, TxnId txnId)
     {
-        return createCommittedUsingLifeCycle(commandStore, txnId, txnId);
+        return createStableUsingFastLifeCycle(commandStore, txnId, txnId);
     }
 
-    private static Command createCommittedUsingLifeCycle(AccordCommandStore commandStore, TxnId txnId, Timestamp executeAt)
+    private static Command createStableUsingFastLifeCycle(AccordCommandStore commandStore, TxnId txnId, Timestamp executeAt)
+    {
+        PartialTxn partialTxn = createPartialTxn(0);
+        RoutingKey routingKey = partialTxn.keys().get(0).asKey().toUnseekable();
+        FullRoute<?> route = partialTxn.keys().toRoute(routingKey);
+        Ranges ranges = AccordTestUtils.fullRange(partialTxn.keys());
+        PartialRoute<?> partialRoute = route.slice(ranges);
+        PartialDeps deps = PartialDeps.builder(ranges).build();
+
+        // create and write messages to the journal for loading to succeed
+        PreAccept preAccept =
+            PreAccept.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), txnId.epoch(), false, txnId.epoch(), partialTxn, route);
+        Commit stable =
+            Commit.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), Commit.Kind.StableFastPath, Ballot.ZERO, executeAt, partialTxn, deps, route, null);
+
+        commandStore.appendToJournal(preAccept);
+        commandStore.appendToJournal(stable);
+
+        try
+        {
+            Command command = getUninterruptibly(commandStore.submit(contextFor(txnId, partialTxn.keys()), safe -> {
+                CheckedCommands.preaccept(safe, txnId, partialTxn, route, null);
+                CheckedCommands.commit(safe, SaveStatus.Stable, Ballot.ZERO, txnId, route, null, partialTxn, executeAt, deps);
+                return safe.ifInitialised(txnId).current();
+            }).beginAsResult());
+
+            // clear cache
+            commandStore.executeBlocking(() -> {
+                long cacheSize = commandStore.capacity();
+                commandStore.setCapacity(0);
+                commandStore.setCapacity(cacheSize);
+                commandStore.cache().awaitSaveResults();
+            });
+
+            return command;
+        }
+        catch (ExecutionException e)
+        {
+            throw new AssertionError(e);
+        }
+    }
+
+    private static Command createStableUsingSlowLifeCycle(AccordCommandStore commandStore, TxnId txnId)
+    {
+        return createStableUsingSlowLifeCycle(commandStore, txnId, txnId);
+    }
+
+    private static Command createStableUsingSlowLifeCycle(AccordCommandStore commandStore, TxnId txnId, Timestamp executeAt)
     {
         PartialTxn partialTxn = createPartialTxn(0);
         RoutingKey routingKey = partialTxn.keys().get(0).asKey().toUnseekable();
@@ -209,18 +258,22 @@ public class AsyncOperationTest
         Accept accept =
             Accept.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), txnId.epoch(), false, Ballot.ZERO, executeAt, partialTxn.keys(), deps);
         Commit commit =
-            Commit.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), Commit.Kind.Minimal, executeAt, partialTxn, deps, route, null);
+            Commit.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), Commit.Kind.Commit, Ballot.ZERO, executeAt, partialTxn, deps, route, null);
+        Commit stable =
+            Commit.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), Commit.Kind.StableSlowPath, Ballot.ZERO, executeAt, partialTxn, deps, route, null);
 
         commandStore.appendToJournal(preAccept);
         commandStore.appendToJournal(accept);
         commandStore.appendToJournal(commit);
+        commandStore.appendToJournal(stable);
 
         try
         {
             Command command = getUninterruptibly(commandStore.submit(contextFor(txnId, partialTxn.keys()), safe -> {
                 CheckedCommands.preaccept(safe, txnId, partialTxn, route, null);
                 CheckedCommands.accept(safe, txnId, Ballot.ZERO, partialRoute, partialTxn.keys(), null, executeAt, deps);
-                CheckedCommands.commit(safe, txnId, route, null, partialTxn, executeAt, deps);
+                CheckedCommands.commit(safe, SaveStatus.Committed, Ballot.ZERO, txnId, route, null, partialTxn, executeAt, deps);
+                CheckedCommands.commit(safe, SaveStatus.Stable, Ballot.ZERO, txnId, route, null, partialTxn, executeAt, deps);
                 return safe.ifInitialised(txnId).current();
             }).beginAsResult());
 
@@ -265,7 +318,7 @@ public class AsyncOperationTest
 
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
 
-        createCommittedAndPersist(commandStore, txnId);
+        createStableAndPersist(commandStore, txnId);
 
         Consumer<SafeCommandStore> consumer = safeStore -> safeStore.ifInitialised(txnId).readyToExecute();
         PreLoadContext ctx = contextFor(txnId);
@@ -396,8 +449,12 @@ public class AsyncOperationTest
     private static void createCommand(AccordCommandStore commandStore, RandomSource rs, List<TxnId> ids)
     {
         // to simulate CommandsForKey not being found, use createCommittedAndPersist periodically as it does not update
-        if (rs.nextBoolean()) ids.forEach(id -> createCommittedAndPersist(commandStore, id));
-        else ids.forEach(id -> createCommittedUsingLifeCycle(commandStore, id));
+        switch (rs.nextInt(3))
+        {
+            case 0: ids.forEach(id -> createStableAndPersist(commandStore, id)); break;
+            case 1: ids.forEach(id -> createStableUsingFastLifeCycle(commandStore, id)); break;
+            case 2: ids.forEach(id -> createStableUsingSlowLifeCycle(commandStore, id));
+        }
         commandStore.unsafeClearCache();
     }
 

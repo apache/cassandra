@@ -128,6 +128,19 @@ public class AccordTestUtils
                                                        executeAt,
                                                        Ballot.ZERO,
                                                        Ballot.ZERO,
+                                                       null);
+        }
+
+        public static Command stable(TxnId txnId, PartialTxn txn, Timestamp executeAt)
+        {
+            CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(txnId).partialDeps(PartialDeps.NONE);
+            attrs.partialTxn(txn);
+            attrs.route(route(txn));
+            return Command.SerializerSupport.committed(attrs,
+                                                       SaveStatus.Stable,
+                                                       executeAt,
+                                                       Ballot.ZERO,
+                                                       Ballot.ZERO,
                                                        Command.WaitingOn.EMPTY);
         }
 
@@ -189,7 +202,7 @@ public class AccordTestUtils
         @Override public void preaccepted(Command command, ProgressShard progressShard) {}
         @Override public void accepted(Command command, ProgressShard progressShard) {}
         @Override public void precommitted(Command command) {}
-        @Override public void committed(Command command, ProgressShard progressShard) {}
+        @Override public void stable(Command command, ProgressShard progressShard) {}
         @Override public void readyToExecute(Command command) {}
         @Override public void executed(Command command, ProgressShard progressShard) {}
         @Override public void clear(TxnId txnId) {}

@@ -110,12 +110,12 @@ import static accord.messages.MessageType.BEGIN_INVALIDATE_REQ;
 import static accord.messages.MessageType.BEGIN_RECOVER_REQ;
 import static accord.messages.MessageType.COMMIT_INVALIDATE_REQ;
 import static accord.messages.MessageType.COMMIT_MAXIMAL_REQ;
-import static accord.messages.MessageType.COMMIT_MINIMAL_REQ;
+import static accord.messages.MessageType.COMMIT_SLOW_PATH_REQ;
 import static accord.messages.MessageType.INFORM_DURABLE_REQ;
 import static accord.messages.MessageType.INFORM_OF_TXN_REQ;
 import static accord.messages.MessageType.PRE_ACCEPT_REQ;
 import static accord.messages.MessageType.PROPAGATE_APPLY_MSG;
-import static accord.messages.MessageType.PROPAGATE_COMMIT_MSG;
+import static accord.messages.MessageType.PROPAGATE_STABLE_MSG;
 import static accord.messages.MessageType.PROPAGATE_OTHER_MSG;
 import static accord.messages.MessageType.PROPAGATE_PRE_ACCEPT_MSG;
 import static accord.messages.MessageType.SET_GLOBALLY_DURABLE_REQ;
@@ -124,6 +124,9 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon.NON_DAEMON;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.SYNCHRONIZED;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.SAFE;
+import static accord.messages.MessageType.STABLE_FAST_PATH_REQ;
+import static accord.messages.MessageType.STABLE_MAXIMAL_REQ;
+import static accord.messages.MessageType.STABLE_SLOW_PATH_REQ;
 import static org.apache.cassandra.db.TypeSizes.BYTE_SIZE;
 import static org.apache.cassandra.db.TypeSizes.INT_SIZE;
 import static org.apache.cassandra.db.TypeSizes.LONG_SIZE;
@@ -829,8 +832,11 @@ public class AccordJournal implements Shutdownable
         PRE_ACCEPT                    (64, PRE_ACCEPT_REQ,                    PreacceptSerializers.request, TXN  ),
         ACCEPT                        (65, ACCEPT_REQ,                        AcceptSerializers.request,    TXN  ),
         ACCEPT_INVALIDATE             (66, ACCEPT_INVALIDATE_REQ,             AcceptSerializers.invalidate, EPOCH),
-        COMMIT_MINIMAL                (67, COMMIT_MINIMAL_REQ,                CommitSerializers.request,    TXN  ),
+        COMMIT_SLOW_PATH              (67, COMMIT_SLOW_PATH_REQ,              CommitSerializers.request,    TXN  ),
         COMMIT_MAXIMAL                (68, COMMIT_MAXIMAL_REQ,                CommitSerializers.request,    TXN  ),
+        STABLE_FAST_PATH              (87, STABLE_FAST_PATH_REQ,              CommitSerializers.request,    TXN  ),
+        STABLE_SLOW_PATH              (88, STABLE_SLOW_PATH_REQ,              CommitSerializers.request,    TXN  ),
+        STABLE_MAXIMAL                (89, STABLE_MAXIMAL_REQ,                CommitSerializers.request,    TXN  ),
         COMMIT_INVALIDATE             (69, COMMIT_INVALIDATE_REQ,             CommitSerializers.invalidate, INVL ),
         APPLY_MINIMAL                 (70, APPLY_MINIMAL_REQ,                 ApplySerializers.request,     TXN  ),
         APPLY_MAXIMAL                 (71, APPLY_MAXIMAL_REQ,                 ApplySerializers.request,     TXN  ),
@@ -845,15 +851,15 @@ public class AccordJournal implements Shutdownable
 
         /* Accord local messages */
         PROPAGATE_PRE_ACCEPT          (79, PROPAGATE_PRE_ACCEPT_MSG, FetchSerializers.propagate, LOCAL),
-        PROPAGATE_COMMIT              (80, PROPAGATE_COMMIT_MSG,     FetchSerializers.propagate, LOCAL),
+        PROPAGATE_STABLE              (80, PROPAGATE_STABLE_MSG,     FetchSerializers.propagate, LOCAL),
         PROPAGATE_APPLY               (81, PROPAGATE_APPLY_MSG,      FetchSerializers.propagate, LOCAL),
         PROPAGATE_OTHER               (82, PROPAGATE_OTHER_MSG,      FetchSerializers.propagate, LOCAL),
 
         /* C* interop messages */
-        INTEROP_COMMIT_MINIMAL        (83, INTEROP_COMMIT_MINIMAL_REQ, COMMIT_MINIMAL_REQ, AccordInteropCommit.serializer, TXN),
-        INTEROP_COMMIT_MAXIMAL        (84, INTEROP_COMMIT_MAXIMAL_REQ, COMMIT_MAXIMAL_REQ, AccordInteropCommit.serializer, TXN),
-        INTEROP_APPLY_MINIMAL         (85, INTEROP_APPLY_MINIMAL_REQ,  APPLY_MINIMAL_REQ,  AccordInteropApply.serializer,  TXN),
-        INTEROP_APPLY_MAXIMAL         (86, INTEROP_APPLY_MAXIMAL_REQ,  APPLY_MAXIMAL_REQ,  AccordInteropApply.serializer,  TXN),
+        INTEROP_COMMIT                (83, INTEROP_COMMIT_MINIMAL_REQ,  STABLE_FAST_PATH_REQ, AccordInteropCommit.serializer, TXN),
+        INTEROP_COMMIT_MAXIMAL        (84, INTEROP_COMMIT_MAXIMAL_REQ, STABLE_MAXIMAL_REQ,   AccordInteropCommit.serializer, TXN),
+        INTEROP_APPLY_MINIMAL         (85, INTEROP_APPLY_MINIMAL_REQ,  APPLY_MINIMAL_REQ,    AccordInteropApply.serializer,  TXN),
+        INTEROP_APPLY_MAXIMAL         (86, INTEROP_APPLY_MAXIMAL_REQ,  APPLY_MAXIMAL_REQ,    AccordInteropApply.serializer,  TXN),
         ;
 
         final int id;
@@ -1377,9 +1383,9 @@ public class AccordJournal implements Shutdownable
         }
 
         @Override
-        public Commit commitMinimal()
+        public Commit commitSlowPath()
         {
-            return readMessage(txnId, COMMIT_MINIMAL_REQ, Commit.class);
+            return readMessage(txnId, COMMIT_SLOW_PATH_REQ, Commit.class);
         }
 
         @Override
@@ -1389,9 +1395,21 @@ public class AccordJournal implements Shutdownable
         }
 
         @Override
-        public Propagate propagateCommit()
+        public Commit stableFastPath()
         {
-            return readMessage(txnId, PROPAGATE_COMMIT_MSG, Propagate.class);
+            return readMessage(txnId, STABLE_FAST_PATH_REQ, Commit.class);
+        }
+
+        @Override
+        public Commit stableMaximal()
+        {
+            return readMessage(txnId, STABLE_MAXIMAL_REQ, Commit.class);
+        }
+
+        @Override
+        public Propagate propagateStable()
+        {
+            return readMessage(txnId, PROPAGATE_STABLE_MSG, Propagate.class);
         }
 
         @Override
@@ -1470,11 +1488,11 @@ public class AccordJournal implements Shutdownable
         }
 
         @Override
-        public Commit commitMinimal()
+        public Commit commitSlowPath()
         {
-            logger.debug("Fetching {} message for {}", COMMIT_MINIMAL_REQ, txnId);
-            Commit commit = provider.commitMinimal();
-            logger.debug("Fetched {} message for {}: {}", COMMIT_MINIMAL_REQ, txnId, commit);
+            logger.debug("Fetching {} message for {}", COMMIT_SLOW_PATH_REQ, txnId);
+            Commit commit = provider.commitSlowPath();
+            logger.debug("Fetched {} message for {}: {}", COMMIT_SLOW_PATH_REQ, txnId, commit);
             return commit;
         }
 
@@ -1488,11 +1506,29 @@ public class AccordJournal implements Shutdownable
         }
 
         @Override
-        public Propagate propagateCommit()
+        public Commit stableFastPath()
         {
-            logger.debug("Fetching {} message for {}", PROPAGATE_COMMIT_MSG, txnId);
-            Propagate propagate = provider.propagateCommit();
-            logger.debug("Fetched {} message for {}: {}", PROPAGATE_COMMIT_MSG, txnId, propagate);
+            logger.debug("Fetching {} message for {}", STABLE_FAST_PATH_REQ, txnId);
+            Commit commit = provider.stableFastPath();
+            logger.debug("Fetched {} message for {}: {}", STABLE_FAST_PATH_REQ, txnId, commit);
+            return commit;
+        }
+
+        @Override
+        public Commit stableMaximal()
+        {
+            logger.debug("Fetching {} message for {}", STABLE_MAXIMAL_REQ, txnId);
+            Commit commit = provider.stableMaximal();
+            logger.debug("Fetched {} message for {}: {}", STABLE_MAXIMAL_REQ, txnId, commit);
+            return commit;
+        }
+
+        @Override
+        public Propagate propagateStable()
+        {
+            logger.debug("Fetching {} message for {}", PROPAGATE_STABLE_MSG, txnId);
+            Propagate propagate = provider.propagateStable();
+            logger.debug("Fetched {} message for {}: {}", PROPAGATE_STABLE_MSG, txnId, propagate);
             return propagate;
         }
 

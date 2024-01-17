@@ -46,6 +46,7 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.serializers.SmallEnumSerializer.NullableSmallEnumSerializer;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
@@ -241,20 +242,21 @@ public class CommandSerializers
 
     public static final IVersionedSerializer<Writes> nullableWrites = NullableSerializer.wrap(writes);
 
-    public static final EnumSerializer<Status.KnownRoute> route = new EnumSerializer<>(Status.KnownRoute.class);
-    public static final EnumSerializer<Status.Definition> definition = new EnumSerializer<>(Status.Definition.class);
-    public static final EnumSerializer<Status.KnownExecuteAt> knownExecuteAt = new EnumSerializer<>(Status.KnownExecuteAt.class);
-    public static final EnumSerializer<Status.KnownDeps> knownDeps = new EnumSerializer<>(Status.KnownDeps.class);
-    public static final EnumSerializer<Status.Outcome> outcome = new EnumSerializer<>(Status.Outcome.class);
-    public static final EnumSerializer<Infer.InvalidIfNot> invalidIfNot = new EnumSerializer<>(Infer.InvalidIfNot.class);
-    public static final EnumSerializer<Infer.IsPreempted> isPreempted = new EnumSerializer<>(Infer.IsPreempted.class);
+    public static final SmallEnumSerializer<Status.KnownRoute> knownRoute = new SmallEnumSerializer<>(Status.KnownRoute.class);
+    public static final SmallEnumSerializer<Status.Definition> definition = new SmallEnumSerializer<>(Status.Definition.class);
+    public static final SmallEnumSerializer<Status.KnownExecuteAt> knownExecuteAt = new SmallEnumSerializer<>(Status.KnownExecuteAt.class);
+    public static final SmallEnumSerializer<Status.KnownDeps> knownDeps = new SmallEnumSerializer<>(Status.KnownDeps.class);
+    public static final NullableSmallEnumSerializer<Status.KnownDeps> nullableKnownDeps = new NullableSmallEnumSerializer<>(knownDeps);
+    public static final SmallEnumSerializer<Status.Outcome> outcome = new SmallEnumSerializer<>(Status.Outcome.class);
+    public static final SmallEnumSerializer<Infer.InvalidIfNot> invalidIfNot = new SmallEnumSerializer<>(Infer.InvalidIfNot.class);
+    public static final SmallEnumSerializer<Infer.IsPreempted> isPreempted = new SmallEnumSerializer<>(Infer.IsPreempted.class);
 
     public static final IVersionedSerializer<Known> known = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(Known known, DataOutputPlus out, int version) throws IOException
         {
-            route.serialize(known.route, out, version);
+            knownRoute.serialize(known.route, out, version);
             definition.serialize(known.definition, out, version);
             knownExecuteAt.serialize(known.executeAt, out, version);
             knownDeps.serialize(known.deps, out, version);
@@ -264,7 +266,7 @@ public class CommandSerializers
         @Override
         public Known deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new Known(route.deserialize(in, version),
+            return new Known(knownRoute.deserialize(in, version),
                              definition.deserialize(in, version),
                              knownExecuteAt.deserialize(in, version),
                              knownDeps.deserialize(in, version),
@@ -274,11 +276,11 @@ public class CommandSerializers
         @Override
         public long serializedSize(Known known, int version)
         {
-            return route.serializedSize(known.route, version)
-                 + definition.serializedSize(known.definition, version)
-                 + knownExecuteAt.serializedSize(known.executeAt, version)
-                 + knownDeps.serializedSize(known.deps, version)
-                 + outcome.serializedSize(known.outcome, version);
+            return knownRoute.serializedSize(known.route, version)
+                   + definition.serializedSize(known.definition, version)
+                   + knownExecuteAt.serializedSize(known.executeAt, version)
+                   + knownDeps.serializedSize(known.deps, version)
+                   + outcome.serializedSize(known.outcome, version);
         }
     };
 }
