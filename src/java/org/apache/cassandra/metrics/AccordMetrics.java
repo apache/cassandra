@@ -41,7 +41,7 @@ public class AccordMetrics
     public final static AccordMetrics readMetrics = new AccordMetrics("ro");
     public final static AccordMetrics writeMetrics = new AccordMetrics("rw");
 
-    public static final String COMMIT_LATENCY = "CommitLatency";
+    public static final String STABLE_LATENCY = "StableLatency";
     public static final String EXECUTE_LATENCY = "ExecuteLatency";
     public static final String APPLY_LATENCY = "ApplyLatency";
     public static final String APPLY_DURATION = "ApplyDuration";
@@ -63,7 +63,7 @@ public class AccordMetrics
     /**
      * The time between start on the coordinator and commit on this replica.
      */
-    public final Timer commitLatency;
+    public final Timer stableLatency;
 
     /**
      * The time between start on the coordinator and execution on this replica.
@@ -135,7 +135,7 @@ public class AccordMetrics
     private AccordMetrics(String scope)
     {
         DefaultNameFactory replica = new DefaultNameFactory(ACCORD_REPLICA, scope);
-        commitLatency = Metrics.timer(replica.createMetricName(COMMIT_LATENCY));
+        stableLatency = Metrics.timer(replica.createMetricName(STABLE_LATENCY));
         executeLatency = Metrics.timer(replica.createMetricName(EXECUTE_LATENCY));
         applyLatency = Metrics.timer(replica.createMetricName(APPLY_LATENCY));
         applyDuration = Metrics.timer(replica.createMetricName(APPLY_DURATION));
@@ -204,14 +204,14 @@ public class AccordMetrics
         }
 
         @Override
-        public void onCommitted(Command cmd)
+        public void onStable(Command cmd)
         {
             long now = AccordService.uniqueNow();
             AccordMetrics metrics = forTransaction(cmd.txnId());
             if (metrics != null)
             {
                 long trxTimestamp = cmd.txnId().hlc();
-                metrics.commitLatency.update(now - trxTimestamp, TimeUnit.MICROSECONDS);
+                metrics.stableLatency.update(now - trxTimestamp, TimeUnit.MICROSECONDS);
             }
         }
 

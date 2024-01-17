@@ -173,8 +173,9 @@ public class CheckStatusSerializers
             foundKnownMap.serialize(ok.map, out, version);
             CommandSerializers.saveStatus.serialize(ok.maxKnowledgeSaveStatus, out, version);
             CommandSerializers.saveStatus.serialize(ok.maxSaveStatus, out, version);
-            CommandSerializers.ballot.serialize(ok.promised, out, version);
-            CommandSerializers.ballot.serialize(ok.accepted, out, version);
+            CommandSerializers.ballot.serialize(ok.maxPromised, out, version);
+            CommandSerializers.ballot.serialize(ok.maxAcceptedOrCommitted, out, version);
+            CommandSerializers.ballot.serialize(ok.acceptedOrCommitted, out, version);
             CommandSerializers.nullableTimestamp.serialize(ok.executeAt, out, version);
             out.writeBoolean(ok.isCoordinating);
             CommandSerializers.durability.serialize(ok.durability, out, version);
@@ -186,7 +187,7 @@ public class CheckStatusSerializers
 
             CheckStatusOkFull okFull = (CheckStatusOkFull) ok;
             CommandSerializers.nullablePartialTxn.serialize(okFull.partialTxn, out, version);
-            DepsSerializer.nullablePartialDeps.serialize(okFull.committedDeps, out, version);
+            DepsSerializer.nullablePartialDeps.serialize(okFull.stableDeps, out, version);
             CommandSerializers.nullableWrites.serialize(okFull.writes, out, version);
         }
 
@@ -204,8 +205,9 @@ public class CheckStatusSerializers
                     FoundKnownMap map = foundKnownMap.deserialize(in, version);
                     SaveStatus maxKnowledgeStatus = CommandSerializers.saveStatus.deserialize(in, version);
                     SaveStatus maxStatus = CommandSerializers.saveStatus.deserialize(in, version);
-                    Ballot promised = CommandSerializers.ballot.deserialize(in, version);
-                    Ballot accepted = CommandSerializers.ballot.deserialize(in, version);
+                    Ballot maxPromised = CommandSerializers.ballot.deserialize(in, version);
+                    Ballot maxAcceptedOrCommitted = CommandSerializers.ballot.deserialize(in, version);
+                    Ballot acceptedOrCommitted = CommandSerializers.ballot.deserialize(in, version);
                     Timestamp executeAt = CommandSerializers.nullableTimestamp.deserialize(in, version);
                     boolean isCoordinating = in.readBoolean();
                     Durability durability = CommandSerializers.durability.deserialize(in, version);
@@ -213,7 +215,7 @@ public class CheckStatusSerializers
                     RoutingKey homeKey = KeySerializers.nullableRoutingKey.deserialize(in, version);
 
                     if (kind == OK)
-                        return createOk(map, maxKnowledgeStatus, maxStatus, promised, accepted, executeAt,
+                        return createOk(map, maxKnowledgeStatus, maxStatus, maxPromised, maxAcceptedOrCommitted, acceptedOrCommitted, executeAt,
                                         isCoordinating, durability, route, homeKey);
 
                     PartialTxn partialTxn = CommandSerializers.nullablePartialTxn.deserialize(in, version);
@@ -225,7 +227,7 @@ public class CheckStatusSerializers
                         || maxKnowledgeStatus == SaveStatus.TruncatedApply || maxKnowledgeStatus == SaveStatus.TruncatedApplyWithOutcome || maxKnowledgeStatus == SaveStatus.TruncatedApplyWithDeps)
                         result = CommandSerializers.APPLIED;
 
-                    return createOk(map, maxKnowledgeStatus, maxStatus, promised, accepted, executeAt,
+                    return createOk(map, maxKnowledgeStatus, maxStatus, maxPromised, maxAcceptedOrCommitted, acceptedOrCommitted, executeAt,
                                     isCoordinating, durability, route, homeKey, partialTxn, committedDeps, writes, result);
 
             }
@@ -242,8 +244,9 @@ public class CheckStatusSerializers
             size += foundKnownMap.serializedSize(ok.map, version);
             size += CommandSerializers.saveStatus.serializedSize(ok.maxKnowledgeSaveStatus, version);
             size += CommandSerializers.saveStatus.serializedSize(ok.maxSaveStatus, version);
-            size += CommandSerializers.ballot.serializedSize(ok.promised, version);
-            size += CommandSerializers.ballot.serializedSize(ok.accepted, version);
+            size += CommandSerializers.ballot.serializedSize(ok.maxPromised, version);
+            size += CommandSerializers.ballot.serializedSize(ok.maxAcceptedOrCommitted, version);
+            size += CommandSerializers.ballot.serializedSize(ok.acceptedOrCommitted, version);
             size += CommandSerializers.nullableTimestamp.serializedSize(ok.executeAt, version);
             size += TypeSizes.BOOL_SIZE;
             size += CommandSerializers.durability.serializedSize(ok.durability, version);
@@ -255,7 +258,7 @@ public class CheckStatusSerializers
 
             CheckStatusOkFull okFull = (CheckStatusOkFull) ok;
             size += CommandSerializers.nullablePartialTxn.serializedSize(okFull.partialTxn, version);
-            size += DepsSerializer.nullablePartialDeps.serializedSize(okFull.committedDeps, version);
+            size += DepsSerializer.nullablePartialDeps.serializedSize(okFull.stableDeps, version);
             size += CommandSerializers.nullableWrites.serializedSize(okFull.writes, version);
             return size;
         }

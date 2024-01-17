@@ -23,7 +23,7 @@ import java.util.function.BiConsumer;
 import accord.api.Result;
 import accord.api.Update;
 import accord.coordinate.Persist;
-import accord.coordinate.TxnPersist;
+import accord.coordinate.PersistTxn;
 import accord.coordinate.tracking.AppliedTracker;
 import accord.coordinate.tracking.QuorumTracker;
 import accord.coordinate.tracking.RequestStatus;
@@ -57,7 +57,7 @@ public class AccordInteropPersist extends Persist
             Update update = txn.update();
             ConsistencyLevel consistencyLevel = update instanceof AccordUpdate ? ((AccordUpdate) update).cassandraCommitCL() : null;
             if (consistencyLevel == null || consistencyLevel == ConsistencyLevel.ANY || writes.isEmpty())
-                return TxnPersist.FACTORY.create(node, topologies, txnId, route, txn, executeAt, deps, writes, result);
+                return PersistTxn.FACTORY.create(node, topologies, txnId, route, txn, executeAt, deps, writes, result);
             return new AccordInteropPersist(node, topologies, txnId, route, txn, executeAt, deps, writes, result, consistencyLevel);
         }
     };

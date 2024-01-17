@@ -82,18 +82,19 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
         common.route(route);
         common.partialDeps(deps.slice(scope));
         common.durability(Status.Durability.NotDurable);
-        Command.WaitingOn waitingOn = Command.WaitingOn.none(deps.slice(scope));
+        Command.WaitingOn waitingOn = null;
 
         Command.Committed committed = Command.SerializerSupport.committed(common, SaveStatus.Committed, id, Ballot.ZERO, Ballot.ZERO, waitingOn);
         AccordSafeCommand safeCommand = new AccordSafeCommand(AccordTestUtils.loaded(id, null));
         safeCommand.set(committed);
 
-        Commit commit = Commit.SerializerSupport.create(id, route.slice(scope), 1, Commit.Kind.Maximal, id, partialTxn, partialDeps, route, null);
+        Commit commit = Commit.SerializerSupport.create(id, route.slice(scope), 1, Commit.Kind.StableFastPath, Ballot.ZERO, id, partialTxn, partialDeps, route, null);
         store.appendToJournal(commit);
 
         Mutation mutation = AccordKeyspace.getCommandMutation(store, safeCommand, 42);
         mutation.apply();
 
-        Assertions.assertThat(AccordKeyspace.loadCommand(store, id)).isEqualTo(committed);
+        Command loaded = AccordKeyspace.loadCommand(store, id);
+        Assertions.assertThat(loaded).isEqualTo(committed);
     }
 }

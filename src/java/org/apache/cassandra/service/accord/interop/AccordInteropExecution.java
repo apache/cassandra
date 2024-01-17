@@ -28,6 +28,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
+import accord.messages.ReadTxnData;
+import accord.primitives.Ballot;
 import org.apache.cassandra.schema.TableId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,7 +39,7 @@ import accord.api.Data;
 import accord.api.Result;
 import accord.coordinate.Execute;
 import accord.coordinate.Persist;
-import accord.coordinate.TxnExecute;
+import accord.coordinate.ExecuteTxn;
 import accord.local.AgentExecutor;
 import accord.local.CommandStore;
 import accord.local.Node;
@@ -153,13 +155,13 @@ public class AccordInteropExecution implements Execute, ReadCoordinator, Maximal
         }
 
         @Override
-        public Execute create(Node node, TxnId txnId, Txn txn, FullRoute<?> route, Participants<?> readScope, Timestamp executeAt, Deps deps, BiConsumer<? super Result, Throwable> callback)
+        public Execute create(Node node, Topologies topologies, Path path, TxnId txnId, Txn txn, FullRoute<?> route, Participants<?> readScope, Timestamp executeAt, Deps deps, BiConsumer<? super Result, Throwable> callback)
         {
             // Unrecoverable repair always needs to be run by AccordInteropExecution
             AccordUpdate.Kind updateKind = AccordUpdate.kind(txn.update());
             ConsistencyLevel consistencyLevel = txn.read() instanceof TxnRead ? ((TxnRead) txn.read()).cassandraConsistencyLevel() : null;
             if (updateKind != AccordUpdate.Kind.UNRECOVERABLE_REPAIR && (consistencyLevel == null || consistencyLevel == ConsistencyLevel.ONE || txn.read().keys().isEmpty()))
-                return TxnExecute.FACTORY.create(node, txnId, txn, route, readScope, executeAt, deps, callback);
+                return ExecuteTxn.FACTORY.create(node, topologies, path, txnId, txn, route, readScope, executeAt, deps, callback);
             return new AccordInteropExecution(node, txnId, txn, updateKind, route, readScope, executeAt, deps, callback, executor, consistencyLevel, endpointMapper);
         }
     }
@@ -252,7 +254,8 @@ public class AccordInteropExecution implements Execute, ReadCoordinator, Maximal
         Node.Id id = endpointMapper.mappedId(to);
         SinglePartitionReadCommand command = (SinglePartitionReadCommand) message.payload;
         AccordInteropRead read = new AccordInteropRead(id, executes, txnId, readScope, executeAt, command);
-        AccordInteropCommit commit = new AccordInteropCommit(Commit.Kind.Minimal, id, coordinateTopology, allTopologies,
+        // TODO (required): understand interop and whether StableFastPath is appropriate
+        AccordInteropCommit commit = new AccordInteropCommit(Kind.StableFastPath, id, coordinateTopology, allTopologies,
                                                              txnId, txn, route, executeAt, deps, read);
         node.send(id, commit, executor, new AccordInteropRead.ReadCallback(id, to, message, callback, this));
     }
@@ -337,14 +340,14 @@ public class AccordInteropExecution implements Execute, ReadCoordinator, Maximal
         for (int i = 0; i < digestRequests.size(); i++)
             contacted.add(digestRequests.endpoint(i));
         if (readsCurrentlyUnderConstruction.decrementAndGet() == 0)
-            sendCommitsToUncontacted();
+            sendStableToUncontacted();
     }
 
-    private void sendCommitsToUncontacted()
+    private void sendStableToUncontacted()
     {
         for (Node.Id to : executeTopology.nodes())
             if (!contacted.contains(endpointMapper.mappedEndpoint(to)))
-                node.send(to, new Commit(Kind.Minimal, to, coordinateTopology, allTopologies, txnId, txn, route, readScope, executeAt, deps, false));
+                node.send(to, new Commit(Kind.StableFastPath, to, coordinateTopology, allTopologies, txnId, txn, route, Ballot.ZERO, executeAt, deps, (ReadTxnData) null));
     }
 
     @Override
@@ -355,7 +358,7 @@ public class AccordInteropExecution implements Execute, ReadCoordinator, Maximal
             for (Node.Id to : allTopologies.nodes())
             {
                 if (!executeTopology.contains(to))
-                    node.send(to, new Commit(Commit.Kind.Minimal, to, coordinateTopology, allTopologies, txnId, txn, route, readScope, executeAt, deps, false));
+                    node.send(to, new Commit(Kind.StableFastPath, to, coordinateTopology, allTopologies, txnId, txn, route, Ballot.ZERO, executeAt, deps, (ReadTxnData) null));
             }
         }
         AsyncChain<Data> result;
@@ -367,7 +370,7 @@ public class AccordInteropExecution implements Execute, ReadCoordinator, Maximal
         CommandStore cs = node.commandStores().select(route.homeKey());
         result.beginAsResult().withExecutor(cs).begin((data, failure) -> {
             if (failure == null)
-                Persist.persist(node, executes, txnId, route, txn, executeAt, deps, txn.execute(txnId, executeAt, data), txn.result(txnId, executeAt, data), callback);
+                Persist.persist(node, executes, route, txnId, txn, executeAt, deps, txn.execute(txnId, executeAt, data), txn.result(txnId, executeAt, data), callback);
             else
                 callback.accept(null, failure);
         });
@@ -380,7 +383,7 @@ public class AccordInteropExecution implements Execute, ReadCoordinator, Maximal
             // TODO (expected): We should send the read in the same message as the commit. This requires refactor ReadData.Kind so that it doesn't specify the ordinal encoding
             // and can be extended similar to MessageType which allows additional types not from Accord to be added
             for (Node.Id to : executeTopology.nodes())
-                    node.send(to, new Commit(Kind.Minimal, to, coordinateTopology, allTopologies, txnId, txn, route, readScope, executeAt, deps, false));
+                    node.send(to, new Commit(Kind.StableFastPath, to, coordinateTopology, allTopologies, txnId, txn, route, Ballot.ZERO, executeAt, deps, (ReadTxnData) null));
             repairUpdate.runBRR(AccordInteropExecution.this);
             return new TxnData();
         });
@@ -408,6 +411,6 @@ public class AccordInteropExecution implements Execute, ReadCoordinator, Maximal
     @Override
     public void sendMaximalCommit(Id to)
     {
-        Commit.commitMaximal(node, to, txn, txnId, executeAt, route, deps, readScope);
+        Commit.stableMaximal(node, to, txn, txnId, executeAt, route, deps);
     }
 }

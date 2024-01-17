@@ -30,7 +30,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.RequestCallback;
 
-import static accord.messages.ReadData.ReadNack.NotCommitted;
+import static accord.messages.ReadData.CommitOrReadNack.Insufficient;
 
 public abstract class AccordInteropReadCallback<T> implements Callback<ReadReply>
 {
@@ -63,7 +63,7 @@ public abstract class AccordInteropReadCallback<T> implements Callback<ReadReply
         {
             wrapped.onResponse(message.responseWith(convertResponse((ReadOk) reply)).withFrom(endpoint));
         }
-        else if (reply == NotCommitted)
+        else if (reply == Insufficient)
         {
             // Might still send a response if we send a maximal commit. Accord would tryAlternative and send
             // both the commit and an additional repair, but Cassandra doesn't have tryAlternative unless we add

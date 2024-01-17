@@ -83,8 +83,6 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordKeyspace;
-import org.apache.cassandra.service.accord.AccordKeyspace.CommandRows;
-import org.apache.cassandra.service.accord.AccordKeyspace.CommandsColumns;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -461,7 +459,7 @@ public class CompactionAccordIteratorsTest
         TxnId[] txnIds = additionalCommand ? TXN_IDS : new TxnId[] {TXN_ID};
         for (TxnId txnId : txnIds)
         {
-            Txn txn = txnId.rw().isWrite() ? AccordTestUtils.createWriteTxn(42) : AccordTestUtils.createTxn(42);
+            Txn txn = txnId.kind().isWrite() ? AccordTestUtils.createWriteTxn(42) : AccordTestUtils.createTxn(42);
             Seekable key = txn.keys().get(0);
             PartialDeps partialDeps = Deps.NONE.slice(AccordTestUtils.fullRange(txn));
             PartialTxn partialTxn = txn.slice(commandStore.unsafeRangesForEpoch().currentRanges(), true);
@@ -482,9 +480,9 @@ public class CompactionAccordIteratorsTest
             flush(commandStore);
             getUninterruptibly(commandStore.execute(contextFor(txnId, txn.keys()), safe -> {
                 Commit commit =
-                    Commit.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), Commit.Kind.Minimal, txnId, partialTxn, partialDeps, route, null);
+                    Commit.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), Commit.Kind.StableFastPath, Ballot.ZERO, txnId, partialTxn, partialDeps, route, null);
                 commandStore.appendToJournal(commit);
-                CheckedCommands.commit(safe, txnId, route, null, partialTxn, txnId, partialDeps);
+                CheckedCommands.commit(safe, SaveStatus.Stable, Ballot.ZERO, txnId, route, null, partialTxn, txnId, partialDeps);
             }).beginAsResult());
             flush(commandStore);
             getUninterruptibly(commandStore.execute(contextFor(txnId, txn.keys()), safe -> {
