@@ -25,7 +25,7 @@ import org.junit.Test;
 import org.apache.cassandra.harry.ddl.ColumnSpec;
 import org.apache.cassandra.harry.ddl.SchemaSpec;
 import org.apache.cassandra.harry.dsl.ReplayingHistoryBuilder;
-import org.apache.cassandra.harry.gen.DataGenerators;
+import org.apache.cassandra.harry.dsl.ValueDescriptorIndexGenerator;
 import org.apache.cassandra.harry.sut.SystemUnderTest;
 import org.apache.cassandra.harry.sut.TokenPlacementModel;
 import org.apache.cassandra.harry.tracker.DefaultDataTracker;
@@ -33,7 +33,6 @@ import org.apache.cassandra.harry.tracker.DefaultDataTracker;
 public class ReconcilerIntegrationTest extends IntegrationTestBase
 {
     private final long seed = 1; // 88
-
 
     @Test
     public void testTrackingWithStatics() throws Throwable
@@ -53,13 +52,13 @@ public class ReconcilerIntegrationTest extends IntegrationTestBase
         TokenPlacementModel.ReplicationFactor rf = new TokenPlacementModel.SimpleReplicationFactor(1);
         ReplayingHistoryBuilder historyBuilder = new ReplayingHistoryBuilder(seed, 100, 1, new DefaultDataTracker(), sut, schema, rf, SystemUnderTest.ConsistencyLevel.QUORUM);
         historyBuilder.visitPartition(1).insert(1,
-                                                new long[]{ DataGenerators.UNSET_DESCR, DataGenerators.UNSET_DESCR },
-                                                new long[]{ 1L, 1L });
+                                                new long[]{ ValueDescriptorIndexGenerator.UNSET, ValueDescriptorIndexGenerator.UNSET },
+                                                new long[]{ 1, 1 });
         historyBuilder.validate(1);
 
         historyBuilder.visitPartition(2).insert(2,
-                                                new long[]{ 1L, 1L },
-                                                new long[]{ 1L, 1L });
+                                                new long[]{ 1, 1 },
+                                                new long[]{ 1, 1 });
         historyBuilder.visitPartition(2).deleteRowRange(1, 3, true, true);
         historyBuilder.validate(2);
     }
@@ -81,13 +80,13 @@ public class ReconcilerIntegrationTest extends IntegrationTestBase
         TokenPlacementModel.ReplicationFactor rf = new TokenPlacementModel.SimpleReplicationFactor(1);
         ReplayingHistoryBuilder historyBuilder = new ReplayingHistoryBuilder(seed, 100, 1, new DefaultDataTracker(), sut, schema, rf, SystemUnderTest.ConsistencyLevel.QUORUM);
                                                                              historyBuilder.visitPartition(2).insert(2,
-                                                new long[]{ 1L, 1L });
+                                                new long[]{ 1, 1 });
         historyBuilder.visitPartition(2).deleteRowRange(1, 3, true, true);
         historyBuilder.validate(2);
 
         historyBuilder = new ReplayingHistoryBuilder(seed, 100, 1, new DefaultDataTracker(), sut, schema, rf, SystemUnderTest.ConsistencyLevel.QUORUM);
         historyBuilder.visitPartition(2).insert(2,
-                                                new long[]{ 1L, 1L });
+                                                new long[]{ 1, 1 });
         historyBuilder.visitPartition(2).deleteRowRange(1, 3, true, true);
         historyBuilder.validate(2);
     }

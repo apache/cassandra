@@ -37,9 +37,17 @@ import org.apache.cassandra.harry.model.OpSelectors;
  */
 public class ValueDescriptorIndexGenerator implements Surjections.Surjection<Long>
 {
+    public static int UNSET = Integer.MIN_VALUE;
+
     private final OpSelectors.PureRng rng;
     private final long columnHash;
     private final long mask;
+
+    public ValueDescriptorIndexGenerator(ColumnSpec<?> columnSpec,
+                                         long seed)
+    {
+        this(columnSpec, new OpSelectors.PCGFast(seed));
+    }
 
     public ValueDescriptorIndexGenerator(ColumnSpec<?> columnSpec,
                                          OpSelectors.PureRng rng)
@@ -52,6 +60,9 @@ public class ValueDescriptorIndexGenerator implements Surjections.Surjection<Lon
     @Override
     public Long inflate(long idx)
     {
+        if (idx == UNSET)
+            return DataGenerators.UNSET_DESCR;
+
         return rng.randomNumber(idx, columnHash) & mask;
     }
 

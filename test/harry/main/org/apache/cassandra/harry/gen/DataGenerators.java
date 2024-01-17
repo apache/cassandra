@@ -39,6 +39,8 @@ public class DataGenerators
     // during value generation
     public static long UNSET_DESCR = Long.MAX_VALUE;
     public static long NIL_DESCR = Long.MIN_VALUE;
+    // Empty value, for the types that support it
+    public static long EMPTY_VALUE = Long.MIN_VALUE + 1;
 
     public static Object[] inflateData(List<ColumnSpec<?>> columns, long[] descriptors)
     {
@@ -254,7 +256,7 @@ public class DataGenerators
         @VisibleForTesting
         public final List<ColumnSpec<?>> columns;
 
-        KeyGenerator(List<ColumnSpec<?>> columns)
+        protected KeyGenerator(List<ColumnSpec<?>> columns)
         {
             this.columns = columns;
         }
@@ -395,7 +397,6 @@ public class DataGenerators
             int maxSliceSize = gen.byteSize();
             int actualSliceSize = sizes[idx];
 
-
             if (idx == 0)
             {
                 // We consume a sign of a descriptor (long, long), (int, int), etc.
@@ -430,7 +431,7 @@ public class DataGenerators
 
         public long[] slice(long descriptor)
         {
-            long[] pieces = new long[sizes.length];
+            long[] pieces = new long[columns.size()];
             long pos = totalSize;
             for (int i = 0; i < sizes.length; i++)
             {
@@ -445,6 +446,15 @@ public class DataGenerators
                 pieces[i] = piece;
                 pos -= size;
             }
+
+            // The rest can be random, since prefix is always fixed
+            long current = descriptor;
+            for (int i = sizes.length; i < columns.size(); i++)
+            {
+                current = RngUtils.next(current);
+                pieces[i] = columns.get(i).generator().adjustEntropyDomain(current);
+            }
+
             return pieces;
         }
 
@@ -466,7 +476,6 @@ public class DataGenerators
             }
             return stitched;
         }
-
 
         public long minValue(int idx)
         {

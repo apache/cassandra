@@ -30,14 +30,15 @@ public class BatchVisitBuilder extends SingleOperationVisitBuilder implements Cl
     private final HistoryBuilder historyBuilder;
 
     public BatchVisitBuilder(HistoryBuilder historyBuilder,
-                             PartitionVisitState partitionState,
+                             PartitionVisitStateImpl partitionState,
                              long lts,
                              OpSelectors.PureRng rng,
                              OpSelectors.DescriptorSelector descriptorSelector,
-                             SchemaSpec schemaSpec,
+                             SchemaSpec schema,
+                             ValueHelper valueHelper,
                              Consumer<ReplayingVisitor.Visit> appendToLog)
     {
-        super(partitionState, lts, rng, descriptorSelector, schemaSpec, appendToLog);
+        super(partitionState, lts, rng, descriptorSelector, schema, valueHelper, appendToLog);
         this.historyBuilder = historyBuilder;
     }
 

@@ -201,8 +201,8 @@ public class StaticsTortureTest extends IntegrationTestBase
 
         for (int pdx = 0; pdx < NUM_PARTITIONS; pdx++)
         {
-            long pd = history.presetSelector.pdAtPosition(pdx);
-            history.presetSelector.pdAtPosition(1);
+            long pd = history.pdSelector().pdAtPosition(pdx);
+            history.pdSelector().pdAtPosition(1);
             for (int i1 = 0; i1 < values.length; i1++)
                 for (int i2 = 0; i2 < values.length; i2++)
                     for (int i3 = 0; i3 < values.length; i3++)

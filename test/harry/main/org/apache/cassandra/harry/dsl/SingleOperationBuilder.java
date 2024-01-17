@@ -20,7 +20,6 @@ package org.apache.cassandra.harry.dsl;
 
 public interface SingleOperationBuilder
 {
-
     /**
      * Perform an insert operation to _some_ row
      */
