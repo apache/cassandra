@@ -84,7 +84,7 @@ public class CommandsForRangesTest
             assertThat(cfr.knownIds()).containsExactly(max);
             assertThat(cfr.maxRedundant()).isEqualTo(knownIds.size() == 1 ? null : knownIds.get(knownIds.size() - 2));
 
-            cfr.prune(new TxnId(max.logicalNext(max.node), max.rw(), max.domain()), FULL_RANGE);
+            cfr.prune(new TxnId(max.logicalNext(max.node), max.kind(), max.domain()), FULL_RANGE);
             assertThat(cfr.knownIds()).isEmpty();
             assertThat(cfr.maxRedundant()).isEqualTo(max);
         });

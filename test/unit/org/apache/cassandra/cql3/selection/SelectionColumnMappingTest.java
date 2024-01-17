@@ -40,7 +40,6 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.util.Arrays.asList;
-import static org.apache.cassandra.ServerTestUtils.daemonInitialization;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 

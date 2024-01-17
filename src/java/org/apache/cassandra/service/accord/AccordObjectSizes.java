@@ -296,7 +296,7 @@ public class AccordObjectSizes
         final static long NOT_DEFINED = measure(Command.SerializerSupport.notDefined(attrs(false, false), Ballot.ZERO));
         final static long PREACCEPTED = measure(Command.SerializerSupport.preaccepted(attrs(false, true), EMPTY_TXNID, null));;
         final static long ACCEPTED = measure(Command.SerializerSupport.accepted(attrs(true, false), SaveStatus.Accepted, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO));
-        final static long COMMITTED = measure(Command.SerializerSupport.committed(attrs(true, true), SaveStatus.Committed, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO, WaitingOn.EMPTY));
+        final static long COMMITTED = measure(Command.SerializerSupport.committed(attrs(true, true), SaveStatus.Committed, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO, null));
         final static long EXECUTED = measure(Command.SerializerSupport.executed(attrs(true, true), SaveStatus.Applied, EMPTY_TXNID, Ballot.ZERO, Ballot.ZERO, WaitingOn.EMPTY, EMPTY_WRITES, EMPTY_RESULT));
         final static long TRUNCATED = measure(Command.SerializerSupport.truncatedApply(attrs(false, false), SaveStatus.TruncatedApply,  EMPTY_TXNID, null, null));
         final static long INVALIDATED = measure(Command.SerializerSupport.invalidated(EMPTY_TXNID, null));
@@ -314,6 +314,7 @@ public class AccordObjectSizes
                 case PreCommitted:
                     return ACCEPTED;
                 case Committed:
+                case Stable:
                 case ReadyToExecute:
                     return COMMITTED;
                 case PreApplied:
@@ -346,13 +347,13 @@ public class AccordObjectSizes
         size += sizeNullable(command.executeAt(), AccordObjectSizes::timestamp);
         size += sizeNullable(command.partialTxn(), AccordObjectSizes::txn);
         size += sizeNullable(command.partialDeps(), AccordObjectSizes::dependencies);
-        size += sizeNullable(command.accepted(), AccordObjectSizes::timestamp);
+        size += sizeNullable(command.acceptedOrCommitted(), AccordObjectSizes::timestamp);
         size += sizeNullable(command.writes(), AccordObjectSizes::writes);
 
         if (command.result() instanceof TxnResult)
             size += sizeNullable(command.result(), AccordObjectSizes::results);
 
-        if (!(command instanceof Command.Committed))
+        if (!(command instanceof Command.Committed && command.saveStatus().hasBeen(Status.Stable)))
             return size;
 
         Command.Committed committed = command.asCommitted();

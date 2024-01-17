@@ -51,6 +51,7 @@ public abstract class DepsSerializer<D extends Deps> implements IVersionedSerial
             return new Deps(keyDeps, rangeDeps);
         }
     };
+    public static final IVersionedSerializer<Deps> nullableDeps = NullableSerializer.wrap(deps);
 
     public static final DepsSerializer<PartialDeps> partialDeps = new DepsSerializer<PartialDeps>()
     {
