@@ -191,6 +191,10 @@ public class AccordKeyspace
     private static final TupleType KEY_TYPE = new TupleType(Arrays.asList(UUIDType.instance, BytesType.instance));
     private static final String KEY_TUPLE = KEY_TYPE.asCQL3Type().toString();
 
+    // shared LocalPartitioner for all *_for_key Accord tables with (store_id, key_token, key) partition key
+    private static final LocalPartitioner FOR_KEYS_LOCAL_PARTITIONER =
+        new LocalPartitioner(CompositeType.getInstance(Int32Type.instance, BytesType.instance, KEY_TYPE));
+
     private static final ClusteringIndexFilter FULL_PARTITION = new ClusteringIndexSliceFilter(Slices.ALL, false);
 
     private enum TokenType
@@ -423,7 +427,7 @@ public class AccordKeyspace
               + format("last_write_timestamp %s, ", TIMESTAMP_TUPLE)
               + "PRIMARY KEY((store_id, key_token, key))"
               + ')')
-        .partitioner(new LocalPartitioner(CompositeType.getInstance(Int32Type.instance, BytesType.instance, KEY_TYPE)))
+        .partitioner(FOR_KEYS_LOCAL_PARTITIONER)
         .build();
 
     public static class TimestampsForKeyColumns
@@ -557,7 +561,7 @@ public class AccordKeyspace
               + "data blob, "
               + "PRIMARY KEY((store_id, key_token, key), timestamp)"
               + ')')
-        .partitioner(new LocalPartitioner(CompositeType.getInstance(Int32Type.instance, BytesType.instance, KEY_TYPE)))
+        .partitioner(FOR_KEYS_LOCAL_PARTITIONER)
         .build();
     }
 
