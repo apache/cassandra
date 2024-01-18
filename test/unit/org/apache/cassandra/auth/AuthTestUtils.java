@@ -241,7 +241,8 @@ public class AuthTestUtils
         }
     }
 
-    public static class LocalMutualTlsWithPasswordFallbackAuthenticator extends MutualTlsWithPasswordFallbackAuthenticator {
+    public static class LocalMutualTlsWithPasswordFallbackAuthenticator extends MutualTlsWithPasswordFallbackAuthenticator
+    {
 
         public LocalMutualTlsWithPasswordFallbackAuthenticator(Map<String, String> parameters)
         {

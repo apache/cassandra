@@ -175,7 +175,8 @@ public class EarlyCertificateAuthenticationTest extends CQLTester
         }
     }
 
-    public Consumer<Message.Response> expectAuthenticationError(final String expectedMessage) {
+    public Consumer<Message.Response> expectAuthenticationError(final String expectedMessage)
+    {
         return startupResponse -> {
             if (startupResponse instanceof ErrorMessage)
             {
