@@ -125,10 +125,17 @@ public class AsyncLoader
                                                  List<AsyncChain<?>> listenChains)
     {
         referenceAndAssembleReadsForKey(key, context.timestampsForKey, commandStore.timestampsForKeyCache(), listenChains);
-        if (keyHistory == KeyHistory.DEPS)
-            referenceAndAssembleReadsForKey(key, context.depsCommandsForKeys, commandStore.depsCommandsForKeyCache(), listenChains);
-        if (keyHistory == KeyHistory.ALL)
-            referenceAndAssembleReadsForKey(key, context.allCommandsForKeys, commandStore.allCommandsForKeyCache(), listenChains);
+        // recovery operations also need the deps data for their preaccept logic
+        switch (keyHistory)
+        {
+            case ALL:
+                referenceAndAssembleReadsForKey(key, context.allCommandsForKeys, commandStore.allCommandsForKeyCache(), listenChains);
+            case DEPS:
+                referenceAndAssembleReadsForKey(key, context.depsCommandsForKeys, commandStore.depsCommandsForKeyCache(), listenChains);
+            case NONE:
+                break;
+            default: throw new IllegalArgumentException("Unhandled keyhistory: " + keyHistory);
+        }
         referenceAndAssembleReadsForKey(key, context.updatesForKeys, commandStore.updatesForKeyCache(), listenChains);
     }
 
