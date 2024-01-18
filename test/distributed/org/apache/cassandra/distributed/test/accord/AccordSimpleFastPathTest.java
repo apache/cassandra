@@ -41,9 +41,13 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.accord.AccordConfigurationService;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class AccordSimpleFastPathTest extends TestBaseImpl
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordSimpleFastPathTest.class);
+
     private static Node.Id id(int i)
     {
         return new Node.Id(i);
@@ -111,15 +115,29 @@ public class AccordSimpleFastPathTest extends TestBaseImpl
 
             cluster.get(1).runOnInstance(() -> {
                 FailureDetector.instance.forceConviction(InetAddressAndPort.getByAddress(node3Addr));
+                // update is performed in another thread, wait for it to be applied locally before returning
+                for (int i=0; i<10; i++)
+                {
+                    if (ClusterMetadata.current().epoch.getEpoch() == preShutDownEpoch)
+                        FBUtilities.sleepQuietly(100);
+                    else
+                        break;
+                }
+                assert ClusterMetadata.current().epoch.getEpoch() > preShutDownEpoch;
             });
 
-            cluster.get(1, 2).forEach(ii -> ii.runOnInstance(() -> {
-                ClusterMetadataService.instance().fetchLogFromCMS(Epoch.create(preShutDownEpoch + 1));
-                ClusterMetadata cm = ClusterMetadata.current();
-                AccordFastPath accordFastPath = cm.accordFastPath;
-                Assert.assertEquals(preShutDownEpoch + 1, cm.epoch.getEpoch());
-                Assert.assertEquals(idSet(node3Id), accordFastPath.unavailableIds());
-            }));
+            cluster.get(1, 2).forEach(ii -> {
+                logger.info("Checking instance {} -> {}", ii, ii.broadcastAddress());
+                ii.runOnInstance(() -> {
+                    ClusterMetadataService.instance().fetchLogFromCMS(Epoch.create(preShutDownEpoch + 1));
+                    ClusterMetadata cm = ClusterMetadata.current();
+                    AccordFastPath accordFastPath = cm.accordFastPath;
+                    Assert.assertEquals(preShutDownEpoch + 1, cm.epoch.getEpoch());
+                    Assert.assertEquals(idSet(node3Id), accordFastPath.unavailableIds());
+                });
+
+            }
+            );
 
             // confirm a duplicate conviction doesn't create a new epoch
             cluster.get(2).runOnInstance(() -> {
