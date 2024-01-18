@@ -74,19 +74,34 @@ if [ -z $JAVA ] ; then
     exit 1;
 fi
 
+# Matches variable 'java.supported' in build.xml
+java_versions_supported=11,17
+
 # Determine the sort of JVM we'll be running on.
 java_ver_output=`"${JAVA:-java}" -version 2>&1`
 jvmver=`echo "$java_ver_output" | grep '[openjdk|java] version' | awk -F'"' 'NR==1 {print $2}' | cut -d\- -f1`
 JVM_VERSION=${jvmver%_*}
 short=$(echo "${jvmver}" | cut -c1-2)
 
-JAVA_VERSION=17
-if [ "$short" = "11" ]  ; then
-     JAVA_VERSION=11
-elif [ "$JVM_VERSION" \< "17" ] ; then
-    echo "Cassandra 5.0 requires Java 11 or Java 17."
+# Unsupported JDKs below the upper supported version are not allowed
+if [ "$short" != "$(echo "$java_versions_supported" | cut -d, -f1)" ] && [ "$JVM_VERSION" \< "$(echo "$java_versions_supported" | cut -d, -f2)" ] ; then
+    echo "Unsupported Java $JVM_VERSION. Supported are $java_versions_supported"
     exit 1;
 fi
+# Allow execution of supported Java versions, and newer if CASSANDRA_JDK_UNSUPPORTED is set
+is_supported_version=$(echo "$java_versions_supported" | tr "," '\n' | grep -F -x "$short")
+if [ -z "$is_supported_version" ] ; then
+    if [ -z "$CASSANDRA_JDK_UNSUPPORTED" ] ; then
+        echo "Unsupported Java $JVM_VERSION. Supported are $java_versions_supported"
+        echo "If you would like to test with newer Java versions set CASSANDRA_JDK_UNSUPPORTED to any value (for example, CASSANDRA_JDK_UNSUPPORTED=true). Unset the parameter for default behavior"
+        exit 1;
+    else
+        echo "######################################################################"
+        echo "Warning! You are using JDK$short. This Cassandra version only supports $java_versions_supported."
+        echo "######################################################################"
+    fi
+fi
+JAVA_VERSION=$short
 
 jvm=`echo "$java_ver_output" | grep -A 1 '[openjdk|java] version' | awk 'NR==2 {print $1}'`
 case "$jvm" in
