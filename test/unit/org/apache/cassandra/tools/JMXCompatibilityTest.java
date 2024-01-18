@@ -60,7 +60,7 @@ import static com.google.common.collect.Lists.newArrayList;
  * select * from table_00 where pk=42;
  * }
  */
-public class JMXCompatabilityTest extends CQLTester
+public class JMXCompatibilityTest extends CQLTester
 {
     private static final Map<String, String> ENV = ImmutableMap.of("JAVA_HOME", CassandraRelevantProperties.JAVA_HOME.getString());
 
@@ -72,6 +72,7 @@ public class JMXCompatabilityTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
+        decorateCQLWithTestNames = false;
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setColumnIndexSizeInKiB(0); // make sure the column index is created
 
