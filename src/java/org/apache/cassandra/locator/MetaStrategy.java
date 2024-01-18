@@ -60,7 +60,9 @@ public class MetaStrategy extends SystemStrategy
     @Override
     public ReplicationFactor getReplicationFactor()
     {
-        ClusterMetadata metadata = ClusterMetadata.current();
+        ClusterMetadata metadata = ClusterMetadata.currentNullable();
+        if (metadata == null || metadata.epoch.isEqualOrBefore(Epoch.FIRST))
+            return ReplicationFactor.fullOnly(1);
         int rf = metadata.placements.get(ReplicationParams.meta(metadata)).writes.forRange(entireRange).get().byEndpoint.size();
         return ReplicationFactor.fullOnly(rf);
     }
