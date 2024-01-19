@@ -49,7 +49,26 @@ public class StaticColumnIndexTest extends SAITester
         execute("INSERT INTO %s(pk, ck,       val2) VALUES(?, ?,    ?)", 1, 2,     2000);
         execute("INSERT INTO %s(pk, ck, val1, val2) VALUES(?, ?, ?, ?)", 2, 1, 40, 2000);
 
-        beforeAndAfterFlush(() -> assertRows(execute("SELECT pk, ck, val1, val2 FROM %s WHERE val1 = 20 AND val2 = 2000 ALLOW FILTERING"),
+        beforeAndAfterFlush(() -> assertRows(execute("SELECT pk, ck, val1, val2 FROM %s WHERE val1 = 20 AND val2 = 2000"),
                                              row(1, 2, 20, 2000)));
+    }
+
+    @Test
+    public void staticAndNonStaticRangeIntersection() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, v1 int, s1 int static, PRIMARY KEY(pk, ck))");
+        createIndex("CREATE INDEX ON %s(v1) USING 'sai'");
+        createIndex("CREATE INDEX ON %s(s1) USING 'sai'");
+
+        execute("INSERT INTO %s (pk, ck, v1) VALUES (?, ?, ?)", 0, 1, 0);
+        execute("INSERT INTO %s (pk, ck, v1) VALUES (?, ?, ?)", 0, 2, 1);
+        execute("INSERT INTO %s (pk, ck, v1) VALUES (?, ?, ?)", 0, 3, 2);
+        execute("INSERT INTO %s (pk, ck, v1) VALUES (?, ?, ?)", 0, 4, 3);
+        execute("INSERT INTO %s (pk, ck, v1) VALUES (?, ?, ?)", 0, 5, 4);
+        execute("INSERT INTO %s (pk, ck, v1) VALUES (?, ?, ?)", 0, 6, 5);
+
+        execute("INSERT INTO %s (pk, s1) VALUES (?, ?)", 0, 100);
+
+        beforeAndAfterFlush(() -> assertRowCount(execute("SELECT * FROM %s WHERE pk = ? AND v1 > ? AND s1 = ?", 0, 2, 100), 3));
     }
 }
