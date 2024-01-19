@@ -363,7 +363,7 @@ include::cassandra:example$RESULTS/snapshot_files.result[]
 === Clearing Snapshots
 
 Snapshots may be cleared or deleted with the `nodetool clearsnapshot`
-command. Either a specific snapshot name must be specified or the `–all`
+command. Either a specific snapshot name must be specified or the `-–all`
 option must be specified.
 
 For example, delete a snapshot called `magazine` from keyspace `cqlkeyspace`:
@@ -373,7 +373,7 @@ For example, delete a snapshot called `magazine` from keyspace `cqlkeyspace`:
 include::cassandra:example$BASH/nodetool_clearsnapshot.sh[]
 ----
 
-or delete all snapshots from `cqlkeyspace` with the –all option:
+or delete all snapshots from `cqlkeyspace` with the `-–all` option:
 
 [source,bash]
 ----
