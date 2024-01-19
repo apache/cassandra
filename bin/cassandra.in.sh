@@ -176,3 +176,11 @@ for opt in `grep "^-" $JVM_OPTS_FILE` `grep "^-" $JVM_DEP_OPTS_FILE`
 do
   JVM_OPTS="$JVM_OPTS $opt"
 done
+
+# Append additional options when using JDK17+ (CASSANDRA-19001)
+USING_JDK=$(command -v javac || command -v "${JAVA_HOME:-/usr}/bin/javac")
+if [ -n "$USING_JDK" ] && [ "$JAVA_VERSION" -ge 17 ]; then
+  JVM_OPTS="$JVM_OPTS --add-exports jdk.attach/sun.tools.attach=ALL-UNNAMED"
+  JVM_OPTS="$JVM_OPTS --add-exports jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED"
+  JVM_OPTS="$JVM_OPTS --add-opens jdk.compiler/com.sun.tools.javac=ALL-UNNAMED"
+fi
