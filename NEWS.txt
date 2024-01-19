@@ -271,8 +271,8 @@ Upgrading
 ---------
     - Default disk_access_mode value changed from "auto" to "mmap_index_only". Override this setting with "disk_access_mode: auto" on
       cassandra.yaml to keep the previous default. See CASSANDRA-19021 for details.
-    - The minimumn Python version to run cqlsh has been bumped from 3.6 to 3.7. Python 3.6 is past its end-of-life, and
-      3.7 is the minimum version supported by the Python driver.
+    - The Python version required to run cqlsh has been bumped from 3.6+ to 3.8-3.11. Python 3.6 and 3.7 are past their
+      end-of-life, and 3.8 is now the minimum version supported by the Python driver.
     - Java 8 has been removed. Lowest supported version is Java 11.
     - Ephemeral marker files for snapshots done by repairs are not created anymore,
       there is a dedicated flag in snapshot manifest instead. On upgrade of a node to this version, on node's start, in case there

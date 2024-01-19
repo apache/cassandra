@@ -233,7 +233,6 @@
 
         <copy todir="${build.lib}" quiet="true">
             <file file="${local.repository}/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/six-1.12.0-py2.py3-none-any.zip"/>
             <file file="${local.repository}/org/apache/cassandra/deps/geomet-0.1.0.zip"/>
             <file file="${local.repository}/org/apache/cassandra/deps/pure_sasl-0.6.2-py2-none-any.zip"/>
             <file file="${local.repository}/org/apache/cassandra/deps/wcwidth-0.2.5-py2.py3-none-any.zip"/>
@@ -272,7 +271,6 @@
     <target name="_resolver-dist-lib_get_files">
         <!-- files.pythonhosted.org/packages -->
         <get src="${artifact.python.pypi}/59/a0/cf4cd997e1750f0c2d91c6ea5abea218251c43c3581bcc2f118b00baf5cf/futures-2.1.6-py2.py3-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
-        <get src="${artifact.python.pypi}/73/fb/00a976f728d0d1fecfe898238ce23f502a721c0ac0ecfedb80e0d88c64e9/six-1.12.0-py2.py3-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/six-1.12.0-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
         <get src="${artifact.python.pypi}/37/b2/ef1124540ee2c0b417be8d0f74667957e6aa084a3f26621aa67e2e77f3fb/pure_sasl-0.6.2-py2-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/pure_sasl-0.6.2-py2-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
         <get src="${artifact.python.pypi}/59/7c/e39aca596badaf1b78e8f547c807b04dae603a433d3e7a7e04d67f2ef3e5/wcwidth-0.2.5-py2.py3-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/wcwidth-0.2.5-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
 

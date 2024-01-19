@@ -62,8 +62,8 @@ is_supported_version() {
     version=$1
     major_version="${version%.*}"
     minor_version="${version#*.}"
-    # python 3.7+ is supported
-    if [ "$major_version" = 3 ] && [ "$minor_version" -ge 7 ]; then
+    # python 3.8-3.11 is supported
+    if [ "$major_version" = 3 ] && [ "$minor_version" -ge 8 ] && [ "$minor_version" -le 11 ]; then
         echo "supported"
     else
         echo "unsupported"
@@ -80,7 +80,7 @@ run_if_supported_version() {
             exec "$interpreter" "$($interpreter -c "import os; print(os.path.dirname(os.path.realpath('$0')))")/cqlsh.py" "$@"
             exit
         else
-            echo "Warning: unsupported version of Python:" $version >&2
+            echo "Warning: unsupported version of Python, required 3.8-3.11 but found" $version >&2
         fi
     fi
 }

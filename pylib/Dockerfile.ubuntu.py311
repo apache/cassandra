@@ -10,4 +10,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 FROM ubuntu:bionic
-RUN apt-get update && apt-get install -y python3.7-minimal && update-alternatives --install /usr/bin/python python /usr/bin/python3.7 1
+RUN apt-get update && apt-get install -y python3.11-minimal && update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1
