@@ -202,22 +202,24 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     are finished. By having flushExecutor size the same size as each of the perDiskflushExecutors we make sure we can
     have that many flushes going at the same time.
     */
-    private static final ExecutorPlus flushExecutor = executorFactory()
-            .withJmxInternal()
-            .pooled("MemtableFlushWriter", getFlushWriters());
+    private static final ExecutorPlus flushExecutor = DatabaseDescriptor.isDaemonInitialized() 
+                                                      ? executorFactory().withJmxInternal().pooled("MemtableFlushWriter", getFlushWriters())
+                                                      : null;
 
     // post-flush executor is single threaded to provide guarantee that any flush Future on a CF will never return until prior flushes have completed
-    private static final ExecutorPlus postFlushExecutor = executorFactory()
-            .withJmxInternal()
-            .sequential("MemtablePostFlush");
+    private static final ExecutorPlus postFlushExecutor = DatabaseDescriptor.isDaemonInitialized()
+                                                          ? executorFactory().withJmxInternal().sequential("MemtablePostFlush")
+                                                          : null;
 
-    private static final ExecutorPlus reclaimExecutor = executorFactory()
-            .withJmxInternal()
-            .sequential("MemtableReclaimMemory");
+    private static final ExecutorPlus reclaimExecutor = DatabaseDescriptor.isDaemonInitialized()
+                                                        ? executorFactory().withJmxInternal().sequential("MemtableReclaimMemory")
+                                                        : null;
 
-    private static final PerDiskFlushExecutors perDiskflushExecutors = new PerDiskFlushExecutors(DatabaseDescriptor.getFlushWriters(),
-                                                                                                 DatabaseDescriptor.getNonLocalSystemKeyspacesDataFileLocations(),
-                                                                                                 DatabaseDescriptor.useSpecificLocationForLocalSystemData());
+    private static final PerDiskFlushExecutors perDiskflushExecutors = DatabaseDescriptor.isDaemonInitialized()
+                                                                       ? new PerDiskFlushExecutors(DatabaseDescriptor.getFlushWriters(),
+                                                                                                  DatabaseDescriptor.getNonLocalSystemKeyspacesDataFileLocations(),
+                                                                                                  DatabaseDescriptor.useSpecificLocationForLocalSystemData())
+                                                                       : null;
 
     /**
      * Reason for initiating a memtable flush.
@@ -402,7 +404,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         indexManager.reload(tableMetadata);
 
         memtableFactory = tableMetadata.params.memtable.factory();
-        switchMemtableOrNotify(FlushReason.SCHEMA_CHANGE, tableMetadata, Memtable::metadataUpdated);
+        if (DatabaseDescriptor.isDaemonInitialized())
+            switchMemtableOrNotify(FlushReason.SCHEMA_CHANGE, tableMetadata, Memtable::metadataUpdated);
     }
 
     public static Runnable getBackgroundCompactionTaskSubmitter()
@@ -863,26 +866,53 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         sstableImporter.importNewSSTables(options);
     }
 
-    /**
-     * #{@inheritDoc}
-     */
-    public synchronized List<String> importNewSSTables(Set<String> srcPaths, boolean resetLevel, boolean clearRepaired, boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches, boolean extendedVerify, boolean copyData)
+    @Override
+    public List<String> importNewSSTables(Set<String> srcPaths, boolean resetLevel, boolean clearRepaired,
+                                          boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches,
+                                          boolean extendedVerify, boolean copyData)
     {
-        SSTableImporter.Options options = SSTableImporter.Options.options(srcPaths)
-                                                                 .resetLevel(resetLevel)
-                                                                 .clearRepaired(clearRepaired)
-                                                                 .verifySSTables(verifySSTables)
-                                                                 .verifyTokens(verifyTokens)
-                                                                 .invalidateCaches(invalidateCaches)
-                                                                 .extendedVerify(extendedVerify)
-                                                                 .copyData(copyData).build();
-
-        return sstableImporter.importNewSSTables(options);
+        return sstableImporter.importNewSSTables(SSTableImporter.Options.options(srcPaths)
+                                                                        .resetLevel(resetLevel)
+                                                                        .clearRepaired(clearRepaired)
+                                                                        .verifySSTables(verifySSTables)
+                                                                        .verifyTokens(verifyTokens)
+                                                                        .invalidateCaches(invalidateCaches)
+                                                                        .extendedVerify(extendedVerify)
+                                                                        .copyData(copyData).build());
     }
 
-    public List<String> importNewSSTables(Set<String> srcPaths, boolean resetLevel, boolean clearRepaired, boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches, boolean extendedVerify)
+    @Override
+    public List<String> importNewSSTables(Set<String> srcPaths, boolean resetLevel, boolean clearRepaired,
+                                          boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches,
+                                          boolean extendedVerify)
     {
-        return importNewSSTables(srcPaths, resetLevel, clearRepaired, verifySSTables, verifyTokens, invalidateCaches, extendedVerify, false);
+        return sstableImporter.importNewSSTables(SSTableImporter.Options.options(srcPaths)
+                                                                        .resetLevel(resetLevel)
+                                                                        .clearRepaired(clearRepaired)
+                                                                        .verifySSTables(verifySSTables)
+                                                                        .verifyTokens(verifyTokens)
+                                                                        .invalidateCaches(invalidateCaches)
+                                                                        .extendedVerify(extendedVerify)
+                                                                        .build());
+    }
+
+    @Override
+    public List<String> importNewSSTables(Set<String> srcPaths, boolean resetLevel, boolean clearRepaired,
+                                          boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches,
+                                          boolean extendedVerify, boolean copyData, boolean failOnMissingIndex,
+                                          boolean validateIndexChecksum)
+    {
+        return sstableImporter.importNewSSTables(SSTableImporter.Options.options(srcPaths)
+                                                                        .resetLevel(resetLevel)
+                                                                        .clearRepaired(clearRepaired)
+                                                                        .verifySSTables(verifySSTables)
+                                                                        .verifyTokens(verifyTokens)
+                                                                        .invalidateCaches(invalidateCaches)
+                                                                        .extendedVerify(extendedVerify)
+                                                                        .failOnMissingIndex(failOnMissingIndex)
+                                                                        .validateIndexChecksum(validateIndexChecksum)
+                                                                        .copyData(copyData)
+                                                                        .build());
     }
 
     Descriptor getUniqueDescriptorFor(Descriptor descriptor, File targetDirectory)

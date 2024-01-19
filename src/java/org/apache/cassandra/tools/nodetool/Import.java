@@ -80,6 +80,16 @@ public class Import extends NodeToolCmd
             description = "Copy data from source directories instead of moving them")
     private boolean copyData = false;
 
+    @Option(title = "require_index_components",
+            name = {"-ri", "--require-index-components"},
+            description = "Require existing index components for SSTables with attached indexes")
+    private boolean failOnMissingIndex = false;
+
+    @Option(title = "no_index_validation",
+            name = {"-niv", "--no-index-validation"},
+            description = "Skip SSTable-attached index checksum validation")
+    private boolean noIndexValidation = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -92,9 +102,12 @@ public class Import extends NodeToolCmd
             noInvalidateCaches = true;
             noVerify = true;
             extendedVerify = false;
+            noIndexValidation = true;
         }
         List<String> srcPaths = Lists.newArrayList(args.subList(2, args.size()));
-        List<String> failedDirs = probe.importNewSSTables(args.get(0), args.get(1), new HashSet<>(srcPaths), !keepLevel, !keepRepaired, !noVerify, !noVerifyTokens, !noInvalidateCaches, extendedVerify, copyData);
+        List<String> failedDirs = probe.importNewSSTables(args.get(0), args.get(1), new HashSet<>(srcPaths), !keepLevel,
+                                                          !keepRepaired, !noVerify, !noVerifyTokens, !noInvalidateCaches,
+                                                          extendedVerify, copyData, failOnMissingIndex, !noIndexValidation);
         if (!failedDirs.isEmpty())
         {
             PrintStream err = probe.output().err;

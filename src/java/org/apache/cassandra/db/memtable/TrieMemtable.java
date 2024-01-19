@@ -91,24 +91,7 @@ public class TrieMemtable extends AbstractShardedMemtable
     private static final Logger logger = LoggerFactory.getLogger(TrieMemtable.class);
 
     /** Buffer type to use for memtable tries (on- vs off-heap) */
-    public static final BufferType BUFFER_TYPE;
-
-    static
-    {
-        switch (DatabaseDescriptor.getMemtableAllocationType())
-        {
-        case unslabbed_heap_buffers:
-        case heap_buffers:
-            BUFFER_TYPE = BufferType.ON_HEAP;
-            break;
-        case offheap_buffers:
-        case offheap_objects:
-            BUFFER_TYPE = BufferType.OFF_HEAP;
-            break;
-        default:
-            throw new AssertionError();
-        }
-    }
+    public static final BufferType BUFFER_TYPE = DatabaseDescriptor.getMemtableAllocationType().toBufferType();
 
     /** If keys is below this length, we will use a recursive procedure for inserting data in the memtable trie. */
     @VisibleForTesting
