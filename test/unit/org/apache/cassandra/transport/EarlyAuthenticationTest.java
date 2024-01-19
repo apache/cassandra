@@ -49,10 +49,10 @@ import static org.junit.Assert.fail;
 import static org.psjava.util.AssertStatus.assertTrue;
 
 /**
- * Verifies the behavior of Cassandra given an authenticator returning
- * {@link IAuthenticator#supportsEarlyCertificateAuthentication()} as <code>true</code>.
+ * Verifies the behavior of Cassandra given an authenticator ({@link MutualTlsAuthenticator}) returning
+ * {@link IAuthenticator#supportsEarlyAuthentication()} as <code>true</code>.
  */
-public class EarlyCertificateAuthenticationTest extends CQLTester
+public class EarlyAuthenticationTest extends CQLTester
 {
 
     // configures server with client encryption enabled.
@@ -120,8 +120,7 @@ public class EarlyCertificateAuthenticationTest extends CQLTester
         addIdentityToRole(spiffeIdentity, "cassandra");
 
         // when connecting, we expect to get a 'READY' message after sending a 'STARTUP' as MutualTlsAuthenticator
-        // supports early certificate authentication and the client presented a cert with an identity that was
-        // bound to a role.
+        // supports early authentication and the client presented a cert with an identity that was bound to a role.
         testStartupResponse(true, startupResponse -> {
             if (!(startupResponse instanceof ReadyMessage))
             {

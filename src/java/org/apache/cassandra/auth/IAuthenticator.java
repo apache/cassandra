@@ -34,23 +34,21 @@ public interface IAuthenticator
     boolean requireAuthentication();
 
     /**
-     * Whether the authenticator supports early certificate authentication, meaning a client-provided certificate can
-     * be evaluated as part of handling a STARTUP request instead of sending an AUTHENTICATE to client and waiting
-     * for an AUTH_RESPONSE.
+     * Whether the authenticator supports 'early' authentication, meaning that it can be authenticated without
+     * the need to send an AUTHENTICATE request to the client after receiveing a STARTUP message from the client.
      * <p>
-     * The advantage of returning <code>true</code> here is that a client is not prompted for authentication,
-     * so if an authenticator can authenticate solely with a client certificate, there is no need to ask the client
-     * for authentication.
+     * An example use case of this would be if the client could be authenticated using certificates present
+     * on a TLS-encrypted connection, as is done in {@link MutualTlsAuthenticator}.  In this case, an AUTHENTICATE
+     * message is not needed because the client can be identified by information present in its provided certificate.
      * <p>
-     * If an authenticator implementation requires certificate authentication, this should be <code>true</code>;
-     * otherwise if a client does not provide a certificate, an AUTHENTICATE will be sent to the client. This may
-     * confuse a driver implementation into thinking an authenticator is needed, when instead the real issue is
-     * that no client certificate was provided.
+     * If an authenticator supports requires early authentication, this should be <code>true</code>;
+     * otherwise if a client cannot authenticate using its connection details (e.g. a certificate), an AUTHENTICATE
+     * will be sent to the client. This may confuse a driver implementation into thinking an authenticator is needed,
+     * when instead the real issue is that something is missing on the connection, such as a certificate.
      * <p>
-     * If <code>false</code>, certificate authentication can still be done when handling AUTH_RESPONSE if the
-     * authenticator needs to.
+     * If <code>false</code> (default behavior), an AUTHENTICATE request will be sent to the client.
      */
-    default boolean supportsEarlyCertificateAuthentication()
+    default boolean supportsEarlyAuthentication()
     {
         return false;
     }
@@ -169,16 +167,17 @@ public interface IAuthenticator
         public AuthenticatedUser getAuthenticatedUser() throws AuthenticationException;
 
         /**
-         * Whether its determined if this negotiator requires certificates.  This is used in conjunction with
-         * {@link #supportsEarlyCertificateAuthentication()} in determining if authentication can be done with
-         * client certificates when handling a Startup message.
-         *
-         * If <code>true</code>, will attempt to authenticate while handling a Startup, otherwise will not attempt
-         * there and defer authentication to when handling an AuthResponse message.
+         * Whether it is determined that an AUTHENTICATE message should be sent to properly negotiate.
+         * This is used in conjunction with {@link #supportsEarlyAuthentication()} in determining if authentication
+         * can be done early, for example if the client can be authenticated using client certificates when handling
+         * a STARTUP message.
+         * <p>
+         * If <code>true</code> (default behavior), an AUTHENTICATE message will be sent in response to a STARTUP,
+         * otherwise {@link #evaluateResponse(byte[])} will be called with an empty byte array when handling STARTUP.
          */
-        default boolean requiresCertificateAuthentication()
+        default boolean shouldSendAuthenticateMessage()
         {
-            return false;
+            return true;
         }
     }
 }

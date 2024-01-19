@@ -91,7 +91,7 @@ public class MutualTlsAuthenticator implements IAuthenticator
     }
 
     @Override
-    public boolean supportsEarlyCertificateAuthentication()
+    public boolean supportsEarlyAuthentication()
     {
         return true;
     }
@@ -156,9 +156,9 @@ public class MutualTlsAuthenticator implements IAuthenticator
         }
 
         @Override
-        public boolean requiresCertificateAuthentication()
+        public boolean shouldSendAuthenticateMessage()
         {
-            return true;
+            return false;
         }
 
         @Override

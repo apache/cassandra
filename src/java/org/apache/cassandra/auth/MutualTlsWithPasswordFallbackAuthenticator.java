@@ -47,7 +47,7 @@ public class MutualTlsWithPasswordFallbackAuthenticator extends PasswordAuthenti
     }
 
     @Override
-    public boolean supportsEarlyCertificateAuthentication()
+    public boolean supportsEarlyAuthentication()
     {
         return true;
     }

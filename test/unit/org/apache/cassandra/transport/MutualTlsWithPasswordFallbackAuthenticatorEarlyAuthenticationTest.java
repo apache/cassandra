@@ -29,16 +29,16 @@ import org.apache.cassandra.transport.messages.AuthenticateMessage;
 import static org.junit.Assert.fail;
 
 /**
- * A variant of {@link EarlyCertificateAuthenticationTest} that configures
+ * A variant of {@link EarlyAuthenticationTest} that configures
  * {@link org.apache.cassandra.auth.MutualTlsWithPasswordFallbackAuthenticator}
  * as the configured authenticator.
  * <p>
  * This authenticator has an interesting property such that its underlying
- * {@link IAuthenticator.SaslNegotiator#requiresCertificateAuthentication()} will only return true if a client
- * certificate is present, otherwise it will return false, which should cause Cassandra to return an AUTHENTICATE
+ * {@link IAuthenticator.SaslNegotiator#shouldSendAuthenticateMessage()} will only return false if a client
+ * certificate is present, otherwise it will return true, which should cause Cassandra to return an AUTHENTICATE
  * message in response to a STARTUP request sent by a client which will provoke the normal authentication flow.
  */
-public class MutualTlsWithPasswordFallbackAuthenticatorEarlyCertificateAuthenticationTest extends EarlyCertificateAuthenticationTest
+public class MutualTlsWithPasswordFallbackAuthenticatorEarlyAuthenticationTest extends EarlyAuthenticationTest
 {
 
     @BeforeClass

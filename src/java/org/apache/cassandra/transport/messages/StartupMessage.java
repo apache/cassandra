@@ -124,12 +124,13 @@ public class StartupMessage extends Message.Request
         IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
         if (authenticator.requireAuthentication())
         {
-            // If the authenticator supports early certificate authentication, attempt to authenticate with certificates.
-            if (authenticator.supportsEarlyCertificateAuthentication())
+            // If the authenticator supports early authentication, attempt to authenticate.
+            if (authenticator.supportsEarlyAuthentication())
             {
                 IAuthenticator.SaslNegotiator negotiator = ((ServerConnection) connection).getSaslNegotiator(state);
-                // If the negotiator determines that certificate authentication is required, attempt to authenticate on it.
-                if (negotiator.requiresCertificateAuthentication())
+                // If the negotiator determines that sending an authenticate message is not necessary, attempt to authenticate here,
+                // otherwise, send an Authenticate message to begin the traditional authentication flow.
+                if (!negotiator.shouldSendAuthenticateMessage())
                 {
                     // Attempt to authenticate the user.
                     return AuthUtil.handleLogin(connection, state, EMPTY_CLIENT_RESPONSE, (negotiationComplete, challenge) ->
@@ -141,7 +142,7 @@ public class StartupMessage extends Message.Request
                         } else
                         {
                             // It's expected that any negotiator that requires a challenge will likely not support early
-                            // certificate authentication, in this case we can just go through the traditional auth flow.
+                            // authentication, in this case we can just go through the traditional auth flow.
                             return new AuthenticateMessage(DatabaseDescriptor.getAuthenticator().getClass().getName());
                         }
                     });
