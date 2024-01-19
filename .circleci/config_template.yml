@@ -684,14 +684,6 @@ j11_separate_jobs: &j11_separate_jobs
     # Java 11 cqlsh dtests
     - start_j11_cqlsh_tests:
         type: approval
-    - j11_cqlsh_dtests_py3:
-        requires:
-          - start_j11_cqlsh_tests
-          - j11_build
-    - j11_cqlsh_dtests_py3_vnode:
-        requires:
-          - start_j11_cqlsh_tests
-          - j11_build
     - j11_cqlsh_dtests_py38:
         requires:
           - start_j11_cqlsh_tests
@@ -711,10 +703,6 @@ j11_separate_jobs: &j11_separate_jobs
     # Java 11 cqlsh offheap dtests offheap
     - start_j11_cqlsh_tests_offheap:
         type: approval
-    - j11_cqlsh_dtests_py3_offheap:
-        requires:
-          - start_j11_cqlsh_tests_offheap
-          - j11_build
     - j11_cqlsh_dtests_py38_offheap:
         requires:
           - start_j11_cqlsh_tests_offheap
@@ -726,14 +714,6 @@ j11_separate_jobs: &j11_separate_jobs
     # Java 17 cqlsh dtests
     - start_j17_cqlsh_tests:
         type: approval
-    - j17_cqlsh_dtests_py3:
-        requires:
-          - start_j17_cqlsh_tests
-          - j11_build
-    - j17_cqlsh_dtests_py3_vnode:
-        requires:
-        - start_j17_cqlsh_tests
-        - j11_build
     - j17_cqlsh_dtests_py38:
         requires:
           - start_j17_cqlsh_tests
@@ -753,10 +733,6 @@ j11_separate_jobs: &j11_separate_jobs
     # Java 17 cqlsh dtests off-heap
     - start_j17_cqlsh_tests_offheap:
         type: approval
-    - j17_cqlsh_dtests_py3_offheap:
-        requires:
-          - start_j17_cqlsh_tests_offheap
-          - j11_build
     - j17_cqlsh_dtests_py38_offheap:
         requires:
           - start_j17_cqlsh_tests_offheap
@@ -1117,12 +1093,6 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
           - start_j17_dtests_large
           - j11_build
     # Java 11 cqlsh dtests
-    - j11_cqlsh_dtests_py3:
-        requires:
-          - j11_build
-    - j11_cqlsh_dtests_py3_vnode:
-        requires:
-          - j11_build
     - j11_cqlsh_dtests_py38:
         requires:
           - j11_build
@@ -1138,10 +1108,6 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
     # Java 11 cqlsh dtests offheap
     - start_j11_cqlsh_dtests_offheap:
         type: approval
-    - j11_cqlsh_dtests_py3_offheap:
-        requires:
-          - start_j11_cqlsh_dtests_offheap
-          - j11_build
     - j11_cqlsh_dtests_py38_offheap:
         requires:
           - start_j11_cqlsh_dtests_offheap
@@ -1151,12 +1117,6 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
           - start_j11_cqlsh_dtests_offheap
           - j11_build
     # Java 17 cqlsh dtests
-    - j17_cqlsh_dtests_py3:
-        requires:
-          - j11_build
-    - j17_cqlsh_dtests_py3_vnode:
-        requires:
-          - j11_build
     - j17_cqlsh_dtests_py38:
         requires:
           - j11_build
@@ -1172,10 +1132,6 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
     # Java 17 cqlsh dtests off-heap
     - start_j17_cqlsh-dtests-offheap:
         type: approval
-    - j17_cqlsh_dtests_py3_offheap:
-        requires:
-          - start_j17_cqlsh-dtests-offheap
-          - j11_build
     - j17_cqlsh_dtests_py38_offheap:
         requires:
           - start_j17_cqlsh-dtests-offheap
@@ -1303,14 +1259,6 @@ j17_separate_jobs: &j17_separate_jobs
           - j17_build
     - start_j17_cqlsh_tests:
         type: approval
-    - j17_cqlsh_dtests_py3:
-        requires:
-          - start_j17_cqlsh_tests
-          - j17_build
-    - j17_cqlsh_dtests_py3_vnode:
-        requires:
-          - start_j17_cqlsh_tests
-          - j17_build
     - j17_cqlsh_dtests_py38:
         requires:
           - start_j17_cqlsh_tests
@@ -1329,10 +1277,6 @@ j17_separate_jobs: &j17_separate_jobs
           - j17_build
     - start_j17_cqlsh-dtests-offheap:
         type: approval
-    - j17_cqlsh_dtests_py3_offheap:
-        requires:
-          - start_j17_cqlsh-dtests-offheap
-          - j17_build
     - j17_cqlsh_dtests_py38_offheap:
         requires:
           - start_j17_cqlsh-dtests-offheap
@@ -1538,12 +1482,6 @@ j17_pre-commit_jobs: &j17_pre-commit_jobs
         requires:
           - start_j17_dtests_large
           - j17_build
-    - j17_cqlsh_dtests_py3:
-        requires:
-          - j17_build
-    - j17_cqlsh_dtests_py3_vnode:
-        requires:
-          - j17_build
     - j17_cqlsh_dtests_py38:
         requires:
           - j17_build
@@ -1558,10 +1496,6 @@ j17_pre-commit_jobs: &j17_pre-commit_jobs
           - j17_build
     - start_j17_cqlsh-dtests-offheap:
         type: approval
-    - j17_cqlsh_dtests_py3_offheap:
-        requires:
-          - start_j17_cqlsh-dtests-offheap
-          - j17_build
     - j17_cqlsh_dtests_py38_offheap:
         requires:
           - start_j17_cqlsh-dtests-offheap
@@ -2086,36 +2020,6 @@ jobs:
         file_tag: j11_upgradetests_without_vnodes
         pytest_extra_args: '--execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all'
 
-  j11_cqlsh_dtests_py3_vnode:
-    <<: *j11_par_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - clone_dtest
-      - create_venv
-      - create_dtest_containers:
-          file_tag: j11_with_vnodes
-          run_dtests_extra_args: "--use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql'"
-      - run_dtests:
-          file_tag: j11_with_vnodes
-          pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
-          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.7'
-
-  j11_cqlsh_dtests_py3_offheap:
-    <<: *j11_par_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - clone_dtest
-      - create_venv
-      - create_dtest_containers:
-          file_tag: j11_dtests_offheap
-          run_dtests_extra_args: "--use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k cql'"
-      - run_dtests:
-          file_tag: j11_dtests_offheap
-          pytest_extra_args: '--use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests'
-          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.7'
-
   j11_cqlsh_dtests_py38_vnode:
     <<: *j11_par_executor
     steps:
@@ -2188,21 +2092,6 @@ jobs:
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.11'
           python_version: '3.11'
 
-  j11_cqlsh_dtests_py3:
-    <<: *j11_par_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - clone_dtest
-      - create_venv
-      - create_dtest_containers:
-          file_tag: j11_without_vnodes
-          run_dtests_extra_args: "--skip-resource-intensive-tests --pytest-options '-k cql'"
-      - run_dtests:
-          file_tag: j11_without_vnodes
-          pytest_extra_args: '--skip-resource-intensive-tests'
-          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.7'
-
   j11_cqlsh_dtests_py38:
     <<: *j11_par_executor
     steps:
@@ -2238,36 +2127,6 @@ jobs:
           pytest_extra_args: '--skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.11'
           python_version: '3.11'
-
-  j17_cqlsh_dtests_py3_vnode:
-    <<: *j17_par_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - clone_dtest
-      - create_venv
-      - create_dtest_containers:
-          file_tag: j17_with_vnodes
-          run_dtests_extra_args: "--use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql'"
-      - run_dtests:
-          file_tag: j17_with_vnodes
-          pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
-          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.7'
-
-  j17_cqlsh_dtests_py3_offheap:
-    <<: *j17_par_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - clone_dtest
-      - create_venv
-      - create_dtest_containers:
-          file_tag: j17_dtests_offheap
-          run_dtests_extra_args: "--use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k cql'"
-      - run_dtests:
-          file_tag: j17_dtests_offheap
-          pytest_extra_args: '--use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests'
-          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.7'
 
   j17_cqlsh_dtests_py38_vnode:
     <<: *j17_par_executor
@@ -2340,21 +2199,6 @@ jobs:
           pytest_extra_args: '--use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.11'
           python_version: '3.11'
-
-  j17_cqlsh_dtests_py3:
-    <<: *j17_par_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - clone_dtest
-      - create_venv
-      - create_dtest_containers:
-          file_tag: j17_without_vnodes
-          run_dtests_extra_args: "--skip-resource-intensive-tests --pytest-options '-k cql'"
-      - run_dtests:
-          file_tag: j17_without_vnodes
-          pytest_extra_args: '--skip-resource-intensive-tests'
-          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.7'
 
   j17_cqlsh_dtests_py38:
     <<: *j17_par_executor
@@ -3117,8 +2961,8 @@ commands:
     parameters:
       python_version:
         type: enum
-        default: "3.7"
-        enum: ["3.7", "3.8", "3.11"]
+        default: "3.8"
+        enum: ["3.8", "3.11"]
     steps:
     - run:
         name: Configure virtualenv and python Dependencies
@@ -3148,8 +2992,8 @@ commands:
         default: ''
       python_version:
         type: enum
-        default: "3.7"
-        enum: ["3.7", "3.8", "3.11"]
+        default: "3.8"
+        enum: ["3.8", "3.11"]
     steps:
     - run:
         name: Determine Tests to Run (<<parameters.file_tag>>)
@@ -3190,8 +3034,8 @@ commands:
         default: ''
       python_version:
         type: enum
-        default: "3.7"
-        enum: ["3.7", "3.8", "3.11"]
+        default: "3.8"
+        enum: ["3.8", "3.11"]
     steps:
       - run:
           name: Run dtests (<<parameters.file_tag>>)
@@ -3662,7 +3506,7 @@ commands:
               else
                 echo "Running <<parameters.tests>> $count times"
             
-                source ~/env3.7/bin/activate
+                source ~/env3.8/bin/activate
                 export PATH=$JAVA_HOME/bin:$PATH
 
                 java -version
