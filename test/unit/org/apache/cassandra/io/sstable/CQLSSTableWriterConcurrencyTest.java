@@ -45,7 +45,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 public class CQLSSTableWriterConcurrencyTest extends CQLTester
 {
-    private static final Logger LOGGER = LoggerFactory.getLogger(CQLSSTableWriterTest.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(CQLSSTableWriterConcurrencyTest.class);
     @Rule
     public TemporaryFolder tempFolder = new TemporaryFolder();
 
