@@ -228,7 +228,7 @@ public class DatabaseDescriptor
 
     private static ImmutableMap<String, SSTableFormat<?, ?>> sstableFormats;
     private static volatile SSTableFormat<?, ?> selectedSSTableFormat;
-    private static StorageCompatibilityMode storageCompatibilityMode = CassandraRelevantProperties.STORAGE_COMPATIBILITY_MODE.getEnum(true, StorageCompatibilityMode.class);
+    private static StorageCompatibilityMode storageCompatibilityMode = CassandraRelevantProperties.TEST_STORAGE_COMPATIBILITY_MODE.getEnum(true, StorageCompatibilityMode.class);
 
     private static Function<CommitLog, AbstractCommitLogSegmentManager> commitLogSegmentMgrProvider = c -> DatabaseDescriptor.isCDCEnabled()
                                                                                                            ? new CommitLogSegmentManagerCDC(c, DatabaseDescriptor.getCommitLogLocation())
