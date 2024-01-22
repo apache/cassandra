@@ -1561,9 +1561,15 @@ public class NodeProbe implements AutoCloseable
         ssProxy.loadNewSSTables(ksName, cfName);
     }
 
-    public List<String> importNewSSTables(String ksName, String cfName, Set<String> srcPaths, boolean resetLevel, boolean clearRepaired, boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches, boolean extendedVerify, boolean copyData)
+    public List<String> importNewSSTables(String ksName, String cfName, Set<String> srcPaths, boolean resetLevel,
+                                          boolean clearRepaired, boolean verifySSTables, boolean verifyTokens,
+                                          boolean invalidateCaches, boolean extendedVerify, boolean copyData,
+                                          boolean failOnMissingIndex, boolean validateIndexChecksum)
     {
-        return getCfsProxy(ksName, cfName).importNewSSTables(srcPaths, resetLevel, clearRepaired, verifySSTables, verifyTokens, invalidateCaches, extendedVerify, copyData);
+        return getCfsProxy(ksName, cfName).importNewSSTables(srcPaths, resetLevel, clearRepaired,
+                                                             verifySSTables, verifyTokens, invalidateCaches,
+                                                             extendedVerify, copyData, failOnMissingIndex,
+                                                             validateIndexChecksum);
     }
 
     public void rebuildIndex(String ksName, String cfName, String... idxNames)

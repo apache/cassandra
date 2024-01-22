@@ -249,7 +249,7 @@ public class CassandraStreamReceiver implements StreamReceiver
                 // via the SSTable flush observer, and an error there would have aborted the streaming transaction.
                 if (receivedEntireSSTable)
                     // If we do validate, any exception thrown doing so will also abort the streaming transaction:
-                    cfs.indexManager.validateSSTableAttachedIndexes(readers, true);
+                    cfs.indexManager.validateSSTableAttachedIndexes(readers, true, true);
 
                 finishTransaction();
 

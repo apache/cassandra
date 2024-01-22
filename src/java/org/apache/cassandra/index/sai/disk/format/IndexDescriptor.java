@@ -364,54 +364,47 @@ public class IndexDescriptor
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    public boolean validatePerIndexComponents(IndexTermType indexTermType, IndexIdentifier indexIdentifier, IndexValidation validation)
+    public boolean validatePerIndexComponents(IndexTermType indexTermType, IndexIdentifier indexIdentifier, IndexValidation validation, boolean validateChecksum, boolean rethrow)
     {
         if (validation == IndexValidation.NONE)
             return true;
 
-        logger.info(logMessage("Validating per-column index components for {} using mode {}"), indexIdentifier, validation);
-        boolean checksum = validation == IndexValidation.CHECKSUM;
+        logger.info(logMessage("Validating per-column index components for {} for SSTable {} using mode {}"), indexIdentifier, sstableDescriptor.toString(), validation);
 
         try
         {
-            version.onDiskFormat().validatePerColumnIndexComponents(this, indexTermType, indexIdentifier, checksum);
+            version.onDiskFormat().validatePerColumnIndexComponents(this, indexTermType, indexIdentifier, validation == IndexValidation.CHECKSUM && validateChecksum);
             return true;
         }
         catch (UncheckedIOException e)
         {
-            return false;
+            if (rethrow)
+                throw e;
+            else
+                return false;
         }
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    public boolean validatePerSSTableComponents(IndexValidation validation)
+    public boolean validatePerSSTableComponents(IndexValidation validation, boolean validateChecksum, boolean rethrow)
     {
         if (validation == IndexValidation.NONE)
             return true;
 
-        logger.info(logMessage("Validating per-sstable index components using mode " + validation));
-        boolean checksum = validation == IndexValidation.CHECKSUM;
+        logger.info(logMessage("Validating per-sstable index components for SSTable {} using mode {}"), sstableDescriptor.toString(), validation);
 
         try
         {
-            version.onDiskFormat().validatePerSSTableIndexComponents(this, checksum);
+            version.onDiskFormat().validatePerSSTableIndexComponents(this, validation == IndexValidation.CHECKSUM && validateChecksum);
             return true;
         }
         catch (UncheckedIOException e)
         {
-            return false;
+            if (rethrow)
+                throw e;
+            else
+                return false;
         }
-    }
-
-    public void checksumPerIndexComponents(IndexTermType indexTermType, IndexIdentifier indexIdentifier)
-    {
-        version.onDiskFormat().validatePerColumnIndexComponents(this, indexTermType, indexIdentifier, true);
-    }
-
-    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    public void checksumPerSSTableComponents()
-    {
-        version.onDiskFormat().validatePerSSTableIndexComponents(this, true);
     }
 
     public void deletePerSSTableIndexComponents()
