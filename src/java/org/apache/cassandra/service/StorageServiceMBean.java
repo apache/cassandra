@@ -47,6 +47,8 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public Boolean getBooleanValueForConfig(String configName);
 
+    public void dropPreparedStatements(boolean memoryOnly);
+
     /**
      * Retrieve the list of live nodes in the cluster, where "liveness" is
      * determined by the failure detector of the node being queried.

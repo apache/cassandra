@@ -176,6 +176,7 @@ Merged from 3.0:
  * Remove unused suppressions (CASSANDRA-18724)
 
 Unreleased
+ * [SO-27070] Add the nodetool command to clear prepared statement cache
  * [SO-26619] Bad query should not use regex in hot path
  * [SO-26456] Fix CAS related metrics don't have necessary prefix/scope bug
 4.0.6.11

@@ -17,21 +17,32 @@
  */
 
 package org.apache.cassandra.tools.nodetool;
+
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.NodeTool;
 
-@Command(name = "setignorerepairedatenabled", description = "Set ignore_repairedat_enabled flag for this node to ignore and reset repairedAt timestamp")
-public class SetIgnoreRepairedAtEnabled extends NodeToolCmd
+@Command(name = "droppreparedstatements", description = "Force drop the prepared statements")
+public class DropPreparedStatements extends NodeTool.NodeToolCmd
 {
-
-    @Arguments(title = "isEnabled", usage = "<true>|<false>", description = "Set the ignore_repairedat_enabled flag", required = true)
-    private String isEnabled;
+    @Arguments(title = "memoryOnly", usage = "<true>|<false>", description = "If it is memoryOnly", required = true)
+    private String memoryOnly;
 
     @Override
     public void execute(NodeProbe probe)
     {
-        probe.setIgnoreRepariedAtEnabled(Boolean.parseBoolean(isEnabled));
+        switch (memoryOnly)
+        {
+            case "true":
+                probe.dropPreparedStatements(true);
+                break;
+            case "false":
+                probe.dropPreparedStatements(false);
+                break;
+            default:
+                System.out.println("Unknown memoryOnly flag: " + memoryOnly);
+                break;
+        }
     }
 }

@@ -114,6 +114,7 @@ public class NodeTool
                 DisableAutoCompaction.class,
                 DisableBackup.class,
                 DisableBinary.class,
+                DropPreparedStatements.class,
                 DisableFullQueryLog.class,
                 DisableGossip.class,
                 DisableHandoff.class,

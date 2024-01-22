@@ -26,7 +26,7 @@ import org.apache.cassandra.tools.NodeTool;
 @Command(name = "setforcedisabletrace", description =  "Set force_disable_trace flag for this node to disable/enable trace.")
 public class SetForceDisableTrace extends NodeTool.NodeToolCmd
 {
-    @Arguments(title = "disabled", usage = "<ture>|<false>", description = "Set the force_disable_trace flag", required = true)
+    @Arguments(title = "disabled", usage = "<true>|<false>", description = "Set the force_disable_trace flag", required = true)
     private String disabled;
 
     @Override
