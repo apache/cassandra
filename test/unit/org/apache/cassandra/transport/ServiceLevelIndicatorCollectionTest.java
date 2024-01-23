@@ -19,6 +19,7 @@
 package org.apache.cassandra.transport;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -50,7 +51,9 @@ import org.apache.cassandra.transport.messages.ExecuteMessage;
 import org.apache.cassandra.transport.messages.PrepareMessage;
 import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.transport.messages.ServiceLevelIndicatorMetricsCollection;
+import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.NoSpamLoggerTest;
+import org.apache.cassandra.utils.Pair;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -62,7 +65,7 @@ import static org.junit.Assert.assertTrue;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
-public class ServiceLevelIndicatorMetricsTest extends CQLTester
+public class ServiceLevelIndicatorCollectionTest extends CQLTester
 {
     private SimpleClient client = null;
 
@@ -127,6 +130,32 @@ public class ServiceLevelIndicatorMetricsTest extends CQLTester
 
         ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new Exception("dummy exception"));
         assertEquals(ServiceLevelIndicatorMetrics.otherExceptionMetrics.getCount(), otherExceptionCount + 1);
+    }
+
+    @Test
+    public void testNoSpamLogger()
+    {
+        NoSpamLoggerTest.logged.clear();
+        ServiceLevelIndicatorMetricsCollection.setLogger(NoSpamLoggerTest.mock);
+        NoSpamLoggerTest.logged.put(NoSpamLogger.Level.INFO, new ArrayDeque<Pair<String, Object[]>>());
+        NoSpamLoggerTest.logged.put(NoSpamLogger.Level.WARN, new ArrayDeque<Pair<String, Object[]>>());
+        NoSpamLoggerTest.logged.put(NoSpamLogger.Level.ERROR, new ArrayDeque<Pair<String, Object[]>>());
+        NoSpamLogger.clearWrappedLoggersForTest();
+
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new CDCWriteException("CDC write error"));
+        assertEquals(1, NoSpamLoggerTest.logged.get(NoSpamLogger.Level.ERROR).size());
+
+        // verify a same kind of error happened, only 1 log is logged
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new CDCWriteException("CDC write error"));
+        assertEquals(1, NoSpamLoggerTest.logged.get(NoSpamLogger.Level.ERROR).size());
+
+        // verify a same kind of error with different error message happened, only 1 log is logged
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new CDCWriteException("CDC write error again!"));
+        assertEquals(1, NoSpamLoggerTest.logged.get(NoSpamLogger.Level.ERROR).size());
+
+        // verify a new kind of error happened, number of logged messages increased
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new Exception("dummy exception"));
+        assertEquals(2, NoSpamLoggerTest.logged.get(NoSpamLogger.Level.ERROR).size());
     }
 
     @Test

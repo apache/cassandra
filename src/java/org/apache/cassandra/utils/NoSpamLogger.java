@@ -150,7 +150,7 @@ public class NoSpamLogger
     private static final NonBlockingHashMap<Logger, NoSpamLogger> wrappedLoggers = new NonBlockingHashMap<>();
 
     @VisibleForTesting
-    static void clearWrappedLoggersForTest()
+    public static void clearWrappedLoggersForTest()
     {
         wrappedLoggers.clear();
     }

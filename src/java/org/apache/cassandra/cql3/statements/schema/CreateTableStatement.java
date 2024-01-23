@@ -118,8 +118,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
         // Check if schema exists for IF NOT EXISTS query.
         // if this schema already exists and no new schema will be created, we simply skip the enforcement
         // to avoid crash loop for some hard-coded schema creation at startup
-        Keyspaces keyspaces = Schema.instance.distributedAndLocalKeyspaces();
-        KeyspaceMetadata keyspace = keyspaces.getNullable(keyspaceName);
+        KeyspaceMetadata keyspace = Schema.instance.getKeyspaceMetadata(keyspaceName);
         if (keyspace != null && keyspace.hasTable(tableName) && ifNotExists) {
             logger.info(String.format("LCS enforcement level=%s. Skip enforcement for %s.%s because it already exists.",
                                       DatabaseDescriptor.getLCSEnforcementLevel().name(), keyspaceName, tableName));

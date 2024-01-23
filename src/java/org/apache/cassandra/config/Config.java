@@ -339,7 +339,7 @@ public class Config
 
     // debug log
     public boolean blocking_read_repair_debug_log_enabled = false;
-    public boolean service_level_indicator_error_log_enabled = false;
+    public boolean service_level_indicator_error_log_enabled = true;
 
     /**
      * @deprecated retry support removed on CASSANDRA-10992

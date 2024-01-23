@@ -38,9 +38,9 @@ import static org.junit.Assert.*;
 
 public class NoSpamLoggerTest
 {
-    Map<Level, Queue<Pair<String, Object[]>>> logged = new HashMap<>();
+    public static Map<Level, Queue<Pair<String, Object[]>>> logged = new HashMap<>();
 
-    Logger mock = new SubstituteLogger(null, null, true)
+    public static Logger mock = new SubstituteLogger(null, null, true)
     {
         @Override
         public void info(String statement, Object... args)

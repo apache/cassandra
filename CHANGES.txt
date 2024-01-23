@@ -176,6 +176,7 @@ Merged from 3.0:
  * Remove unused suppressions (CASSANDRA-18724)
 
 Unreleased
+ * [SO-27071] Log all exceptions with no spam logger
  * [SO-27046] No need to evict the statements as it creates race condition between multiple threads
  * [SO-27070] Add the nodetool command to clear prepared statement cache
  * [SO-26619] Bad query should not use regex in hot path

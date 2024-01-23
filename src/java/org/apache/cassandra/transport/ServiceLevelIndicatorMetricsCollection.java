@@ -16,22 +16,28 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.transport.messages;
+package org.apache.cassandra.transport;
+
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.auth.AuthCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.metrics.ServiceLevelIndicatorMetrics;
-import org.apache.cassandra.transport.ServerError;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 // We are not speifically collecting metrics for the following exceptions: PROTOCOL_ERROR (0x000A),
 // BAD_CREDENTIALS (0x0100) and all 2xx errors, because those errors can only be user errors.
 public class ServiceLevelIndicatorMetricsCollection
 {
-    private static final Logger logger = LoggerFactory.getLogger(ServiceLevelIndicatorMetricsCollection.class);
+    private static Logger logger = LoggerFactory.getLogger(ServiceLevelIndicatorMetricsCollection.class);
+
+    public static void setLogger(Logger newLogger)
+    {
+        logger = newLogger;
+    }
 
     public static void collectMetricsAndLog(Exception ex) {
         if (ex instanceof RequestExecutionException)
@@ -93,7 +99,7 @@ public class ServiceLevelIndicatorMetricsCollection
         }
         if (DatabaseDescriptor.getServiceLevelIndicatorErrorLogEnabled())
         {
-            logger.error("Service level indicator error", ex);
+            NoSpamLogger.log(logger, NoSpamLogger.Level.ERROR, ex.getClass().getSimpleName(), 1, TimeUnit.MINUTES, "Service level indicator error", ex);
         }
     }
 }
