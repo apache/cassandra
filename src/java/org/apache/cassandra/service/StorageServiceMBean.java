@@ -814,6 +814,10 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void enforceConcurrentValidatorsLimit();
     public boolean isConcurrentValidatorsLimitEnforced();
 
+    int getConcurrentIndexBuilders();
+
+    void setConcurrentIndexBuilders(int value);
+
     public int getConcurrentValidators();
     public void setConcurrentValidators(int value);
 
