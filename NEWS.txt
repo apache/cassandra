@@ -201,7 +201,8 @@ Upgrading
 Compact Storage
 ---------------
     - Starting version 4.0, Thrift is no longer supported.
-      Starting version 5.0, COMPACT STORAGE will no longer be supported.
+      COMPACT STORAGE will no longer be supported after 'ALTER ... DROP COMPACT STORAGE'
+      is taken out of experimental mode. This will be done in a major future release, post 5.0 (CASSANDRA-19324).
       'ALTER ... DROP COMPACT STORAGE' statement makes Compact Tables CQL-compatible,
       exposing internal structure of Thrift/Compact Tables. You can find more details
       on exposed internal structure under: 
