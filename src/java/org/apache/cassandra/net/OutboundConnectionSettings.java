@@ -420,7 +420,7 @@ public class OutboundConnectionSettings
         if (tcpNoDelay != null)
             return tcpNoDelay;
 
-        if (isInLocalDC(getEndpointSnitch(), getBroadcastAddressAndPort(), to))
+        if (DatabaseDescriptor.isClientOrToolInitialized() || isInLocalDC(getEndpointSnitch(), getBroadcastAddressAndPort(), to))
             return INTRADC_TCP_NODELAY;
 
         return DatabaseDescriptor.getInterDCTcpNoDelay();

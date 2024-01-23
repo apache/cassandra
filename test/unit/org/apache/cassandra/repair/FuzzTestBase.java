@@ -1201,7 +1201,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         {
             try (DataOutputBuffer b = DataOutputBuffer.scratchBuffer.get())
             {
-                int messagingVersion = MessagingService.Version.CURRENT.value;
+                int messagingVersion = MessagingService.current_version;
                 Message.serializer.serialize(msg, b, messagingVersion);
                 DataInputBuffer in = new DataInputBuffer(b.unsafeGetBufferAndFlip(), false);
                 return Message.serializer.deserialize(in, msg.from(), messagingVersion);

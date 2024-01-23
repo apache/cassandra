@@ -89,7 +89,9 @@ public class PrepareMessage extends RepairMessage
     }
 
     private static final String MIXED_MODE_ERROR = "Some nodes involved in repair are on an incompatible major version. " +
-                                                   "Repair is not supported in mixed major version clusters (%d vs %d).";
+                                                   "Repair is not supported in mixed major version clusters (%d vs %d). Note that " +
+                                                   "5.x nodes running in storage compatibility mode = 4 are considered " +
+                                                   "4.x nodes.";
 
     public static final IVersionedSerializer<PrepareMessage> serializer = new IVersionedSerializer<PrepareMessage>()
     {
