@@ -1312,7 +1312,7 @@
                 <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
                 <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
                 <jvmarg value="-Dcassandra.config=file:///${trie_yaml}"/>
-                <jvmarg value="-Dcassandra.junit_storage_compatibility_mode=NONE"/>
+                <jvmarg value="-Dcassandra.test.storage_compatibility_mode=NONE"/>
                 <jvmarg value="-Dcassandra.skip_sync=true" />
             </testmacrohelper>
         </sequential>
@@ -1333,7 +1333,7 @@
         <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
         <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
         <jvmarg value="-Dcassandra.config=file:///${scm_none_yaml}"/>
-        <jvmarg value="-Dcassandra.junit_storage_compatibility_mode=NONE"/>
+        <jvmarg value="-Dcassandra.test.storage_compatibility_mode=NONE"/>
         <jvmarg value="-Dcassandra.skip_sync=true" />
       </testmacrohelper>
     </sequential>

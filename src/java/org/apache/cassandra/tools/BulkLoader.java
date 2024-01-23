@@ -61,7 +61,7 @@ public class BulkLoader
 
     public static void load(LoaderOptions options) throws BulkLoadException
     {
-        DatabaseDescriptor.toolInitialization();
+        DatabaseDescriptor.clientInitialization();
         OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
         SSTableLoader loader = new SSTableLoader(
                 options.directory.toAbsolute(),
