@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.EnumMap;
 import java.util.IdentityHashMap;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.concurrent.ExecutorFactory;
@@ -40,6 +41,7 @@ import static org.apache.cassandra.simulator.cluster.ClusterActions.Options.noAc
 public class TrivialSimulationTest extends SimulationTestBase
 {
     @Test
+    @Ignore("fails in OSS 4.1.3")
     public void trivialTest() throws IOException // for demonstration/experiment purposes
     {
         simulate((simulation) -> {

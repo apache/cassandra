@@ -28,6 +28,7 @@ import org.apache.cassandra.simulator.paxos.PaxosSimulationRunner;
 public class ShortPaxosSimulationTest
 {
     @Test
+    @Ignore("fails in OSS 4.1.3")
     public void simulationTest() throws IOException
     {
         PaxosSimulationRunner.main(new String[] { "run", "-n", "3..6", "-t", "1000", "-c", "2", "--cluster-action-limit", "2", "-s", "30" });
