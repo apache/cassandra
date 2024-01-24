@@ -31,6 +31,7 @@ import accord.api.Key;
 import accord.api.RoutingKey;
 import accord.local.ShardDistributor;
 import accord.primitives.Range;
+import accord.primitives.RangeFactory;
 import accord.primitives.Ranges;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
@@ -62,6 +63,12 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
     public abstract RoutingKeyKind kindOfRoutingKey();
     public abstract long estimatedSizeOnHeap();
     public abstract AccordRoutingKey withTable(TableId table);
+
+    @Override
+    public RangeFactory rangeFactory()
+    {
+        return (s, e) -> new TokenRange((AccordRoutingKey) s, (AccordRoutingKey) e);
+    }
 
     public SentinelKey asSentinelKey()
     {
