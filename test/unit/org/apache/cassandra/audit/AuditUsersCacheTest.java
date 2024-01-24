@@ -19,7 +19,6 @@ package org.apache.cassandra.audit;
 
 import java.net.InetAddress;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Queue;
 
@@ -27,9 +26,9 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
 import com.datastax.driver.core.Cluster;
+import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.exceptions.AuthenticationException;
 import com.datastax.driver.core.exceptions.UnauthorizedException;
@@ -37,6 +36,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.OverrideConfigurationLoader;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 
@@ -121,6 +121,18 @@ public class AuditUsersCacheTest
         executeWithCredentials(Arrays.asList(cql), CASS_USER, CASS_PW, AuditLogEntryType.LOGIN_SUCCESS);
         assertTrue(getInMemAuditLogger().size() > 0);
         AuditLogEntry logEntry = getInMemAuditLogger().poll();
+        assertLogEntry(logEntry, AuditLogEntryType.PREPARE_STATEMENT, cql, CASS_USER);
+        logEntry = getInMemAuditLogger().poll();
+        assertLogEntry(logEntry, AuditLogEntryType.LIST_PERMISSIONS, cql, CASS_USER);
+
+        // test execute failure
+        executeWithCredentials(Arrays.asList(cql), CASS_USER, CASS_PW, AuditLogEntryType.LOGIN_SUCCESS, true);
+        // remove all prepared statement related log
+        getInMemAuditLogger().removeIf(auditLogEntry -> auditLogEntry.getType() == AuditLogEntryType.PREPARE_STATEMENT);
+        assertEquals(2, getInMemAuditLogger().size());
+        logEntry = getInMemAuditLogger().poll();
+        assertLogEntry(logEntry, AuditLogEntryType.REQUEST_FAILURE, null, CASS_USER);
+        logEntry = getInMemAuditLogger().poll();
         assertLogEntry(logEntry, AuditLogEntryType.LIST_PERMISSIONS, cql, CASS_USER);
     }
 
@@ -129,8 +141,23 @@ public class AuditUsersCacheTest
     {
         String cql = "SELECT * FROM testks.table1";
         executeWithCredentials(Arrays.asList(cql), TEST_USER, TEST_PW, AuditLogEntryType.LOGIN_SUCCESS);
-        assertTrue(getInMemAuditLogger().size() > 0);
+        System.out.println(getInMemAuditLogger().size());
+        assertEquals(2, getInMemAuditLogger().size());
         AuditLogEntry logEntry = getInMemAuditLogger().poll();
+        assertLogEntry(logEntry, AuditLogEntryType.PREPARE_STATEMENT, cql, TEST_USER);
+        logEntry = getInMemAuditLogger().poll();
+        assertLogEntry(logEntry, AuditLogEntryType.SELECT, cql, TEST_USER);
+
+        // test execute failure
+        executeWithCredentials(Arrays.asList(cql), TEST_USER, TEST_PW, AuditLogEntryType.LOGIN_SUCCESS, true);
+        // remove all prepared statement related log
+        getInMemAuditLogger().removeIf(auditLogEntry -> auditLogEntry.getType() == AuditLogEntryType.PREPARE_STATEMENT);
+        assertEquals(2, getInMemAuditLogger().size());
+        // first log is for PreparedQueryNotFoundException, the query should be null
+        logEntry = getInMemAuditLogger().poll();
+        assertLogEntry(logEntry, AuditLogEntryType.REQUEST_FAILURE, null, TEST_USER);
+        // Client will re-prepared automatically, the second non-prepare log would be normal select
+        logEntry = getInMemAuditLogger().poll();
         assertLogEntry(logEntry, AuditLogEntryType.SELECT, cql, TEST_USER);
     }
 
@@ -139,6 +166,9 @@ public class AuditUsersCacheTest
     {
         String cql = "SELECT * FROM testks.table1";
         executeWithCredentials(Arrays.asList(cql), TEST_SERVICE, TEST_PW, null);
+        assertTrue(getInMemAuditLogger().size() == 0);
+        // test execute failure
+        executeWithCredentials(Arrays.asList(cql), TEST_SERVICE, TEST_PW, null, true);
         assertTrue(getInMemAuditLogger().size() == 0);
     }
 
@@ -149,6 +179,13 @@ public class AuditUsersCacheTest
     private static void executeWithCredentials(List<String> queries, String username, String password,
                                                AuditLogEntryType expectedType)
     {
+        executeWithCredentials(queries, username, password, expectedType, false);
+    }
+
+    // set clearPreparedStatementCache to true to get execute message failure because prepared statement is cleared on server end
+    private static void executeWithCredentials(List<String> queries, String username, String password,
+                                               AuditLogEntryType expectedType, boolean clearPreparedStatementCache)
+    {
         boolean authFailed = false;
         try (Cluster cluster = Cluster.builder().addContactPoints(InetAddress.getLoopbackAddress())
                 .withoutJMXReporting()
@@ -158,7 +195,15 @@ public class AuditUsersCacheTest
             try (Session session = cluster.connect())
             {
                 for (String query : queries)
-                    session.execute(query);
+                {
+                    PreparedStatement preparedStatement = session.prepare(query);
+                    if (clearPreparedStatementCache)
+                    {
+                        QueryProcessor.clearPreparedStatements(true);
+                    }
+                    session.execute(preparedStatement.bind());
+                }
+
             }
             catch (AuthenticationException e)
             {
