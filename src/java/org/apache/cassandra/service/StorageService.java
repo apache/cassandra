@@ -1448,6 +1448,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.allowUnlimitedConcurrentValidations;
     }
 
+    @Override
+    public int getConcurrentIndexBuilders()
+    {
+        return DatabaseDescriptor.getConcurrentIndexBuilders();
+    }
+
+    @Override
+    public void setConcurrentIndexBuilders(int value)
+    {
+        if (value <= 0)
+            throw new IllegalArgumentException("Number of concurrent index builders should be greater than 0.");
+        DatabaseDescriptor.setConcurrentIndexBuilders(value);
+        CompactionManager.instance.setConcurrentIndexBuilders(value);
+    }
+
     public int getConcurrentValidators()
     {
         return DatabaseDescriptor.getConcurrentValidations();

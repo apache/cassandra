@@ -347,7 +347,7 @@ public class Config
     public volatile int reject_repair_compaction_threshold = Integer.MAX_VALUE;
 
     // The number of executors to use for building secondary indexes
-    public int concurrent_index_builders = 2;
+    public volatile int concurrent_index_builders = 2;
 
     /**
      * @deprecated retry support removed on CASSANDRA-10992
