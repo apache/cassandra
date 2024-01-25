@@ -1,0 +1,3 @@
+$ nodetool snapshot --tag catalog-journal --ttl 3m catalogkeyspace.journal
+Requested creating snapshot(s) for [catalogkeyspace.journal] with snapshot name [catalog-journal] and options {skipFlush=false, ttl=3m}
+Snapshot directory: catalog-journal
