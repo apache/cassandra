@@ -1085,7 +1085,7 @@ public class CQLConnectionTest
             options.put(StartupMessage.CQL_VERSION, QueryProcessor.CQL_VERSION.toString());
             if (codec.encoder instanceof FrameEncoderLZ4)
                 options.put(StartupMessage.COMPRESSION, "LZ4");
-            Connection connection = new Connection(channel, ProtocolVersion.V5, (ch, connection1) -> {});
+            Connection connection = new Connection(channel, ProtocolVersion.V5, new NoOpTracker());
             channel.attr(Connection.attributeKey).set(connection);
             channel.writeAndFlush(new StartupMessage(options)).sync();
 
@@ -1157,6 +1157,16 @@ public class CQLConnectionTest
             Envelope f;
             while ((f = inboundMessages.poll()) != null)
                 f.release();
+        }
+    }
+
+    private static class NoOpTracker implements Connection.Tracker
+    {
+        public void addConnection(Channel ch, Connection connection) {}
+
+        public boolean isRunning()
+        {
+            return true;
         }
     }
 }

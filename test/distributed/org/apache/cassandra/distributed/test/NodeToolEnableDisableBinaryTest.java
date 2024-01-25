@@ -69,9 +69,12 @@ public class NodeToolEnableDisableBinaryTest extends TestBaseImpl
                         "        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]\n" + 
                         "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" + 
                         "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" + 
-                        "                [(-u <username> | --username <username>)] disablebinary\n" + 
+                        "                [(-u <username> | --username <username>)] disablebinary [(-f | --force)]\n" + 
                         "\n" + 
                         "OPTIONS\n" + 
+                        "        -f, --force\n" + 
+                        "            Use -f to interrupt client requests that have already started\n" + 
+                        "\n" + 
                         "        -h <host>, --host <host>\n" + 
                         "            Node hostname or ip address\n" + 
                         "\n" + 

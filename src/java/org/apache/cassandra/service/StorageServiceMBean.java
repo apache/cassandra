@@ -668,7 +668,8 @@ public interface StorageServiceMBean extends NotificationEmitter
     // to determine if initialization has completed
     public boolean isInitialized();
 
-    public void stopNativeTransport();
+    @Deprecated(since = "5.1") public default void stopNativeTransport() { stopNativeTransport(false); }
+    public void stopNativeTransport(boolean force);
     public void startNativeTransport();
     public boolean isNativeTransportRunning();
     public void enableNativeTransportOldProtocolVersions();
@@ -1267,4 +1268,7 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public void setSkipStreamDiskSpaceCheck(boolean value);
     public boolean getSkipStreamDiskSpaceCheck();
+
+    String getCQLStartTime();
+    void setCQLStartTime(String value);
 }

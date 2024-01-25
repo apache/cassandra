@@ -583,13 +583,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
-    public void stopNativeTransport()
+    public void stopNativeTransport(boolean force)
     {
         if (daemon == null)
         {
             throw new IllegalStateException("No configured daemon");
         }
-        daemon.stopNativeTransport();
+        daemon.stopNativeTransport(force);
     }
 
     public boolean isNativeTransportRunning()
@@ -5508,5 +5508,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (!skipNotificationListeners)
             super.addNotificationListener(listener, filter, handback);
+    }
+
+    @Override
+    public String getCQLStartTime()
+    {
+        return DatabaseDescriptor.getCQLStartTime().name();
+    }
+
+    @Override
+    public void setCQLStartTime(String value)
+    {
+        DatabaseDescriptor.setCQLStartTime(Config.CQLStartTime.valueOf(value.toUpperCase()));
     }
 }

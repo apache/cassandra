@@ -1279,6 +1279,16 @@ public class Config
 
     public double severity_during_decommission = 0;
 
+
+    public enum CQLStartTime
+    {
+        REQUEST, // uses a timestamp that represent the start of processing of the request
+        QUEUE    // uses a timestamp that represents when the request was enqueued
+    }
+    // To avoid triggering possible alarms on upgrade for all the users by suddenly bumping their latencies,
+    // we leave request time as a base.
+    public volatile CQLStartTime cql_start_time = CQLStartTime.REQUEST;
+
     // TODO Revisit MessagingService::current_version
     public StorageCompatibilityMode storage_compatibility_mode;
 

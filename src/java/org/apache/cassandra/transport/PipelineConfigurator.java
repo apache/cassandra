@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 
 import org.slf4j.Logger;
@@ -100,13 +101,26 @@ public class PipelineConfigurator
 
     public PipelineConfigurator(boolean epoll,
                                 boolean keepAlive,
-                                boolean legacyFlusher,
+                                EncryptionOptions.TlsEncryptionPolicy encryptionPolicy,
+                                Dispatcher dispatcher)
+    {
+        this.epoll               = epoll;
+        this.keepAlive           = keepAlive;
+        this.tlsEncryptionPolicy = encryptionPolicy;
+        this.dispatcher          = dispatcher;
+    }
+
+    @Deprecated(since = "5.1")
+    @VisibleForTesting
+    public PipelineConfigurator(boolean epoll,
+                                boolean keepAlive,
+                                boolean useLegacyFlusher,
                                 EncryptionOptions.TlsEncryptionPolicy encryptionPolicy)
     {
         this.epoll               = epoll;
         this.keepAlive           = keepAlive;
         this.tlsEncryptionPolicy = encryptionPolicy;
-        this.dispatcher          = dispatcher(legacyFlusher);
+        this.dispatcher          = new Dispatcher(useLegacyFlusher);
     }
 
     public ChannelFuture initializeChannel(final EventLoopGroup workerGroup,
