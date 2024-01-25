@@ -43,8 +43,7 @@ import org.apache.cassandra.metrics.ChunkCacheMetrics;
 import org.apache.cassandra.utils.memory.BufferPool;
 import org.apache.cassandra.utils.memory.BufferPools;
 
-public class ChunkCache
-        implements CacheLoader<ChunkCache.Key, ChunkCache.Buffer>, RemovalListener<ChunkCache.Key, ChunkCache.Buffer>, CacheSize
+public class ChunkCache implements CacheLoader<ChunkCache.Key, ChunkCache.Buffer>, RemovalListener<ChunkCache.Key, ChunkCache.Buffer>, CacheSize
 {
     public static final int RESERVED_POOL_SPACE_IN_MiB = 32;
     public static final long cacheSize = 1024L * 1024L * Math.max(0, DatabaseDescriptor.getFileCacheSizeInMiB() - RESERVED_POOL_SPACE_IN_MiB);
@@ -172,7 +171,7 @@ public class ChunkCache
         buffer.release();
     }
 
-    public void close()
+    public void clear()
     {
         cache.invalidateAll();
     }

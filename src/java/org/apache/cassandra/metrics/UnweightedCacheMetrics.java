@@ -18,35 +18,36 @@
 package org.apache.cassandra.metrics;
 
 import com.codahale.metrics.Gauge;
-import org.apache.cassandra.cache.CacheSize;
+import org.apache.cassandra.cache.UnweightedCacheSize;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 /**
- * Metrics for {@code ICache}.
+ * Metrics for an unweighted cache like {@code AuthCache}.
  */
-public class CacheMetrics extends AbstractCacheMetrics
+public class UnweightedCacheMetrics extends AbstractCacheMetrics
 {
-    /** Cache capacity in bytes */
-    public final Gauge<Long> capacity;
+    /**
+     * Cache capacity (maximum number of entries)
+     */
+    public final Gauge<Integer> maxEntries;
 
-    /** Total size of cache, in bytes */
-    public final Gauge<Long> size;
-
-    /** Total number of cache entries */
+    /**
+     * Total number of cache entries
+     */
     public final Gauge<Integer> entries;
 
     /**
      * Create metrics for given cache.
      *
-     * @param type Type of Cache to identify metrics
-     * @param cache Weighted Cache to measure metrics
+     * @param type  Type of Cache to identify metrics
+     * @param cache Unweighted Cache to measure metrics
      */
-    public CacheMetrics(String type, CacheSize cache)
+    public UnweightedCacheMetrics(String type, UnweightedCacheSize cache)
     {
-        super(new DefaultNameFactory("Cache", type), type);
-        capacity = Metrics.register(factory.createMetricName("Capacity"), cache::capacity);
-        size = Metrics.register(factory.createMetricName("Size"), cache::weightedSize);
-        entries = Metrics.register(factory.createMetricName("Entries"), cache::size);
+        super(new DefaultNameFactory("UnweightedCache", type), type);
+
+        maxEntries = Metrics.register(factory.createMetricName("MaxEntries"), cache::maxEntries);
+        entries = Metrics.register(factory.createMetricName("Entries"), cache::entries);
     }
 }

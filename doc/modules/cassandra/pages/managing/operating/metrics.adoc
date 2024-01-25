@@ -528,9 +528,16 @@ ViewReplicasSuccess.
 base table and when CL.ONE is achieved on view.
 |===
 
-== Cache Metrics
+== Weighted Cache Metrics
 
-Cassandra caches have metrics to track the effectivness of the caches.
+[NOTE]
+====
+The non-auth caches are weighted (they do care about weight of a single entry) whereas the auth caches are
+non-weighted. Particularly it affects Capacity and Size attributes of the MBeans.
+For weighted caches they represent size of entries in bytes, for non-weighted caches they represent number of entries.
+====
+
+Cassandra caches have metrics to track the effectivness of the weighted caches.
 Though the `Table Metrics` might be more useful.
 
 Reported name format:
@@ -538,7 +545,7 @@ Reported name format:
 *Metric Name*::
   `org.apache.cassandra.metrics.Cache.<MetricName>.<CacheName>`
 *JMX MBean*::
-  `org.apache.cassandra.metrics:type=Cache scope=<CacheName> name=<MetricName>`
+  `org.apache.cassandra.metrics:type=Cache,scope=<CacheName>,name=<MetricName>`
 
 [cols=",,",options="header",]
 |===
@@ -569,8 +576,57 @@ The following caches are covered:
 
 [NOTE]
 ====
-Misses and MissLatency are only defined for the ChunkCache
+* Misses and MissLatency are only defined for the ChunkCache
+* ChunkCache MBean is only available if the cache is enabled
 ====
+
+== Unweighted Cache Metrics
+
+Cassandra caches have metrics to track the effectivness of the unweighted caches.
+
+Reported name format:
+
+*Metric Name*::
+`org.apache.cassandra.metrics.UnweightedCache.<MetricName>.<CacheName>`
+
+*JMX MBean*::
+`org.apache.cassandra.metrics:type=UnweightedCache,scope=<CacheName>,name=<MetricName>`
+
+[cols=",,",options="header",]
+|===
+|Name |Type |Description
+|MaxEntries |Gauge<Integer> |Maximum number of entries.
+|Entries |Gauge<Integer> |Total number of cache entries.
+|FifteenMinuteCacheHitRate |Gauge<Double> |15m cache hit rate.
+|FiveMinuteCacheHitRate |Gauge<Double> |5m cache hit rate.
+|OneMinuteCacheHitRate |Gauge<Double> |1m cache hit rate.
+|HitRate |Gauge<Double> |All time cache hit rate.
+|Hits |Meter |Total number of cache hits.
+|Misses |Meter |Total number of cache misses.
+|MissLatency |Timer |Latency of misses.
+|Requests |Gauge<Long> |Total number of cache requests.
+|===
+
+The following caches are covered:
+
+[cols=",",options="header",]
+|===
+|Name |Description
+|CredentialsCache |Auth cache for credentials.
+|JmxPermissionsCache |Auth cache for JMX permissions.
+|CIDRPermissionsCache | Auth cache for CIDR permissions.
+|IdentityCache| Auth cache for `MutualTlsAuthenticator`.
+|NetworkPermissionsCache |Auth cache for network permissions.
+|PermissionsCache |Auth cache for permissions.
+|RolesCache |Auth cache for roles.
+|===
+
+[NOTE]
+.Note
+====
+AuthCache metrics MBeans are only available if corresponding authorizers and authenticators are enabled.
+====
+
 == CQL Metrics
 
 Metrics specific to CQL prepared statement caching.

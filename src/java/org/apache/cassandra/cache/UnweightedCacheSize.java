@@ -21,30 +21,25 @@
 package org.apache.cassandra.cache;
 
 /**
- * Represents a weighted cache size.
+ * Represents an unweighted cache size.
  *
  * The non-auth caches are weighted (they do care about weight of a single entry) whereas the auth caches are
  * unweighted.
  */
-public interface CacheSize
+public interface UnweightedCacheSize
 {
     /**
-     * Returns the maximum total weighted size of this cache.
+     * Returns the maximum number of entries in this cache.
      */
-    long capacity();
+    int maxEntries();
 
     /**
-     * Specifies the maximum total weighted size of this cache.
+     * Specifies the maximum number of entries in this cache.
      */
-    void setCapacity(long capacity);
+    void setMaxEntries(int maxEntries);
 
     /**
      * Returns the approximate number of entries in this cache.
      */
-    int size();
-
-    /**
-     * Returns the approximate accumulated weight of entries in this cache.
-     */
-    long weightedSize();
+    int entries();
 }
