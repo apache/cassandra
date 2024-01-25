@@ -1,1 +1,1 @@
-$ nodetool clearsnapshot -all cqlkeyspace
+$ nodetool clearsnapshot --all cqlkeyspace

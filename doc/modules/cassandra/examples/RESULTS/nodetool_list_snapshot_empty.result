@@ -1,0 +1,3 @@
+$ nodetool listsnapshots
+Snapshot Details:
+There are no snapshots
