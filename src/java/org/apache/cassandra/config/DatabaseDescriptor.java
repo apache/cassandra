@@ -2403,6 +2403,11 @@ public class DatabaseDescriptor
         return conf.concurrent_index_builders;
     }
 
+    public static void setConcurrentIndexBuilders(int value)
+    {
+        conf.concurrent_index_builders = value;
+    }
+
     public static void setConcurrentValidations(int value)
     {
         value = value > 0 ? value : Integer.MAX_VALUE;
