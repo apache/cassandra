@@ -116,10 +116,4 @@ public class ThreadPoolExecutorPlus extends ThreadPoolExecutorBase implements Ex
     {
         return taskFactory.toSubmit(callable);
     }
-
-    @Override
-    public int getMaxTasksQueued()
-    {
-        return getQueue().size();
-    }
 }

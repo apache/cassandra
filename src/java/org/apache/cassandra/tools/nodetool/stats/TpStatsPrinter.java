@@ -19,6 +19,7 @@
 package org.apache.cassandra.tools.nodetool.stats;
 
 import java.io.PrintStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -49,21 +50,35 @@ public class TpStatsPrinter
     public static class DefaultPrinter implements StatsPrinter<TpStatsHolder>
     {
         @Override
-        public void print(TpStatsHolder data, PrintStream out)
+        public void print(TpStatsHolder data, PrintStream out, boolean verbose)
         {
             final TableBuilder poolBuilder = new TableBuilder();
-            poolBuilder.add("Pool Name", "Active", "Pending", "Completed", "Blocked", "All time blocked");
+
+            if (verbose)
+                poolBuilder.add("Pool Name", "Active", "Pending", "Completed", "Blocked", "All time blocked", "Core Pool Size", "Max Pool Size", "Max Tasks Queued");
+            else
+                poolBuilder.add("Pool Name", "Active", "Pending", "Completed", "Blocked", "All time blocked");
 
             final Multimap<String, String> threadPools = data.probe.getThreadPools();
 
             for (final Map.Entry<String, String> tpool : threadPools.entries())
             {
-                poolBuilder.add(tpool.getValue(),
-                                 data.probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "ActiveTasks").toString(),
-                                 data.probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "PendingTasks").toString(),
-                                 data.probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "CompletedTasks").toString(),
-                                 data.probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "CurrentlyBlockedTasks").toString(),
-                                 data.probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "TotalBlockedTasks").toString());
+                List<String> values = new ArrayList<>();
+                values.add(tpool.getValue());
+                values.add(data.probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "ActiveTasks").toString());
+                values.add(data.probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "PendingTasks").toString());
+                values.add(data.probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "CompletedTasks").toString());
+                values.add(data.probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "CurrentlyBlockedTasks").toString());
+                values.add(data.probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "TotalBlockedTasks").toString());
+
+                if (verbose)
+                {
+                    values.add(data.probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "CorePoolSize").toString());
+                    values.add(data.probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "MaxPoolSize").toString());
+                    values.add(data.probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "MaxTasksQueued").toString());
+                }
+
+                poolBuilder.add(values);
             }
 
             poolBuilder.printTo(out);
@@ -110,6 +125,12 @@ public class TpStatsPrinter
             }
 
             droppedBuilder.printTo(out);
+        }
+
+        @Override
+        public void print(TpStatsHolder data, PrintStream out)
+        {
+            print(data, out, false);
         }
     }
 }

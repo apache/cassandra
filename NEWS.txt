@@ -79,6 +79,8 @@ New features
     More updates and documentation to follow.
     - New Guardrails added:
       - Whether bulk loading of SSTables is allowed.
+    - nodetool tpstats can display core pool size, max pool size and max tasks queued if --verbose / -v flag is specified.
+      system_views.thread_pools adds core_pool_size, max_pool_size and max_tasks_queued columns.
 
 Upgrading
 ---------

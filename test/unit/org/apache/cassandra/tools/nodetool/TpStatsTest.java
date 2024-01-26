@@ -67,7 +67,7 @@ public class TpStatsTest extends CQLTester
                         "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" + 
                         "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" + 
                         "                [(-u <username> | --username <username>)] tpstats\n" + 
-                        "                [(-F <format> | --format <format>)]\n" + 
+                        "                [(-F <format> | --format <format>)] [(-v | --verbose)]\n" +
                         "\n" + 
                         "OPTIONS\n" + 
                         "        -F <format>, --format <format>\n" + 
@@ -89,7 +89,10 @@ public class TpStatsTest extends CQLTester
                         "            Path to the JMX password file\n" + 
                         "\n" + 
                         "        -u <username>, --username <username>\n" + 
-                        "            Remote jmx agent username\n" +  
+                        "            Remote jmx agent username\n" +
+                        "\n" +
+                        "        -v, --verbose\n" +
+                        "            Display detailed metrics about thread pool's sizes\n" +
                         "\n" + 
                         "\n";
         assertThat(tool.getStdout()).isEqualTo(help);

@@ -48,6 +48,9 @@ public class TpStatsHolder implements StatsHolder
             threadPool.put("CompletedTasks", probe.getThreadPoolMetric(tp.getKey(), tp.getValue(), "CompletedTasks"));
             threadPool.put("CurrentlyBlockedTasks", probe.getThreadPoolMetric(tp.getKey(), tp.getValue(), "CurrentlyBlockedTasks"));
             threadPool.put("TotalBlockedTasks", probe.getThreadPoolMetric(tp.getKey(), tp.getValue(), "TotalBlockedTasks"));
+            threadPool.put("CorePoolSize", probe.getThreadPoolMetric(tp.getKey(), tp.getValue(), "CorePoolSize"));
+            threadPool.put("MaxPoolSize", probe.getThreadPoolMetric(tp.getKey(), tp.getValue(), "MaxPoolSize"));
+            threadPool.put("MaxTasksQueued", probe.getThreadPoolMetric(tp.getKey(), tp.getValue(), "MaxTasksQueued"));
             threadPools.put(tp.getValue(), threadPool);
         }
         result.put("ThreadPools", threadPools);

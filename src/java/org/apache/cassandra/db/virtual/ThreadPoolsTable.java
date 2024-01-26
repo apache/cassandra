@@ -36,6 +36,9 @@ final class ThreadPoolsTable extends AbstractVirtualTable
     private static final String COMPLETED_TASKS = "completed_tasks";
     private static final String BLOCKED_TASKS = "blocked_tasks";
     private static final String BLOCKED_TASKS_ALL_TIME = "blocked_tasks_all_time";
+    private static final String CORE_POOL_SIZE = "core_pool_size";
+    private static final String MAX_POOL_SIZE = "max_pool_size";
+    private static final String MAX_TASKS_QUEUED = "max_tasks_queued";
 
     ThreadPoolsTable(String keyspace)
     {
@@ -49,6 +52,9 @@ final class ThreadPoolsTable extends AbstractVirtualTable
                            .addRegularColumn(COMPLETED_TASKS, LongType.instance)
                            .addRegularColumn(BLOCKED_TASKS, LongType.instance)
                            .addRegularColumn(BLOCKED_TASKS_ALL_TIME, LongType.instance)
+                           .addRegularColumn(CORE_POOL_SIZE, Int32Type.instance)
+                           .addRegularColumn(MAX_POOL_SIZE, Int32Type.instance)
+                           .addRegularColumn(MAX_TASKS_QUEUED, Int32Type.instance)
                            .build());
     }
 
@@ -80,6 +86,9 @@ final class ThreadPoolsTable extends AbstractVirtualTable
                .column(PENDING_TASKS, metrics.pendingTasks.getValue())
                .column(COMPLETED_TASKS, metrics.completedTasks.getValue())
                .column(BLOCKED_TASKS, metrics.currentBlocked.getCount())
-               .column(BLOCKED_TASKS_ALL_TIME, metrics.totalBlocked.getCount());
+               .column(BLOCKED_TASKS_ALL_TIME, metrics.totalBlocked.getCount())
+               .column(CORE_POOL_SIZE, metrics.corePoolSize.getValue())
+               .column(MAX_POOL_SIZE, metrics.maxPoolSize.getValue())
+               .column(MAX_TASKS_QUEUED, metrics.maxTasksQueued.getValue());
     }
 }
