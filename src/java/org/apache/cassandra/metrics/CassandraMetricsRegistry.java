@@ -18,6 +18,7 @@
 package org.apache.cassandra.metrics;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -31,6 +32,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -42,6 +45,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import org.apache.commons.lang3.ArrayUtils;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
@@ -71,9 +77,12 @@ import org.apache.cassandra.db.virtual.walker.MetricRowWalker;
 import org.apache.cassandra.db.virtual.walker.TimerMetricRowWalker;
 import org.apache.cassandra.index.sai.metrics.AbstractMetrics;
 import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.memory.MemtablePool;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Optional.ofNullable;
 import static org.apache.cassandra.db.virtual.CollectionVirtualTableAdapter.createSinglePartitionedKeyFiltered;
 import static org.apache.cassandra.db.virtual.CollectionVirtualTableAdapter.createSinglePartitionedValueFiltered;
@@ -93,6 +102,8 @@ public class CassandraMetricsRegistry extends MetricRegistry
 {
     public static final UnaryOperator<String> METRICS_GROUP_POSTFIX = name -> name + "_group";
 
+    private static final Logger logger = LoggerFactory.getLogger(CassandraMetricsRegistry.class);
+
     /**
      * A map of metric name constructed by {@link com.codahale.metrics.MetricRegistry#name(String, String...)} and
      * its full name in the way how it is represented in JMX. The map is used by {@link CassandraJmxMetricsExporter}
@@ -109,7 +120,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
      * Metrics from the root registry are exported to JMX by {@link CassandraJmxMetricsExporter} and to virtual tables
      * via {@link #createMetricsKeyspaceTables()}.
      */
-    public static final CassandraMetricsRegistry Metrics = init();
+    public static final CassandraMetricsRegistry Metrics = init(TimeUnit.DAYS.toMicros(1));
     private final MetricRegistryListener jmxExporter = new CassandraJmxMetricsExporter(ALIASES);
 
     /** We have to make sure that this metrics listener is called the last, so that it can clean up aliases. */
@@ -177,13 +188,18 @@ public class CassandraMetricsRegistry extends MetricRegistry
                                    .build();
     }
 
-    private CassandraMetricsRegistry()
+    final ScheduledFuture<?> periodicMeterTicker;
+
+    CassandraMetricsRegistry(long tickMetersPeriodMicros)
     {
+        checkArgument(tickMetersPeriodMicros >= 0);
+        long initialDelay = ThreadLocalRandom.current().nextLong(tickMetersPeriodMicros);
+        periodicMeterTicker = ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(this::tickMeters, initialDelay, tickMetersPeriodMicros, TimeUnit.MICROSECONDS);
     }
 
-    private static CassandraMetricsRegistry init()
+    private static CassandraMetricsRegistry init(long tickMetersPeriodMicros)
     {
-        CassandraMetricsRegistry registry = new CassandraMetricsRegistry();
+        CassandraMetricsRegistry registry = new CassandraMetricsRegistry(tickMetersPeriodMicros);
         // Adding listeners to the root registry, so that they can be notified about all metrics changes.
         registry.addListener(registry.jmxExporter);
         registry.addListener(registry.housekeepingListener);
@@ -495,7 +511,44 @@ public class CassandraMetricsRegistry extends MetricRegistry
     {
         mBeanWrapper.unregisterMBean(name, MBeanWrapper.OnException.IGNORE);
     }
-    
+
+    /**
+     * Very infrequently used meters generate a linear amount of tick work based on how long it has been
+     * since the meter was last marked or read. On scales of a year this can be enough to cause the first request
+     * that needs to mark the meter to time out. Once a day read every meter to force them to run Meter.tickIfNecessary
+     * so we only ever run at most one day worth of tick work per meter in the request path.
+     *
+     * This can be removed if we ever upgrade and switch the default MovingAverage from EWMA to SlidingWindowTimeAverages
+     */
+    private void tickMeters()
+    {
+        List<Throwable> failures = new ArrayList<>();
+        int droppedFailures = 0;
+        for (Meter meter : getMeters().values())
+        {
+            try
+            {
+                meter.getOneMinuteRate();
+            }
+            catch (Throwable t)
+            {
+                if (failures.size() < 10)
+                    failures.add(t);
+                else
+                    droppedFailures++;
+            }
+        }
+        if (!failures.isEmpty())
+        {
+            Throwable failure = null;
+            for (Throwable t : failures)
+                failure = Throwables.merge(failure, t);
+            // To avoid the scheduled task being cancelled don't leak exceptions
+            // Runs only once a day so noise is not an issue
+            logger.error(String.format("Had error(s) attempting to tick meter. Dropped %d exceptions.", droppedFailures), failure);
+        }
+    }
+
     /**
      * Strips a single final '$' from input
      * 
