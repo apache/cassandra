@@ -379,6 +379,9 @@ Thread pool information includes active tasks, active tasks limit,
 blocked tasks, blocked tasks all time, completed tasks, and pending
 tasks. A query on the `thread_pools` returns following details:
 
+From 5.1 (CASSANDRA-19289), this table also displays core pool size, max pool size and max queued tasks values (visible
+from `nodetool tpstats --verbose` as well.)
+
 [source, console]
 ----
 cqlsh:system_views> select * from system_views.thread_pools;
