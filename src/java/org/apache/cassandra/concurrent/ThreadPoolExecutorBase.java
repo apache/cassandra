@@ -173,6 +173,11 @@ public class ThreadPoolExecutorBase extends ThreadPoolExecutor implements Resiza
         setMaximumPoolSize(number);
     }
 
+    public int getMaxTasksQueued()
+    {
+        return getQueue().remainingCapacity();
+    }
+
     @Override
     public NamedThreadFactory getThreadFactory()
     {
