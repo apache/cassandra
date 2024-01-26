@@ -33,6 +33,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization;
+import org.apache.cassandra.service.throttler.dynamic.TrafficType;
 import org.hamcrest.Matchers;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
@@ -288,7 +289,7 @@ public class RateLimiterTest extends TestBaseImpl
         }
 
         @SuppressWarnings("unused")
-        public static boolean throttleUserTraffic(String keyspaceName, Collection<String> tables, boolean reads, boolean replicationTraffic,
+        public static boolean throttleUserTraffic(String keyspaceName, Collection<String> tables, TrafficType trafficType,
                                                   @SuperCall Callable<Boolean> zuper) throws Exception
 
         {

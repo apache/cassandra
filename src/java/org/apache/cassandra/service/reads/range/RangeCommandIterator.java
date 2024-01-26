@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.cassandra.schema.TableMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,11 +49,13 @@ import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.cassandra.metrics.StorageProxyMetricsManager;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization;
+import org.apache.cassandra.service.throttler.dynamic.TrafficType;
 import org.apache.cassandra.service.throttler.IRequestThrottler;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
@@ -124,7 +125,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
         try
         {
             TableMetadata metadata = command.metadata();
-            CassandraResourceUtilization.instance.throttle(metadata.keyspace, Collections.singleton(metadata.name), true, false);
+            CassandraResourceUtilization.instance.throttle(metadata.keyspace, Collections.singleton(metadata.name), TrafficType.RangeCoordRead);
             DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(command, consistencyLevel);
             while (sentQueryIterator == null || !sentQueryIterator.hasNext())
             {

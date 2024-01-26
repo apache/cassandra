@@ -94,6 +94,40 @@ public class CassandraResourceUtilizationTest extends CQLTester
     }
 
     @Test
+    public void testTrafficType()
+    {
+        // RangeCoordRead
+        Assert.assertFalse(TrafficType.RangeCoordRead.isWrite());
+        Assert.assertTrue(TrafficType.RangeCoordRead.isRangeRead());
+        Assert.assertTrue(TrafficType.RangeCoordRead.isCoordTraffic());
+
+        // NonRangeCoordRead
+        Assert.assertFalse(TrafficType.NonRangeCoordRead.isWrite());
+        Assert.assertFalse(TrafficType.NonRangeCoordRead.isRangeRead());
+        Assert.assertTrue(TrafficType.NonRangeCoordRead.isCoordTraffic());
+
+        // RangeReplicaRead
+        Assert.assertFalse(TrafficType.RangeReplicaRead.isWrite());
+        Assert.assertTrue(TrafficType.RangeReplicaRead.isRangeRead());
+        Assert.assertFalse(TrafficType.RangeReplicaRead.isCoordTraffic());
+
+        // NonRangeReplicaRead
+        Assert.assertFalse(TrafficType.NonRangeReplicaRead.isWrite());
+        Assert.assertFalse(TrafficType.NonRangeReplicaRead.isRangeRead());
+        Assert.assertFalse(TrafficType.NonRangeReplicaRead.isCoordTraffic());
+
+        // CoordWrite
+        Assert.assertTrue(TrafficType.CoordWrite.isWrite());
+        Assert.assertFalse(TrafficType.CoordWrite.isRangeRead());
+        Assert.assertTrue(TrafficType.CoordWrite.isCoordTraffic());
+
+        // ReplicaWrite
+        Assert.assertTrue(TrafficType.ReplicaWrite.isWrite());
+        Assert.assertFalse(TrafficType.ReplicaWrite.isRangeRead());
+        Assert.assertFalse(TrafficType.ReplicaWrite.isCoordTraffic());
+    }
+
+    @Test
     public void testCpuUtil1()
     {
         ResourcesStats resourcesStats = getResourceStats();
@@ -446,14 +480,11 @@ public class CassandraResourceUtilizationTest extends CQLTester
             String[] tablesInKeyspace = entry.getValue();
             for (String table : tablesInKeyspace)
             {
-                Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(keyspace,
-                        Collections.singleton(table), true, true));
-                Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(keyspace,
-                        Collections.singleton(table), true, false));
-                Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(keyspace,
-                        Collections.singleton(table), false, true));
-                Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(keyspace,
-                        Collections.singleton(table), false, false));
+                for (TrafficType trafficType : TrafficType.values())
+                {
+                    Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(keyspace,
+                            Collections.singleton(table), trafficType));
+                }
             }
         }
     }
@@ -494,17 +525,17 @@ public class CassandraResourceUtilizationTest extends CQLTester
 
         KeyspaceThrottlingMetrics systemAuthMetrics = KeyspaceThrottlingMetricsManager.getMetrics("system_auth");
         Assert.assertEquals(0, systemAuthMetrics.skipKSThrottling.getCount());
-        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic("system_auth", Collections.singleton("roles"), true, false));
+        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic("system_auth", Collections.singleton("roles"), TrafficType.NonRangeCoordRead));
         Assert.assertEquals(1, systemAuthMetrics.skipKSThrottling.getCount());
 
         KeyspaceThrottlingMetrics systemMetrics = KeyspaceThrottlingMetricsManager.getMetrics("system_traces");
         Assert.assertEquals(0, systemMetrics.skipKSThrottling.getCount());
-        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic("system_traces", Collections.singleton("events"), true, false));
+        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic("system_traces", Collections.singleton("events"), TrafficType.NonRangeCoordRead));
         Assert.assertEquals(1, systemMetrics.skipKSThrottling.getCount());
 
         KeyspaceThrottlingMetrics userKSMetrics = KeyspaceThrottlingMetricsManager.getMetrics(KEYSPACE_THROTTLE);
         Assert.assertEquals(0, userKSMetrics.skipKSThrottling.getCount());
-        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, SINGLETON_TABLE, true, false));
+        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, SINGLETON_TABLE, TrafficType.NonRangeCoordRead));
         Assert.assertEquals(0, userKSMetrics.skipKSThrottling.getCount());
     }
 
@@ -518,7 +549,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
         cassandraResourceUtilization.syncIgnoreTablesFilter();
         KeyspaceThrottlingMetrics userKSMetrics = KeyspaceThrottlingMetricsManager.getMetrics(KEYSPACE_THROTTLE);
         Assert.assertEquals(0, userKSMetrics.skipKSThrottling.getCount());
-        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, SINGLETON_TABLE, true, false));
+        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, SINGLETON_TABLE, TrafficType.NonRangeCoordRead));
         Assert.assertEquals(1, userKSMetrics.skipKSThrottling.getCount());
     }
 
@@ -534,18 +565,18 @@ public class CassandraResourceUtilizationTest extends CQLTester
         tables.add("other_table1");
         tables.add("other_table2");
         Assert.assertEquals(0, userKSMetrics.hardBlockCoordReads.getCount());
-        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, tables, true, false));
+        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, tables, TrafficType.NonRangeCoordRead));
         Assert.assertEquals(0, userKSMetrics.hardBlockCoordReads.getCount());
         tables.add(TABLE);
         Assert.assertEquals(0, userKSMetrics.hardBlockCoordReads.getCount());
-        Assert.assertTrue(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, tables, true, false));
+        Assert.assertTrue(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, tables, TrafficType.NonRangeCoordRead));
         Assert.assertEquals(1, userKSMetrics.hardBlockCoordReads.getCount());
 
         // should not block with regex being empty
         cassandraResourceUtilization.throttlingOptions.setHardBlockCoordReadsTablesRegex("");
         cassandraResourceUtilization.syncHardBlockCoordReadsTablesFilter();
         Assert.assertEquals(1, userKSMetrics.hardBlockCoordReads.getCount());
-        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, tables, true, false));
+        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, tables, TrafficType.NonRangeCoordRead));
         Assert.assertEquals(1, userKSMetrics.hardBlockCoordReads.getCount());
     }
 
@@ -561,18 +592,18 @@ public class CassandraResourceUtilizationTest extends CQLTester
         tables.add("other_table1");
         tables.add("other_table2");
         Assert.assertEquals(0, userKSMetrics.hardBlockCoordWrites.getCount());
-        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, tables, false, false));
+        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, tables, TrafficType.CoordWrite));
         Assert.assertEquals(0, userKSMetrics.hardBlockCoordWrites.getCount());
         tables.add(TABLE);
         Assert.assertEquals(0, userKSMetrics.hardBlockCoordWrites.getCount());
-        Assert.assertTrue(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, tables, false, false));
+        Assert.assertTrue(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, tables, TrafficType.CoordWrite));
         Assert.assertEquals(1, userKSMetrics.hardBlockCoordWrites.getCount());
 
         // should not block with regex being empty
         cassandraResourceUtilization.throttlingOptions.setHardBlockCoordWritesTablesRegex("");
         cassandraResourceUtilization.syncHardBlockCoordWritesTablesFilter();
         Assert.assertEquals(1, userKSMetrics.hardBlockCoordWrites.getCount());
-        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, tables, false, false));
+        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, tables, TrafficType.CoordWrite));
         Assert.assertEquals(1, userKSMetrics.hardBlockCoordWrites.getCount());
     }
 
@@ -588,18 +619,18 @@ public class CassandraResourceUtilizationTest extends CQLTester
         tables.add("other_table1");
         tables.add("other_table2");
         Assert.assertEquals(0, userKSMetrics.hardBlockReplicaReads.getCount());
-        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, tables, true, true));
+        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, tables, TrafficType.RangeReplicaRead));
         Assert.assertEquals(0, userKSMetrics.hardBlockReplicaReads.getCount());
         tables.add(TABLE);
         Assert.assertEquals(0, userKSMetrics.hardBlockReplicaReads.getCount());
-        Assert.assertTrue(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, tables, true, true));
+        Assert.assertTrue(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, tables, TrafficType.RangeReplicaRead));
         Assert.assertEquals(1, userKSMetrics.hardBlockReplicaReads.getCount());
 
         // should not block with regex being empty
         cassandraResourceUtilization.throttlingOptions.setHardBlockReplicaReadsTablesRegex("");
         cassandraResourceUtilization.syncHardBlockReplicaReadsTablesFilter();
         Assert.assertEquals(1, userKSMetrics.hardBlockReplicaReads.getCount());
-        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, tables, true, true));
+        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, tables, TrafficType.RangeReplicaRead));
         Assert.assertEquals(1, userKSMetrics.hardBlockReplicaReads.getCount());
     }
 
@@ -615,18 +646,18 @@ public class CassandraResourceUtilizationTest extends CQLTester
         tables.add("other_table1");
         tables.add("other_table2");
         Assert.assertEquals(0, userKSMetrics.hardBlockReplicaWrites.getCount());
-        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, tables, false, true));
+        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, tables, TrafficType.ReplicaWrite));
         Assert.assertEquals(0, userKSMetrics.hardBlockReplicaWrites.getCount());
         tables.add(TABLE);
         Assert.assertEquals(0, userKSMetrics.hardBlockReplicaWrites.getCount());
-        Assert.assertTrue(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, tables, false, true));
+        Assert.assertTrue(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, tables, TrafficType.ReplicaWrite));
         Assert.assertEquals(1, userKSMetrics.hardBlockReplicaWrites.getCount());
 
         // should not block with regex being empty
         cassandraResourceUtilization.throttlingOptions.setHardBlockReplicaWritesTablesRegex("");
         cassandraResourceUtilization.syncHardBlockReplicaWritesTablesFilter();
         Assert.assertEquals(1, userKSMetrics.hardBlockReplicaWrites.getCount());
-        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, tables, false, true));
+        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, tables, TrafficType.ReplicaWrite));
         Assert.assertEquals(1, userKSMetrics.hardBlockReplicaWrites.getCount());
     }
 
@@ -688,7 +719,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Assert.assertEquals(0, cassandraResourceUtilization.readAggressiveThorttlingKeyspaces.size());
         KeyspaceThrottlingMetrics userKSMetrics = KeyspaceThrottlingMetricsManager.getMetrics(KEYSPACE_THROTTLE);
         cassandraResourceUtilization.currentThrottlingPercentage = 1.0;
-        Assert.assertTrue(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, SINGLETON_TABLE, true, false));
+        Assert.assertTrue(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, SINGLETON_TABLE, TrafficType.NonRangeCoordRead));
         Assert.assertEquals(0, userKSMetrics.readRequestsTrendingUpward.getCount());
         Assert.assertEquals(0, userKSMetrics.writeRequestsTrendingUpward.getCount());
         Assert.assertEquals(0, userKSMetrics.addKSForReadThrottling.getCount());
@@ -703,7 +734,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
 
 
         cassandraResourceUtilization.currentThrottlingPercentage = 0.0;
-        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, SINGLETON_TABLE, true, false));
+        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, SINGLETON_TABLE, TrafficType.NonRangeCoordRead));
         Assert.assertEquals(0, userKSMetrics.readRequestsTrendingUpward.getCount());
         Assert.assertEquals(0, userKSMetrics.writeRequestsTrendingUpward.getCount());
         Assert.assertEquals(0, userKSMetrics.addKSForReadThrottling.getCount());
@@ -719,7 +750,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
         // throttle read traffic (current throttling is at 0.9, and 0.1 will be added, so it will be full throttling)
         cassandraResourceUtilization.currentThrottlingPercentage = 0.9;
         cassandraResourceUtilization.readAggressiveThorttlingKeyspaces.put(KEYSPACE_THROTTLE, true);
-        Assert.assertTrue(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, SINGLETON_TABLE, true, false));
+        Assert.assertTrue(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, SINGLETON_TABLE, TrafficType.NonRangeCoordRead));
         Assert.assertEquals(1, userKSMetrics.aggressiveThrottling.getCount());
         Assert.assertEquals(0, userKSMetrics.readRequestsTrendingUpward.getCount());
         Assert.assertEquals(0, userKSMetrics.writeRequestsTrendingUpward.getCount());
@@ -737,7 +768,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
         cassandraResourceUtilization.currentThrottlingPercentage = 0.0;
         ;
         cassandraResourceUtilization.readAggressiveThorttlingKeyspaces.put(KEYSPACE_THROTTLE, true);
-        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, SINGLETON_TABLE, false, false));
+        Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, SINGLETON_TABLE, TrafficType.CoordWrite));
         Assert.assertEquals(0, userKSMetrics.readRequestsTrendingUpward.getCount());
         Assert.assertEquals(0, userKSMetrics.writeRequestsTrendingUpward.getCount());
         Assert.assertEquals(0, userKSMetrics.addKSForReadThrottling.getCount());
@@ -754,7 +785,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
         // (current throttling is at 0.9, and 0.1 will be added, so it will be full throttling)
         cassandraResourceUtilization.currentThrottlingPercentage = 0.9;
         cassandraResourceUtilization.mutationAggressiveThorttlingKeyspaces.put(KEYSPACE_THROTTLE, true);
-        Assert.assertTrue(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, SINGLETON_TABLE, false, false));
+        Assert.assertTrue(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, SINGLETON_TABLE, TrafficType.CoordWrite));
         Assert.assertEquals(0, userKSMetrics.readRequestsTrendingUpward.getCount());
         Assert.assertEquals(0, userKSMetrics.writeRequestsTrendingUpward.getCount());
         Assert.assertEquals(0, userKSMetrics.addKSForReadThrottling.getCount());
@@ -1138,13 +1169,15 @@ public class CassandraResourceUtilizationTest extends CQLTester
         if (assertTrue)
         {
             Assert.assertTrue(cassandraResourceUtilization.hardBlockCoordReadsTablesFilter.matches(keyspace, table));
-            Assert.assertTrue(cassandraResourceUtilization.throttleUserTraffic(keyspace, tableSingleton, true, false));
+            Assert.assertTrue(cassandraResourceUtilization.throttleUserTraffic(keyspace, tableSingleton, TrafficType.RangeCoordRead));
+            Assert.assertTrue(cassandraResourceUtilization.throttleUserTraffic(keyspace, tableSingleton, TrafficType.NonRangeCoordRead));
             Assert.assertTrue(cassandraResourceUtilization.hardBlockCoordWritesTablesFilter.matches(keyspace, table));
-            Assert.assertTrue(cassandraResourceUtilization.throttleUserTraffic(keyspace, tableSingleton, false, false));
+            Assert.assertTrue(cassandraResourceUtilization.throttleUserTraffic(keyspace, tableSingleton, TrafficType.CoordWrite));
             Assert.assertTrue(cassandraResourceUtilization.hardBlockReplicaReadsTablesFilter.matches(keyspace, table));
-            Assert.assertTrue(cassandraResourceUtilization.throttleUserTraffic(keyspace, tableSingleton, true, true));
+            Assert.assertTrue(cassandraResourceUtilization.throttleUserTraffic(keyspace, tableSingleton, TrafficType.RangeReplicaRead));
+            Assert.assertTrue(cassandraResourceUtilization.throttleUserTraffic(keyspace, tableSingleton, TrafficType.NonRangeReplicaRead));
             Assert.assertTrue(cassandraResourceUtilization.hardBlockReplicaReadsTablesFilter.matches(keyspace, table));
-            Assert.assertTrue(cassandraResourceUtilization.throttleUserTraffic(keyspace, tableSingleton, false, true));
+            Assert.assertTrue(cassandraResourceUtilization.throttleUserTraffic(keyspace, tableSingleton, TrafficType.ReplicaWrite));
         } else {
             Assert.assertFalse(cassandraResourceUtilization.hardBlockCoordReadsTablesFilter.matches(keyspace, table));
             Assert.assertFalse(cassandraResourceUtilization.hardBlockCoordWritesTablesFilter.matches(keyspace, table));

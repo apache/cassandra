@@ -69,6 +69,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization;
+import org.apache.cassandra.service.throttler.dynamic.TrafficType;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -585,7 +586,7 @@ public class Keyspace
         try
         {
             // throttle internal traffic received as part of the replication
-            CassandraResourceUtilization.instance.throttle(mutation.getKeyspaceName(), mutation.getTableNames(), false, true);
+            CassandraResourceUtilization.instance.throttle(mutation.getKeyspaceName(), mutation.getTableNames(), TrafficType.ReplicaWrite);
         }
         catch (OverloadedException e)
         {

@@ -325,7 +325,7 @@ public class CassandraResourceUtilization
         return sb.toString();
     }
 
-    public boolean throttleUserTraffic(String keyspaceName, Collection<String> tables, boolean reads, boolean replicationTraffic)
+    public boolean throttleUserTraffic(String keyspaceName, Collection<String> tables, TrafficType trafficType)
     {
         if (!isSetupComplete)
         {
@@ -339,7 +339,7 @@ public class CassandraResourceUtilization
         }
 
         KeyspaceThrottlingMetrics ksThrottlingMetrics = KeyspaceThrottlingMetricsManager.getMetrics(keyspaceName);
-        if (decideHardBlock(keyspaceName, tables, reads, replicationTraffic, ksThrottlingMetrics)) {
+        if (decideHardBlock(keyspaceName, tables, trafficType, ksThrottlingMetrics)) {
             return true;
         }
 
@@ -349,49 +349,50 @@ public class CassandraResourceUtilization
             return false;
         }
 
-        if (replicationTraffic)
+        if (!trafficType.isCoordTraffic())
         {
-            if (reads && !throttlingOptions.getThrottleReadReplicaTraffic())
+            if (!trafficType.isWrite() && !throttlingOptions.getThrottleReadReplicaTraffic())
             {
                 throttlingMetrics.disableReadReplicaTrafficThrottling.inc();
                 return false;
             }
-            if (!reads && !throttlingOptions.getThrottleMutationReplicaTraffic())
+            if (trafficType.isWrite() && !throttlingOptions.getThrottleMutationReplicaTraffic())
             {
                 throttlingMetrics.disableMutationReplicaTrafficThrottling.inc();
                 return false;
             }
         }
+
         KeyspaceMetrics metrics = Keyspace.open(keyspaceName).metric;
         if (shouldThrottle)
         {
-            return decideThrottling(keyspaceName, metrics, reads, ksThrottlingMetrics);
+            return decideThrottling(keyspaceName, metrics, trafficType, ksThrottlingMetrics);
         }
+
         return false;
     }
 
-    public void throttle(String keyspaceName, Collection<String> tables, boolean reads, boolean replicationTraffic) throws OverloadedException
+    public void throttle(String keyspaceName, Collection<String> tables, TrafficType trafficType) throws OverloadedException
     {
-        if (throttleUserTraffic(keyspaceName, tables, reads, replicationTraffic))
+        if (throttleUserTraffic(keyspaceName, tables, trafficType))
         {
             throw buildOverloadeExceptionDuetoRateLimiter();
         }
     }
 
-    public boolean decideHardBlock(String keyspace, Collection<String> tables, boolean reads,
-                                   boolean replicationTraffic, KeyspaceThrottlingMetrics ksThrottlingMetrics)
+    public boolean decideHardBlock(String keyspace, Collection<String> tables, TrafficType trafficType, KeyspaceThrottlingMetrics ksThrottlingMetrics)
     {
         TableFilter filter;
         Counter counter;
-        if (reads && replicationTraffic)
+        if (!trafficType.isWrite() && !trafficType.isCoordTraffic())
         {
             filter = hardBlockReplicaReadsTablesFilter;
             counter = ksThrottlingMetrics.hardBlockReplicaReads;
-        } else if (!reads && replicationTraffic)
+        } else if (trafficType.isWrite() && !trafficType.isCoordTraffic())
         {
             filter = hardBlockReplicaWritesTablesFilter;
             counter = ksThrottlingMetrics.hardBlockReplicaWrites;
-        } else if (reads && !replicationTraffic)
+        } else if (!trafficType.isWrite() && trafficType.isCoordTraffic())
         {
             filter = hardBlockCoordReadsTablesFilter;
             counter = ksThrottlingMetrics.hardBlockCoordReads;
@@ -422,9 +423,10 @@ public class CassandraResourceUtilization
         return false;
     }
 
-    public boolean decideThrottling(String ksName, KeyspaceMetrics metrics, boolean reads, KeyspaceThrottlingMetrics ksThrottlingMetrics)
+    public boolean decideThrottling(String ksName, KeyspaceMetrics metrics, TrafficType trafficType, KeyspaceThrottlingMetrics ksThrottlingMetrics)
     {
         double throttlingPercentage = currentThrottlingPercentage;
+        boolean reads = !trafficType.isWrite();
         if (throttlingPercentage < MAX_THROTTLING)
         {
             if ((reads && readAggressiveThorttlingKeyspaces.containsKey(ksName.toLowerCase())) || (!reads && mutationAggressiveThorttlingKeyspaces.containsKey(ksName.toLowerCase())))

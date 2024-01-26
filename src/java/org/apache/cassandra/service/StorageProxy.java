@@ -52,6 +52,7 @@ import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.db.monitoring.BadQuery;
 import org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization;
+import org.apache.cassandra.service.throttler.dynamic.TrafficType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -345,7 +346,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         try
         {
-            CassandraResourceUtilization.instance.throttle(keyspaceName, Collections.singleton(cfName), true, false);
+            CassandraResourceUtilization.instance.throttle(keyspaceName, Collections.singleton(cfName), TrafficType.NonRangeCoordRead);
             SinglePartitionReadCommand readCommandForThrottle = (SinglePartitionReadCommand) request.readCommand(nowInSeconds);
             DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(readCommandForThrottle, consistencyForPaxos);
             TableMetadata metadata = Schema.instance.validateTable(keyspaceName, cfName);
@@ -934,7 +935,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             for (IMutation mutation : mutations)
             {
-                CassandraResourceUtilization.instance.throttle(mutation.getKeyspaceName(), mutation.getTableNames(), false, false);
+                CassandraResourceUtilization.instance.throttle(mutation.getKeyspaceName(), mutation.getTableNames(), TrafficType.CoordWrite);
                 DatabaseDescriptor.getRequestThrottler().maybeThrottleMutation(mutation, consistencyLevel);
                 if (mutation instanceof CounterMutation)
                     responseHandlers.add(mutateCounter((CounterMutation)mutation, localDataCenter, requestTime));
@@ -1298,7 +1299,7 @@ public class StorageProxy implements StorageProxyMBean
             // add a handler for each mutation - includes checking availability, but doesn't initiate any writes, yet
             for (Mutation mutation : mutations)
             {
-                CassandraResourceUtilization.instance.throttle(mutation.getKeyspaceName(), mutation.getTableNames(), false, false);
+                CassandraResourceUtilization.instance.throttle(mutation.getKeyspaceName(), mutation.getTableNames(), TrafficType.CoordWrite);
                 DatabaseDescriptor.getRequestThrottler().maybeThrottleMutation(mutation, consistency_level);
                 WriteResponseHandlerWrapper wrapper = wrapBatchResponseHandler(mutation,
                                                                                consistency_level,
@@ -2009,7 +2010,7 @@ public class StorageProxy implements StorageProxyMBean
 
             for (SinglePartitionReadCommand cmd : group.queries)
             {
-                CassandraResourceUtilization.instance.throttle(metadata.keyspace, Collections.singleton(metadata.name), true, false);
+                CassandraResourceUtilization.instance.throttle(metadata.keyspace, Collections.singleton(metadata.name), TrafficType.NonRangeCoordRead);
                 DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(cmd, consistencyLevel);
             }
             final ConsistencyLevel consistencyForReplayCommitsOrFetch = consistencyLevel == ConsistencyLevel.LOCAL_SERIAL
@@ -2143,7 +2144,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             for (SinglePartitionReadCommand cmd : group.queries) {
                 TableMetadata metadata = group.queries.get(0).metadata();
-                CassandraResourceUtilization.instance.throttle(metadata.keyspace, Collections.singleton(metadata.name), true, false);
+                CassandraResourceUtilization.instance.throttle(metadata.keyspace, Collections.singleton(metadata.name), TrafficType.NonRangeCoordRead);
                 DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(cmd, consistencyLevel);
             }
             PartitionIterator result = fetchRows(group.queries, consistencyLevel, requestTime);
