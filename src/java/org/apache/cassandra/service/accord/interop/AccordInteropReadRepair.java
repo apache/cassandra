@@ -24,7 +24,8 @@ import javax.annotation.Nullable;
 import accord.api.Data;
 import accord.local.Node;
 import accord.local.SafeCommandStore;
-import accord.messages.AbstractExecute;
+import accord.local.SaveStatus;
+import accord.messages.ReadData;
 import accord.messages.MessageType;
 import accord.primitives.PartialTxn;
 import accord.primitives.Participants;
@@ -56,7 +57,7 @@ import org.apache.cassandra.service.accord.serializers.ReadDataSerializers.ReadD
  * ensuring that the contents of the read repair consist of data that isn't from transactions that
  * haven't been committed yet at this command store.
  */
-public class AccordInteropReadRepair extends AbstractExecute
+public class AccordInteropReadRepair extends ReadData
 {
     public static final IVersionedSerializer<AccordInteropReadRepair> requestSerializer = new ReadDataSerializer<AccordInteropReadRepair>()
     {
@@ -65,8 +66,7 @@ public class AccordInteropReadRepair extends AbstractExecute
         {
             CommandSerializers.txnId.serialize(repair.txnId, out, version);
             KeySerializers.participants.serialize(repair.readScope, out, version);
-            out.writeUnsignedVInt(repair.waitForEpoch());
-            out.writeUnsignedVInt(repair.executeAtEpoch - repair.waitForEpoch());
+            out.writeUnsignedVInt(repair.executeAtEpoch);
             Mutation.serializer.serialize(repair.mutation, out, version);
         }
 
@@ -75,10 +75,9 @@ public class AccordInteropReadRepair extends AbstractExecute
         {
             TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
             Participants<?> readScope = KeySerializers.participants.deserialize(in, version);
-            long waitForEpoch = in.readUnsignedVInt();
-            long executeAtEpoch = in.readUnsignedVInt() + waitForEpoch;
+            long executeAtEpoch = in.readUnsignedVInt();
             Mutation mutation = Mutation.serializer.deserialize(in, version);
-            return new AccordInteropReadRepair(txnId, readScope, waitForEpoch, executeAtEpoch, mutation);
+            return new AccordInteropReadRepair(txnId, readScope, executeAtEpoch, mutation);
         }
 
         @Override
@@ -86,8 +85,7 @@ public class AccordInteropReadRepair extends AbstractExecute
         {
             return CommandSerializers.txnId.serializedSize(repair.txnId, version)
                    + KeySerializers.participants.serializedSize(repair.readScope, version)
-                   + TypeSizes.sizeofUnsignedVInt(repair.waitForEpoch())
-                   + TypeSizes.sizeofUnsignedVInt(repair.executeAtEpoch - repair.waitForEpoch())
+                   + TypeSizes.sizeofUnsignedVInt(repair.executeAtEpoch)
                    + Mutation.serializer.serializedSize(repair.mutation, version);
         }
     };
@@ -106,6 +104,8 @@ public class AccordInteropReadRepair extends AbstractExecute
         }
     }
 
+    private static final ExecuteOn EXECUTE_ON = new ExecuteOn(SaveStatus.ReadyToExecute, SaveStatus.Applied);
+
     private final Mutation mutation;
 
     private static final IVersionedSerializer<Data> noop_data_serializer = new IVersionedSerializer<Data>()
@@ -120,39 +120,39 @@ public class AccordInteropReadRepair extends AbstractExecute
 
     public static final IVersionedSerializer<ReadReply> replySerializer = new ReadDataSerializers.ReplySerializer<>(noop_data_serializer);
 
-    public AccordInteropReadRepair(Node.Id to, Topologies topologies, TxnId txnId, Participants<?> readScope, Timestamp executeAt, Mutation mutation)
+    public AccordInteropReadRepair(Node.Id to, Topologies topologies, TxnId txnId, Participants<?> readScope, long executeAtEpoch, Mutation mutation)
     {
-        super(to, topologies, txnId, readScope, executeAt);
+        super(to, topologies, txnId, readScope, executeAtEpoch);
         this.mutation = mutation;
     }
 
-    public AccordInteropReadRepair(TxnId txnId, Participants<?> readScope, long executeAtEpoch, long waitForEpoch, Mutation mutation)
+    public AccordInteropReadRepair(TxnId txnId, Participants<?> readScope, long executeAtEpoch, Mutation mutation)
     {
         // TODO (review): remove followup read - Is there anything left to be done for this or can I remove it?
-        super(txnId, readScope, executeAtEpoch, waitForEpoch);
+        super(txnId, readScope, executeAtEpoch);
         this.mutation = mutation;
     }
 
     @Override
-    protected AsyncChain<Data> execute(SafeCommandStore safeStore, Timestamp executeAt, PartialTxn txn, Ranges unavailable)
+    protected ExecuteOn executeOn()
+    {
+        return EXECUTE_ON;
+    }
+
+    @Override
+    public ReadType kind()
+    {
+        return ReadType.readTxnData;
+    }
+
+    @Override
+    protected AsyncChain<Data> beginRead(SafeCommandStore safeStore, Timestamp executeAt, PartialTxn txn, Ranges unavailable)
     {
         // TODO (required): subtract unavailable ranges, either from read or from response (or on coordinator)
         return AsyncChains.ofCallable(Verb.READ_REPAIR_REQ.stage.executor(), () -> {
                                           ReadRepairVerbHandler.instance.applyMutation(mutation);
                                           return Data.NOOP_DATA;
                                       });
-    }
-
-    @Override
-    protected boolean canExecutePreApplied()
-    {
-        return true;
-    }
-
-    @Override
-    protected boolean executeIfObsoleted()
-    {
-        return true;
     }
 
     @Override

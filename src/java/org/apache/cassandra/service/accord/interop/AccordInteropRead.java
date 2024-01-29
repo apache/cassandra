@@ -24,7 +24,7 @@ import javax.annotation.Nullable;
 import accord.api.Data;
 import accord.local.Node;
 import accord.local.SafeCommandStore;
-import accord.messages.AbstractExecute;
+import accord.messages.ReadData;
 import accord.messages.MessageType;
 import accord.primitives.PartialTxn;
 import accord.primitives.Participants;
@@ -51,7 +51,10 @@ import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.ReadDataSerializers;
 import org.apache.cassandra.service.accord.serializers.ReadDataSerializers.ReadDataSerializer;
 
-public class AccordInteropRead extends AbstractExecute
+import static accord.local.SaveStatus.PreApplied;
+import static accord.local.SaveStatus.ReadyToExecute;
+
+public class AccordInteropRead extends ReadData
 {
     public static final IVersionedSerializer<AccordInteropRead> requestSerializer = new ReadDataSerializer<AccordInteropRead>()
     {
@@ -60,8 +63,7 @@ public class AccordInteropRead extends AbstractExecute
         {
             CommandSerializers.txnId.serialize(read.txnId, out, version);
             KeySerializers.participants.serialize(read.readScope, out, version);
-            out.writeUnsignedVInt(read.waitForEpoch());
-            out.writeUnsignedVInt(read.executeAtEpoch - read.waitForEpoch());
+            out.writeUnsignedVInt(read.executeAtEpoch);
             SinglePartitionReadCommand.serializer.serialize(read.command, out, version);
         }
 
@@ -70,10 +72,9 @@ public class AccordInteropRead extends AbstractExecute
         {
             TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
             Participants<?> readScope = KeySerializers.participants.deserialize(in, version);
-            long waitForEpoch = in.readUnsignedVInt();
-            long executeAtEpoch = in.readUnsignedVInt() + waitForEpoch;
+            long executeAtEpoch = in.readUnsignedVInt();
             SinglePartitionReadCommand command = (SinglePartitionReadCommand) SinglePartitionReadCommand.serializer.deserialize(in, version);
-            return new AccordInteropRead(txnId, readScope, waitForEpoch, executeAtEpoch, command);
+            return new AccordInteropRead(txnId, readScope, executeAtEpoch, command);
         }
 
         @Override
@@ -81,8 +82,7 @@ public class AccordInteropRead extends AbstractExecute
         {
             return CommandSerializers.txnId.serializedSize(read.txnId, version)
                    + KeySerializers.participants.serializedSize(read.readScope, version)
-                   + TypeSizes.sizeofUnsignedVInt(read.waitForEpoch())
-                   + TypeSizes.sizeofUnsignedVInt(read.executeAtEpoch - read.waitForEpoch())
+                   + TypeSizes.sizeofUnsignedVInt(read.executeAtEpoch)
                    + SinglePartitionReadCommand.serializer.serializedSize(read.command, version);
         }
     };
@@ -146,31 +146,39 @@ public class AccordInteropRead extends AbstractExecute
         }
     }
 
+    private static final ExecuteOn EXECUTE_ON = new ExecuteOn(ReadyToExecute, PreApplied);
+
     private final SinglePartitionReadCommand command;
 
-    public AccordInteropRead(Node.Id to, Topologies topologies, TxnId txnId, Participants<?> readScope, Timestamp executeAt, SinglePartitionReadCommand command)
+    public AccordInteropRead(Node.Id to, Topologies topologies, TxnId txnId, Participants<?> readScope, long executeAtEpoch, SinglePartitionReadCommand command)
     {
-        super(to, topologies, txnId, readScope, executeAt);
+        super(to, topologies, txnId, readScope, executeAtEpoch);
         this.command = command;
     }
 
-    public AccordInteropRead(TxnId txnId, Participants<?> readScope, long executeAtEpoch, long waitForEpoch, SinglePartitionReadCommand command)
+    public AccordInteropRead(TxnId txnId, Participants<?> readScope, long executeAtEpoch, SinglePartitionReadCommand command)
     {
-        super(txnId, readScope, executeAtEpoch, waitForEpoch);
+        super(txnId, readScope, executeAtEpoch);
         this.command = command;
     }
 
     @Override
-    protected AsyncChain<Data> execute(SafeCommandStore safeStore, Timestamp executeAt, PartialTxn txn, Ranges unavailable)
+    public ReadType kind()
+    {
+        return ReadType.readTxnData;
+    }
+
+    @Override
+    protected AsyncChain<Data> beginRead(SafeCommandStore safeStore, Timestamp executeAt, PartialTxn txn, Ranges unavailable)
     {
         // TODO (required): subtract unavailable ranges, either from read or from response (or on coordinator)
         return AsyncChains.ofCallable(Stage.READ.executor(), () -> new LocalReadData(ReadCommandVerbHandler.instance.doRead(command, false)));
     }
 
     @Override
-    protected boolean canExecutePreApplied()
+    protected ExecuteOn executeOn()
     {
-        return true;
+        return EXECUTE_ON;
     }
 
     @Override
