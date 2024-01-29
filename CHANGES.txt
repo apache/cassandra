@@ -1,4 +1,5 @@
 5.1
+ * Extend nodetool tpstats and system_views.thread_pools with detailed pool parameters (CASSANDRA-19289) 
  * Remove dependency on Sigar in favor of OSHI (CASSANDRA-16565)
  * Simplify the bind marker and Term logic (CASSANDRA-18813)
  * Limit cassandra startup to supported JDKs, allow higher JDKs by setting CASSANDRA_JDK_UNSUPPORTED (CASSANDRA-18688)
