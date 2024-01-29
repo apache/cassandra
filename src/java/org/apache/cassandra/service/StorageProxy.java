@@ -49,6 +49,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.primitives.Keys;
 import accord.primitives.Txn;
+import accord.utils.Invariants;
 import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.DebuggableTask.RunnableDebuggableTask;
@@ -166,10 +167,14 @@ import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static accord.primitives.Txn.Kind.EphemeralRead;
+import static accord.primitives.Txn.Kind.Read;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.collect.Iterables.concat;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.config.Config.NonSerialWriteStrategy.accord;
+import static org.apache.cassandra.config.DatabaseDescriptor.getNonSerialWriteStrategy;
 import static org.apache.cassandra.db.ConsistencyLevel.SERIAL;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casWriteMetrics;
@@ -1223,7 +1228,7 @@ public class StorageProxy implements StorageProxyMBean
         long size = IMutation.dataSize(mutations);
         writeMetrics.mutationSize.update(size);
         writeMetricsForLevel(consistencyLevel).mutationSize.update(size);
-        NonSerialWriteStrategy nonSerialWriteStrategy = DatabaseDescriptor.getNonSerialWriteStrategy();
+        NonSerialWriteStrategy nonSerialWriteStrategy = getNonSerialWriteStrategy();
         if (nonSerialWriteStrategy.writesThroughAccord && !SchemaConstants.getSystemKeyspaces().contains(keyspaceName))
             mutateWithAccord(augmented != null ? augmented : mutations, consistencyLevel, queryStartNanoTime, nonSerialWriteStrategy);
         else if (augmented != null)
@@ -1972,9 +1977,11 @@ public class StorageProxy implements StorageProxyMBean
         SinglePartitionReadCommand readCommand = group.queries.get(0);
         // If the non-SERIAL write strategy is sending all writes through Accord there is no need to use the supplied consistency
         // level since Accord will manage reading safely
-        consistencyLevel = DatabaseDescriptor.getNonSerialWriteStrategy().readCLForStrategy(consistencyLevel);
+        NonSerialWriteStrategy nonSerialWriteStrategy = getNonSerialWriteStrategy();
+        consistencyLevel = nonSerialWriteStrategy.readCLForStrategy(consistencyLevel);
         TxnRead read = TxnRead.createSerialRead(readCommand, consistencyLevel);
-        Txn txn = new Txn.InMemory(read.keys(), read, TxnQuery.ALL);
+        Invariants.checkState(read.keys().size() == 1, "Ephemeral reads are only strict-serializable for single partition reads");
+        Txn txn = new Txn.InMemory(nonSerialWriteStrategy == accord ? EphemeralRead : Read, read.keys(), read, TxnQuery.ALL, null);
         IAccordService accordService = AccordService.instance();
         accordService.maybeConvertTablesToAccord(txn);
         TxnResult txnResult = accordService.coordinate(txn, consistencyLevel, queryStartNanoTime);

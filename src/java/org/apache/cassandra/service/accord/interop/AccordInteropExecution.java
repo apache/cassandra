@@ -253,7 +253,7 @@ public class AccordInteropExecution implements Execute, ReadCoordinator, Maximal
     {
         Node.Id id = endpointMapper.mappedId(to);
         SinglePartitionReadCommand command = (SinglePartitionReadCommand) message.payload;
-        AccordInteropRead read = new AccordInteropRead(id, executes, txnId, readScope, executeAt, command);
+        AccordInteropRead read = new AccordInteropRead(id, executes, txnId, readScope, executeAt.epoch(), command);
         // TODO (required): understand interop and whether StableFastPath is appropriate
         AccordInteropCommit commit = new AccordInteropCommit(Kind.StableFastPath, id, coordinateTopology, allTopologies,
                                                              txnId, txn, route, executeAt, deps, read);
@@ -265,7 +265,7 @@ public class AccordInteropExecution implements Execute, ReadCoordinator, Maximal
     {
         Node.Id id = endpointMapper.mappedId(to);
         Mutation mutation = message.payload;
-        AccordInteropReadRepair readRepair = new AccordInteropReadRepair(id, executes, txnId, readScope, executeAt, mutation);
+        AccordInteropReadRepair readRepair = new AccordInteropReadRepair(id, executes, txnId, readScope, executeAt.epoch(), mutation);
         node.send(id, readRepair, executor, new AccordInteropReadRepair.ReadRepairCallback(id, to, message, callback, this));
     }
 

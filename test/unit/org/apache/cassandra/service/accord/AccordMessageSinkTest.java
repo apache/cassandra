@@ -21,6 +21,8 @@ package org.apache.cassandra.service.accord;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import accord.messages.ReadData;
+import accord.messages.ReadData.CommitOrReadNack;
 import accord.topology.TopologyUtils;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -32,7 +34,6 @@ import accord.impl.IntKey;
 import accord.local.Node;
 import accord.messages.InformOfTxnId;
 import accord.messages.MessageType;
-import accord.messages.ReadData;
 import accord.messages.ReadTxnData;
 import accord.messages.Reply;
 import accord.messages.Request;
@@ -92,7 +93,7 @@ public class AccordMessageSinkTest
 
         checkRequestReplies(request,
                             new AbstractFetchCoordinator.FetchResponse(null, null, id),
-                            ReadData.CommitOrReadNack.Insufficient);
+                            CommitOrReadNack.Insufficient);
 
     }
 
@@ -100,10 +101,10 @@ public class AccordMessageSinkTest
     public void txnRead()
     {
         TxnId txnId = nextTxnId(42, Txn.Kind.Read, Routable.Domain.Key);
-        Request request = new ReadTxnData(node, topologies, txnId, topology.ranges(), txnId);
+        Request request = new ReadTxnData(node, topologies, txnId, topology.ranges(), txnId.epoch());
         checkRequestReplies(request,
                             new ReadData.ReadOk(null, null),
-                            ReadData.CommitOrReadNack.Insufficient);
+                            CommitOrReadNack.Insufficient);
     }
 
     private static void checkRequestReplies(Request request, Reply... replies)

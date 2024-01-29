@@ -208,7 +208,7 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
             Future<TxnResult> repairFuture;
             try
             {
-                Txn txn = new Txn.InMemory(key, TxnRead.createNoOpRead(key), TxnQuery.NONE, repairUpdate);
+                Txn txn = new Txn.InMemory(Txn.Kind.Read, key, TxnRead.createNoOpRead(key), TxnQuery.NONE, repairUpdate);
                 repairFuture = Stage.ACCORD_MIGRATION.submit(() -> {
                     try
                     {
