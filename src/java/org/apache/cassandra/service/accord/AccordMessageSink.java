@@ -124,6 +124,8 @@ public class AccordMessageSink implements MessageSink
             builder.put(MessageType.ACCEPT_INVALIDATE_REQ,                    Verb.ACCORD_ACCEPT_INVALIDATE_REQ);
             builder.put(MessageType.GET_DEPS_REQ,                             Verb.ACCORD_GET_DEPS_REQ);
             builder.put(MessageType.GET_DEPS_RSP,                             Verb.ACCORD_GET_DEPS_RSP);
+            builder.put(MessageType.GET_EPHEMERAL_READ_DEPS_REQ,              Verb.ACCORD_GET_EPHMRL_READ_DEPS_REQ);
+            builder.put(MessageType.GET_EPHEMERAL_READ_DEPS_RSP,              Verb.ACCORD_GET_EPHMRL_READ_DEPS_RSP);
             builder.put(MessageType.COMMIT_SLOW_PATH_REQ,                     Verb.ACCORD_COMMIT_REQ);
             builder.put(MessageType.COMMIT_MAXIMAL_REQ,                       Verb.ACCORD_COMMIT_REQ);
             builder.put(MessageType.STABLE_FAST_PATH_REQ,                     Verb.ACCORD_COMMIT_REQ);
@@ -134,6 +136,7 @@ public class AccordMessageSink implements MessageSink
             builder.put(MessageType.APPLY_MAXIMAL_REQ,                        Verb.ACCORD_APPLY_REQ);
             builder.put(MessageType.APPLY_RSP,                                Verb.ACCORD_APPLY_RSP);
             builder.put(MessageType.READ_REQ,                                 Verb.ACCORD_READ_REQ);
+            builder.put(MessageType.READ_EPHEMERAL_REQ,                       Verb.ACCORD_READ_REQ);
             builder.put(MessageType.READ_RSP,                                 Verb.ACCORD_READ_RSP);
             builder.put(MessageType.BEGIN_RECOVER_REQ,                        Verb.ACCORD_BEGIN_RECOVER_REQ);
             builder.put(MessageType.BEGIN_RECOVER_RSP,                        Verb.ACCORD_BEGIN_RECOVER_RSP);

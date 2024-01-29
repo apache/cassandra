@@ -79,6 +79,10 @@ import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static accord.primitives.Txn.Kind.EphemeralRead;
+import static accord.primitives.Txn.Kind.Read;
+import static org.apache.cassandra.config.Config.NonSerialWriteStrategy.accord;
+import static org.apache.cassandra.config.DatabaseDescriptor.getNonSerialWriteStrategy;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
@@ -321,7 +325,8 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             List<TxnNamedRead> reads = createNamedReads(options, state, ImmutableMap.of(), keySet::add);
             Keys txnKeys = toKeys(keySet);
             TxnRead read = createTxnRead(reads, txnKeys, null);
-            return new Txn.InMemory(txnKeys, read, TxnQuery.ALL);
+            Txn.Kind kind = txnKeys.size() == 1 && getNonSerialWriteStrategy() == accord ? EphemeralRead : Read;
+            return new Txn.InMemory(kind, txnKeys, read, TxnQuery.ALL, null);
         }
         else
         {
