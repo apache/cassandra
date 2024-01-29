@@ -32,7 +32,7 @@ public class StrictSerializabilityValidator implements HistoryValidator
 
     public StrictSerializabilityValidator(int[] primaryKeys)
     {
-        this.verifier = new StrictSerializabilityVerifier(primaryKeys.length);
+        this.verifier = new StrictSerializabilityVerifier("", primaryKeys.length);
         pkToIndex = new IntIntHashMap(primaryKeys.length);
         indexToPk = new int[primaryKeys.length];
         for (int i = 0; i < primaryKeys.length; i++)

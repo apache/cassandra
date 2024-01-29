@@ -30,7 +30,7 @@ import accord.local.Status.Durability;
 import accord.local.Status.Known;
 import accord.messages.CheckStatus;
 import accord.messages.Propagate;
-import accord.messages.ReadData;
+import accord.messages.ReadData.CommitOrReadNack;
 import accord.messages.ReadData.ReadReply;
 import accord.primitives.Ballot;
 import accord.primitives.PartialDeps;
@@ -40,7 +40,6 @@ import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
-import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -60,9 +59,7 @@ public class FetchSerializers
         @Override
         public void serialize(FetchRequest request, DataOutputPlus out, int version) throws IOException
         {
-            Invariants.checkArgument(request.txnId.epoch() == request.executeAt.epoch());
-
-            out.writeUnsignedVInt(request.waitForEpoch());
+            out.writeUnsignedVInt(request.executeAtEpoch);
             CommandSerializers.txnId.serialize(request.txnId, out, version);
             KeySerializers.ranges.serialize((Ranges) request.readScope, out, version);
             DepsSerializer.partialDeps.serialize(request.partialDeps, out, version);
@@ -84,7 +81,7 @@ public class FetchSerializers
         @Override
         public long serializedSize(FetchRequest request, int version)
         {
-            return TypeSizes.sizeofUnsignedVInt(request.waitForEpoch())
+            return TypeSizes.sizeofUnsignedVInt(request.executeAtEpoch)
                    + CommandSerializers.txnId.serializedSize(request.txnId, version)
                    + KeySerializers.ranges.serializedSize((Ranges) request.readScope, version)
                    + DepsSerializer.partialDeps.serializedSize(request.partialDeps, version)
@@ -95,7 +92,7 @@ public class FetchSerializers
 
     public static final IVersionedSerializer<ReadReply> reply = new IVersionedSerializer<ReadReply>()
     {
-        final ReadData.CommitOrReadNack[] nacks = ReadData.CommitOrReadNack.values();
+        final CommitOrReadNack[] nacks = CommitOrReadNack.values();
         final IVersionedSerializer<Data> streamDataSerializer = new CastingSerializer<>(StreamData.class, StreamData.serializer);
 
         @Override
@@ -103,7 +100,7 @@ public class FetchSerializers
         {
             if (!reply.isOk())
             {
-                out.writeByte(1 + ((ReadData.CommitOrReadNack) reply).ordinal());
+                out.writeByte(1 + ((CommitOrReadNack) reply).ordinal());
                 return;
             }
 
