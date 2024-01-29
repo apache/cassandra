@@ -49,8 +49,10 @@ package org.apache.cassandra.utils.vint;
 import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 import io.netty.util.concurrent.FastThreadLocal;
+import net.nicoulaj.compilecommand.annotations.DontInline;
 import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -106,6 +108,50 @@ public class VIntCoding
             retval |= b & 0xff;
         }
 
+        return retval;
+    }
+
+    @DontInline
+    private static long readUnsignedVIntSlow(ByteBuffer in, byte firstByte)
+    {
+        int size = numberOfExtraBytesToRead(firstByte);
+        long retval = firstByte & firstByteValueMask(size);
+        for (int ii = 0; ii < size; ii++)
+        {
+            byte b = in.get();
+            retval <<= 8;
+            retval |= b & 0xff;
+        }
+
+        return retval;
+    }
+
+    public static long readUnsignedVInt(ByteBuffer in)
+    {
+        byte firstByte = in.get();
+        if (firstByte >= 0)
+            return firstByte;
+
+
+        int position = in.position();
+        int limit = in.limit();
+        if (limit - position < 8)
+            return readUnsignedVIntSlow(in, firstByte);
+
+        int extraBytes = VIntCoding.numberOfExtraBytesToRead(firstByte);
+        int extraBits = extraBytes * 8;
+
+        long retval = in.getLong(position);
+        if (in.order() == ByteOrder.LITTLE_ENDIAN)
+            retval = Long.reverseBytes(retval);
+        in.position(position + extraBytes);
+
+        // truncate the bytes we read in excess of those we needed
+        retval >>>= 64 - extraBits;
+        // remove the non-value bits from the first byte
+        firstByte &= VIntCoding.firstByteValueMask(extraBytes);
+        // shift the first byte up to its correct position
+        retval |= (long) firstByte << extraBits;
         return retval;
     }
 
@@ -267,6 +313,19 @@ public class VIntCoding
      * @throws VIntOutOfRangeException If the vint doesn't fit into a 32-bit integer
      */
     public static int readUnsignedVInt32(DataInput input) throws IOException
+    {
+        return checkedCast(readUnsignedVInt(input));
+    }
+
+    /**
+     * Read up to a 32-bit integer.
+     *
+     * This method assumes the original integer was written using {@link #writeUnsignedVInt32(int, DataOutputPlus)}
+     * or similar that doesn't zigzag encodes the vint.
+     *
+     * @throws VIntOutOfRangeException If the vint doesn't fit into a 32-bit integer
+     */
+    public static int readUnsignedVInt32(ByteBuffer input)
     {
         return checkedCast(readUnsignedVInt(input));
     }

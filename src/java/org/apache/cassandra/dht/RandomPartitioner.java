@@ -374,7 +374,7 @@ public class RandomPartitioner implements IPartitioner
         return ownerships;
     }
 
-    public Token getMaximumToken()
+    public Token getMaximumTokenForSplitting()
     {
         return new BigIntegerToken(MAXIMUM);
     }

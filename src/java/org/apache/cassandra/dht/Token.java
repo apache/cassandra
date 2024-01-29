@@ -265,7 +265,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
     public Token increaseSlightly() { return nextValidToken(); }
 
     /**
-     * Returns a token that is slightly less than this.
+     * Returns a token that is slightly less than this. This is NOT guaranteed to be the directly preceding token.
      */
     abstract public Token decreaseSlightly();
 

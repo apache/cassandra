@@ -277,7 +277,7 @@ public class UnifiedCompactionStrategyTest
 
         IPartitioner partitioner = cfs.getPartitioner();
         DecoratedKey first = new BufferDecoratedKey(partitioner.getMinimumToken(), ByteBuffer.allocate(0));
-        DecoratedKey last = new BufferDecoratedKey(partitioner.getMaximumToken(), ByteBuffer.allocate(0));
+        DecoratedKey last = new BufferDecoratedKey(partitioner.getMaximumTokenForSplitting(), ByteBuffer.allocate(0));
 
         List<SSTableReader> sstables = new ArrayList<>();
         long dataSetSizeBytes = 0;
@@ -517,7 +517,7 @@ public class UnifiedCompactionStrategyTest
     {
         List<SSTableReader> mockSSTables = new ArrayList<>();
         Token min = partitioner.getMinimumToken();
-        Token max = partitioner.getMaximumToken();
+        Token max = partitioner.getMaximumTokenForSplitting();
         ByteBuffer bb = ByteBuffer.allocate(0);
         sstablesMap.forEach((size, num) -> {
             Token first = min.getPartitioner().split(min, max, 0.01);
@@ -1118,7 +1118,7 @@ public class UnifiedCompactionStrategyTest
 
     private Token boundary(int numSSTables, double i)
     {
-        return partitioner.split(partitioner.getMinimumToken(), partitioner.getMaximumToken(), i / numSSTables);
+        return partitioner.split(partitioner.getMinimumToken(), partitioner.getMaximumTokenForSplitting(), i / numSSTables);
     }
 
 }

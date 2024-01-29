@@ -143,8 +143,6 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
             AccordCachingState<?, ?> node = iter.next();
             checkState(node.references == 0);
 
-            if (!node.canEvict())
-                continue;
             /*
              * TODO (expected, efficiency):
              *    can this be reworked so we're not skipping unevictable nodes everytime we try to evict?

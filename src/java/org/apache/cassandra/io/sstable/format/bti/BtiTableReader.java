@@ -130,7 +130,7 @@ public class BtiTableReader extends SSTableReaderWithFilter
     {
         return PartitionIterator.create(partitionIndex, metadata().partitioner, rowIndexFile, dfile,
                                         key, -1,
-                                        metadata().partitioner.getMaximumToken().maxKeyBound(), 0,
+                                        metadata().partitioner.getMaximumTokenForSplitting().maxKeyBound(), 0,
                                         descriptor.version);
     }
 
