@@ -452,7 +452,15 @@ public class OutboundConnectionSettings
     {
         InetAddressAndPort connectTo = this.connectTo;
         if (connectTo == null)
-            connectTo = Gossiper.instance.getInternalAddressAndPort(to);
+        {
+            if(isInLocalDC(getEndpointSnitch(), getBroadcastAddressAndPort(), to))
+            {
+                connectTo = Gossiper.instance.getInternalAddressAndPort(to);
+            } else {
+                connectTo = to;
+            }
+
+        }
         if (FBUtilities.getBroadcastAddressAndPort().equals(connectTo))
             return FBUtilities.getLocalAddressAndPort();
         return connectTo;
