@@ -93,6 +93,7 @@ import org.apache.cassandra.service.accord.serializers.CommitSerializers;
 import org.apache.cassandra.service.accord.serializers.EnumSerializer;
 import org.apache.cassandra.service.accord.serializers.FetchSerializers;
 import org.apache.cassandra.service.accord.serializers.GetDepsSerializers;
+import org.apache.cassandra.service.accord.serializers.GetEphmrlReadDepsSerializers;
 import org.apache.cassandra.service.accord.serializers.InformDurableSerializers;
 import org.apache.cassandra.service.accord.serializers.InformHomeDurableSerializers;
 import org.apache.cassandra.service.accord.serializers.InformOfTxnIdSerializers;
@@ -329,6 +330,8 @@ public enum Verb
     ACCORD_CHECK_STATUS_REQ         (142, P2, writeTimeout, IMMEDIATE,          () -> CheckStatusSerializers.request,       AccordService::verbHandlerOrNoop, ACCORD_CHECK_STATUS_RSP                   ),
     ACCORD_GET_DEPS_RSP             (143, P2, writeTimeout, REQUEST_RESPONSE,   () -> GetDepsSerializers.reply,             RESPONSE_HANDLER                                                            ),
     ACCORD_GET_DEPS_REQ             (144, P2, writeTimeout, IMMEDIATE,          () -> GetDepsSerializers.request,           AccordService::verbHandlerOrNoop, ACCORD_GET_DEPS_RSP                       ),
+    ACCORD_GET_EPHMRL_READ_DEPS_RSP (161, P2, writeTimeout, REQUEST_RESPONSE,   () -> GetEphmrlReadDepsSerializers.reply,   RESPONSE_HANDLER                                                            ),
+    ACCORD_GET_EPHMRL_READ_DEPS_REQ (162, P2, writeTimeout, IMMEDIATE,          () -> GetEphmrlReadDepsSerializers.request, AccordService::verbHandlerOrNoop, ACCORD_GET_EPHMRL_READ_DEPS_RSP),
     ACCORD_FETCH_DATA_RSP           (145, P2, repairTimeout,REQUEST_RESPONSE,   () -> FetchSerializers.reply,               RESPONSE_HANDLER                                                            ),
     ACCORD_FETCH_DATA_REQ           (146, P2, repairTimeout,IMMEDIATE,          () -> FetchSerializers.request,             AccordService::verbHandlerOrNoop, ACCORD_FETCH_DATA_RSP                     ),
     ACCORD_SET_SHARD_DURABLE_REQ    (147, P2, writeTimeout, IMMEDIATE,          () -> SetDurableSerializers.shardDurable,   AccordService::verbHandlerOrNoop, ACCORD_SIMPLE_RSP                         ),
