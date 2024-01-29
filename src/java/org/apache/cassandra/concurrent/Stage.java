@@ -20,6 +20,7 @@ package org.apache.cassandra.concurrent;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
@@ -42,7 +43,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.ExecutorUtils;
-
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 
@@ -96,6 +96,15 @@ public enum Stage
     private static final Map<String,Stage> nameMap = Arrays.stream(values())
                                                            .collect(toMap(s -> Stage.normalizeName(s.jmxName),
                                                                           s -> s));
+
+    /**
+     * Set of Stage names that may be used with {@link #fromPoolName(String)}.
+     * Used by CNDB.
+     */
+    public static Set<String> poolNames()
+    {
+        return nameMap.keySet();
+    }
 
     public static Stage fromPoolName(String stageName)
     {
