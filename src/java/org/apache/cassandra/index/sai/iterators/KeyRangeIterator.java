@@ -211,19 +211,19 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
         }
     }
 
-    protected static <T extends Comparable<T>> T nullSafeMin(T a, T b)
+    protected static PrimaryKey nullSafeMin(PrimaryKey a, PrimaryKey b)
     {
         if (a == null) return b;
         if (b == null) return a;
 
-        return a.compareTo(b) > 0 ? b : a;
+        return a.compareToStrict(b) > 0 ? b : a;
     }
 
-    protected static <T extends Comparable<T>> T nullSafeMax(T a, T b)
+    protected static PrimaryKey nullSafeMax(PrimaryKey a, PrimaryKey b)
     {
         if (a == null) return b;
         if (b == null) return a;
 
-        return a.compareTo(b) > 0 ? a : b;
+        return a.compareToStrict(b) > 0 ? a : b;
     }
 }
