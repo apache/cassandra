@@ -70,12 +70,6 @@ public class RowMapping
         {
             return -1;
         }
-
-        @Override
-        public int size()
-        {
-            return 0;
-        }
     };
 
     private final InMemoryTrie<Long> rowMapping = new InMemoryTrie<>(BufferType.OFF_HEAP);
@@ -84,10 +78,14 @@ public class RowMapping
 
     public PrimaryKey minKey;
     public PrimaryKey maxKey;
+    public PrimaryKey minStaticKey;
+    public PrimaryKey maxStaticKey;
 
     public long maxSSTableRowId = -1;
+    public long maxStaticSSTableRowId = -1;
 
-    public int count;
+    public int rowCount;
+    public int staticRowCount;
 
     private RowMapping()
     {}
@@ -171,20 +169,32 @@ public class RowMapping
 
         rowMapping.putSingleton(key, sstableRowId, OVERWRITE_TRANSFORMER);
 
-        maxSSTableRowId = Math.max(maxSSTableRowId, sstableRowId);
-
-        // data is written in token sorted order
-        if (minKey == null)
-            minKey = key;
-        maxKey = key;
-        count++;
+        // Data is written in primary key order. If a schema contains clustering keys, it may also contain static
+        // columns. We track min, max, and count for static keys separately here so that we can pass them to the segment
+        // metadata for indexes on static columns.
+        if (key.kind() == PrimaryKey.Kind.STATIC)
+        {
+            if (minStaticKey == null)
+                minStaticKey = key;
+            maxStaticKey = key;
+            staticRowCount++;
+            maxStaticSSTableRowId = Math.max(maxStaticSSTableRowId, sstableRowId);
+        }
+        else
+        {
+            if (minKey == null)
+                minKey = key;
+            maxKey = key;
+            rowCount++;
+            maxSSTableRowId = Math.max(maxSSTableRowId, sstableRowId);
+        }
     }
 
     /**
-     * Returns the SSTable row Id for a {@link PrimaryKey}
+     * Returns the SSTable row ID for a {@link PrimaryKey}
      *
      * @param key the {@link PrimaryKey}
-     * @return a valid SSTable row Id for the {@link PrimaryKey} or -1 if the {@link PrimaryKey} doesn't exist
+     * @return a valid SSTable row ID for the {@link PrimaryKey} or -1 if the {@link PrimaryKey} doesn't exist
      * in the {@link RowMapping}
      */
     public int get(PrimaryKey key)
@@ -193,13 +203,8 @@ public class RowMapping
         return sstableRowId == null ? -1 : Math.toIntExact(sstableRowId);
     }
 
-    public int size()
-    {
-        return count;
-    }
-
     public boolean hasRows()
     {
-        return maxSSTableRowId >= 0;
+        return maxSSTableRowId >= 0 || maxStaticSSTableRowId >= 0;
     }
 }

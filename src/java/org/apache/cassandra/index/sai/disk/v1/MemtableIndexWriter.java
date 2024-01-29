@@ -155,15 +155,15 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
             return 0;
         }
 
+        PrimaryKey minKey = indexTermType.columnMetadata().isStatic() ? rowMapping.minStaticKey : rowMapping.minKey;
+        PrimaryKey maxKey = indexTermType.columnMetadata().isStatic() ? rowMapping.maxStaticKey : rowMapping.maxKey;
+
         // During index memtable flush, the data is sorted based on terms.
         SegmentMetadata metadata = new SegmentMetadata(0,
                                                        numRows,
-                                                       terms.getMinSSTableRowId(),
-                                                       terms.getMaxSSTableRowId(),
-                                                       rowMapping.minKey,
-                                                       rowMapping.maxKey,
-                                                       terms.getMinTerm(),
-                                                       terms.getMaxTerm(),
+                                                       terms.getMinSSTableRowId(), terms.getMaxSSTableRowId(),
+                                                       minKey, maxKey, 
+                                                       terms.getMinTerm(), terms.getMaxTerm(),
                                                        indexMetas);
 
         try (MetadataWriter metadataWriter = new MetadataWriter(indexDescriptor.openPerIndexOutput(IndexComponent.META, indexIdentifier)))
@@ -176,18 +176,19 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
 
     private void flushVectorIndex(long startTime, Stopwatch stopwatch) throws IOException
     {
-        SegmentMetadata.ComponentMetadataMap metadataMap = memtable.writeDirect(indexDescriptor, indexIdentifier, rowMapping::get);
+        int rowCount = indexTermType.columnMetadata().isStatic() ? rowMapping.staticRowCount : rowMapping.rowCount;
+        PrimaryKey minKey = indexTermType.columnMetadata().isStatic() ? rowMapping.minStaticKey : rowMapping.minKey;
+        PrimaryKey maxKey = indexTermType.columnMetadata().isStatic() ? rowMapping.maxStaticKey : rowMapping.maxKey;
+        long maxSSTableRowId = indexTermType.columnMetadata().isStatic() ? rowMapping.maxStaticSSTableRowId : rowMapping.maxSSTableRowId;
 
-        completeIndexFlush(rowMapping.size(), startTime, stopwatch);
+        SegmentMetadata.ComponentMetadataMap metadataMap = memtable.writeDirect(indexDescriptor, indexIdentifier, rowMapping::get);
+        completeIndexFlush(rowCount, startTime, stopwatch);
 
         SegmentMetadata metadata = new SegmentMetadata(0,
-                                                       rowMapping.size(),
-                                                       0,
-                                                       rowMapping.maxSSTableRowId,
-                                                       rowMapping.minKey,
-                                                       rowMapping.maxKey,
-                                                       ByteBufferUtil.bytes(0),
-                                                       ByteBufferUtil.bytes(0),
+                                                       rowCount,
+                                                       0, maxSSTableRowId,
+                                                       minKey, maxKey, 
+                                                       ByteBufferUtil.bytes(0), ByteBufferUtil.bytes(0),
                                                        metadataMap);
 
         try (MetadataWriter writer = new MetadataWriter(indexDescriptor.openPerIndexOutput(IndexComponent.META, indexIdentifier)))

@@ -10,6 +10,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Avoid over-skipping of key iterators from static column indexes during mixed intersections (CASSANDRA-19278)
  * Make concurrent_index_builders configurable at runtime (CASSANDRA-19266)
  * Fix storage_compatibility_mode for streaming (CASSANDRA-19126)
  * Add support of vector type to cqlsh COPY command (CASSANDRA-19118)

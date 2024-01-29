@@ -83,8 +83,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     public void simplePartitonStaticAndSingleClusteringAscTest()
     {
         PrimaryKey.Factory factory = new PrimaryKey.Factory(Murmur3Partitioner.instance, simplePartitionStaticAndSingleClusteringAsc.comparator);
-//        int rows = nextInt(10, 100);
-        int rows = 10;
+        int rows = nextInt(10, 100);
         PrimaryKey[] keys = new PrimaryKey[rows];
         int partition = 0;
         int clustering = 0;
