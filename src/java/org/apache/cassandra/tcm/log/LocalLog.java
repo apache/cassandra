@@ -762,6 +762,8 @@ public abstract class LocalLog implements Closeable
                         // otherwise, run again to process whatever work they may be waiting on
                         if (subscriber.get() == null)
                             signal.await();
+                        else
+                            signal.cancel();
                     }
                 }
                 catch (StopProcessingException t)
