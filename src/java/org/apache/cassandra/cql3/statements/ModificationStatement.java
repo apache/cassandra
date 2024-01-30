@@ -48,7 +48,6 @@ import org.apache.cassandra.cql3.Ordering;
 import org.apache.cassandra.cql3.terms.Constants;
 import org.apache.cassandra.cql3.Operation;
 import org.apache.cassandra.cql3.Operations;
-import org.apache.cassandra.cql3.Ordering;
 import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;

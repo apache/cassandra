@@ -137,6 +137,12 @@ public class AccordService implements IAccordService, Shutdownable
         }
 
         @Override
+        public long barrierWithRetries(Seekables keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite) throws InterruptedException
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public long barrier(@Nonnull Seekables keysOrRanges, long minEpoch, long queryStartNanos, long timeoutNanos, BarrierType barrierType, boolean isForWrite)
         {
             throw new UnsupportedOperationException("No accord barriers should be executed when accord.enabled = false in cassandra.yaml");
@@ -207,6 +213,12 @@ public class AccordService implements IAccordService, Shutdownable
     public static void unsafeSetNewAccordService()
     {
         instance = null;
+    }
+
+    @VisibleForTesting
+    public static void unsafeSetNoop()
+    {
+        instance = NOOP_SERVICE;
     }
 
     public static boolean isSetup()

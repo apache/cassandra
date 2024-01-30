@@ -93,6 +93,7 @@ import org.quicktheories.core.RandomnessSource;
 import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.JavaRandom;
 
+import static org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind.COUNTER;
 import static org.apache.cassandra.utils.Generators.IDENTIFIER_GEN;
 import static org.apache.cassandra.utils.Generators.filter;
 
@@ -492,6 +493,27 @@ public final class AbstractTypeGenerators
     public static TypeGenBuilder builder()
     {
         return new TypeGenBuilder();
+    }
+
+    /**
+     * Similar to {@link #typeGen()} but removes types that are known to be problematic in some cases and limits the depth
+     * of the type tree to avoid cell constratins.
+     */
+    public static Gen<AbstractType<?>> safeTypeGen()
+    {
+        TypeGenBuilder baseline = AbstractTypeGenerators.builder()
+                                                        // neither of these types support the property
+                                                        //   expected == fromComparableBytes(asComparableBytes(expected))
+                                                        // so rather than having tests try to skip... just avoid those types!
+                                                        .withoutEmpty()
+                                                        .withoutTypeKinds(COUNTER)
+                                                        .withoutPrimitive(DecimalType.instance)
+                                                        // its ordering is special...
+                                                        .withoutPrimitive(DurationType.instance);
+        // composite requires all elements fit into Short.MAX_VALUE bytes
+        // so try to limit the possible expansion of types
+        return baseline.withCompositeElementGen(new TypeGenBuilder(baseline).withDefaultSizeGen(1).withMaxDepth(1).build())
+                       .build();
     }
 
     public static Gen<AbstractType<?>> typeGen()

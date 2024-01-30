@@ -56,10 +56,7 @@ public interface IAccordService
 
     IVerbHandler<? extends Request> verbHandler();
 
-    default long barrierWithRetries(Seekables keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite) throws InterruptedException
-    {
-        throw new UnsupportedOperationException();
-    }
+    long barrierWithRetries(Seekables keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite) throws InterruptedException;
 
     long barrier(@Nonnull Seekables keysOrRanges, long minEpoch, long queryStartNanos, long timeoutNanos, BarrierType barrierType, boolean isForWrite);
 

@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.util;
 
 import java.io.DataInput;
+import java.io.DataInputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -96,6 +97,81 @@ public interface DataInputPlus extends DataInput
         int skipped = skipBytes(n);
         if (skipped != n)
             throw new EOFException("EOF after " + skipped + " bytes out of " + n);
+    }
+
+    @Override
+    default byte readByte() throws IOException
+    {
+        return (byte) readUnsignedByte();
+    }
+
+    @Override
+    default boolean readBoolean() throws IOException
+    {
+        return readUnsignedByte() != 0;
+    }
+
+    @Override
+    default short readShort() throws IOException
+    {
+        int ch1 = readUnsignedByte();
+        int ch2 = readUnsignedByte();
+        if ((ch1 | ch2) < 0)
+            throw new EOFException();
+        return (short)((ch1 << 8) + (ch2 << 0));
+    }
+
+    @Override
+    default int readUnsignedShort() throws IOException
+    {
+        int ch1 = readUnsignedByte();
+        int ch2 = readUnsignedByte();
+        if ((ch1 | ch2) < 0)
+            throw new EOFException();
+        return (ch1 << 8) + (ch2 << 0);
+    }
+
+    @Override
+    default char readChar() throws IOException
+    {
+        int ch1 = readUnsignedByte();
+        int ch2 = readUnsignedByte();
+        if ((ch1 | ch2) < 0)
+            throw new EOFException();
+        return (char)((ch1 << 8) + (ch2 << 0));
+    }
+
+    @Override
+    default int readInt() throws IOException
+    {
+        int ch1 = readUnsignedByte();
+        int ch2 = readUnsignedByte();
+        int ch3 = readUnsignedByte();
+        int ch4 = readUnsignedByte();
+        if ((ch1 | ch2 | ch3 | ch4) < 0)
+            throw new EOFException();
+        return ((ch1 << 24) + (ch2 << 16) + (ch3 << 8) + (ch4 << 0));
+    }
+
+    @Override
+    long readLong() throws IOException;
+
+    @Override
+    default float readFloat() throws IOException
+    {
+        return Float.intBitsToFloat(readInt());
+    }
+
+    @Override
+    default double readDouble() throws IOException
+    {
+        return Double.longBitsToDouble(readLong());
+    }
+
+    @Override
+    default String readUTF() throws IOException
+    {
+        return DataInputStream.readUTF(this);
     }
 
     /**

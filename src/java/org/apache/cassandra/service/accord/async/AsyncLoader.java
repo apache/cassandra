@@ -17,43 +17,28 @@
  */
 package org.apache.cassandra.service.accord.async;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.ImmutableSet;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import accord.api.Key;
-import accord.api.RoutingKey;
+import accord.local.CommandsForKey;
 import accord.local.KeyHistory;
 import accord.local.PreLoadContext;
-import accord.primitives.Range;
-import accord.primitives.Ranges;
-import accord.primitives.Seekables;
-import accord.primitives.TxnId;
+import accord.primitives.*;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.Observable;
-import org.apache.cassandra.service.accord.AccordCachingState;
-import org.apache.cassandra.service.accord.AccordCommandStore;
-import org.apache.cassandra.service.accord.AccordKeyspace;
-import org.apache.cassandra.service.accord.AccordSafeState;
-import org.apache.cassandra.service.accord.AccordStateCache;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
+import org.apache.cassandra.service.accord.*;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.*;
+import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 public class AsyncLoader
 {
@@ -172,15 +157,41 @@ public class AsyncLoader
 
     private AsyncChain<?> referenceAndDispatchReadsForRange(AsyncOperation.Context context)
     {
-        AsyncChain<Set<? extends Key>> overlappingKeys = findOverlappingKeys((Ranges) keysOrRanges);
+        Ranges ranges = (Ranges) keysOrRanges;
 
-        return overlappingKeys.flatMap(keys -> {
-            if (keys.isEmpty())
+        List<AsyncChain<?>> root = new ArrayList<>(ranges.size() + 1);
+        class Watcher implements AccordStateCache.Listener<Key, CommandsForKey>
+        {
+            private final Set<PartitionKey> cached = commandStore.commandsForKeyCache().stream()
+                                                                 .map(n -> (PartitionKey) n.key())
+                                                                 .filter(ranges::contains)
+                                                                 .collect(Collectors.toSet());
+
+            @Override
+            public void onAdd(AccordCachingState<Key, CommandsForKey> state)
+            {
+                PartitionKey pk = (PartitionKey) state.key();
+                if (ranges.contains(pk))
+                    cached.add(pk);
+            }
+        }
+        Watcher watcher = new Watcher();
+        commandStore.commandsForKeyCache().register(watcher);
+        root.add(findOverlappingKeys(ranges).flatMap(keys -> {
+            commandStore.commandsForKeyCache().unregister(watcher);
+            if (keys.isEmpty() && watcher.cached.isEmpty())
                 return AsyncChains.success(null);
+            Set<? extends Key> set = ImmutableSet.<Key>builder().addAll(watcher.cached).addAll(keys).build();
             List<AsyncChain<?>> chains = new ArrayList<>();
-            keys.forEach(key -> referenceAndAssembleReadsForKey(key, context, chains));
+            set.forEach(key -> referenceAndAssembleReadsForKey(key, context, chains));
             return chains.isEmpty() ? AsyncChains.success(null) : AsyncChains.reduce(chains, (a, b) -> null);
-        }, commandStore);
+        }, commandStore));
+
+        var chain = commandStore.diskCommandsForRanges().get(ranges);
+        root.add(chain);
+        context.commandsForRanges = new AccordSafeCommandsForRanges(ranges, chain);
+
+        return AsyncChains.all(root);
     }
 
     private AsyncChain<Set<? extends Key>> findOverlappingKeys(Ranges ranges)
@@ -195,27 +206,14 @@ public class AsyncLoader
 
     private AsyncChain<Set<PartitionKey>> findOverlappingKeys(Range range)
     {
-        Set<PartitionKey> cached = commandStore.commandsForKeyCache().stream()
-                                               .map(n -> (PartitionKey) n.key())
-                                               .filter(range::contains)
-                                               .collect(Collectors.toSet());
         // save to a variable as java gets confused when `.map` is called on the result of asChain
         AsyncChain<Set<PartitionKey>> map = Observable.asChain(callback ->
                                                                AccordKeyspace.findAllKeysBetween(commandStore.id(),
-                                                                                                 toTokenKey(range.start()).token(), range.startInclusive(),
-                                                                                                 toTokenKey(range.end()).token(), range.endInclusive(),
+                                                                                                 (AccordRoutingKey) range.start(), range.startInclusive(),
+                                                                                                 (AccordRoutingKey) range.end(), range.endInclusive(),
                                                                                                  callback),
                                                                Collectors.toSet());
-        return map.map(s -> ImmutableSet.<PartitionKey>builder().addAll(s).addAll(cached).build());
-    }
-
-    private static TokenKey toTokenKey(RoutingKey start)
-    {
-        if (start instanceof TokenKey)
-            return (TokenKey) start;
-        if (start instanceof AccordRoutingKey.SentinelKey)
-            return ((AccordRoutingKey.SentinelKey) start).toTokenKeyBroken();
-        throw new IllegalArgumentException(String.format("Unable to convert RoutingKey %s (type %s) to TokenKey", start, start.getClass()));
+        return map.map(s -> ImmutableSet.<PartitionKey>builder().addAll(s).build());
     }
 
     @VisibleForTesting

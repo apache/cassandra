@@ -97,7 +97,6 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.RangesAtEndpoint;
-import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -114,7 +113,6 @@ import org.apache.cassandra.repair.state.SessionState;
 import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableId;
@@ -122,7 +120,6 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.AccordConfigurationService;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.streaming.StreamEventHandler;
 import org.apache.cassandra.streaming.StreamReceiveException;
@@ -131,20 +128,11 @@ import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.StreamingDataInputPlus;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tcm.listeners.ChangeListener;
-import org.apache.cassandra.tcm.membership.Directory;
-import org.apache.cassandra.tcm.membership.NodeAddresses;
-import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.ownership.DataPlacement;
-import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tools.nodetool.Repair;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Closeable;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FailingBiConsumer;
 import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.MBeanWrapper;
@@ -540,29 +528,11 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
     {
         RepairType type = repairTypeGen.next(rs);
         PreviewType previewType = previewTypeGen.next(rs);
-        // TODO (required - IR) add this back and expand as part of IR integration
-//        boolean accordRepair = type == RepairType.FULL && previewType == PreviewType.NONE ? rs.nextBoolean() : false;
-        boolean accordRepair = false;
         List<String> args = new ArrayList<>();
         args.add(ks);
         List<String> tables = tablesGen.next(rs);
         args.addAll(tables);
-        if (accordRepair)
-        {
-            List<Range<Token>> ranges = new ArrayList<>(StorageService.instance.getReplicas(ks, coordinator.broadcastAddressAndPort()).ranges());
-            ranges.sort(Comparator.naturalOrder());
-            Range<Token> range = ranges.get(rs.nextInt(0, ranges.size()));
-            args.add("--start-token");
-            args.add(range.left.toString());
-            args.add("--end-token");
-            Murmur3Partitioner.LongToken left = (Murmur3Partitioner.LongToken) range.left;
-            Token right = rs.nextBoolean() ? new Murmur3Partitioner.LongToken(left.token + 100) : range.right;
-            args.add(right.toString());
-        }
-        else
-        {
-            args.add("-pr");
-        }
+        args.add("-pr");
         switch (type)
         {
             case IR:
@@ -604,8 +574,6 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         }
         if (rs.nextBoolean()) args.add("--optimise-streams");
         RepairOption options = RepairOption.parse(Repair.parseOptionMap(() -> "test", args), DatabaseDescriptor.getPartitioner());
-        if (accordRepair)
-            options = options.withAccordRepair(true);
         if (options.getRanges().isEmpty())
         {
             if (options.isPrimaryRange())
@@ -763,67 +731,9 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             }
             List<InetAddressAndPort> addresses = new ArrayList<>(nodes.keySet());
             addresses.sort(Comparator.naturalOrder());
-            NodeId tcmid = ClusterMetadata.current().directory.peerId(addresses.get(rs.nextInt(0, addresses.size())));
-            ServerTestUtils.recreateAccord(tcmid);
-            interceptTCMNotifications(tcmid);
+            AccordService.unsafeSetNoop();
 
             setupSchema();
-        }
-
-        private void interceptTCMNotifications(NodeId tcmid)
-        {
-            AccordService as = (AccordService) AccordService.instance();
-            AccordConfigurationService config = as.configurationService();
-            ClusterMetadataService.instance().log().removeListener(config);
-            ClusterMetadataService.instance().log().addListener(new ChangeListener()
-            {
-                @Override
-                public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
-                {
-                    config.notifyPostCommit(sanitize(prev, tcmid), sanitize(next, tcmid), fromSnapshot);
-                }
-            });
-        }
-
-        private ClusterMetadata sanitize(ClusterMetadata metadata, NodeId tcmid)
-        {
-            if (metadata.directory.isEmpty())
-                return metadata;
-            ClusterMetadata sanitized = metadata.withDirectory(sanitize(metadata.directory, tcmid))
-                                                .withPlacements(sanitize(metadata.placements, FBUtilities.getBroadcastAddressAndPort()));
-            return sanitized;
-        }
-
-        private Directory sanitize(Directory directory, NodeId tcmid)
-        {
-            if (directory.getNodeAddresses(tcmid) == null)
-                throw new AssertionError("Expected node " + tcmid + " but not found in " + directory);
-            for (NodeId peer : directory.peerIds())
-            {
-                if (peer.equals(tcmid))
-                    continue;
-                directory = directory.without(peer);
-            }
-            directory = directory.withNodeAddresses(tcmid, NodeAddresses.current());
-            return directory;
-        }
-
-        private DataPlacements sanitize(DataPlacements placements, InetAddressAndPort endpoint)
-        {
-            DataPlacements.Builder builder = DataPlacements.builder(placements.size());
-            for (Map.Entry<ReplicationParams, DataPlacement> e : placements)
-                builder.with(e.getKey(), sanitize(placements.lastModified(), e.getValue(), endpoint));
-            return builder.build();
-        }
-
-        private DataPlacement sanitize(Epoch epoch, DataPlacement value, InetAddressAndPort endpoint)
-        {
-            DataPlacement.Builder builder = DataPlacement.builder();
-            for (Range<Token> e : value.writes.ranges())
-                builder.withWriteReplica(epoch, new Replica(endpoint, e, true));
-            for (Range<Token> e : value.reads.ranges())
-                builder.withReadReplica(epoch, new Replica(endpoint, e, true));
-            return builder.build();
         }
 
         public Closeable addListener(MessageListener listener)
