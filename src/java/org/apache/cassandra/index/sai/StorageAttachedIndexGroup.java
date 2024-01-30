@@ -77,15 +77,15 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
 
     public static final Index.Group.Key GROUP_KEY = new Index.Group.Key(StorageAttachedIndexGroup.class);
 
-    private final TableQueryMetrics queryMetrics;
+    protected final TableQueryMetrics queryMetrics;
     private final TableStateMetrics stateMetrics;
     private final IndexGroupMetrics groupMetrics;
-    private final Set<StorageAttachedIndex> indexes = ConcurrentHashMap.newKeySet();
-    private final ColumnFamilyStore baseCfs;
+    protected final Set<StorageAttachedIndex> indexes = ConcurrentHashMap.newKeySet();
+    protected final ColumnFamilyStore baseCfs;
 
     private final SSTableContextManager contextManager;
 
-    StorageAttachedIndexGroup(ColumnFamilyStore baseCfs)
+    protected StorageAttachedIndexGroup(ColumnFamilyStore baseCfs)
     {
         this.baseCfs = baseCfs;
         this.queryMetrics = new TableQueryMetrics(baseCfs.metadata());

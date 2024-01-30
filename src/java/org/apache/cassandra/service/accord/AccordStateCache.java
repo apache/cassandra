@@ -17,8 +17,11 @@
  */
 package org.apache.cassandra.service.accord;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -141,34 +144,41 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         while (iter.hasNext() && bytesCached > maxSizeInBytes)
         {
             AccordCachingState<?, ?> node = iter.next();
-            checkState(node.references == 0);
+            maybeEvict(node);
+        }
+    }
 
-            /*
-             * TODO (expected, efficiency):
-             *    can this be reworked so we're not skipping unevictable nodes everytime we try to evict?
-             */
-            Status status = node.status(); // status() call completes (if completeable)
-            switch (status)
-            {
-                default: throw new IllegalStateException("Unhandled status " + status);
-                case LOADED:
-                    unlink(node);
-                    evict(node);
-                    break;
-                case MODIFIED:
-                    // schedule a save to disk, keep linked and in the cache map
-                    Instance<?, ?, ?> instance = instanceForNode(node);
-                    node.save(saveExecutor, instance.saveFunction);
-                    maybeUpdateSize(node, instance.heapEstimator);
-                    break;
-                case SAVING:
-                    // skip over until completes to LOADED or FAILED_TO_SAVE
-                    break;
-                case FAILED_TO_SAVE:
-                    // TODO (consider): panic when a save fails
-                    // permanently unlink, but keep in the map
-                    unlink(node);
-            }
+    @VisibleForTesting
+    public boolean maybeEvict(AccordCachingState<?, ?> node)
+    {
+        checkState(node.references == 0);
+
+        /*
+         * TODO (expected, efficiency):
+         *    can this be reworked so we're not skipping unevictable nodes everytime we try to evict?
+         */
+        Status status = node.status(); // status() call completes (if completeable)
+        switch (status)
+        {
+            default: throw new IllegalStateException("Unhandled status " + status);
+            case LOADED:
+                unlink(node);
+                evict(node);
+                return true;
+            case MODIFIED:
+                // schedule a save to disk, keep linked and in the cache map
+                Instance<?, ?, ?> instance = instanceForNode(node);
+                node.save(saveExecutor, instance.saveFunction);
+                maybeUpdateSize(node, instance.heapEstimator);
+                return false;
+            case SAVING:
+                // skip over until completes to LOADED or FAILED_TO_SAVE
+                return false;
+            case FAILED_TO_SAVE:
+                // TODO (consider): panic when a save fails
+                // permanently unlink, but keep in the map
+                unlink(node);
+                return false;
         }
     }
 
@@ -189,12 +199,14 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         instance.bytesCached -= node.lastQueriedEstimatedSizeOnHeap;
 
         if (node.status() == LOADED && VALIDATE_LOAD_ON_EVICT)
-            instanceForNode(node).validateLoadEvicted(node);
+            instance.validateLoadEvicted(node);
 
         if (!node.hasListeners())
         {
             AccordCachingState<?, ?> self = instances.get(node.index).cache.remove(node.key());
             checkState(self == node, "Leaked node detected; was attempting to remove %s but cache had %s", node, self);
+            if (instance.listeners != null)
+                instance.listeners.forEach(l -> l.onEvict((AccordCachingState) node));
         }
         else
         {
@@ -240,7 +252,19 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         return instance(keyClass, valClass, safeRefFactory, loadFunction, saveFunction, validateFunction, heapEstimator, AccordCachingState.defaultFactory());
     }
 
-    public class Instance<K, V, S extends AccordSafeState<K, V>> implements CacheSize
+    public Collection<Instance<?, ? ,? >> instances()
+    {
+        return instances;
+    }
+
+    public interface Listener<K, V>
+    {
+        default void onAdd(AccordCachingState<K, V> state) {}
+        default void onEvict(AccordCachingState<K, V> state) {}
+        default void onRelease(AccordCachingState<K, V> state) {}
+    }
+
+    public class Instance<K, V, S extends AccordSafeState<K, V>> implements CacheSize, Iterable<AccordCachingState<K, V>>
     {
         private final int index;
         private final Class<K> keyClass;
@@ -257,6 +281,7 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         private final Stats stats = new Stats();
         private final Map<Object, AccordCachingState<?, ?>> cache = new HashMap<>();
         private final AccordCachingState.Factory<K, V> nodeFactory;
+        private List<Listener<K, V>> listeners = null;
 
         public Instance(
             int index, Class<K> keyClass,
@@ -278,11 +303,34 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
             this.nodeFactory = nodeFactory;
         }
 
+        public void register(Listener<K, V> l)
+        {
+            if (listeners == null)
+                listeners = new ArrayList<>();
+            listeners.add(l);
+        }
+
+        public void unregister(Listener<K, V> l)
+        {
+            if (listeners == null)
+                throw new AssertionError("No listeners exist");
+            if (!listeners.remove(l))
+                throw new AssertionError("Listener was not registered");
+            if (listeners.isEmpty())
+                listeners = null;
+        }
+
         public Stream<AccordCachingState<K, V>> stream()
         {
             return cache.entrySet().stream()
-                        .filter(e -> keyClass.isAssignableFrom(e.getKey().getClass()))
+                        .filter(e -> instanceForNode(e.getValue()) == this)
                         .map(e -> (AccordCachingState<K, V>) e.getValue());
+        }
+
+        @Override
+        public Iterator<AccordCachingState<K, V>> iterator()
+        {
+            return stream().iterator();
         }
 
         public S acquireOrInitialize(K key, Function<K, V> valueFactory)
@@ -295,6 +343,11 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
                 node = nodeFactory.create(key, index);
                 node.initialize(valueFactory.apply(key));
                 cache.put(key, node);
+                if (listeners != null)
+                {
+                    AccordCachingState<K, V> finalNode = node;
+                    listeners.forEach(l -> l.onAdd(finalNode));
+                }
             }
             AccordCachingState<K, V> acquired = acquireExisting(node, true);
             Invariants.checkState(acquired != null, "%s could not be acquired", node);
@@ -350,6 +403,8 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
             node.references++;
 
             cache.put(key, node);
+            if (listeners != null)
+                listeners.forEach(l -> l.onAdd(node));
             maybeUpdateSize(node, heapEstimator);
             metrics.objectSize.update(node.lastQueriedEstimatedSizeOnHeap);
             maybeEvictSomeNodes();
@@ -401,6 +456,9 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
                 node.set(safeRef.current());
 
             maybeUpdateSize(node, heapEstimator);
+
+            if (listeners != null)
+                listeners.forEach(l -> l.onRelease(node));
 
             if (--node.references == 0)
             {
@@ -556,6 +614,15 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         public long weightedSize()
         {
             return bytesCached;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "Instance{" +
+                   "index=" + index +
+                   ", keyClass=" + keyClass +
+                   '}';
         }
     }
 

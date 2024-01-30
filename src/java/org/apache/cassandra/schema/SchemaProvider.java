@@ -33,6 +33,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.KeyspaceNotDefinedException;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -132,6 +133,13 @@ public interface SchemaProvider
 
     @Nullable
     TableMetadata getTableMetadata(TableId id);
+
+    @Nullable
+    default IPartitioner getTablePartitioner(TableId id)
+    {
+        TableMetadata metadata = getTableMetadata(id);
+        return metadata == null ? null : metadata.partitioner;
+    }
 
     @Nullable
     default TableMetadataRef getTableMetadataRef(TableId id)

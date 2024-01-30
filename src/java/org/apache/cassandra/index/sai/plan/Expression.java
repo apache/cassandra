@@ -387,7 +387,12 @@ public abstract class Expression
 
         public IndexedExpression(StorageAttachedIndex index)
         {
-            super(index.termType());
+            this(index, index.termType());
+        }
+
+        public IndexedExpression(StorageAttachedIndex index, IndexTermType indexTermType)
+        {
+            super(indexTermType);
             this.index = index;
         }
 

@@ -21,6 +21,7 @@ package org.apache.cassandra.index.sai.disk.v1;
 import java.io.Closeable;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
@@ -45,7 +46,8 @@ public class PerColumnIndexFiles implements Closeable
     {
         this.indexDescriptor = indexDescriptor;
         this.indexIdentifier = indexIdentifier;
-        for (IndexComponent component : indexDescriptor.version.onDiskFormat().perColumnIndexComponents(indexTermType))
+        Set<IndexComponent> indexComponents = indexDescriptor.version.onDiskFormat().perColumnIndexComponents(indexTermType);
+        for (IndexComponent component : indexComponents)
         {
             if (component == IndexComponent.META || component == IndexComponent.COLUMN_COMPLETION_MARKER)
                 continue;
@@ -71,6 +73,21 @@ public class PerColumnIndexFiles implements Closeable
     public FileHandle compressedVectors()
     {
         return getFile(IndexComponent.COMPRESSED_VECTORS);
+    }
+
+    public FileHandle accordTablesToIndex()
+    {
+        return getFile(IndexComponent.ACCORD_TABLES_TO_INDEX);
+    }
+
+    public FileHandle cintiaSortedList()
+    {
+        return getFile(IndexComponent.CINTIA_SORTED_LIST);
+    }
+
+    public FileHandle cintiaCheckpoint()
+    {
+        return getFile(IndexComponent.CINTIA_CHECKPOINTS);
     }
 
     private FileHandle getFile(IndexComponent indexComponent)

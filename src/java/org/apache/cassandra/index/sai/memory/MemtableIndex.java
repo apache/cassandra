@@ -32,10 +32,10 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.utils.Pair;
@@ -49,7 +49,12 @@ public class MemtableIndex implements MemtableOrdering
 
     public MemtableIndex(StorageAttachedIndex index)
     {
-        this.memoryIndex = index.termType().isVector() ? new VectorMemoryIndex(index) : new TrieMemoryIndex(index);
+        this.memoryIndex = index.strategy().createMemoryIndex();
+    }
+
+    public <T extends MemoryIndex> T getBacking()
+    {
+        return (T) memoryIndex;
     }
 
     public long writeCount()

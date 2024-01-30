@@ -44,6 +44,9 @@ public enum IndexComponent
      */
     BALANCED_TREE("BalancedTree"),
 
+    CINTIA_SORTED_LIST("CintiaSortedList"),
+    CINTIA_CHECKPOINTS("CintiaCheckpoints"),
+
     /**
      * Term dictionary written by {@link TrieTermsDictionaryWriter} stores mappings of term and
      * file pointer to posting block on posting file.
@@ -54,6 +57,11 @@ public enum IndexComponent
      * Product Quantization store used to store compressed vectors for the vector index
      */
     COMPRESSED_VECTORS("CompressedVectors"),
+
+    /**
+     * Accord tables to indexes
+     */
+    ACCORD_TABLES_TO_INDEX("AccordTablesToIndex"),
 
     /**
      * Stores postings written by {@link PostingsWriter}

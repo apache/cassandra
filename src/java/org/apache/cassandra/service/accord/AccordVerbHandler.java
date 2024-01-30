@@ -47,7 +47,7 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
     {
         // TODO (desired): need a non-blocking way to inform CMS of an unknown epoch and add callback to it's receipt
 //        ClusterMetadataService.instance().maybeCatchup(message.epoch());
-        logger.debug("Receiving {} from {}", message.payload, message.from());
+        logger.trace("Receiving {} from {}", message.payload, message.from());
         T request = message.payload;
 
         if (request.type().hasSideEffects())

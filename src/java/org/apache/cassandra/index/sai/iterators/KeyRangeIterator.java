@@ -20,7 +20,6 @@ package org.apache.cassandra.index.sai.iterators;
 import java.io.Closeable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
@@ -54,7 +53,9 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
     {
         boolean isComplete = min != null && max != null && count != 0;
         boolean isEmpty = min == null && max == null && (count == 0 || count == -1);
-        Preconditions.checkArgument(isComplete || isEmpty, "Range: [" + min + ',' + max + "], Count: " + count);
+//        Preconditions.checkArgument(isComplete || isEmpty, "Range: [" + min + ',' + max + "], Count: " + count);
+        if (!(isComplete || isEmpty))
+            throw new IllegalArgumentException("Range: [" + min + ',' + max + "], Count: " + count);
 
         this.min = min;
         this.current = min;

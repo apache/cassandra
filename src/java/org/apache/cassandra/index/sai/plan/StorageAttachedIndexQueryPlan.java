@@ -37,14 +37,14 @@ import org.apache.cassandra.schema.TableMetadata;
 
 public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
 {
-    private final ColumnFamilyStore cfs;
-    private final TableQueryMetrics queryMetrics;
+    protected final ColumnFamilyStore cfs;
+    protected final TableQueryMetrics queryMetrics;
     private final RowFilter postIndexFilter;
-    private final RowFilter filterOperation;
+    protected final RowFilter filterOperation;
     private final Set<Index> indexes;
     private final boolean isTopK;
 
-    private StorageAttachedIndexQueryPlan(ColumnFamilyStore cfs,
+    protected StorageAttachedIndexQueryPlan(ColumnFamilyStore cfs,
                                           TableQueryMetrics queryMetrics,
                                           RowFilter postIndexFilter,
                                           RowFilter filterOperation,
@@ -63,6 +63,25 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
                                                        TableQueryMetrics queryMetrics,
                                                        Set<StorageAttachedIndex> indexes,
                                                        RowFilter rowFilter)
+    {
+        return create(cfs, queryMetrics, indexes, rowFilter, StorageAttachedIndexQueryPlan::new);
+    }
+
+    public interface QueryPlanFactory<T extends StorageAttachedIndexQueryPlan>
+    {
+        T create(ColumnFamilyStore cfs,
+                 TableQueryMetrics queryMetrics,
+                 RowFilter postIndexFilter,
+                 RowFilter filterOperation,
+                 ImmutableSet<Index> indexes);
+    }
+
+    @Nullable
+    public static <T extends StorageAttachedIndexQueryPlan> StorageAttachedIndexQueryPlan create(ColumnFamilyStore cfs,
+                                                                                                 TableQueryMetrics queryMetrics,
+                                                                                                 Set<StorageAttachedIndex> indexes,
+                                                                                                 RowFilter rowFilter,
+                                                                                                 QueryPlanFactory<T> factory)
     {
         ImmutableSet.Builder<Index> selectedIndexesBuilder = ImmutableSet.builder();
 
@@ -99,7 +118,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
         if (selectedIndexes.isEmpty())
             return null;
 
-        return new StorageAttachedIndexQueryPlan(cfs, queryMetrics, postIndexFilter, preIndexFilter, selectedIndexes);
+        return factory.create(cfs, queryMetrics, postIndexFilter, preIndexFilter, selectedIndexes);
     }
 
     @Override

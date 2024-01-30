@@ -601,6 +601,12 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
         }
 
         @Override
+        public V get()
+        {
+            return current;
+        }
+
+        @Override
         public State<K, V> complete()
         {
             if      (!isDone())   return this;

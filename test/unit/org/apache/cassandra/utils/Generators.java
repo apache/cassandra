@@ -511,7 +511,9 @@ public final class Generators
 
         static
         {
-            long blobSeed = TEST_BLOB_SHARED_SEED.getLong(System.currentTimeMillis());
+            // to avoid adding non-deterministic behavior to tests we need to hard code the seed
+            // tests can override if desired, but need to make sure this stays a constant
+            long blobSeed = TEST_BLOB_SHARED_SEED.getLong(42);
             logger.info("Shared blob Gen used seed {}", blobSeed);
 
             Random random = new Random(blobSeed);

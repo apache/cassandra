@@ -86,7 +86,7 @@ public class NumericIndexWriter
         return MoreObjects.toStringHelper(this).add("indexName", indexIdentifier).add("bytesPerValue", bytesPerValue).toString();
     }
 
-    private static class LeafCallback implements BlockBalancedTreeWriter.Callback
+    public static class LeafCallback implements BlockBalancedTreeWriter.Callback
     {
         final List<PackedLongValues> leafPostings = new ArrayList<>(DEFAULT_POSTINGS_SIZE);
 

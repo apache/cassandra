@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.disk.v1;
 
 import java.io.IOException;
 import java.util.Arrays;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -62,11 +63,13 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
     public static class Factory implements PrimaryKeyMap.Factory
     {
         protected final MetadataSource metadataSource;
+        @Nullable
         protected final LongArray.Factory rowToTokenReaderFactory;
         protected final LongArray.Factory rowToPartitionReaderFactory;
         protected final KeyLookup partitionKeyReader;
         protected final PrimaryKey.Factory primaryKeyFactory;
 
+        @Nullable
         private final FileHandle rowToTokenFile;
         private final FileHandle rowToPartitionFile;
         private final FileHandle partitionKeyBlockOffsetsFile;
@@ -74,15 +77,15 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
 
         public Factory(IndexDescriptor indexDescriptor)
         {
-            this.rowToTokenFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.ROW_TO_TOKEN, this::close);
+            this.rowToTokenFile = indexDescriptor.hasComponent(IndexComponent.ROW_TO_TOKEN) ? indexDescriptor.createPerSSTableFileHandle(IndexComponent.ROW_TO_TOKEN, this::close) : null;
             this.rowToPartitionFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.ROW_TO_PARTITION, this::close);
             this.partitionKeyBlockOffsetsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS, this::close);
             this.partitionKeyBlocksFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCKS, this::close);
             try
             {
                 this.metadataSource = MetadataSource.loadGroupMetadata(indexDescriptor);
-                NumericValuesMeta tokensMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.ROW_TO_TOKEN)));
-                this.rowToTokenReaderFactory = new BlockPackedReader(rowToTokenFile, tokensMeta);
+                NumericValuesMeta tokensMeta = rowToTokenFile == null ? null : new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.ROW_TO_TOKEN)));
+                this.rowToTokenReaderFactory = rowToTokenFile == null ? null : new BlockPackedReader(rowToTokenFile, tokensMeta);
                 NumericValuesMeta partitionsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.ROW_TO_PARTITION)));
                 this.rowToPartitionReaderFactory = new MonotonicBlockPackedReader(rowToPartitionFile, partitionsMeta);
                 NumericValuesMeta partitionKeyBlockOffsetsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS)));
@@ -100,7 +103,7 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
         @SuppressWarnings({"resource", "RedundantSuppression"}) // rowIdToToken, rowIdToPartitionId and cursor are closed by the SkinnyPrimaryKeyMap#close method
         public PrimaryKeyMap newPerSSTablePrimaryKeyMap() throws IOException
         {
-            LongArray rowIdToToken = new LongArray.DeferredLongArray(rowToTokenReaderFactory::open);
+            LongArray rowIdToToken = rowToTokenReaderFactory == null ? null : new LongArray.DeferredLongArray(rowToTokenReaderFactory::open);
             LongArray rowIdToPartitionId = new LongArray.DeferredLongArray(rowToPartitionReaderFactory::open);
             return new SkinnyPrimaryKeyMap(rowIdToToken,
                                            rowIdToPartitionId,

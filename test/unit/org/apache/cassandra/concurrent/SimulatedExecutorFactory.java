@@ -33,13 +33,23 @@ import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+
+import javax.annotation.Nullable;
 
 import accord.utils.Gens;
 import accord.utils.RandomSource;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.InternalState.SHUTTING_DOWN_NOW;
+import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.InternalState.TERMINATED;
+import static org.apache.cassandra.concurrent.Interruptible.State.INTERRUPTED;
+import static org.apache.cassandra.concurrent.Interruptible.State.NORMAL;
+import static org.apache.cassandra.concurrent.Interruptible.State.SHUTTING_DOWN;
 
 public class SimulatedExecutorFactory implements ExecutorFactory, Clock
 {
@@ -79,6 +89,8 @@ public class SimulatedExecutorFactory implements ExecutorFactory, Clock
 
     private final RandomSource rs;
     private final long startTimeNanos;
+    @Nullable
+    private final Consumer<Throwable> onError;
     private final PriorityQueue<Item> queue = new PriorityQueue<>();
     private long seq = 0;
     private long nowNanos;
@@ -86,8 +98,23 @@ public class SimulatedExecutorFactory implements ExecutorFactory, Clock
 
     public SimulatedExecutorFactory(RandomSource rs, long startTimeNanos)
     {
+        this(rs, startTimeNanos, null);
+    }
+
+    public SimulatedExecutorFactory(RandomSource rs, long startTimeNanos, Consumer<Throwable> onError)
+    {
         this.rs = rs;
         this.startTimeNanos = startTimeNanos;
+        this.onError = onError;
+    }
+
+    private void maybeAddFailureListener(Future<?> task)
+    {
+        if (onError == null) return;
+        task.addCallback((s, f) -> {
+            if (f != null)
+                onError.accept(f);
+        });
     }
 
     public boolean processOne()
@@ -153,9 +180,92 @@ public class SimulatedExecutorFactory implements ExecutorFactory, Clock
     }
 
     @Override
-    public Interruptible infiniteLoop(String name, Interruptible.Task task, InfiniteLoopExecutor.SimulatorSafe simulatorSafe, InfiniteLoopExecutor.Daemon daemon, InfiniteLoopExecutor.Interrupts interrupts)
+    public Interruptible infiniteLoop(String name,
+                                      Interruptible.Task task,
+                                      InfiniteLoopExecutor.SimulatorSafe simulatorSafe,
+                                      InfiniteLoopExecutor.Daemon daemon,
+                                      InfiniteLoopExecutor.Interrupts interrupts)
     {
-        throw new UnsupportedOperationException("TODO");
+        var delegate = new UnorderedScheduledExecutorService();
+        class Capture { UnorderedScheduledExecutorService.ScheduledFuture<?> f;}
+        Capture c = new Capture();
+        class I implements Interruptible
+        {
+            private Object state = NORMAL;
+            private boolean interrupted = false;
+            private void runOne()
+            {
+                Object cur = state;
+                if (cur == SHUTTING_DOWN_NOW || cur == SHUTTING_DOWN)
+                {
+                    state = TERMINATED;
+                    if (c.f != null)
+                        c.f.cancel(false);
+                    return;
+                }
+
+                if (cur == NORMAL && interrupted) cur = INTERRUPTED;
+                try
+                {
+                    task.run((State) cur);
+                    interrupted = false;
+                }
+                catch (TerminateException ignore)
+                {
+                    state = TERMINATED;
+                    if (c.f != null)
+                        c.f.cancel(false);
+                }
+                catch (UncheckedInterruptedException | InterruptedException e)
+                {
+                    interrupted = false;
+                    state = TERMINATED;
+                    if (c.f != null)
+                        c.f.cancel(false);
+                }
+                catch (Throwable t)
+                {
+                    if (onError != null)
+                        onError.accept(t);
+                }
+            }
+
+            @Override
+            public void interrupt()
+            {
+                interrupted = true;
+            }
+
+            @Override
+            public boolean isTerminated()
+            {
+                return state == TERMINATED;
+            }
+
+            @Override
+            public void shutdown()
+            {
+                if (state != TERMINATED && state != SHUTTING_DOWN_NOW)
+                    state = SHUTTING_DOWN;
+            }
+
+            @Override
+            public Object shutdownNow()
+            {
+                if (state != TERMINATED)
+                    state = SHUTTING_DOWN_NOW;
+                return null;
+            }
+
+            @Override
+            public boolean awaitTermination(long timeout, TimeUnit units)
+            {
+                return isTerminated();
+            }
+        }
+        I i = new I();
+        c.f = delegate.scheduleAtFixedRate(i::runOne, 0, 0, NANOSECONDS);
+        return i;
     }
 
     @Override
@@ -329,7 +439,9 @@ public class SimulatedExecutorFactory implements ExecutorFactory, Clock
         public void execute(Runnable command)
         {
             checkNotShutdown();
-            queue.add(new Item(nowWithJitter(), SimulatedExecutorFactory.this.seq++, taskFor(command)));
+            var action = taskFor(command);
+            maybeAddFailureListener(action);
+            queue.add(new Item(nowWithJitter(), SimulatedExecutorFactory.this.seq++, action));
         }
 
         protected void checkNotShutdown()
@@ -365,6 +477,7 @@ public class SimulatedExecutorFactory implements ExecutorFactory, Clock
             if (next == null)
                 return;
 
+            maybeAddFailureListener(next.action);
             next.action.addCallback((s, f) -> afterExecution());
             queue.add(next);
         }
@@ -461,6 +574,8 @@ public class SimulatedExecutorFactory implements ExecutorFactory, Clock
                     catch (Throwable t)
                     {
                         tryFailure(t);
+                        if (onError != null)
+                            onError.accept(t);
                     }
                 }
             }
@@ -477,6 +592,7 @@ public class SimulatedExecutorFactory implements ExecutorFactory, Clock
         {
             checkNotShutdown();
             ScheduledFuture<V> task = new ScheduledFuture<>(seq++, delay, 0, NANOSECONDS, callable);
+            maybeAddFailureListener(task);
             queue.add(new Item(nowWithJitter() + unit.toNanos(delay), task.sequenceNumber, task));
             return task;
         }
@@ -486,6 +602,7 @@ public class SimulatedExecutorFactory implements ExecutorFactory, Clock
         {
             checkNotShutdown();
             ScheduledFuture<?> task = new ScheduledFuture<>(seq++, initialDelay, period, unit, Executors.callable(command));
+            maybeAddFailureListener(task);
             repeatedTasks++;
             task.addCallback((s, f) -> repeatedTasks--);
             queue.add(new Item(nowWithJitter() + unit.toNanos(initialDelay), task.sequenceNumber, task));
@@ -497,6 +614,7 @@ public class SimulatedExecutorFactory implements ExecutorFactory, Clock
         {
             checkNotShutdown();
             ScheduledFuture<?> task = new ScheduledFuture<>(seq++, initialDelay, -delay, unit, Executors.callable(command));
+            maybeAddFailureListener(task);
             repeatedTasks++;
             task.addCallback((s, f) -> repeatedTasks--);
             queue.add(new Item(nowWithJitter() + unit.toNanos(initialDelay), task.sequenceNumber, task));

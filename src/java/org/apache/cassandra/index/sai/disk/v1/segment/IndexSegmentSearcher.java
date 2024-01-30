@@ -40,15 +40,15 @@ import org.apache.cassandra.index.sai.postings.PostingList;
  */
 public abstract class IndexSegmentSearcher implements SegmentOrdering, Closeable
 {
-    final PrimaryKeyMap.Factory primaryKeyMapFactory;
-    final PerColumnIndexFiles indexFiles;
-    final SegmentMetadata metadata;
-    final StorageAttachedIndex index;
+    protected final PrimaryKeyMap.Factory primaryKeyMapFactory;
+    protected final PerColumnIndexFiles indexFiles;
+    protected final SegmentMetadata metadata;
+    protected final StorageAttachedIndex index;
 
-    IndexSegmentSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
-                         PerColumnIndexFiles perIndexFiles,
-                         SegmentMetadata segmentMetadata,
-                         StorageAttachedIndex index)
+    public IndexSegmentSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
+                                PerColumnIndexFiles perIndexFiles,
+                                SegmentMetadata segmentMetadata,
+                                StorageAttachedIndex index)
     {
         this.primaryKeyMapFactory = primaryKeyMapFactory;
         this.indexFiles = perIndexFiles;
@@ -61,12 +61,7 @@ public abstract class IndexSegmentSearcher implements SegmentOrdering, Closeable
                                             SegmentMetadata segmentMetadata,
                                             StorageAttachedIndex index) throws IOException
     {
-        if (index.termType().isVector())
-            return new VectorIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, index);
-        else if (index.termType().isLiteral())
-            return new LiteralIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, index);
-        else
-            return new NumericIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, index);
+        return index.strategy().createSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata);
     }
 
     /**
@@ -84,7 +79,7 @@ public abstract class IndexSegmentSearcher implements SegmentOrdering, Closeable
      */
     public abstract KeyRangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext) throws IOException;
 
-    KeyRangeIterator toPrimaryKeyIterator(PostingList postingList, QueryContext queryContext) throws IOException
+    protected KeyRangeIterator toPrimaryKeyIterator(PostingList postingList, QueryContext queryContext) throws IOException
     {
         if (postingList == null || postingList.size() == 0)
             return KeyRangeIterator.empty();

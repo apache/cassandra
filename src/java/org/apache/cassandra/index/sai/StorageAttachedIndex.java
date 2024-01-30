@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.index.sai;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -33,22 +34,22 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CompletableFuture; //checkstyle: permit this import
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.util.concurrent.Futures; //checkstyle: permit this import
-import com.google.common.util.concurrent.ListenableFuture; //checkstyle: permit this import
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.carrotsearch.hppc.LongArrayList;
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQL3Type;
@@ -83,15 +84,33 @@ import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.index.TargetParser;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.analyzer.NonTokenizingOptions;
+import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
+import org.apache.cassandra.index.sai.disk.RowMapping;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
+import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
+import org.apache.cassandra.index.sai.disk.v1.bbtree.BlockBalancedTreeIterator;
+import org.apache.cassandra.index.sai.disk.v1.bbtree.NumericIndexWriter;
+import org.apache.cassandra.index.sai.disk.v1.segment.IndexSegmentSearcher;
+import org.apache.cassandra.index.sai.disk.v1.segment.LiteralIndexSegmentSearcher;
+import org.apache.cassandra.index.sai.disk.v1.segment.NumericIndexSegmentSearcher;
+import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
+import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
+import org.apache.cassandra.index.sai.disk.v1.segment.VectorIndexSegmentSearcher;
+import org.apache.cassandra.index.sai.disk.v1.trie.LiteralIndexWriter;
+import org.apache.cassandra.index.sai.memory.MemoryIndex;
+import org.apache.cassandra.index.sai.memory.MemtableIndex;
 import org.apache.cassandra.index.sai.memory.MemtableIndexManager;
+import org.apache.cassandra.index.sai.memory.MemtableTermsIterator;
+import org.apache.cassandra.index.sai.memory.TrieMemoryIndex;
+import org.apache.cassandra.index.sai.memory.VectorMemoryIndex;
 import org.apache.cassandra.index.sai.metrics.ColumnQueryMetrics;
 import org.apache.cassandra.index.sai.metrics.IndexMetrics;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
+import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.view.IndexViewManager;
 import org.apache.cassandra.index.sai.view.View;
@@ -103,12 +122,15 @@ import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_MAX_FROZEN_TERM_SIZE;
@@ -172,7 +194,7 @@ public class StorageAttachedIndex implements Index
     private static final Set<Class<? extends IPartitioner>> ILLEGAL_PARTITIONERS =
             ImmutableSet.of(OrderPreservingPartitioner.class, LocalPartitioner.class, ByteOrderedPartitioner.class, RandomPartitioner.class);
 
-    private final ColumnFamilyStore baseCfs;
+    protected final ColumnFamilyStore baseCfs;
     private final IndexMetadata indexMetadata;
     private final IndexTermType indexTermType;
     private final IndexIdentifier indexIdentifier;
@@ -190,6 +212,7 @@ public class StorageAttachedIndex implements Index
 
     // Tracks whether the index has been invalidated due to removal, a table drop, etc.
     private volatile boolean valid = true;
+    private final Strategy strategy;
 
     public StorageAttachedIndex(ColumnFamilyStore baseCfs, IndexMetadata indexMetadata)
     {
@@ -199,16 +222,28 @@ public class StorageAttachedIndex implements Index
         Pair<ColumnMetadata, IndexTarget.Type> target = TargetParser.parse(tableMetadata, indexMetadata);
         indexTermType = IndexTermType.create(target.left, tableMetadata.partitionKeyColumns(), target.right);
         indexIdentifier = new IndexIdentifier(baseCfs.getKeyspaceName(), baseCfs.getTableName(), indexMetadata.name);
+        this.strategy = createStrategy(baseCfs, indexMetadata, indexTermType, indexIdentifier);
+
         primaryKeyFactory = new PrimaryKey.Factory(tableMetadata.partitioner, tableMetadata.comparator);
         indexWriterConfig = IndexWriterConfig.fromOptions(indexMetadata.name, indexTermType, indexMetadata.options);
         viewManager = new IndexViewManager(this);
+        //TODO (now): push to Strategy?
         columnQueryMetrics = indexTermType.isLiteral() ? new ColumnQueryMetrics.TrieIndexMetrics(indexIdentifier)
                                                        : new ColumnQueryMetrics.BalancedTreeIndexMetrics(indexIdentifier);
         analyzerFactory = AbstractAnalyzer.fromOptions(indexTermType, indexMetadata.options);
         memtableIndexManager = new MemtableIndexManager(this);
         indexMetrics = new IndexMetrics(this, memtableIndexManager);
+        //TODO (now): push to Strategy?
         maxTermSize = indexTermType.isVector() ? MAX_VECTOR_TERM_SIZE
                                                : (indexTermType.isFrozen() ? MAX_FROZEN_TERM_SIZE : MAX_STRING_TERM_SIZE);
+    }
+
+    protected Strategy createStrategy(ColumnFamilyStore baseCfs,
+                                      IndexMetadata indexMetadata,
+                                      IndexTermType indexTermType,
+                                      IndexIdentifier indexIdentifier)
+    {
+        return indexTermType.isVector() ? new VectorStrategy(this) : new LiteralOrNumericStrategy(this);
     }
 
     /**
@@ -969,6 +1004,173 @@ public class StorageAttachedIndex implements Index
             // The memtable will assert if we try and reduce its memory usage so, for now, just don't tell it.
             if (additionalSpace >= 0)
                 memtable.markExtraOnHeapUsed(additionalSpace, opGroup);
+        }
+    }
+
+    public Strategy strategy()
+    {
+        return strategy;
+    }
+
+    public interface Flusher
+    {
+        @Nullable
+        SegmentMetadata flush(MemtableIndex memtable, IndexDescriptor indexDescriptor, RowMapping rowMapping) throws IOException;
+    }
+
+    public interface Strategy
+    {
+        MemoryIndex createMemoryIndex();
+        Flusher flusher();
+        SegmentBuilder createSegmentBuilder(NamedMemoryLimiter limiter);
+        IndexSegmentSearcher createSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
+                                            PerColumnIndexFiles indexFiles,
+                                            SegmentMetadata segmentMetadata) throws IOException;
+    }
+
+    //TODO (now): should this depend on StorageAttachedIndex or the inputs to createStrategy?
+    // So far the API exposes the params to that method, and that would make sure that "index" is final
+    // and doesn't leak
+    public static abstract class AbstractStrategy implements Strategy
+    {
+        protected final StorageAttachedIndex index;
+
+        protected AbstractStrategy(StorageAttachedIndex index)
+        {
+            this.index = index;
+        }
+
+        protected IndexTermType indexTermType()
+        {
+            return index.indexTermType;
+        }
+
+        protected IndexIdentifier indexIdentifier()
+        {
+            return index.indexIdentifier;
+        }
+    }
+
+    public static class VectorStrategy extends AbstractStrategy
+    {
+        protected VectorStrategy(StorageAttachedIndex index)
+        {
+            super(index);
+        }
+
+        @Override
+        public MemoryIndex createMemoryIndex()
+        {
+            return new VectorMemoryIndex(index);
+        }
+
+        @Override
+        public Flusher flusher()
+        {
+            return (memtable, indexDescriptor, rowMapping) -> {
+                SegmentMetadata.ComponentMetadataMap metadataMap = memtable.writeDirect(indexDescriptor, indexIdentifier(), rowMapping::get);
+
+                return new SegmentMetadata(0,
+                                           rowMapping.size(),
+                                           0,
+                                           rowMapping.maxSSTableRowId,
+                                           rowMapping.minKey,
+                                           rowMapping.maxKey,
+                                           ByteBufferUtil.bytes(0),
+                                           ByteBufferUtil.bytes(0),
+                                           metadataMap);
+            };
+        }
+
+        @Override
+        public SegmentBuilder createSegmentBuilder(NamedMemoryLimiter limiter)
+        {
+            return new SegmentBuilder.VectorSegmentBuilder(index.termType(), limiter, index.indexWriterConfig());
+        }
+
+        @Override
+        public IndexSegmentSearcher createSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory, PerColumnIndexFiles indexFiles, SegmentMetadata segmentMetadata) throws IOException
+        {
+            return new VectorIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, index);
+        }
+    }
+
+    public static class LiteralOrNumericStrategy extends AbstractStrategy
+    {
+        public LiteralOrNumericStrategy(StorageAttachedIndex index)
+        {
+            super(index);
+        }
+
+        @Override
+        public MemoryIndex createMemoryIndex()
+        {
+            return new TrieMemoryIndex(index);
+        }
+
+        @Override
+        public Flusher flusher()
+        {
+            return (memtable, indexDescriptor, rowMapping) -> {
+                final Iterator<Pair<ByteComparable, LongArrayList>> iterator = rowMapping.merge(memtable);
+
+                try (MemtableTermsIterator terms = new MemtableTermsIterator(memtable.getMinTerm(), memtable.getMaxTerm(), iterator))
+                {
+                    long numRows;
+                    SegmentMetadata.ComponentMetadataMap indexMetas;
+
+                    if (indexTermType().isLiteral())
+                    {
+                        try (LiteralIndexWriter writer = new LiteralIndexWriter(indexDescriptor, indexIdentifier()))
+                        {
+                            indexMetas = writer.writeCompleteSegment(terms);
+                            numRows = writer.getPostingsCount();
+                        }
+                    }
+                    else
+                    {
+                        NumericIndexWriter writer = new NumericIndexWriter(indexDescriptor,
+                                                                           indexIdentifier(),
+                                                                           indexTermType().fixedSizeOf(),
+                                                                           rowMapping.maxSSTableRowId);
+                        indexMetas = writer.writeCompleteSegment(BlockBalancedTreeIterator.fromTermsIterator(terms, indexTermType()));
+                        numRows = writer.getValueCount();
+                    }
+
+                    // If no rows were written we need to delete any created column index components
+                    // so that the index is correctly identified as being empty (only having a completion marker)
+                    if (numRows == 0)
+                    {
+                        indexDescriptor.deleteColumnIndex(indexTermType(), indexIdentifier());
+                        return null;
+                    }
+
+                    // During index memtable flush, the data is sorted based on terms.
+                    return new SegmentMetadata(0,
+                                               numRows,
+                                               terms.getMinSSTableRowId(),
+                                               terms.getMaxSSTableRowId(),
+                                               rowMapping.minKey,
+                                               rowMapping.maxKey,
+                                               terms.getMinTerm(),
+                                               terms.getMaxTerm(),
+                                               indexMetas);
+                }
+            };
+        }
+
+        @Override
+        public SegmentBuilder createSegmentBuilder(NamedMemoryLimiter limiter)
+        {
+            return index.termType().isLiteral() ? new SegmentBuilder.RAMStringSegmentBuilder(index.termType(), limiter)
+                                                : new SegmentBuilder.BlockBalancedTreeSegmentBuilder(index.termType(), limiter);
+        }
+
+        @Override
+        public IndexSegmentSearcher createSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory, PerColumnIndexFiles indexFiles, SegmentMetadata segmentMetadata) throws IOException
+        {
+            return index.termType().isLiteral() ? new LiteralIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, index)
+                                                : new NumericIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, index);
         }
     }
 }

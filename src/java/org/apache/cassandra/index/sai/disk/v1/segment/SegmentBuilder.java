@@ -59,24 +59,24 @@ public abstract class SegmentBuilder
     private static volatile long minimumFlushBytes;
     private final NamedMemoryLimiter limiter;
     private final long lastValidSegmentRowID;
-    private boolean flushed = false;
+    protected boolean flushed = false;
     private boolean active = true;
     // segment metadata
-    private long minSSTableRowId = -1;
-    private long maxSSTableRowId = -1;
-    private long segmentRowIdOffset = 0;
+    protected long minSSTableRowId = -1;
+    protected long maxSSTableRowId = -1;
+    protected long segmentRowIdOffset = 0;
 
     // in token order
-    private PrimaryKey minKey;
-    private PrimaryKey maxKey;
+    protected PrimaryKey minKey;
+    protected PrimaryKey maxKey;
     // in termComparator order
-    private ByteBuffer minTerm;
-    private ByteBuffer maxTerm;
+    protected ByteBuffer minTerm;
+    protected ByteBuffer maxTerm;
 
     final IndexTermType indexTermType;
-    long totalBytesAllocated;
-    int rowCount = 0;
-    int maxSegmentRowId = -1;
+    protected long totalBytesAllocated;
+    protected int rowCount = 0;
+    protected int maxSegmentRowId = -1;
 
     public static class BlockBalancedTreeSegmentBuilder extends SegmentBuilder
     {
@@ -196,7 +196,7 @@ public abstract class SegmentBuilder
         return ACTIVE_BUILDER_COUNT.get();
     }
 
-    private SegmentBuilder(IndexTermType indexTermType, NamedMemoryLimiter limiter)
+    protected SegmentBuilder(IndexTermType indexTermType, NamedMemoryLimiter limiter)
     {
         this.indexTermType = indexTermType;
         this.limiter = limiter;

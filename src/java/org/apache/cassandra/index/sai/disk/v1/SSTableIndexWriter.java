@@ -306,14 +306,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
 
     private SegmentBuilder newSegmentBuilder()
     {
-        SegmentBuilder builder;
-
-        if (index.termType().isVector())
-            builder = new SegmentBuilder.VectorSegmentBuilder(index.termType(), limiter, index.indexWriterConfig());
-        else if (index.termType().isLiteral())
-            builder = new SegmentBuilder.RAMStringSegmentBuilder(index.termType(), limiter);
-        else
-            builder = new SegmentBuilder.BlockBalancedTreeSegmentBuilder(index.termType(), limiter);
+        SegmentBuilder builder = index.strategy().createSegmentBuilder(limiter);
 
         long globalBytesUsed = limiter.increment(builder.totalBytesAllocated());
         logger.debug(index.identifier().logMessage("Created new segment builder while flushing SSTable {}. Global segment memory usage now at {}."),

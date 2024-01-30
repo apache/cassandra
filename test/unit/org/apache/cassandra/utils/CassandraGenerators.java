@@ -29,11 +29,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
@@ -55,8 +55,8 @@ import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.EmptyType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
@@ -601,6 +601,21 @@ public final class CassandraGenerators
         return rs -> partitioner.getToken(bytes.generate(rs));
     }
 
+    public static Gen<IPartitioner> localPartitioner()
+    {
+        return AbstractTypeGenerators.safeTypeGen().map(LocalPartitioner::new);
+    }
+
+    public static Gen<Token> localPartitionerToken()
+    {
+        var lpGen = localPartitioner();
+        return rs -> {
+            var lp = lpGen.generate(rs);
+            var bytes = AbstractTypeGenerators.getTypeSupport(lp.getTokenValidator()).bytesGen();
+            return lp.getToken(bytes.generate(rs));
+        };
+    }
+
     public static Gen<Token> orderPreservingToken()
     {
         // empty token only happens if partition key is byte[0], which isn't allowed
@@ -613,6 +628,37 @@ public final class CassandraGenerators
         IPartitioner partitioner = range.left.getPartitioner();
         if (partitioner instanceof Murmur3Partitioner) return murmurTokenIn(range);
         throw new UnsupportedOperationException("Unsupported partitioner: " + partitioner.getClass());
+    }
+
+    private enum SupportedPartitioners { Murmur, ByteOrdered, Random, Local, OrderPreserving}
+
+    // need to use Supplier<Gen> here else this loads AbstractTypeGenerators, which depends on this class; so circular dependency
+    private static final ImmutableMap<SupportedPartitioners, Supplier<Gen<Token>>> PARTITIONERS = ImmutableMap.of(SupportedPartitioners.Murmur, CassandraGenerators::murmurToken,
+                                                                                                                  SupportedPartitioners.ByteOrdered, CassandraGenerators::byteOrderToken,
+                                                                                                                  SupportedPartitioners.Random, CassandraGenerators::randomPartitionerToken,
+                                                                                                                  SupportedPartitioners.Local, CassandraGenerators::localPartitionerToken,
+                                                                                                                  SupportedPartitioners.OrderPreserving, CassandraGenerators::orderPreservingToken);
+
+    public static Gen<IPartitioner> partitioners()
+    {
+        var pGen = SourceDSL.arbitrary().enumValues(SupportedPartitioners.class);
+        return pGen.flatMap(p -> {
+            switch (p)
+            {
+                case Murmur: return ignore -> Murmur3Partitioner.instance;
+                case ByteOrdered: return ignore -> ByteOrderedPartitioner.instance;
+                case Random: return ignore -> RandomPartitioner.instance;
+                case OrderPreserving: return ignore -> OrderPreservingPartitioner.instance;
+                case Local: return localPartitioner();
+                default: throw new AssertionError("Unknown partition: " + p);
+            }
+        });
+    }
+
+    public static Gen<Token> token()
+    {
+        var pGen = SourceDSL.arbitrary().enumValues(SupportedPartitioners.class);
+        return pGen.flatMap(p -> PARTITIONERS.get(p).get());
     }
 
     public static Gen<Token> token(IPartitioner partitioner)

@@ -49,7 +49,7 @@ public class LiteralIndexSegmentSearcher extends IndexSegmentSearcher
     private final LiteralIndexSegmentTermsReader reader;
     private final QueryEventListener.TrieIndexEventListener perColumnEventListener;
 
-    LiteralIndexSegmentSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
+    public LiteralIndexSegmentSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
                                 PerColumnIndexFiles perIndexFiles,
                                 SegmentMetadata segmentMetadata,
                                 StorageAttachedIndex index) throws IOException

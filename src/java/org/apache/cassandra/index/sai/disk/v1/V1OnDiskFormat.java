@@ -31,6 +31,7 @@ import com.codahale.metrics.Gauge;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.PerColumnIndexWriter;
@@ -49,6 +50,8 @@ import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.lucene.store.IndexInput;
 
@@ -94,6 +97,20 @@ public class V1OnDiskFormat implements OnDiskFormat
                                                                            IndexComponent.COMPRESSED_VECTORS,
                                                                            IndexComponent.TERMS_DATA,
                                                                            IndexComponent.POSTING_LISTS);
+
+    @VisibleForTesting
+    public static final Set<IndexComponent> ACCORD_ROUTING_KEY_COMPONENTS = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
+                                                                                       IndexComponent.META,
+                                                                                       IndexComponent.BALANCED_TREE,
+                                                                                       IndexComponent.POSTING_LISTS,
+                                                                                       IndexComponent.ACCORD_TABLES_TO_INDEX);
+
+    @VisibleForTesting
+    public static final Set<IndexComponent> ACCORD_RANGE_COMPONENTS = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
+                                                                                 IndexComponent.META,
+                                                                                 IndexComponent.CINTIA_SORTED_LIST,
+                                                                                 IndexComponent.CINTIA_CHECKPOINTS,
+                                                                                 IndexComponent.ACCORD_TABLES_TO_INDEX);
 
     /**
      * Global limit on heap consumed by all index segment building that occurs outside the context of Memtable flush.
@@ -169,6 +186,7 @@ public class V1OnDiskFormat implements OnDiskFormat
                                        index.termType(),
                                        index.identifier(),
                                        index.indexMetrics(),
+                                       index.strategy().flusher(),
                                        rowMapping);
     }
 
@@ -269,7 +287,27 @@ public class V1OnDiskFormat implements OnDiskFormat
     @Override
     public Set<IndexComponent> perColumnIndexComponents(IndexTermType indexTermType)
     {
-        return indexTermType.isVector() ? VECTOR_COMPONENTS : indexTermType.isLiteral() ? LITERAL_COMPONENTS : NUMERIC_COMPONENTS;
+        return indexTermType.isVector() ? VECTOR_COMPONENTS :
+               indexTermType.isLiteral() ? LITERAL_COMPONENTS :
+               isAccordRange(indexTermType) ? ACCORD_RANGE_COMPONENTS :
+//               isAccordRoutingKey(indexTermType) ? ACCORD_ROUTING_KEY_COMPONENTS :
+               NUMERIC_COMPONENTS;
+    }
+
+    public boolean isAccordRange(IndexTermType indexTermType)
+    {
+        return indexTermType.indexType() == BytesType.instance
+               && SchemaConstants.ACCORD_KEYSPACE_NAME.equals(indexTermType.columnMetadata().ksName)
+               && AccordKeyspace.COMMANDS.equals(indexTermType.columnMetadata().cfName)
+               && "route".equals(indexTermType.columnName());
+    }
+
+    public boolean isAccordRoutingKey(IndexTermType indexTermType)
+    {
+        return indexTermType.indexType() == BytesType.instance
+               && SchemaConstants.ACCORD_KEYSPACE_NAME.equals(indexTermType.columnMetadata().ksName)
+               && AccordKeyspace.COMMANDS.equals(indexTermType.columnMetadata().cfName)
+               && "route".equals(indexTermType.columnName());
     }
 
     @Override
