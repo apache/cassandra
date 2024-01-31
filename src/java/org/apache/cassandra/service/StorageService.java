@@ -1901,7 +1901,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public String getLocalHostId()
     {
-        return getLocalHostUUID().toString();
+        UUID id = getLocalHostUUID();
+        return id != null ? id.toString() : null;
     }
 
     public UUID getLocalHostUUID()
@@ -3728,7 +3729,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Deprecated(since = "CEP-21")
     public String getOperationMode()
     {
-        return operationMode().toString();
+        Mode mode = operationMode();
+        return mode == null ? null : mode.toString();
     }
 
     public Mode operationMode()
@@ -3740,6 +3742,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             return transientMode.get();
 
         NodeState nodeState = ClusterMetadata.current().myNodeState();
+        if (nodeState == null)
+            return null;
         switch (nodeState)
         {
             case REGISTERED:
