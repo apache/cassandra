@@ -18,6 +18,8 @@
 package org.apache.cassandra.auth;
 
 import java.net.InetSocketAddress;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import com.google.common.base.Objects;
 
@@ -33,10 +35,10 @@ import org.apache.cassandra.dht.Datacenters;
 public class AuthenticatedUser
 {
     public static final String SYSTEM_USERNAME = "system";
-    public static final AuthenticatedUser SYSTEM_USER = new AuthenticatedUser(SYSTEM_USERNAME);
+    public static final AuthenticatedUser SYSTEM_USER = new AuthenticatedUser(SYSTEM_USERNAME, SYSTEM_USERNAME);
 
     public static final String ANONYMOUS_USERNAME = "anonymous";
-    public static final AuthenticatedUser ANONYMOUS_USER = new AuthenticatedUser(ANONYMOUS_USERNAME);
+    public static final AuthenticatedUser ANONYMOUS_USER = new AuthenticatedUser(ANONYMOUS_USERNAME, ANONYMOUS_USERNAME);
 
     // User-level permissions cache.
     public static final PermissionsCache permissionsCache = new PermissionsCache(DatabaseDescriptor.getAuthorizer());
@@ -55,13 +57,34 @@ public class AuthenticatedUser
 
     private final String name;
 
-    // Primary Role of the logged in user
+    private final String mode;
+
+    private final Map<String, String> metadata;
+
+    // Primary Role of the logged-in user
     private final RoleResource role;
+
+    /**
+     * Defines a mode that could not be determined (none provided to constructor).
+     */
+    public static final String UNKNOWN_MODE = "UNKNOWN";
 
     public AuthenticatedUser(String name)
     {
+        this(name, UNKNOWN_MODE);
+    }
+
+    public AuthenticatedUser(String name, String mode)
+    {
+        this(name, mode, Collections.emptyMap());
+    }
+
+    public AuthenticatedUser(String name, String mode, Map<String, String> metadata)
+    {
         this.name = name;
         this.role = RoleResource.role(name);
+        this.mode = mode;
+        this.metadata = metadata;
     }
 
     public String getName()
@@ -72,6 +95,22 @@ public class AuthenticatedUser
     public RoleResource getPrimaryRole()
     {
         return role;
+    }
+
+    /**
+     * The mode of authentication used to authenticate this user, e.g. 'password', 'mtls', 'anonymous', etc.
+     */
+    public String getMode()
+    {
+        return mode;
+    }
+
+    /**
+     * {@link IAuthenticator}-contextual metadata about how the user was authenticated.
+     */
+    public Map<String, String> getMetadata()
+    {
+        return metadata;
     }
 
     /**
@@ -179,6 +218,12 @@ public class AuthenticatedUser
     @Override
     public int hashCode()
     {
+        // Note: for reasons of maintaining the invariant that an object that equals maintains the same hashCode,
+        // we do not include mode and metadata in the hashCode calculation.
+        // This is particularly salient as there are cases where AuthenticatedUser is used as a key in
+        // Role/Permissions cache. In effect, we would like to treat all connections sharing the same name as the same
+        // user, where mode and metadata are just additional context about how the user authenticated that
+        // should not factor into 'equivalence' of users.
         return Objects.hashCode(name);
     }
 }

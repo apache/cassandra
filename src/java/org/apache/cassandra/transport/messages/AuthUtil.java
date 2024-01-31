@@ -58,6 +58,7 @@ public final class AuthUtil
     static Response handleLogin(Connection connection, QueryState queryState, byte[] token,
                                 BiFunction<Boolean, byte[], Response> messageToSendBasedOnNegotiation)
     {
+        IAuthenticator.SaslNegotiator negotiator = ((ServerConnection) connection).getSaslNegotiator(queryState);
         try
         {
             // client-side timeout can disconnect while sitting in auth executor queue so (client default 12s)
@@ -66,13 +67,12 @@ public final class AuthUtil
             {
                 throw new AuthenticationException("Auth check after connection closed");
             }
-            IAuthenticator.SaslNegotiator negotiator = ((ServerConnection) connection).getSaslNegotiator(queryState);
             byte[] challenge = negotiator.evaluateResponse(token);
             if (negotiator.isComplete())
             {
                 AuthenticatedUser user = negotiator.getAuthenticatedUser();
                 queryState.getClientState().login(user);
-                ClientMetrics.instance.markAuthSuccess();
+                ClientMetrics.instance.markAuthSuccess(user.getMode());
                 AuthEvents.instance.notifyAuthSuccess(queryState);
                 // authentication is complete, complete the authentication flow.
                 return messageToSendBasedOnNegotiation.apply(true, challenge);
@@ -85,7 +85,7 @@ public final class AuthUtil
         }
         catch (AuthenticationException e)
         {
-            ClientMetrics.instance.markAuthFailure();
+            ClientMetrics.instance.markAuthFailure(negotiator.getMode());
             AuthEvents.instance.notifyAuthFailure(queryState, e);
             return ErrorMessage.fromException(e);
         }

@@ -21,6 +21,9 @@ package org.apache.cassandra.auth;
 import java.net.InetAddress;
 import java.security.cert.Certificate;
 import java.util.Map;
+import java.util.Set;
+
+import com.google.common.collect.Sets;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -34,6 +37,9 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 public class MutualTlsWithPasswordFallbackAuthenticator extends PasswordAuthenticator
 {
     private final MutualTlsAuthenticator mutualTlsAuthenticator;
+
+    private static final Set<String> MODES = Sets.newHashSet(PasswordAuthenticator.MODE, MutualTlsAuthenticator.MODE);
+
     public MutualTlsWithPasswordFallbackAuthenticator(Map<String, String> parameters)
     {
         mutualTlsAuthenticator = new MutualTlsAuthenticator(parameters);
@@ -50,6 +56,12 @@ public class MutualTlsWithPasswordFallbackAuthenticator extends PasswordAuthenti
     public boolean supportsEarlyAuthentication()
     {
         return true;
+    }
+
+    @Override
+    public Set<String> getSupportedAuthenticationModes()
+    {
+        return MODES;
     }
 
     @Override

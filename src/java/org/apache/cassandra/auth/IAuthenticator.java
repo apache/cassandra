@@ -19,6 +19,7 @@ package org.apache.cassandra.auth;
 
 import java.net.InetAddress;
 import java.security.cert.Certificate;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
@@ -105,6 +106,15 @@ public interface IAuthenticator
     }
 
     /**
+     * @return The supported authentication 'modes' (e.g. password) of this authenticator.  This is currently
+     * only used for registering metrics tied to authentication by mode.
+     */
+    default Set<String> getSupportedAuthenticationModes()
+    {
+        return Collections.emptySet();
+    }
+
+    /**
      * A legacy method that is still used by JMX authentication.
      *
      * You should implement this for having JMX authentication through your
@@ -178,6 +188,14 @@ public interface IAuthenticator
         default boolean shouldSendAuthenticateMessage()
         {
             return true;
+        }
+
+        /**
+         * @return The assumed mode of authentication attempted using this negotiator (e.g. 'password', 'mtls')
+         * which is surfaced in metrics.
+         */
+        default String getMode() {
+            return AuthenticatedUser.UNKNOWN_MODE;
         }
     }
 }

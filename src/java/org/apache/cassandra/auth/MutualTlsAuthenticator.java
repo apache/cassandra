@@ -21,6 +21,7 @@ package org.apache.cassandra.auth;
 import java.net.InetAddress;
 import java.security.cert.Certificate;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -69,6 +70,12 @@ public class MutualTlsAuthenticator implements IAuthenticator
     private static final String CACHE_NAME = "IdentitiesCache";
     private final IdentityCache identityCache = new IdentityCache();
     private final MutualTlsCertificateValidator certificateValidator;
+    static final String MODE = "mtls";
+
+    private static final Set<String> MODES = Collections.singleton(MODE);
+
+    // key for the 'identity' value in AuthenticatedUser metadata map.
+    static final String METADATA_IDENTITY_KEY = "identity";
 
     public MutualTlsAuthenticator(Map<String, String> parameters)
     {
@@ -134,6 +141,12 @@ public class MutualTlsAuthenticator implements IAuthenticator
     }
 
     @Override
+    public Set<String> getSupportedAuthenticationModes()
+    {
+        return MODES;
+    }
+
+    @Override
     public AuthenticatedUser legacyAuthenticate(Map<String, String> credentials) throws AuthenticationException
     {
         throw new AuthenticationException("mTLS authentication is not supported for CassandraLoginModule");
@@ -196,7 +209,13 @@ public class MutualTlsAuthenticator implements IAuthenticator
                 nospamLogger.error(msg, identity);
                 throw new AuthenticationException(MessageFormatter.format(msg, identity).getMessage());
             }
-            return new AuthenticatedUser(role);
+            return new AuthenticatedUser(role, MODE, Collections.singletonMap(METADATA_IDENTITY_KEY, identity));
+        }
+
+        @Override
+        public String getMode()
+        {
+            return MODE;
         }
     }
 

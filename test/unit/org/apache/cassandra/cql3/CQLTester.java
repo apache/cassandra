@@ -165,6 +165,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.transport.SimpleClient;
+import org.apache.cassandra.transport.TlsTestUtils;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -562,18 +563,17 @@ public abstract class CQLTester
      * with {@link Server.Builder#withTlsEncryptionPolicy(EncryptionOptions.TlsEncryptionPolicy)} using
      * {@link org.apache.cassandra.config.EncryptionOptions.TlsEncryptionPolicy#ENCRYPTED}.
      */
-    protected static void requireNativeProtocolClientEncryption()
+    public static void requireNativeProtocolClientEncryption()
     {
-        DatabaseDescriptor.updateNativeProtocolEncryptionOptions((encryptionOptions ->
-                encryptionOptions.withEnabled(true)
-                        .withKeyStore("test/conf/cassandra_ssl_test.keystore")
-                        .withKeyStorePassword("cassandra")
-                        .withTrustStore("test/conf/cassandra_ssl_test.truststore")
-                        .withTrustStorePassword("cassandra")
-                        .withRequireEndpointVerification(false)
-                        .withRequireClientAuth(EncryptionOptions.ClientAuth.OPTIONAL)));
+        DatabaseDescriptor.updateNativeProtocolEncryptionOptions((encryptionOptions) ->
+                                                                 encryptionOptions.withEnabled(true)
+                                                                                  .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH)
+                                                                                  .withKeyStorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
+                                                                                  .withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PATH)
+                                                                                  .withTrustStorePassword(TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD)
+                                                                                  .withRequireEndpointVerification(false)
+                                                                                  .withRequireClientAuth(EncryptionOptions.ClientAuth.OPTIONAL));
     }
-
 
     /**
      *  Initialize Native Transport for test that need it.

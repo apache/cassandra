@@ -20,6 +20,7 @@ package org.apache.cassandra.auth;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -72,6 +73,9 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
     // really this is a rolename now, but as it only matters for Thrift, we leave it for backwards compatibility
     public static final String USERNAME_KEY = "username";
     public static final String PASSWORD_KEY = "password";
+    static final String MODE = "password";
+
+    private static final Set<String> MODES = Collections.singleton(MODE);
 
     static final byte NUL = 0;
     private SelectStatement authenticateStatement;
@@ -164,7 +168,7 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
         if (!checkpw(password, hash))
             throw new AuthenticationException(String.format("Provided username %s and/or password are incorrect", username));
 
-        return new AuthenticatedUser(username);
+        return new AuthenticatedUser(username, MODE);
     }
 
     private String queryHashedPassword(String username)
@@ -238,6 +242,12 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
         return new PlainTextSaslAuthenticator();
     }
 
+    @Override
+    public Set<String> getSupportedAuthenticationModes()
+    {
+        return MODES;
+    }
+
     private static SelectStatement prepare(String query)
     {
         return (SelectStatement) QueryProcessor.getStatement(query, ClientState.forInternalCalls());
@@ -267,6 +277,12 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
             if (!complete)
                 throw new AuthenticationException("SASL negotiation not complete");
             return authenticate(username, password);
+        }
+
+        @Override
+        public String getMode()
+        {
+            return MODE;
         }
 
         /**

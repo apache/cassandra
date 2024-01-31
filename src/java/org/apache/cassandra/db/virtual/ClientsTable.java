@@ -41,6 +41,8 @@ final class ClientsTable extends AbstractVirtualTable
     private static final String SSL_PROTOCOL = "ssl_protocol";
     private static final String SSL_CIPHER_SUITE = "ssl_cipher_suite";
     private static final String KEYSPACE_NAME = "keyspace_name";
+    private static final String MODE = "mode";
+    private static final String METADATA = "metadata";
 
     ClientsTable(String keyspace)
     {
@@ -62,6 +64,8 @@ final class ClientsTable extends AbstractVirtualTable
                            .addRegularColumn(SSL_PROTOCOL, UTF8Type.instance)
                            .addRegularColumn(SSL_CIPHER_SUITE, UTF8Type.instance)
                            .addRegularColumn(KEYSPACE_NAME, UTF8Type.instance)
+                           .addRegularColumn(MODE, UTF8Type.instance)
+                           .addRegularColumn(METADATA, MapType.getInstance(UTF8Type.instance, UTF8Type.instance, false))
                            .build());
     }
 
@@ -86,7 +90,9 @@ final class ClientsTable extends AbstractVirtualTable
                   .column(SSL_ENABLED, client.sslEnabled())
                   .column(SSL_PROTOCOL, client.sslProtocol().orElse(null))
                   .column(SSL_CIPHER_SUITE, client.sslCipherSuite().orElse(null))
-                  .column(KEYSPACE_NAME, client.keyspace().orElse(null));
+                  .column(KEYSPACE_NAME, client.keyspace().orElse(null))
+                  .column(MODE, client.mode().orElse(null))
+                  .column(METADATA, client.metadata().orElse(null));
         }
 
         return result;

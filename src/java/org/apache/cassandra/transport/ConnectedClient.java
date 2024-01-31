@@ -42,6 +42,8 @@ public final class ConnectedClient
     public static final String SSL = "ssl";
     public static final String CIPHER = "cipher";
     public static final String PROTOCOL = "protocol";
+    public static final String MODE = "mode";
+    public static final String METADATA = "metadata";
 
     private static final String UNDEFINED = "undefined";
 
@@ -124,6 +126,24 @@ public final class ConnectedClient
              : Optional.empty();
     }
 
+    public Optional<Map<String, String>> metadata()
+    {
+        AuthenticatedUser user = state().getUser();
+
+        return null != user
+                ? Optional.of(user.getMetadata())
+                : Optional.empty();
+    }
+
+    public Optional<String> mode()
+    {
+        AuthenticatedUser user = state().getUser();
+
+        return null != user
+                ? Optional.of(user.getMode())
+                : Optional.empty();
+    }
+
     private ClientState state()
     {
         return connection.getClientState();
@@ -150,6 +170,10 @@ public final class ConnectedClient
                            .put(SSL, Boolean.toString(sslEnabled()))
                            .put(CIPHER, sslCipherSuite().orElse(UNDEFINED))
                            .put(PROTOCOL, sslProtocol().orElse(UNDEFINED))
+                           .put(MODE, mode().orElse(UNDEFINED))
+                           .put(METADATA, Joiner.on(", ")
+                                   .withKeyValueSeparator("=")
+                                   .join(metadata().orElse(Collections.emptyMap())))
                            .build();
     }
 }

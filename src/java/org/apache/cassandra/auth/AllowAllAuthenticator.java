@@ -22,12 +22,16 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
+import com.google.common.collect.Sets;
+
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
 public class AllowAllAuthenticator implements IAuthenticator
 {
     private static final SaslNegotiator AUTHENTICATOR_INSTANCE = new Negotiator();
+
+    private static final Set<String> MODES = Sets.newHashSet(AuthenticatedUser.ANONYMOUS_USERNAME);
 
     public boolean requireAuthentication()
     {
@@ -50,6 +54,12 @@ public class AllowAllAuthenticator implements IAuthenticator
     public SaslNegotiator newSaslNegotiator(InetAddress clientAddress)
     {
         return AUTHENTICATOR_INSTANCE;
+    }
+
+    @Override
+    public Set<String> getSupportedAuthenticationModes()
+    {
+        return MODES;
     }
 
     public AuthenticatedUser legacyAuthenticate(Map<String, String> credentialsData)

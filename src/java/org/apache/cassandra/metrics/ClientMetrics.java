@@ -20,12 +20,20 @@ package org.apache.cassandra.metrics;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Reservoir;
+import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.auth.IAuthenticator;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.*;
+import org.apache.commons.lang3.StringUtils;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -38,10 +46,35 @@ public final class ClientMetrics
     private volatile boolean initialized = false;
     private Collection<Server> servers = Collections.emptyList();
 
-    private Meter authSuccess;
-    private Meter authFailure;
+    @VisibleForTesting
+    Meter authSuccess;
+
+    @VisibleForTesting
+    final Map<String, Meter> authSuccessByMode = new HashMap<>();
+
+    @VisibleForTesting
+    Meter authFailure;
+
+    @VisibleForTesting
+    final Map<String, Meter> authFailureByMode = new HashMap<>();
+
+    @VisibleForTesting
+    Gauge<Integer> connectedNativeClients;
+
+    @VisibleForTesting
+    Gauge<Integer> encryptedConnectedNativeClients;
+
+    @VisibleForTesting
+    Gauge<Integer> unencryptedConnectedNativeClients;
+
+    @VisibleForTesting
+    Gauge<Map<String, Integer>> connectedNativeClientsByUser;
+
+    @VisibleForTesting
+    final Map<String, Gauge<Integer>> connectedNativeClientsByAuthMode = new HashMap<>();
+
     private AtomicInteger pausedConnections;
-    
+
     @SuppressWarnings({ "unused", "FieldCanBeLocal" })
     private Gauge<Integer> pausedConnectionsGauge;
     
@@ -51,18 +84,60 @@ public final class ClientMetrics
     private Meter protocolException;
     private Meter unknownException;
 
+    private static String AUTH_SUCCESS = "AuthSuccess";
+
+    private static String AUTH_FAILURE = "AuthFailure";
+
+    private static String CONNECTED_NATIVE_CLIENTS = "ConnectedNativeClients";
+
     private ClientMetrics()
     {
     }
 
+    /**
+     * @deprecated by {@link #markAuthSuccess(String)}
+     */
+    @Deprecated(since="5.1", forRemoval = true)
     public void markAuthSuccess()
     {
-        authSuccess.mark();
+        markAuthSuccess(null);
     }
 
+    public void markAuthSuccess(final String mode)
+    {
+        markAuthMeter(authSuccess, AUTH_SUCCESS, mode);
+    }
+
+    /**
+     * @deprecated by {@link #markAuthFailure(String)}
+     */
+    @Deprecated(since="5.1", forRemoval = true)
     public void markAuthFailure()
     {
         authFailure.mark();
+    }
+
+    public void markAuthFailure(final String mode)
+    {
+        markAuthMeter(authFailure, AUTH_FAILURE, mode);
+    }
+
+    private void markAuthMeter(final Meter meter, final String meterPrefix, final String mode)
+    {
+        meter.mark();
+
+        if (mode != null)
+        {
+            Map<String, Meter> meterMap = meterPrefix.equals(AUTH_SUCCESS) ? authSuccessByMode : authFailureByMode;
+
+            // if there is no meter for this mode, the authenticator must have surfaced a mode that it doesn't
+            // list in 'getSupportedAuthenticationModes', in this case, just don't mark.
+            Meter modeMeter = meterMap.get(mode);
+            if (modeMeter != null)
+            {
+                modeMeter.mark();
+            }
+        }
     }
 
     public void pauseConnection() { pausedConnections.incrementAndGet(); }
@@ -99,8 +174,8 @@ public final class ClientMetrics
         this.servers = servers;
 
         // deprecated the lower-cased initial letter metric names in 4.0
-        registerGauge("ConnectedNativeClients", "connectedNativeClients", this::countConnectedClients);
-        registerGauge("ConnectedNativeClientsByUser", "connectedNativeClientsByUser", this::countConnectedClientsByUser);
+        connectedNativeClients = registerGauge(CONNECTED_NATIVE_CLIENTS, "connectedNativeClients", this::countConnectedClients);
+        connectedNativeClientsByUser = registerGauge("ConnectedNativeClientsByUser", "connectedNativeClientsByUser", this::countConnectedClientsByUser);
         registerGauge("Connections", "connections", this::connectedClients);
         registerGauge("ClientsByProtocolVersion", "clientsByProtocolVersion", this::recentClientStats);
         registerGauge("RequestsSize", ClientResourceLimits::getCurrentGlobalUsage);
@@ -117,6 +192,31 @@ public final class ClientMetrics
 
         authSuccess = registerMeter("AuthSuccess");
         authFailure = registerMeter("AuthFailure");
+
+        // For each of SSL, non-SSL register a gauge:
+        encryptedConnectedNativeClients = registerGauge(new DefaultNameFactory("Client", "Encrypted"), CONNECTED_NATIVE_CLIENTS, () -> countConnectedClients((ServerConnection::isSSL)));
+        unencryptedConnectedNativeClients = registerGauge(new DefaultNameFactory("Client", "Unencrypted"), CONNECTED_NATIVE_CLIENTS, () -> countConnectedClients(((ServerConnection connection) -> !connection.isSSL())));
+
+        // for each supported authentication mode, register a meter for success and failures.
+        final IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
+        for (String mode : authenticator.getSupportedAuthenticationModes())
+        {
+            String capitalizedMode = StringUtils.capitalize(mode);
+            MetricNameFactory factory = new DefaultNameFactory("Client", capitalizedMode);
+            authSuccessByMode.put(mode, registerMeter(factory, AUTH_SUCCESS));
+            authFailureByMode.put(mode, registerMeter(factory, AUTH_FAILURE));
+
+            Gauge<Integer> clients = registerGauge(factory, CONNECTED_NATIVE_CLIENTS, () -> countConnectedClients((ServerConnection connection) -> {
+                final ClientState state = connection.getClientState();
+                AuthenticatedUser user = state.getUser();
+                if (user != null)
+                {
+                    return mode.equals(state.getUser().getMode());
+                }
+                return false;
+            }));
+            connectedNativeClientsByAuthMode.put(mode, clients);
+        }
 
         pausedConnections = new AtomicInteger();
         pausedConnectionsGauge = registerGauge("PausedConnections", pausedConnections::get);
@@ -163,6 +263,16 @@ public final class ClientMetrics
         return clients;
     }
 
+    private int countConnectedClients(Predicate<ServerConnection> predicate)
+    {
+        int count = 0;
+
+        for (Server server : servers)
+            count += server.countConnectedClients(predicate);
+
+        return count;
+    }
+
     private List<Map<String, String>> recentClientStats()
     {
         List<Map<String, String>> stats = new ArrayList<>();
@@ -178,17 +288,28 @@ public final class ClientMetrics
 
     private <T> Gauge<T> registerGauge(String name, Gauge<T> gauge)
     {
-        return Metrics.register(factory.createMetricName(name), gauge);
+        return registerGauge(factory, name, gauge);
     }
-    
-    private void registerGauge(String name, String deprecated, Gauge<?> gauge)
+
+    private <T> Gauge<T> registerGauge(MetricNameFactory metricNameFactory, String name, Gauge<T> gauge)
     {
-        Gauge<?> registeredGauge = registerGauge(name, gauge);
+        return Metrics.register(metricNameFactory.createMetricName(name), gauge);
+    }
+
+    private <T> Gauge<T> registerGauge(String name, String deprecated, Gauge<T> gauge)
+    {
+        Gauge<T> registeredGauge = registerGauge(name, gauge);
         Metrics.registerMBean(registeredGauge, factory.createMetricName(deprecated).getMBeanName());
+        return registeredGauge;
     }
 
     private Meter registerMeter(String name)
     {
-        return Metrics.meter(factory.createMetricName(name));
+        return registerMeter(factory, name);
+    }
+
+    private Meter registerMeter(MetricNameFactory metricNameFactory, String name)
+    {
+        return Metrics.meter(metricNameFactory.createMetricName(name));
     }
 }

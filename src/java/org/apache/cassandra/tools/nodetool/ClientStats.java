@@ -23,7 +23,10 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
@@ -46,6 +49,9 @@ public class ClientStats extends NodeToolCmd
 
     @Option(title = "list_connections_with_client_options", name = "--client-options", description = "Lists all connections and the client options")
     private boolean clientOptions = false;
+
+    @Option(title = "list_connections_with_metadata", name = "--metadata", description = "Lists all connections and authenticator-specific metadata and mode")
+    private boolean metadata = false;
 
     @Override
     public void execute(NodeProbe probe)
@@ -86,54 +92,54 @@ public class ClientStats extends NodeToolCmd
             return;
         }
 
-        if (listConnections)
+        // Note: for compatbility with existing implementation if someone passes --all (listConnections),
+        // --client-options, and --metadata all three will be printed.
+        List<Map<String, String>> clients = (List<Map<String, String>>) probe.getClientMetric("connections");
+        if (!clients.isEmpty() && (listConnections || clientOptions || metadata))
         {
-            List<Map<String, String>> clients = (List<Map<String, String>>) probe.getClientMetric("connections");
-            if (!clients.isEmpty())
-            {
-                TableBuilder table = new TableBuilder();
-                table.add("Address", "SSL", "Cipher", "Protocol", "Version", "User", "Keyspace", "Requests", "Driver-Name", "Driver-Version");
-                for (Map<String, String> conn : clients)
-                {
-                    table.add(conn.get(ConnectedClient.ADDRESS),
-                              conn.get(ConnectedClient.SSL),
-                              conn.get(ConnectedClient.CIPHER),
-                              conn.get(ConnectedClient.PROTOCOL),
-                              conn.get(ConnectedClient.VERSION),
-                              conn.get(ConnectedClient.USER),
-                              conn.get(ConnectedClient.KEYSPACE),
-                              conn.get(ConnectedClient.REQUESTS),
-                              conn.get(ConnectedClient.DRIVER_NAME),
-                              conn.get(ConnectedClient.DRIVER_VERSION));
-                }
-                table.printTo(out);
-                out.println();
-            }
-        }
+            List<String> tableHeaderBase = Lists.newArrayList("Address", "SSL", "Cipher", "Protocol", "Version",
+                    "User", "Keyspace", "Requests", "Driver-Name",
+                    "Driver-Version");
+            List<String> tableFieldsBase = Lists.newArrayList(ConnectedClient.ADDRESS, ConnectedClient.SSL,
+                    ConnectedClient.CIPHER, ConnectedClient.PROTOCOL,
+                    ConnectedClient.VERSION, ConnectedClient.USER,
+                    ConnectedClient.KEYSPACE, ConnectedClient.REQUESTS,
+                    ConnectedClient.DRIVER_NAME, ConnectedClient.DRIVER_VERSION);
 
-        if (clientOptions)
-        {
-            List<Map<String, String>> clients = (List<Map<String, String>>) probe.getClientMetric("connections");
-            if (!clients.isEmpty())
+            if (listConnections)
             {
-                TableBuilder table = new TableBuilder();
-                table.add("Address", "SSL", "Cipher", "Protocol", "Version", "User", "Keyspace", "Requests", "Driver-Name", "Driver-Version", "Client-Options");
-                for (Map<String, String> conn : clients)
+                printTable(out, tableHeaderBase, tableFieldsBase, clients);
+            }
+
+            // if clientOptions and metadata are provided, we'll merge them into one table.  This is subtly
+            // different from providing '--all and --client-options' together which prints separate tables which
+            // may not have been the original intention but is kept this way for consistency.
+            if (clientOptions || metadata)
+            {
+                ImmutableList.Builder<String> tableHeaderBuilder = ImmutableList.<String>builder()
+                                                                                .addAll(tableHeaderBase);
+                ImmutableList.Builder<String> tableFieldsBuilder = ImmutableList.<String>builder()
+                                                                                .addAll(tableFieldsBase);
+
+                // print metadata first as client-options are quite long so better left to end of the table.
+                if (metadata)
                 {
-                    table.add(conn.get(ConnectedClient.ADDRESS),
-                              conn.get(ConnectedClient.SSL),
-                              conn.get(ConnectedClient.CIPHER),
-                              conn.get(ConnectedClient.PROTOCOL),
-                              conn.get(ConnectedClient.VERSION),
-                              conn.get(ConnectedClient.USER),
-                              conn.get(ConnectedClient.KEYSPACE),
-                              conn.get(ConnectedClient.REQUESTS),
-                              conn.get(ConnectedClient.DRIVER_NAME),
-                              conn.get(ConnectedClient.DRIVER_VERSION),
-                              conn.get(ConnectedClient.CLIENT_OPTIONS));
+                    tableHeaderBuilder.add("Mode")
+                                      .add("Metadata");
+
+                    tableFieldsBuilder.add(ConnectedClient.MODE)
+                                      .add(ConnectedClient.METADATA);
                 }
-                table.printTo(out);
-                out.println();
+
+                if (clientOptions)
+                {
+                    tableHeaderBuilder.add("Client-Options");
+                    tableFieldsBuilder.add(ConnectedClient.CLIENT_OPTIONS);
+                }
+
+                List<String> tableHeader = tableHeaderBuilder.build();
+                List<String> tableFields = tableFieldsBuilder.build();
+                printTable(out, tableHeader, tableFields, clients);
             }
         }
 
@@ -148,5 +154,28 @@ public class ClientStats extends NodeToolCmd
             table.add(entry.getKey(), entry.getValue().toString());
         }
         table.printTo(out);
+    }
+
+    /**
+     * Convenience function to print a table with the given header and the resolved fields for each connection.
+     *
+     * @param out         print stream to print to.
+     * @param headers     headers for the table
+     * @param tableFields the fields from {@link ConnectedClient} to retrieve from each client connection.
+     * @param clients     the clients to print, each client being a row inthe table.
+     */
+    private void printTable(PrintStream out, List<String> headers, List<String> tableFields, List<Map<String, String>> clients)
+    {
+        TableBuilder table = new TableBuilder();
+        table.add(headers);
+        for (Map<String, String> conn : clients)
+        {
+            List<String> connectionFieldValues = tableFields.stream()
+                    .map(conn::get)
+                    .collect(Collectors.toList());
+            table.add(connectionFieldValues);
+        }
+        table.printTo(out);
+        out.println();
     }
 }
