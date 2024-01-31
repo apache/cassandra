@@ -223,7 +223,7 @@ public class InProgressSequences implements MetadataValue<InProgressSequences>
             out.writeInt(t.state.size());
             for (Map.Entry<MultiStepOperation.SequenceKey, MultiStepOperation<?>> entry : t.state.entrySet())
             {
-                if (Version.UNKNOWN.isBefore(V2))
+                if (version.isBefore(V2))
                 {
                     NodeId.serializer.serialize((NodeId) entry.getKey(), out, version);
                     MultiStepOperation<?> seq = entry.getValue();
@@ -249,7 +249,7 @@ public class InProgressSequences implements MetadataValue<InProgressSequences>
             ImmutableMap.Builder<MultiStepOperation.SequenceKey, MultiStepOperation<?>> res = ImmutableMap.builder();
             for (int i = 0; i < ipsSize; i++)
             {
-                if (Version.UNKNOWN.isBefore(V2))
+                if (version.isBefore(V2))
                 {
                     NodeId nodeId = NodeId.serializer.deserialize(in, version);
                     MultiStepOperation.Kind kind = MultiStepOperation.Kind.valueOf(in.readUTF());
@@ -273,7 +273,7 @@ public class InProgressSequences implements MetadataValue<InProgressSequences>
             size += sizeof(t.state.size());
             for (Map.Entry<MultiStepOperation.SequenceKey, MultiStepOperation<?>> entry : t.state.entrySet())
             {
-                if (Version.UNKNOWN.isBefore(V2))
+                if (version.isBefore(V2))
                 {
                     size += NodeId.serializer.serializedSize((NodeId) entry.getKey(), version);
                     MultiStepOperation<?> seq = entry.getValue();
