@@ -969,14 +969,87 @@ Reported name format:
 [cols=",,",options="header",]
 |===
 |Name |Type |Description
-|connectedNativeClients |Gauge<Integer> |Number of clients connected to
+|AuthFailure |Meter | Rate of failed authentications
+
+|AuthSuccess |Meter | Rate of successful authentications
+
+|ClientsByProtocolVersion |Gauge<List<Map<String, Integer>> | List of
+all connections' protocol version and ip address
+
+|ConnectedNativeClients |Gauge<Integer> |Number of clients connected to
 this nodes native protocol server
 
-|connections |Gauge<List<Map<String, String>> |List of all connections
+|ConnectedNativeClientsByUser |Gauge<Map<String, Integer>> |Number of
+connnective native clients by username
+
+|Connections |Gauge<List<Map<String, String>> |List of all connections
 and their state information
 
-|connectedNativeClientsByUser |Gauge<Map<String, Int> |Number of
-connnective native clients by username
+|PausedConnections|Gauge<Integer>|Number of connections currently
+paused by rate limiter
+
+|ProtocolException|Meter|Rate of requests resulting in a protocol
+exception
+
+|UnknownException|Meter|Rate of requests resulting in an unknown
+exception
+
+|RequestDiscarded|Meter|Rate of requests discarded by rate limiter
+
+|RequestDispatched|Meter|Rate of requests dispatched (not discarded)
+
+|RequestsSizeByIpDistribution|Histogram|Histogram of distribution of
+requests coming from unique IPs
+
+|===
+
+== Client Encryption Metrics
+
+Metrics specific to Client encryption
+
+*Metric Name*::
+`org.apache.cassandra.metrics.Client.<Encrypted|Unencrypted>.<MetricName>`
+*JMX MBean*::
+`org.apache.cassandra.metrics:type=Client scope=<Encrypted|Unencrypted> name=<MetricName>`
+
+[cols=",,",options="header",]
+|===
+|Name |Type |Description
+|ConnectedNativeClients |Gauge<Integer> |Number of clients connected in
+this way to this nodes native protocol server
+
+|===
+
+== Client Authentication Mode-Specific Metrics
+
+Metrics specific to connectivity for a given Authentication 'mode'.
+
+*Metric Name*::
+`org.apache.cassandra.metrics.Client.<Mode>.<MetricName>`
+*JMX MBean*::
+`org.apache.cassandra.metrics:type=Client scope=<Mode> name=<MetricName>`
+
+An authentication mode is a supported method of authentication. The following
+authentication modes exist for the given supported `IAuthenticators`:
+
+* `PasswordAuthenticator` - Password
+* `MutualTlsAuthenticator` - MutualTls
+* `MutualTlsWithPasswordFallbackAuthenticator` - MutualTls, Password
+* `AllowAllAuthenticator` - Unauthenticated
+
+A custom implementation of `IAuthenticator` may expose metrics on their own
+custom mode by implementing `IAuthenticator.getSupportedAuthenticationModes()`.
+
+[cols=",,",options="header",]
+|===
+|Name |Type |Description
+|ConnectedNativeClients |Gauge<Int> |Number of clients connected and
+authenticated to this nodes native protocol server using this mode
+
+|AuthFailure |Meter | Rate of failed authentications using this mode
+
+|AuthSuccess |Meter | Rate of successful authentications using this mode
+
 |===
 
 == Batch Metrics
