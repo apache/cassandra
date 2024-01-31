@@ -18,13 +18,12 @@
 
 package org.apache.cassandra.tcm;
 
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.Replication;
@@ -120,9 +119,7 @@ public abstract class AbstractLocalProcessor implements Processor
             }
         }
         return new Commit.Result.Failure(SERVER_ERROR,
-                                         String.format("Could not perform commit after %d/%d tries. Time remaining: %dms",
-                                                       retryPolicy.tries, retryPolicy.maxTries,
-                                                       TimeUnit.NANOSECONDS.toMillis(retryPolicy.remainingNanos())),
+                                         String.format("Could not perform commit using the following retry stategy: %s", retryPolicy.tries),
                                          false);
     }
 
