@@ -416,12 +416,13 @@ public class SimpleClient implements Closeable
                     }
                     break;
                 case SUPPORTED:
+                case ERROR:
                     // just pass through
                     results.add(response);
                     break;
                 default:
                     throw new ProtocolException(String.format("Unexpected %s response expecting " +
-                                                              "READY, AUTHENTICATE or SUPPORTED",
+                                                              "READY, AUTHENTICATE, ERROR or SUPPORTED",
                                                               response.header.type));
             }
         }
