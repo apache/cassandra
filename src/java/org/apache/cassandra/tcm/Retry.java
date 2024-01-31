@@ -89,6 +89,16 @@ public abstract class Retry
             int actualBackoff = ThreadLocalRandom.current().nextInt(maxJitterMs / 2, maxJitterMs);
             return random.nextInt(actualBackoff);
         }
+
+        @Override
+        public String toString()
+        {
+            return "Jitter{" +
+                   ", maxTries=" + maxTries +
+                   ", tries=" + tries +
+                   ", maxJitterMs=" + maxJitterMs +
+                   '}';
+        }
     }
 
     public static class Backoff extends Retry
@@ -166,6 +176,11 @@ public abstract class Retry
                 public long remainingNanos()
                 {
                     return timeoutNanos;
+                }
+
+                public String toString()
+                {
+                    return String.format("RetryIndefinitely{tries=%d}", currentTries());
                 }
             };
         }
