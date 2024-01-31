@@ -22,6 +22,7 @@ import java.util.Map;
 
 import io.netty.buffer.ByteBuf;
 
+import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
@@ -58,6 +59,8 @@ public class StartupMessage extends Message.Request
             return CBUtil.sizeOfStringMap(msg.options);
         }
     };
+
+    private static final byte[] EMPTY_CLIENT_RESPONSE = new byte[0];
 
     public final Map<String, String> options;
 
@@ -118,8 +121,35 @@ public class StartupMessage extends Message.Request
             clientState.setDriverVersion(options.get(DRIVER_VERSION));
         }
 
-        if (DatabaseDescriptor.getAuthenticator().requireAuthentication())
+        IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
+        if (authenticator.requireAuthentication())
+        {
+            // If the authenticator supports early authentication, attempt to authenticate.
+            if (authenticator.supportsEarlyAuthentication())
+            {
+                IAuthenticator.SaslNegotiator negotiator = ((ServerConnection) connection).getSaslNegotiator(state);
+                // If the negotiator determines that sending an authenticate message is not necessary, attempt to authenticate here,
+                // otherwise, send an Authenticate message to begin the traditional authentication flow.
+                if (!negotiator.shouldSendAuthenticateMessage())
+                {
+                    // Attempt to authenticate the user.
+                    return AuthUtil.handleLogin(connection, state, EMPTY_CLIENT_RESPONSE, (negotiationComplete, challenge) ->
+                    {
+                        if (negotiationComplete)
+                        {
+                            // Authentication was successful, proceed.
+                            return new ReadyMessage();
+                        } else
+                        {
+                            // It's expected that any negotiator that requires a challenge will likely not support early
+                            // authentication, in this case we can just go through the traditional auth flow.
+                            return new AuthenticateMessage(DatabaseDescriptor.getAuthenticator().getClass().getName());
+                        }
+                    });
+                }
+            }
             return new AuthenticateMessage(DatabaseDescriptor.getAuthenticator().getClass().getName());
+        }
         else
             return new ReadyMessage();
     }

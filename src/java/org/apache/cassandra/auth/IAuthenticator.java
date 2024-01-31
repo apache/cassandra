@@ -28,10 +28,30 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 public interface IAuthenticator
 {
     /**
-     * Whether or not the authenticator requires explicit login.
+     * Whether the authenticator requires explicit login.
      * If false will instantiate user with AuthenticatedUser.ANONYMOUS_USER.
      */
     boolean requireAuthentication();
+
+    /**
+     * Whether the authenticator supports 'early' authentication, meaning that it can be authenticated without
+     * the need to send an AUTHENTICATE request to the client after receiveing a STARTUP message from the client.
+     * <p>
+     * An example use case of this would be if the client could be authenticated using certificates present
+     * on a TLS-encrypted connection, as is done in {@link MutualTlsAuthenticator}.  In this case, an AUTHENTICATE
+     * message is not needed because the client can be identified by information present in its provided certificate.
+     * <p>
+     * If an authenticator supports requires early authentication, this should be <code>true</code>;
+     * otherwise if a client cannot authenticate using its connection details (e.g. a certificate), an AUTHENTICATE
+     * will be sent to the client. This may confuse a driver implementation into thinking an authenticator is needed,
+     * when instead the real issue is that something is missing on the connection, such as a certificate.
+     * <p>
+     * If <code>false</code> (default behavior), an AUTHENTICATE request will be sent to the client.
+     */
+    default boolean supportsEarlyAuthentication()
+    {
+        return false;
+    }
 
      /**
      * Set of resources that should be made inaccessible to users and only accessible internally.
@@ -145,5 +165,19 @@ public interface IAuthenticator
          * @throws AuthenticationException
          */
         public AuthenticatedUser getAuthenticatedUser() throws AuthenticationException;
+
+        /**
+         * Whether it is determined that an AUTHENTICATE message should be sent to properly negotiate.
+         * This is used in conjunction with {@link #supportsEarlyAuthentication()} in determining if authentication
+         * can be done early, for example if the client can be authenticated using client certificates when handling
+         * a STARTUP message.
+         * <p>
+         * If <code>true</code> (default behavior), an AUTHENTICATE message will be sent in response to a STARTUP,
+         * otherwise {@link #evaluateResponse(byte[])} will be called with an empty byte array when handling STARTUP.
+         */
+        default boolean shouldSendAuthenticateMessage()
+        {
+            return true;
+        }
     }
 }
