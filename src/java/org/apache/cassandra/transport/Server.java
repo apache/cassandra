@@ -23,6 +23,7 @@ import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -143,6 +144,14 @@ public class Server implements CassandraDaemon.Server
     public Map<String, Integer> countConnectedClientsByUser()
     {
         return connectionTracker.countConnectedClientsByUser();
+    }
+
+    /**
+     * @return A count of the number of clients matching the given predicate.
+     */
+    public int countConnectedClients(Predicate<ServerConnection> predicate)
+    {
+        return connectionTracker.countConnectedClients(predicate);
     }
 
     public List<ConnectedClient> getConnectedClients()
@@ -304,6 +313,24 @@ public class Server implements CassandraDaemon.Server
                - When server is stopped: the size is 0
             */
             return allChannels.size() != 0 ? allChannels.size() - 1 : 0;
+        }
+
+        int countConnectedClients(Predicate<ServerConnection> predicate)
+        {
+            int count = 0;
+            for (Channel c : allChannels)
+            {
+                Connection connection = c.attr(Connection.attributeKey).get();
+                if (connection instanceof ServerConnection)
+                {
+                    ServerConnection conn = (ServerConnection) connection;
+                    if (predicate.test(conn))
+                    {
+                        count++;
+                    }
+                }
+            }
+            return count;
         }
 
         Map<String, Integer> countConnectedClientsByUser()

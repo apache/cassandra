@@ -60,9 +60,6 @@ public class EarlyAuthenticationTest extends CQLTester
 
     static final Map<String, String> authenticatorParams = ImmutableMap.of("validator_class_name", SpiffeCertificateValidator.class.getSimpleName());
 
-    // identity present in the client cert being used.
-    static final String spiffeIdentity = "spiffe://test.cassandra.apache.org/unitTest/mtls";
-
     @BeforeClass
     public static void setup()
     {
@@ -89,25 +86,18 @@ public class EarlyAuthenticationTest extends CQLTester
 
     private EncryptionOptions clientEncryptionOptions(boolean presentClientCertificate)
     {
-        // To regenerate:
-        // 1. generate keystore
-        //    keytool -genkeypair -keystore test/conf/cassandra_ssl_test_spiffe.keystore -validity 100000 -keyalg RSA -dname "CN=Apache Cassandra, OU=ssl_test, O=Unknown, L=Unknown, ST=Unknown, C=Unknown" -keypass cassandra -storepass cassandra -alias spiffecert -ext SAN=URI:spiffe://test.cassandra.apache.org/unitTest/mtls -storetype jks
-        // 2. export cert
-        //    keytool -export -alias spiffecert -file spiffecert.cer -keystore test/conf/cassandra_ssl_test_spiffe.keystore
-        // 3. import cert into truststore
-        //    keytool -import -v -trustcacerts -alias spiffecert -file spiffecert.cer -keystore test/conf/cassandra_ssl_test.truststore
         EncryptionOptions encryptionOptions = new EncryptionOptions()
                                               .withEnabled(true)
                                               .withRequireClientAuth(EncryptionOptions.ClientAuth.OPTIONAL)
-                                              .withTrustStore("test/conf/cassandra_ssl_test.truststore")
-                                              .withTrustStorePassword("cassandra")
+                                              .withTrustStore(TlsTestUtils.CLIENT_TRUSTSTORE_PATH)
+                                              .withTrustStorePassword(TlsTestUtils.CLIENT_TRUSTSTORE_PASSWORD)
                                               .withSslContextFactory(new ParameterizedClass(SimpleClientSslContextFactory.class.getName()));
 
         if (presentClientCertificate)
         {
-            encryptionOptions = encryptionOptions.withKeyStore("test/conf/cassandra_ssl_test_spiffe.keystore")
+            encryptionOptions = encryptionOptions.withKeyStore(TlsTestUtils.CLIENT_SPIFFE_KEYSTORE_PATH)
                              .withStoreType("JKS")
-                             .withKeyStorePassword("cassandra");
+                             .withKeyStorePassword(TlsTestUtils.CLIENT_SPIFFE_KEYSTORE_PASSWORD);
         }
 
         return new EncryptionOptions(encryptionOptions);
@@ -117,7 +107,7 @@ public class EarlyAuthenticationTest extends CQLTester
     public void testEarlyAuthSuccess()
     {
         // given server is configured with a Mutual TLS Authenticator and the identity in the client's keystore is bound to cassandra.
-        addIdentityToRole(spiffeIdentity, "cassandra");
+        addIdentityToRole(TlsTestUtils.CLIENT_SPIFFE_IDENTITY, "cassandra");
 
         // when connecting, we expect to get a 'READY' message after sending a 'STARTUP' as MutualTlsAuthenticator
         // supports early authentication and the client presented a cert with an identity that was bound to a role.
@@ -135,8 +125,8 @@ public class EarlyAuthenticationTest extends CQLTester
         // given server is configured with a Mutual TLS Authenticator and the identity in the client's keystore is bound
         // to a role that is not permitted to log in.
         // when connecting, we expect an 'ERROR' message.
-        addIdentityToRole(spiffeIdentity, "readonly_user");
-        testStartupResponse(true, expectAuthenticationError(String.format("readonly_user is not permitted to log in", spiffeIdentity)));
+        addIdentityToRole(TlsTestUtils.CLIENT_SPIFFE_IDENTITY, "readonly_user");
+        testStartupResponse(true, expectAuthenticationError("readonly_user is not permitted to log in"));
     }
 
     @Test
@@ -144,7 +134,7 @@ public class EarlyAuthenticationTest extends CQLTester
     {
         // given server is configured with a Mutual TLS Authenticator, but no identities are bound to roles.
         // when connecting, we expect an 'ERROR' message.
-        testStartupResponse(true, expectAuthenticationError(String.format("Certificate identity '%s' not authorized", spiffeIdentity)));
+        testStartupResponse(true, expectAuthenticationError(String.format("Certificate identity '%s' not authorized", TlsTestUtils.CLIENT_SPIFFE_IDENTITY)));
     }
 
     @Test

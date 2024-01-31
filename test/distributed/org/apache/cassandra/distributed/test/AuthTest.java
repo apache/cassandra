@@ -27,7 +27,6 @@ import org.junit.Test;
 import com.datastax.driver.core.PlainTextAuthProvider;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.policies.DCAwareRoundRobinPolicy;
-import org.apache.cassandra.auth.CassandraRoleManager;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
@@ -43,6 +42,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.distributed.util.Auth.waitForExistingRoles;
 import static org.awaitility.Awaitility.await;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -159,14 +159,6 @@ public class AuthTest extends TestBaseImpl
         config.set("seed_provider", new IInstanceConfig.ParameterizedClass(SimpleSeedProvider.class.getName(),
                                                                            Collections.singletonMap("seeds", "127.0.0.1, 127.0.0.2")));
         return cluster.bootstrap(config);
-    }
-
-    private void waitForExistingRoles(IInvokableInstance instance)
-    {
-        await().pollDelay(1, SECONDS)
-               .pollInterval(1, SECONDS)
-               .atMost(30, SECONDS)
-               .until(() -> instance.callOnInstance(CassandraRoleManager::hasExistingRoles));
     }
 
     private long getPasswordWritetime(ICoordinator coordinator)

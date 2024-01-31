@@ -29,6 +29,8 @@ public class AllowAllAuthenticator implements IAuthenticator
 {
     private static final SaslNegotiator AUTHENTICATOR_INSTANCE = new Negotiator();
 
+    private static final Set<AuthenticationMode> AUTHENTICATION_MODES = Collections.singleton(AuthenticationMode.UNAUTHENTICATED);
+
     public boolean requireAuthentication()
     {
         return false;
@@ -50,6 +52,12 @@ public class AllowAllAuthenticator implements IAuthenticator
     public SaslNegotiator newSaslNegotiator(InetAddress clientAddress)
     {
         return AUTHENTICATOR_INSTANCE;
+    }
+
+    @Override
+    public Set<AuthenticationMode> getSupportedAuthenticationModes()
+    {
+        return AUTHENTICATION_MODES;
     }
 
     public AuthenticatedUser legacyAuthenticate(Map<String, String> credentialsData)

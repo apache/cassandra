@@ -58,6 +58,7 @@ import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXConnectorServer;
 import javax.management.remote.JMXServiceURL;
 import javax.management.remote.rmi.RMIConnectorServer;
+import javax.net.ssl.SSLException;
 
 import com.google.common.base.Objects;
 import com.google.common.base.Strings;
@@ -165,6 +166,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.transport.SimpleClient;
+import org.apache.cassandra.transport.TlsTestUtils;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -229,8 +231,8 @@ public abstract class CQLTester
     protected static int nativePort;
     protected static final InetAddress nativeAddr;
     protected static final Set<InetAddressAndPort> remoteAddrs = new HashSet<>();
-    private static final Map<Pair<User, ProtocolVersion>, Cluster> clusters = new HashMap<>();
-    private static final Map<Pair<User, ProtocolVersion>, Session> sessions = new HashMap<>();
+    private static final Map<ClusterSettings, Cluster> clusters = new HashMap<>();
+    private static final Map<ClusterSettings, Session> sessions = new HashMap<>();
 
     private static Consumer<Cluster.Builder> clusterBuilderConfigurator;
 
@@ -282,6 +284,10 @@ public abstract class CQLTester
     private List<String> aggregates = new ArrayList<>();
 
     private User user;
+
+    private boolean useEncryption = false;
+
+    private boolean useClientCert = false;
 
     // We don't use USE_PREPARED_VALUES in the code below so some test can foce value preparation (if the result
     // is not expected to be the same without preparation)
@@ -555,6 +561,22 @@ public abstract class CQLTester
     }
 
     /**
+     * @param useEncryption Whether created clients should use encryption.
+     */
+    public void shouldUseEncryption(boolean useEncryption)
+    {
+        this.useEncryption = useEncryption;
+    }
+
+    /**
+     * @param useClientCert Whether created clients should provide a client cert if encryption is enabled.
+     */
+    public void shouldUseClientCertificate(boolean useClientCert)
+    {
+        this.useClientCert = useClientCert;
+    }
+
+    /**
      * Configures the server to require client encryption for CQL.  Useful for tests which exercise TLS specific
      * behavior.
      * <p>
@@ -562,18 +584,17 @@ public abstract class CQLTester
      * with {@link Server.Builder#withTlsEncryptionPolicy(EncryptionOptions.TlsEncryptionPolicy)} using
      * {@link org.apache.cassandra.config.EncryptionOptions.TlsEncryptionPolicy#ENCRYPTED}.
      */
-    protected static void requireNativeProtocolClientEncryption()
+    public static void requireNativeProtocolClientEncryption()
     {
-        DatabaseDescriptor.updateNativeProtocolEncryptionOptions((encryptionOptions ->
-                encryptionOptions.withEnabled(true)
-                        .withKeyStore("test/conf/cassandra_ssl_test.keystore")
-                        .withKeyStorePassword("cassandra")
-                        .withTrustStore("test/conf/cassandra_ssl_test.truststore")
-                        .withTrustStorePassword("cassandra")
-                        .withRequireEndpointVerification(false)
-                        .withRequireClientAuth(EncryptionOptions.ClientAuth.OPTIONAL)));
+        DatabaseDescriptor.updateNativeProtocolEncryptionOptions((encryptionOptions) ->
+                                                                 encryptionOptions.withEnabled(true)
+                                                                                  .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH)
+                                                                                  .withKeyStorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
+                                                                                  .withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PATH)
+                                                                                  .withTrustStorePassword(TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD)
+                                                                                  .withRequireEndpointVerification(false)
+                                                                                  .withRequireClientAuth(EncryptionOptions.ClientAuth.OPTIONAL));
     }
-
 
     /**
      *  Initialize Native Transport for test that need it.
@@ -643,7 +664,7 @@ public abstract class CQLTester
         server.start();
     }
 
-    private static Cluster initClientCluster(User user, ProtocolVersion version)
+    private static Cluster initClientCluster(User user, ProtocolVersion version, boolean useEncryption, boolean useClientCert)
     {
         SocketOptions socketOptions =
                 new SocketOptions().setConnectTimeoutMillis(TEST_DRIVER_CONNECTION_TIMEOUT_MS.getInt()) // default is 5000
@@ -661,6 +682,19 @@ public abstract class CQLTester
 
         if (user != null)
             builder.withCredentials(user.username, user.password);
+
+        if (useEncryption)
+        {
+            try
+            {
+                builder.withSSL(TlsTestUtils.getSSLOptions(useClientCert));
+            }
+            catch (SSLException e)
+            {
+                // generally this should work.
+                throw new RuntimeException(e);
+            }
+        }
 
         if (version.isBeta())
             builder = builder.allowBetaProtocolVersion();
@@ -1540,12 +1574,12 @@ public abstract class CQLTester
     private Session getSession(ProtocolVersion protocolVersion)
     {
         Cluster cluster = getCluster(protocolVersion);
-        return sessions.computeIfAbsent(Pair.create(user, protocolVersion), userProto -> cluster.connect());
+        return sessions.computeIfAbsent(new ClusterSettings(user, protocolVersion, useEncryption, useClientCert), settings -> cluster.connect());
     }
 
     private Cluster getCluster(ProtocolVersion protocolVersion)
     {
-        return clusters.computeIfAbsent(Pair.create(user, protocolVersion), userProto -> initClientCluster(userProto.left, userProto.right));
+        return clusters.computeIfAbsent(new ClusterSettings(user, protocolVersion, useEncryption, useClientCert), settings -> initClientCluster(user, protocolVersion, useEncryption, useClientCert));
     }
 
     protected SimpleClient newSimpleClient(ProtocolVersion version) throws IOException
@@ -2866,6 +2900,37 @@ public abstract class CQLTester
             if (!cleanupFileSystemListeners)
                 return;
             fs.clearListeners();
+        }
+    }
+
+    private static class ClusterSettings
+    {
+        private final User user;
+        private final ProtocolVersion protocolVersion;
+        private final boolean shouldUseEncryption;
+        private final boolean shouldUseCertificate;
+
+        ClusterSettings(User user, ProtocolVersion protocolVersion, boolean shouldUseEncryption, boolean shouldUseCertificate)
+        {
+            this.user = user;
+            this.protocolVersion = protocolVersion;
+            this.shouldUseEncryption = shouldUseEncryption;
+            this.shouldUseCertificate = shouldUseCertificate;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ClusterSettings that = (ClusterSettings) o;
+            return shouldUseEncryption == that.shouldUseEncryption && shouldUseCertificate == that.shouldUseCertificate && java.util.Objects.equals(user, that.user) && protocolVersion == that.protocolVersion;
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return java.util.Objects.hash(user, protocolVersion, shouldUseEncryption, shouldUseCertificate);
         }
     }
 }

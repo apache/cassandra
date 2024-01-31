@@ -81,6 +81,10 @@ New features
       - Whether bulk loading of SSTables is allowed.
     - nodetool tpstats can display core pool size, max pool size and max tasks queued if --verbose / -v flag is specified.
       system_views.thread_pools adds core_pool_size, max_pool_size and max_tasks_queued columns.
+    - Authentication mode is exposed in system_views.clients table, nodetool clientstats and ClientMetrics 
+      to help operators identify which authentication modes are being used. nodetool clientstats introduces --verbose flag 
+      behind which this information is visible.
+
 
 Upgrading
 ---------

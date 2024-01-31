@@ -27,12 +27,11 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.transport.TlsTestUtils;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
 
@@ -40,8 +39,6 @@ import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.NOT_REQUI
 
 public class FileBasedSslContextFactoryTest
 {
-    private static final Logger logger = LoggerFactory.getLogger(FileBasedSslContextFactoryTest.class);
-
     private EncryptionOptions.ServerEncryptionOptions encryptionOptions;
 
     static WithProperties properties;
@@ -65,14 +62,14 @@ public class FileBasedSslContextFactoryTest
         encryptionOptions = new EncryptionOptions.ServerEncryptionOptions()
                             .withSslContextFactory(new ParameterizedClass(TestFileBasedSSLContextFactory.class.getName(),
                                                                           new HashMap<>()))
-                            .withTrustStore("test/conf/cassandra_ssl_test.truststore")
-                            .withTrustStorePassword("cassandra")
+                            .withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PATH)
+                            .withTrustStorePassword(TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD)
                             .withRequireClientAuth(NOT_REQUIRED)
                             .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA")
-                            .withKeyStore("test/conf/cassandra_ssl_test.keystore")
-                            .withKeyStorePassword("cassandra")
-                            .withOutboundKeystore("test/conf/cassandra_ssl_test_outbound.keystore")
-                            .withOutboundKeystorePassword("cassandra");
+                            .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH)
+                            .withKeyStorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
+                            .withOutboundKeystore(TlsTestUtils.SERVER_OUTBOUND_KEYSTORE_PATH)
+                            .withOutboundKeystorePassword(TlsTestUtils.SERVER_OUTBOUND_KEYSTORE_PASSWORD);
     }
 
     @Test

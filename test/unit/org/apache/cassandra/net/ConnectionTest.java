@@ -66,6 +66,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.transport.TlsTestUtils;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -179,10 +180,10 @@ public class ConnectionTest
             .withLegacySslStoragePort(true)
             .withOptional(true)
             .withInternodeEncryption(EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.all)
-            .withKeyStore("test/conf/cassandra_ssl_test.keystore")
-            .withKeyStorePassword("cassandra")
-            .withTrustStore("test/conf/cassandra_ssl_test.truststore")
-            .withTrustStorePassword("cassandra")
+            .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH)
+            .withKeyStorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
+            .withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PATH)
+            .withTrustStorePassword(TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD)
             .withRequireClientAuth(NOT_REQUIRED)
             .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA");
 

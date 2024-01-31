@@ -31,6 +31,7 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.transport.TlsTestUtils;
 import org.apache.cassandra.utils.Pair;
 
 import static org.junit.Assert.assertEquals;
@@ -168,7 +169,7 @@ public class NativeTransportServiceTest
         DatabaseDescriptor.updateNativeProtocolEncryptionOptions(
             options -> options.withEnabled(true)
                               .withOptional(true)
-                              .withKeyStore("test/conf/cassandra_ssl_test.keystore"));
+                              .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH));
         DatabaseDescriptor.setNativeTransportPortSSL(8432);
 
         withService((NativeTransportService service) ->
@@ -224,7 +225,7 @@ public class NativeTransportServiceTest
         DatabaseDescriptor.updateNativeProtocolEncryptionOptions(
         options -> options.withEnabled(true)
                           .withOptional(false)
-                          .withKeyStore("test/conf/cassandra_ssl_test.keystore"));
+                          .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH));
         DatabaseDescriptor.setNativeTransportPortSSL(8432);
 
         withService((NativeTransportService service) ->

@@ -40,6 +40,7 @@ import com.datastax.shaded.netty.handler.ssl.SslContext;
 import com.datastax.shaded.netty.handler.ssl.SslContextBuilder;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.transport.TlsTestUtils;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -403,10 +404,10 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
     private SSLOptions sslOptions(boolean withKeyStore) throws Exception
     {
         SslContextBuilder sslContextBuilder = SslContextBuilder.forClient();
-        sslContextBuilder.trustManager(createTrustManagerFactory("test/conf/cassandra_ssl_test.truststore", "cassandra"));
+        sslContextBuilder.trustManager(createTrustManagerFactory(TlsTestUtils.SERVER_TRUSTSTORE_PATH, TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD));
         if (withKeyStore)
         {
-            sslContextBuilder.keyManager(createKeyManagerFactory("test/conf/cassandra_ssl_test_outbound.keystore", "cassandra"));
+            sslContextBuilder.keyManager(createKeyManagerFactory(TlsTestUtils.SERVER_OUTBOUND_KEYSTORE_PATH, TlsTestUtils.SERVER_OUTBOUND_KEYSTORE_PASSWORD));
         }
 
         SslContext sslContext = sslContextBuilder.build();
@@ -428,11 +429,11 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
             InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
             SslContextBuilder sslContextBuilder = SslContextBuilder.forClient();
             if (ipInSAN)
-                sslContextBuilder.keyManager(createKeyManagerFactory("test/conf/cassandra_ssl_test_endpoint_verify.keystore", "cassandra"));
+                sslContextBuilder.keyManager(createKeyManagerFactory(TlsTestUtils.SERVER_KEYSTORE_ENDPOINT_VERIFY_PATH, TlsTestUtils.SERVER_KEYSTORE_ENDPOINT_VERIFY_PASSWORD));
             else
-                sslContextBuilder.keyManager(createKeyManagerFactory("test/conf/cassandra_ssl_test_outbound.keystore", "cassandra"));
+                sslContextBuilder.keyManager(createKeyManagerFactory(TlsTestUtils.SERVER_OUTBOUND_KEYSTORE_PATH, TlsTestUtils.SERVER_OUTBOUND_KEYSTORE_PASSWORD));
 
-            SslContext sslContext = sslContextBuilder.trustManager(createTrustManagerFactory("test/conf/cassandra_ssl_test.truststore", "cassandra"))
+            SslContext sslContext = sslContextBuilder.trustManager(createTrustManagerFactory(TlsTestUtils.SERVER_TRUSTSTORE_PATH, TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD))
                                                      .build();
             final SSLOptions sslOptions = socketChannel -> sslContext.newHandler(socketChannel.alloc());
             com.datastax.driver.core.Cluster driverCluster = com.datastax.driver.core.Cluster.builder()

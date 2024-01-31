@@ -19,13 +19,18 @@
 package org.apache.cassandra.transport;
 
 import java.util.Map;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
+import javax.net.ssl.TrustManager;
 
 import io.netty.handler.ssl.CipherSuiteFilter;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.security.FileBasedSslContextFactory;
+
+import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.NOT_REQUIRED;
 
 /**
  * A custom implementation of {@link FileBasedSslContextFactory} to be used by tests utilizing {@link SimpleClient}.
@@ -41,6 +46,33 @@ public class SimpleClientSslContextFactory extends FileBasedSslContextFactory
     public SimpleClientSslContextFactory(Map<String, Object> parameters)
     {
         super(parameters);
+    }
+
+    @Override
+    public SSLContext createJSSESslContext(EncryptionOptions.ClientAuth clientAuth) throws SSLException
+    {
+        TrustManager[] trustManagers = null;
+        if (clientAuth != NOT_REQUIRED)
+            trustManagers = buildTrustManagerFactory().getTrustManagers();
+
+        KeyManagerFactory kmf = null;
+
+        // only provide a client certificate if keystore is present.
+        if (hasOutboundKeystore())
+        {
+            kmf = buildKeyManagerFactory();
+        }
+
+        try
+        {
+            SSLContext ctx = SSLContext.getInstance("TLS");
+            ctx.init(kmf != null ? kmf.getKeyManagers() : null, trustManagers, null);
+            return ctx;
+        }
+        catch (Exception e)
+        {
+            throw new SSLException("Error creating/initializing the SSL Context", e);
+        }
     }
 
     @Override

@@ -18,8 +18,15 @@
 package org.apache.cassandra.db.virtual;
 
 import java.net.InetSocketAddress;
+import java.util.Map.Entry;
+import java.util.stream.Collectors;
 
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.InetAddressType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.schema.TableMetadata;
@@ -41,6 +48,8 @@ final class ClientsTable extends AbstractVirtualTable
     private static final String SSL_PROTOCOL = "ssl_protocol";
     private static final String SSL_CIPHER_SUITE = "ssl_cipher_suite";
     private static final String KEYSPACE_NAME = "keyspace_name";
+    private static final String AUTHENTICATION_MODE = "authentication_mode";
+    private static final String AUTHENTICATION_METADATA = "authentication_metadata";
 
     ClientsTable(String keyspace)
     {
@@ -62,6 +71,8 @@ final class ClientsTable extends AbstractVirtualTable
                            .addRegularColumn(SSL_PROTOCOL, UTF8Type.instance)
                            .addRegularColumn(SSL_CIPHER_SUITE, UTF8Type.instance)
                            .addRegularColumn(KEYSPACE_NAME, UTF8Type.instance)
+                           .addRegularColumn(AUTHENTICATION_MODE, UTF8Type.instance)
+                           .addRegularColumn(AUTHENTICATION_METADATA, MapType.getInstance(UTF8Type.instance, UTF8Type.instance, false))
                            .build());
     }
 
@@ -86,7 +97,11 @@ final class ClientsTable extends AbstractVirtualTable
                   .column(SSL_ENABLED, client.sslEnabled())
                   .column(SSL_PROTOCOL, client.sslProtocol().orElse(null))
                   .column(SSL_CIPHER_SUITE, client.sslCipherSuite().orElse(null))
-                  .column(KEYSPACE_NAME, client.keyspace().orElse(null));
+                  .column(KEYSPACE_NAME, client.keyspace().orElse(null))
+                  .column(AUTHENTICATION_MODE, client.authenticationMode().toString())
+                  .column(AUTHENTICATION_METADATA, client.authenticationMetadata()
+                                                         .entrySet().stream()
+                                                         .collect(Collectors.toMap(Entry::getKey, entry -> String.valueOf(entry.getValue()))));
         }
 
         return result;

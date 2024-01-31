@@ -41,6 +41,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.transport.TlsTestUtils;
 
 import static org.apache.cassandra.auth.AuthTestUtils.loadCertificateChain;
 import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.INBOUND;
@@ -163,10 +164,10 @@ public class MutualTlsInternodeAuthenticatorTest
     public void testNoIdentitiesInKeystore()
     {
         Config config = DatabaseDescriptor.getRawConfig();
-        config.server_encryption_options = config.server_encryption_options.withOutboundKeystore("test/conf/cassandra_ssl_test.keystore")
-                                                                           .withOutboundKeystorePassword("cassandra");
+        config.server_encryption_options = config.server_encryption_options.withOutboundKeystore(TlsTestUtils.SERVER_KEYSTORE_PATH)
+                                                                           .withOutboundKeystorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD);
         expectedException.expect(ConfigurationException.class);
-        expectedException.expectMessage("No identity was extracted from the outbound keystore 'test/conf/cassandra_ssl_test.keystore'");
+        expectedException.expectMessage(String.format("No identity was extracted from the outbound keystore '%s'", TlsTestUtils.SERVER_KEYSTORE_PATH));
         new MutualTlsInternodeAuthenticator(getParams());
     }
 

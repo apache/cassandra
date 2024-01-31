@@ -36,6 +36,7 @@ import io.netty.handler.ssl.SslProvider;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.transport.TlsTestUtils;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_TCACTIVE_OPENSSL;
 import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.NOT_REQUIRED;
@@ -195,18 +196,18 @@ public class PEMBasedSslContextFactoryTest
 
     private void addFileBaseTrustStoreOptions(Map<String, Object> config)
     {
-        config.put("truststore", "test/conf/cassandra_ssl_test.truststore.pem");
+        config.put("truststore", TlsTestUtils.SERVER_TRUSTSTORE_PEM_PATH);
     }
 
     private void addFileBaseKeyStoreOptions(Map<String, Object> config)
     {
-        config.put("keystore", "test/conf/cassandra_ssl_test.keystore.pem");
-        config.put("keystore_password", "cassandra");
+        config.put("keystore", TlsTestUtils.SERVER_KEYSTORE_PATH_PEM);
+        config.put("keystore_password", TlsTestUtils.SERVER_KEYSTORE_PASSWORD);
     }
 
     private void addFileBaseUnencryptedKeyStoreOptions(Map<String, Object> config)
     {
-        config.put("keystore", "test/conf/cassandra_ssl_test.unencrypted_keystore.pem");
+        config.put("keystore", TlsTestUtils.SERVER_KEYSTORE_PATH_UNENCRYPTED_PEM);
     }
 
     @Test
@@ -214,9 +215,9 @@ public class PEMBasedSslContextFactoryTest
     {
         ParameterizedClass sslContextFactory = new ParameterizedClass(PEMBasedSslContextFactory.class.getSimpleName()
         , new HashMap<>());
-        EncryptionOptions options = new EncryptionOptions().withTrustStore("test/conf/cassandra_ssl_test.truststore.pem")
-                                                           .withKeyStore("test/conf/cassandra_ssl_test.keystore.pem")
-                                                           .withKeyStorePassword("cassandra")
+        EncryptionOptions options = new EncryptionOptions().withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PEM_PATH)
+                                                           .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH_PEM)
+                                                           .withKeyStorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
                                                            .withRequireClientAuth(NOT_REQUIRED)
                                                            .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA")
                                                            .withSslContextFactory(sslContextFactory);
@@ -233,11 +234,11 @@ public class PEMBasedSslContextFactoryTest
     {
         ParameterizedClass sslContextFactory = new ParameterizedClass(PEMBasedSslContextFactory.class.getSimpleName()
         , new HashMap<>());
-        EncryptionOptions.ServerEncryptionOptions options = new EncryptionOptions.ServerEncryptionOptions().withTrustStore("test/conf/cassandra_ssl_test.truststore.pem")
-                                                                                                           .withKeyStore("test/conf/cassandra_ssl_test.keystore.pem")
-                                                                                                           .withKeyStorePassword("cassandra")
-                                                                                                           .withOutboundKeystore("test/conf/cassandra_ssl_test.keystore.pem")
-                                                                                                           .withOutboundKeystorePassword("cassandra")
+        EncryptionOptions.ServerEncryptionOptions options = new EncryptionOptions.ServerEncryptionOptions().withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PEM_PATH)
+                                                                                                           .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH_PEM)
+                                                                                                           .withKeyStorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
+                                                                                                           .withOutboundKeystore(TlsTestUtils.SERVER_KEYSTORE_PATH_PEM)
+                                                                                                           .withOutboundKeystorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
                                                                                                            .withRequireClientAuth(NOT_REQUIRED)
                                                                                                            .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA")
                                                                                                            .withSslContextFactory(sslContextFactory);

@@ -25,6 +25,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.security.DefaultSslContextFactory;
 import org.apache.cassandra.security.DummySslContextFactoryImpl;
+import org.apache.cassandra.transport.TlsTestUtils;
 
 import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.NOT_REQUIRED;
 import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
@@ -41,12 +42,12 @@ public class EncryptionOptionsEqualityTest
     {
         return new EncryptionOptions.ServerEncryptionOptions()
                .withStoreType("JKS")
-               .withKeyStore("test/conf/cassandra.keystore")
-               .withKeyStorePassword("cassandra")
-               .withTrustStore("test/conf/cassandra_ssl_test.truststore")
-               .withTrustStorePassword("cassandra")
-               .withOutboundKeystore("test/conf/cassandra_outbound.keystore")
-               .withOutboundKeystorePassword("cassandra")
+               .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH)
+               .withKeyStorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
+               .withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PATH)
+               .withTrustStorePassword(TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD)
+               .withOutboundKeystore(TlsTestUtils.SERVER_OUTBOUND_KEYSTORE_PATH)
+               .withOutboundKeystorePassword(TlsTestUtils.SERVER_OUTBOUND_KEYSTORE_PASSWORD)
                .withProtocol("TLSv1.1")
                .withRequireClientAuth(REQUIRED)
                .withRequireEndpointVerification(false);
@@ -57,10 +58,10 @@ public class EncryptionOptionsEqualityTest
         EncryptionOptions encryptionOptions1 =
         new EncryptionOptions()
         .withStoreType("JKS")
-        .withKeyStore("test/conf/cassandra.keystore")
-        .withKeyStorePassword("cassandra")
-        .withTrustStore("test/conf/cassandra_ssl_test.truststore")
-        .withTrustStorePassword("cassandra")
+        .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH)
+        .withKeyStorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
+        .withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PATH)
+        .withTrustStorePassword(TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD)
         .withProtocol("TLSv1.1")
         .withRequireClientAuth(REQUIRED)
         .withRequireEndpointVerification(false);
@@ -68,10 +69,10 @@ public class EncryptionOptionsEqualityTest
         EncryptionOptions encryptionOptions2 =
         new EncryptionOptions()
         .withStoreType("JKS")
-        .withKeyStore("test/conf/cassandra.keystore")
-        .withKeyStorePassword("cassandra")
-        .withTrustStore("test/conf/cassandra_ssl_test.truststore")
-        .withTrustStorePassword("cassandra")
+        .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH)
+        .withKeyStorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
+        .withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PATH)
+        .withTrustStorePassword(TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD)
         .withProtocol("TLSv1.1")
         .withRequireClientAuth(REQUIRED)
         .withRequireEndpointVerification(false);

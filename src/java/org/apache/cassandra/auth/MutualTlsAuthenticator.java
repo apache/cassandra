@@ -21,6 +21,7 @@ package org.apache.cassandra.auth;
 import java.net.InetAddress;
 import java.security.cert.Certificate;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -40,6 +41,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.NoSpamLogger;
 
+import static org.apache.cassandra.auth.IAuthenticator.AuthenticationMode.MTLS;
 import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
 
 /*
@@ -69,6 +71,10 @@ public class MutualTlsAuthenticator implements IAuthenticator
     private static final String CACHE_NAME = "IdentitiesCache";
     private final IdentityCache identityCache = new IdentityCache();
     private final MutualTlsCertificateValidator certificateValidator;
+    private static final Set<AuthenticationMode> AUTHENTICATION_MODES = Collections.singleton(MTLS);
+
+    // key for the 'identity' value in AuthenticatedUser metadata map.
+    static final String METADATA_IDENTITY_KEY = "identity";
 
     public MutualTlsAuthenticator(Map<String, String> parameters)
     {
@@ -134,6 +140,12 @@ public class MutualTlsAuthenticator implements IAuthenticator
     }
 
     @Override
+    public Set<AuthenticationMode> getSupportedAuthenticationModes()
+    {
+        return AUTHENTICATION_MODES;
+    }
+
+    @Override
     public AuthenticatedUser legacyAuthenticate(Map<String, String> credentials) throws AuthenticationException
     {
         throw new AuthenticationException("mTLS authentication is not supported for CassandraLoginModule");
@@ -196,7 +208,13 @@ public class MutualTlsAuthenticator implements IAuthenticator
                 nospamLogger.error(msg, identity);
                 throw new AuthenticationException(MessageFormatter.format(msg, identity).getMessage());
             }
-            return new AuthenticatedUser(role);
+            return new AuthenticatedUser(role, MTLS, Collections.singletonMap(METADATA_IDENTITY_KEY, identity));
+        }
+
+        @Override
+        public AuthenticationMode getAuthenticationMode()
+        {
+            return MTLS;
         }
     }
 
