@@ -99,6 +99,7 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
     private final List<ProgressListener> listeners = new ArrayList<>();
     private final AtomicReference<Throwable> firstError = new AtomicReference<>(null);
     final SharedContext ctx;
+    final Scheduler validationScheduler;
 
     private TraceState traceState;
 
@@ -116,6 +117,7 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
                       int cmd, RepairOption options, String keyspace)
     {
         this.ctx = ctx;
+        this.validationScheduler = Scheduler.build(1, ctx);
         this.state = new CoordinatorState(ctx.clock(), cmd, keyspace, options);
         this.tag = "repair:" + cmd;
         this.validColumnFamilies = validColumnFamilies;
@@ -453,7 +455,7 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
 
         ExecutorPlus executor = createExecutor();
         state.phase.repairSubmitted();
-        return task.perform(executor)
+        return task.perform(executor, validationScheduler)
                    // after adding the callback java could no longer infer the type...
                    .<Pair<CoordinatedRepairResult, Supplier<String>>>map(r -> Pair.create(r, task::successMessage))
                    .addCallback((s, f) -> executor.shutdown());

@@ -133,6 +133,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     public final SafeExecutor taskExecutor;
     public final boolean optimiseStreams;
     public final SharedContext ctx;
+    public final Scheduler validationScheduler;
     private volatile List<RepairJob> jobs = Collections.emptyList();
 
     private volatile boolean terminated = false;
@@ -149,6 +150,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
      * @param cfnames names of columnfamilies
      */
     public RepairSession(SharedContext ctx,
+                         Scheduler validationScheduler,
                          TimeUUID parentRepairSession,
                          CommonRange commonRange,
                          String keyspace,
@@ -162,6 +164,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
                          String... cfnames)
     {
         this.ctx = ctx;
+        this.validationScheduler = validationScheduler;
         this.repairPaxos = repairPaxos;
         this.paxosOnly = paxosOnly;
         assert cfnames.length > 0 : "Repairing no column families seems pointless, doesn't it";
