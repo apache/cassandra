@@ -423,6 +423,14 @@ public class MessagingService extends MessagingServiceMBeanImpl
         );
     }
 
+    // Used by CNDB
+    public void closeOutboundNow(InetAddressAndPort to)
+    {
+        OutboundConnections pool = channelManagers.get(to);
+        if (pool != null)
+            closeOutboundNow(pool);
+    }
+
     /**
      * Only to be invoked once we believe the connections will never be used again.
      */

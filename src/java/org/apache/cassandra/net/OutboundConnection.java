@@ -1448,6 +1448,8 @@ public class OutboundConnection
 
                 try
                 {
+                    logger.debug("Closing connection {}", id());
+
                     // note that we never clear the queue, to ensure that an enqueue has the opportunity to remove itself
                     // if it raced with close, to potentially requeue the message on a replacement connection
 

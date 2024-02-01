@@ -32,6 +32,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -49,6 +50,7 @@ import org.apache.cassandra.db.view.ViewManager;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.UncheckedInternalRequestExecutionException;
 import org.apache.cassandra.exceptions.UnknownKeyspaceException;
+import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
@@ -161,17 +163,20 @@ public class Keyspace
 
     public static Keyspace open(String keyspaceName, SchemaProvider schema, boolean loadSSTables) throws UnknownKeyspaceException
     {
-        return schema.maybeAddKeyspaceInstance(keyspaceName, () -> new Keyspace(keyspaceName, schema, loadSSTables));
+        return schema.maybeAddKeyspaceInstance(keyspaceName, () -> {
+            logger.debug("New instance created for keyspace {}", keyspaceName);
+            return new Keyspace(keyspaceName, schema, loadSSTables);
+        });
     }
 
     public static ColumnFamilyStore openAndGetStore(TableMetadataRef tableRef)
     {
-        return open(tableRef.keyspace).getColumnFamilyStore(tableRef.id);
+        return open(tableRef.keyspace).getColumnFamilyStore(tableRef.get());
     }
 
     public static ColumnFamilyStore openAndGetStore(TableMetadata table)
     {
-        return open(table.keyspace).getColumnFamilyStore(table.id);
+        return open(table.keyspace).getColumnFamilyStore(table);
     }
 
     /**
@@ -211,14 +216,33 @@ public class Keyspace
         TableMetadata table = schema.getTableMetadata(getName(), cfName);
         if (table == null)
             throw new IllegalArgumentException(String.format("Unknown keyspace/cf pair (%s.%s)", getName(), cfName));
-        return getColumnFamilyStore(table.id);
+        return getColumnFamilyStore(table);
+    }
+
+    public ColumnFamilyStore getColumnFamilyStore(TableMetadata table)
+    {
+        return getColumnFamilyStore(table.id,
+                                    () -> String.format("Cannot find table %s.%s with id %s, it may have been dropped",
+                                                        getName(), table.name, table.id));
     }
 
     public ColumnFamilyStore getColumnFamilyStore(TableId id)
     {
+        return getColumnFamilyStore(id,
+                                    () -> String.format("Cannot find table with id %s in keyspace %s, it may have been dropped",
+                                                        id, getName()));
+    }
+
+    private ColumnFamilyStore getColumnFamilyStore(TableId id, Supplier<String> errorMsg)
+    {
         ColumnFamilyStore cfs = columnFamilyStores.get(id);
         if (cfs == null)
-            throw new IllegalArgumentException("Unknown CF " + id);
+        {
+            // We log a more detailed error message here rather than complicating the client facing exception message
+            logger.error(errorMsg.get());
+            throw new IllegalArgumentException("Cannot find table, it may have been dropped. Table id" + id);
+        }
+
         return cfs;
     }
 
@@ -433,6 +457,8 @@ public class Keyspace
      */
     private void unloadCf(ColumnFamilyStore cfs, boolean dropData)
     {
+        logger.debug("Unloading column family store for table {} with dropData={}", cfs.metadata, dropData);
+
         Throwable err = null;
 
         // offline services (e.g. standalone compactor) don't have Memtables or CommitLog. An attempt to flush would
@@ -447,6 +473,8 @@ public class Keyspace
             logger.error("Failed to unload {}:", cfs.metadata(), err);
             JVMStabilityInspector.inspectThrowable(err);
         }
+
+        logger.debug("Column family store has been unloaded for table {} with dropData={}", cfs.metadata, dropData);
     }
 
     /**
@@ -483,6 +511,9 @@ public class Keyspace
      */
     public void initCf(TableMetadataRef metadata, boolean loadSSTables)
     {
+        logger.debug("Initializing column family store for table {} with loadSSTables={}",
+                     metadata, loadSSTables);
+
         ColumnFamilyStore cfs = columnFamilyStores.get(metadata.id);
 
         if (cfs == null)
@@ -502,6 +533,9 @@ public class Keyspace
             assert cfs.name.equals(metadata.name);
             cfs.reload();
         }
+
+        logger.debug("Column family store initialized for table {} with loadSSTables={}",
+                     metadata, loadSSTables);
     }
 
     public CompletableFuture<?> applyFuture(Mutation mutation, WriteOptions writeOptions, boolean isDeferrable)

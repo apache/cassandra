@@ -1647,6 +1647,18 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return tidy.global.obsoletion != null;
     }
 
+    /**
+     * Used by CNDB to detect sstables marked as obsolete (compacted). Without obtaining the actual
+     * {@link SSTableReader} instance. See {@link #isMarkedCompacted()} that performs the same check for an
+     * exisiting reader instance.
+     * @see #isMarkedCompacted()
+     * @see #markObsolete(AbstractLogTransaction.ReaderTidier)
+     */
+    public static boolean isMarkedCompacted(Descriptor descriptor)
+    {
+        return GlobalTidy.hasTidier(descriptor);
+    }
+
     public void markSuspect()
     {
         if (logger.isTraceEnabled())
@@ -2248,7 +2260,26 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             else
                 barrier = null;
 
-            ScheduledExecutors.nonPeriodicTasks.execute(() -> {
+            Runnable cleanup = new CleanupTask(barrier);
+            ScheduledExecutors.nonPeriodicTasks.execute(cleanup);
+        }
+
+        public String name()
+        {
+            return descriptor.toString();
+        }
+
+        private class CleanupTask implements Runnable
+        {
+            private final OpOrder.Barrier barrier;
+
+            public CleanupTask(OpOrder.Barrier barrier) {
+                this.barrier = barrier;
+            }
+
+            @Override
+            public void run()
+            {
                 if (logger.isTraceEnabled())
                     logger.trace("Async instance tidier for {}, before barrier", descriptor);
 
@@ -2291,12 +2322,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
                 if (logger.isTraceEnabled())
                     logger.trace("Async instance tidier for {}, completed", descriptor);
-            });
-        }
-
-        public String name()
-        {
-            return descriptor.toString();
+            }
         }
 
     }
@@ -2496,6 +2522,25 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         public static boolean exists(Descriptor descriptor)
         {
             return lookup.containsKey(descriptor);
+        }
+
+        private static boolean hasTidier(Descriptor descriptor)
+        {
+            Ref<GlobalTidy> globalTidyRef = lookup.get(descriptor);
+            if (globalTidyRef != null)
+            {
+                try
+                {
+                    GlobalTidy globalTidy = globalTidyRef.get();
+                    if (globalTidy != null)
+                        return globalTidy.obsoletion != null;
+                }
+                catch (AssertionError e)
+                {
+                    // ignore, we're just checking if the tidier exists
+                }
+            }
+            return false;
         }
     }
 
