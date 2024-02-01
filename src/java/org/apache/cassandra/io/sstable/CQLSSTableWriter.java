@@ -663,7 +663,7 @@ public class CQLSSTableWriter implements Closeable
                 {
                     Types types = createTypes(keyspaceName);
                     Schema.instance.submit(SchemaTransformations.addTypes(types, true));
-                    tableMetadata = createTable(types);
+                    tableMetadata = createTable(types, ksm.userFunctions);
                     Schema.instance.submit(SchemaTransformations.addTable(tableMetadata, true));
 
                     if (buildIndexes && !indexStatements.isEmpty())
@@ -772,13 +772,13 @@ public class CQLSSTableWriter implements Closeable
          *
          * @param types types this table should be created with
          */
-        private TableMetadata createTable(Types types)
+        private TableMetadata createTable(Types types, UserFunctions functions)
         {
             ClientState state = ClientState.forInternalCalls();
             CreateTableStatement statement = schemaStatement.prepare(state);
             statement.validate(ClientState.forInternalCalls());
 
-            TableMetadata.Builder builder = statement.builder(types);
+            TableMetadata.Builder builder = statement.builder(types, functions);
             if (partitioner != null)
                 builder.partitioner(partitioner);
 

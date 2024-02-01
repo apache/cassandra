@@ -60,6 +60,7 @@ import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
+import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.ClientState;
@@ -120,7 +121,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         if (table.isView())
             throw ire("Cannot use ALTER TABLE on a materialized view; use ALTER MATERIALIZED VIEW instead");
 
-        return schema.withAddedOrUpdated(apply(metadata.nextEpoch(), keyspace, table));
+        return schema.withAddedOrUpdated(apply(metadata.nextEpoch(), keyspace, table, metadata));
     }
 
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)
@@ -144,7 +145,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         return format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, tableName);
     }
 
-    abstract KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table);
+    abstract KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata);
 
     /**
      * {@code ALTER TABLE [IF EXISTS] <table> ALTER <column> TYPE <newtype>;}
@@ -158,7 +159,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             super(keyspaceName, tableName, ifTableExists);
         }
 
-        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)
         {
             throw ire("Altering column types is no longer supported");
         }
@@ -198,7 +199,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         }
 
         @Override
-        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)
         {
             ColumnMetadata column = table.getColumn(columnName);
 
@@ -210,8 +211,14 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 return keyspace;
             }
 
+            // add all user functions to be able to give a good error message to the user if the alter references
+            // a function from another keyspace
+            UserFunctions.Builder ufBuilder = UserFunctions.builder();
+            for (KeyspaceMetadata ksm : metadata.schema.getKeyspaces())
+                ufBuilder.add(ksm.userFunctions);
+
             ColumnMask oldMask = table.getColumn(columnName).getMask();
-            ColumnMask newMask = rawMask == null ? null : rawMask.prepare(keyspace.name, table.name, columnName, column.type);
+            ColumnMask newMask = rawMask == null ? null : rawMask.prepare(keyspace.name, table.name, columnName, column.type, ufBuilder.build());
 
             if (Objects.equals(oldMask, newMask))
                 return keyspace;
@@ -276,7 +283,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             newColumns.forEach(c -> c.type.validate(state, "Column " + c.name));
         }
 
-        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)
         {
             Guardrails.alterTableEnabled.ensureEnabled("ALTER TABLE changing columns", state);
             TableMetadata.Builder tableBuilder = table.unbuild().epoch(epoch);
@@ -302,7 +309,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             ColumnIdentifier name = column.name;
             AbstractType<?> type = column.type.prepare(keyspaceName, keyspace.types).getType();
             boolean isStatic = column.isStatic;
-            ColumnMask mask = column.mask == null ? null : column.mask.prepare(keyspaceName, tableName, name, type);
+            ColumnMask mask = column.mask == null ? null : column.mask.prepare(keyspaceName, tableName, name, type, keyspace.userFunctions);
 
             if (null != tableBuilder.getColumn(name)) {
                 if (!ifColumnNotExists)
@@ -413,7 +420,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             this.timestamp = timestamp;
         }
 
-        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)
         {
             Guardrails.alterTableEnabled.ensureEnabled("ALTER TABLE changing columns", state);
             TableMetadata.Builder builder = table.unbuild();
@@ -475,7 +482,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             this.ifColumnsExists = ifColumnsExists;
         }
 
-        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)
         {
             Guardrails.alterTableEnabled.ensureEnabled("ALTER TABLE changing columns", state);
             TableMetadata.Builder tableBuilder = table.unbuild().epoch(epoch);
@@ -553,7 +560,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             validateDefaultTimeToLive(attrs.asNewTableParams());
         }
 
-        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)
         {
             attrs.validate();
 
@@ -597,7 +604,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             super(keyspaceName, tableName, ifTableExists);
         }
 
-        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)
         {
             if (!DatabaseDescriptor.enableDropCompactStorage())
                 throw new InvalidRequestException("DROP COMPACT STORAGE is disabled. Enable in cassandra.yaml to use.");
