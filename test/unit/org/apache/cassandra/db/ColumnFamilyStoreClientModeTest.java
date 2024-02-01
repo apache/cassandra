@@ -39,6 +39,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.Types;
+import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -86,7 +87,7 @@ public class ColumnFamilyStoreClientModeTest
         ClientState state = ClientState.forInternalCalls(KEYSPACE);
         CreateTableStatement statement = schemaStatement.prepare(state);
         statement.validate(state);
-        TableMetadata tableMetadata = statement.builder(types)
+        TableMetadata tableMetadata = statement.builder(types, UserFunctions.none())
                                                .id(TableId.fromUUID(UUID.nameUUIDFromBytes(ArrayUtils.addAll(schemaStatement.keyspace().getBytes(), schemaStatement.table().getBytes()))))
                                                .partitioner(Murmur3Partitioner.instance)
                                                .build();

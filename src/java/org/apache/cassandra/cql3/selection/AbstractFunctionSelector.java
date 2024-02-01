@@ -31,6 +31,7 @@ import org.apache.cassandra.cql3.functions.Arguments;
 import org.apache.cassandra.cql3.functions.FunctionResolver;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -68,7 +69,7 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
                 argTypes.add(readType(metadata, in));
             }
 
-            Function function = FunctionResolver.get(metadata.keyspace, name, argTypes, metadata.keyspace, metadata.name, null);
+            Function function = FunctionResolver.get(metadata.keyspace, name, argTypes, metadata.keyspace, metadata.name, null, UserFunctions.getCurrentUserFunctions(name, metadata.keyspace));
 
             if (function == null)
                 throw new IOException(String.format("Unknown serialized function %s(%s)",

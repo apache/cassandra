@@ -148,7 +148,7 @@ public interface Transformation
 
         public Success success()
         {
-            throw new IllegalStateException("Can't dereference Success for a rejected execution");
+            throw new IllegalStateException("Can't dereference Success for a rejected execution: " + code + ": " + reason);
         }
 
         public Rejected rejected()
