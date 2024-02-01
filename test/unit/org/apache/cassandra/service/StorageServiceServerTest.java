@@ -79,6 +79,8 @@ public class StorageServiceServerTest
     static InetAddressAndPort id3;
     static InetAddressAndPort id4;
     static InetAddressAndPort id5;
+    static InetAddressAndPort id6;
+    static InetAddressAndPort id6ssl;
 
     @BeforeClass
     public static void setUp() throws ConfigurationException, UnknownHostException
@@ -117,6 +119,8 @@ public class StorageServiceServerTest
         id3 = InetAddressAndPort.getByName("127.0.0.3");
         id4 = InetAddressAndPort.getByName("127.0.0.4");
         id5 = InetAddressAndPort.getByName("127.0.0.5");
+        id6 = InetAddressAndPort.getByName("127.0.0.6");
+        id6ssl = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.6", 9142);
         registerNodes();
         ServerTestUtils.markCMS();
     }
@@ -129,6 +133,7 @@ public class StorageServiceServerTest
 
         ClusterMetadataTestHelper.register(id4, DC2, RACK);
         ClusterMetadataTestHelper.register(id5, DC2, RACK);
+        ClusterMetadataTestHelper.register(id6, id6ssl, DC2, RACK);
     }
 
     private static void setupDefaultPlacements()
@@ -552,13 +557,37 @@ public class StorageServiceServerTest
     {
         NodeId node2 = ClusterMetadata.current().directory.peerId(id2);
         NodeAddresses oldAddresses = ClusterMetadata.current().directory.getNodeAddresses(node2);
-        assertEquals("127.0.0.2:7012", StorageService.instance.getNativeaddress(id2, true));
+        assertEquals("127.0.0.2:7012", StorageService.instance.getNativeAddress(id2, true));
 
         String newNativeString = "127.1.1.2:19012";
         InetAddressAndPort newNativeAddress = InetAddressAndPort.getByName(newNativeString);
-        NodeAddresses newAddresses = new NodeAddresses(UUID.randomUUID(), oldAddresses.broadcastAddress, oldAddresses.localAddress, newNativeAddress);
+        NodeAddresses newAddresses = new NodeAddresses(UUID.randomUUID(), oldAddresses.broadcastAddress, oldAddresses.localAddress, newNativeAddress, newNativeAddress);
         ClusterMetadataService.instance().commit(new Startup(node2, newAddresses, NodeVersion.CURRENT));
-        assertEquals(newNativeString, StorageService.instance.getNativeaddress(id2, true));
+        assertEquals(newNativeString, StorageService.instance.getNativeAddress(id2, true));
+    }
+
+
+    @Test
+    public void testGetNativeSSLAddress() throws Exception
+    {
+        NodeId node6 = ClusterMetadata.current().directory.peerId(id6);
+        NodeAddresses oldAddresses = ClusterMetadata.current().directory.getNodeAddresses(node6);
+        assertEquals("127.0.0.6:7012", StorageService.instance.getNativeAddress(id6, true));
+        assertEquals("127.0.0.6:9142", StorageService.instance.getNativeAddressSSL(id6, true));
+
+        String newNativeString = "127.1.1.2:19012";
+        InetAddressAndPort newNativeAddress = InetAddressAndPort.getByName(newNativeString);
+        InetAddressAndPort newNativeAddressSSL = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.6", 9142);
+        NodeAddresses newAddresses = new NodeAddresses(UUID.randomUUID(), oldAddresses.broadcastAddress, oldAddresses.localAddress, newNativeAddress, newNativeAddressSSL);
+        ClusterMetadataService.instance().commit(new Startup(node6, newAddresses, NodeVersion.CURRENT));
+        assertEquals(newNativeString, StorageService.instance.getNativeAddress(id6, true));
+
+        String newNativeStringSsl = "127.1.1.2:29012";
+        InetAddressAndPort newNativeAddressSsl = InetAddressAndPort.getByName(newNativeStringSsl);
+        NodeAddresses newAddressesSsl = new NodeAddresses(UUID.randomUUID(), oldAddresses.broadcastAddress, oldAddresses.localAddress, newNativeAddress, newNativeAddressSsl);
+        ClusterMetadataService.instance().commit(new Startup(node6, newAddressesSsl, NodeVersion.CURRENT));
+        assertEquals(newNativeString, StorageService.instance.getNativeAddress(id6, true));
+        assertEquals(newNativeStringSsl, StorageService.instance.getNativeAddressSSL(id6, true));
     }
 
     @Test
@@ -568,15 +597,15 @@ public class StorageServiceServerTest
         // See https://issues.apache.org/jira/browse/CASSANDRA-17945 for more context.
         NodeId node2 = ClusterMetadata.current().directory.peerId(id2);
         NodeAddresses oldAddresses = ClusterMetadata.current().directory.getNodeAddresses(node2);
-        assertEquals("127.0.0.2:7012", StorageService.instance.getNativeaddress(id2, true));
+        assertEquals("127.0.0.2:7012", StorageService.instance.getNativeAddress(id2, true));
 
         String newNativeString = "[0:0:0:0:0:0:0:3]:666";
         InetAddressAndPort newNativeAddress = InetAddressAndPort.getByName(newNativeString);
-        NodeAddresses newAddresses = new NodeAddresses(UUID.randomUUID(), oldAddresses.broadcastAddress, oldAddresses.localAddress, newNativeAddress);
+        NodeAddresses newAddresses = new NodeAddresses(UUID.randomUUID(), oldAddresses.broadcastAddress, oldAddresses.localAddress, newNativeAddress, newNativeAddress);
         ClusterMetadataService.instance().commit(new Startup(node2, newAddresses, NodeVersion.CURRENT));
-        assertEquals(newNativeString, StorageService.instance.getNativeaddress(id2, true));
+        assertEquals(newNativeString, StorageService.instance.getNativeAddress(id2, true));
         //Default to using the provided address with the configured port
-        assertEquals(newNativeString, StorageService.instance.getNativeaddress(id2, true));
+        assertEquals(newNativeString, StorageService.instance.getNativeAddress(id2, true));
     }
 
     @Test

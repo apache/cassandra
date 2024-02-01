@@ -98,6 +98,7 @@ public class SystemKeyspaceMigrator41Test extends CQLTester
             assertEquals("4.0", row.getString("release_version"));
             assertEquals(InetAddress.getByName("127.0.0.3"), row.getInetAddress("native_address"));
             assertEquals(DatabaseDescriptor.getNativeTransportPort(), row.getInt("native_port"));
+            assertEquals(DatabaseDescriptor.getNativeTransportPortSSL(), row.getInt("native_port_ssl"));
             assertEquals(schemaVersion, row.getUUID("schema_version"));
             assertEquals(ImmutableSet.of("foobar"), row.getSet("tokens", UTF8Type.instance));
         }

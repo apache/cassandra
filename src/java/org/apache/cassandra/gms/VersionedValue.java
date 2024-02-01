@@ -327,9 +327,14 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(endpoint.getHostAddress(), versionSupplier.get());
         }
 
-        public VersionedValue nativeaddressAndPort(InetAddressAndPort address)
+        public VersionedValue nativeAddressAndPort(InetAddressAndPort address)
         {
             return new VersionedValue(address.getHostAddressAndPort(), versionSupplier.get());
+        }
+
+        public VersionedValue nativeAddressAndPortSSL(InetAddressAndPort address)
+        {
+            return new VersionedValue(address.getHostAddressAndPort());
         }
 
         public VersionedValue releaseVersion()

@@ -59,6 +59,7 @@ public class ForceSnapshotTest extends TestBaseImpl
                 Directory d = metadata.directory.with(new NodeAddresses(UUID.randomUUID(),
                                                                         InetAddressAndPort.getByNameUnchecked("127.0.0.5"),
                                                                         InetAddressAndPort.getByNameUnchecked("127.0.0.5"),
+                                                                        InetAddressAndPort.getByNameUnchecked("127.0.0.5"),
                                                                         InetAddressAndPort.getByNameUnchecked("127.0.0.5")),
                                                       new Location("AA", "BB"));
                 metadata = metadata.transformer().with(d).build().metadata;

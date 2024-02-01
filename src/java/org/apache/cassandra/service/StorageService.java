@@ -1667,7 +1667,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * @param endpoint The endpoint to get rpc address for
      * @return the native address
      */
-    public String getNativeaddress(InetAddressAndPort endpoint, boolean withPort)
+    public String getNativeAddress(InetAddressAndPort endpoint, boolean withPort)
     {
         if (endpoint.equals(getBroadcastAddressAndPort()))
             return FBUtilities.getBroadcastNativeAddressAndPort().getHostAddress(withPort);
@@ -1680,6 +1680,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         NodeAddresses addresses = directory.getNodeAddresses(id);
         return addresses.nativeAddress.getHostAddress(withPort);
+    }
+
+    public String getNativeAddressSSL(InetAddressAndPort endpoint, boolean withPort)
+    {
+        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
+            return FBUtilities.getBroadcastNativeAddressAndPortSSL().getHostAddress(withPort);
+
+        ClusterMetadata metadata = ClusterMetadata.current();
+        Directory directory = metadata.directory;
+        NodeId id = directory.peerId(endpoint);
+        if (id == null)
+            throw new RuntimeException("Unknown endpoint " + endpoint);
+
+        NodeAddresses addresses = directory.getNodeAddresses(id);
+        return addresses.nativeAddressSSL.getHostAddress(withPort);
     }
 
     public Map<List<String>, List<String>> getRangeToRpcaddressMap(String keyspace)
@@ -1706,7 +1721,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             List<String> rpcaddrs = new ArrayList<>(entry.getValue().size());
             for (Replica replicas: entry.getValue())
             {
-                rpcaddrs.add(getNativeaddress(replicas.endpoint(), withPort));
+                rpcaddrs.add(getNativeAddress(replicas.endpoint(), withPort));
             }
             map.put(entry.getKey().asList(), rpcaddrs);
         }
@@ -2073,6 +2088,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     {
                         InetAddressAndPort address = InetAddressAndPort.getByName(value.value);
                         SystemKeyspace.updatePeerNativeAddress(endpoint, address);
+                    }
+                    catch (UnknownHostException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                    break;
+                case NATIVE_ADDRESS_AND_PORT_SSL:
+                    try
+                    {
+                        InetAddressAndPort address = InetAddressAndPort.getByName(value.value);
+                        SystemKeyspace.updatePeerNativeAddressSSL(endpoint, address);
                     }
                     catch (UnknownHostException e)
                     {

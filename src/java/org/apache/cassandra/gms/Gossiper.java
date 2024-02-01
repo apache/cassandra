@@ -2167,7 +2167,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
                             newValue = valueFactory.internalAddressAndPort(addresses.localAddress);
                             break;
                         case NATIVE_ADDRESS_AND_PORT:
-                            newValue = valueFactory.nativeaddressAndPort(addresses.nativeAddress);
+                            newValue = valueFactory.nativeAddressAndPort(addresses.nativeAddress);
                             break;
                         case STATUS:
                             // only publish/add STATUS if there are non-upgraded hosts

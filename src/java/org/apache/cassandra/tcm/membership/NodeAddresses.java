@@ -41,6 +41,7 @@ public class NodeAddresses
     public final InetAddressAndPort broadcastAddress;
     public final InetAddressAndPort localAddress;
     public final InetAddressAndPort nativeAddress;
+    public final InetAddressAndPort nativeAddressSSL;
 
     /**
      *
@@ -49,19 +50,31 @@ public class NodeAddresses
      *                         todo; config broadcast_address can be changed by snitch (EC2MultiRegionSnitch) during runtime, handle that
      * @param localAddress this is the local host if listen_address is not set in config
      * @param nativeAddress address for clients to communicate with this node
+     * @param nativeAddressSSL address for clients to communicate with this node via SSL
      */
-    public NodeAddresses(UUID identityToken, InetAddressAndPort broadcastAddress, InetAddressAndPort localAddress, InetAddressAndPort nativeAddress)
+    public NodeAddresses(UUID identityToken,
+                         InetAddressAndPort broadcastAddress,
+                         InetAddressAndPort localAddress,
+                         InetAddressAndPort nativeAddress,
+                         InetAddressAndPort nativeAddressSSL)
     {
         this.identityToken = identityToken;
         this.broadcastAddress = broadcastAddress;
         this.localAddress = localAddress;
         this.nativeAddress = nativeAddress;
+        this.nativeAddressSSL = nativeAddressSSL;
     }
 
     @VisibleForTesting
     public NodeAddresses(InetAddressAndPort address)
     {
-        this(UUID.randomUUID(), address, address, address);
+        this(UUID.randomUUID(), address, address, address, address);
+    }
+
+    @VisibleForTesting
+    public NodeAddresses(InetAddressAndPort address, InetAddressAndPort addressAndPortSSL)
+    {
+        this(UUID.randomUUID(), address, address, address, addressAndPortSSL);
     }
 
     @Override
@@ -71,6 +84,7 @@ public class NodeAddresses
                "broadcastAddress=" + broadcastAddress +
                ", localAddress=" + localAddress +
                ", nativeAddress=" + nativeAddress +
+               ", nativeAddressSSL=" + nativeAddressSSL +
                '}';
     }
 
@@ -85,7 +99,8 @@ public class NodeAddresses
     {
         return broadcastAddress.equals(other.broadcastAddress) ||
                localAddress.equals(other.localAddress) ||
-               nativeAddress.equals(other.nativeAddress);
+               nativeAddress.equals(other.nativeAddress) ||
+               nativeAddressSSL.equals(other.nativeAddressSSL);
     }
 
     @Override
@@ -94,7 +109,10 @@ public class NodeAddresses
         if (this == o) return true;
         if (!(o instanceof NodeAddresses)) return false;
         NodeAddresses that = (NodeAddresses) o;
-        return Objects.equals(broadcastAddress, that.broadcastAddress) && Objects.equals(localAddress, that.localAddress) && Objects.equals(nativeAddress, that.nativeAddress);
+        return Objects.equals(broadcastAddress, that.broadcastAddress)
+               && Objects.equals(localAddress, that.localAddress)
+               && Objects.equals(nativeAddress, that.nativeAddress)
+               && Objects.equals(nativeAddressSSL, that.nativeAddressSSL);
     }
 
     @Override
@@ -108,7 +126,8 @@ public class NodeAddresses
         return new NodeAddresses(UUID.randomUUID(),
                                  FBUtilities.getBroadcastAddressAndPort(),
                                  FBUtilities.getLocalAddressAndPort(),
-                                 FBUtilities.getBroadcastNativeAddressAndPort());
+                                 FBUtilities.getBroadcastNativeAddressAndPort(),
+                                 FBUtilities.getBroadcastNativeAddressAndPortSSL());
     }
 
     public static class Serializer implements MetadataSerializer<NodeAddresses>
@@ -121,6 +140,7 @@ public class NodeAddresses
             InetAddressAndPort.MetadataSerializer.serializer.serialize(t.broadcastAddress, out, version);
             InetAddressAndPort.MetadataSerializer.serializer.serialize(t.localAddress, out, version);
             InetAddressAndPort.MetadataSerializer.serializer.serialize(t.nativeAddress, out, version);
+            InetAddressAndPort.MetadataSerializer.serializer.serialize(t.nativeAddressSSL, out, version);
         }
 
         @Override
@@ -130,7 +150,8 @@ public class NodeAddresses
             InetAddressAndPort broadcastAddress = InetAddressAndPort.MetadataSerializer.serializer.deserialize(in, version);
             InetAddressAndPort localAddress = InetAddressAndPort.MetadataSerializer.serializer.deserialize(in, version);
             InetAddressAndPort rpcAddress = InetAddressAndPort.MetadataSerializer.serializer.deserialize(in, version);
-            return new NodeAddresses(token, broadcastAddress, localAddress, rpcAddress);
+            InetAddressAndPort rpcAddressSSL = InetAddressAndPort.MetadataSerializer.serializer.deserialize(in, version);
+            return new NodeAddresses(token, broadcastAddress, localAddress, rpcAddress, rpcAddressSSL);
         }
 
         @Override
@@ -139,7 +160,8 @@ public class NodeAddresses
             return (2 * Long.BYTES) +
                    InetAddressAndPort.MetadataSerializer.serializer.serializedSize(t.broadcastAddress, version) +
                    InetAddressAndPort.MetadataSerializer.serializer.serializedSize(t.localAddress, version) +
-                   InetAddressAndPort.MetadataSerializer.serializer.serializedSize(t.nativeAddress, version);
+                   InetAddressAndPort.MetadataSerializer.serializer.serializedSize(t.nativeAddress, version) +
+                   InetAddressAndPort.MetadataSerializer.serializer.serializedSize(t.nativeAddressSSL, version);
         }
     }
 }

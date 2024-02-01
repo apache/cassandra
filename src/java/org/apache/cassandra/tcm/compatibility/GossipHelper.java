@@ -81,6 +81,7 @@ import static org.apache.cassandra.gms.ApplicationState.HOST_ID;
 import static org.apache.cassandra.gms.ApplicationState.INTERNAL_ADDRESS_AND_PORT;
 import static org.apache.cassandra.gms.ApplicationState.INTERNAL_IP;
 import static org.apache.cassandra.gms.ApplicationState.NATIVE_ADDRESS_AND_PORT;
+import static org.apache.cassandra.gms.ApplicationState.NATIVE_ADDRESS_AND_PORT_SSL;
 import static org.apache.cassandra.gms.ApplicationState.RACK;
 import static org.apache.cassandra.gms.ApplicationState.RELEASE_VERSION;
 import static org.apache.cassandra.gms.ApplicationState.RPC_ADDRESS;
@@ -195,7 +196,7 @@ public class GossipHelper
             return new HashSet<>(((Move)sequence).tokens);
 
         throw new IllegalArgumentException(String.format("Extracting tokens from %s sequence is " +
-                                                         "neither necessary nor supported here"));
+                                                         "neither necessary nor supported here", sequence.kind()));
     }
 
     private static Collection<Token> getTokensIn(IPartitioner partitioner, EndpointState epState)
@@ -238,7 +239,8 @@ public class GossipHelper
         {
             InetAddressAndPort local = getEitherState(endpoint, epState, INTERNAL_ADDRESS_AND_PORT, INTERNAL_IP, DatabaseDescriptor.getStoragePort());
             InetAddressAndPort nativeAddress = getEitherState(endpoint, epState, NATIVE_ADDRESS_AND_PORT, RPC_ADDRESS, DatabaseDescriptor.getNativeTransportPort());
-            return new NodeAddresses(UUID.randomUUID(), endpoint, local, nativeAddress);
+            InetAddressAndPort nativeAddressSSL = getEitherState(endpoint, epState, NATIVE_ADDRESS_AND_PORT_SSL, RPC_ADDRESS, DatabaseDescriptor.getNativeTransportPortSSL());
+            return new NodeAddresses(UUID.randomUUID(), endpoint, local, nativeAddress, nativeAddressSSL);
         }
         catch (UnknownHostException e)
         {
@@ -314,7 +316,8 @@ public class GossipHelper
         epstate.addApplicationState(STATUS_WITH_PORT, vf.normal(tokens));
         epstate.addApplicationState(TOKENS, vf.tokens(tokens));
         epstate.addApplicationState(INTERNAL_ADDRESS_AND_PORT, vf.internalAddressAndPort(SystemKeyspace.getPreferredIP(FBUtilities.getLocalAddressAndPort())));
-        epstate.addApplicationState(NATIVE_ADDRESS_AND_PORT, vf.nativeaddressAndPort(FBUtilities.getBroadcastNativeAddressAndPort()));
+        epstate.addApplicationState(NATIVE_ADDRESS_AND_PORT, vf.nativeAddressAndPort(FBUtilities.getBroadcastNativeAddressAndPort()));
+        epstate.addApplicationState(NATIVE_ADDRESS_AND_PORT_SSL, vf.nativeAddressAndPort(FBUtilities.getBroadcastNativeAddressAndPortSSL()));
 
         Map<InetAddressAndPort, EndpointState> epstates = new HashMap<>();
         epstates.put(FBUtilities.getBroadcastAddressAndPort(), epstate);

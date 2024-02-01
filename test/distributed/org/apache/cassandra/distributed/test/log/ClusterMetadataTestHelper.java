@@ -281,6 +281,11 @@ public class ClusterMetadataTestHelper
         return new NodeAddresses(address);
     }
 
+    public static NodeAddresses addr(InetAddressAndPort address, InetAddressAndPort addressAndPortSSL)
+    {
+        return new NodeAddresses(address, addressAndPortSSL);
+    }
+
     public static NodeId register(int nodeIdx, String dc, String rack)
     {
         return register(addr(nodeIdx), dc, rack);
@@ -288,9 +293,14 @@ public class ClusterMetadataTestHelper
 
     public static NodeId register(InetAddressAndPort endpoint, String dc, String rack)
     {
+        return register(endpoint, endpoint, dc, rack);
+    }
+
+    public static NodeId register(InetAddressAndPort endpoint, InetAddressAndPort endpointSSL, String dc, String rack)
+    {
         try
         {
-            return commit(new Register(addr(endpoint), new Location(dc, rack), NodeVersion.CURRENT)).directory.peerId(endpoint);
+            return commit(new Register(addr(endpoint, endpointSSL), new Location(dc, rack), NodeVersion.CURRENT)).directory.peerId(endpoint);
         }
         catch (Throwable e)
         {

@@ -135,6 +135,7 @@ import static org.apache.cassandra.gms.ApplicationState.DC;
 import static org.apache.cassandra.gms.ApplicationState.HOST_ID;
 import static org.apache.cassandra.gms.ApplicationState.INTERNAL_ADDRESS_AND_PORT;
 import static org.apache.cassandra.gms.ApplicationState.NATIVE_ADDRESS_AND_PORT;
+import static org.apache.cassandra.gms.ApplicationState.NATIVE_ADDRESS_AND_PORT_SSL;
 import static org.apache.cassandra.gms.ApplicationState.RACK;
 import static org.apache.cassandra.gms.ApplicationState.RELEASE_VERSION;
 import static org.apache.cassandra.gms.ApplicationState.STATUS_WITH_PORT;
@@ -313,6 +314,7 @@ public final class SystemKeyspace
                 + "release_version text,"
                 + "native_address inet,"
                 + "native_port int,"
+                + "native_port_ssl int,"
                 + "schema_version uuid,"
                 + "tokens set<varchar>,"
                 + "PRIMARY KEY ((peer), peer_port))")
@@ -933,6 +935,16 @@ public final class SystemKeyspace
         executeInternal(String.format(req, PEERS_V2), ep.getAddress(), ep.getPort(), address.getAddress(), address.getPort());
     }
 
+    public static synchronized void updatePeerNativeAddressSSL(InetAddressAndPort ep, InetAddressAndPort address)
+    {
+        if (ep.equals(FBUtilities.getBroadcastAddressAndPort()))
+            return;
+
+        String req = "INSERT INTO system.%s (peer, rpc_address) VALUES (?, ?)";
+        executeInternal(String.format(req, LEGACY_PEERS), ep.getAddress(), address.getAddress());
+        req = "INSERT INTO system.%s (peer, peer_port, native_address, native_port_ssl) VALUES (?, ?, ?, ?)";
+        executeInternal(String.format(req, PEERS_V2), ep.getAddress(), ep.getPort(), address.getAddress(), address.getPort());
+    }
 
     public static synchronized void updateHintsDropped(InetAddressAndPort ep, TimeUUID timePeriod, int value)
     {
@@ -2056,8 +2068,11 @@ public final class SystemKeyspace
             if (row.has("native_ip"))
             {
                 epstate.addApplicationState(NATIVE_ADDRESS_AND_PORT,
-                                            vf.nativeaddressAndPort(InetAddressAndPort.getByAddressOverrideDefaults(row.getInetAddress("native_ip"),
+                                            vf.nativeAddressAndPort(InetAddressAndPort.getByAddressOverrideDefaults(row.getInetAddress("native_ip"),
                                                                                                                     row.getInt("native_port"))));
+                epstate.addApplicationState(NATIVE_ADDRESS_AND_PORT_SSL,
+                                            vf.nativeAddressAndPort(InetAddressAndPort.getByAddressOverrideDefaults(row.getInetAddress("native_ip"),
+                                                                                                                    row.getInt("native_port_ssl"))));
             }
 
             epstates.put(endpoint, epstate);

@@ -195,7 +195,7 @@ public class GossipHelperTest
         versionedValues.put(DC, vvf.datacenter(dc));
         versionedValues.put(RACK, vvf.datacenter("rack1"));
         versionedValues.put(RELEASE_VERSION, vvf.releaseVersion("3.0.24"));
-        versionedValues.put(NATIVE_ADDRESS_AND_PORT, vvf.nativeaddressAndPort(nativeAddress));
+        versionedValues.put(NATIVE_ADDRESS_AND_PORT, vvf.nativeAddressAndPort(nativeAddress));
         versionedValues.put(INTERNAL_ADDRESS_AND_PORT, vvf.internalAddressAndPort(internalAddress));
         return new EndpointState(new HeartBeatState(1, 1), versionedValues);
     }

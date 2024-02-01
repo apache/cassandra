@@ -60,6 +60,7 @@ public class PeersTable extends AbstractVirtualTable
     public static String RELEASE_VERSION = "release_version";
     public static String NATIVE_ADDRESS = "native_address";
     public static String NATIVE_PORT = "native_port";
+    public static String NATIVE_PORT_SSL = "native_port_ssl";
     public static String SCHEMA_VERSION = "schema_version";
     public static String TOKENS = "tokens";
     public static String STATE = "state";
@@ -79,6 +80,7 @@ public class PeersTable extends AbstractVirtualTable
                            .addRegularColumn(PREFERRED_PORT, Int32Type.instance)
                            .addRegularColumn(NATIVE_ADDRESS, InetAddressType.instance)
                            .addRegularColumn(NATIVE_PORT, Int32Type.instance)
+                           .addRegularColumn(NATIVE_PORT_SSL, Int32Type.instance)
                            .addRegularColumn(RELEASE_VERSION, UTF8Type.instance)
                            .addRegularColumn(SCHEMA_VERSION, UUIDType.instance)
                            .addRegularColumn(STATE, UTF8Type.instance)
@@ -104,6 +106,7 @@ public class PeersTable extends AbstractVirtualTable
                   .column(PREFERRED_PORT, addresses.broadcastAddress.getPort())
                   .column(NATIVE_ADDRESS, addresses.nativeAddress.getAddress())
                   .column(NATIVE_PORT, addresses.nativeAddress.getPort())
+                  .column(NATIVE_PORT_SSL, addresses.nativeAddressSSL.getPort())
                   .column(RELEASE_VERSION, metadata.directory.version(peer).cassandraVersion.toString())
                   .column(SCHEMA_VERSION, Schema.instance.getVersion()) //TODO
                   .column(STATE, metadata.directory.peerState(peer).toString())
@@ -125,14 +128,14 @@ public class PeersTable extends AbstractVirtualTable
     private static String peers_v2_query = "INSERT INTO %s.%s ("
                                             + "peer, peer_port, "
                                             + "preferred_ip, preferred_port, "
-                                            + "native_address, native_port, "
+                                            + "native_address, native_port, native_port_ssl, "
                                             + "data_center, rack, "
                                             + "host_id, "
                                             + "release_version, "
                                             + "schema_version,"
                                             + "tokens) " +
                                             "VALUES " +
-                                            "(?,?,?,?,?,?,?,?,?,?,?,?)";
+                                            "(?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
     private static String legacy_peers_query = "INSERT INTO %s.%s ("
                                                + "peer, preferred_ip, rpc_address, "
@@ -181,7 +184,7 @@ public class PeersTable extends AbstractVirtualTable
             QueryProcessor.executeInternal(String.format(peers_v2_query, SYSTEM_KEYSPACE_NAME, PEERS_V2),
                                            addresses.broadcastAddress.getAddress(), addresses.broadcastAddress.getPort(),
                                            addresses.broadcastAddress.getAddress(), addresses.broadcastAddress.getPort(),
-                                           addresses.nativeAddress.getAddress(), addresses.nativeAddress.getPort(),
+                                           addresses.nativeAddress.getAddress(), addresses.nativeAddress.getPort(), addresses.nativeAddressSSL.getPort(),
                                            location.datacenter, location.rack,
                                            nodeId.toUUID(),
                                            next.directory.version(nodeId).cassandraVersion.toString(),
