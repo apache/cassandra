@@ -142,7 +142,8 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
     {
         LocalLog.LogSpec logSpec = LocalLog.logSpec()
                                            .withStorage(LogStorage.SystemKeyspace)
-                                           .afterReplay(Startup::scrubDataDirectories)
+                                           .afterReplay(Startup::scrubDataDirectories,
+                                                        (metadata) -> StorageService.instance.registerMBeans())
                                            .withDefaultListeners();
         ClusterMetadataService.setInstance(new ClusterMetadataService(new UniformRangePlacement(),
                                                                       wrapProcessor,
@@ -245,7 +246,8 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables(SystemKeyspace.allKnownDatacenters());
         LocalLog.LogSpec logSpec = LocalLog.logSpec()
                                            .withInitialState(emptyFromSystemTables)
-                                           .afterReplay(Startup::scrubDataDirectories)
+                                           .afterReplay(Startup::scrubDataDirectories,
+                                                        (metadata) -> StorageService.instance.registerMBeans())
                                            .withStorage(LogStorage.SystemKeyspace)
                                            .withDefaultListeners();
 

@@ -20,6 +20,7 @@ package org.apache.cassandra.tcm.log;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -33,6 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -107,7 +109,7 @@ public abstract class LocalLog implements Closeable
     {
         private ClusterMetadata initial;
         private ClusterMetadata prev;
-        private Startup.AfterReplay afterReplay = (metadata) -> {};
+        private List<Startup.AfterReplay> afterReplay = Collections.emptyList();
         private LogStorage storage = LogStorage.None;
         private boolean async = true;
         private boolean defaultListeners = false;
@@ -202,9 +204,9 @@ public abstract class LocalLog implements Closeable
             return this;
         }
 
-        public LogSpec afterReplay(Startup.AfterReplay afterReplay)
+        public LogSpec afterReplay(Startup.AfterReplay ... afterReplay)
         {
-            this.afterReplay = afterReplay;
+            this.afterReplay = Lists.newArrayList(afterReplay);
             return this;
         }
 
@@ -541,7 +543,7 @@ public abstract class LocalLog implements Closeable
         if (replayComplete.get())
             throw new IllegalStateException("Can only replay persisted once.");
         LogState logState = storage.getPersistedLogState();
-        append(logState);
+        append(logState.flatten());
         return waitForHighestConsecutive();
     }
 
@@ -612,7 +614,8 @@ public abstract class LocalLog implements Closeable
     public ClusterMetadata ready() throws StartupException
     {
         ClusterMetadata metadata = replayPersisted();
-        spec.afterReplay.accept(metadata);
+        for (Startup.AfterReplay ar : spec.afterReplay)
+            ar.accept(metadata);
         logger.info("Marking LocalLog ready at epoch {}", metadata.epoch);
 
         if (!replayComplete.compareAndSet(false, true))
@@ -634,7 +637,6 @@ public abstract class LocalLog implements Closeable
 
         logger.info("Notifying all registered listeners of both pre and post commit event");
         notifyListeners(spec.prev);
-
         return metadata;
     }
 

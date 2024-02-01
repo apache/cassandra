@@ -95,6 +95,19 @@ public class LogState
         return new LogState(baseState, ImmutableList.of());
     }
 
+    public LogState flatten()
+    {
+        if (baseState == null && entries.isEmpty())
+            return this;
+        ClusterMetadata metadata = baseState;
+        if (metadata == null)
+            metadata = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
+        for (Entry entry : entries)
+            metadata = entry.transform.execute(metadata).success().metadata;
+        return LogState.make(metadata);
+    }
+
+
     public boolean isEmpty()
     {
         return baseState == null && entries.isEmpty();
