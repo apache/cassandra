@@ -36,7 +36,10 @@ import org.apache.cassandra.cql3.terms.Vectors;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.UserFunctions;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.cql3.selection.SelectorFactories.createFactoriesAndCollectColumnDefinitions;
@@ -419,8 +422,11 @@ public interface Selectable extends AssignmentTestable
                     name = AggregateFcts.countRowsFunction.name();
                     preparedArgs = Collections.emptyList();
                 }
-
-                Function fun = FunctionResolver.get(table.keyspace, name, preparedArgs, table.keyspace, table.name, null);
+                UserFunctions userFunctions = UserFunctions.none();
+                KeyspaceMetadata ksm = ClusterMetadata.current().schema.getKeyspaces().getNullable(name.hasKeyspace() ? name.keyspace : table.keyspace);
+                if (ksm != null)
+                    userFunctions = ksm.userFunctions;
+                Function fun = FunctionResolver.get(table.keyspace, name, preparedArgs, table.keyspace, table.name, null, userFunctions);
 
                 if (fun == null)
                     throw new InvalidRequestException(String.format("Unknown function '%s'", functionName));
@@ -462,7 +468,11 @@ public interface Selectable extends AssignmentTestable
                 return factory;
 
             FunctionName name = FunctionName.nativeFunction(CastFcts.getFunctionName(type));
-            Function fun = FunctionResolver.get(table.keyspace, name, args, table.keyspace, table.name, null);
+            UserFunctions userFunctions = UserFunctions.none();
+            KeyspaceMetadata ksm = ClusterMetadata.current().schema.getKeyspaces().getNullable(name.hasKeyspace() ? name.keyspace : table.keyspace);
+            if (ksm != null)
+                userFunctions = ksm.userFunctions;
+            Function fun = FunctionResolver.get(table.keyspace, name, args, table.keyspace, table.name, null, userFunctions);
 
             if (fun == null)
             {
