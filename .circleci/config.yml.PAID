@@ -348,7 +348,7 @@ jobs:
           # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
           export SPLIT_TESTS=`cat /tmp/split_dtest_tests_j8_with_vnodes_final.txt`
           if [ ! -z "$SPLIT_TESTS" ]; then
-            set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --skip-resource-intensive-tests --log-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j8_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+            set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --skip-resource-intensive-tests --log-cli-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j8_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
           else
             echo "Tune your parallelism, there are more containers than test classes. Nothing to do in this container"
             (exit 1)
@@ -595,7 +595,7 @@ jobs:
     - run:
         name: Run dtests (j8_large_with_vnodes)
         no_output_timeout: 15m
-        command: "echo \"cat /tmp/split_dtest_tests_j8_large_with_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j8_large_with_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j8_large_with_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --only-resource-intensive-tests --force-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j8_large_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
+        command: "echo \"cat /tmp/split_dtest_tests_j8_large_with_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j8_large_with_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j8_large_with_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --only-resource-intensive-tests --force-resource-intensive-tests --log-cli-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j8_large_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
     - store_test_results:
         path: /tmp/results
     - store_artifacts:
@@ -986,7 +986,7 @@ jobs:
           # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
           export SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_without_vnodes_final.txt`
           if [ ! -z "$SPLIT_TESTS" ]; then
-            set -o pipefail && cd ~/cassandra-dtest && pytest --skip-resource-intensive-tests --log-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j11_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+            set -o pipefail && cd ~/cassandra-dtest && pytest --skip-resource-intensive-tests --log-cli-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j11_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
           else
             echo "Tune your parallelism, there are more containers than test classes. Nothing to do in this container"
             (exit 1)
@@ -1427,7 +1427,7 @@ jobs:
           # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
           export SPLIT_TESTS=`cat /tmp/split_dtest_tests_j8_without_vnodes_final.txt`
           if [ ! -z "$SPLIT_TESTS" ]; then
-            set -o pipefail && cd ~/cassandra-dtest && pytest --skip-resource-intensive-tests --log-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j8_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+            set -o pipefail && cd ~/cassandra-dtest && pytest --skip-resource-intensive-tests --log-cli-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j8_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
           else
             echo "Tune your parallelism, there are more containers than test classes. Nothing to do in this container"
             (exit 1)
@@ -1537,7 +1537,7 @@ jobs:
           # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
           export SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_without_vnodes_final.txt`
           if [ ! -z "$SPLIT_TESTS" ]; then
-            set -o pipefail && cd ~/cassandra-dtest && pytest --skip-resource-intensive-tests --log-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j11_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+            set -o pipefail && cd ~/cassandra-dtest && pytest --skip-resource-intensive-tests --log-cli-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j11_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
           else
             echo "Tune your parallelism, there are more containers than test classes. Nothing to do in this container"
             (exit 1)
@@ -1916,7 +1916,7 @@ jobs:
     - run:
         name: Run dtests (j11_large_with_vnodes)
         no_output_timeout: 15m
-        command: "echo \"cat /tmp/split_dtest_tests_j11_large_with_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j11_large_with_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_large_with_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --only-resource-intensive-tests --force-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j11_large_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
+        command: "echo \"cat /tmp/split_dtest_tests_j11_large_with_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j11_large_with_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_large_with_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --only-resource-intensive-tests --force-resource-intensive-tests --log-cli-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j11_large_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
     - store_test_results:
         path: /tmp/results
     - store_artifacts:
@@ -2158,7 +2158,7 @@ jobs:
           # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
           export SPLIT_TESTS=`cat /tmp/split_dtest_tests_j8_without_vnodes_final.txt`
           if [ ! -z "$SPLIT_TESTS" ]; then
-            set -o pipefail && cd ~/cassandra-dtest && pytest --skip-resource-intensive-tests --log-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j8_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+            set -o pipefail && cd ~/cassandra-dtest && pytest --skip-resource-intensive-tests --log-cli-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j8_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
           else
             echo "Tune your parallelism, there are more containers than test classes. Nothing to do in this container"
             (exit 1)
@@ -2268,7 +2268,7 @@ jobs:
           # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
           export SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_dtests_offheap_final.txt`
           if [ ! -z "$SPLIT_TESTS" ]; then
-            set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests --log-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j11_dtests_offheap.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+            set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests --log-cli-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j11_dtests_offheap.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
           else
             echo "Tune your parallelism, there are more containers than test classes. Nothing to do in this container"
             (exit 1)
@@ -2359,7 +2359,7 @@ jobs:
     - run:
         name: Run dtests (j11_large_without_vnodes)
         no_output_timeout: 15m
-        command: "echo \"cat /tmp/split_dtest_tests_j11_large_without_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j11_large_without_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_large_without_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --only-resource-intensive-tests --force-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j11_large_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
+        command: "echo \"cat /tmp/split_dtest_tests_j11_large_without_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j11_large_without_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_large_without_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --only-resource-intensive-tests --force-resource-intensive-tests --log-cli-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j11_large_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
     - store_test_results:
         path: /tmp/results
     - store_artifacts:
@@ -2558,7 +2558,7 @@ jobs:
           # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
           export SPLIT_TESTS=`cat /tmp/split_dtest_tests_j8_with_vnodes_final.txt`
           if [ ! -z "$SPLIT_TESTS" ]; then
-            set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --skip-resource-intensive-tests --log-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j8_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+            set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --skip-resource-intensive-tests --log-cli-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j8_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
           else
             echo "Tune your parallelism, there are more containers than test classes. Nothing to do in this container"
             (exit 1)
@@ -2668,7 +2668,7 @@ jobs:
           # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
           export SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_without_vnodes_final.txt`
           if [ ! -z "$SPLIT_TESTS" ]; then
-            set -o pipefail && cd ~/cassandra-dtest && pytest --skip-resource-intensive-tests --log-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j11_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+            set -o pipefail && cd ~/cassandra-dtest && pytest --skip-resource-intensive-tests --log-cli-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j11_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
           else
             echo "Tune your parallelism, there are more containers than test classes. Nothing to do in this container"
             (exit 1)
@@ -4059,7 +4059,7 @@ jobs:
     - run:
         name: Run dtests (j8_large_without_vnodes)
         no_output_timeout: 15m
-        command: "echo \"cat /tmp/split_dtest_tests_j8_large_without_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j8_large_without_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j8_large_without_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --only-resource-intensive-tests --force-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j8_large_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
+        command: "echo \"cat /tmp/split_dtest_tests_j8_large_without_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j8_large_without_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j8_large_without_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --only-resource-intensive-tests --force-resource-intensive-tests --log-cli-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j8_large_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
     - store_test_results:
         path: /tmp/results
     - store_artifacts:
@@ -4239,7 +4239,7 @@ jobs:
           # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
           export SPLIT_TESTS=`cat /tmp/split_dtest_tests_j8_dtests_offheap_final.txt`
           if [ ! -z "$SPLIT_TESTS" ]; then
-            set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests --log-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j8_dtests_offheap.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+            set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests --log-cli-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j8_dtests_offheap.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
           else
             echo "Tune your parallelism, there are more containers than test classes. Nothing to do in this container"
             (exit 1)
@@ -5034,7 +5034,7 @@ jobs:
           # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
           export SPLIT_TESTS=`cat /tmp/split_dtest_tests_j8_without_vnodes_final.txt`
           if [ ! -z "$SPLIT_TESTS" ]; then
-            set -o pipefail && cd ~/cassandra-dtest && pytest --skip-resource-intensive-tests --log-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j8_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+            set -o pipefail && cd ~/cassandra-dtest && pytest --skip-resource-intensive-tests --log-cli-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j8_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
           else
             echo "Tune your parallelism, there are more containers than test classes. Nothing to do in this container"
             (exit 1)
@@ -5144,7 +5144,7 @@ jobs:
           # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
           export SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_dtests_offheap_final.txt`
           if [ ! -z "$SPLIT_TESTS" ]; then
-            set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests --log-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j11_dtests_offheap.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+            set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests --log-cli-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j11_dtests_offheap.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
           else
             echo "Tune your parallelism, there are more containers than test classes. Nothing to do in this container"
             (exit 1)
@@ -5346,7 +5346,7 @@ jobs:
           # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
           export SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_dtests_offheap_final.txt`
           if [ ! -z "$SPLIT_TESTS" ]; then
-            set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests --log-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j11_dtests_offheap.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+            set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests --log-cli-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j11_dtests_offheap.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
           else
             echo "Tune your parallelism, there are more containers than test classes. Nothing to do in this container"
             (exit 1)
@@ -5683,7 +5683,7 @@ jobs:
           # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
           export SPLIT_TESTS=`cat /tmp/split_dtest_tests_j8_dtests_offheap_final.txt`
           if [ ! -z "$SPLIT_TESTS" ]; then
-            set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests --log-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j8_dtests_offheap.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+            set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests --log-cli-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j8_dtests_offheap.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
           else
             echo "Tune your parallelism, there are more containers than test classes. Nothing to do in this container"
             (exit 1)
@@ -6018,7 +6018,7 @@ jobs:
           # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
           export SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_with_vnodes_final.txt`
           if [ ! -z "$SPLIT_TESTS" ]; then
-            set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --skip-resource-intensive-tests --log-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j11_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+            set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --skip-resource-intensive-tests --log-cli-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j11_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
           else
             echo "Tune your parallelism, there are more containers than test classes. Nothing to do in this container"
             (exit 1)
@@ -6109,7 +6109,7 @@ jobs:
     - run:
         name: Run dtests (j8_upgradetests_without_vnodes)
         no_output_timeout: 15m
-        command: "echo \"cat /tmp/split_dtest_tests_j8_upgradetests_without_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j8_upgradetests_without_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j8_upgradetests_without_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j8_upgradetests_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
+        command: "echo \"cat /tmp/split_dtest_tests_j8_upgradetests_without_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j8_upgradetests_without_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j8_upgradetests_without_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all --log-cli-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j8_upgradetests_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
     - store_test_results:
         path: /tmp/results
     - store_artifacts:
@@ -6217,7 +6217,7 @@ jobs:
     - run:
         name: Run dtests (j11_dtests_offheap)
         no_output_timeout: 15m
-        command: "echo \"cat /tmp/split_dtest_tests_j11_dtests_offheap_final.txt\"\ncat /tmp/split_dtest_tests_j11_dtests_offheap_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_dtests_offheap_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j11_dtests_offheap.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
+        command: "echo \"cat /tmp/split_dtest_tests_j11_dtests_offheap_final.txt\"\ncat /tmp/split_dtest_tests_j11_dtests_offheap_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_dtests_offheap_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests --log-cli-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j11_dtests_offheap.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
     - store_test_results:
         path: /tmp/results
     - store_artifacts:
@@ -6415,7 +6415,7 @@ jobs:
           # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
           export SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_with_vnodes_final.txt`
           if [ ! -z "$SPLIT_TESTS" ]; then
-            set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --skip-resource-intensive-tests --log-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j11_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+            set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --skip-resource-intensive-tests --log-cli-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j11_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
           else
             echo "Tune your parallelism, there are more containers than test classes. Nothing to do in this container"
             (exit 1)
@@ -6618,7 +6618,7 @@ jobs:
           # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
           export SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_with_vnodes_final.txt`
           if [ ! -z "$SPLIT_TESTS" ]; then
-            set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --skip-resource-intensive-tests --log-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j11_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+            set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --skip-resource-intensive-tests --log-cli-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j11_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
           else
             echo "Tune your parallelism, there are more containers than test classes. Nothing to do in this container"
             (exit 1)
@@ -6800,7 +6800,7 @@ jobs:
     - run:
         name: Run dtests (j8_dtests_offheap)
         no_output_timeout: 15m
-        command: "echo \"cat /tmp/split_dtest_tests_j8_dtests_offheap_final.txt\"\ncat /tmp/split_dtest_tests_j8_dtests_offheap_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j8_dtests_offheap_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j8_dtests_offheap.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
+        command: "echo \"cat /tmp/split_dtest_tests_j8_dtests_offheap_final.txt\"\ncat /tmp/split_dtest_tests_j8_dtests_offheap_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j8_dtests_offheap_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests --log-cli-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j8_dtests_offheap.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
     - store_test_results:
         path: /tmp/results
     - store_artifacts:
@@ -7326,7 +7326,7 @@ jobs:
     - run:
         name: Run dtests (j8_without_vnodes)
         no_output_timeout: 15m
-        command: "echo \"cat /tmp/split_dtest_tests_j8_without_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j8_without_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j8_without_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --skip-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j8_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
+        command: "echo \"cat /tmp/split_dtest_tests_j8_without_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j8_without_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j8_without_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --skip-resource-intensive-tests --log-cli-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j8_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
     - store_test_results:
         path: /tmp/results
     - store_artifacts:
@@ -7412,7 +7412,7 @@ jobs:
     - run:
         name: Run dtests (j8_with_vnodes)
         no_output_timeout: 15m
-        command: "echo \"cat /tmp/split_dtest_tests_j8_with_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j8_with_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j8_with_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --skip-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j8_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
+        command: "echo \"cat /tmp/split_dtest_tests_j8_with_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j8_with_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j8_with_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --skip-resource-intensive-tests --log-cli-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j8_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
     - store_test_results:
         path: /tmp/results
     - store_artifacts:
@@ -7676,7 +7676,7 @@ jobs:
     - run:
         name: Run dtests (j11_without_vnodes)
         no_output_timeout: 15m
-        command: "echo \"cat /tmp/split_dtest_tests_j11_without_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j11_without_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_without_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --skip-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j11_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
+        command: "echo \"cat /tmp/split_dtest_tests_j11_without_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j11_without_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_without_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --skip-resource-intensive-tests --log-cli-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j11_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
     - store_test_results:
         path: /tmp/results
     - store_artifacts:
@@ -8170,7 +8170,7 @@ jobs:
           # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
           export SPLIT_TESTS=`cat /tmp/split_dtest_tests_j8_dtests_offheap_final.txt`
           if [ ! -z "$SPLIT_TESTS" ]; then
-            set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests --log-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j8_dtests_offheap.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+            set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests --log-cli-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j8_dtests_offheap.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
           else
             echo "Tune your parallelism, there are more containers than test classes. Nothing to do in this container"
             (exit 1)
@@ -8641,7 +8641,7 @@ jobs:
           # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
           export SPLIT_TESTS=`cat /tmp/split_dtest_tests_j8_with_vnodes_final.txt`
           if [ ! -z "$SPLIT_TESTS" ]; then
-            set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --skip-resource-intensive-tests --log-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j8_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+            set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --skip-resource-intensive-tests --log-cli-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_j8_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
           else
             echo "Tune your parallelism, there are more containers than test classes. Nothing to do in this container"
             (exit 1)
@@ -8982,7 +8982,7 @@ jobs:
     - run:
         name: Run dtests (j11_with_vnodes)
         no_output_timeout: 15m
-        command: "echo \"cat /tmp/split_dtest_tests_j11_with_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j11_with_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_with_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --skip-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j11_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
+        command: "echo \"cat /tmp/split_dtest_tests_j11_with_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j11_with_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_with_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --skip-resource-intensive-tests --log-cli-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j11_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
     - store_test_results:
         path: /tmp/results
     - store_artifacts:
