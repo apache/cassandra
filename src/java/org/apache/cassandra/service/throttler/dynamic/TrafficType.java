@@ -18,33 +18,123 @@
 
 package org.apache.cassandra.service.throttler.dynamic;
 
-public enum TrafficType {
-    RangeCoordRead(false, true, true),
-    NonRangeCoordRead(false, false, true),
-    RangeReplicaRead(false, true, false),
-    NonRangeReplicaRead(false, false, false),
-    CoordWrite(true, false, true),
-    ReplicaWrite(true, false, false);
+import java.util.Map;
+
+public enum TrafficType
+{
+    SinglePartitionCoordRead
+    (false, false, true,
+            CulpritTrafficChecker.readAggressiveThrottlingKeyspaces,
+            CulpritTrafficChecker::singlePartitionReadLatencyMetrics,
+            CulpritTrafficChecker::addKSForReadThrottlingCounter,
+            CulpritTrafficChecker::readRequestsTrendingUpwardCounter,
+            CulpritTrafficChecker::readLatencyTrendingUpwardCounter
+    ),
+    SinglePartitionReplicaRead
+    (false, false, false,
+            CulpritTrafficChecker.readAggressiveThrottlingKeyspaces,
+            CulpritTrafficChecker::singlePartitionReadLatencyMetrics,
+            CulpritTrafficChecker::addKSForReadThrottlingCounter,
+            CulpritTrafficChecker::readRequestsTrendingUpwardCounter,
+            CulpritTrafficChecker::readLatencyTrendingUpwardCounter
+    ),
+    RangeCoordRead
+    (false, true, true,
+            CulpritTrafficChecker.rangeReadAggressiveThrottlingKeyspaces,
+            CulpritTrafficChecker::rangeLatencyMetrics,
+            CulpritTrafficChecker::addKSForRangeThrottlingCounter,
+            CulpritTrafficChecker::rangeRequestsTrendingUpwardCounter,
+            CulpritTrafficChecker::rangeLatencyTrendingUpwardCounter
+    ),
+    RangeReplicaRead
+    (false, true, false,
+            CulpritTrafficChecker.rangeReadAggressiveThrottlingKeyspaces,
+            CulpritTrafficChecker::rangeLatencyMetrics,
+            CulpritTrafficChecker::addKSForRangeThrottlingCounter,
+            CulpritTrafficChecker::rangeRequestsTrendingUpwardCounter,
+            CulpritTrafficChecker::rangeLatencyTrendingUpwardCounter
+    ),
+    CoordWrite
+    (true, false, true,
+            CulpritTrafficChecker.mutationAggressiveThrottlingKeyspaces,
+            CulpritTrafficChecker::writeLatencyMetrics,
+            CulpritTrafficChecker::addKSForWriteThrottlingCounter,
+            CulpritTrafficChecker::writeRequestsTrendingUpwarddCounter,
+            CulpritTrafficChecker::writeLatencyTrendingUpwardCounter
+    ),
+    ReplicaWrite
+    (true, false, false,
+            CulpritTrafficChecker.mutationAggressiveThrottlingKeyspaces,
+            CulpritTrafficChecker::writeLatencyMetrics,
+            CulpritTrafficChecker::addKSForWriteThrottlingCounter,
+            CulpritTrafficChecker::writeRequestsTrendingUpwarddCounter,
+            CulpritTrafficChecker::writeLatencyTrendingUpwardCounter
+    );
 
     private final boolean isWrite;
     private final boolean isRangeRead;
     private final boolean isCoordTraffic;
 
-    TrafficType(boolean isWrite, boolean isRangeRead, boolean isCoordTraffic) {
+    private final Map<String, Boolean> culpritKeyspaceCache;
+    private final CulpritTrafficChecker.CulpritLatencyMetricsSupplier culpritLatencyMetricsSupplier;
+    private final CulpritTrafficChecker.CulpritKeyspaceAddedCounterSupplier culpritKeyspaceAddedCounterSupplier;
+    private final CulpritTrafficChecker.RequestsTrendingUpwardCounterSupplier requestsTrendingUpwardCounterSupplier;
+    private final CulpritTrafficChecker.LatencyTrendingUpwardCounterSupplier latencyTrendingUpwardCounterSupplier;
+
+    TrafficType(boolean isWrite, boolean isRangeRead, boolean isCoordTraffic,
+                Map<String, Boolean> culpritKeyspaceCache,
+                CulpritTrafficChecker.CulpritLatencyMetricsSupplier latencyMetricsSupplier,
+                CulpritTrafficChecker.CulpritKeyspaceAddedCounterSupplier culpritKeyspaceAddedCounterSupplier,
+                CulpritTrafficChecker.RequestsTrendingUpwardCounterSupplier requestsTrendingUpwardCounterSupplier,
+                CulpritTrafficChecker.LatencyTrendingUpwardCounterSupplier latencyTrendingUpwardCounterSupplier)
+    {
         this.isWrite = isWrite;
         this.isRangeRead = isRangeRead;
         this.isCoordTraffic = isCoordTraffic;
+        this.culpritLatencyMetricsSupplier = latencyMetricsSupplier;
+        this.culpritKeyspaceCache = culpritKeyspaceCache;
+        this.culpritKeyspaceAddedCounterSupplier = culpritKeyspaceAddedCounterSupplier;
+        this.requestsTrendingUpwardCounterSupplier = requestsTrendingUpwardCounterSupplier;
+        this.latencyTrendingUpwardCounterSupplier = latencyTrendingUpwardCounterSupplier;
     }
 
-    public boolean isWrite() {
+    public boolean isWrite()
+    {
         return isWrite;
     }
 
-    public boolean isRangeRead() {
+    public boolean isRangeRead()
+    {
         return isRangeRead;
     }
 
-    public boolean isCoordTraffic() {
+    public boolean isCoordTraffic()
+    {
         return isCoordTraffic;
+    }
+
+    public CulpritTrafficChecker.CulpritLatencyMetricsSupplier getCulpritLatencyMetricsSupplier()
+    {
+        return culpritLatencyMetricsSupplier;
+    }
+
+    public Map<String, Boolean> getCulpritKeyspaceCache()
+    {
+        return culpritKeyspaceCache;
+    }
+
+    public CulpritTrafficChecker.CulpritKeyspaceAddedCounterSupplier getCulpritKeyspaceAddedCounterSupplier()
+    {
+        return culpritKeyspaceAddedCounterSupplier;
+    }
+
+    public CulpritTrafficChecker.RequestsTrendingUpwardCounterSupplier getRequestsTrendingUpwardCounterSupplier()
+    {
+        return requestsTrendingUpwardCounterSupplier;
+    }
+
+    public CulpritTrafficChecker.LatencyTrendingUpwardCounterSupplier getLatencyTrendingUpwardCounterSupplier()
+    {
+        return latencyTrendingUpwardCounterSupplier;
     }
 }

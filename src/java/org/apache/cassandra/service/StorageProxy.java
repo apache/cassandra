@@ -346,7 +346,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         try
         {
-            CassandraResourceUtilization.instance.throttle(keyspaceName, Collections.singleton(cfName), TrafficType.NonRangeCoordRead);
+            CassandraResourceUtilization.instance.throttle(keyspaceName, Collections.singleton(cfName), TrafficType.SinglePartitionCoordRead);
             SinglePartitionReadCommand readCommandForThrottle = (SinglePartitionReadCommand) request.readCommand(nowInSeconds);
             DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(readCommandForThrottle, consistencyForPaxos);
             TableMetadata metadata = Schema.instance.validateTable(keyspaceName, cfName);
@@ -2010,7 +2010,7 @@ public class StorageProxy implements StorageProxyMBean
 
             for (SinglePartitionReadCommand cmd : group.queries)
             {
-                CassandraResourceUtilization.instance.throttle(metadata.keyspace, Collections.singleton(metadata.name), TrafficType.NonRangeCoordRead);
+                CassandraResourceUtilization.instance.throttle(metadata.keyspace, Collections.singleton(metadata.name), TrafficType.SinglePartitionCoordRead);
                 DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(cmd, consistencyLevel);
             }
             final ConsistencyLevel consistencyForReplayCommitsOrFetch = consistencyLevel == ConsistencyLevel.LOCAL_SERIAL
@@ -2144,7 +2144,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             for (SinglePartitionReadCommand cmd : group.queries) {
                 TableMetadata metadata = group.queries.get(0).metadata();
-                CassandraResourceUtilization.instance.throttle(metadata.keyspace, Collections.singleton(metadata.name), TrafficType.NonRangeCoordRead);
+                CassandraResourceUtilization.instance.throttle(metadata.keyspace, Collections.singleton(metadata.name), TrafficType.SinglePartitionCoordRead);
                 DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(cmd, consistencyLevel);
             }
             PartitionIterator result = fetchRows(group.queries, consistencyLevel, requestTime);

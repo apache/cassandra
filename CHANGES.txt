@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-26964] Culprit traffic throttling differentiates between range reads and non-range reads
  * [SO-26964] Introduce a Enum to represent traffic type
  * [SO-26826] Add metrics for hard blocker activities
  * [SO-26756] Enhance ignore_keyspaces filter into ignore_tables filter
