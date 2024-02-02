@@ -33,7 +33,9 @@ import io.netty.channel.EventLoop;
 import io.netty.util.AttributeKey;
 import org.apache.cassandra.concurrent.DebuggableTask.RunnableDebuggableTask;
 import org.apache.cassandra.concurrent.LocalAwareExecutorPlus;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.service.ClientWarn;
@@ -101,6 +103,20 @@ public class Dispatcher
 
     public void dispatch(Channel channel, Message.Request request, FlushItemConverter forFlusher, Overload backpressure)
     {
+        if (!request.connection().getTracker().isRunning())
+        {
+            // We can not respond with a custom, transport, or server exceptions since, given current implementation of clients,
+            // they will defunct the connection. Without a protocol version bump that introduces an "I am going away message",
+            // we have to stick to an existing error code.
+            Message.Response response = ErrorMessage.fromException(new OverloadedException("Server is shutting down"));
+            response.setStreamId(request.getStreamId());
+            response.setWarnings(ClientWarn.instance.getWarnings());
+            response.attach(request.connection);
+            FlushItem<?> toFlush = forFlusher.toFlushItem(channel, request, response);
+            flush(toFlush);
+            return;
+        }
+
         // if native_transport_max_auth_threads is < 1, don't delegate to new pool on auth messages
         boolean isAuthQuery = DatabaseDescriptor.getNativeTransportMaxAuthThreads() > 0 &&
                               (request.type == Message.Type.AUTH_RESPONSE || request.type == Message.Type.CREDENTIALS);
@@ -162,6 +178,19 @@ public class Dispatcher
      */
     private static Message.Response processRequest(ServerConnection connection, Message.Request request, Overload backpressure, long startTimeNanos)
     {
+        long elapsed = MonotonicClock.Global.approxTime.now() - request.createdAtNanos;
+
+        // If we have already crossed the max timeout for all possible RPCs, we time out the query immediately.
+        // We do not differentiate between query types here, since if we got into a situation when, say, we have a PREPARE
+        // query that is stuck behind the EXECUTE query, we would rather time it out and catch up with a backlog, expecting
+        // that the bursts are going to be short-lived.
+        ClientMetrics.instance.queueTime(elapsed, TimeUnit.NANOSECONDS);
+        if (elapsed > DatabaseDescriptor.getMaxQueryExecutionTimeout(TimeUnit.NANOSECONDS))
+        {
+            ClientMetrics.instance.markTimedOutBeforeProcessing();
+            return ErrorMessage.fromException(new OverloadedException("Query timed out before it could start"));
+        }
+
         if (connection.getVersion().isGreaterOrEqualTo(ProtocolVersion.V4))
             ClientWarn.instance.captureWarnings();
 
@@ -191,7 +220,20 @@ public class Dispatcher
 
         Message.logger.trace("Received: {}, v={}", request, connection.getVersion());
         connection.requests.inc();
-        Message.Response response = request.execute(qstate, startTimeNanos);
+        long cqlStartTimeNanos;
+        Config.CQLStartTime cqlStartTime = DatabaseDescriptor.getCQLStartTime();
+        switch (cqlStartTime)
+        {
+            case QUEUE:
+                cqlStartTimeNanos = request.createdAtNanos;
+                break;
+            case REQUEST:
+                cqlStartTimeNanos = startTimeNanos;
+                break;
+            default:
+                throw new AssertionError("Unknown type: " + cqlStartTime);
+        }
+        Message.Response response = request.execute(qstate, cqlStartTimeNanos);
 
         if (request.isTrackable())
             CoordinatorWarnings.done();
@@ -257,6 +299,11 @@ public class Dispatcher
 
         flusher.enqueue(item);
         flusher.start();
+    }
+
+    public boolean isDone()
+    {
+        return requestExecutor.getPendingTaskCount() == 0 && requestExecutor.getActiveTaskCount() == 0;
     }
 
     public static void shutdown()

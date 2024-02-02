@@ -2266,6 +2266,21 @@ public class DatabaseDescriptor
                          getTruncateRpcTimeout(unit));
     }
 
+    /**
+     * WARNING: this does _not_ include truncate timeout, since it is unreasonably high by default,
+     * and would defy the purpose of this function, which is to avoid client-side timeouts for
+     * queries that have to be aborted before they're started. It is also assumed that you probably
+     * do not often execute truncate on the overloaded server.
+     */
+    public static long getMaxQueryExecutionTimeout(TimeUnit unit)
+    {
+        return Longs.max(getReadRpcTimeout(unit),
+                         getRangeRpcTimeout(unit),
+                         getWriteRpcTimeout(unit),
+                         getCounterWriteRpcTimeout(unit));
+    }
+
+
     public static long getPingTimeout(TimeUnit unit)
     {
         return unit.convert(getBlockForPeersTimeoutInSeconds(), TimeUnit.SECONDS);
@@ -5036,6 +5051,20 @@ public class DatabaseDescriptor
         return conf.severity_during_decommission > 0 ?
                OptionalDouble.of(conf.severity_during_decommission) :
                OptionalDouble.empty();
+    }
+
+    public static Config.CQLStartTime getCQLStartTime()
+    {
+        return conf.cql_start_time;
+    }
+
+    public static void setCQLStartTime(Config.CQLStartTime value)
+    {
+        if (conf.cql_start_time != Objects.requireNonNull(value))
+        {
+            logger.info("Setting cql_start_time to {}", value);
+            conf.cql_start_time = value;
+        }
     }
 
     public static StorageCompatibilityMode getStorageCompatibilityMode()

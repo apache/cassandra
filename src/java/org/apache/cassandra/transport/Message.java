@@ -36,6 +36,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.ReflectionUtils;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -203,6 +204,7 @@ public abstract class Message
     public static abstract class Request extends Message
     {
         private boolean tracingRequested;
+        public final long createdAtNanos;
 
         protected Request(Type type)
         {
@@ -210,6 +212,8 @@ public abstract class Message
 
             if (type.direction != Direction.REQUEST)
                 throw new IllegalArgumentException();
+
+            createdAtNanos = MonotonicClock.Global.approxTime.now();
         }
 
         /**

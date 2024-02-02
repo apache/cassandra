@@ -33,11 +33,17 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.AuthResponse;
+import org.mockito.Mockito;
 
 public class MessageDispatcherTest
 {
     static final Message.Request AUTH_RESPONSE_REQUEST = new AuthResponse(new byte[0])
     {
+        public Connection connection()
+        {
+            return connectionMock();
+        }
+
         public Response execute(QueryState queryState, long queryStartNanoTime, boolean traceRequest)
         {
             return null;
@@ -91,6 +97,11 @@ public class MessageDispatcherTest
             long auths = completedAuth();
             long requests = tryAuth(this::completedRequests, new Message.Request(type)
             {
+                public Connection connection()
+                {
+                    return connectionMock();
+                }
+
                 public Response execute(QueryState queryState, long queryStartNanoTime, boolean traceRequest)
                 {
                     return null;
@@ -168,5 +179,14 @@ public class MessageDispatcherTest
         {
             // noop
         }
+    }
+
+    private static Connection connectionMock()
+    {
+        Connection.Tracker tracker = Mockito.mock(Connection.Tracker.class);
+        Mockito.when(tracker.isRunning()).thenAnswer(invocation -> true);
+        Connection c = Mockito.mock(Connection.class);
+        Mockito.when(c.getTracker()).thenAnswer(invocation -> tracker);
+        return c;
     }
 }
