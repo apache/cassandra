@@ -169,6 +169,7 @@ public class V1OnDiskFormat implements OnDiskFormat
                                        index.termType(),
                                        index.identifier(),
                                        index.indexMetrics(),
+                                       index.getStrategy().flusher(),
                                        rowMapping);
     }
 
