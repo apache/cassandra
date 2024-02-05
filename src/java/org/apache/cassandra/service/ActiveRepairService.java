@@ -352,6 +352,19 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         return DatabaseDescriptor.getRepairSessionSpaceInMiB();
     }
 
+    @Override
+    public int getConcurrentMerkleTreeRequests()
+    {
+        return DatabaseDescriptor.getConcurrentMerkleTreeRequests();
+    }
+
+    @Override
+    public void setConcurrentMerkleTreeRequests(int value)
+    {
+        logger.info("Setting concurrent_merkle_tree_requests to {}", value);
+        DatabaseDescriptor.setConcurrentMerkleTreeRequests(value);
+    }
+
     public List<CompositeData> getRepairStats(List<String> schemaArgs, String rangeString)
     {
         List<CompositeData> stats = new ArrayList<>();
