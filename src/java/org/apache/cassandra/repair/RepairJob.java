@@ -307,6 +307,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                                        session.previewKind);
     }
 
+    @VisibleForTesting
     static List<SyncTask> createStandardSyncTasks(SharedContext ctx,
                                                   RepairJobDesc desc,
                                                   List<TreeResponse> trees,
@@ -428,6 +429,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                                                session.previewKind);
     }
 
+    @VisibleForTesting
     static List<SyncTask> createOptimisedSyncingSyncTasks(SharedContext ctx,
                                                           RepairJobDesc desc,
                                                           List<TreeResponse> trees,
