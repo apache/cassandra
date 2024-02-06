@@ -31,7 +31,7 @@ public class AllowAllAuthenticator implements IAuthenticator
 {
     private static final SaslNegotiator AUTHENTICATOR_INSTANCE = new Negotiator();
 
-    private static final Set<String> MODES = Sets.newHashSet(AuthenticatedUser.ANONYMOUS_USERNAME);
+    private static final Set<String> MODES = Sets.newHashSet(AuthenticationMode.UNAUTHENTICATED.getDisplayName());
 
     public boolean requireAuthentication()
     {

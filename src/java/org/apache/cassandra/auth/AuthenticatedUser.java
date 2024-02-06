@@ -23,8 +23,11 @@ import java.util.Map;
 import java.util.Set;
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.auth.IAuthenticator.AuthenticationMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Datacenters;
+
+import static org.apache.cassandra.auth.IAuthenticator.AuthenticationMode.UNAUTHENTICATED;
 
 /**
  * Returned from IAuthenticator#authenticate(), represents an authenticated user everywhere internally.
@@ -35,10 +38,10 @@ import org.apache.cassandra.dht.Datacenters;
 public class AuthenticatedUser
 {
     public static final String SYSTEM_USERNAME = "system";
-    public static final AuthenticatedUser SYSTEM_USER = new AuthenticatedUser(SYSTEM_USERNAME, SYSTEM_USERNAME);
+    public static final AuthenticatedUser SYSTEM_USER = new AuthenticatedUser(SYSTEM_USERNAME);
 
     public static final String ANONYMOUS_USERNAME = "anonymous";
-    public static final AuthenticatedUser ANONYMOUS_USER = new AuthenticatedUser(ANONYMOUS_USERNAME, ANONYMOUS_USERNAME);
+    public static final AuthenticatedUser ANONYMOUS_USER = new AuthenticatedUser(ANONYMOUS_USERNAME);
 
     // User-level permissions cache.
     public static final PermissionsCache permissionsCache = new PermissionsCache(DatabaseDescriptor.getAuthorizer());
@@ -57,33 +60,38 @@ public class AuthenticatedUser
 
     private final String name;
 
-    private final String mode;
+    private final String authenticationMode;
 
-    private final Map<String, String> metadata;
+    private final Map<String, Object> metadata;
 
     // Primary Role of the logged-in user
     private final RoleResource role;
 
-    /**
-     * Defines a mode that could not be determined (none provided to constructor).
-     */
-    public static final String UNKNOWN_MODE = "UNKNOWN";
-
     public AuthenticatedUser(String name)
     {
-        this(name, UNKNOWN_MODE);
+        this(name, UNAUTHENTICATED);
     }
 
-    public AuthenticatedUser(String name, String mode)
+    public AuthenticatedUser(String name, AuthenticationMode authenticationMode)
     {
-        this(name, mode, Collections.emptyMap());
+        this(name, authenticationMode, Collections.emptyMap());
     }
 
-    public AuthenticatedUser(String name, String mode, Map<String, String> metadata)
+    public AuthenticatedUser(String name, AuthenticationMode authenticationMode, Map<String, Object> metadata)
+    {
+        this(name, authenticationMode.getDisplayName(), metadata);
+    }
+
+    public AuthenticatedUser(String name, String authenticationMode)
+    {
+        this(name, authenticationMode, Collections.emptyMap());
+    }
+
+    public AuthenticatedUser(String name, String authenticationMode, Map<String, Object> metadata)
     {
         this.name = name;
         this.role = RoleResource.role(name);
-        this.mode = mode;
+        this.authenticationMode = authenticationMode;
         this.metadata = metadata;
     }
 
@@ -98,17 +106,19 @@ public class AuthenticatedUser
     }
 
     /**
-     * The mode of authentication used to authenticate this user, e.g. 'password', 'mtls', 'anonymous', etc.
+     * The mode of authentication used to authenticate this user, this will usually be
+     * some value of {@link AuthenticationMode#getDisplayName()} unless
+     * an implementor provides their own custom authentication scheme.
      */
-    public String getMode()
+    public String getAuthenticationMode()
     {
-        return mode;
+        return authenticationMode;
     }
 
     /**
      * {@link IAuthenticator}-contextual metadata about how the user was authenticated.
      */
-    public Map<String, String> getMetadata()
+    public Map<String, Object> getMetadata()
     {
         return metadata;
     }

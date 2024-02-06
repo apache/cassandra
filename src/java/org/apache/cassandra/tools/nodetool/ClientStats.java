@@ -50,8 +50,8 @@ public class ClientStats extends NodeToolCmd
     @Option(title = "list_connections_with_client_options", name = "--client-options", description = "Lists all connections and the client options")
     private boolean clientOptions = false;
 
-    @Option(title = "list_connections_with_metadata", name = "--metadata", description = "Lists all connections and authenticator-specific metadata and mode")
-    private boolean metadata = false;
+    @Option(title = "verbose", name = "--verbose", description = "Lists all connections with additional details (client options, authenticator-specific metadata and more")
+    private boolean verbose = false;
 
     @Override
     public void execute(NodeProbe probe)
@@ -95,7 +95,7 @@ public class ClientStats extends NodeToolCmd
         // Note: for compatbility with existing implementation if someone passes --all (listConnections),
         // --client-options, and --metadata all three will be printed.
         List<Map<String, String>> clients = (List<Map<String, String>>) probe.getClientMetric("connections");
-        if (!clients.isEmpty() && (listConnections || clientOptions || metadata))
+        if (!clients.isEmpty() && (listConnections || clientOptions || verbose))
         {
             List<String> tableHeaderBase = Lists.newArrayList("Address", "SSL", "Cipher", "Protocol", "Version",
                     "User", "Keyspace", "Requests", "Driver-Name",
@@ -114,28 +114,25 @@ public class ClientStats extends NodeToolCmd
             // if clientOptions and metadata are provided, we'll merge them into one table.  This is subtly
             // different from providing '--all and --client-options' together which prints separate tables which
             // may not have been the original intention but is kept this way for consistency.
-            if (clientOptions || metadata)
+            if (clientOptions || verbose)
             {
                 ImmutableList.Builder<String> tableHeaderBuilder = ImmutableList.<String>builder()
                                                                                 .addAll(tableHeaderBase);
                 ImmutableList.Builder<String> tableFieldsBuilder = ImmutableList.<String>builder()
                                                                                 .addAll(tableFieldsBase);
 
-                // print metadata first as client-options are quite long so better left to end of the table.
-                if (metadata)
+                // print authentication metadata first as client-options are quite long so better left to end of the table.
+                if (verbose)
                 {
-                    tableHeaderBuilder.add("Mode")
-                                      .add("Metadata");
+                    tableHeaderBuilder.add("Auth-Mode")
+                                      .add("Auth-Metadata");
 
-                    tableFieldsBuilder.add(ConnectedClient.MODE)
-                                      .add(ConnectedClient.METADATA);
+                    tableFieldsBuilder.add(ConnectedClient.AUTHENTICATION_MODE)
+                                      .add(ConnectedClient.AUTHENTICATION_METADATA);
                 }
 
-                if (clientOptions)
-                {
-                    tableHeaderBuilder.add("Client-Options");
-                    tableFieldsBuilder.add(ConnectedClient.CLIENT_OPTIONS);
-                }
+                tableHeaderBuilder.add("Client-Options");
+                tableFieldsBuilder.add(ConnectedClient.CLIENT_OPTIONS);
 
                 List<String> tableHeader = tableHeaderBuilder.build();
                 List<String> tableFields = tableFieldsBuilder.build();

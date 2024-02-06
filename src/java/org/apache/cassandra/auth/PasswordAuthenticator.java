@@ -49,6 +49,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.mindrot.jbcrypt.BCrypt;
 
 import static org.apache.cassandra.auth.CassandraRoleManager.consistencyForRoleRead;
+import static org.apache.cassandra.auth.IAuthenticator.AuthenticationMode.PASSWORD;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
@@ -73,9 +74,7 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
     // really this is a rolename now, but as it only matters for Thrift, we leave it for backwards compatibility
     public static final String USERNAME_KEY = "username";
     public static final String PASSWORD_KEY = "password";
-    static final String MODE = "password";
-
-    private static final Set<String> MODES = Collections.singleton(MODE);
+    private static final Set<String> MODES = Collections.singleton(PASSWORD.getDisplayName());
 
     static final byte NUL = 0;
     private SelectStatement authenticateStatement;
@@ -168,7 +167,7 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
         if (!checkpw(password, hash))
             throw new AuthenticationException(String.format("Provided username %s and/or password are incorrect", username));
 
-        return new AuthenticatedUser(username, MODE);
+        return new AuthenticatedUser(username, PASSWORD);
     }
 
     private String queryHashedPassword(String username)
@@ -280,9 +279,9 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
         }
 
         @Override
-        public String getMode()
+        public String getAuthenticationMode()
         {
-            return MODE;
+            return PASSWORD.getDisplayName();
         }
 
         /**

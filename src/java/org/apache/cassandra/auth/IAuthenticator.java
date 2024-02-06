@@ -23,6 +23,8 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.commons.lang3.StringUtils;
+
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
@@ -106,8 +108,11 @@ public interface IAuthenticator
     }
 
     /**
-     * @return The supported authentication 'modes' (e.g. password) of this authenticator.  This is currently
-     * only used for registering metrics tied to authentication by mode.
+     * @return The supported authentication 'modes' of this authenticator. This will usually include values of
+     * {@link AuthenticationMode#getDisplayName()} unless an implementor provides their own custom authentication
+     * scheme.
+     *
+     * This is currently only used for registering metrics tied to authentication by mode.
      */
     default Set<String> getSupportedAuthenticationModes()
     {
@@ -191,11 +196,48 @@ public interface IAuthenticator
         }
 
         /**
-         * @return The assumed mode of authentication attempted using this negotiator (e.g. 'password', 'mtls')
-         * which is surfaced in metrics.
+         * @return The assumed mode of authentication attempted using this negotiator, this will usually be some value
+         * of {@link AuthenticationMode#getDisplayName()} unless an implementor provides their own custom authentication
+         * scheme.
          */
-        default String getMode() {
-            return AuthenticatedUser.UNKNOWN_MODE;
+        default String getAuthenticationMode()
+        {
+            return AuthenticationMode.UNAUTHENTICATED.getDisplayName();
+        }
+    }
+
+    /**
+     * Known modes of authentication supported by Cassandra's provided {@link IAuthenticator} implementations.
+     */
+    enum AuthenticationMode
+    {
+        /**
+         * User was not authenticated in any particular way.
+         */
+        UNAUTHENTICATED,
+        /**
+         * User authenticated using a password.
+         */
+        PASSWORD,
+        /**
+         * User authenticated using a trusted identity in their client certificate.
+         */
+        MTLS;
+
+        private final String displayName;
+
+        AuthenticationMode()
+        {
+            this.displayName = StringUtils.capitalize(name().toLowerCase());
+        }
+
+        /**
+         * @return How the mode should be displayed to users. Formally it is the enum name with the first letter
+         * capitalized.
+         */
+        public String getDisplayName()
+        {
+            return displayName;
         }
     }
 }

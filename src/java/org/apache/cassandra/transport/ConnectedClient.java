@@ -29,6 +29,8 @@ import io.netty.handler.ssl.SslHandler;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.service.ClientState;
 
+import static org.apache.cassandra.auth.IAuthenticator.AuthenticationMode.UNAUTHENTICATED;
+
 public final class ConnectedClient
 {
     public static final String ADDRESS = "address";
@@ -42,8 +44,8 @@ public final class ConnectedClient
     public static final String SSL = "ssl";
     public static final String CIPHER = "cipher";
     public static final String PROTOCOL = "protocol";
-    public static final String MODE = "mode";
-    public static final String METADATA = "metadata";
+    public static final String AUTHENTICATION_MODE = "authenticationMode";
+    public static final String AUTHENTICATION_METADATA = "authenticationMetadata";
 
     private static final String UNDEFINED = "undefined";
 
@@ -126,22 +128,22 @@ public final class ConnectedClient
              : Optional.empty();
     }
 
-    public Optional<Map<String, String>> metadata()
+    public Map<String, Object> authenticationMetadata()
     {
         AuthenticatedUser user = state().getUser();
 
         return null != user
-                ? Optional.of(user.getMetadata())
-                : Optional.empty();
+                ? user.getMetadata()
+                : Collections.emptyMap();
     }
 
-    public Optional<String> mode()
+    public String authenticationMode()
     {
         AuthenticatedUser user = state().getUser();
 
         return null != user
-                ? Optional.of(user.getMode())
-                : Optional.empty();
+                ? user.getAuthenticationMode()
+                : UNAUTHENTICATED.getDisplayName();
     }
 
     private ClientState state()
@@ -170,10 +172,10 @@ public final class ConnectedClient
                            .put(SSL, Boolean.toString(sslEnabled()))
                            .put(CIPHER, sslCipherSuite().orElse(UNDEFINED))
                            .put(PROTOCOL, sslProtocol().orElse(UNDEFINED))
-                           .put(MODE, mode().orElse(UNDEFINED))
-                           .put(METADATA, Joiner.on(", ")
-                                   .withKeyValueSeparator("=")
-                                   .join(metadata().orElse(Collections.emptyMap())))
+                           .put(AUTHENTICATION_MODE, authenticationMode())
+                           .put(AUTHENTICATION_METADATA, Joiner.on(", ")
+                                                               .withKeyValueSeparator("=")
+                                                               .join(authenticationMetadata()))
                            .build();
     }
 }

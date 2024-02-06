@@ -72,7 +72,7 @@ public final class AuthUtil
             {
                 AuthenticatedUser user = negotiator.getAuthenticatedUser();
                 queryState.getClientState().login(user);
-                ClientMetrics.instance.markAuthSuccess(user.getMode());
+                ClientMetrics.instance.markAuthSuccess(user.getAuthenticationMode());
                 AuthEvents.instance.notifyAuthSuccess(queryState);
                 // authentication is complete, complete the authentication flow.
                 return messageToSendBasedOnNegotiation.apply(true, challenge);
@@ -85,7 +85,7 @@ public final class AuthUtil
         }
         catch (AuthenticationException e)
         {
-            ClientMetrics.instance.markAuthFailure(negotiator.getMode());
+            ClientMetrics.instance.markAuthFailure(negotiator.getAuthenticationMode());
             AuthEvents.instance.notifyAuthFailure(queryState, e);
             return ErrorMessage.fromException(e);
         }

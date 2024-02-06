@@ -41,6 +41,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.NoSpamLogger;
 
+import static org.apache.cassandra.auth.IAuthenticator.AuthenticationMode.MTLS;
 import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
 
 /*
@@ -70,9 +71,7 @@ public class MutualTlsAuthenticator implements IAuthenticator
     private static final String CACHE_NAME = "IdentitiesCache";
     private final IdentityCache identityCache = new IdentityCache();
     private final MutualTlsCertificateValidator certificateValidator;
-    static final String MODE = "mtls";
-
-    private static final Set<String> MODES = Collections.singleton(MODE);
+    private static final Set<String> MODES = Collections.singleton(MTLS.getDisplayName());
 
     // key for the 'identity' value in AuthenticatedUser metadata map.
     static final String METADATA_IDENTITY_KEY = "identity";
@@ -209,13 +208,13 @@ public class MutualTlsAuthenticator implements IAuthenticator
                 nospamLogger.error(msg, identity);
                 throw new AuthenticationException(MessageFormatter.format(msg, identity).getMessage());
             }
-            return new AuthenticatedUser(role, MODE, Collections.singletonMap(METADATA_IDENTITY_KEY, identity));
+            return new AuthenticatedUser(role, MTLS, Collections.singletonMap(METADATA_IDENTITY_KEY, identity));
         }
 
         @Override
-        public String getMode()
+        public String getAuthenticationMode()
         {
-            return MODE;
+            return MTLS.getDisplayName();
         }
     }
 

@@ -18,7 +18,14 @@
  */
 package org.apache.cassandra.metrics;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
@@ -31,9 +38,11 @@ import com.codahale.metrics.Reservoir;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.transport.*;
-import org.apache.commons.lang3.StringUtils;
+import org.apache.cassandra.transport.ClientResourceLimits;
+import org.apache.cassandra.transport.ClientStat;
+import org.apache.cassandra.transport.ConnectedClient;
+import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.transport.ServerConnection;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -84,11 +93,11 @@ public final class ClientMetrics
     private Meter protocolException;
     private Meter unknownException;
 
-    private static String AUTH_SUCCESS = "AuthSuccess";
+    private static final String AUTH_SUCCESS = "AuthSuccess";
 
-    private static String AUTH_FAILURE = "AuthFailure";
+    private static final String AUTH_FAILURE = "AuthFailure";
 
-    private static String CONNECTED_NATIVE_CLIENTS = "ConnectedNativeClients";
+    private static final String CONNECTED_NATIVE_CLIENTS = "ConnectedNativeClients";
 
     private ClientMetrics()
     {
@@ -103,9 +112,9 @@ public final class ClientMetrics
         markAuthSuccess(null);
     }
 
-    public void markAuthSuccess(final String mode)
+    public void markAuthSuccess(String mode)
     {
-        markAuthMeter(authSuccess, AUTH_SUCCESS, mode);
+        markAuthMeter(authSuccess, authSuccessByMode, mode);
     }
 
     /**
@@ -117,27 +126,21 @@ public final class ClientMetrics
         authFailure.mark();
     }
 
-    public void markAuthFailure(final String mode)
+    public void markAuthFailure(String mode)
     {
-        markAuthMeter(authFailure, AUTH_FAILURE, mode);
+        markAuthMeter(authFailure, authFailureByMode, mode);
     }
 
-    private void markAuthMeter(final Meter meter, final String meterPrefix, final String mode)
+    private void markAuthMeter(Meter meter, Map<String, Meter> meterMap, String mode)
     {
         meter.mark();
 
-        if (mode != null)
-        {
-            Map<String, Meter> meterMap = meterPrefix.equals(AUTH_SUCCESS) ? authSuccessByMode : authFailureByMode;
-
-            // if there is no meter for this mode, the authenticator must have surfaced a mode that it doesn't
-            // list in 'getSupportedAuthenticationModes', in this case, just don't mark.
-            Meter modeMeter = meterMap.get(mode);
-            if (modeMeter != null)
-            {
-                modeMeter.mark();
-            }
-        }
+        // If there is a mode and that mode is present in the meterMap, mark it.
+        // If there is no meter for this mode, the IAuthenticator must have surfaced a mode that it doesn't
+        // list in 'getSupportedAuthenticationModes', in this case, just don't mark.
+        Optional.ofNullable(mode)
+                .flatMap((m) -> Optional.ofNullable(meterMap.get(m)))
+                .ifPresent(Meter::mark);
     }
 
     public void pauseConnection() { pausedConnections.incrementAndGet(); }
@@ -198,22 +201,18 @@ public final class ClientMetrics
         unencryptedConnectedNativeClients = registerGauge(new DefaultNameFactory("Client", "Unencrypted"), CONNECTED_NATIVE_CLIENTS, () -> countConnectedClients(((ServerConnection connection) -> !connection.isSSL())));
 
         // for each supported authentication mode, register a meter for success and failures.
-        final IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
+        IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
         for (String mode : authenticator.getSupportedAuthenticationModes())
         {
-            String capitalizedMode = StringUtils.capitalize(mode);
-            MetricNameFactory factory = new DefaultNameFactory("Client", capitalizedMode);
+            MetricNameFactory factory = new DefaultNameFactory("Client", mode);
             authSuccessByMode.put(mode, registerMeter(factory, AUTH_SUCCESS));
             authFailureByMode.put(mode, registerMeter(factory, AUTH_FAILURE));
 
             Gauge<Integer> clients = registerGauge(factory, CONNECTED_NATIVE_CLIENTS, () -> countConnectedClients((ServerConnection connection) -> {
-                final ClientState state = connection.getClientState();
-                AuthenticatedUser user = state.getUser();
-                if (user != null)
-                {
-                    return mode.equals(state.getUser().getMode());
-                }
-                return false;
+                AuthenticatedUser user = connection.getClientState().getUser();
+                return Optional.ofNullable(user)
+                               .map(u -> mode.equals(u.getAuthenticationMode()))
+                               .orElse(false);
             }));
             connectedNativeClientsByAuthMode.put(mode, clients);
         }
