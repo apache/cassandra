@@ -177,10 +177,31 @@ public class RateLimiterService implements RateLimiterServiceMBean {
     }
 
     @Override
-    public void setHardBlockCoordReadsTablesRegex(String hardBlockCoordReadsTablesRegex)
+    public void setHardBlockSinglePartitionCoordReadsTablesRegex(String hardBlockSinglePartitionCoordReadsTablesRegex)
     {
-        this.throttlingOptions.setHardBlockCoordReadsTablesRegex(hardBlockCoordReadsTablesRegex);
-        CassandraResourceUtilization.instance.syncHardBlockCoordReadsTablesFilter();
+        this.throttlingOptions.setHardBlockSinglePartitionCoordReadsTablesRegex(hardBlockSinglePartitionCoordReadsTablesRegex);
+        CassandraResourceUtilization.instance.syncHardBlockSinglePartitionCoordReadsTablesFilter();
+    }
+
+    @Override
+    public void setHardBlockSinglePartitionReplicaReadsTablesRegex(String hardBlockSinglePartitionReplicaReadsTablesRegex)
+    {
+        this.throttlingOptions.setHardBlockSinglePartitionReplicaReadsTablesRegex(hardBlockSinglePartitionReplicaReadsTablesRegex);
+        CassandraResourceUtilization.instance.syncHardBlockSinglePartitionReplicaReadsTablesFilter();
+    }
+
+    @Override
+    public void setHardBlockRangeCoordReadsTablesRegex(String hardBlockRangeCoordReadsTablesRegex)
+    {
+        this.throttlingOptions.setHardBlockRangeCoordReadsTablesRegex(hardBlockRangeCoordReadsTablesRegex);
+        CassandraResourceUtilization.instance.syncHardBlockRangeCoordReadsTablesFilter();
+    }
+
+    @Override
+    public void setHardBlockRangeReplicaReadsTablesRegex(String hardBlockRangeReplicaReadsTablesRegex)
+    {
+        this.throttlingOptions.setHardBlockRangeReplicaReadsTablesRegex(hardBlockRangeReplicaReadsTablesRegex);
+        CassandraResourceUtilization.instance.syncHardBlockRangeReplicaReadsTablesFilter();
     }
 
     @Override
@@ -188,13 +209,6 @@ public class RateLimiterService implements RateLimiterServiceMBean {
     {
         this.throttlingOptions.setHardBlockCoordWritesTablesRegex(hardBlockCoordWritesTablesRegex);
         CassandraResourceUtilization.instance.syncHardBlockCoordWritesTablesFilter();
-    }
-
-    @Override
-    public void setHardBlockReplicaReadsTablesRegex(String hardBlockReplicaReadsTablesRegex)
-    {
-        this.throttlingOptions.setHardBlockReplicaReadsTablesRegex(hardBlockReplicaReadsTablesRegex);
-        CassandraResourceUtilization.instance.syncHardBlockReplicaReadsTablesFilter();
     }
 
     @Override

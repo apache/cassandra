@@ -120,19 +120,29 @@ public interface RateLimiterServiceMBean
     public void setThrottleMutationReplicaTraffic(boolean throttleMutationReplicaTraffic);
 
     /**
-     * Set hard_block_coord_reads_tables_regex
+     * Set hard_block_single_partition_coord_reads_tables_regex
      */
-    public void setHardBlockCoordReadsTablesRegex(String hardBlockCoordReadsTablesRegex);
+    public void setHardBlockSinglePartitionCoordReadsTablesRegex(String hardBlockSinglePartitionCoordReadsTablesRegex);
+
+    /**
+     * Set hard_block_single_partition_replica_reads_tables_regex
+     */
+    public void setHardBlockSinglePartitionReplicaReadsTablesRegex(String hardBlockSinglePartitionReplicaReadsTablesRegex);
+
+    /**
+     * Set hard_block_range_coord_reads_tables_regex
+     */
+    public void setHardBlockRangeCoordReadsTablesRegex(String hardBlockRangeCoordReadsTablesRegex);
+
+    /**
+     * Set hard_block_range_replica_reads_tables_regex
+     */
+    public void setHardBlockRangeReplicaReadsTablesRegex(String hardBlockRangeReplicaReadsTablesRegex);
 
     /**
      * Set hard_block_coord_writes_tables_regex
      */
     public void setHardBlockCoordWritesTablesRegex(String hardBlockCoordWritesTablesRegex);
-
-    /**
-     * Set hard_block_replica_reads_tables_regex
-     */
-    public void setHardBlockReplicaReadsTablesRegex(String hardBlockReplicaReadsTablesRegex);
 
     /**
      * Set hard_block_replica_writes_tables_regex

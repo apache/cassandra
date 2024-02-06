@@ -2448,19 +2448,29 @@ public class NodeProbe implements AutoCloseable
         rateLimiterProxy.setThrottleMutationReplicaTraffic(throttleMutationReplicaTraffic);
     }
 
-    public void setThrottlingOptionsHardBlockCoordReadsTablesRegex(String hardBlockCoordReadsTablesRegex)
+    public void setThrottlingOptionsHardBlockSinglePartitionCoordReadsTablesRegex(String hardBlockSinglePartitionCoordReadsTablesRegex)
     {
-        rateLimiterProxy.setHardBlockCoordReadsTablesRegex(hardBlockCoordReadsTablesRegex);
+        rateLimiterProxy.setHardBlockSinglePartitionCoordReadsTablesRegex(hardBlockSinglePartitionCoordReadsTablesRegex);
+    }
+
+    public void setThrottlingOptionsHardBlockSinglePartitionReplicaReadsTablesRegex(String hardBlockSinglePartitionReplicaReadsTablesRegex)
+    {
+        rateLimiterProxy.setHardBlockSinglePartitionReplicaReadsTablesRegex(hardBlockSinglePartitionReplicaReadsTablesRegex);
+    }
+
+    public void setThrottlingOptionsHardBlockRangeCoordReadsTablesRegex(String hardBlockRangeCoordReadsTablesRegex)
+    {
+        rateLimiterProxy.setHardBlockRangeCoordReadsTablesRegex(hardBlockRangeCoordReadsTablesRegex);
+    }
+
+    public void setThrottlingOptionsHardBlockRangeReplicaReadsTablesRegex(String hardBlockRangeReplicaReadsTablesRegex)
+    {
+        rateLimiterProxy.setHardBlockRangeReplicaReadsTablesRegex(hardBlockRangeReplicaReadsTablesRegex);
     }
 
     public void setThrottlingOptionsHardBlockCoordWritesTablesRegex(String hardBlockCoordWritesTablesRegex)
     {
         rateLimiterProxy.setHardBlockCoordWritesTablesRegex(hardBlockCoordWritesTablesRegex);
-    }
-
-    public void setThrottlingOptionsHardBlockReplicaReadsTablesRegex(String hardBlockReplicaReadsTablesRegex)
-    {
-        rateLimiterProxy.setHardBlockReplicaReadsTablesRegex(hardBlockReplicaReadsTablesRegex);
     }
 
     public void setThrottlingOptionsHardBlockReplicaWritesTablesRegex(String hardBlockReplicaWritesTablesRegex)

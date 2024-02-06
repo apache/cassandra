@@ -42,9 +42,11 @@ public class KeyspaceThrottlingMetrics
     public Counter noReadThrottling;
     public Counter noWriteThrottling;
     public Counter aggressiveThrottling;
-    public Counter hardBlockCoordReads;
+    public Counter hardBlockSinglePartitionCoordReads;
+    public Counter hardBlockSinglePartitionReplicaReads;
+    public Counter hardBlockRangeCoordReads;
+    public Counter hardBlockRangeReplicaReads;
     public Counter hardBlockCoordWrites;
-    public Counter hardBlockReplicaReads;
     public Counter hardBlockReplicaWrites;
 
 
@@ -68,9 +70,11 @@ public class KeyspaceThrottlingMetrics
         noReadThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("NoReadThrottling"));
         noWriteThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("NoWriteThrottling"));
         aggressiveThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("AggressiveThrottling"));
-        hardBlockCoordReads = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("HardBlockCoordReads"));
+        hardBlockSinglePartitionCoordReads = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("HardBlockSinglePartitionCoordReads"));
+        hardBlockSinglePartitionReplicaReads = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("HardBlockSinglePartitionReplicaReads"));
+        hardBlockRangeCoordReads = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("HardBlockRangeCoordReads"));
+        hardBlockRangeReplicaReads = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("HardBlockRangeReplicaReads"));
         hardBlockCoordWrites = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("HardBlockCoordWrites"));
-        hardBlockReplicaReads = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("HardBlockReplicaReads"));
         hardBlockReplicaWrites = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("HardBlockReplicaWrites"));
     }
 }

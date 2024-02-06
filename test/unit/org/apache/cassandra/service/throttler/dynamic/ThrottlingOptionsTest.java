@@ -40,9 +40,11 @@ public class ThrottlingOptionsTest
         Assert.assertEquals(4, throttlingOptions.getAggressiveThrottlingQpsRatio(), 0.0);
         Assert.assertEquals(4, throttlingOptions.getAggressiveThrottlingLatencyRatio(), 0.0);
         Assert.assertEquals("^system.*\\..+|^pingless\\..+", throttlingOptions.getIgnoreTablesRegex());
-        Assert.assertEquals("", throttlingOptions.getHardBlockCoordReadsTablesRegex());
+        Assert.assertEquals("", throttlingOptions.getHardBlockSinglePartitionCoordReadsTablesRegex());
+        Assert.assertEquals("", throttlingOptions.getHardBlockSinglePartitionReplicaReadsTablesRegex());
+        Assert.assertEquals("", throttlingOptions.getHardBlockRangeCoordReadsTablesRegex());
+        Assert.assertEquals("", throttlingOptions.getHardBlockRangeReplicaReadsTablesRegex());
         Assert.assertEquals("", throttlingOptions.getHardBlockCoordWritesTablesRegex());
-        Assert.assertEquals("", throttlingOptions.getHardBlockReplicaReadsTablesRegex());
         Assert.assertEquals("", throttlingOptions.getHardBlockReplicaWritesTablesRegex());
     }
 }

@@ -40,14 +40,13 @@ public class TableFilter
 
     public Pattern regexPattern;
     private Set<String> set;
-    private String filterName;
+    private final String filterName;
 
-    public TableFilter(TableFiltersRefresher refresher, String filterName)
+    public TableFilter(String filterName)
     {
         this.regexPattern = Pattern.compile(StringUtils.EMPTY);
         this.set = new HashSet<>();
         this.filterName = filterName;
-        refresher.addFilter(this);
     }
 
     public boolean matches(String keyspace, String table)
@@ -100,9 +99,9 @@ public class TableFilter
         for (String s : list)
         {
             sb.append(s);
-            sb.append(" ");
+            sb.append(' ');
         }
-        sb.append("]");
+        sb.append(']');
         return sb.toString();
     }
 }

@@ -75,11 +75,7 @@ public class CassandraResourceUtilization
     public volatile boolean shouldThrottle = false;
 
     public TableFiltersRefresher tableFiltersRefresher = new TableFiltersRefresher();
-    public TableFilter ignoreTablesFilter = new TableFilter(tableFiltersRefresher, "ignore_tables");
-    public TableFilter hardBlockCoordReadsTablesFilter = new TableFilter(tableFiltersRefresher, "hard_block_coord_reads_tables");
-    public TableFilter hardBlockCoordWritesTablesFilter= new TableFilter(tableFiltersRefresher, "hard_block_coord_writes_tables");
-    public TableFilter hardBlockReplicaReadsTablesFilter = new TableFilter(tableFiltersRefresher, "hard_block_replica_reads_tables");
-    public TableFilter hardBlockReplicaWritesTablesFilter= new TableFilter(tableFiltersRefresher, "hard_block_replica_writes_tables");
+    public TableFilter ignoreTablesFilter = new TableFilter("ignore_tables");
 
     public static CassandraResourceUtilization instance = new CassandraResourceUtilization();
 
@@ -121,6 +117,11 @@ public class CassandraResourceUtilization
     {
         syncAllFilters();
 
+        tableFiltersRefresher.addFilter(ignoreTablesFilter);
+        for (TrafficType trafficType : TrafficType.values())
+        {
+            tableFiltersRefresher.addFilter(trafficType.getHardBlockTablesFilter());
+        }
         tableFiltersRefresher.registerSchemaChangeListener();
     }
 
@@ -129,32 +130,52 @@ public class CassandraResourceUtilization
         ignoreTablesFilter.setRegexPatternAndRefresh(throttlingOptions.getIgnoreTablesRegex());
     }
 
-    public void syncHardBlockCoordReadsTablesFilter()
+    public void syncHardBlockSinglePartitionCoordReadsTablesFilter()
     {
-        hardBlockCoordReadsTablesFilter.setRegexPatternAndRefresh(throttlingOptions.getHardBlockCoordReadsTablesRegex());
+        TrafficType.SinglePartitionCoordRead.getHardBlockTablesFilter().setRegexPatternAndRefresh(
+        throttlingOptions.getHardBlockSinglePartitionCoordReadsTablesRegex());
+    }
+
+    public void syncHardBlockRangeCoordReadsTablesFilter()
+    {
+        TrafficType.RangeCoordRead.getHardBlockTablesFilter().setRegexPatternAndRefresh(
+        throttlingOptions.getHardBlockRangeCoordReadsTablesRegex());
+    }
+
+    public void syncHardBlockSinglePartitionReplicaReadsTablesFilter()
+    {
+        TrafficType.SinglePartitionReplicaRead.getHardBlockTablesFilter().setRegexPatternAndRefresh(
+        throttlingOptions.getHardBlockSinglePartitionReplicaReadsTablesRegex());
+    }
+
+    public void syncHardBlockRangeReplicaReadsTablesFilter()
+    {
+        TrafficType.RangeReplicaRead.getHardBlockTablesFilter().setRegexPatternAndRefresh(
+        throttlingOptions.getHardBlockRangeReplicaReadsTablesRegex());
     }
 
     public void syncHardBlockCoordWritesTablesFilter()
     {
-        hardBlockCoordWritesTablesFilter.setRegexPatternAndRefresh(throttlingOptions.getHardBlockCoordWritesTablesRegex());
-    }
-
-    public void syncHardBlockReplicaReadsTablesFilter()
-    {
-        hardBlockReplicaReadsTablesFilter.setRegexPatternAndRefresh(throttlingOptions.getHardBlockReplicaReadsTablesRegex());
+        TrafficType.CoordWrite.getHardBlockTablesFilter().setRegexPatternAndRefresh(
+        throttlingOptions.getHardBlockCoordWritesTablesRegex());
     }
 
     public void syncHardBlockReplicaWritesTablesFilter()
     {
-        hardBlockReplicaWritesTablesFilter.setRegexPatternAndRefresh(throttlingOptions.getHardBlockReplicaWritesTablesRegex());
+        TrafficType.ReplicaWrite.getHardBlockTablesFilter().setRegexPatternAndRefresh(
+        throttlingOptions.getHardBlockReplicaWritesTablesRegex());
     }
+
 
     public void syncAllFilters()
     {
         syncIgnoreTablesFilter();
-        syncHardBlockCoordReadsTablesFilter();
+
+        syncHardBlockSinglePartitionCoordReadsTablesFilter();
+        syncHardBlockSinglePartitionReplicaReadsTablesFilter();
+        syncHardBlockRangeCoordReadsTablesFilter();
+        syncHardBlockRangeReplicaReadsTablesFilter();
         syncHardBlockCoordWritesTablesFilter();
-        syncHardBlockReplicaReadsTablesFilter();
         syncHardBlockReplicaWritesTablesFilter();
     }
 
@@ -291,28 +312,28 @@ public class CassandraResourceUtilization
         StringBuilder sb = new StringBuilder();
 
         sb.append("CpuUtil1: ").append(df.format(resourcesStats.getCpuUtil1Cur())).
-          append("-").append(df.format(resourcesStats.getCpuUtil1OneMinute())).
-          append("-").append(df.format(resourcesStats.getCpuUtil1FiveMinute())).
-          append("-").append(df.format(resourcesStats.getCpuUtil1FifteenMinute())).
+          append('-').append(df.format(resourcesStats.getCpuUtil1OneMinute())).
+          append('-').append(df.format(resourcesStats.getCpuUtil1FiveMinute())).
+          append('-').append(df.format(resourcesStats.getCpuUtil1FifteenMinute())).
 
           append(", CpuUtil2: ").append(df.format(resourcesStats.getCpuUtil2Cur())).
-          append("-").append(df.format(resourcesStats.getCpuUtil2OneMinute())).
-          append("-").append(df.format(resourcesStats.getCpuUtil2FiveMinute())).
-          append("-").append(df.format(resourcesStats.getCpuUtil2FifteenMinute())).
+          append('-').append(df.format(resourcesStats.getCpuUtil2OneMinute())).
+          append('-').append(df.format(resourcesStats.getCpuUtil2FiveMinute())).
+          append('-').append(df.format(resourcesStats.getCpuUtil2FifteenMinute())).
 
           append(", PendingReads: ").append(df.format(resourcesStats.getPendingReadsCur())).
-          append("-").append(df.format(resourcesStats.getPendingReadsOneMinute())).
-          append("-").append(df.format(resourcesStats.getPendingReadsFiveMinute())).
-          append("-").append(df.format(resourcesStats.getPendingReadsFifteenMinute())).
+          append('-').append(df.format(resourcesStats.getPendingReadsOneMinute())).
+          append('-').append(df.format(resourcesStats.getPendingReadsFiveMinute())).
+          append('-').append(df.format(resourcesStats.getPendingReadsFifteenMinute())).
 
           append(", PendingMutations: ").append(df.format(resourcesStats.getPendingMutationsCur())).
-          append("-").append(df.format(resourcesStats.getPendingMutationsOneMinute())).
-          append("-").append(df.format(resourcesStats.getPendingMutationsFiveMinute())).
-          append("-").append(df.format(resourcesStats.getPendingMutationsFifteenMinute())).
+          append('-').append(df.format(resourcesStats.getPendingMutationsOneMinute())).
+          append('-').append(df.format(resourcesStats.getPendingMutationsFiveMinute())).
+          append('-').append(df.format(resourcesStats.getPendingMutationsFifteenMinute())).
           append(", PendingNativeTransport: ").append(df.format(resourcesStats.getPendingNativeTransportCur())).
-          append("-").append(df.format(resourcesStats.getPendingNativeTransportOneMinute())).
-          append("-").append(df.format(resourcesStats.getPendingNativeTransportFiveMinute())).
-          append("-").append(df.format(resourcesStats.getPendingNativeTransportFifteenMinute())).
+          append('-').append(df.format(resourcesStats.getPendingNativeTransportOneMinute())).
+          append('-').append(df.format(resourcesStats.getPendingNativeTransportFiveMinute())).
+          append('-').append(df.format(resourcesStats.getPendingNativeTransportFifteenMinute())).
           append(", LastThrottlingCheckPointTimeInMS: ").append(convertEpochTimeToUTC(lastThrottlingCheckPointTimeInMS)).
           append(", LastThrottlingIndicatorTimeInMS: ").append(convertEpochTimeToUTC(lastThrottlingIndicatorTimeInMS)).
           append(", CurrentThrottlingPercentage: ").append(currentThrottlingPercentage);
@@ -375,32 +396,50 @@ public class CassandraResourceUtilization
         }
     }
 
+    @FunctionalInterface
+    public interface HardBlockCounterSupplier
+    {
+        public Counter getCounter(KeyspaceThrottlingMetrics keyspaceThrottlingMetrics);
+    }
+
+    static Counter hardBlockSinglePartitionCoordReadsCounter(KeyspaceThrottlingMetrics keyspaceThrottlingMetrics)
+    {
+        return keyspaceThrottlingMetrics.hardBlockSinglePartitionCoordReads;
+    }
+
+    static Counter hardBlockSinglePartitionReplicaReadsCounter(KeyspaceThrottlingMetrics keyspaceThrottlingMetrics)
+    {
+        return keyspaceThrottlingMetrics.hardBlockSinglePartitionReplicaReads;
+    }
+
+    static Counter hardBlockRangeCoordReadsCounter(KeyspaceThrottlingMetrics keyspaceThrottlingMetrics)
+    {
+        return keyspaceThrottlingMetrics.hardBlockRangeCoordReads;
+    }
+
+    static Counter hardBlockRangeReplicaReadsCounter(KeyspaceThrottlingMetrics keyspaceThrottlingMetrics)
+    {
+        return keyspaceThrottlingMetrics.hardBlockRangeReplicaReads;
+    }
+
+    static Counter hardBlockCoordWritesCounter(KeyspaceThrottlingMetrics keyspaceThrottlingMetrics)
+    {
+        return keyspaceThrottlingMetrics.hardBlockCoordWrites;
+    }
+
+    static Counter hardBlockReplicaWritesCounter(KeyspaceThrottlingMetrics keyspaceThrottlingMetrics)
+    {
+        return keyspaceThrottlingMetrics.hardBlockReplicaWrites;
+    }
+
     public boolean decideHardBlock(String keyspace, Collection<String> tables, TrafficType trafficType, KeyspaceThrottlingMetrics ksThrottlingMetrics)
     {
-        TableFilter filter;
-        Counter counter;
-        if (!trafficType.isWrite() && !trafficType.isCoordTraffic())
-        {
-            filter = hardBlockReplicaReadsTablesFilter;
-            counter = ksThrottlingMetrics.hardBlockReplicaReads;
-        } else if (trafficType.isWrite() && !trafficType.isCoordTraffic())
-        {
-            filter = hardBlockReplicaWritesTablesFilter;
-            counter = ksThrottlingMetrics.hardBlockReplicaWrites;
-        } else if (!trafficType.isWrite() && trafficType.isCoordTraffic())
-        {
-            filter = hardBlockCoordReadsTablesFilter;
-            counter = ksThrottlingMetrics.hardBlockCoordReads;
-        } else
-        {
-            filter = hardBlockCoordWritesTablesFilter;
-            counter = ksThrottlingMetrics.hardBlockCoordWrites;
-        }
+        TableFilter filter = trafficType.getHardBlockTablesFilter();
 
         boolean shouldBlock = applyTableFilter(filter, keyspace, tables);
         if (shouldBlock)
         {
-            counter.inc();
+            trafficType.getHardBlockCounterSupplier().getCounter(ksThrottlingMetrics).inc();
         }
         return shouldBlock;
     }

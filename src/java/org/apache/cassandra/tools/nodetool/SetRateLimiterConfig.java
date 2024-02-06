@@ -39,8 +39,9 @@ public class SetRateLimiterConfig extends NodeTool.NodeToolCmd
                     "percentageoftraffictothrottling|moreaggressivethrottlingafterinsec|" +
                     "resetafternothrottlingseeninsec|aggressivethrottlingqpsratio|aggressivethrottlinglatencyratio|" +
                     "ignoretablesregex|throttlereadreplicatraffic|throttlemutationreplicatraffic|" +
-                    "hardblockcoordreadstablesregex|hardblockcoordwritestablesregex|" +
-                    "hardblockreplicareadstablesregex|hardblockreplicawritestablesregex]",
+                    "hardblocksinglepartitioncoordreadstablesregex|hardblocksinglepartitionreplicareadstablesregex|" +
+                    "hardblockrangecoordreadstablesregex|hardblockrangereplicareadstablesregex|" +
+                    "hardblockcoordwritestablesregex|hardblockreplicawritestablesregex]",
             required = true)
     private List<String> args = new ArrayList<>();
 
@@ -119,18 +120,25 @@ public class SetRateLimiterConfig extends NodeTool.NodeToolCmd
         {
             probe.setThrottleMutationReplicaTraffic(Boolean.parseBoolean(paramVal));
         }
-        else if (paramType.equals("hardblockcoordreadstablesregex"))
+        else if (paramType.equals("hardblocksinglepartitioncoordreadstablesregex"))
         {
-            probe.setThrottlingOptionsHardBlockCoordReadsTablesRegex(paramVal);
+            probe.setThrottlingOptionsHardBlockSinglePartitionCoordReadsTablesRegex(paramVal);
+        }
+        else if (paramType.equals("hardblocksinglepartitionreplicareadstablesregex"))
+        {
+            probe.setThrottlingOptionsHardBlockSinglePartitionReplicaReadsTablesRegex(paramVal);
+        }
+        else if (paramType.equals("hardblockrangecoordreadstablesregex"))
+        {
+            probe.setThrottlingOptionsHardBlockRangeCoordReadsTablesRegex(paramVal);
+        }
+        else if (paramType.equals("hardblockrangereplicareadstablesregex"))
+        {
+            probe.setThrottlingOptionsHardBlockRangeReplicaReadsTablesRegex(paramVal);
         }
         else if (paramType.equals("hardblockcoordwritestablesregex"))
         {
-
             probe.setThrottlingOptionsHardBlockCoordWritesTablesRegex(paramVal);
-        }
-        else if (paramType.equals("hardblockreplicareadstablesregex"))
-        {
-            probe.setThrottlingOptionsHardBlockReplicaReadsTablesRegex(paramVal);
         }
         else if (paramType.equals("hardblockreplicawritestablesregex"))
         {

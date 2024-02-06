@@ -28,7 +28,8 @@ public enum TrafficType
             CulpritTrafficChecker::singlePartitionReadLatencyMetrics,
             CulpritTrafficChecker::addKSForReadThrottlingCounter,
             CulpritTrafficChecker::readRequestsTrendingUpwardCounter,
-            CulpritTrafficChecker::readLatencyTrendingUpwardCounter
+            CulpritTrafficChecker::readLatencyTrendingUpwardCounter,
+            CassandraResourceUtilization::hardBlockSinglePartitionCoordReadsCounter
     ),
     SinglePartitionReplicaRead
     (false, false, false,
@@ -36,7 +37,8 @@ public enum TrafficType
             CulpritTrafficChecker::singlePartitionReadLatencyMetrics,
             CulpritTrafficChecker::addKSForReadThrottlingCounter,
             CulpritTrafficChecker::readRequestsTrendingUpwardCounter,
-            CulpritTrafficChecker::readLatencyTrendingUpwardCounter
+            CulpritTrafficChecker::readLatencyTrendingUpwardCounter,
+            CassandraResourceUtilization::hardBlockSinglePartitionReplicaReadsCounter
     ),
     RangeCoordRead
     (false, true, true,
@@ -44,7 +46,8 @@ public enum TrafficType
             CulpritTrafficChecker::rangeLatencyMetrics,
             CulpritTrafficChecker::addKSForRangeThrottlingCounter,
             CulpritTrafficChecker::rangeRequestsTrendingUpwardCounter,
-            CulpritTrafficChecker::rangeLatencyTrendingUpwardCounter
+            CulpritTrafficChecker::rangeLatencyTrendingUpwardCounter,
+            CassandraResourceUtilization::hardBlockRangeCoordReadsCounter
     ),
     RangeReplicaRead
     (false, true, false,
@@ -52,7 +55,8 @@ public enum TrafficType
             CulpritTrafficChecker::rangeLatencyMetrics,
             CulpritTrafficChecker::addKSForRangeThrottlingCounter,
             CulpritTrafficChecker::rangeRequestsTrendingUpwardCounter,
-            CulpritTrafficChecker::rangeLatencyTrendingUpwardCounter
+            CulpritTrafficChecker::rangeLatencyTrendingUpwardCounter,
+            CassandraResourceUtilization::hardBlockRangeReplicaReadsCounter
     ),
     CoordWrite
     (true, false, true,
@@ -60,7 +64,8 @@ public enum TrafficType
             CulpritTrafficChecker::writeLatencyMetrics,
             CulpritTrafficChecker::addKSForWriteThrottlingCounter,
             CulpritTrafficChecker::writeRequestsTrendingUpwarddCounter,
-            CulpritTrafficChecker::writeLatencyTrendingUpwardCounter
+            CulpritTrafficChecker::writeLatencyTrendingUpwardCounter,
+            CassandraResourceUtilization::hardBlockCoordWritesCounter
     ),
     ReplicaWrite
     (true, false, false,
@@ -68,12 +73,14 @@ public enum TrafficType
             CulpritTrafficChecker::writeLatencyMetrics,
             CulpritTrafficChecker::addKSForWriteThrottlingCounter,
             CulpritTrafficChecker::writeRequestsTrendingUpwarddCounter,
-            CulpritTrafficChecker::writeLatencyTrendingUpwardCounter
+            CulpritTrafficChecker::writeLatencyTrendingUpwardCounter,
+            CassandraResourceUtilization::hardBlockReplicaWritesCounter
     );
 
     private final boolean isWrite;
     private final boolean isRangeRead;
     private final boolean isCoordTraffic;
+    private final TableFilter hardBlockTablesFilter;
 
     private final Map<String, Boolean> culpritKeyspaceCache;
     private final CulpritTrafficChecker.CulpritLatencyMetricsSupplier culpritLatencyMetricsSupplier;
@@ -81,12 +88,15 @@ public enum TrafficType
     private final CulpritTrafficChecker.RequestsTrendingUpwardCounterSupplier requestsTrendingUpwardCounterSupplier;
     private final CulpritTrafficChecker.LatencyTrendingUpwardCounterSupplier latencyTrendingUpwardCounterSupplier;
 
+    private final CassandraResourceUtilization.HardBlockCounterSupplier hardBlockCounterSupplier;
+
     TrafficType(boolean isWrite, boolean isRangeRead, boolean isCoordTraffic,
                 Map<String, Boolean> culpritKeyspaceCache,
                 CulpritTrafficChecker.CulpritLatencyMetricsSupplier latencyMetricsSupplier,
                 CulpritTrafficChecker.CulpritKeyspaceAddedCounterSupplier culpritKeyspaceAddedCounterSupplier,
                 CulpritTrafficChecker.RequestsTrendingUpwardCounterSupplier requestsTrendingUpwardCounterSupplier,
-                CulpritTrafficChecker.LatencyTrendingUpwardCounterSupplier latencyTrendingUpwardCounterSupplier)
+                CulpritTrafficChecker.LatencyTrendingUpwardCounterSupplier latencyTrendingUpwardCounterSupplier,
+                CassandraResourceUtilization.HardBlockCounterSupplier hardBlockCounterSupplier)
     {
         this.isWrite = isWrite;
         this.isRangeRead = isRangeRead;
@@ -96,6 +106,9 @@ public enum TrafficType
         this.culpritKeyspaceAddedCounterSupplier = culpritKeyspaceAddedCounterSupplier;
         this.requestsTrendingUpwardCounterSupplier = requestsTrendingUpwardCounterSupplier;
         this.latencyTrendingUpwardCounterSupplier = latencyTrendingUpwardCounterSupplier;
+        this.hardBlockCounterSupplier = hardBlockCounterSupplier;
+
+        this.hardBlockTablesFilter = new TableFilter("HardBlock" + name());
     }
 
     public boolean isWrite()
@@ -136,5 +149,14 @@ public enum TrafficType
     public CulpritTrafficChecker.LatencyTrendingUpwardCounterSupplier getLatencyTrendingUpwardCounterSupplier()
     {
         return latencyTrendingUpwardCounterSupplier;
+    }
+
+    public TableFilter getHardBlockTablesFilter() {
+        return hardBlockTablesFilter;
+    }
+
+    public CassandraResourceUtilization.HardBlockCounterSupplier getHardBlockCounterSupplier()
+    {
+        return hardBlockCounterSupplier;
     }
 }
