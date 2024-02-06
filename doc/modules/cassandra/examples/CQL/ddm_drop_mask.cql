@@ -1,1 +1,0 @@
-ALTER TABLE patients ALTER name DROP MASKED;
