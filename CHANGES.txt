@@ -1,4 +1,6 @@
 5.1
+ * Allow CQL client certificate authentication to work without sending an AUTHENTICATE request (CASSANDRA-18857)
+ * Extend nodetool tpstats and system_views.thread_pools with detailed pool parameters (CASSANDRA-19289) 
  * Remove dependency on Sigar in favor of OSHI (CASSANDRA-16565)
  * Simplify the bind marker and Term logic (CASSANDRA-18813)
  * Limit cassandra startup to supported JDKs, allow higher JDKs by setting CASSANDRA_JDK_UNSUPPORTED (CASSANDRA-18688)
@@ -10,6 +12,8 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Fix data corruption in VectorCodec when using heap buffers (CASSANDRA-19167)
+ * Avoid over-skipping of key iterators from static column indexes during mixed intersections (CASSANDRA-19278)
  * Make concurrent_index_builders configurable at runtime (CASSANDRA-19266)
  * Fix storage_compatibility_mode for streaming (CASSANDRA-19126)
  * Add support of vector type to cqlsh COPY command (CASSANDRA-19118)

@@ -47,12 +47,20 @@ public class MutualTlsWithPasswordFallbackAuthenticator extends PasswordAuthenti
     }
 
     @Override
+    public boolean supportsEarlyAuthentication()
+    {
+        return true;
+    }
+
+    @Override
     public SaslNegotiator newSaslNegotiator(InetAddress clientAddress, Certificate[] certificates)
     {
         if (certificates == null || certificates.length == 0)
         {
+            // If no certificates present, fallback to PasswordAuthentication
             return newSaslNegotiator(clientAddress);
         }
+        // Otherwise attempt to authenticate using the client-provided certificate.
         return mutualTlsAuthenticator.newSaslNegotiator(clientAddress, certificates);
     }
 

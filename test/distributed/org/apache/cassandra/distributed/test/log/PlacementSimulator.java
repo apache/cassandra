@@ -43,6 +43,7 @@ import org.junit.Assert;
 import static org.apache.cassandra.harry.sut.TokenPlacementModel.Node;
 import static org.apache.cassandra.harry.sut.TokenPlacementModel.Range;
 import static org.apache.cassandra.harry.sut.TokenPlacementModel.ReplicationFactor;
+import static org.apache.cassandra.harry.sut.TokenPlacementModel.toRanges;
 
 /**
  * A small class that helps to avoid doing mental arithmetics on ranges.
@@ -515,8 +516,8 @@ public class PlacementSimulator
         afterLeaveNodes.remove(toRemove);
         // calculate placements based on existing ranges but final set of nodes - this is end state
         Map<Range, List<Node>> end = baseState.rf.replicate(toRanges(baseState.nodes), afterLeaveNodes).placementsForRange;
-        // maximal state is union of start & end
 
+        // maximal state is union of start & end
         Map<Range, Diff<Node>> allWriteCommands = diff(start, end);
         Map<Range, Diff<Node>> step1WriteCommands = map(allWriteCommands, Diff::onlyAdditions);
         Map<Range, Diff<Node>> step3WriteCommands = map(allWriteCommands, Diff::onlyRemovals);
@@ -829,6 +830,11 @@ public class PlacementSimulator
 
     public static NavigableMap<Range, List<Node>> mergeReplicated(Map<Range, List<Node>> orig, long removingToken)
     {
+        if (removingToken == Long.MIN_VALUE)
+        {
+            Assert.assertEquals(Long.MIN_VALUE, orig.entrySet().iterator().next().getKey().start);
+            return new TreeMap<>(orig);
+        }
         NavigableMap<Range, List<Node>> newState = new TreeMap<>();
         Iterator<Map.Entry<Range, List<Node>>> iter = orig.entrySet().iterator();
         while (iter.hasNext())
@@ -854,6 +860,11 @@ public class PlacementSimulator
 
     public static NavigableMap<Range, List<Node>> splitReplicated(Map<Range, List<Node>> orig, long splitAt)
     {
+        if (splitAt == Long.MIN_VALUE)
+        {
+            Assert.assertEquals(Long.MIN_VALUE, orig.entrySet().iterator().next().getKey().start);
+            return new TreeMap<>(orig);
+        }
         NavigableMap<Range, List<Node>> newState = new TreeMap<>();
         for (Map.Entry<Range, List<Node>> entry : orig.entrySet())
         {
@@ -935,31 +946,6 @@ public class PlacementSimulator
         }
         newNodes.sort(Node::compareTo);
         return Collections.unmodifiableList(newNodes);
-    }
-
-    /**
-     * Generates token ranges from the list of nodes
-     */
-    public static Range[] toRanges(List<Node> nodes)
-    {
-        List<Long> tokens = new ArrayList<>();
-        for (Node node : nodes)
-            tokens.add(node.token());
-        tokens.add(Long.MIN_VALUE);
-        tokens.sort(Long::compareTo);
-
-        Range[] ranges = new Range[nodes.size() + 1];
-        long prev = tokens.get(0);
-        int cnt = 0;
-        for (int i = 1; i < tokens.size(); i++)
-        {
-            long current = tokens.get(i);
-            ranges[cnt++] = new Range(prev, current);
-            prev = current;
-        }
-        ranges[ranges.length - 1] = new Range(prev, Long.MIN_VALUE);
-        return ranges;
-
     }
 
     public static class Diff<T> {

@@ -58,6 +58,7 @@ public class TokenPlacementModel
         {
             return replicate(toRanges(nodes), nodes);
         }
+
         public abstract ReplicatedRanges replicate(Range[] ranges, List<Node> nodes);
     }
 
@@ -79,7 +80,7 @@ public class TokenPlacementModel
                 if (token <= range.start)
                     return 1;
                 // ie token > start && token <= end
-                if (token <= range.end ||range.end == Long.MIN_VALUE)
+                if (token <= range.end || range.end == Long.MIN_VALUE)
                     return 0;
 
                 return -1;
@@ -135,7 +136,13 @@ public class TokenPlacementModel
     {
         for (int i = 0; i < nodes.size(); i++)
         {
-            if (range.end != Long.MIN_VALUE && nodes.get(i).token() >= range.end)
+            long token = nodes.get(i).token();
+            if (token == Long.MIN_VALUE)
+            {
+                if (range.end == token)
+                    return i;
+            }
+            else if (range.end != Long.MIN_VALUE && token >= range.end)
                 return i;
         }
         return -1;
@@ -147,13 +154,15 @@ public class TokenPlacementModel
      */
     public static Range[] toRanges(List<Node> nodes)
     {
+        boolean hasMinToken = nodes.get(0).token() == Long.MIN_VALUE;
         List<Long> tokens = new ArrayList<>();
         for (Node node : nodes)
             tokens.add(node.token());
-        tokens.add(Long.MIN_VALUE);
+        if (!hasMinToken)
+            tokens.add(Long.MIN_VALUE);
         tokens.sort(Long::compareTo);
 
-        Range[] ranges = new Range[nodes.size() + 1];
+        Range[] ranges = new Range[nodes.size() + (hasMinToken ? 0 : 1)];
         long prev = tokens.get(0);
         int cnt = 0;
         for (int i = 1; i < tokens.size(); i++)
@@ -244,23 +253,10 @@ public class TokenPlacementModel
             return replicate(ranges, nodes, asMap());
         }
 
-        private static <T extends Comparable<T>> void assertStrictlySorted(Collection<T> coll)
-        {
-            if (coll.size() <= 1) return;
-
-            Iterator<T> iter = coll.iterator();
-            T prev = iter.next();
-            while (iter.hasNext())
-            {
-                T next = iter.next();
-                assert next.compareTo(prev) > 0 : String.format("Collection does not seem to be sorted. %s and %s are in wrong order", prev, next);
-                prev = next;
-            }
-        }
-
         public static ReplicatedRanges replicate(Range[] ranges, List<Node> nodes, Map<String, Integer> rfs)
         {
             assertStrictlySorted(nodes);
+            boolean minTokenOwned = nodes.stream().anyMatch(n -> n.token() == Long.MIN_VALUE);
             Map<String, DatacenterNodes> template = new HashMap<>();
 
             Map<String, List<Node>> nodesByDC = nodesByDC(nodes);
@@ -281,7 +277,7 @@ public class TokenPlacementModel
             }
 
             NavigableMap<Range, Map<String, List<Node>>> replication = new TreeMap<>();
-
+            Range skipped = null;
             for (Range range : ranges)
             {
                 final int idx = primaryReplica(nodes, range);
@@ -308,13 +304,20 @@ public class TokenPlacementModel
                 }
                 else
                 {
-                    // if the range end is larger than the highest assigned token, then treat it
-                    // as part of the wraparound and replicate it to the same nodes as the first
-                    // range. This is most likely caused by a decommission removing the node with
-                    // the largest token.
-                    replication.put(range, replication.get(ranges[0]));
+                    if (minTokenOwned)
+                        skipped = range;
+                    else
+                        // if the range end is larger than the highest assigned token, then treat it
+                        // as part of the wraparound and replicate it to the same nodes as the first
+                        // range. This is most likely caused by a decommission removing the node with
+                        // the largest token.
+                        replication.put(range, replication.get(ranges[0]));
                 }
             }
+
+            // Since we allow owning MIN_TOKEN, when it is owned, we have to replicate the range explicitly.
+            if (skipped != null)
+                replication.put(skipped, replication.get(ranges[ranges.length - 1]));
 
             return combine(replication);
         }
@@ -446,6 +449,20 @@ public class TokenPlacementModel
         }
     }
 
+    private static <T extends Comparable<T>> void assertStrictlySorted(Collection<T> coll)
+    {
+        if (coll.size() <= 1) return;
+
+        Iterator<T> iter = coll.iterator();
+        T prev = iter.next();
+        while (iter.hasNext())
+        {
+            T next = iter.next();
+            assert next.compareTo(prev) > 0 : String.format("Collection does not seem to be sorted. %s and %s are in wrong order", prev, next);
+            prev = next;
+        }
+    }
+
     private static <K extends Comparable<K>, T1, T2> Map<K, T2> mapValues(Map<K, T1> allDCs, Function<T1, T2> map)
     {
         NavigableMap<K, T2> res = new TreeMap<>();
@@ -515,7 +532,10 @@ public class TokenPlacementModel
 
         public static ReplicatedRanges replicate(Range[] ranges, List<Node> nodes, int rf)
         {
+            assertStrictlySorted(nodes);
             NavigableMap<Range, List<Node>> replication = new TreeMap<>();
+            boolean minTokenOwned = nodes.stream().anyMatch(n -> n.token() == Long.MIN_VALUE);
+            Range skipped = null;
             for (Range range : ranges)
             {
                 Set<Integer> names = new HashSet<>();
@@ -523,24 +543,28 @@ public class TokenPlacementModel
                 int idx = primaryReplica(nodes, range);
                 if (idx >= 0)
                 {
-                    for (int i = idx; i < nodes.size() && replicas.size() < rf; i++)
-                        addIfUnique(replicas, names, nodes.get(i));
-
-                    for (int i = 0; replicas.size() < rf && i < idx; i++)
-                        addIfUnique(replicas, names, nodes.get(i));
-                    if (range.start == Long.MIN_VALUE)
+                    for (int i = 0; i < nodes.size() && replicas.size() < rf; i++)
+                        addIfUnique(replicas, names, nodes.get((idx + i) % nodes.size()));
+                    if (!minTokenOwned && range.start == Long.MIN_VALUE)
                         replication.put(ranges[ranges.length - 1], replicas);
                     replication.put(range, replicas);
                 }
                 else
                 {
-                    // if the range end is larger than the highest assigned token, then treat it
-                    // as part of the wraparound and replicate it to the same nodes as the first
-                    // range. This is most likely caused by a decommission removing the node with
-                    // the largest token.
-                    replication.put(range, replication.get(ranges[0]));
+                    if (minTokenOwned)
+                        skipped = range;
+                    else
+                        // if the range end is larger than the highest assigned token, then treat it
+                        // as part of the wraparound and replicate it to the same nodes as the first
+                        // range. This is most likely caused by a decommission removing the node with
+                        // the largest token.
+                        replication.put(range, replication.get(ranges[0]));
                 }
             }
+
+            // Since we allow owning MIN_TOKEN, when it is owned, we have to replicate the range explicitly.
+            if (skipped != null)
+                replication.put(skipped, replication.get(ranges[ranges.length - 1]));
 
             return new ReplicatedRanges(ranges, Collections.unmodifiableNavigableMap(replication));
         }
@@ -686,7 +710,13 @@ public class TokenPlacementModel
 
     public static class DefaultLookup implements Lookup
     {
-        protected final Map<Integer, Long> overrides = new HashMap<>(2);
+        protected final Map<Integer, Long> tokenOverrides = new HashMap<>(2);
+
+        public DefaultLookup()
+        {
+            // A crafty way to introduce a MIN token
+            tokenOverrides.put(10, Long.MIN_VALUE);
+        }
 
         public String id(int nodeIdx)
         {
@@ -695,23 +725,29 @@ public class TokenPlacementModel
 
         public long token(int tokenIdx)
         {
-            Long override = overrides.get(tokenIdx);
+            Long override = tokenOverrides.get(tokenIdx);
             if (override != null)
                 return override;
-            return PCGFastPure.next(tokenIdx, 1L);
+            long token = PCGFastPure.next(tokenIdx, 1L);
+            for (Long value : tokenOverrides.values())
+            {
+                if (token == value)
+                    throw new IllegalStateException(String.format("Generated token %d is already used in an override", token));
+            }
+            return token;
         }
 
         public Lookup forceToken(int tokenIdx, long token)
         {
             DefaultLookup newLookup = new DefaultLookup();
-            newLookup.overrides.putAll(overrides);
-            newLookup.overrides.put(tokenIdx, token);
+            newLookup.tokenOverrides.putAll(tokenOverrides);
+            newLookup.tokenOverrides.put(tokenIdx, token);
             return newLookup;
         }
 
         public void reset()
         {
-            overrides.clear();
+            tokenOverrides.clear();
         }
 
         public String dc(int dcIdx)
@@ -729,7 +765,7 @@ public class TokenPlacementModel
         @Override
         public long token(int tokenIdx)
         {
-            Long override = overrides.get(tokenIdx);
+            Long override = tokenOverrides.get(tokenIdx);
             if (override != null)
                 return override;
             return tokenIdx * 100L;
@@ -738,8 +774,8 @@ public class TokenPlacementModel
         public Lookup forceToken(int tokenIdx, long token)
         {
             DefaultLookup lookup = new HumanReadableTokensLookup();
-            lookup.overrides.putAll(overrides);
-            lookup.overrides.put(tokenIdx, token);
+            lookup.tokenOverrides.putAll(tokenOverrides);
+            lookup.tokenOverrides.put(tokenIdx, token);
             return lookup;
         }
     }

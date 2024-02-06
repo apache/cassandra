@@ -3,8 +3,8 @@
 # Consider the effects on 'o.a.c.i.s.LegacySSTableTest' before changing schemas in this file.
 #
 cluster_name: Test Cluster
-# memtable_allocation_type: heap_buffers
-memtable_allocation_type: offheap_objects
+memtable_allocation_type: heap_buffers
+# memtable_allocation_type: offheap_objects
 commitlog_sync: batch
 commitlog_segment_size: 5MiB
 commitlog_directory: build/test/cassandra/commitlog
