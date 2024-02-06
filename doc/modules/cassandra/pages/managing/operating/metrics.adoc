@@ -976,10 +976,10 @@ Metrics specific to connectivity for a given Authentication 'mode'.
 An authentication mode is a supported method of authentication. The following
 authentication modes exist for the given supported `IAuthenticators`:
 
-* `PasswordAuthenticator` - password
-* `MutualTlsAuthenticator` - mtls
-* `MutualTlsWithPasswordFallbackAuthenticator` - mtls, password
-* `AllowAllAuthenticator` - anonymous
+* `PasswordAuthenticator` - Password
+* `MutualTlsAuthenticator` - Mtls
+* `MutualTlsWithPasswordFallbackAuthenticator` - Mtls, Password
+* `AllowAllAuthenticator` - Unauthenticated
 
 A custom implementation of `IAuthenticator` may expose metrics on their own
 custom mode by implementing `IAuthenticator.getSupportedAuthenticationModes()`.
