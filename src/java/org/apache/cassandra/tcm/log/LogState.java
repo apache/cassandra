@@ -41,6 +41,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
@@ -48,17 +49,17 @@ public class LogState
 {
     private static final Logger logger = LoggerFactory.getLogger(LogState.class);
     public static LogState EMPTY = new LogState(null, ImmutableList.of());
-    public static final org.apache.cassandra.tcm.serialization.MetadataSerializer<LogState> metadataSerializer = new MetadataSerializer();
 
-    public static final IVersionedSerializer<LogState> defaultMessageSerializer = new Serializer(NodeVersion.CURRENT.serializationVersion());
+    public static final MetadataSerializer<LogState> metadataSerializer = new Serializer();
+    public static final IVersionedSerializer<LogState> defaultMessageSerializer = new MessageSerializer(NodeVersion.CURRENT.serializationVersion());
 
-    private static volatile Serializer serializerCache;
+    private static volatile MessageSerializer serializerCache;
     public static IVersionedSerializer<LogState> messageSerializer(Version version)
     {
-        Serializer cached = serializerCache;
+        MessageSerializer cached = serializerCache;
         if (cached != null && cached.serializationVersion.equals(version))
             return cached;
-        cached = new Serializer(version);
+        cached = new MessageSerializer(version);
         serializerCache = cached;
         return cached;
     }
@@ -112,9 +113,17 @@ public class LogState
     public String toString()
     {
         return "LogState{" +
-               "baseState=" + (baseState != null ? baseState.epoch.toString() : "none ") +
-               ", entries=" + entries.toString() +
+               "baseState=" + (baseState != null ? baseState.epoch : "none ") +
+               ", entries=" + entries.size() + ": " + minMaxEntries() +
+
                '}';
+    }
+
+    private String minMaxEntries()
+    {
+        if (entries.isEmpty())
+            return "[]";
+        return entries.get(0).epoch + " -> " + entries.get(entries.size() - 1).epoch;
     }
 
     @Override
@@ -142,7 +151,6 @@ public class LogState
      *    exists, the LogState will contain all log entries with an epoch less than this. If such a snapshot
      *    is found, it will form the baseState of the LogState, and only log entries with epochs greater than the
      *    snapshot's and less than or equal to the target will be included.
-     *
      *  This method should not be called on any hot path - it should only be used for disaster recovery scenarios
      */
     public static LogState getForRecovery(Epoch target)
@@ -159,11 +167,11 @@ public class LogState
         return logStorage.getLogStateBetween(base, target);
     }
 
-    static final class Serializer implements IVersionedSerializer<LogState>
+    static final class MessageSerializer implements IVersionedSerializer<LogState>
     {
         private final Version serializationVersion;
 
-        public Serializer(Version serializationVersion)
+        public MessageSerializer(Version serializationVersion)
         {
             this.serializationVersion = serializationVersion;
         }
@@ -187,7 +195,7 @@ public class LogState
         }
     }
 
-    static final class MetadataSerializer implements org.apache.cassandra.tcm.serialization.MetadataSerializer<LogState>
+    static final class Serializer implements MetadataSerializer<LogState>
     {
         @Override
         public void serialize(LogState t, DataOutputPlus out, Version version) throws IOException
