@@ -40,6 +40,7 @@
 *** xref:cassandra:developing/cql/types.adoc[Data types]
 *** xref:cassandra:developing/cql/ddl.adoc[Data definition (DDL)]
 *** xref:cassandra:developing/cql/dml.adoc[Data manipulation (DML)]
+*** xref:cassandra:developing/cql/dynamic-data-masking.adoc[]
 *** xref:cassandra:developing/cql/operators.adoc[Operators]
 *** xref:cassandra:developing/cql/indexing/indexing-concepts.adoc[]
 // SAI
@@ -61,7 +62,7 @@
 *** xref:cassandra:developing/cql/triggers.adoc[Triggers]
 *** xref:cassandra:developing/cql/appendices.adoc[Appendices]
 *** xref:cassandra:developing/cql/changes.adoc[Changes]
-*** xref:cassandra:developing/cql/SASI.adoc[SASI]
+// *** xref:cassandra:developing/cql/SASI.adoc[SASI]
 *** xref:cassandra:developing/cql/cql_singlefile.adoc[Single file of CQL information]
 // Vector Search
 ** xref:cassandra:vector-search/overview.adoc[]
