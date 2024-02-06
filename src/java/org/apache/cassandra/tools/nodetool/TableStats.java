@@ -37,7 +37,7 @@ public class TableStats extends NodeToolCmd
     private boolean ignore = false;
 
     @Option(title = "no_human_readable",
-            name = {"--no-human-readable"},
+            name = {"-r", "--no-human-readable"},
             description = "Disable displaying bytes in human readable form")
     private boolean noHumanReadable = false;
 

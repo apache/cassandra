@@ -62,7 +62,7 @@ public class TableStatsTest extends CQLTester
                         "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" +
                         "                [(-u <username> | --username <username>)] tablestats\n" +
                         "                [(-F <format> | --format <format>)] [-i]\n" +
-                        "                [(-l | --sstable-location-check)] [--no-human-readable]\n" +
+                        "                [(-l | --sstable-location-check)] [(-r | --no-human-readable)]\n" +
                         "                [(-s <sort_key> | --sort <sort_key>)] [(-t <top> | --top <top>)] [--]\n" +
                         "                [<keyspace.table>...]\n" +
                         "\n" +
@@ -79,9 +79,6 @@ public class TableStatsTest extends CQLTester
                         "        -l, --sstable-location-check\n" +
                         "            Check whether or not the SSTables are in the correct location.\n" +
                         "\n" +
-                        "        --no-human-readable\n" +
-                        "            Disable displaying bytes in human readable form\n" +
-                        "\n" +
                         "        -p <port>, --port <port>\n" + 
                         "            Remote jmx agent port number\n" + 
                         "\n" + 
@@ -92,7 +89,10 @@ public class TableStatsTest extends CQLTester
                         "            Remote jmx agent password\n" + 
                         "\n" + 
                         "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n" + 
-                        "            Path to the JMX password file\n" + 
+                        "            Path to the JMX password file\n" +
+                        "\n" +
+                        "        -r, --no-human-readable\n" +
+                        "            Disable displaying bytes in human readable form\n" +
                         "\n" + 
                         "        -s <sort_key>, --sort <sort_key>\n" + 
                         "            Sort tables by specified sort key\n" + 
@@ -162,7 +162,7 @@ public class TableStatsTest extends CQLTester
     @Test
     public void testNoHumanReadableArg()
     {
-        Arrays.asList("--no-human-readable").forEach(arg -> {
+        Arrays.asList("-r", "--no-human-readable").forEach(arg -> {
             ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", arg);
             tool.assertOnCleanExit();
             assertThat(tool.getStdout()).doesNotContain(" KiB");
