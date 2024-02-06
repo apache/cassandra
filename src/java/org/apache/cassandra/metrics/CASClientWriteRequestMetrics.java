@@ -36,11 +36,6 @@ public class CASClientWriteRequestMetrics extends CASClientRequestMetrics
 
     public final Counter conditionNotMet;
 
-    /**
-     * Metric for tracking the number of CAS write (aka LWT) requests, rejected due to the threshold of maximum active LWTs being reached.
-     */
-    public final Counter overMaxPendingThreshold;
-
     public CASClientWriteRequestMetrics(String scope, String namePrefix)
     {
         super(scope, namePrefix);
@@ -48,7 +43,6 @@ public class CASClientWriteRequestMetrics extends CASClientRequestMetrics
         // scope for this metric was changed in 4.0; adding backward compatibility
         conditionNotMet = Metrics.counter(factory.createMetricName(namePrefix + "ConditionNotMet"),
                                           DefaultNameFactory.createMetricName("ClientRequest", namePrefix + "ConditionNotMet", "CASRead"));
-        overMaxPendingThreshold = Metrics.counter(factory.createMetricName(namePrefix + "OverMaxPendingThreshold"));
     }
 
     public void release()
@@ -57,6 +51,5 @@ public class CASClientWriteRequestMetrics extends CASClientRequestMetrics
         Metrics.remove(factory.createMetricName(namePrefix + "ConditionNotMet"),
                        DefaultNameFactory.createMetricName("ClientRequest", namePrefix + "ConditionNotMet", "CASRead"));
         Metrics.remove(factory.createMetricName(namePrefix + "MutationSizeHistogram"));
-        Metrics.remove(factory.createMetricName(namePrefix + "OverMaxPendingThreshold"));
     }
 }

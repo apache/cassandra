@@ -204,7 +204,6 @@ public class ClientRequestsMetricsTest
 
     private void updateCASClientWriteRequestMetrics(CASClientWriteRequestMetrics metrics)
     {
-        metrics.overMaxPendingThreshold.inc();
         metrics.conditionNotMet.inc();
         metrics.mutationSize.update(1);
         updateCASClientRequestMetrics(metrics);
@@ -257,7 +256,6 @@ public class ClientRequestsMetricsTest
     {
         assertEquals(value, metrics.mutationSize.getCount());
         assertEquals(value, metrics.conditionNotMet.getCount());
-        assertEquals(value, metrics.overMaxPendingThreshold.getCount());
         verifyCASClientRequestMetrics(metrics, value);
     }
 
