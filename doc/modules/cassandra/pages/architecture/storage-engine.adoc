@@ -102,6 +102,55 @@ If a node stops working, replaying the commit log restores writes to the memtabl
 
 Data in the commit log is purged after its corresponding data in the memtable is flushed to an SSTable on disk.
 
+=== Trie memtables
+
+An alternative memtable implementation based on tries, also called prefix trees, is provided alongside the legacy skip list solution. 
+The implementation is activated using the memtable API (https://cwiki.apache.org/confluence/display/CASSANDRA/CEP-11%3A+Pluggable+memtable+implementations[CEP-11] / https://issues.apache.org/jira/browse/CASSANDRA-17034[CASSANDRA-17034]).
+Trie memtables improve on the legacy solution in modification and lookup performance, as well as the size of the structure for a given amount of data by fitting more data.
+
+Trie memtables use a data structure called a trie to organize data. 
+This structure makes them very efficient at modifying and querying data, as well as more compact in memory. 
+These features result in higher write throughput, lower latency for accessing recently-written data, while fitting more of it in memory.
+
+Trie memtables have internal memory management mechanisms, which drastically reduce the amount of work needed for garbage collection, reducing GC-inflicted pauses and higher-percentile latencies.
+This improvement is crucial to {cassandra} as it reduces the impact of GC on the system and allows for more predictable performance.
+
+Trie memtables reduce write amplification, a common problem in database systems, by buffering and organizing writes until they fill up their allocated memory. 
+By accepting up to 30% more data for the same memory allocation, trie memtables reduce write amplification further.
+
+In the trie memtable implementation, the concurrent skip-list partitions map is replaced with a sharded single-writer trie. 
+To maintain partition order, all keys are mapped to their byte-comparable representations. 
+To minimize the size of the structure, the keys are only stored in the trie paths, and converted back to the standard format on retrieval.
+
+// In later iterations this will be expanded to include the partition-to-row maps, forming a direct map to rows and doing away with most of the complexity and overhead of maintaining separate partition maps.
+
+The trie memtable implementation is a pluggable memtable implementation, and can be enabled by setting the `memtable` configuration in `cassandra.yaml` to `trie`.
+
+[source, yaml]
+----
+memtable:
+    configurations:
+        skiplist:
+          class_name: SkipListMemtable
+        trie:
+          class_name: TrieMemtable
+        default:
+          inherits: trie
+----
+
+This configuration allows for the use of different memtable implementations for different tables, or for different stages of development or testing.
+
+Cassandra currently comes with two memtable implementations:
+
+* SkipListMemtable is the default and matches the memtable format of Cassandra versions up to 4.1. It organizes partitions into a single concurrent skip list.
+* TrieMemtable is a novel solution that organizes partitions into an in-memory trie which places the partition indexing structure in a buffer, off-heap if desired, which significantly improves garbage collection efficiency. 
+It also improves the memtable's space efficiency and lookup performance. 
+Its configuration uses a single parameter:
+** shards: the number of shards to split into, defaulting to the number of CPU cores on the machine
+
+Trie memtables, once configured in `cassandra.yaml`, can be used by setting the `memtable` configuration in the table definition in xref:cassandra:reference/cql-commands/create-table.adoc[`CREATE TABLE`] or xref:cassandra:reference/cql-commands/alter-table.adoc[`ALTER TABLE`] statements.
+The other method is to change the default setting in the `cassandra.yaml` to inherit trie.
+
 == SSTables
 
 https://cassandra.apache.org/_/glossary.html#sstable[SSTables] are the immutable data files that {cassandra} uses for persisting data on disk.

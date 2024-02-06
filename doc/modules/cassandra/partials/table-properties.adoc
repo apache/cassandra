@@ -105,6 +105,19 @@ If your application uses batch operations, consider the possibility that decreas
 The configuration/cass_yaml_file.html#batchlog_replay_throttle[batchlog_replay_throttle] property in the cassandra.yaml file give some control of the batch replay process.
 The most important factors, however, are the size and scope of the batches you use.
 
+*memtable*::
+The memtable implementation can be configured per table by setting the memtable property in the table definition to one of the choices defined in the `cassandra.yaml` file:
+
+* skiplist
+* trie
+* default
+
+If the memtable property is not set, the "default" configuration will be used.
+In the `cassandra.yaml` file, the default is set to `skiplist`.
+
+The `trie` option has the parameter `shards`, which is the number of shards to use for the memtable.
+
+
 *memtable_flush_period_in_ms* ::
 Milliseconds before `memtables` associated with the table are flushed.
 When memtable_flush_period_in_ms=0, the memtable will flush when:

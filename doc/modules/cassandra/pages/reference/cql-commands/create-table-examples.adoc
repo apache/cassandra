@@ -68,6 +68,28 @@ After the disk space limit is reached, writes to CDC-enabled tables are rejected
 See https://docs.datastax.com/en/dse/6.8/dse-admin/datastax_enterprise/config/configCassandra_yaml.html#configCassandra_yaml__cdcSpaceSection[Change-data-capture (CDC) space settings] for information about available CDC settings.
 ====
 
+== Create a table with a trie memtable
+
+To create a table with a trie memtable, a memtable configuration must be enabled in `cassandra.yaml`. See xref:architecture/storage-engine/memtable.adoc[Memtable] for more information.
+
+To create a table with a trie memtable:
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_id-table.cql[tag=trie-memtable]
+----
+
+== Create a table with a skiplist memtable
+
+To create a table with a skiplist memtable, a memtable configuration must be enabled in `cassandra.yaml`. See xref:architecture/storage-engine/memtable.adoc[Memtable] for more information.
+
+To create a table with a skiplist memtable:
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_id-table.cql[tag=skiplist-memtable]
+----
+
 == Storing data in descending order
 
 The following example shows a table definition that stores the categories with the highest points first.
