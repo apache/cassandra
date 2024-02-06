@@ -461,23 +461,89 @@ public class TableMetadata implements SchemaElement
         return !columnName.hasRemaining();
     }
 
+    /**
+     * Method that compares two TableMetadata objects. This is a modified version of {@link #validateCompatibility} that is used
+     * when checking the compatibility between the schema metadata from an SSTable against the schema metadata from a
+     * CQL table.
+     * <p>
+     * The serialization header of the SSTable does not contain exactly the same information available in the schema of
+     * a CQL table, so the comparison needs to be adapted to the information available.
+     * <p>
+     * For example, the serialization header does not contain the partition key columns: it only contains the composite
+     * type of the whole partition key. For this reason, the comparison must be between the partition key types contained
+     * in the two metadata objects, rather than comparing the individual column as {@link #validateCompatibility} does.
+     * This comparison is sufficient anyway because the composite types are the same only if their components are of the
+     * same type and in the same order.
+     * <p>
+     * Another difference worth pointing out is that this method compares the table name, but not the keyspace name or table id.
+     * This is to allow the comparison between externally generated SSTables and a CQL schema, in which case the keyspace name
+     * and table id may be different.
+     *
+     * @param other TableMetadata instance to compare against
+     */
+    public void validateTableNameAndStructureCompatibility(TableMetadata other)
+    {
+        if (isIndex())
+            return;
+
+        validateTableName(other);
+        validateTableType(other);
+        // comparing the types of the partition keys rather than the individual columns, as explained in the comment above
+        validatePartitionKeyTypes(other);
+        validateClusteringColumns(other);
+        validateRegularAndStaticColumns(other);
+    }
+
     void validateCompatibility(TableMetadata previous)
     {
         if (isIndex())
             return;
 
+        validateKeyspaceName(previous);
+        validateTableName(previous);
+        validateTableId(previous);
+        validateTableType(previous);
+        validatePartitionKeyColumns(previous);
+        validateClusteringColumns(previous);
+        validateRegularAndStaticColumns(previous);
+    }
+
+    private void validateKeyspaceName(TableMetadata previous)
+    {
         if (!previous.keyspace.equals(keyspace))
             except("Keyspace mismatch (found %s; expected %s)", keyspace, previous.keyspace);
+    }
 
+    private void validateTableName(TableMetadata previous)
+    {
         if (!previous.name.equals(name))
             except("Table mismatch (found %s; expected %s)", name, previous.name);
+    }
 
+    private void validateTableId(TableMetadata previous)
+    {
         if (!previous.id.equals(id))
             except("Table ID mismatch (found %s; expected %s)", id, previous.id);
+    }
 
+    private void validateTableType(TableMetadata previous)
+    {
         if (!previous.flags.equals(flags) && (!Flag.isCQLTable(flags) || Flag.isCQLTable(previous.flags)))
             except("Table type mismatch (found %s; expected %s)", flags, previous.flags);
+    }
 
+    private void validatePartitionKeyTypes(TableMetadata previous)
+    {
+        if (!partitionKeyType.isCompatibleWith(previous.partitionKeyType))
+        {
+            except("Partition keys of different types (found %s; expected %s)",
+                   partitionKeyType,
+                   previous.partitionKeyType);
+        }
+    }
+
+    private void validatePartitionKeyColumns(TableMetadata previous)
+    {
         if (previous.partitionKeyColumns.size() != partitionKeyColumns.size())
         {
             except("Partition keys of different length (found %s; expected %s)",
@@ -494,7 +560,10 @@ public class TableMetadata implements SchemaElement
                        previous.partitionKeyColumns.get(i).type);
             }
         }
+    }
 
+    private void validateClusteringColumns(TableMetadata previous)
+    {
         if (previous.clusteringColumns.size() != clusteringColumns.size())
         {
             except("Clustering columns of different length (found %s; expected %s)",
@@ -511,7 +580,10 @@ public class TableMetadata implements SchemaElement
                        previous.clusteringColumns.get(i).type);
             }
         }
+    }
 
+    private void validateRegularAndStaticColumns(TableMetadata previous)
+    {
         for (ColumnMetadata previousColumn : previous.regularAndStaticColumns)
         {
             ColumnMetadata column = getColumn(previousColumn.name);
