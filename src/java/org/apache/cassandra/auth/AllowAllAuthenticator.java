@@ -31,7 +31,7 @@ public class AllowAllAuthenticator implements IAuthenticator
 {
     private static final SaslNegotiator AUTHENTICATOR_INSTANCE = new Negotiator();
 
-    private static final Set<String> MODES = Sets.newHashSet(AuthenticationMode.UNAUTHENTICATED.getDisplayName());
+    private static final Set<AuthenticationMode> AUTHENTICATION_MODES = Sets.newHashSet(AuthenticationMode.UNAUTHENTICATED);
 
     public boolean requireAuthentication()
     {
@@ -57,9 +57,9 @@ public class AllowAllAuthenticator implements IAuthenticator
     }
 
     @Override
-    public Set<String> getSupportedAuthenticationModes()
+    public Set<AuthenticationMode> getSupportedAuthenticationModes()
     {
-        return MODES;
+        return AUTHENTICATION_MODES;
     }
 
     public AuthenticatedUser legacyAuthenticate(Map<String, String> credentialsData)

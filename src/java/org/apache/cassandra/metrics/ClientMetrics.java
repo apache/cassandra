@@ -202,11 +202,12 @@ public final class ClientMetrics
 
         // for each supported authentication mode, register a meter for success and failures.
         IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
-        for (String mode : authenticator.getSupportedAuthenticationModes())
+        for (IAuthenticator.AuthenticationMode mode : authenticator.getSupportedAuthenticationModes())
         {
-            MetricNameFactory factory = new DefaultNameFactory("Client", mode);
-            authSuccessByMode.put(mode, registerMeter(factory, AUTH_SUCCESS));
-            authFailureByMode.put(mode, registerMeter(factory, AUTH_FAILURE));
+            String modeString = mode.toString();
+            MetricNameFactory factory = new DefaultNameFactory("Client", modeString);
+            authSuccessByMode.put(modeString, registerMeter(factory, AUTH_SUCCESS));
+            authFailureByMode.put(modeString, registerMeter(factory, AUTH_FAILURE));
 
             Gauge<Integer> clients = registerGauge(factory, CONNECTED_NATIVE_CLIENTS, () -> countConnectedClients((ServerConnection connection) -> {
                 AuthenticatedUser user = connection.getClientState().getUser();
@@ -214,7 +215,7 @@ public final class ClientMetrics
                                .map(u -> mode.equals(u.getAuthenticationMode()))
                                .orElse(false);
             }));
-            connectedNativeClientsByAuthMode.put(mode, clients);
+            connectedNativeClientsByAuthMode.put(modeString, clients);
         }
 
         pausedConnections = new AtomicInteger();

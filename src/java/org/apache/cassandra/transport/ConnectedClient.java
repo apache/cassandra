@@ -27,6 +27,7 @@ import com.google.common.collect.ImmutableMap;
 
 import io.netty.handler.ssl.SslHandler;
 import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.service.ClientState;
 
 import static org.apache.cassandra.auth.IAuthenticator.AuthenticationMode.UNAUTHENTICATED;
@@ -137,13 +138,13 @@ public final class ConnectedClient
                 : Collections.emptyMap();
     }
 
-    public String authenticationMode()
+    public IAuthenticator.AuthenticationMode authenticationMode()
     {
         AuthenticatedUser user = state().getUser();
 
         return null != user
                 ? user.getAuthenticationMode()
-                : UNAUTHENTICATED.getDisplayName();
+                : UNAUTHENTICATED;
     }
 
     private ClientState state()
@@ -172,7 +173,7 @@ public final class ConnectedClient
                            .put(SSL, Boolean.toString(sslEnabled()))
                            .put(CIPHER, sslCipherSuite().orElse(UNDEFINED))
                            .put(PROTOCOL, sslProtocol().orElse(UNDEFINED))
-                           .put(AUTHENTICATION_MODE, authenticationMode())
+                           .put(AUTHENTICATION_MODE, authenticationMode().toString())
                            .put(AUTHENTICATION_METADATA, Joiner.on(", ")
                                                                .withKeyValueSeparator("=")
                                                                .join(authenticationMetadata()))

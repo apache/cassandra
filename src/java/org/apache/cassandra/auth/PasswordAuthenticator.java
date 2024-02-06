@@ -49,7 +49,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.mindrot.jbcrypt.BCrypt;
 
 import static org.apache.cassandra.auth.CassandraRoleManager.consistencyForRoleRead;
-import static org.apache.cassandra.auth.IAuthenticator.AuthenticationMode.PASSWORD;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
@@ -74,7 +73,7 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
     // really this is a rolename now, but as it only matters for Thrift, we leave it for backwards compatibility
     public static final String USERNAME_KEY = "username";
     public static final String PASSWORD_KEY = "password";
-    private static final Set<String> MODES = Collections.singleton(PASSWORD.getDisplayName());
+    private static final Set<AuthenticationMode> AUTHENTICATION_MODES = Collections.singleton(AuthenticationMode.PASSWORD);
 
     static final byte NUL = 0;
     private SelectStatement authenticateStatement;
@@ -167,7 +166,7 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
         if (!checkpw(password, hash))
             throw new AuthenticationException(String.format("Provided username %s and/or password are incorrect", username));
 
-        return new AuthenticatedUser(username, PASSWORD);
+        return new AuthenticatedUser(username, AuthenticationMode.PASSWORD);
     }
 
     private String queryHashedPassword(String username)
@@ -242,9 +241,9 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
     }
 
     @Override
-    public Set<String> getSupportedAuthenticationModes()
+    public Set<AuthenticationMode> getSupportedAuthenticationModes()
     {
-        return MODES;
+        return AUTHENTICATION_MODES;
     }
 
     private static SelectStatement prepare(String query)
@@ -279,9 +278,9 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
         }
 
         @Override
-        public String getAuthenticationMode()
+        public AuthenticationMode getAuthenticationMode()
         {
-            return PASSWORD.getDisplayName();
+            return AuthenticationMode.PASSWORD;
         }
 
         /**

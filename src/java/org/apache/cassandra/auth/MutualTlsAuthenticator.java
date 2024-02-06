@@ -71,7 +71,7 @@ public class MutualTlsAuthenticator implements IAuthenticator
     private static final String CACHE_NAME = "IdentitiesCache";
     private final IdentityCache identityCache = new IdentityCache();
     private final MutualTlsCertificateValidator certificateValidator;
-    private static final Set<String> MODES = Collections.singleton(MTLS.getDisplayName());
+    private static final Set<AuthenticationMode> AUTHENTICATION_MODES = Collections.singleton(MTLS);
 
     // key for the 'identity' value in AuthenticatedUser metadata map.
     static final String METADATA_IDENTITY_KEY = "identity";
@@ -140,9 +140,9 @@ public class MutualTlsAuthenticator implements IAuthenticator
     }
 
     @Override
-    public Set<String> getSupportedAuthenticationModes()
+    public Set<AuthenticationMode> getSupportedAuthenticationModes()
     {
-        return MODES;
+        return AUTHENTICATION_MODES;
     }
 
     @Override
@@ -212,9 +212,9 @@ public class MutualTlsAuthenticator implements IAuthenticator
         }
 
         @Override
-        public String getAuthenticationMode()
+        public AuthenticationMode getAuthenticationMode()
         {
-            return MTLS.getDisplayName();
+            return MTLS;
         }
     }
 

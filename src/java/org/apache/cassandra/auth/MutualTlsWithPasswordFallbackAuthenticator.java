@@ -38,12 +38,12 @@ public class MutualTlsWithPasswordFallbackAuthenticator extends PasswordAuthenti
 {
     private final MutualTlsAuthenticator mutualTlsAuthenticator;
 
-    private final Set<String> MODES;
+    private final Set<AuthenticationMode> AUTHENTICATION_MODES;
 
     public MutualTlsWithPasswordFallbackAuthenticator(Map<String, String> parameters)
     {
         mutualTlsAuthenticator = new MutualTlsAuthenticator(parameters);
-        MODES = Sets.union(super.getSupportedAuthenticationModes(), mutualTlsAuthenticator.getSupportedAuthenticationModes());
+        AUTHENTICATION_MODES = Sets.union(super.getSupportedAuthenticationModes(), mutualTlsAuthenticator.getSupportedAuthenticationModes());
     }
 
     @Override
@@ -60,9 +60,9 @@ public class MutualTlsWithPasswordFallbackAuthenticator extends PasswordAuthenti
     }
 
     @Override
-    public Set<String> getSupportedAuthenticationModes()
+    public Set<AuthenticationMode> getSupportedAuthenticationModes()
     {
-        return MODES;
+        return AUTHENTICATION_MODES;
     }
 
     @Override

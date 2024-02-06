@@ -98,7 +98,7 @@ final class ClientsTable extends AbstractVirtualTable
                   .column(SSL_PROTOCOL, client.sslProtocol().orElse(null))
                   .column(SSL_CIPHER_SUITE, client.sslCipherSuite().orElse(null))
                   .column(KEYSPACE_NAME, client.keyspace().orElse(null))
-                  .column(AUTHENTICATION_MODE, client.authenticationMode())
+                  .column(AUTHENTICATION_MODE, client.authenticationMode().toString())
                   .column(AUTHENTICATION_METADATA, client.authenticationMetadata()
                                                          .entrySet().stream()
                                                          .collect(Collectors.toMap(Entry::getKey, entry -> String.valueOf(entry.getValue()))));

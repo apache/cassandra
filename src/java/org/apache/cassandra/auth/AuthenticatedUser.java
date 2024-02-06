@@ -60,7 +60,7 @@ public class AuthenticatedUser
 
     private final String name;
 
-    private final String authenticationMode;
+    private final AuthenticationMode authenticationMode;
 
     private final Map<String, Object> metadata;
 
@@ -79,16 +79,6 @@ public class AuthenticatedUser
 
     public AuthenticatedUser(String name, AuthenticationMode authenticationMode, Map<String, Object> metadata)
     {
-        this(name, authenticationMode.getDisplayName(), metadata);
-    }
-
-    public AuthenticatedUser(String name, String authenticationMode)
-    {
-        this(name, authenticationMode, Collections.emptyMap());
-    }
-
-    public AuthenticatedUser(String name, String authenticationMode, Map<String, Object> metadata)
-    {
         this.name = name;
         this.role = RoleResource.role(name);
         this.authenticationMode = authenticationMode;
@@ -106,11 +96,9 @@ public class AuthenticatedUser
     }
 
     /**
-     * The mode of authentication used to authenticate this user, this will usually be
-     * some value of {@link AuthenticationMode#getDisplayName()} unless
-     * an implementor provides their own custom authentication scheme.
+     * The mode of authentication used to authenticate this user.
      */
-    public String getAuthenticationMode()
+    public AuthenticationMode getAuthenticationMode()
     {
         return authenticationMode;
     }
