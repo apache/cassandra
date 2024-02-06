@@ -565,6 +565,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         VersionedValue shutdown = remoteState.getApplicationState(ApplicationState.STATUS_WITH_PORT);
         if (shutdown == null)
             throw new AssertionError("Remote shutdown sent but missing STATUS_WITH_PORT; " + remoteState);
+        remoteState.getHeartBeatState().forceHighestPossibleVersionUnsafe();
         endpointStateMap.put(endpoint, remoteState);
         markDead(endpoint, remoteState);
         FailureDetector.instance.forceConviction(endpoint);
