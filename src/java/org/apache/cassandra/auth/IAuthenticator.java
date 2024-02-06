@@ -210,7 +210,7 @@ public interface IAuthenticator
     /**
      * Known modes of authentication supported by Cassandra's provided {@link IAuthenticator} implementations.
      */
-    public static abstract class AuthenticationMode
+    abstract class AuthenticationMode
     {
         private final String displayName;
 

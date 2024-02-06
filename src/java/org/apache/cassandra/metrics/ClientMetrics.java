@@ -114,7 +114,10 @@ public final class ClientMetrics
 
     public void markAuthSuccess(String mode)
     {
-        markAuthMeter(authSuccess, authSuccessByMode, mode);
+        authSuccess.mark();
+        Optional.ofNullable(mode)
+                .flatMap((m) -> Optional.ofNullable(authSuccessByMode.get(m)))
+                .ifPresent(Meter::mark);
     }
 
     /**
@@ -128,18 +131,9 @@ public final class ClientMetrics
 
     public void markAuthFailure(String mode)
     {
-        markAuthMeter(authFailure, authFailureByMode, mode);
-    }
-
-    private void markAuthMeter(Meter meter, Map<String, Meter> meterMap, String mode)
-    {
-        meter.mark();
-
-        // If there is a mode and that mode is present in the meterMap, mark it.
-        // If there is no meter for this mode, the IAuthenticator must have surfaced a mode that it doesn't
-        // list in 'getSupportedAuthenticationModes', in this case, just don't mark.
+        authFailure.mark();
         Optional.ofNullable(mode)
-                .flatMap((m) -> Optional.ofNullable(meterMap.get(m)))
+                .flatMap((m) -> Optional.ofNullable(authFailureByMode.get(m)))
                 .ifPresent(Meter::mark);
     }
 
