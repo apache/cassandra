@@ -197,7 +197,7 @@ public final class DistributedMetadataLogKeyspace
 
         public EntryHolder getEntries(long period, Epoch since) throws IOException
         {
-            UntypedResultSet resultSet = execute(String.format("SELECT current_epoch, period, epoch, kind, transformation, entry_id, sealed FROM %s.%s WHERE period = ? AND epoch >= ?",
+            UntypedResultSet resultSet = execute(String.format("SELECT epoch, kind, transformation, entry_id, sealed FROM %s.%s WHERE period = ? AND epoch >= ?",
                                                                SchemaConstants.METADATA_KEYSPACE_NAME, TABLE_NAME),
                                                  consistencyLevel, period, since.getEpoch());
             EntryHolder entryHolder = new EntryHolder(since);
