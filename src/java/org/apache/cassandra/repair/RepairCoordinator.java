@@ -117,7 +117,7 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
                       int cmd, RepairOption options, String keyspace)
     {
         this.ctx = ctx;
-        this.validationScheduler = Scheduler.build(DatabaseDescriptor.getConcurrentMerkleTreeRequests(), ctx);
+        this.validationScheduler = Scheduler.build(DatabaseDescriptor.getConcurrentMerkleTreeRequests());
         this.state = new CoordinatorState(ctx.clock(), cmd, keyspace, options);
         this.tag = "repair:" + cmd;
         this.validColumnFamilies = validColumnFamilies;

@@ -334,7 +334,7 @@ public class RepairJobTest
         }
         catch (ExecutionException e)
         {
-            Assertions.assertThat(e.getCause()).isInstanceOf(RepairException.class);
+            Assertions.assertThat(e).hasRootCauseInstanceOf(RepairException.class);
         }
 
         // When the job fails, all three outstanding validation tasks should be aborted.

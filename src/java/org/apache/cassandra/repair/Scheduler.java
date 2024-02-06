@@ -18,164 +18,101 @@
 
 package org.apache.cassandra.repair;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.LinkedList;
+import java.util.Queue;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 
-import org.agrona.collections.LongArrayList;
-import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
+import org.apache.cassandra.utils.concurrent.Future;
 
+/**
+ * Task scheduler that limits the number of concurrent tasks across multiple executors.
+ */
 public interface Scheduler
 {
-    void schedule(TimeUUID sessionId, Executor taskExecutor, Task<?> tasks);
+    default <T> Future<T> schedule(Supplier<Future<T>> task, Executor executor)
+    {
+        return schedule(new Task<>(task), executor);
+    }
 
-    static Scheduler build(int concurrentValidations, SharedContext ctx)
+    <T> Task<T> schedule(Task<T> task, Executor executor);
+
+    static Scheduler build(int concurrentValidations)
     {
         return concurrentValidations <= 0
                ? new NoopScheduler()
-               : new LimitedConcurrentScheduler(concurrentValidations, ctx);
+               : new LimitedConcurrentScheduler(concurrentValidations);
     }
 
     final class NoopScheduler implements Scheduler
     {
         @Override
-        public void schedule(TimeUUID sessionId, Executor taskExecutor, Task<?> tasks)
+        public <T> Task<T> schedule(Task<T> task, Executor executor)
         {
-            taskExecutor.execute(tasks);
+            executor.execute(task);
+            return task;
         }
     }
 
     final class LimitedConcurrentScheduler implements Scheduler
     {
         private final int concurrentValidations;
-        private final SharedContext ctx;
         @GuardedBy("this")
         private int inflight = 0;
         @GuardedBy("this")
-        private final Map<TimeUUID, Group> groups = new HashMap<>();
+        private final Queue<Pair<Task<?>, Executor>> tasks = new LinkedList<>();
 
-        LimitedConcurrentScheduler(int concurrentValidations, SharedContext ctx)
+        LimitedConcurrentScheduler(int concurrentValidations)
         {
             this.concurrentValidations = concurrentValidations;
-            this.ctx = ctx;
         }
 
         @Override
-        public synchronized void schedule(TimeUUID sessionId, Executor taskExecutor, Task<?> tasks)
+        public synchronized <T> Task<T> schedule(Task<T> task, Executor executor)
         {
-            groups.computeIfAbsent(sessionId, ignore -> new Group(sessionId, taskExecutor)).add(tasks);
+            tasks.offer(Pair.create(task, executor));
             maybeSchedule();
+            return task;
         }
 
-        private synchronized void onDone(Group group, long durationNs)
+        private synchronized void onDone()
         {
-            group.update(durationNs);
             inflight--;
             maybeSchedule();
         }
 
         private void maybeSchedule()
         {
-            if (inflight == concurrentValidations)
-                return;
-            Group smallest = null;
-            long smallestScore = -1;
-            for (var g : groups.values())
-            {
-                if (g.isEmpty())
-                    continue;
-                if (smallest == null)
-                {
-                    smallest = g;
-                    smallestScore = g.score();
-                }
-                else
-                {
-                    var score = g.score();
-                    if (score < smallestScore)
-                    {
-                        smallest = g;
-                        smallestScore = score;
-                    }
-                }
-            }
-            if (smallest == null)
+            if (inflight == concurrentValidations || tasks.isEmpty())
                 return;
             inflight++;
-            smallest.executeNext();
-        }
-
-        private class Group
-        {
-            private final TimeUUID sessionId;
-            private final Executor taskExecutor;
-            private final List<Task<?>> tasks = new ArrayList<>();
-            private final LongArrayList durations = new LongArrayList();
-            private int inflight = 0;
-            private int completed = 0;
-
-            private Group(TimeUUID sessionId, Executor taskExecutor)
-            {
-                this.sessionId = sessionId;
-                this.taskExecutor = taskExecutor;
-            }
-
-            public long score()
-            {
-                if (tasks.isEmpty())
-                    return -1;
-                long avgDuration = (long) durations.longStream().average().orElse(TimeUnit.HOURS.toNanos(1));
-                return tasks.size() * avgDuration;
-            }
-
-            public void executeNext()
-            {
-                Task<?> task = tasks.get(0);
-                tasks.remove(0);
-                inflight++;
-                var startNs = ctx.clock().nanoTime();
-                task.addCallback((s, f) -> onDone(this, ctx.clock().nanoTime() - startNs));
-                taskExecutor.execute(task);
-            }
-
-            public void add(Task<?> task)
-            {
-                tasks.add(task);
-            }
-
-            private void update(long durationNs)
-            {
-                durations.add(durationNs);
-                inflight--;
-                completed++;
-            }
-
-            public boolean isEmpty()
-            {
-                return tasks.isEmpty();
-            }
-
-            @Override
-            public String toString()
-            {
-                return "Group{" +
-                       "sessionId=" + sessionId +
-                       ", tasks=" + tasks.size() +
-                       ", durations=" + durations.longStream().average().orElse(-1) +
-                       ", score=" + score() +
-                       ", inflight=" + inflight +
-                       ", completed=" + completed +
-                       '}';
-            }
+            Pair<Task<?>, Executor> pair = tasks.poll();
+            pair.left.addCallback((s, f) -> onDone());
+            pair.right.execute(pair.left);
         }
     }
 
-    abstract class Task<T> extends AsyncFuture<T> implements Runnable
+    class Task<T> extends AsyncFuture<T> implements Runnable
     {
+        private final Supplier<Future<T>> supplier;
+
+        public Task(Supplier<Future<T>> supplier)
+        {
+            this.supplier = supplier;
+        }
+
+        @Override
+        public void run()
+        {
+            supplier.get().addCallback((s, f) -> {
+                if (f != null)
+                    tryFailure(f);
+                else
+                    trySuccess(s);
+            });
+        }
     }
 }

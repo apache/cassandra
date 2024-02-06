@@ -20,11 +20,9 @@ package org.apache.cassandra.repair;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
-import java.util.function.Predicate;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
-
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -42,16 +40,16 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.asymmetric.DifferenceHolder;
 import org.apache.cassandra.repair.asymmetric.HostDifferences;
 import org.apache.cassandra.repair.asymmetric.PreferedNodeFilter;
 import org.apache.cassandra.repair.asymmetric.ReduceHelper;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
-import org.apache.cassandra.streaming.PreviewKind;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanup;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTrees;
@@ -141,7 +139,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
 
         if (session.paxosOnly)
         {
-            paxosRepair.addCallback(new FutureCallback<Void>()
+            paxosRepair.addCallback(new FutureCallback<>()
             {
                 public void onSuccess(Void v)
                 {
@@ -195,23 +193,9 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         }
 
         // Run validations and the creation of sync tasks in the scheduler, so it can limit the number of Merkle trees
-        Scheduler.Task<List<SyncTask>> syncTasks = new Scheduler.Task<>()
-        {
-            @Override
-            public void run()
-            {
-                createSyncTasks(paxosRepair, allSnapshotTasks, allEndpoints).addCallback((s, f) -> {
-                    if (f != null)
-                        tryFailure(f);
-                    else
-                        trySuccess(s);
-                });
-            }
-        };
-        session.validationScheduler.schedule(session.getId(), taskExecutor, syncTasks);
-
-        // When all validations complete, submit sync tasks
-        Future<List<SyncStat>> syncResults = syncTasks.flatMap(this::executeTasks, taskExecutor);
+        // that there are in memory at once. When all validations complete, submit sync tasks out of the scheduler.
+        Future<List<SyncStat>> syncResults = session.validationScheduler.schedule(() -> createSyncTasks(paxosRepair, allSnapshotTasks, allEndpoints), taskExecutor)
+                                                                        .flatMap(this::executeTasks, taskExecutor);
 
         // When all sync complete, set the final result
         syncResults.addCallback(new FutureCallback<>()
@@ -583,12 +567,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         for (InetAddressAndPort endpoint : endpoints)
         {
             String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(endpoint);
-            Queue<InetAddressAndPort> queue = requestsByDatacenter.get(dc);
-            if (queue == null)
-            {
-                queue = new LinkedList<>();
-                requestsByDatacenter.put(dc, queue);
-            }
+            Queue<InetAddressAndPort> queue = requestsByDatacenter.computeIfAbsent(dc, k -> new LinkedList<>());
             queue.add(endpoint);
         }
 
@@ -606,7 +585,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                 final InetAddressAndPort nextAddress = requests.poll();
                 final ValidationTask nextTask = newValidationTask(nextAddress, nowInSec);
                 tasks.add(nextTask);
-                currentTask.addCallback(new FutureCallback<TreeResponse>()
+                currentTask.addCallback(new FutureCallback<>()
                 {
                     public void onSuccess(TreeResponse result)
                     {
