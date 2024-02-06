@@ -113,6 +113,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     // Tasks(snapshot, validate request, differencing, ...) are run on taskExecutor
     public final ListeningExecutorService taskExecutor;
     public final boolean optimiseStreams;
+    public final Scheduler validationScheduler;
 
     private volatile boolean terminated = false;
 
@@ -128,6 +129,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
      */
     public RepairSession(UUID parentRepairSession,
                          UUID id,
+                         Scheduler validationScheduler,
                          CommonRange commonRange,
                          String keyspace,
                          RepairParallelism parallelismDegree,
@@ -139,6 +141,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     {
         assert cfnames.length > 0 : "Repairing no column families seems pointless, doesn't it";
 
+        this.validationScheduler = validationScheduler;
         this.parentRepairSession = parentRepairSession;
         this.id = id;
         this.parallelismDegree = parallelismDegree;
