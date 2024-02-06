@@ -110,6 +110,24 @@ public class GetLogStateTest
         assertCorrectLogState(logState, epochToSnapshot.lastEntry().getValue(), null, epochToPeriod.lastKey());
     }
 
+    @Test
+    public void testIncompleteLogAndLostSnapshot()
+    {
+        clearAndPopulate();
+        // delete an entry in the log from the previous period as well as the most recent snapshot. Both the deleted
+        // entry and snapshot are after 'since' so it's not possible to construct a contiguous sequence from since to
+        // current
+        Epoch lastSnapshot = epochToSnapshot.lastKey();
+        Epoch toDelete = Epoch.create(lastSnapshot.getEpoch() - 2);
+        Epoch toQuery = Epoch.create(lastSnapshot.getEpoch() - 3);
+        LogState logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(ClusterMetadata.current().period, toQuery);
+        assertCorrectLogState(logState, null, toQuery, epochToPeriod.lastKey());
+        QueryProcessor.executeInternal("DELETE FROM system.local_metadata_log WHERE period = ? and epoch = ?", epochToPeriod.get(toDelete), toDelete.getEpoch());
+        QueryProcessor.executeInternal("DELETE FROM system.metadata_snapshots WHERE epoch = ?", epochToSnapshot.lastKey().getEpoch());
+        logState = SystemKeyspaceStorage.SystemKeyspace.getLogState(ClusterMetadata.current().period, toQuery);
+        assertCorrectLogState(logState, null, toDelete, epochToPeriod.lastKey());
+    }
+
     private void testGetLogStateHelper()
     {
         for (int i = 1; i < 20; i++)

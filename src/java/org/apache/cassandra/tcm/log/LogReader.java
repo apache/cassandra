@@ -89,6 +89,17 @@ public interface LogReader
                         if (snapshot != null)
                             return new LogState(snapshot, ImmutableList.sortedCopyOf(current.entries));
                     }
+                    else
+                    {
+                        // There were no entries in this period with epoch >= since (i.e. we have iterated back to before
+                        // since) but we've also been unable to find a suitable snapshot. The best thing we can do is to
+                        // include all the entries we have collected so far, even if they are non-contiguous. The caller
+                        // will buffer them in its LocalLog and attempt to fill any gaps by requesting a LogState from
+                        // other peers.
+                        if (previous.min == null)
+                            return new LogState(null, ImmutableList.sortedCopyOf(allEntries));
+                    }
+
                     ClusterMetadata snapshot = snapshots().getSnapshot(Epoch.create(previous.min.getEpoch() - 1));
                     if (snapshot != null)
                         return new LogState(snapshot, ImmutableList.sortedCopyOf(allEntries));
