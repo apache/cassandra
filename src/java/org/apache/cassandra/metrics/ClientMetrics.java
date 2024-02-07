@@ -118,9 +118,7 @@ public final class ClientMetrics
         authSuccess.mark();
         Meter meterByMode;
         if (authenticationMode != null && (meterByMode = authSuccessByMode.get(authenticationMode)) != null)
-        {
             meterByMode.mark();
-        }
     }
 
     /**
@@ -137,9 +135,7 @@ public final class ClientMetrics
         authFailure.mark();
         Meter meterByMode;
         if (authenticationMode != null && (meterByMode = authFailureByMode.get(authenticationMode)) != null)
-        {
             meterByMode.mark();
-        }
     }
 
     public void pauseConnection() { pausedConnections.incrementAndGet(); }
