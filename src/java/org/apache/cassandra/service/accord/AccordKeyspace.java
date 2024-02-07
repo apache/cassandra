@@ -822,8 +822,6 @@ public class AccordKeyspace
             addCellIfModified(CommandsColumns.promised_ballot, Command::promised, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
             addCellIfModified(CommandsColumns.accepted_ballot, Command::acceptedOrCommitted, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
 
-            // TODO review this is just to work around Truncated not being committed but having a status after committed
-            // so status claims it is committed.
             if (command.isStable() && !command.isTruncated())
             {
                 Command.Committed committed = command.asCommitted();
@@ -1291,7 +1289,7 @@ public class AccordKeyspace
 
             try
             {
-                return WaitingOnSerializer.deserialize(deps, new DataInputBuffer(bytes, false));
+                return WaitingOnSerializer.deserialize(deps, bytes);
             }
             catch (IOException e)
             {
