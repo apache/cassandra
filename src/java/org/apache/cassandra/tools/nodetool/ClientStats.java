@@ -97,7 +97,7 @@ public class ClientStats extends NodeToolCmd
         List<Map<String, String>> clients = (List<Map<String, String>>) probe.getClientMetric("connections");
         if (!clients.isEmpty() && (listConnections || clientOptions || verbose))
         {
-            List<String> tableHeaderBase = Lists.newArrayList("Address", "SSL", "Cipher", "Protocol", "Version",
+            List<String> tableHeaderBase = List.of("Address", "SSL", "Cipher", "Protocol", "Version",
                     "User", "Keyspace", "Requests", "Driver-Name",
                     "Driver-Version");
             List<String> tableFieldsBase = Lists.newArrayList(ConnectedClient.ADDRESS, ConnectedClient.SSL,
