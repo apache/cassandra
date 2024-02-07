@@ -457,9 +457,9 @@ public class CompactionManager implements CompactionManagerMBean
     {
         assert !cfStore.isIndex();
         Keyspace keyspace = cfStore.keyspace;
-        if (!StorageService.instance.isJoined())
+        if (!StorageService.instance.getTokenMetadata().getPendingRanges(keyspace.getName(), FBUtilities.getBroadcastAddress()).isEmpty())
         {
-            logger.info("Cleanup cannot run before a node has joined the ring");
+            logger.info("Cleanup cannot run while node has pending ranges for keyspace {} table {}, wait for node addition/decommission to complete and try again", cfStore.keyspace.getName(), cfStore.getTableName());
             return AllSSTableOpStatus.ABORTED;
         }
         // if local ranges is empty, it means no data should remain
