@@ -47,6 +47,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.CassandraUInt;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.streamhist.TombstoneHistogram;
@@ -164,8 +165,8 @@ public final class Util
             this(new TreeMap<Number, Long>()
             {
                 {
-                    histogram.forEach((point, value) -> {
-                        this.put(point, (long) value);
+                    histogram.forEach((pointUnsigned, value) -> {
+                        this.put(CassandraUInt.toLong(pointUnsigned), (long) value);
                     });
                 }
             }, title, offsetName, countName);
