@@ -96,7 +96,7 @@ public class AuthenticatedUser
     }
 
     /**
-     * The mode of authentication used to authenticate this user.
+     * @returns the mode of authentication used to authenticate this user
      */
     public AuthenticationMode getAuthenticationMode()
     {
