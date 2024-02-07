@@ -22,8 +22,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.collect.Sets;
-
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 

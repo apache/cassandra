@@ -30,6 +30,7 @@ import com.datastax.driver.core.HostDistance;
 import com.datastax.driver.core.PoolingOptions;
 import com.datastax.driver.core.Session;
 import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.auth.IAuthenticator.AuthenticationMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.OverrideConfigurationLoader;
 import org.apache.cassandra.service.EmbeddedCassandraService;
@@ -44,7 +45,7 @@ public class ClientMetricsTest
 {
     private static EmbeddedCassandraService cassandra;
 
-    private static ClientMetrics clientMetrics = ClientMetrics.instance;
+    private static final ClientMetrics clientMetrics = ClientMetrics.instance;
 
     private static final String USER1 = "user1";
     private static final String USER1PW = "user1pw";
@@ -109,25 +110,25 @@ public class ClientMetricsTest
         long initialAuthFailure = clientMetrics.authFailure.getCount();
 
         // For each authentication mode, we should have connectedNativeClientsByAuthMode, authSuccessByMode, and authFailureByMode entries.
-        Gauge<Integer> passwordConnections = clientMetrics.connectedNativeClientsByAuthMode.get("password");
+        Gauge<Integer> passwordConnections = clientMetrics.connectedNativeClientsByAuthMode.get(AuthenticationMode.PASSWORD);
         assertNotNull(passwordConnections);
 
-        Meter authSuccessPassword = clientMetrics.authSuccessByMode.get("password");
+        Meter authSuccessPassword = clientMetrics.authSuccessByMode.get(AuthenticationMode.PASSWORD);
         assertNotNull(authSuccessPassword);
         long initialAuthSuccessPassword = authSuccessPassword.getCount();
 
-        Meter authFailurePassword = clientMetrics.authFailureByMode.get("password");
+        Meter authFailurePassword = clientMetrics.authFailureByMode.get(AuthenticationMode.PASSWORD);
         assertNotNull(authFailurePassword);
         long initialAuthFailurePassword = authFailurePassword.getCount();
 
-        Gauge<Integer> mtlsConnections = clientMetrics.connectedNativeClientsByAuthMode.get("mtls");
+        Gauge<Integer> mtlsConnections = clientMetrics.connectedNativeClientsByAuthMode.get(AuthenticationMode.MTLS);
         assertNotNull(mtlsConnections);
 
-        Meter authSuccessMtls = clientMetrics.authSuccessByMode.get("mtls");
+        Meter authSuccessMtls = clientMetrics.authSuccessByMode.get(AuthenticationMode.MTLS);
         assertNotNull(authSuccessMtls);
         long initialAuthSuccessMtls = authSuccessMtls.getCount();
 
-        Meter authFailureMtls = clientMetrics.authFailureByMode.get("mtls");
+        Meter authFailureMtls = clientMetrics.authFailureByMode.get(AuthenticationMode.MTLS);
         assertNotNull(authFailureMtls);
         long initialAuthFailureMtls = authFailureMtls.getCount();
 

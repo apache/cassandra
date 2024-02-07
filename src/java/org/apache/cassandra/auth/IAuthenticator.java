@@ -111,8 +111,7 @@ public interface IAuthenticator
     }
 
     /**
-     * @return The supported authentication 'modes' of this authenticator.
-     * scheme.
+     * @return The supported authentication 'modes' of this authenticator scheme.
      * <p>
      * This is currently only used for registering metrics tied to authentication by mode.
      */
@@ -214,6 +213,10 @@ public interface IAuthenticator
     {
         private final String displayName;
 
+        /**
+         * @param displayName How this mode should be displayed in tooling and JMX beans.  Note that it is desirable
+         *                    for this name to not have spaces as it may not work well with tooling around JMX.
+         */
         public AuthenticationMode(@Nonnull String displayName)
         {
             this.displayName = displayName;
@@ -232,7 +235,7 @@ public interface IAuthenticator
         /**
          * User authenticated using a trusted identity in their client certificate.
          */
-        public static final AuthenticationMode MTLS = new AuthenticationMode("Mtls") {};
+        public static final AuthenticationMode MTLS = new AuthenticationMode("MutualTls") {};
 
         @Override
         public String toString()

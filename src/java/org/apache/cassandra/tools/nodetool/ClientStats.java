@@ -26,7 +26,6 @@ import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;

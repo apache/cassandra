@@ -977,8 +977,8 @@ An authentication mode is a supported method of authentication. The following
 authentication modes exist for the given supported `IAuthenticators`:
 
 * `PasswordAuthenticator` - Password
-* `MutualTlsAuthenticator` - Mtls
-* `MutualTlsWithPasswordFallbackAuthenticator` - Mtls, Password
+* `MutualTlsAuthenticator` - MutualTls
+* `MutualTlsWithPasswordFallbackAuthenticator` - MutualTls, Password
 * `AllowAllAuthenticator` - Unauthenticated
 
 A custom implementation of `IAuthenticator` may expose metrics on their own

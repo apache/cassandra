@@ -37,6 +37,7 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.Reservoir;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.IAuthenticator;
+import org.apache.cassandra.auth.IAuthenticator.AuthenticationMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.transport.ClientResourceLimits;
 import org.apache.cassandra.transport.ClientStat;
@@ -59,13 +60,13 @@ public final class ClientMetrics
     Meter authSuccess;
 
     @VisibleForTesting
-    final Map<String, Meter> authSuccessByMode = new HashMap<>();
+    final Map<AuthenticationMode, Meter> authSuccessByMode = new HashMap<>();
 
     @VisibleForTesting
     Meter authFailure;
 
     @VisibleForTesting
-    final Map<String, Meter> authFailureByMode = new HashMap<>();
+    final Map<AuthenticationMode, Meter> authFailureByMode = new HashMap<>();
 
     @VisibleForTesting
     Gauge<Integer> connectedNativeClients;
@@ -80,7 +81,7 @@ public final class ClientMetrics
     Gauge<Map<String, Integer>> connectedNativeClientsByUser;
 
     @VisibleForTesting
-    final Map<String, Gauge<Integer>> connectedNativeClientsByAuthMode = new HashMap<>();
+    final Map<AuthenticationMode, Gauge<Integer>> connectedNativeClientsByAuthMode = new HashMap<>();
 
     private AtomicInteger pausedConnections;
 
@@ -104,7 +105,7 @@ public final class ClientMetrics
     }
 
     /**
-     * @deprecated by {@link #markAuthSuccess(String)}
+     * @deprecated by {@link #markAuthSuccess(AuthenticationMode)}
      */
     @Deprecated(since="5.1", forRemoval = true)
     public void markAuthSuccess()
@@ -112,29 +113,33 @@ public final class ClientMetrics
         markAuthSuccess(null);
     }
 
-    public void markAuthSuccess(String mode)
+    public void markAuthSuccess(AuthenticationMode authenticationMode)
     {
         authSuccess.mark();
-        Optional.ofNullable(mode)
-                .flatMap((m) -> Optional.ofNullable(authSuccessByMode.get(m)))
-                .ifPresent(Meter::mark);
+        Meter meterByMode;
+        if (authenticationMode != null && (meterByMode = authSuccessByMode.get(authenticationMode)) != null)
+        {
+            meterByMode.mark();
+        }
     }
 
     /**
-     * @deprecated by {@link #markAuthFailure(String)}
+     * @deprecated by {@link #markAuthFailure(AuthenticationMode)}
      */
     @Deprecated(since="5.1", forRemoval = true)
     public void markAuthFailure()
     {
-        authFailure.mark();
+        markAuthFailure(null);
     }
 
-    public void markAuthFailure(String mode)
+    public void markAuthFailure(AuthenticationMode authenticationMode)
     {
         authFailure.mark();
-        Optional.ofNullable(mode)
-                .flatMap((m) -> Optional.ofNullable(authFailureByMode.get(m)))
-                .ifPresent(Meter::mark);
+        Meter meterByMode;
+        if (authenticationMode != null && (meterByMode = authFailureByMode.get(authenticationMode)) != null)
+        {
+            meterByMode.mark();
+        }
     }
 
     public void pauseConnection() { pausedConnections.incrementAndGet(); }
@@ -196,12 +201,11 @@ public final class ClientMetrics
 
         // for each supported authentication mode, register a meter for success and failures.
         IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
-        for (IAuthenticator.AuthenticationMode mode : authenticator.getSupportedAuthenticationModes())
+        for (AuthenticationMode mode : authenticator.getSupportedAuthenticationModes())
         {
-            String modeString = mode.toString();
-            MetricNameFactory factory = new DefaultNameFactory("Client", modeString);
-            authSuccessByMode.put(modeString, registerMeter(factory, AUTH_SUCCESS));
-            authFailureByMode.put(modeString, registerMeter(factory, AUTH_FAILURE));
+            MetricNameFactory factory = new DefaultNameFactory("Client", mode.toString());
+            authSuccessByMode.put(mode, registerMeter(factory, AUTH_SUCCESS));
+            authFailureByMode.put(mode, registerMeter(factory, AUTH_FAILURE));
 
             Gauge<Integer> clients = registerGauge(factory, CONNECTED_NATIVE_CLIENTS, () -> countConnectedClients((ServerConnection connection) -> {
                 AuthenticatedUser user = connection.getClientState().getUser();
@@ -209,7 +213,7 @@ public final class ClientMetrics
                                .map(u -> mode.equals(u.getAuthenticationMode()))
                                .orElse(false);
             }));
-            connectedNativeClientsByAuthMode.put(modeString, clients);
+            connectedNativeClientsByAuthMode.put(mode, clients);
         }
 
         pausedConnections = new AtomicInteger();

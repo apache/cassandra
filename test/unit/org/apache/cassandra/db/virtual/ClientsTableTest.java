@@ -83,7 +83,7 @@ public class ClientsTableTest extends CQLTester
             Assert.assertTrue(r.getString("ssl_protocol").startsWith("TLS"));
             Assert.assertNotNull(r.getString("ssl_cipher_suite"));
             Assert.assertEquals("cassandra", r.getString("username"));
-            Assert.assertEquals("Mtls", r.getString("authentication_mode"));
+            Assert.assertEquals("MutualTls", r.getString("authentication_mode"));
             Assert.assertEquals(Collections.singletonMap("identity", TlsTestUtils.CLIENT_SPIFFE_IDENTITY),
                                 r.getMap("authentication_metadata", String.class, String.class));
         }

@@ -293,9 +293,9 @@ public class ClientStatsTest
         // TLS-encrypted password-based client.
         assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ true +TLS\\S+ +TLS\\S+ +[0-9]+ +cassandra +[0-9]+ +DataStax Java Driver 3.11.5 +Password +.*DRIVER_VERSION");
         // MTLS-based client.
-        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ true +TLS\\S+ +TLS\\S+ +[0-9]+ +cassandra +[0-9]+ +DataStax Java Driver 3.11.5 +Mtls +identity=" + TlsTestUtils.CLIENT_SPIFFE_IDENTITY + " +.*DRIVER_VERSION");
+        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ true +TLS\\S+ +TLS\\S+ +[0-9]+ +cassandra +[0-9]+ +DataStax Java Driver 3.11.5 +MutualTls +identity=" + TlsTestUtils.CLIENT_SPIFFE_IDENTITY + " +.*DRIVER_VERSION");
         // MTLS-based client with 'system' keyspace set on connection.
-        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ true +TLS\\S+ +TLS\\S+ +[0-9]+ +cassandra +system +[0-9]+ +DataStax Java Driver 3.11.5 +Mtls +identity=" + TlsTestUtils.CLIENT_SPIFFE_IDENTITY + " +.*DRIVER_VERSION");
+        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ true +TLS\\S+ +TLS\\S+ +[0-9]+ +cassandra +system +[0-9]+ +DataStax Java Driver 3.11.5 +MutualTls +identity=" + TlsTestUtils.CLIENT_SPIFFE_IDENTITY + " +.*DRIVER_VERSION");
 
         assertClientCount(stdout);
     }
