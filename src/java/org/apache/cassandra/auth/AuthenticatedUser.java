@@ -104,7 +104,7 @@ public class AuthenticatedUser
     }
 
     /**
-     * {@link IAuthenticator}-contextual metadata about how the user was authenticated.
+     * @returns {@link IAuthenticator}-contextual metadata about how the user was authenticated
      */
     public Map<String, Object> getMetadata()
     {
