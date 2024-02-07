@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.function.ToDoubleFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -77,7 +78,10 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.MEMTABLE_O
 import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPAIR_RETRY_TIMEOUT_IN_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RING_DELAY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SHUTDOWN_ANNOUNCE_DELAY_IN_MS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SIMULATOR_STARTED;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_AUTH_DEFAULT_RF;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_SUITENAME;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_TESTTAG;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_JVM_DTEST_DISABLE_SSL;
 import static org.apache.cassandra.simulator.debug.Reconcile.reconcileWith;
 import static org.apache.cassandra.simulator.debug.Record.record;
@@ -137,6 +141,7 @@ public class SimulationRunner
         IGNORE_MISSING_NATIVE_FILE_HINTS.setBoolean(true);
         ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
         TEST_JVM_DTEST_DISABLE_SSL.setBoolean(true); // to support easily running without netty from dtest-jar
+        SIMULATOR_STARTED.setString(Long.toString(TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis())));
 
         if (Thread.currentThread() instanceof InterceptibleThread); // load InterceptibleThread class to avoid infinite loop in InterceptorOfGlobalMethods
         new InterceptedWait.CaptureSites(Thread.currentThread())
@@ -346,8 +351,11 @@ public class SimulationRunner
         {
             long seed = parseHex(Optional.ofNullable(this.seed)).orElse(new Random(System.nanoTime()).nextLong());
             SeedDefiner.setSeed(seed);
-            logger();
             beforeAll();
+            // TODO (expected): this doesn't work properly for multiple seeds in a single JVM
+            TEST_CASSANDRA_TESTTAG.setString("simulator");
+            TEST_CASSANDRA_SUITENAME.setString(SIMULATOR_STARTED.getString() + '-' + CassandraRelevantProperties.SIMULATOR_SEED.getString());
+            logger();
             Thread.setDefaultUncaughtExceptionHandler((th, e) -> {
                 boolean isInterrupt = false;
                 Throwable t = e;

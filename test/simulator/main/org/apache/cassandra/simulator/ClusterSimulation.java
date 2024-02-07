@@ -52,6 +52,7 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableBiConsumer;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableConsumer;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnable;
+import org.apache.cassandra.distributed.impl.ClusterIDDefiner;
 import org.apache.cassandra.distributed.impl.DirectStreamingConnectionFactory;
 import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.distributed.impl.InstanceIDDefiner;
@@ -775,7 +776,8 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                                    .set("disk_access_mode", "standard")
                                    .set("failure_detector", SimulatedFailureDetector.Instance.class.getName())
                                    .set("commitlog_compression", new ParameterizedClass(LZ4Compressor.class.getName(), emptyMap()))
-                                   .set("commitlog_sync", "batch");
+                                   .set("commitlog_sync", "batch")
+                                   .set("lwt_strategy", builder.lwtStrategy);
                              // TODO: Add remove() to IInstanceConfig
                              if (config instanceof InstanceConfig)
                              {
@@ -791,6 +793,8 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                              @Override
                              public void initialise(ClassLoader classLoader, ThreadGroup threadGroup, int num, int generation)
                              {
+                                 IsolatedExecutor.transferAdhoc((IIsolatedExecutor.SerializableConsumer<String>) ClusterIDDefiner::setId, classLoader)
+                                                 .accept(threadGroup.getParent().getName());
                                  IsolatedExecutor.transferAdhoc((IIsolatedExecutor.SerializableConsumer<Integer>) InstanceIDDefiner::setInstanceId, classLoader)
                                                  .accept(num);
 

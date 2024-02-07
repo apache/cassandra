@@ -127,6 +127,7 @@ import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe
 import static accord.messages.MessageType.STABLE_FAST_PATH_REQ;
 import static accord.messages.MessageType.STABLE_MAXIMAL_REQ;
 import static accord.messages.MessageType.STABLE_SLOW_PATH_REQ;
+import static org.apache.cassandra.concurrent.Interruptible.State.NORMAL;
 import static org.apache.cassandra.db.TypeSizes.BYTE_SIZE;
 import static org.apache.cassandra.db.TypeSizes.INT_SIZE;
 import static org.apache.cassandra.db.TypeSizes.LONG_SIZE;
@@ -1098,7 +1099,9 @@ public class AccordJournal implements Shutdownable
         {
             if (!unframedRequests.isEmpty() || !delayedRequests.isEmpty())
                 doRun();
-            haveWork.acquire(1);
+
+            if (state == NORMAL)
+                haveWork.acquire(1);
         }
 
         private void doRun()

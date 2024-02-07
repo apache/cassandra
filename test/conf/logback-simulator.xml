@@ -19,7 +19,8 @@
 <configuration debug="false" scan="true" scanPeriod="60 seconds">
   <define name="run_start" class="org.apache.cassandra.simulator.logging.RunStartDefiner" scope="system"/>
   <define name="run_seed" class="org.apache.cassandra.simulator.logging.SeedDefiner" scope="system"/>
-  <define name="instance_id" class="org.apache.cassandra.distributed.impl.InstanceIDDefiner" />
+  <define name="cluster_id" class="org.apache.cassandra.distributed.impl.ClusterIDDefiner"/>
+  <define name="instance_id" class="org.apache.cassandra.distributed.impl.InstanceIDDefiner"/>
 
   <!-- Shutdown hook ensures that async appender flushes -->
   <shutdownHook class="ch.qos.logback.core.hook.DelayingShutdownHook"/>
@@ -38,7 +39,7 @@
   </appender>
 
   <appender name="INSTANCEFILE" class="ch.qos.logback.core.FileAppender">
-    <file>./build/test/logs/simulator/${run_start}-${run_seed}/${instance_id}/system.log</file>
+    <file>./build/test/logs/simulator/${run_start}-${run_seed}/cluster-${cluster_id}/${instance_id}/system.log</file>
     <encoder>
       <pattern>%-5level [%thread] ${instance_id} %replace(CS:%X{command_store} ){'CS\:\s+', ''}%replace(OP:%X{async_op} ){'OP\:\s+', ''}%date{ISO8601} %msg%n</pattern>
     </encoder>
