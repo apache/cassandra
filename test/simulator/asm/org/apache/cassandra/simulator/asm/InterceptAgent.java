@@ -40,14 +40,12 @@ import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.FieldVisitor;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
-import org.objectweb.asm.Opcodes;
 
 import static org.apache.cassandra.simulator.asm.Flag.DETERMINISTIC;
 import static org.apache.cassandra.simulator.asm.Flag.LOCK_SUPPORT;
 import static org.apache.cassandra.simulator.asm.Flag.NO_PROXY_METHODS;
 import static org.apache.cassandra.simulator.asm.Flag.SYSTEM_CLOCK;
 import static org.apache.cassandra.simulator.asm.InterceptClasses.BYTECODE_VERSION;
-import static org.apache.cassandra.simulator.asm.TransformationKind.HASHCODE;
 import static org.objectweb.asm.Opcodes.ALOAD;
 import static org.objectweb.asm.Opcodes.GETFIELD;
 import static org.objectweb.asm.Opcodes.GETSTATIC;

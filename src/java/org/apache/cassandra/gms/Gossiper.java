@@ -2030,6 +2030,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         ExecutorUtils.shutdownAndWait(timeout, unit, executor);
     }
 
+    public void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
+    {
+        ExecutorUtils.shutdownAndWait(timeout, unit, executor);
+    }
+
     @Nullable
     private String getReleaseVersionString(InetAddressAndPort ep)
     {

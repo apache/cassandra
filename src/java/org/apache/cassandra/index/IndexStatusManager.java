@@ -23,6 +23,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -43,6 +45,7 @@ import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JsonUtils;
 
@@ -234,5 +237,10 @@ public class IndexStatusManager
     private String identifier(String keyspace, String index)
     {
         return keyspace + '.' + index;
+    }
+
+    public void shutdownAndWait(long interval, TimeUnit unit) throws InterruptedException, TimeoutException
+    {
+        ExecutorUtils.shutdownAndWait(interval, unit, statusPropagationExecutor);
     }
 }
