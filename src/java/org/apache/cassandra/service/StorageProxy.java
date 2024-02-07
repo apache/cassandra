@@ -471,46 +471,54 @@ public class StorageProxy implements StorageProxyMBean
 
             Supplier<Pair<PartitionUpdate, RowIterator>> updateProposer = () ->
             {
-                // read the current values and check they validate the conditions
-                Tracing.trace("Reading existing values for CAS precondition");
-                SinglePartitionReadCommand readCommand = (SinglePartitionReadCommand) request.readCommand(nowInSeconds);
-                ConsistencyLevel readConsistency = consistencyForPaxos == ConsistencyLevel.LOCAL_SERIAL ? ConsistencyLevel.LOCAL_QUORUM : ConsistencyLevel.QUORUM;
-
-                FilteredPartition current;
-
-                try (RowIterator rowIter = readOne(readCommand, readConsistency, queryStartNanoTime, lwtTracker))
+                long startTimeNanos = System.nanoTime();
+                try
                 {
-                    current = FilteredPartition.create(rowIter);
-                }
+                    // read the current values and check they validate the conditions
+                    Tracing.trace("Reading existing values for CAS precondition");
+                    SinglePartitionReadCommand readCommand = (SinglePartitionReadCommand) request.readCommand(nowInSeconds);
+                    ConsistencyLevel readConsistency = consistencyForPaxos == ConsistencyLevel.LOCAL_SERIAL ? ConsistencyLevel.LOCAL_QUORUM : ConsistencyLevel.QUORUM;
 
-                if (!request.appliesTo(current))
-                {
-                    Tracing.trace("CAS precondition does not match current values {}", current);
-                    lwtTracker.onNotApplied();
+                    FilteredPartition current;
+
+                    try (RowIterator rowIter = readOne(readCommand, readConsistency, queryStartNanoTime, lwtTracker))
+                    {
+                        current = FilteredPartition.create(rowIter);
+                    }
+
+                    if (!request.appliesTo(current))
+                    {
+                        Tracing.trace("CAS precondition does not match current values {}", current);
+                        lwtTracker.onNotApplied();
+                        lwtTracker.onDone();
+                        metrics.casWriteMetrics.conditionNotMet.inc();
+                        return Pair.create(PartitionUpdate.emptyUpdate(metadata, key), current.rowIterator());
+                    }
+
+                    // Create the desired updates
+                    PartitionUpdate updates = request.makeUpdates(current, state);
+                    lwtTracker.onApplied(updates);
                     lwtTracker.onDone();
-                    metrics.casWriteMetrics.conditionNotMet.inc();
-                    return Pair.create(PartitionUpdate.emptyUpdate(metadata, key), current.rowIterator());
+
+                    long size = updates.dataSize();
+                    metrics.casWriteMetrics.mutationSize.update(size);
+                    metrics.writeMetricsForLevel(consistencyForPaxos).mutationSize.update(size);
+
+                    // Apply triggers to cas updates. A consideration here is that
+                    // triggers emit Mutations, and so a given trigger implementation
+                    // may generate mutations for partitions other than the one this
+                    // paxos round is scoped for. In this case, TriggerExecutor will
+                    // validate that the generated mutations are targetted at the same
+                    // partition as the initial updates and reject (via an
+                    // InvalidRequestException) any which aren't.
+                    updates = TriggerExecutor.instance.execute(updates);
+
+                    return Pair.create(updates, null);
                 }
-
-                // Create the desired updates
-                PartitionUpdate updates = request.makeUpdates(current, state);
-                lwtTracker.onApplied(updates);
-                lwtTracker.onDone();
-
-                long size = updates.dataSize();
-                metrics.casWriteMetrics.mutationSize.update(size);
-                metrics.writeMetricsForLevel(consistencyForPaxos).mutationSize.update(size);
-
-                // Apply triggers to cas updates. A consideration here is that
-                // triggers emit Mutations, and so a given trigger implementation
-                // may generate mutations for partitions other than the one this
-                // paxos round is scoped for. In this case, TriggerExecutor will
-                // validate that the generated mutations are targetted at the same
-                // partition as the initial updates and reject (via an
-                // InvalidRequestException) any which aren't.
-                updates = TriggerExecutor.instance.execute(updates);
-
-                return Pair.create(updates, null);
+                finally
+                {
+                    metrics.casWriteMetrics.createProposalLatency.addNano(System.nanoTime() - startTimeNanos);
+                }
             };
 
             return doPaxos(metadata,
@@ -646,8 +654,8 @@ public class StorageProxy implements StorageProxyMBean
                                                                     replicaPlan,
                                                                     consistencyForPaxos,
                                                                     consistencyForReplayCommits,
-                                                                    casMetrics,
-                                                                    queryState.getClientState());
+                                                                    casMetrics, queryState.getClientState()
+                );
 
                 final UUID ballot = pair.ballot;
                 contentions += pair.contentions;
@@ -659,14 +667,14 @@ public class StorageProxy implements StorageProxyMBean
 
                 Commit proposal = Commit.newProposal(ballot, proposalPair.left);
                 Tracing.trace("CAS precondition is met; proposing client-requested updates for {}", ballot);
-                if (proposePaxos(proposal, replicaPlan, true, queryStartNanoTime))
+                if (proposePaxos(proposal, replicaPlan, true, queryStartNanoTime, casMetrics))
                 {
                     // We skip committing accepted updates when they are empty. This is an optimization which works
                     // because we also skip replaying those same empty update in beginAndRepairPaxos (see the longer
                     // comment there). As empty update are somewhat common (serial reads and non-applying CAS propose
                     // them), this is worth bothering.
                     if (!proposal.update.isEmpty())
-                        commitPaxos(proposal, consistencyForCommit, true, queryStartNanoTime);
+                        commitPaxos(proposal, consistencyForCommit, true, queryStartNanoTime, casMetrics);
                     RowIterator result = proposalPair.right;
                     if (result != null)
                         Tracing.trace("CAS did not apply");
@@ -677,7 +685,9 @@ public class StorageProxy implements StorageProxyMBean
 
                 Tracing.trace("Paxos proposal not accepted (pre-empted by a higher ballot)");
                 contentions++;
-                Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), TimeUnit.MILLISECONDS);
+                int sleepInMillis = ThreadLocalRandom.current().nextInt(100);
+                Uninterruptibles.sleepUninterruptibly(sleepInMillis, TimeUnit.MILLISECONDS);
+                casMetrics.contentionBackoffLatency.addNano(sleepInMillis * 1000);
                 // continue to retry
             }
         }
@@ -739,13 +749,15 @@ public class StorageProxy implements StorageProxyMBean
             {
                 Tracing.trace("Preparing {}", ballot);
                 Commit toPrepare = Commit.newPrepare(key, metadata, ballot);
-                summary = preparePaxos(toPrepare, paxosPlan, queryStartNanoTime);
+                summary = preparePaxos(toPrepare, paxosPlan, queryStartNanoTime, casMetrics);
                 if (!summary.promised)
                 {
                     Tracing.trace("Some replicas have already promised a higher ballot than ours; aborting");
                     contentions++;
                     // sleep a random amount to give the other proposer a chance to finish
-                    Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), MILLISECONDS);
+                    int sleepInMillis = ThreadLocalRandom.current().nextInt(100);
+                    Uninterruptibles.sleepUninterruptibly(sleepInMillis, MILLISECONDS);
+                    casMetrics.contentionBackoffLatency.addNano(sleepInMillis * 1000);
                     continue;
                 }
 
@@ -775,16 +787,18 @@ public class StorageProxy implements StorageProxyMBean
                     Tracing.trace("Finishing incomplete paxos round {}", inProgress);
                     casMetrics.unfinishedCommit.inc();
                     Commit refreshedInProgress = Commit.newProposal(ballot, inProgress.update);
-                    if (proposePaxos(refreshedInProgress, paxosPlan, false, queryStartNanoTime))
+                    if (proposePaxos(refreshedInProgress, paxosPlan, false, queryStartNanoTime, casMetrics))
                     {
-                        commitPaxos(refreshedInProgress, consistencyForCommit, false, queryStartNanoTime);
+                        commitPaxos(refreshedInProgress, consistencyForCommit, false, queryStartNanoTime, casMetrics);
                     }
                     else
                     {
                         Tracing.trace("Some replicas have already promised a higher ballot than ours; aborting");
                         // sleep a random amount to give the other proposer a chance to finish
                         contentions++;
-                        Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), MILLISECONDS);
+                        int sleepInMillis = ThreadLocalRandom.current().nextInt(100);
+                        Uninterruptibles.sleepUninterruptibly(sleepInMillis, MILLISECONDS);
+                        casMetrics.contentionBackoffLatency.addNano(sleepInMillis * 1000);
                     }
                     continue;
                 }
@@ -795,9 +809,11 @@ public class StorageProxy implements StorageProxyMBean
                 // mean we lost messages), we pro-actively "repair" those nodes, and retry.
                 int nowInSec = Ints.checkedCast(TimeUnit.MICROSECONDS.toSeconds(ballotMicros));
                 Iterable<InetAddressAndPort> missingMRC = summary.replicasMissingMostRecentCommit(metadata, nowInSec);
-                if (Iterables.size(missingMRC) > 0)
+                int missingMRCSize = Iterables.size(missingMRC);
+                if (missingMRCSize > 0)
                 {
                     Tracing.trace("Repairing replicas that missed the most recent commit");
+                    casMetrics.missingMostRecentCommit.inc(missingMRCSize);
                     sendCommit(mostRecent, missingMRC);
                     // TODO: provided commits don't invalid the prepare we just did above (which they don't), we could just wait
                     // for all the missingMRC to acknowledge this commit and then move on with proposing our value. But that means
@@ -828,33 +844,41 @@ public class StorageProxy implements StorageProxyMBean
             MessagingService.instance().send(message, target);
     }
 
-    private static PrepareCallback preparePaxos(Commit toPrepare, ReplicaPlan.ForPaxosWrite replicaPlan, long queryStartNanoTime)
-    throws WriteTimeoutException
+    private static PrepareCallback preparePaxos(Commit toPrepare, ReplicaPlan.ForPaxosWrite replicaPlan, long queryStartNanoTime,
+                                                CASClientRequestMetrics casMetrics) throws WriteTimeoutException
     {
-        PrepareCallback callback = new PrepareCallback(toPrepare.update.partitionKey(), toPrepare.update.metadata(), replicaPlan.requiredParticipants(), replicaPlan.consistencyLevel(), queryStartNanoTime);
-        Message<Commit> message = Message.out(PAXOS_PREPARE_REQ, toPrepare);
-        for (Replica replica: replicaPlan.contacts())
+        long startTimeNanos = System.nanoTime();
+        try
         {
-            if (replica.isSelf())
+            PrepareCallback callback = new PrepareCallback(toPrepare.update.partitionKey(), toPrepare.update.metadata(), replicaPlan.requiredParticipants(), replicaPlan.consistencyLevel(), queryStartNanoTime);
+            Message<Commit> message = Message.out(PAXOS_PREPARE_REQ, toPrepare);
+            for (Replica replica : replicaPlan.contacts())
             {
-                PAXOS_PREPARE_REQ.stage.execute(() -> {
-                    try
-                    {
-                        callback.onResponse(message.responseWith(doPrepare(toPrepare)));
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.error("Failed paxos prepare locally", ex);
-                    }
-                });
+                if (replica.isSelf())
+                {
+                    PAXOS_PREPARE_REQ.stage.execute(() -> {
+                        try
+                        {
+                            callback.onResponse(message.responseWith(doPrepare(toPrepare)));
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.error("Failed paxos prepare locally", ex);
+                        }
+                    });
+                }
+                else
+                {
+                    MessagingService.instance().sendWithCallback(message, replica.endpoint(), callback);
+                }
             }
-            else
-            {
-                MessagingService.instance().sendWithCallback(message, replica.endpoint(), callback);
-            }
+            callback.await();
+            return callback;
         }
-        callback.await();
-        return callback;
+        finally
+        {
+            casMetrics.prepareLatency.addNano(System.nanoTime() - startTimeNanos);
+        }
     }
 
     /**
@@ -862,50 +886,70 @@ public class StorageProxy implements StorageProxyMBean
      * When {@param backoffIfPartial} is true, the proposer backs off when seeing the proposal being accepted by some but not a quorum.
      * The result of the cooresponding CAS in uncertain as the accepted proposal may or may not be spread to other nodes in later rounds.
      */
-    private static boolean proposePaxos(Commit proposal, ReplicaPlan.ForPaxosWrite replicaPlan, boolean backoffIfPartial, long queryStartNanoTime)
+    private static boolean proposePaxos(Commit proposal, ReplicaPlan.ForPaxosWrite replicaPlan, boolean backoffIfPartial,
+                                        long queryStartNanoTime, CASClientRequestMetrics casMetrics)
     throws WriteTimeoutException, CasWriteUnknownResultException
     {
-        ProposeCallback callback = new ProposeCallback(replicaPlan.contacts().size(), replicaPlan.requiredParticipants(), !backoffIfPartial, replicaPlan.consistencyLevel(), queryStartNanoTime);
-        Message<Commit> message = Message.out(PAXOS_PROPOSE_REQ, proposal);
-        for (Replica replica : replicaPlan.contacts())
+        long startTimeNanos = System.nanoTime();
+        try
         {
-            if (replica.isSelf())
+            ProposeCallback callback = new ProposeCallback(replicaPlan.contacts().size(), replicaPlan.requiredParticipants(), !backoffIfPartial, replicaPlan.consistencyLevel(), queryStartNanoTime);
+            Message<Commit> message = Message.out(PAXOS_PROPOSE_REQ, proposal);
+            for (Replica replica : replicaPlan.contacts())
             {
-                PAXOS_PROPOSE_REQ.stage.execute(() -> {
-                    try
-                    {
-                        Message<Boolean> response = message.responseWith(doPropose(proposal));
-                        callback.onResponse(response);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.error("Failed paxos propose locally", ex);
-                    }
-                });
+                if (replica.isSelf())
+                {
+                    PAXOS_PROPOSE_REQ.stage.execute(() -> {
+                        try
+                        {
+                            Message<Boolean> response = message.responseWith(doPropose(proposal));
+                            callback.onResponse(response);
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.error("Failed paxos propose locally", ex);
+                        }
+                    });
+                }
+                else
+                {
+                    MessagingService.instance().sendWithCallback(message, replica.endpoint(), callback);
+                }
             }
-            else
-            {
-                MessagingService.instance().sendWithCallback(message, replica.endpoint(), callback);
-            }
+            callback.await();
+
+            if (callback.isSuccessful())
+                return true;
+
+            if (backoffIfPartial && !callback.isFullyRefused())
+                throw new CasWriteUnknownResultException(replicaPlan.consistencyLevel(), callback.getAcceptCount(), replicaPlan.requiredParticipants());
         }
-        callback.await();
-
-        if (callback.isSuccessful())
-            return true;
-
-        if (backoffIfPartial && !callback.isFullyRefused())
-            throw new CasWriteUnknownResultException(replicaPlan.consistencyLevel(), callback.getAcceptCount(), replicaPlan.requiredParticipants());
+        finally
+        {
+            casMetrics.proposeLatency.addNano(System.nanoTime() - startTimeNanos);
+        }
 
         return false;
     }
 
     @Nullable
-    private static void commitPaxos(Commit proposal, ConsistencyLevel consistencyLevel, boolean allowHints, long queryStartNanoTime) throws WriteTimeoutException
+    private static void commitPaxos(Commit proposal, ConsistencyLevel consistencyLevel, boolean allowHints, long queryStartNanoTime,
+                                    CASClientRequestMetrics casMetrics) throws WriteTimeoutException
     {
+        long startTimeNanos = System.nanoTime();
         boolean shouldBlock = consistencyLevel != ConsistencyLevel.ANY;
         AbstractWriteResponseHandler<Commit> responseHandler = mutator.mutatePaxos(proposal, consistencyLevel, allowHints, queryStartNanoTime);
         if (shouldBlock && responseHandler != null)
-            responseHandler.get();
+        {
+            try
+            {
+                responseHandler.get();
+            }
+            finally
+            {
+                casMetrics.commitLatency.addNano(System.nanoTime() - startTimeNanos);
+            }
+        }
     }
 
     @Nullable
@@ -1977,6 +2021,12 @@ public class StorageProxy implements StorageProxyMBean
             }
 
             result = fetchRows(group.queries, consistencyForReplayCommitsOrFetch, queryStartNanoTime, readTracker);
+        }
+        catch (CasWriteUnknownResultException e)
+        {
+            metrics.casReadMetrics.unknownResult.mark();
+            readTracker.onError(e);
+            throw e;
         }
         catch (UnavailableException e)
         {

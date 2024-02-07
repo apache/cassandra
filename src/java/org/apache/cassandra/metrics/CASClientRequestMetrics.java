@@ -30,6 +30,18 @@ public class CASClientRequestMetrics extends ClientRequestMetrics
     public final Counter unfinishedCommit;
     public final Meter unknownResult;
 
+    // latencies for 4 paxos phases
+    public final LatencyMetrics prepareLatency;
+    public final LatencyMetrics createProposalLatency;
+    public final LatencyMetrics proposeLatency;
+    public final LatencyMetrics commitLatency;
+
+    // latency for backoff when there is contention
+    public final LatencyMetrics contentionBackoffLatency;
+
+    // num of replicas that are missing MRC
+    public final Counter missingMostRecentCommit;
+
     public CASClientRequestMetrics(String scope, String namePrefix)
     {
         super(scope, namePrefix);
@@ -37,6 +49,15 @@ public class CASClientRequestMetrics extends ClientRequestMetrics
         contention = Metrics.histogram(factory.createMetricName(namePrefix + "ContentionHistogram"), false);
         unfinishedCommit = Metrics.counter(factory.createMetricName(namePrefix + "UnfinishedCommit"));
         unknownResult = Metrics.meter(factory.createMetricName(namePrefix + "UnknownResult"));
+
+        prepareLatency = new LatencyMetrics(factory, namePrefix + "Prepare");
+        createProposalLatency = new LatencyMetrics(factory, namePrefix + "CreateProposal");
+        proposeLatency = new LatencyMetrics(factory, namePrefix + "Propose");
+        commitLatency = new LatencyMetrics(factory, namePrefix + "Commit");
+
+        contentionBackoffLatency = new LatencyMetrics(factory, namePrefix + "ContentionBackoff");
+
+        missingMostRecentCommit = Metrics.counter(factory.createMetricName(namePrefix + "MissingMostRecentCommit"));
     }
 
     public void release()
@@ -45,5 +66,14 @@ public class CASClientRequestMetrics extends ClientRequestMetrics
         Metrics.remove(factory.createMetricName(namePrefix + "ContentionHistogram"));
         Metrics.remove(factory.createMetricName(namePrefix + "UnfinishedCommit"));
         Metrics.remove(factory.createMetricName(namePrefix + "UnknownResult"));
+
+        prepareLatency.release();
+        createProposalLatency.release();
+        proposeLatency.release();
+        commitLatency.release();
+
+        contentionBackoffLatency.release();
+
+        Metrics.remove(factory.createMetricName(namePrefix + "MissingMostRecentCommit"));
     }
 }
