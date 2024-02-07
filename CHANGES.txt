@@ -33,6 +33,7 @@ Merged from 4.1:
 Merged from 4.0:
 Merged from 3.11:
 Merged from 3.0:
+ * Backport CASSANDRA-16418 to 3.x (CASSANDRA-18824)
 
 
 5.0-beta1
