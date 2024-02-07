@@ -125,9 +125,8 @@ public abstract class RandomIntersectionTester extends SAIRandomizedTester
     protected void runUnrestrictedQueries() throws Throwable
     {
         Map<Integer, List<TestRow>> testRowMap = buildAndLoadTestRows();
-
         beforeAndAfterFlush(() -> {
-            for (int queryCount = 0; queryCount < nextInt(10, 100); queryCount++)
+            for (int queryCount = 0, size = nextInt(10, 100); queryCount < size; queryCount++)
             {
                 int v1 = nextV1();
                 int v2 = nextV2();
