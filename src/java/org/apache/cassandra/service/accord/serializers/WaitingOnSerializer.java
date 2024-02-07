@@ -102,17 +102,23 @@ public class WaitingOnSerializer
     public static WaitingOn deserialize(Deps deps, ByteBuffer in) throws IOException
     {
         int length = (deps.txnIdCount() + 63) / 64;
-        ImmutableBitSet waitingOnCommit = deserialize(length, in);
-        ImmutableBitSet waitingOnApply = deserialize(length, in);
-        ImmutableBitSet appliedOrInvalidated = deserialize(length, in);
+        int position = in.position();
+        ImmutableBitSet waitingOnCommit = deserialize(position, length, in);
+        position += length*8;
+        ImmutableBitSet waitingOnApply = deserialize(position, length, in);
+        position += length*8;
+        ImmutableBitSet appliedOrInvalidated = deserialize(position, length, in);
         return new WaitingOn(deps, waitingOnCommit, waitingOnApply, appliedOrInvalidated);
     }
 
-    private static ImmutableBitSet deserialize(int length, ByteBuffer in)
+    private static ImmutableBitSet deserialize(int position, int length, ByteBuffer in)
     {
         long[] bits = new long[length];
         for (int i = 0 ; i < length ; ++i)
-            bits[i] = in.getLong();
+        {
+            bits[i] = in.getLong(position);
+            position += 8;
+        }
         return ImmutableBitSet.SerializationSupport.construct(bits);
     }
 }
