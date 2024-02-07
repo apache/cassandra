@@ -101,6 +101,7 @@ import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.hints.DTestSerializer;
 import org.apache.cassandra.hints.HintsService;
+import org.apache.cassandra.index.IndexStatusManager;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -898,6 +899,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 error = parallelRun(error, executor,
                                     () -> Gossiper.instance.stopShutdownAndWait(1L, MINUTES));
             }
+            else
+            {
+                error = parallelRun(error, executor,
+                                    () -> Gossiper.instance.shutdownAndWait(1L, MINUTES));
+            }
 
             error = parallelRun(error, executor, StorageService.instance::disableAutoCompaction);
 
@@ -939,7 +945,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> SSTableReader.shutdownBlocking(1L, MINUTES),
                                 () -> shutdownAndWait(Collections.singletonList(ActiveRepairService.repairCommandExecutor())),
                                 () -> ActiveRepairService.instance().shutdownNowAndWait(1L, MINUTES),
-                                () -> SnapshotManager.shutdownAndWait(1L, MINUTES)
+                                () -> SnapshotManager.shutdownAndWait(1L, MINUTES),
+                                () -> IndexStatusManager.instance.shutdownAndWait(1L, MINUTES)
             );
 
             internodeMessagingStarted = false;

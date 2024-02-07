@@ -53,6 +53,7 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableBiConsumer;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableConsumer;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnable;
+import org.apache.cassandra.distributed.impl.ClusterIDDefiner;
 import org.apache.cassandra.distributed.impl.DirectStreamingConnectionFactory;
 import org.apache.cassandra.distributed.impl.InstanceIDDefiner;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
@@ -94,7 +95,6 @@ import org.apache.cassandra.simulator.utils.KindOfSequence;
 import org.apache.cassandra.simulator.utils.LongRange;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Closeable;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.BufferPool;
@@ -773,7 +773,8 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                                    .set("use_deterministic_table_id", true)
                                    .set("disk_access_mode", disk_access_mode)
                                    .set("failure_detector", SimulatedFailureDetector.Instance.class.getName())
-                                   .set("lwt_strategy", builder.lwtStrategy);
+                                   .set("lwt_strategy", builder.lwtStrategy)
+                             ;
                              if (commitlogCompressed)
                                  config.set("commitlog_compression", new ParameterizedClass(LZ4Compressor.class.getName(), emptyMap()));
                              configUpdater.accept(threadAllocator.update(config));
@@ -783,6 +784,8 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                              @Override
                              public void initialise(ClassLoader classLoader, ThreadGroup threadGroup, int num, int generation)
                              {
+                                 IsolatedExecutor.transferAdhoc((IIsolatedExecutor.SerializableConsumer<String>) ClusterIDDefiner::setId, classLoader)
+                                                 .accept(threadGroup.getParent().getName());
                                  IsolatedExecutor.transferAdhoc((IIsolatedExecutor.SerializableConsumer<Integer>) InstanceIDDefiner::setInstanceId, classLoader)
                                                  .accept(num);
 
