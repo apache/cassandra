@@ -37,6 +37,7 @@ import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.guardrails.GuardrailsConfig;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * A class that contains configuration properties for the cassandra node it runs within.
@@ -749,6 +750,11 @@ public class Config
 
     public static void log(Config config)
     {
+        logger.info("Node configuration:[{}]", config.toDebugString(false));
+    }
+
+    public String toDebugString(boolean json)
+    {
         Map<String, String> configMap = new TreeMap<>();
         for (Field field : Config.class.getFields())
         {
@@ -767,7 +773,7 @@ public class Config
             try
             {
                 // Field.get() can throw NPE if the value of the field is null
-                value = field.get(config).toString();
+                value = field.get(this).toString();
             }
             catch (NullPointerException | IllegalAccessException npe)
             {
@@ -775,7 +781,10 @@ public class Config
             }
             configMap.put(name, value);
         }
-
-        logger.info("Node configuration:[{}]", Joiner.on("; ").join(configMap.entrySet()));
+        if (json)
+        {
+            return FBUtilities.json(configMap);
+        }
+        return Joiner.on("; ").join(configMap.entrySet());
     }
 }
