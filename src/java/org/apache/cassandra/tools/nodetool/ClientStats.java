@@ -100,7 +100,7 @@ public class ClientStats extends NodeToolCmd
             List<String> tableHeaderBase = List.of("Address", "SSL", "Cipher", "Protocol", "Version",
                     "User", "Keyspace", "Requests", "Driver-Name",
                     "Driver-Version");
-            List<String> tableFieldsBase = Lists.newArrayList(ConnectedClient.ADDRESS, ConnectedClient.SSL,
+            List<String> tableFieldsBase = List.of(ConnectedClient.ADDRESS, ConnectedClient.SSL,
                     ConnectedClient.CIPHER, ConnectedClient.PROTOCOL,
                     ConnectedClient.VERSION, ConnectedClient.USER,
                     ConnectedClient.KEYSPACE, ConnectedClient.REQUESTS,
