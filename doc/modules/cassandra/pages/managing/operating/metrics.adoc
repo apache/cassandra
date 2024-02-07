@@ -987,7 +987,7 @@ custom mode by implementing `IAuthenticator.getSupportedAuthenticationModes()`.
 [cols=",,",options="header",]
 |===
 |Name |Type |Description
-|AuthenticatedNativeClients |Gauge<Int> |Number of clients connected and
+|ConnectedNativeClients |Gauge<Int> |Number of clients connected and
 authenticated to this nodes native protocol server using this mode
 
 |AuthFailure |Meter | Rate of failed authentications using this mode
