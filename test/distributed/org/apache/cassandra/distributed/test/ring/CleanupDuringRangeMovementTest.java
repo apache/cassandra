@@ -36,14 +36,13 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
 
-import static org.apache.cassandra.distributed.shared.ClusterUtils.decommission;
-import static org.apache.cassandra.distributed.shared.ClusterUtils.pauseBeforeCommit;
-import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseCommits;
-import static org.apache.cassandra.distributed.test.ring.BootstrapTest.populateExistingTable;
-import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.api.TokenSupplier.evenlyDistributedTokens;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.decommission;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.pauseBeforeCommit;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseCommits;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class CleanupDuringRangeMovementTest extends TestBaseImpl
@@ -52,11 +51,11 @@ public class CleanupDuringRangeMovementTest extends TestBaseImpl
     public void cleanupDuringDecommissionTest() throws Throwable
     {
         ExecutorService executor = Executors.newSingleThreadExecutor();
-        try (Cluster cluster = builder().withNodes(2)
-                                        .withTokenSupplier(evenlyDistributedTokens(2))
-                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(2, "dc0", "rack0"))
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
-                                        .start())
+        try (Cluster cluster = init(builder().withNodes(2)
+                                             .withTokenSupplier(evenlyDistributedTokens(2))
+                                             .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(2, "dc0", "rack0"))
+                                             .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                             .start(), 1))
         {
             IInvokableInstance cmsInstance = cluster.get(1);
             IInvokableInstance nodeToDecommission = cluster.get(2);
@@ -65,7 +64,6 @@ public class CleanupDuringRangeMovementTest extends TestBaseImpl
             // Create table before starting decommission as at the moment schema changes are not permitted
             // while range movements are in-flight. Additionally, pausing the CMS instance to block the
             // leave sequence from completing would also block the commit of the schema transformation
-            cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
             cluster.schemaChange("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
             // Prime the CMS node to pause before the finish leave event is committed
@@ -75,19 +73,19 @@ public class CleanupDuringRangeMovementTest extends TestBaseImpl
             pending.call();
 
             // Add data to cluster while node is decomissioning
-            int NUM_ROWS = 100;
-            populateExistingTable(cluster, 0, NUM_ROWS, 2, ConsistencyLevel.ONE);
+            int numRows = 100;
+            insertData(cluster, 2, numRows, ConsistencyLevel.ONE);
             cluster.forEach(c -> c.flush(KEYSPACE));
 
             // Check data before cleanup on nodeToRemainInCluster
-            assertEquals(NUM_ROWS, nodeToRemainInCluster.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
+            assertEquals(numRows, nodeToRemainInCluster.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
 
             // Run cleanup on nodeToRemainInCluster
             NodeToolResult result = nodeToRemainInCluster.nodetoolResult("cleanup");
             result.asserts().success();
 
             // Check data after cleanup on nodeToRemainInCluster
-            assertEquals(NUM_ROWS, nodeToRemainInCluster.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
+            assertEquals(numRows, nodeToRemainInCluster.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
 
             unpauseCommits(cmsInstance);
             assertTrue(decomFuture.get());
@@ -101,16 +99,15 @@ public class CleanupDuringRangeMovementTest extends TestBaseImpl
         int originalNodeCount = 1;
         int expandedNodeCount = originalNodeCount + 1;
 
-        try (Cluster cluster = builder().withNodes(originalNodeCount)
-                                        .withTokenSupplier(evenlyDistributedTokens(expandedNodeCount))
-                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
-                                        .start())
+        try (Cluster cluster = init(builder().withNodes(originalNodeCount)
+                                             .withTokenSupplier(evenlyDistributedTokens(expandedNodeCount))
+                                             .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
+                                             .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                             .start(), 2))
         {
             // Create table before starting bootstrap as at the moment schema changes are not permitted
             // while range movements are in-flight. Additionally, pausing the CMS instance to block the
             // leave sequence from completing would also block the commit of the schema transformation
-            cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2};");
             cluster.schemaChange("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
             IInvokableInstance cmsInstance = cluster.get(1);
@@ -125,21 +122,30 @@ public class CleanupDuringRangeMovementTest extends TestBaseImpl
             pending.call();
 
             // Add data to cluster while node is bootstrapping
-            int NUM_ROWS = 100;
-            populateExistingTable(cluster, 0, NUM_ROWS, 1, ConsistencyLevel.ONE);
+            int numRows = 100;
+            insertData(cluster, 1, numRows, ConsistencyLevel.ONE);
             cluster.forEach(c -> c.flush(KEYSPACE));
 
             // Check data before cleanup on bootstrappingNode
-            assertEquals(NUM_ROWS, bootstrappingNode.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
+            assertEquals(numRows, bootstrappingNode.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
 
             // Run cleanup on bootstrappingNode
             NodeToolResult result = bootstrappingNode.nodetoolResult("cleanup");
             result.asserts().success();
 
             // Check data after cleanup on bootstrappingNode
-            assertEquals(NUM_ROWS, bootstrappingNode.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
+            assertEquals(numRows, bootstrappingNode.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
             unpauseCommits(cmsInstance);
             bootstrapFuture.get();
         }
+    }
+
+    private void insertData(Cluster cluster, int node, int numberOfRows, ConsistencyLevel cl)
+    {
+        for (int i = 0; i < numberOfRows; i++)
+        {
+            cluster.coordinator(node).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (?, ?, ?)", cl, i, i, i);
+        }
+        cluster.forEach(c -> c.flush(KEYSPACE));
     }
 }
