@@ -3642,7 +3642,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 MultiStepOperation<?> seq = metadata.inProgressSequences.get(nodeId);
                 if (seq != null && seq.kind() == MultiStepOperation.Kind.REMOVE)
                 {
-                    sb.append("Removing node ").append(nodeId).append(" (").append(metadata.directory.endpoint(nodeId)).append(')').append(": ").append(seq.status());
+                    sb.append("Removing node ").append(nodeId.toUUID()).append(" (").append(metadata.directory.endpoint(nodeId)).append(')').append(": ").append(seq.status());
                     found = true;
                 }
             }
