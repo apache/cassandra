@@ -123,7 +123,7 @@ public class ConnectionTrackerTest
         // intentionally omit setting Connection attribute.
         connectionTracker.addConnection(c, connection);
 
-        // Expect the 10 existing connections, ommitting the one added without a ServerConnection
+        // Expect the 10 existing connections, omitting the one added without a connection attribute.
         assertEquals(10, connectionTracker.countConnectedClients(PREDICATE_TRUE));
         assertEquals(Collections.singletonMap("anonymous", 10), connectionTracker.countConnectedClientsByUser());
     }
@@ -143,7 +143,7 @@ public class ConnectionTrackerTest
         c.attr(Connection.attributeKey).set(connection);
         connectionTracker.addConnection(c, connection);
 
-        // Expect the 10 existing connections, ommitting the one that isn't a ServerConnection
+        // Expect the 10 existing connections, omitting the one that isn't a ServerConnection.
         assertEquals(10, connectionTracker.countConnectedClients(PREDICATE_TRUE));
         assertEquals(Collections.singletonMap("anonymous", 10), connectionTracker.countConnectedClientsByUser());
     }
