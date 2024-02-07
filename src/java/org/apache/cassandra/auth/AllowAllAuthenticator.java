@@ -31,7 +31,7 @@ public class AllowAllAuthenticator implements IAuthenticator
 {
     private static final SaslNegotiator AUTHENTICATOR_INSTANCE = new Negotiator();
 
-    private static final Set<AuthenticationMode> AUTHENTICATION_MODES = Sets.newHashSet(AuthenticationMode.UNAUTHENTICATED);
+    private static final Set<AuthenticationMode> AUTHENTICATION_MODES = Collections.singleton(AuthenticationMode.UNAUTHENTICATED);
 
     public boolean requireAuthentication()
     {
