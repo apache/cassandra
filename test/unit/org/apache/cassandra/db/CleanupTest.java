@@ -32,26 +32,33 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.PendingRangeMaps;
+import org.apache.cassandra.locator.PropertyFileSnitch;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -407,6 +414,43 @@ public class CleanupTest
             assertEquals(testCase.getKey(), CompactionManager.needsCleanup(ssTable, testCase.getValue()));
         }
     }
+
+    @Test
+    public void testCleanupIsAbortedWhenNodeHasPendingRanges() throws ExecutionException, InterruptedException, UnknownHostException
+    {
+        // given
+        StorageService.instance.getTokenMetadata().clearUnsafe();
+
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
+
+        fillCF(cfs, "val", LOOPS);
+        assertEquals(LOOPS, Util.getAll(Util.cmd(cfs).build()).size());
+
+        Range<Token> range = range(new BytesToken(new byte[]{0}), new BytesToken(new byte[]{1}));
+        givenPendingRange(cfs, range);
+
+        // when
+        CompactionManager.AllSSTableOpStatus status = CompactionManager.instance.performCleanup(cfs, 2);
+
+        // then
+        assertEquals("cleanup should be aborted", CompactionManager.AllSSTableOpStatus.ABORTED, status);
+    }
+
+    private void givenPendingRange(ColumnFamilyStore cfs, Range<Token> range) throws UnknownHostException
+    {
+        StorageService.instance.getTokenMetadata().calculatePendingRanges(createStrategy(cfs.keyspace.getName()), cfs.keyspace.getName());
+        PendingRangeMaps ranges = StorageService.instance.getTokenMetadata().getPendingRanges(cfs.keyspace.getName());
+        ranges.addPendingRange(range, Replica.fullReplica(InetAddressAndPort.getByName("127.0.0.1"), range));
+    }
+
+    private AbstractReplicationStrategy createStrategy(String keyspace)
+    {
+        IEndpointSnitch snitch = new PropertyFileSnitch();
+        DatabaseDescriptor.setEndpointSnitch(snitch);
+        return new SimpleStrategy(keyspace, new TokenMetadata(), DatabaseDescriptor.getEndpointSnitch(), ImmutableMap.of(SimpleStrategy.REPLICATION_FACTOR, "1"));
+    }
+
     private static BytesToken token(byte ... value)
     {
         return new BytesToken(value);

@@ -32,6 +32,7 @@ Merged from 3.11:
  * Revert CASSANDRA-18543 (CASSANDRA-18854)
  * Fix NPE when using udfContext in UDF after a restart of a node (CASSANDRA-18739)
 Merged from 3.0:
+ * Backport CASSANDRA-16418 to 3.x (CASSANDRA-18824)
  * Suppress CVE-2023-6378 (CASSANDRA-19142) 
  * Do not set RPC_READY to false on transports shutdown in order to not fail counter updates for deployments with coordinator and storage nodes with transports turned off (CASSANDRA-18935)
  * Suppress CVE-2023-44487 (CASSANDRA-18943)
