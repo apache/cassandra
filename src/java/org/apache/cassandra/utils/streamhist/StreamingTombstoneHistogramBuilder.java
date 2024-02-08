@@ -119,7 +119,7 @@ public class StreamingTombstoneHistogramBuilder
         }
         else
         {
-            flushValue(point, value);
+            flushValue(CassandraUInt.fromLong(point), value);
         }
     }
 
@@ -146,9 +146,9 @@ public class StreamingTombstoneHistogramBuilder
        spool = null;
     }
 
-    private void flushValue(long point, int spoolValue)
+    private void flushValue(int pointUnsigned, int spoolValue)
     {
-        bin.addValue(point, spoolValue);
+        bin.addValue(pointUnsigned, spoolValue);
 
         if (bin.isFull())
         {
@@ -209,10 +209,8 @@ public class StreamingTombstoneHistogramBuilder
          *
          * @return {@code true} if inserted, {@code false} if accumulated
          */
-        public boolean addValue(long point, int delta)
+        public boolean addValue(int pointUnsigned, int delta)
         {
-            assert point != EMPTY : "point can't be the EMPTY value";
-            int pointUnsigned = UnsignedInts.checkedCast(point);
             long key = wrap(pointUnsigned, 0);
             int index = unsignedBinarySearch(data, key);
             if (index < 0)
@@ -269,10 +267,10 @@ public class StreamingTombstoneHistogramBuilder
             assert isFull() : "DataHolder must be full in order to merge two points";
 
             final long[] smallestDifference = findPointPairWithSmallestDistance();
-
             final int index = (int)smallestDifference[0];
             final long point1 = smallestDifference[1];
             final long point2 = smallestDifference[2];
+
             assert (unwrapPointSigned(data[index + 1]) == point2) : "point2 should follow point1";
             final long value1 = unwrapValue(data[index]);
             final long value2 = unwrapValue(data[index + 1]);
@@ -336,14 +334,14 @@ public class StreamingTombstoneHistogramBuilder
             int low = 0;
             int high = a.length - 1;
 
+            long comparableKey = key ^ Long.MIN_VALUE;
             while (low <= high) {
                 int mid = (low + high) >>> 1;
-                long midVal = a[mid];
+                long midVal = a[mid] ^ Long.MIN_VALUE;
 
-                int cmp = UnsignedLongs.compare(midVal, key);
-                if (cmp < 0)
+                if (midVal < comparableKey)
                     low = mid + 1;
-                else if (cmp > 0)
+                else if (midVal != comparableKey)
                     high = mid - 1;
                 else
                     return mid; // key found
@@ -378,7 +376,7 @@ public class StreamingTombstoneHistogramBuilder
                     break;
                 }
 
-                histogramDataConsumer.consume(unwrapPointSigned(datum), unwrapValue(datum));
+                histogramDataConsumer.consume(unwrapPointUnsigned(datum), unwrapValue(datum));
             }
         }
 
@@ -503,12 +501,13 @@ public class StreamingTombstoneHistogramBuilder
                 return false;
             }
 
+            int pointUnsigned = UnsignedInts.checkedCast(point);
             final int cell = (capacity - 1) & hash(point);
 
             // We use linear scanning. I think cluster of 100 elements is large enough to give up.
             for (int attempt = 0; attempt < 100; attempt++)
             {
-                if (tryCell(cell + attempt, point, delta))
+                if (tryCell(cell + attempt, pointUnsigned, delta))
                     return true;
             }
             return false;
@@ -526,16 +525,15 @@ public class StreamingTombstoneHistogramBuilder
             {
                 if (points[i] != -1)
                 {
-                    consumer.consume(UnsignedInts.toLong(points[i]), values[i]);
+                    consumer.consume(points[i], values[i]);
                 }
             }
         }
 
-        private boolean tryCell(int cell, long point, int delta)
+        private boolean tryCell(int cell, int pointUnsigned, int delta)
         {
-            assert cell >= 0 && point >= 0 && delta >= 0 : "Invalid arguments: cell:" + cell + " point:" + point + " delta:" + delta;
+            assert cell >= 0 && delta >= 0 : "Invalid arguments: cell:" + cell + " point:" + UnsignedInts.toLong(pointUnsigned) + " delta:" + delta;
 
-            int pointUnsigned = UnsignedInts.checkedCast(point);
             cell = cell % points.length;
             if (points[cell] == -1)
             {

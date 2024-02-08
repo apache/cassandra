@@ -19,14 +19,13 @@ package org.apache.cassandra.utils.streamhist;
 
 import java.io.IOException;
 
-import com.google.common.primitives.UnsignedInts;
-
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.CassandraUInt;
 import org.apache.cassandra.utils.streamhist.StreamingTombstoneHistogramBuilder.DataHolder;
 
 /**
@@ -84,9 +83,9 @@ public class TombstoneHistogram
         {
             final int size = histogram.size();
             out.writeInt(size);
-            histogram.forEach((point, value) ->
+            histogram.forEach((pointUnsigned, value) ->
                               {
-                                  out.writeInt(UnsignedInts.checkedCast(point));
+                                  out.writeInt(pointUnsigned);
                                   out.writeInt(value);
                               });
         }
@@ -97,10 +96,10 @@ public class TombstoneHistogram
             DataHolder dataHolder = new DataHolder(size, 1);
             for (int i = 0; i < size; i++)
             {
-                long localDeletionTime = UnsignedInts.toLong(in.readInt());
+                int localDeletionTimeUnsigned = in.readInt();
                 int count = StreamingTombstoneHistogramBuilder.saturatingCastToInt(in.readInt());
 
-                dataHolder.addValue(localDeletionTime, count);
+                dataHolder.addValue(localDeletionTimeUnsigned, count);
             }
 
             return new TombstoneHistogram(dataHolder);
@@ -145,9 +144,9 @@ public class TombstoneHistogram
             final int maxBinSize = size; // we write this for legacy reasons
             out.writeInt(maxBinSize);
             out.writeInt(size);
-            histogram.forEach((point, value) ->
+            histogram.forEach((pointUnsigned, value) ->
                               {
-                                  out.writeDouble((double) point);
+                                  out.writeDouble((double) CassandraUInt.toLong(pointUnsigned));
                                   out.writeLong((long) value);
                               });
         }
