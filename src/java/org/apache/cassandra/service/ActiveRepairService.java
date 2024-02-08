@@ -44,6 +44,7 @@ import com.google.common.collect.Multimap;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.repair.Scheduler;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
@@ -351,6 +352,19 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         return DatabaseDescriptor.getRepairSessionSpaceInMiB();
     }
 
+    @Override
+    public int getConcurrentMerkleTreeRequests()
+    {
+        return DatabaseDescriptor.getConcurrentMerkleTreeRequests();
+    }
+
+    @Override
+    public void setConcurrentMerkleTreeRequests(int value)
+    {
+        logger.info("Setting concurrent_merkle_tree_requests to {}", value);
+        DatabaseDescriptor.setConcurrentMerkleTreeRequests(value);
+    }
+
     public List<CompositeData> getRepairStats(List<String> schemaArgs, String rangeString)
     {
         List<CompositeData> stats = new ArrayList<>();
@@ -432,6 +446,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                              boolean repairPaxos,
                                              boolean paxosOnly,
                                              ExecutorPlus executor,
+                                             Scheduler validationScheduler,
                                              String... cfnames)
     {
         if (repairPaxos && previewKind != PreviewKind.NONE)
@@ -443,7 +458,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         if (cfnames.length == 0)
             return null;
 
-        final RepairSession session = new RepairSession(ctx, parentRepairSession, range, keyspace,
+        final RepairSession session = new RepairSession(ctx, validationScheduler, parentRepairSession, range, keyspace,
                                                         parallelismDegree, isIncremental, pullRepair,
                                                         previewKind, optimiseStreams, repairPaxos, paxosOnly, cfnames);
         repairs.getIfPresent(parentRepairSession).register(session.state);
