@@ -77,6 +77,16 @@ public class AuthenticatedUser
         this(name, authenticationMode, Collections.emptyMap());
     }
 
+    /**
+     * Defines authenticated user context established within a client connection.
+     *
+     * @param name The user's role name
+     * @param authenticationMode How the user was authenticated
+     * @param metadata contextual metadata about how the user was authenticated.  Note that this data is exposed
+     *                 through the <code>system_views.clients table</code>, <code>nodetool clientstats</code> and
+     *                 {@link org.apache.cassandra.metrics.ClientMetrics}-based JMX Beans.  Implementors should
+     *                 take care not to store anything sensitive here.
+     */
     public AuthenticatedUser(String name, AuthenticationMode authenticationMode, Map<String, Object> metadata)
     {
         this.name = name;
@@ -104,7 +114,11 @@ public class AuthenticatedUser
     }
 
     /**
-     * @returns {@link IAuthenticator}-contextual metadata about how the user was authenticated
+     * @returns {@link IAuthenticator}-contextual metadata about how the user was authenticated.
+     * <p>
+     * Note that this data is exposed through the <code>system_views.clients table</code>,
+     * <code>nodetool clientstats</code> and {@link org.apache.cassandra.metrics.ClientMetrics}-based JMX Beans.
+     * Implementors should take care not to store anything sensitive here.
      */
     public Map<String, Object> getMetadata()
     {

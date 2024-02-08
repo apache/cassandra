@@ -105,12 +105,12 @@ public class ClientStats extends NodeToolCmd
                     ConnectedClient.KEYSPACE, ConnectedClient.REQUESTS,
                     ConnectedClient.DRIVER_NAME, ConnectedClient.DRIVER_VERSION);
 
-            if (listConnections)
+            if (listConnections && !verbose)
             {
                 printTable(out, tableHeaderBase, tableFieldsBase, clients);
             }
 
-            // if clientOptions and metadata are provided, we'll merge them into one table.  This is subtly
+            // if clientOptions and verbose are provided, we'll merge them into one table.  This is subtly
             // different from providing '--all and --client-options' together which prints separate tables which
             // may not have been the original intention but is kept this way for consistency.
             if (clientOptions || verbose)
