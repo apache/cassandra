@@ -288,13 +288,13 @@ public class ClientStatsTest
         // Header
         assertThat(stdout).containsPattern("Address +SSL +Cipher +Protocol +Version +User +Keyspace +Requests +Driver-Name +Driver-Version +Client-Options +Auth-Mode +Auth-Metadata");
         // Unencrypted password-based client. Expect 'DRIVER_VERSION' to appear before Password.
-        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ false +undefined +undefined +[0-9]+ +cassandra +[0-9]+ +DataStax Java Driver 3.11.5 +.*DRIVER_VERSION +Password");
+        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ false +undefined +undefined +[0-9]+ +cassandra +[0-9]+ +DataStax Java Driver 3.11.5 +.*DRIVER_VERSION.* +Password");
         // TLS-encrypted password-based client.
-        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ true +TLS\\S+ +TLS\\S+ +[0-9]+ +cassandra +[0-9]+ +DataStax Java Driver 3.11.5 +.*DRIVER_VERSION +Password");
+        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ true +TLS\\S+ +TLS\\S+ +[0-9]+ +cassandra +[0-9]+ +DataStax Java Driver 3.11.5 +.*DRIVER_VERSION.* +Password");
         // MTLS-based client.
-        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ true +TLS\\S+ +TLS\\S+ +[0-9]+ +cassandra +[0-9]+ +DataStax Java Driver 3.11.5 +.*DRIVER_VERSION +MutualTls +identity=" + TlsTestUtils.CLIENT_SPIFFE_IDENTITY);
+        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ true +TLS\\S+ +TLS\\S+ +[0-9]+ +cassandra +[0-9]+ +DataStax Java Driver 3.11.5 +.*DRIVER_VERSION.* +MutualTls +identity=" + TlsTestUtils.CLIENT_SPIFFE_IDENTITY);
         // MTLS-based client with 'system' keyspace set on connection.
-        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ true +TLS\\S+ +TLS\\S+ +[0-9]+ +cassandra +system +[0-9]+ +DataStax Java Driver 3.11.5 +.*DRIVER_VERSION +MutualTls +identity=" + TlsTestUtils.CLIENT_SPIFFE_IDENTITY);
+        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ true +TLS\\S+ +TLS\\S+ +[0-9]+ +cassandra +system +[0-9]+ +DataStax Java Driver 3.11.5 +.*DRIVER_VERSION.* +MutualTls +identity=" + TlsTestUtils.CLIENT_SPIFFE_IDENTITY);
 
         assertClientCount(stdout);
     }
