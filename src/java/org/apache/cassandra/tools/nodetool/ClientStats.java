@@ -108,18 +108,14 @@ public class ClientStats extends NodeToolCmd
                                                                                  ConnectedClient.DRIVER_NAME, ConnectedClient.DRIVER_VERSION);
             if (clientOptions || verbose)
             {
-                // print authentication metadata first as client-options are quite long so better left to end of the table.
-                if (verbose)
-                {
-                    tableHeaderBuilder.add("Auth-Mode")
-                                      .add("Auth-Metadata");
-
-                    tableFieldsBuilder.add(ConnectedClient.AUTHENTICATION_MODE)
-                                      .add(ConnectedClient.AUTHENTICATION_METADATA);
-                }
-
                 tableHeaderBuilder.add("Client-Options");
                 tableFieldsBuilder.add(ConnectedClient.CLIENT_OPTIONS);
+            }
+
+            if (verbose)
+            {
+                tableHeaderBuilder.add("Auth-Mode", "Auth-Metadata");
+                tableFieldsBuilder.add(ConnectedClient.AUTHENTICATION_MODE, ConnectedClient.AUTHENTICATION_METADATA);
             }
 
             List<String> tableHeader = tableHeaderBuilder.build();

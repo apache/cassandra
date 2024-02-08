@@ -271,31 +271,30 @@ public class ClientStatsTest
     @Test
     public void testClientStatsClientVerbose()
     {
-        // given 'clientstats --verbose' invoked, we expect 'Auth-Mode', 'Auth-Metadata', and 'Client-Options' columns to present.
+        // given 'clientstats --verbose' invoked, we expect 'Client-Options', 'Auth-Mode', 'Auth-Metadata', and 'Client-Options' columns to be present.
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("clientstats", "--verbose");
         tool.assertOnCleanExit();
         String stdout = tool.getStdout();
         /*
          * Example expected output:
-         * Address          SSL   Cipher                 Protocol  Version User      Keyspace Requests Driver-Name          Driver-Version Mode     Metadata                                                  Client-Options
-         * /127.0.0.1:51134 false undefined              undefined 5       cassandra          17       DataStax Java Driver 3.11.5         Password                                                           DRIVER_VERSION=3.11.5, DRIVER_NAME=DataStax Java Driver, CQL_VERSION=3.0.0
-         * /127.0.0.1:51136 false undefined              undefined 5       cassandra          4        DataStax Java Driver 3.11.5         Password                                                           DRIVER_VERSION=3.11.5, DRIVER_NAME=DataStax Java Driver, CQL_VERSION=3.0.0
-         * /127.0.0.1:51137 true  TLS_AES_256_GCM_SHA384 TLSv1.3   5       cassandra          17       DataStax Java Driver 3.11.5         Password                                                           DRIVER_VERSION=3.11.5, DRIVER_NAME=DataStax Java Driver, CQL_VERSION=3.0.0
-         * /127.0.0.1:51138 true  TLS_AES_256_GCM_SHA384 TLSv1.3   5       cassandra          3        DataStax Java Driver 3.11.5         Password                                                           DRIVER_VERSION=3.11.5, DRIVER_NAME=DataStax Java Driver, CQL_VERSION=3.0.0
-         * /127.0.0.1:51139 true  TLS_AES_256_GCM_SHA384 TLSv1.3   5       cassandra          16       DataStax Java Driver 3.11.5         Mtls     identity=spiffe://test.cassandra.apache.org/unitTest/mtls DRIVER_VERSION=3.11.5, DRIVER_NAME=DataStax Java Driver, CQL_VERSION=3.0.0
-         * /127.0.0.1:51140 true  TLS_AES_256_GCM_SHA384 TLSv1.3   5       cassandra system   3        DataStax Java Driver 3.11.5         Mtls     identity=spiffe://test.cassandra.apache.org/unitTest/mtls DRIVER_VERSION=3.11.5, DRIVER_NAME=DataStax Java Driver, CQL_VERSION=3.0.0
+         * Address          SSL   Cipher                 Protocol  Version User      Keyspace Requests Driver-Name          Driver-Version Client-Options                                                             Auth-Mode Auth-Metadata
+         * /127.0.0.1:57141 false undefined              undefined 5       cassandra          17       DataStax Java Driver 3.11.5         DRIVER_VERSION=3.11.5, DRIVER_NAME=DataStax Java Driver, CQL_VERSION=3.0.0 Password
+         * /127.0.0.1:57165 true  TLS_AES_256_GCM_SHA384 TLSv1.3   5       cassandra system   3        DataStax Java Driver 3.11.5         DRIVER_VERSION=3.11.5, DRIVER_NAME=DataStax Java Driver, CQL_VERSION=3.0.0 MutualTls identity=spiffe://test.cassandra.apache.org/unitTest/mtls
+         * /127.0.0.1:57164 true  TLS_AES_256_GCM_SHA384 TLSv1.3   5       cassandra          3        DataStax Java Driver 3.11.5         DRIVER_VERSION=3.11.5, DRIVER_NAME=DataStax Java Driver, CQL_VERSION=3.0.0 Password
+         * /127.0.0.1:57144 true  TLS_AES_256_GCM_SHA384 TLSv1.3   5       cassandra          17       DataStax Java Driver 3.11.5         DRIVER_VERSION=3.11.5, DRIVER_NAME=DataStax Java Driver, CQL_VERSION=3.0.0 Password
+         * /127.0.0.1:57146 true  TLS_AES_256_GCM_SHA384 TLSv1.3   5       cassandra          16       DataStax Java Driver 3.11.5         DRIVER_VERSION=3.11.5, DRIVER_NAME=DataStax Java Driver, CQL_VERSION=3.0.0 MutualTls identity=spiffe://test.cassandra.apache.org/unitTest/mtls
+         * /127.0.0.1:57163 false undefined              undefined 5       cassandra          4        DataStax Java Driver 3.11.5         DRIVER_VERSION=3.11.5, DRIVER_NAME=DataStax Java Driver, CQL_VERSION=3.0.0 Password
          */
-
         // Header
-        assertThat(stdout).containsPattern("Address +SSL +Cipher +Protocol +Version +User +Keyspace +Requests +Driver-Name +Driver-Version +Auth-Mode +Auth-Metadata +Client-Options");
-        // Unencrypted password-based client. Expect 'DRIVER_VERSION' to appear somewhere after password mode.
-        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ false +undefined +undefined +[0-9]+ +cassandra +[0-9]+ +DataStax Java Driver 3.11.5 +Password +.*DRIVER_VERSION");
+        assertThat(stdout).containsPattern("Address +SSL +Cipher +Protocol +Version +User +Keyspace +Requests +Driver-Name +Driver-Version +Client-Options +Auth-Mode +Auth-Metadata");
+        // Unencrypted password-based client. Expect 'DRIVER_VERSION' to appear before Password.
+        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ false +undefined +undefined +[0-9]+ +cassandra +[0-9]+ +DataStax Java Driver 3.11.5 +.*DRIVER_VERSION +Password");
         // TLS-encrypted password-based client.
-        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ true +TLS\\S+ +TLS\\S+ +[0-9]+ +cassandra +[0-9]+ +DataStax Java Driver 3.11.5 +Password +.*DRIVER_VERSION");
+        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ true +TLS\\S+ +TLS\\S+ +[0-9]+ +cassandra +[0-9]+ +DataStax Java Driver 3.11.5 +.*DRIVER_VERSION +Password");
         // MTLS-based client.
-        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ true +TLS\\S+ +TLS\\S+ +[0-9]+ +cassandra +[0-9]+ +DataStax Java Driver 3.11.5 +MutualTls +identity=" + TlsTestUtils.CLIENT_SPIFFE_IDENTITY + " +.*DRIVER_VERSION");
+        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ true +TLS\\S+ +TLS\\S+ +[0-9]+ +cassandra +[0-9]+ +DataStax Java Driver 3.11.5 +.*DRIVER_VERSION +MutualTls +identity=" + TlsTestUtils.CLIENT_SPIFFE_IDENTITY);
         // MTLS-based client with 'system' keyspace set on connection.
-        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ true +TLS\\S+ +TLS\\S+ +[0-9]+ +cassandra +system +[0-9]+ +DataStax Java Driver 3.11.5 +MutualTls +identity=" + TlsTestUtils.CLIENT_SPIFFE_IDENTITY + " +.*DRIVER_VERSION");
+        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ true +TLS\\S+ +TLS\\S+ +[0-9]+ +cassandra +system +[0-9]+ +DataStax Java Driver 3.11.5 +.*DRIVER_VERSION +MutualTls +identity=" + TlsTestUtils.CLIENT_SPIFFE_IDENTITY);
 
         assertClientCount(stdout);
     }
