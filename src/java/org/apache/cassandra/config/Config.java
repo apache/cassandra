@@ -195,6 +195,8 @@ public class Config
     @Replaces(oldName = "repair_session_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public volatile DataStorageSpec.IntMebibytesBound repair_session_space = null;
 
+    public volatile int concurrent_merkle_tree_requests = 0;
+
     public volatile boolean use_offheap_merkle_trees = true;
 
     public int storage_port = 7000;

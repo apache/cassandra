@@ -127,6 +127,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     // Tasks(snapshot, validate request, differencing, ...) are run on taskExecutor
     public final ExecutorPlus taskExecutor;
     public final boolean optimiseStreams;
+    public final Scheduler validationScheduler;
 
     private volatile boolean terminated = false;
 
@@ -142,6 +143,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
      * @param cfnames names of columnfamilies
      */
     public RepairSession(TimeUUID parentRepairSession,
+                         Scheduler validationScheduler,
                          CommonRange commonRange,
                          String keyspace,
                          RepairParallelism parallelismDegree,
@@ -153,6 +155,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
                          boolean paxosOnly,
                          String... cfnames)
     {
+        this.validationScheduler = validationScheduler;
         this.repairPaxos = repairPaxos;
         this.paxosOnly = paxosOnly;
         assert cfnames.length > 0 : "Repairing no column families seems pointless, doesn't it";
