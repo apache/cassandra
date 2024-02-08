@@ -106,6 +106,7 @@ public abstract class LocalLog implements Closeable
     public static class LogSpec
     {
         private ClusterMetadata initial;
+        private ClusterMetadata prev;
         private Startup.AfterReplay afterReplay = (metadata) -> {};
         private LogStorage storage = LogStorage.None;
         private boolean async = true;
@@ -220,6 +221,12 @@ public abstract class LocalLog implements Closeable
             return this;
         }
 
+        public LogSpec withPreviousState(ClusterMetadata prev)
+        {
+            this.prev = prev;
+            return this;
+        }
+
         public final LocalLog createLog()
         {
             if (async)
@@ -260,6 +267,8 @@ public abstract class LocalLog implements Closeable
         this.spec = logSpec;
         if (spec.initial == null)
             spec.initial = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
+        if (spec.prev == null)
+            spec.prev = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
         assert spec.initial.epoch.is(EMPTY) || spec.initial.epoch.is(Epoch.UPGRADE_STARTUP) || spec.isReset :
         String.format(String.format("Should start with empty epoch, unless we're in upgrade or reset mode: %s (isReset: %s)", spec.initial, spec.isReset));
 
@@ -567,11 +576,12 @@ public abstract class LocalLog implements Closeable
         this.changeListeners.remove(listener);
     }
 
-    public void notifyListeners(ClusterMetadata emptyFromSystemTables)
+    public void notifyListeners(ClusterMetadata prev)
     {
         ClusterMetadata metadata = committed.get();
-        notifyPreCommit(emptyFromSystemTables, metadata, true);
-        notifyPostCommit(emptyFromSystemTables, metadata, true);
+        logger.info("Notifying listeners, prev epoch = {}, current epoch = {}", prev.epoch, metadata.epoch);
+        notifyPreCommit(prev, metadata, true);
+        notifyPostCommit(prev, metadata, true);
     }
 
     private void notifyPreCommit(ClusterMetadata before, ClusterMetadata after, boolean fromSnapshot)
@@ -636,7 +646,7 @@ public abstract class LocalLog implements Closeable
         }
 
         logger.info("Notifying all registered listeners of both pre and post commit event");
-        notifyListeners(spec.initial);
+        notifyListeners(spec.prev);
 
         return metadata;
     }

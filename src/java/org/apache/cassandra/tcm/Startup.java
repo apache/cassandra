@@ -285,6 +285,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
     public static void reinitializeWithClusterMetadata(String fileName, Function<Processor, Processor> wrapProcessor, Runnable initMessaging) throws IOException, StartupException
     {
+        ClusterMetadata prev = ClusterMetadata.current();
         // First set a minimal ClusterMetadata as some deserialization depends
         // on ClusterMetadata.current() to access the partitioner
         StubClusterMetadataService initial = StubClusterMetadataService.forClientTools();
@@ -305,6 +306,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         metadata = metadata.forceEpoch(metadata.epoch.nextEpoch());
         ClusterMetadataService.unsetInstance();
         LocalLog.LogSpec logSpec = LocalLog.logSpec()
+                                           .withPreviousState(prev)
                                            .withInitialState(metadata)
                                            .withStorage(LogStorage.SystemKeyspace)
                                            .withDefaultListeners()

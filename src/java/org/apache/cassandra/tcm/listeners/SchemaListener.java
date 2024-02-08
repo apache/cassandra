@@ -30,7 +30,6 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 public class SchemaListener implements ChangeListener
 {
     private final boolean loadSSTables;
-    private boolean isFirst = true;
 
     public SchemaListener(boolean loadSSTables)
     {
@@ -47,14 +46,7 @@ public class SchemaListener implements ChangeListener
     {
         if (!fromSnapshot && next.schema.lastModified().equals(prev.schema.lastModified()))
             return;
-
-        if (isFirst)
-        {
-            isFirst = false;
-            next.schema.initializeKeyspaceInstances(DistributedSchema.empty(), loadSSTables);
-        }
-        else
-            next.schema.initializeKeyspaceInstances(prev.schema, loadSSTables);
+        next.schema.initializeKeyspaceInstances(prev.schema, loadSSTables);
     }
 
     @Override
