@@ -31,13 +31,13 @@ public interface RepairTask
         return name() + " completed successfully";
     }
 
-    Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor) throws Exception;
+    Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor, Scheduler validationScheduler) throws Exception;
 
-    default Future<CoordinatedRepairResult> perform(ExecutorPlus executor)
+    default Future<CoordinatedRepairResult> perform(ExecutorPlus executor, Scheduler validationScheduler)
     {
         try
         {
-            return performUnsafe(executor);
+            return performUnsafe(executor, validationScheduler);
         }
         catch (Exception | Error e)
         {

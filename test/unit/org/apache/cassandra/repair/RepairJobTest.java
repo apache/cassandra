@@ -127,7 +127,8 @@ public class RepairJobTest
                                         PreviewKind previewKind, boolean optimiseStreams, boolean repairPaxos, boolean paxosOnly,
                                         String... cfnames)
         {
-            super(SharedContext.Global.instance, parentRepairSession, commonRange, keyspace, parallelismDegree, isIncremental, pullRepair,
+            super(SharedContext.Global.instance, new Scheduler.NoopScheduler(),
+                  parentRepairSession, commonRange, keyspace, parallelismDegree, isIncremental, pullRepair,
                   previewKind, optimiseStreams, repairPaxos, paxosOnly, cfnames);
         }
 
@@ -333,7 +334,7 @@ public class RepairJobTest
         }
         catch (ExecutionException e)
         {
-            Assertions.assertThat(e.getCause()).isInstanceOf(RepairException.class);
+            Assertions.assertThat(e).hasRootCauseInstanceOf(RepairException.class);
         }
 
         // When the job fails, all three outstanding validation tasks should be aborted.

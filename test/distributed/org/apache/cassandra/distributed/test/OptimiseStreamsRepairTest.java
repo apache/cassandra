@@ -29,8 +29,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.function.Function;
-import java.util.function.Predicate;
 
 import java.util.concurrent.TimeoutException;
 import org.junit.Test;
@@ -39,7 +37,6 @@ import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
-import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
@@ -49,12 +46,11 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.AsymmetricRemoteSyncTask;
 import org.apache.cassandra.repair.LocalSyncTask;
 import org.apache.cassandra.repair.RepairJob;
-import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.SyncTask;
 import org.apache.cassandra.repair.TreeResponse;
-import org.apache.cassandra.streaming.PreviewKind;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
+import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.junit.Assert.assertEquals;
@@ -109,20 +105,13 @@ public class OptimiseStreamsRepairTest extends TestBaseImpl
         public static void install(ClassLoader cl, int id)
         {
             new ByteBuddy().rebase(RepairJob.class)
-                           .method(named("createOptimisedSyncingSyncTasks"))
+                           .method(named("createOptimisedSyncingSyncTasks").and(takesArguments(1)))
                            .intercept(MethodDelegation.to(BBHelper.class))
                            .make()
                            .load(cl, ClassLoadingStrategy.Default.INJECTION);
         }
 
-        public static List<SyncTask> createOptimisedSyncingSyncTasks(SharedContext ctx,
-                                                                     RepairJobDesc desc,
-                                                                     List<TreeResponse> trees,
-                                                                     InetAddressAndPort local,
-                                                                     Predicate<InetAddressAndPort> isTransient,
-                                                                     Function<InetAddressAndPort, String> getDC,
-                                                                     boolean isIncremental,
-                                                                     PreviewKind previewKind,
+        public static List<SyncTask> createOptimisedSyncingSyncTasks(List<TreeResponse> trees,
                                                                      @SuperCall Callable<List<SyncTask>> zuperCall)
         {
             List<SyncTask> tasks = null;
