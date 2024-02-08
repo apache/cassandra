@@ -54,7 +54,15 @@ public class SetRateLimiterConfig extends NodeTool.NodeToolCmd
 
         if (paramType.equals("enabled"))
         {
-            probe.setThrottlingOptionsEnabled(Boolean.parseBoolean(paramVal));
+            boolean enabled = Boolean.parseBoolean(paramVal);
+            if (enabled)
+            {
+                System.out.println("enabling rate limiter via nodetool is not yet supported. " +
+                                   "To enable it, please turn on the flag in cassandra.yaml and restart the node.");
+                return;
+            }
+
+            probe.setThrottlingOptionsEnabled(enabled);
         }
         else if (paramType.equals("cputhresholdcur"))
         {
