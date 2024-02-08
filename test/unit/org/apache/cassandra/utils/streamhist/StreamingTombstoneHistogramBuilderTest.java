@@ -252,22 +252,6 @@ public class StreamingTombstoneHistogramBuilderTest
     }
 
     @Test
-    public void testDataHolderWrap()
-    {
-        LongStream.range(0, 1000).forEach(this::testDataHolderWrap);
-        LongStream.range(Integer.MAX_VALUE - 1000, Integer.MAX_VALUE).forEach(this::testDataHolderWrap);
-        LongStream.range(CassandraUInt.MAX_VALUE_LONG - 1000, CassandraUInt.MAX_VALUE_LONG).forEach(this::testDataHolderWrap);
-    }
-
-    private void testDataHolderWrap(long point)
-    {
-        long wrapped = DataHolder.wrap(UnsignedInts.checkedCast(point),  Integer.MAX_VALUE);
-        assertEquals(point, DataHolder.unwrapPointSigned(wrapped));
-        assertEquals(UnsignedInts.checkedCast(point), DataHolder.unwrapPointUnsigned(wrapped));
-        assertEquals(Integer.MAX_VALUE, DataHolder.unwrapValue(wrapped));
-    }
-
-    @Test
     public void testSpool()
     {
         StreamingTombstoneHistogramBuilder.Spool spool = new StreamingTombstoneHistogramBuilder.Spool(8);
@@ -331,16 +315,22 @@ public class StreamingTombstoneHistogramBuilderTest
     {
         StreamingTombstoneHistogramBuilder.DataHolder dataHolder = new StreamingTombstoneHistogramBuilder.DataHolder(2, 1);
         dataHolder.addValue(CassandraUInt.fromLong(point1), value1);
-        assertEquals(DataHolder.wrap(UnsignedInts.checkedCast(point1), value1), dataHolder.data[0]);
-        assertEquals(DataHolder.EMPTY, dataHolder.data[1]);
+        assertEquals(CassandraUInt.fromLong(point1), dataHolder.points[0]);
+        assertEquals(value1, dataHolder.values[0]);
+        assertEquals(DataHolder.EMPTY, dataHolder.points[1]);
+        assertEquals(0, dataHolder.values[1]);
         dataHolder.addValue(CassandraUInt.fromLong(point2), value2);
-        assertEquals(DataHolder.wrap(UnsignedInts.checkedCast(point1), value1), dataHolder.data[0]);
-        assertEquals(DataHolder.wrap(UnsignedInts.checkedCast(point2), value2), dataHolder.data[1]);
+        assertEquals(CassandraUInt.fromLong(point1), dataHolder.points[0]);
+        assertEquals(value1, dataHolder.values[0]);
+        assertEquals(CassandraUInt.fromLong(point2), dataHolder.points[1]);
+        assertEquals(value2, dataHolder.values[1]);
         long midpoint = dataHolder.calculateWeightedMidpoint(point1, value1, point2, value2);
         assertEquals(expectedPoint, midpoint);
         dataHolder.mergeNearestPoints();
-        assertEquals(DataHolder.wrap(UnsignedInts.checkedCast(expectedPoint), Ints.saturatedCast(value1 + (long)value2)), dataHolder.data[0]);
-        assertEquals(DataHolder.EMPTY, dataHolder.data[1]);
+        assertEquals(CassandraUInt.fromLong(expectedPoint), dataHolder.points[0]);
+        assertEquals(Ints.saturatedCast(value1 + (long)value2), dataHolder.values[0]);
+        assertEquals(DataHolder.EMPTY, dataHolder.points[1]);
+        assertEquals(0, dataHolder.values[1]);
     }
 
     @Test

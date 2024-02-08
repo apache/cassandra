@@ -82,6 +82,8 @@ public class TombstoneHistogram
         public void serialize(TombstoneHistogram histogram, DataOutputPlus out) throws IOException
         {
             final int size = histogram.size();
+            final int maxBinSize = size; // we write this for legacy reasons
+            out.writeInt(maxBinSize);
             out.writeInt(size);
             histogram.forEach((pointUnsigned, value) ->
                               {
@@ -92,6 +94,7 @@ public class TombstoneHistogram
 
         public TombstoneHistogram deserialize(DataInputPlus in) throws IOException
         {
+            in.readInt(); // max bin size
             int size = in.readInt();
             DataHolder dataHolder = new DataHolder(size, 1);
             for (int i = 0; i < size; i++)
@@ -107,8 +110,10 @@ public class TombstoneHistogram
 
         public long serializedSize(TombstoneHistogram histogram)
         {
+            int maxBinSize = 0;
+            long size = TypeSizes.sizeof(maxBinSize);
             final int histSize = histogram.size();
-            long size = TypeSizes.sizeof(histSize);
+            size += TypeSizes.sizeof(histSize);
             // size of entries = size * (4(int) + 4(int))
             size += histSize * (4L + 4L);
             return size;
@@ -138,6 +143,7 @@ public class TombstoneHistogram
     {
         public static final LegacyHistogramSerializer instance = new LegacyHistogramSerializer();
 
+        @Override
         public void serialize(TombstoneHistogram histogram, DataOutputPlus out) throws IOException
         {
             final int size = histogram.size();
@@ -151,6 +157,7 @@ public class TombstoneHistogram
                               });
         }
 
+        @Override
         public TombstoneHistogram deserialize(DataInputPlus in) throws IOException
         {
             in.readInt(); // max bin size
@@ -169,6 +176,7 @@ public class TombstoneHistogram
             return new TombstoneHistogram(dataHolder);
         }
 
+        @Override
         public long serializedSize(TombstoneHistogram histogram)
         {
             int maxBinSize = 0;
