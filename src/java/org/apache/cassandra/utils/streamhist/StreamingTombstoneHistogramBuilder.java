@@ -25,7 +25,6 @@ import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.math.IntMath;
-import com.google.common.primitives.UnsignedInts;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.db.rows.Cell;
@@ -60,7 +59,6 @@ import org.apache.cassandra.utils.CassandraUInt;
  *     <li>Spool is organized as open-addressing primitive hash map where odd elements are points and event elements are values.
  *     Spool can not resize => when number of collisions became bigger than threshold or size became large that <i>array_size/2</i> Spool is drained to bin</li>
  *     <li>Bin is organized as sorted arrays. It reduces garbage collection pressure and allows to find elements in log(binSize) time via binary search</li>
- *     <li>To use binary search <i></>{point, values}</i> in bin pairs is packed in one long</li>
  * </ol>
  * <p>
  * The original algorithm is taken from following paper:
@@ -173,9 +171,9 @@ public class StreamingTombstoneHistogramBuilder
     static class DataHolder
     {
         static final int EMPTY = CassandraUInt.MAX_VALUE_UINT;
-
         final int[] points;
         final int[] values;
+
         private final int roundSeconds;
 
         DataHolder(int maxCapacity, int roundSeconds)
@@ -212,7 +210,7 @@ public class StreamingTombstoneHistogramBuilder
          *
          * @return {@code true} if inserted, {@code false} if accumulated
          */
-        public boolean addValue(int pointUnsigned, int delta)
+        boolean addValue(int pointUnsigned, int delta)
         {
             int index = unsignedBinarySearch(points, pointUnsigned);
             if (index < 0)
@@ -240,7 +238,6 @@ public class StreamingTombstoneHistogramBuilder
             }
             else
             {
-                points[index] = pointUnsigned;
                 values[index] = saturatingCastToInt(values[index] + (long)delta);
             }
 
@@ -266,7 +263,7 @@ public class StreamingTombstoneHistogramBuilder
 
         /**
          *  Finds nearest points <i>p1</i> and <i>p2</i> in the collection
-         *  Replaces these two points with one weighted point <i>p3 = (p1*m1+p2*m2)/(p1+p2)
+         *  Replaces these two points with one weighted point <i>p3 = (p1*m1+p2*m2)/(p1+p2)</i>
          */
         @VisibleForTesting
         void mergeNearestPoints()
@@ -284,7 +281,7 @@ public class StreamingTombstoneHistogramBuilder
             final int sum = saturatingCastToInt(value1 + value2);
 
             long newPoint = calculateWeightedMidpoint(point1, value1, point2, value2);
-            points[index] = UnsignedInts.checkedCast(newPoint);
+            points[index] = CassandraUInt.fromLong(newPoint);
             values[index] = sum;
 
             System.arraycopy(points, index + 2, points, index + 1, points.length - index - 2);
@@ -361,11 +358,11 @@ public class StreamingTombstoneHistogramBuilder
         {
             for (int i = 0; i < points.length; i++)
             {
-                int point = points[i] ;
-                if (point == EMPTY)
+                int pointUnsigned = points[i] ;
+                if (pointUnsigned== EMPTY)
                     break;
 
-                histogramDataConsumer.consume(point, values[i]);
+                histogramDataConsumer.consume(pointUnsigned, values[i]);
             }
         }
 
@@ -384,9 +381,7 @@ public class StreamingTombstoneHistogramBuilder
             {
                 int pointUnsigned = points[i];
                 if (pointUnsigned == EMPTY)
-                {
                     break;
-                }
                 final long point = CassandraUInt.toLong(pointUnsigned);
                 final int value = values[i];
                 if (point > b)
@@ -490,7 +485,7 @@ public class StreamingTombstoneHistogramBuilder
                 return false;
             }
 
-            int pointUnsigned = UnsignedInts.checkedCast(point);
+            int pointUnsigned = CassandraUInt.fromLong(point);
             final int cell = (capacity - 1) & hash(point);
 
             // We use linear scanning. I think cluster of 100 elements is large enough to give up.
@@ -521,7 +516,7 @@ public class StreamingTombstoneHistogramBuilder
 
         private boolean tryCell(int cell, int pointUnsigned, int delta)
         {
-            assert cell >= 0 && delta >= 0 : "Invalid arguments: cell:" + cell + " point:" + UnsignedInts.toLong(pointUnsigned) + " delta:" + delta;
+            assert cell >= 0 && delta >= 0 : "Invalid arguments: cell:" + cell + " point:" + CassandraUInt.toLong(pointUnsigned) + " delta:" + delta;
 
             cell = cell % points.length;
             if (points[cell] == -1)

@@ -70,7 +70,7 @@ public class TombstoneHistogram
         this.bin.forEach(histogramDataConsumer);
     }
 
-    public static TombstoneHistogram.HistogramSerializer getSerializer(Version version)
+    public static HistogramSerializer getSerializer(Version version)
     {
         return version.hasUIntDeletionTime() ? HistogramSerializer.instance : LegacyHistogramSerializer.instance;
     }
@@ -139,7 +139,7 @@ public class TombstoneHistogram
         return bin.hashCode();
     }
 
-    public static class LegacyHistogramSerializer extends TombstoneHistogram.HistogramSerializer
+    public static class LegacyHistogramSerializer extends HistogramSerializer
     {
         public static final LegacyHistogramSerializer instance = new LegacyHistogramSerializer();
 
