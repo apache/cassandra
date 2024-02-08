@@ -96,30 +96,18 @@ public class ClientStats extends NodeToolCmd
         List<Map<String, String>> clients = (List<Map<String, String>>) probe.getClientMetric("connections");
         if (!clients.isEmpty() && (listConnections || clientOptions || verbose))
         {
-            List<String> tableHeaderBase = List.of("Address", "SSL", "Cipher", "Protocol", "Version",
-                    "User", "Keyspace", "Requests", "Driver-Name",
-                    "Driver-Version");
-            List<String> tableFieldsBase = List.of(ConnectedClient.ADDRESS, ConnectedClient.SSL,
-                    ConnectedClient.CIPHER, ConnectedClient.PROTOCOL,
-                    ConnectedClient.VERSION, ConnectedClient.USER,
-                    ConnectedClient.KEYSPACE, ConnectedClient.REQUESTS,
-                    ConnectedClient.DRIVER_NAME, ConnectedClient.DRIVER_VERSION);
-
-            if (listConnections && !verbose)
-            {
-                printTable(out, tableHeaderBase, tableFieldsBase, clients);
-            }
-
-            // if clientOptions and verbose are provided, we'll merge them into one table.  This is subtly
-            // different from providing '--all and --client-options' together which prints separate tables which
-            // may not have been the original intention but is kept this way for consistency.
+            ImmutableList.Builder<String> tableHeaderBuilder = ImmutableList.<String>builder()
+                                                                            .add("Address", "SSL", "Cipher", "Protocol", "Version",
+                                                                                 "User", "Keyspace", "Requests", "Driver-Name",
+                                                                                 "Driver-Version");
+            ImmutableList.Builder<String> tableFieldsBuilder = ImmutableList.<String>builder()
+                                                                            .add(ConnectedClient.ADDRESS, ConnectedClient.SSL,
+                                                                                 ConnectedClient.CIPHER, ConnectedClient.PROTOCOL,
+                                                                                 ConnectedClient.VERSION, ConnectedClient.USER,
+                                                                                 ConnectedClient.KEYSPACE, ConnectedClient.REQUESTS,
+                                                                                 ConnectedClient.DRIVER_NAME, ConnectedClient.DRIVER_VERSION);
             if (clientOptions || verbose)
             {
-                ImmutableList.Builder<String> tableHeaderBuilder = ImmutableList.<String>builder()
-                                                                                .addAll(tableHeaderBase);
-                ImmutableList.Builder<String> tableFieldsBuilder = ImmutableList.<String>builder()
-                                                                                .addAll(tableFieldsBase);
-
                 // print authentication metadata first as client-options are quite long so better left to end of the table.
                 if (verbose)
                 {
@@ -132,11 +120,11 @@ public class ClientStats extends NodeToolCmd
 
                 tableHeaderBuilder.add("Client-Options");
                 tableFieldsBuilder.add(ConnectedClient.CLIENT_OPTIONS);
-
-                List<String> tableHeader = tableHeaderBuilder.build();
-                List<String> tableFields = tableFieldsBuilder.build();
-                printTable(out, tableHeader, tableFields, clients);
             }
+
+            List<String> tableHeader = tableHeaderBuilder.build();
+            List<String> tableFields = tableFieldsBuilder.build();
+            printTable(out, tableHeader, tableFields, clients);
         }
 
         Map<String, Integer> connectionsByUser = (Map<String, Integer>) probe.getClientMetric("connectedNativeClientsByUser");
