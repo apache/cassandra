@@ -102,6 +102,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
 
     private final List<ProgressListener> listeners = new ArrayList<>();
     private final AtomicReference<Throwable> firstError = new AtomicReference<>(null);
+    final Scheduler validationScheduler;
 
     private TraceState traceState;
 
@@ -109,6 +110,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
     {
         this.state = new CoordinatorState(cmd, keyspace, options);
         this.storageService = storageService;
+        this.validationScheduler = Scheduler.build(DatabaseDescriptor.getConcurrentMerkleTreeRequests());
 
         this.tag = "repair:" + cmd;
         ActiveRepairService.instance.register(state);
@@ -420,7 +422,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
 
         ExecutorPlus executor = createExecutor();
         state.phase.repairSubmitted();
-        Future<CoordinatedRepairResult> f = task.perform(executor);
+        Future<CoordinatedRepairResult> f = task.perform(executor, validationScheduler);
         f.addCallback((result, failure) -> {
             state.phase.repairCompleted();
             try

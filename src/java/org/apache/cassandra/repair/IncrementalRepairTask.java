@@ -57,7 +57,7 @@ public class IncrementalRepairTask extends AbstractRepairTask
     }
 
     @Override
-    public Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor) throws Exception
+    public Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor, Scheduler validationScheduler) throws Exception
     {
         // the local node also needs to be included in the set of participants, since coordinator sessions aren't persisted
         Set<InetAddressAndPort> allParticipants = ImmutableSet.<InetAddressAndPort>builder()
@@ -69,7 +69,7 @@ public class IncrementalRepairTask extends AbstractRepairTask
 
         CoordinatorSession coordinatorSession = ActiveRepairService.instance.consistent.coordinated.registerSession(parentSession, allParticipants, neighborsAndRanges.shouldExcludeDeadParticipants);
 
-        return coordinatorSession.execute(() -> runRepair(parentSession, true, executor, allRanges, cfnames));
+        return coordinatorSession.execute(() -> runRepair(parentSession, true, executor, validationScheduler, allRanges, cfnames));
 
     }
 }
