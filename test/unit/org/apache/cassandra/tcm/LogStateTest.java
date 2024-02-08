@@ -55,7 +55,7 @@ public class LogStateTest
         MetadataSnapshots snapshots = new MetadataSnapshots.SystemKeyspaceMetadataSnapshots();
         ClusterMetadata initial = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
         LocalLog.LogSpec logSpec = LocalLog.logSpec()
-                                           .syncForTests()
+                                           .sync()
                                            .withInitialState(initial)
                                            .withStorage(logStorage)
                                            .initializeKeyspaceInstances(false)
@@ -70,7 +70,7 @@ public class LogStateTest
                                                                 false);
         ClusterMetadataService.unsetInstance();
         ClusterMetadataService.setInstance(cms);
-        log.readyForTests();
+        log.readyUnchecked();
         log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
     }
 

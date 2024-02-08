@@ -818,15 +818,6 @@ public class ClusterMetadata
         return service.metadata();
     }
 
-    public static Optional<ClusterMetadata> currentOptional()
-    {
-        ClusterMetadataService service = ClusterMetadataService.instance();
-        if (service == null)
-            return Optional.empty();
-        return Optional.of(service.metadata());
-    }
-
-
     public NodeId myNodeId()
     {
         return directory.peerId(FBUtilities.getBroadcastAddressAndPort());

@@ -58,6 +58,7 @@ import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.Processor;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogStorage;
+import org.apache.cassandra.tcm.log.SystemKeyspaceStorage;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
@@ -291,7 +292,7 @@ public final class ServerTestUtils
                                                                                         true);
 
         ClusterMetadataService.setInstance(service);
-        log.readyForTests();
+        log.readyUnchecked();
         log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
         service.commit(new Initialize(ClusterMetadata.current()));
         QueryProcessor.registerStatementInvalidatingListener();
@@ -325,8 +326,8 @@ public final class ServerTestUtils
                                                                                     true);
         ClusterMetadataService.unsetInstance();
         ClusterMetadataService.setInstance(cms);
-        storage.truncate();
-        log.readyForTests();
+        ((SystemKeyspaceStorage)LogStorage.SystemKeyspace).truncate();
+        log.readyUnchecked();
         log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
         cms.mark();
     }

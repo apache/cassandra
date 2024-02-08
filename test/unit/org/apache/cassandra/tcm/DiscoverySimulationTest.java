@@ -61,7 +61,7 @@ public class DiscoverySimulationTest
     {
         ClusterMetadata initial = new ClusterMetadata(Murmur3Partitioner.instance);
         LocalLog log = LocalLog.logSpec()
-                               .syncForTests()
+                               .sync()
                                .withInitialState(initial)
                                .initializeKeyspaceInstances(false)
                                .createLog();
@@ -73,7 +73,7 @@ public class DiscoverySimulationTest
                                                                 Commit.Replicator.NO_OP,
                                                                 false);
         ClusterMetadataService.setInstance(cms);
-        log.readyForTests();
+        log.readyUnchecked();
     }
 
     @Test

@@ -95,12 +95,12 @@ public class LogListenerNotificationTest
             }
         };
         LocalLog log = LocalLog.logSpec()
-                               .syncForTests()
+                               .sync()
                                .withInitialState(cm())
                                .initializeKeyspaceInstances(false)
                                .withLogListener(listener)
                                .createLog();
-        log.readyForTests();
+        log.readyUnchecked();
         log.append(new Entry(Entry.Id.NONE, Epoch.FIRST, PreInitialize.forTesting()));
         log.append(input);
     }

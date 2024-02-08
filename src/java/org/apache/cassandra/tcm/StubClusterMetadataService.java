@@ -69,7 +69,7 @@ public class StubClusterMetadataService extends ClusterMetadataService
               MetadataSnapshots.NO_OP,
               LocalLog.logSpec()
                       .loadSSTables(false)
-                      .syncForTests()
+                      .sync()
                       .initializeKeyspaceInstances(false)
                       .withInitialState(initial)
                       .createLog(),
@@ -77,7 +77,7 @@ public class StubClusterMetadataService extends ClusterMetadataService
               Commit.Replicator.NO_OP,
               false);
         this.metadata = initial;
-        this.log().readyForTests();
+        this.log().readyUnchecked();
     }
 
     @Override

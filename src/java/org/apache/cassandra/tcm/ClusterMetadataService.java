@@ -159,7 +159,7 @@ public class ClusterMetadataService
         Processor localProcessor;
         if (CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR.getBoolean())
         {
-            log = logSpec.syncForTests().createLog();
+            log = logSpec.sync().createLog();
             localProcessor = wrapProcessor.apply(new AtomicLongBackedProcessor(log, logSpec.isReset()));
             fetchLogHandler = new FetchCMSLog.Handler((e, ignored) -> logSpec.storage().getLogState(e));
         }
@@ -258,7 +258,7 @@ public class ClusterMetadataService
                                                    // we do not need a post-commit hook for tools
                                                }
                                            })
-                                           .syncForTests()
+                                           .sync()
                                            .withStorage(new AtomicLongBackedProcessor.InMemoryStorage());
         LocalLog log = logSpec.createLog();
         ClusterMetadataService cms = new ClusterMetadataService(new UniformRangePlacement(),
@@ -272,7 +272,7 @@ public class ClusterMetadataService
                                                                 null,
                                                                 new PeerLogFetcher(log));
 
-        log.readyForTests();
+        log.readyUnchecked();
         log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
         ClusterMetadataService.setInstance(cms);
     }

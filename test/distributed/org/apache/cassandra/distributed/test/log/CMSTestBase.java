@@ -97,7 +97,7 @@ public class CMSTestBase
             schemaProvider = Mockito.mock(SchemaProvider.class);
             ClusterMetadata initial = new ClusterMetadata(partitioner);
             log = LocalLog.logSpec()
-                          .syncForTests()
+                          .sync()
                           .withInitialState(initial)
                           .withDefaultListeners(addListeners)
                           .initializeKeyspaceInstances(false)
@@ -111,7 +111,7 @@ public class CMSTestBase
                                                  true);
 
             ClusterMetadataService.setInstance(service);
-            log.readyForTests();
+            log.readyUnchecked();
             log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
             service.commit(new Initialize(ClusterMetadata.current()) {
                 public Result execute(ClusterMetadata prev)

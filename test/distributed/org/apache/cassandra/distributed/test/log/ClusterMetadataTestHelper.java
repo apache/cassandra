@@ -134,33 +134,9 @@ public class ClusterMetadataTestHelper
                                                                                         new AtomicLongBackedProcessor(log),
                                                                                         Commit.Replicator.NO_OP,
                                                                                         true);
-        log.readyForTests();
+        log.readyUnchecked();
         log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
         service.commit(new Initialize(current));
-        QueryProcessor.registerStatementInvalidatingListener();
-        service.mark();
-        return service;
-    }
-
-    /**
-     * Create a pre-configured CMS which supports mark & reset for use in tests. This version dose not perform initial
-     * CMS setup, neither bootstrapping the log nor applying an Initialize transformation. It assumes that the supplied
-     * ClusterMetadata instance is in the state required by the specific caller.
-     * @return a resettable CMS instance, to be used in a call to ClusterMetadataService::setInstance
-     */
-    public static ClusterMetadataService instanceForTest(ClusterMetadata initial)
-    {
-        LocalLog log = LocalLog.logSpec()
-                               .withInitialState(initial)
-                               .initializeKeyspaceInstances(false)
-                               .createLog();
-        ResettableClusterMetadataService service = new ResettableClusterMetadataService(new UniformRangePlacement(),
-                                                                                        MetadataSnapshots.NO_OP,
-                                                                                        log,
-                                                                                        new AtomicLongBackedProcessor(log),
-                                                                                        Commit.Replicator.NO_OP,
-                                                                                        true);
-        log.readyForTests();
         QueryProcessor.registerStatementInvalidatingListener();
         service.mark();
         return service;
@@ -218,7 +194,7 @@ public class ClusterMetadataTestHelper
     public static ClusterMetadataService syncInstanceForTest()
     {
         LocalLog log = LocalLog.logSpec()
-                               .syncForTests()
+                               .sync()
                                .initializeKeyspaceInstances(false)
                                .createLog();
         ClusterMetadataService cms = new ClusterMetadataService(new UniformRangePlacement(),
@@ -228,7 +204,7 @@ public class ClusterMetadataTestHelper
                                                                 Commit.Replicator.NO_OP,
                                                                 true);
 
-        log.readyForTests();
+        log.readyUnchecked();
         return cms;
     }
 

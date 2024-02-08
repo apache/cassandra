@@ -122,7 +122,11 @@ public abstract class LocalLog implements Closeable
         {
         }
 
-        public LogSpec syncForTests()
+        /**
+         * create a sync log - only used for tests and tools
+         * @return
+         */
+        public LogSpec sync()
         {
             this.async = false;
             return this;
@@ -590,7 +594,7 @@ public abstract class LocalLog implements Closeable
      * Essentially same as `ready` but throws an unchecked exception
      */
     @VisibleForTesting
-    public final ClusterMetadata readyForTests()
+    public final ClusterMetadata readyUnchecked()
     {
         try
         {

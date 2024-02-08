@@ -64,11 +64,11 @@ public class LocalLogTest
     public void appendToFillGapWithConsecutiveBufferedEntries()
     {
         LocalLog log = LocalLog.logSpec()
-                               .syncForTests()
+                               .sync()
                                .initializeKeyspaceInstances(false)
                                .withInitialState(cm())
                                .createLog();
-        log.readyForTests();
+        log.readyUnchecked();
         Epoch start = log.metadata().epoch;
         assertEquals(EMPTY, start);
 
@@ -92,11 +92,11 @@ public class LocalLogTest
     public void sealPeriodForceSnapshotCollisionWithGap()
     {
         LocalLog log = LocalLog.logSpec()
-                               .syncForTests()
+                               .sync()
                                .initializeKeyspaceInstances(false)
                                .withInitialState(cm())
                                .createLog();
-        log.readyForTests();
+        log.readyUnchecked();
 
         List<Entry> entries = new ArrayList<>();
         for (int i = 1; i <= 9; i++)
@@ -121,11 +121,11 @@ public class LocalLogTest
     public void multipleSnapshotEntries()
     {
         LocalLog log = LocalLog.logSpec()
-                               .syncForTests()
+                               .sync()
                                .initializeKeyspaceInstances(false)
                                .withInitialState(cm())
                                .createLog();
-        log.readyForTests();
+        log.readyUnchecked();
 
         List<Entry> entries =new ArrayList<>();
         for (int i = 1; i <= 9; i++)
