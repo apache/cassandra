@@ -111,7 +111,7 @@ public class VectorMemoryIndex extends MemoryIndex
         }
         else
         {
-            different = IntStream.range(0, oldRemaining).anyMatch(i -> oldValue.get(i) != newValue.get(i));
+            different = index.termType().compare(oldValue, newValue) != 0;
         }
 
         long bytesUsed = 0;
