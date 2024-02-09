@@ -1,0 +1,60 @@
+= TRANSACTION
+:description: Applies multiple data modification language (DML) statements with atomicity and in isolation.
+
+{description}
+
+A transaction is a set of data modification language (DML) statements that are executed as a single unit.
+The primary key must be specified for each DML statement in the transaction.
+The primary key can be a compound key, but the partition key must be the same for all DML statements in the transaction.
+Inserts, updates, and deletes are supported in a transaction.
+
+== Syntax
+
+BNF definition:
+
+[source,bnf]
+----
+include::cassandra:example$BNF/transaction-statement.bnf[]
+----
+
+// tag::syntax[]
+----
+BEGIN TRANSACTION 
+  [ LET <variable> =  <dml_select_statement>; ]
+    [ IF <condition> THEN <dml_statement> [ ; ... ] END IF ]
+COMMIT TRANSACTION;
+----
+// end::syntax[]
+
+.Syntax legend
+[%collapsible]
+====
+include::cassandra:partial$cql-syntax-legend.adoc[]
+====
+
+== Required parameters
+
+*<dml_statement>*::
+A data modification language (DML) statement, such as INSERT, UPDATE, or DELETE.
+
+== Optional parameters
+
+None.
+
+== Usage notes
+
+A transaction can contain these `<dml_statements>`:
+--
+* xref:reference:cql-commands/insert.adoc[INSERT]
+* xref:reference:cql-commands/update.adoc[UPDATE]
+* xref:reference:cql-commands/delete.adoc[DELETE]
+--
+
+== Examples
+
+=== Simple transaction
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/acid-transaction.cql[tag=transaction-simple]
+----

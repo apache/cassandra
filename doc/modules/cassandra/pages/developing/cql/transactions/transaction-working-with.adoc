@@ -1,0 +1,229 @@
+= Working with transactions
+:description: Create and use a transaction
+
+
+== Prerequisites
+
+* xref:developing/keyspace-create.adoc[Keyspace created]
+* xref:developing/table-create.adoc[Table created]
+
+== Create a transaction
+
+[tabs]
+====
+CREATE TABLE::
++
+--
+[source, language-cql]
+----
+include::cassandra:example$CQL/acid-transaction.cql[tag=table-create-cyclist-accounts-simple]
+----
+--
+
+CREATE INDEX::
++
+--
+Creating an index is optional.
+This index is used to demonstrate the failure of the use of an index in a transaction.
+
+[source, language-cql]
+----
+include::cassandra:example$CQL/acid-transaction.cql[tag=index-create-account-type]
+----
+--
+
+DESCRIBE TABLE::
++
+--
+[source, language-cql]
+----
+include::cassandra:example$CQL/acid-transaction.cql[tag=describe-table-cyclist-accounts]
+----
+.Results
+[%collapsible]
+=====
+[source, console]
+----
+include::cassandra:example$RESULTS/acid-transaction.results[tag=base]
+include::cassandra:example$RESULTS/acid-transaction.results[tag=index]
+----
+=====
+--
+====
+
+Next, insert data into the table:
+
+====
+INSERT DATA::
++
+--
+INSERT:
+[source, language-cql]
+----
+include::cassandra:example$CQL/acid-transaction.cql[tag=data-insert-cyclist-accounts]
+----
+
+SELECT:
+[source, language-cql]
+----
+include::cassandra:example$CQL/acid-transaction.cql[tag=select-all-from-cyclist-accounts]
+include::cassandra:example$RESULTS/acid-transaction.results[tag=select-all-simple]
+----
+--
+====
+
+Now, create a transaction to update the data in the table:
+
+[tabs]
+====
+TRANSACTION::
++
+--
+Query:
+
+[source, language-cql]
+----
+include::cassandra:example$CQL/acid-transaction.cql[tag=transaction-simple]
+----
+
+.Results
+[%collapsible]
+=====
+[source, language-cql]
+----
+include::cassandra:example$CQL/acid-transaction.cql[tag=select-all-from-cyclist-accounts]
+include::cassandra:example$RESULTS/acid-transaction.results[tag=after-simple-transaction]
+----
+=====
+
+This is a simple transaction that updates the `balance` column;
+The table uses a single primary key that is specified in the transaction.
+--
+====
+
+You might think that, if you created an index on the `account_type` column, you could use that index in a transaction to update the `balance` column.
+But that is not the case. 
+The following transaction fails because it uses an index to specify the row selected for the update:
+
+[tabs]
+====
+TRANSACTION USING INDEX FAIL::
++
+--
+Query:
+
+[source, language-cql]
+----
+include::cassandra:example$CQL/acid-transaction.cql[tag=transaction-using-index-fail]
+----
+
+.Results
+[%collapsible]
+=====
+[source, language-cql]
+----
+include::cassandra:example$CQL/acid-transaction.cql[tag=select-all-from-cyclist-accounts]
+include::cassandra:example$RESULTS/acid-transaction.results[tag=using-index-fail]
+----
+=====
+
+This transaction fails because it uses an index to partially specify the row selected for the update.
+The `UPDATE` statement can only be used on a row that is fully specified by the primary key.
+--
+
+TRANSACTION FAIL WITH ALLOW FILTERING::
++
+--
+Query:
+
+[source, language-cql]
+----
+include::cassandra:example$CQL/acid-transaction.cql[tag=transaction-using-index-fail-allow-filtering]
+----
+
+.Results
+[%collapsible]
+=====
+[source, language-cql]
+----
+include::cassandra:example$CQL/acid-transaction.cql[tag=select-all-from-cyclist-accounts]
+include::cassandra:example$RESULTS/acid-transaction.results[tag=using-index-fail-allow-filtering]
+----
+=====
+
+Even adding `ALLOW FILTERING` to the `UPDATE` statement does not allow the transaction to succeed.
+--
+====
+
+== COMPOUND PRIMARY KEY
+
+However, you can use a compound primary key to specify the row selected for the update in a transaction.
+
+[tabs]
+====
+DROP TABLE::
++
+--
+[source, language-cql]
+----
+include::cassandra:example$CQL/acid-transaction.cql[tag=table-drop-cyclist-accounts]
+----
+--
+
+CREATE TABLE WITH COMPOUND PRIMARY KEY::
++
+--
+[source, language-cql]
+----
+include::cassandra:example$CQL/acid-transaction.cql[tag=table-create-cyclist-accounts-compound]
+----
+--
+====
+
+Again, insert some data into the table and check the results:
+
+[tabs]
+====
+INSERT::
++
+--
+[source, language-cql]
+----
+include::cassandra:example$CQL/acid-transaction.cql[tag=data-insert-cyclist-accounts]
+----
+--
+
+SELECT::
++
+--
+[source, language-cql]
+----
+include::cassandra:example$CQL/acid-transaction.cql[tag=select-all-from-cyclist-accounts]
+include::cassandra:example$RESULTS/acid-transaction.results[tag=select-all-simple]
+----
+--
+====
+
+Now, create a transaction to update the data in the table using a compound primary key:
+
+[tabs]
+====
+TRANSACTION USING COMPOUND PRIMARY KEY::
++
+--
+[source, language-cql]
+----
+include::cassandra:example$CQL/acid-transaction.cql[tag=transaction-using-compound-works]
+----
+--
+
+SELECT::
++
+--
+[source, language-cql]
+----
+include::cassandra:example$CQL/acid-transaction.cql[tag=select-all-from-cyclist-accounts]
+include::cassandra:example$RESULTS/acid-transaction.results[tag=select-all-simple]
+----
+--
+====

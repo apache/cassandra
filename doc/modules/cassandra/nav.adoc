@@ -63,6 +63,10 @@
 *** xref:cassandra:developing/cql/changes.adoc[Changes]
 *** xref:cassandra:developing/cql/SASI.adoc[SASI]
 *** xref:cassandra:developing/cql/cql_singlefile.adoc[Single file of CQL information]
+// Transactions
+*** xref:cassandra:developing/cql/transactions/transactions-overview.adoc[]
+**** xref:cassandra:developing/cql/transactions/transactions-concepts.adoc[]
+**** xref:cassandra:developing/cql/transactions/transaction-working-with.adoc[]
 // Vector Search
 ** xref:cassandra:vector-search/overview.adoc[]
 *** xref:cassandra:vector-search/concepts.adoc[]
@@ -122,5 +126,6 @@
 *** xref:reference/cql-commands/create-table.adoc[]
 *** xref:reference/cql-commands/drop-index.adoc[]
 *** xref:reference/cql-commands/drop-table.adoc[]
+*** xref:reference/cql-commands/transaction.adoc[]
 
 ** xref:integrating/plugins/index.adoc[]

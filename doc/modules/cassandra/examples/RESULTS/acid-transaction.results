@@ -1,0 +1,58 @@
+// tag::base[]
+CREATE TABLE cycling.cyclist_accounts (
+    account_holder text PRIMARY KEY,
+    account_balance int,
+    account_type text
+) WITH additional_write_policy = '99p'
+    AND bloom_filter_fp_chance = 0.01
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND cdc = false
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.UnifiedCompactionStrategy'}
+    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND memtable = {}
+    AND crc_check_chance = 1.0
+    AND default_time_to_live = 0
+    AND extensions = {}
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair = 'BLOCKING'
+    AND speculative_retry = '99p';
+
+// end::base[]
+
+// tag::index[]
+CREATE CUSTOM account_type_idx ON cycling.cyclist_accounts (account_type) USING 'sai';
+// end::index[]
+
+// tag::select-all-simple[]
+ account_holder | account_balance | account_type
+----------------+-----------------+--------------
+ Alice MAYS |             100 |     checking
+ Bob PICKLE |               0 |     checking
+
+(2 rows)
+// end::select-all-simple[]
+
+// tag::after-simple-transaction[]
+ account_holder | account_type | account_balance
+----------------+--------------+-----------------
+     Alice MAYS |     checking |             100
+     Bob PICKLE |     checking |               0
+
+(2 rows)
+// end::after-simple-transaction[]
+
+// tag::using-index-fail[]
+InvalidRequest: Error from server: code=2200 [Invalid query] 
+message="Range queries are not allowed for reads within a 
+transaction; LET assignment fromBalance at [2:22]"
+// end::using-index-fail[]
+
+// tag::using-index-fail-allow-filtering[]
+SyntaxException: line 2:140 mismatched input 'ALLOW' 
+expecting ')' (...'Alice MAYS' AND account_type = 'checking' 
+[ALLOW] FILTERING...)
+// end::using-index-fail-allow-filtering[]
