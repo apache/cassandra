@@ -2112,13 +2112,13 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         // sends a data request to the closest replica, and a digest request to the others. If we have a speculating
-        // read executoe, we'll only send read requests to enough replicas to satisfy the consistency level
+        // read executor, we'll only send read requests to enough replicas to satisfy the consistency level
         for (int i=0; i<cmdCount; i++)
         {
             reads[i].executeAsync();
         }
 
-        // if we have a speculating read executor and it looks like we may not receive a response from the initial
+        // if we have a speculating read executor, and it looks like we may not receive a response from the initial
         // set of replicas we sent messages to, speculatively send an additional messages to an un-contacted replica
         for (int i=0; i<cmdCount; i++)
         {

@@ -174,7 +174,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
         if (repair == null)
             return;
 
-        if (shouldSpeculate() && !repair.readCallback.await(cfs.sampleReadLatencyNanos, NANOSECONDS))
+        if (shouldSpeculate() && !repair.readCallback.awaitFrom(System.nanoTime(), cfs.sampleReadLatencyNanos, NANOSECONDS))
         {
             Replica uncontacted = replicaPlan().firstUncontactedCandidate(replica -> true);
             if (uncontacted == null)

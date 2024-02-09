@@ -70,7 +70,7 @@ public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
      * to additional replicas not contacted in the initial full data read. If the collection of nodes that
      * end up responding in time end up agreeing on the data, and we don't consider the response from the
      * disagreeing replica that triggered the read repair, that's ok, since the disagreeing data would not
-     * have been successfully written and won't be included in the response the the client, preserving the
+     * have been successfully written and won't be included in the response the client, preserving the
      * expectation of monotonic quorum reads
      */
     public void maybeSendAdditionalReads();

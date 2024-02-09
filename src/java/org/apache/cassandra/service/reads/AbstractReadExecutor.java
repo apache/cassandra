@@ -177,8 +177,9 @@ public abstract class AbstractReadExecutor
     }
 
     /**
-     * Perform additional requests if it looks like the original will time out.  May block while it waits
-     * to see if the original requests are answered first.
+     * Perform additional requests if it looks like the original takes "too much time", as defined
+     * by the subclass.
+     * May block while it waits to see if the original requests are answered first.
      */
     public abstract void maybeTryAdditionalReplicas();
 
@@ -246,7 +247,7 @@ public abstract class AbstractReadExecutor
         if (cfs.sampleReadLatencyNanos > command.getTimeout(NANOSECONDS))
             return false;
 
-        return !handler.await(cfs.sampleReadLatencyNanos, NANOSECONDS);
+        return !handler.awaitFrom(System.nanoTime(), cfs.sampleReadLatencyNanos, NANOSECONDS);
     }
 
     ReplicaPlan.ForTokenRead replicaPlan()
