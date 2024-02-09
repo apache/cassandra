@@ -2063,7 +2063,7 @@ public class StorageProxy implements StorageProxyMBean
             reads[i].executeAsync();
         }
 
-        // if we have a speculating read executor and it looks like we may not receive a response from the initial
+        // if we have a speculating read executor, and it looks like we may not receive a response from the initial
         // set of replicas we sent messages to, speculatively send an additional messages to an un-contacted replica
         for (int i=0; i<cmdCount; i++)
         {
