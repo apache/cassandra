@@ -73,14 +73,8 @@ public class RangeTermTree
 
         public final void add(SSTableIndex index)
         {
-            addIndex(index);
+            assert !indexTermType.isVector();
 
-            min = min == null || index.getIndexTermType().compare(min, index.minTerm()) > 0 ? index.minTerm() : min;
-            max = max == null || index.getIndexTermType().compare(max, index.maxTerm()) < 0 ? index.maxTerm() : max;
-        }
-
-        public void addIndex(SSTableIndex index)
-        {
             Interval<Term, SSTableIndex> interval =
                     Interval.create(new Term(index.minTerm(), indexTermType), new Term(index.maxTerm(), indexTermType), index);
 
@@ -88,11 +82,14 @@ public class RangeTermTree
             {
                 logger.trace(index.getIndexIdentifier().logMessage("Adding index for SSTable {} with minTerm={} and maxTerm={}..."),
                                                                    index.getSSTable().descriptor,
-                                                                   indexTermType.indexType().compose(index.minTerm()),
-                                                                   indexTermType.indexType().compose(index.maxTerm()));
+                                                                   index.minTerm() != null ? indexTermType.indexType().compose(index.minTerm()) : null,
+                                                                   index.maxTerm() != null ? indexTermType.indexType().compose(index.maxTerm()) : null);
             }
 
             intervals.add(interval);
+
+            min = min == null || index.getIndexTermType().compare(min, index.minTerm()) > 0 ? index.minTerm() : min;
+            max = max == null || index.getIndexTermType().compare(max, index.maxTerm()) < 0 ? index.maxTerm() : max;
         }
 
         public RangeTermTree build()
