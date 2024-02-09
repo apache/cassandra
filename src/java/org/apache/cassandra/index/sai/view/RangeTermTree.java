@@ -86,10 +86,13 @@ public class RangeTermTree
 
             if (logger.isTraceEnabled())
             {
+                if (indexTermType.isVector())
+                    throw new IllegalArgumentException("This is a bug, please, report.");
+                
                 logger.trace(index.getIndexIdentifier().logMessage("Adding index for SSTable {} with minTerm={} and maxTerm={}..."),
                                                                    index.getSSTable().descriptor,
-                                                                   indexTermType.indexType().compose(index.minTerm()),
-                                                                   indexTermType.indexType().compose(index.maxTerm()));
+                                                                   index.minTerm() != null ? indexTermType.indexType().compose(index.minTerm()) : null,
+                                                                   index.maxTerm() != null ? indexTermType.indexType().compose(index.maxTerm()) : null);
             }
 
             intervals.add(interval);
