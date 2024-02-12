@@ -39,6 +39,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.transport.TlsTestUtils;
 import org.assertj.core.api.Assertions;
 
+import static org.apache.cassandra.auth.AuthTestUtils.waitForExistingRoles;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class ClientsTableTest extends CQLTester
@@ -57,6 +58,8 @@ public class ClientsTableTest extends CQLTester
 
         ClientsTable table = new ClientsTable(KS_NAME);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
+
+        waitForExistingRoles();
 
         AuthTestUtils.addIdentityToRole(TlsTestUtils.CLIENT_SPIFFE_IDENTITY, "cassandra");
     }

@@ -42,7 +42,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.hamcrest.CoreMatchers;
 
-import static org.apache.cassandra.auth.AuthTestUtils.waitForExistingRoles;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUPERUSER_SETUP_DELAY_MS;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertEquals;
@@ -79,8 +78,6 @@ public class AuditLoggerAuthTest
 
         SUPERUSER_SETUP_DELAY_MS.setLong(0);
         embedded = ServerTestUtils.startEmbeddedCassandraService();
-
-        waitForExistingRoles();
 
         executeWithCredentials(
         Arrays.asList(getCreateRoleCql(TEST_USER, true, false, false),

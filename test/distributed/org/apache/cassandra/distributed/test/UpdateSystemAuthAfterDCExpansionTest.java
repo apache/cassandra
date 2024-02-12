@@ -47,7 +47,6 @@ import org.apache.cassandra.utils.progress.ProgressEventType;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.auth.AuthKeyspace.ROLES;
-import static org.apache.cassandra.auth.AuthTestUtils.waitForExistingRoles;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUPERUSER_SETUP_DELAY_MS;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
@@ -116,8 +115,6 @@ public class UpdateSystemAuthAfterDCExpansionTest extends TestBaseImpl
         // exception from CassandraRoleManager
         SUPERUSER_SETUP_DELAY_MS.setLong(0);
         TestBaseImpl.beforeClass();
-
-        waitForExistingRoles();
     }
 
     public void validateExpandAndContract(String initialDatacenters,

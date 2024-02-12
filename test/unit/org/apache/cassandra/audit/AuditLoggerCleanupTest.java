@@ -41,7 +41,6 @@ import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.service.StorageService;
 
 import static java.nio.file.Files.list;
-import static org.apache.cassandra.auth.AuthTestUtils.waitForExistingRoles;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUPERUSER_SETUP_DELAY_MS;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -75,8 +74,6 @@ public class AuditLoggerCleanupTest
 
         embedded = new EmbeddedCassandraService();
         embedded.start();
-
-        waitForExistingRoles();
     }
 
     @After
