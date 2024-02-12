@@ -90,7 +90,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
 
     /**
      * Runs repair job.
-     *
+     * <p/>
      * This sets up necessary task and runs them on given {@code taskExecutor}.
      * After submitting all tasks, waits until validation with replica completes.
      */
@@ -103,11 +103,10 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         List<InetAddressAndPort> allEndpoints = new ArrayList<>(session.commonRange.endpoints);
         allEndpoints.add(FBUtilities.getBroadcastAddressAndPort());
 
-        ListenableFuture<List<TreeResponse>> validations;
         // Create a snapshot at all nodes unless we're using pure parallel repairs
+        ListenableFuture<List<InetAddressAndPort>> allSnapshotTasks;
         if (parallelismDegree != RepairParallelism.PARALLEL)
         {
-            ListenableFuture<List<InetAddressAndPort>> allSnapshotTasks;
             if (session.isIncremental)
             {
                 // consistent repair does it's own "snapshotting"
@@ -125,29 +124,17 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                 }
                 allSnapshotTasks = Futures.allAsList(snapshotTasks);
             }
-
-            // When all snapshot complete, send validation requests
-            validations = Futures.transformAsync(allSnapshotTasks, new AsyncFunction<List<InetAddressAndPort>, List<TreeResponse>>()
-            {
-                public ListenableFuture<List<TreeResponse>> apply(List<InetAddressAndPort> endpoints)
-                {
-                    if (parallelismDegree == RepairParallelism.SEQUENTIAL)
-                        return sendSequentialValidationRequest(endpoints);
-                    else
-                        return sendDCAwareValidationRequest(endpoints);
-                }
-            }, taskExecutor);
         }
         else
         {
-            // If not sequential, just send validation request to all replica
-            validations = sendValidationRequest(allEndpoints);
+            allSnapshotTasks = null;
         }
 
-        // When all validations complete, submit sync tasks
-        ListenableFuture<List<SyncStat>> syncResults = Futures.transformAsync(validations,
-                                                                              session.optimiseStreams && !session.pullRepair ? this::optimisedSyncing : this::standardSyncing,
-                                                                              taskExecutor);
+        // Run validations and the creation of sync tasks in the scheduler, so it can limit the number of Merkle trees
+        // that there are in memory at once. When all validations complete, submit sync tasks out of the scheduler.
+        ListenableFuture<List<SyncStat>> syncResults = Futures.transformAsync(
+                session.validationScheduler.schedule(() -> createSyncTasks(allSnapshotTasks, allEndpoints), taskExecutor),
+                this::executeTasks, taskExecutor);
 
         // When all sync complete, set the final result
         Futures.addCallback(syncResults, new FutureCallback<List<SyncStat>>()
@@ -183,22 +170,45 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         }, taskExecutor);
     }
 
+    private ListenableFuture<List<SyncTask>> createSyncTasks(ListenableFuture<List<InetAddressAndPort>> allSnapshotTasks, List<InetAddressAndPort> allEndpoints)
+    {
+        ListenableFuture<List<TreeResponse>> validations;
+        if (allSnapshotTasks != null)
+        {
+            // When all snapshot complete, send validation requests
+            validations = Futures.transformAsync(allSnapshotTasks, endpoints -> {
+                if (parallelismDegree == RepairParallelism.SEQUENTIAL)
+                    return sendSequentialValidationRequest(endpoints);
+                else
+                    return sendDCAwareValidationRequest(endpoints);
+            }, taskExecutor);
+        }
+        else
+        {
+            // If not sequential, just send validation request to all replica
+            validations = sendValidationRequest(allEndpoints);
+        }
+
+        return Futures.transform(validations,
+                                 session.optimiseStreams && !session.pullRepair ? this::optimisedSyncing : this::standardSyncing,
+                                 taskExecutor);
+    }
+
     private boolean isTransient(InetAddressAndPort ep)
     {
         return session.commonRange.transEndpoints.contains(ep);
     }
 
-    private ListenableFuture<List<SyncStat>> standardSyncing(List<TreeResponse> trees)
+    private List<SyncTask> standardSyncing(List<TreeResponse> trees)
     {
-        List<SyncTask> syncTasks = createStandardSyncTasks(desc,
-                                                           trees,
-                                                           FBUtilities.getLocalAddressAndPort(),
-                                                           this::isTransient,
-                                                           session.isIncremental,
-                                                           session.pushRepair,
-                                                           session.pullRepair,
-                                                           session.previewKind);
-        return executeTasks(syncTasks);
+        return createStandardSyncTasks(desc,
+                                       trees,
+                                       FBUtilities.getLocalAddressAndPort(),
+                                       this::isTransient,
+                                       session.isIncremental,
+                                       session.pushRepair,
+                                       session.pullRepair,
+                                       session.previewKind);
     }
 
     static List<SyncTask> createStandardSyncTasks(RepairJobDesc desc,
@@ -271,18 +281,16 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         return syncTasks;
     }
 
-    private ListenableFuture<List<SyncStat>> optimisedSyncing(List<TreeResponse> trees)
+    private List<SyncTask> optimisedSyncing(List<TreeResponse> trees)
     {
         Preconditions.checkArgument(!session.pushRepair, "Push Repair doesn't support optimized sync");
-        List<SyncTask> syncTasks = createOptimisedSyncingSyncTasks(desc,
-                                                                   trees,
-                                                                   FBUtilities.getLocalAddressAndPort(),
-                                                                   this::isTransient,
-                                                                   this::getDC,
-                                                                   session.isIncremental,
-                                                                   session.previewKind);
-
-        return executeTasks(syncTasks);
+        return createOptimisedSyncingSyncTasks(desc,
+                                               trees,
+                                               FBUtilities.getLocalAddressAndPort(),
+                                               this::isTransient,
+                                               this::getDC,
+                                               session.isIncremental,
+                                               session.previewKind);
     }
 
     @SuppressWarnings("UnstableApiUsage")
@@ -453,12 +461,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         for (InetAddressAndPort endpoint : endpoints)
         {
             String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(endpoint);
-            Queue<InetAddressAndPort> queue = requestsByDatacenter.get(dc);
-            if (queue == null)
-            {
-                queue = new LinkedList<>();
-                requestsByDatacenter.put(dc, queue);
-            }
+            Queue<InetAddressAndPort> queue = requestsByDatacenter.computeIfAbsent(dc, k -> new LinkedList<>());
             queue.add(endpoint);
         }
 

@@ -558,16 +558,40 @@ concurrent_materialized_view_writes: 32
 #    off heap objects
 memtable_allocation_type: offheap_objects
 
-# Limit memory usage for Merkle tree calculations during repairs. The default
-# is 1/16th of the available heap. The main tradeoff is that smaller trees
-# have less resolution, which can lead to over-streaming data. If you see heap
-# pressure during repairs, consider lowering this, but you cannot go below
-# one megabyte. If you see lots of over-streaming, consider raising
-# this or using subrange repair.
+# Limit memory usage for Merkle tree calculations during repairs of a certain
+# table and common token range. Repair commands targetting multiple tables or
+# virtual nodes can exceed this limit depending on concurrent_merkle_tree_requests.
+#
+# The default is 1/16th of the available heap. The main tradeoff is that
+# smaller trees have less resolution, which can lead to over-streaming data.
+# If you see heap pressure during repairs, consider lowering this, but you
+# cannot go below one mebibyte. If you see lots of over-streaming, consider
+# raising this or using subrange repair.
 #
 # For more details see https://issues.apache.org/jira/browse/CASSANDRA-14096.
 #
 # repair_session_space_in_mb:
+
+# The number of simultaneous Merkle tree requests during repairs that can
+# be performed by a repair command. The size of each validation request is
+# limited by the repair_session_space property, so setting this to 1 will make
+# sure that a repair command doesn't exceed that limit, even if the repair
+# command is repairing multiple tables or multiple virtual nodes.
+#
+# There isn't a limit by default for backwards compatibility, but this can
+# produce OOM for  commands repairing multiple tables or multiple virtual nodes.
+# A limit of just 1 simultaneous Merkle tree request is generally recommended
+# with no virtual nodes so repair_session_space, and therefore the Merkle tree
+# resolution, can be high. For virtual nodes a value of 1 with the default
+# repair_session_space value will produce higher resolution Merkle trees
+# at the expense of speed. Alternatively, when working with virtual nodes it
+# can make sense to reduce the repair_session_space and increase the value of
+# concurrent_merkle_tree_requests because each range will contain fewer data.
+#
+# For more details see https://issues.apache.org/jira/browse/CASSANDRA-19336.
+#
+# A zero value means no limit.
+# concurrent_merkle_tree_requests: 0
 
 # Total space to use for commit logs on disk.
 #

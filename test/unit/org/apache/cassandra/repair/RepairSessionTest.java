@@ -71,7 +71,7 @@ public class RepairSessionTest
         IPartitioner p = Murmur3Partitioner.instance;
         Range<Token> repairRange = new Range<>(p.getToken(ByteBufferUtil.bytes(0)), p.getToken(ByteBufferUtil.bytes(100)));
         Set<InetAddressAndPort> endpoints = Sets.newHashSet(remote);
-        RepairSession session = new RepairSession(parentSessionId, sessionId,
+        RepairSession session = new RepairSession(parentSessionId, sessionId, Scheduler.build(0),
                                                   new CommonRange(endpoints, Collections.emptySet(), Arrays.asList(repairRange)),
                                                   "Keyspace1", RepairParallelism.SEQUENTIAL,
                                                   false, false, false,
@@ -191,7 +191,7 @@ public class RepairSessionTest
         IPartitioner p = Murmur3Partitioner.instance;
         Range<Token> repairRange = new Range<>(p.getToken(ByteBufferUtil.bytes(0)), p.getToken(ByteBufferUtil.bytes(100)));
         Set<InetAddressAndPort> endpoints = Sets.newHashSet(remote);
-        RepairSession session = new RepairSession(parentSessionId, sessionId,
+        RepairSession session = new RepairSession(parentSessionId, sessionId, Scheduler.build(0),
                                                   new CommonRange(endpoints, Collections.emptySet(), Arrays.asList(repairRange)),
                                                   "Keyspace1", RepairParallelism.SEQUENTIAL,
                                                   false, false, false,

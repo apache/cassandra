@@ -73,6 +73,7 @@ import org.apache.cassandra.repair.ParentRepairSessionListener;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.RepairSession;
+import org.apache.cassandra.repair.Scheduler;
 import org.apache.cassandra.repair.consistent.CoordinatorSessions;
 import org.apache.cassandra.repair.consistent.LocalSessions;
 import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
@@ -342,6 +343,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                              PreviewKind previewKind,
                                              boolean optimiseStreams,
                                              ListeningExecutorService executor,
+                                             Scheduler validationScheduler,
                                              String... cfnames)
     {
         if (range.endpoints.isEmpty())
@@ -350,7 +352,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         if (cfnames.length == 0)
             return null;
 
-        final RepairSession session = new RepairSession(parentRepairSession, UUIDGen.getTimeUUID(), range, keyspace,
+        final RepairSession session = new RepairSession(parentRepairSession, UUIDGen.getTimeUUID(),
+                                                        validationScheduler, range, keyspace,
                                                         parallelismDegree, isIncremental, pushRepair, pullRepair,
                                                         previewKind, optimiseStreams, cfnames);
 

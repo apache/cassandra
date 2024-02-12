@@ -120,6 +120,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     private final SettableFuture<?> result = SettableFuture.create();
     private static final AtomicInteger threadCounter = new AtomicInteger(1);
     private final AtomicReference<Throwable> firstError = new AtomicReference<>(null);
+    private final Scheduler validationScheduler;
 
     private TraceState traceState;
 
@@ -129,6 +130,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         this.cmd = cmd;
         this.options = options;
         this.keyspace = keyspace;
+        this.validationScheduler = Scheduler.build(DatabaseDescriptor.getConcurrentMerkleTreeRequests());
 
         this.tag = "repair:" + cmd;
         // get valid column families, calculate neighbors, validation, prepare for repair + number of ranges to repair
@@ -493,7 +495,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         ListeningExecutorService executor = createExecutor();
 
         // Setting the repairedAt time to UNREPAIRED_SSTABLE causes the repairedAt times to be preserved across streamed sstables
-        final ListenableFuture<List<RepairSessionResult>> allSessions = submitRepairSessions(parentSession, false, executor, commonRanges, cfnames);
+        final ListenableFuture<List<RepairSessionResult>> allSessions = submitRepairSessions(parentSession, false, executor, validationScheduler, commonRanges, cfnames);
 
         // After all repair sessions completes(successful or not),
         // run anticompaction if necessary and send finish notice back to client
@@ -553,7 +555,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         CoordinatorSession coordinatorSession = ActiveRepairService.instance.consistent.coordinated.registerSession(parentSession, allParticipants, neighborsAndRanges.shouldExcludeDeadParticipants);
         ListeningExecutorService executor = createExecutor();
         AtomicBoolean hasFailure = new AtomicBoolean(false);
-        ListenableFuture repairResult = coordinatorSession.execute(() -> submitRepairSessions(parentSession, true, executor, allRanges, cfnames),
+        ListenableFuture repairResult = coordinatorSession.execute(() -> submitRepairSessions(parentSession, true, executor, validationScheduler, allRanges, cfnames),
                                                                    hasFailure);
         Collection<Range<Token>> ranges = new HashSet<>();
         for (Collection<Range<Token>> range : Iterables.transform(allRanges, cr -> cr.ranges))
@@ -576,7 +578,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         // Set up RepairJob executor for this repair command.
         ListeningExecutorService executor = createExecutor();
 
-        final ListenableFuture<List<RepairSessionResult>> allSessions = submitRepairSessions(parentSession, false, executor, commonRanges, cfnames);
+        final ListenableFuture<List<RepairSessionResult>> allSessions = submitRepairSessions(parentSession, false, executor, validationScheduler, commonRanges, cfnames);
 
         Futures.addCallback(allSessions, new FutureCallback<List<RepairSessionResult>>()
         {
@@ -691,6 +693,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     private ListenableFuture<List<RepairSessionResult>> submitRepairSessions(UUID parentSession,
                                                                              boolean isIncremental,
                                                                              ListeningExecutorService executor,
+                                                                             Scheduler validationScheduler,
                                                                              List<CommonRange> commonRanges,
                                                                              String... cfnames)
     {
@@ -709,6 +712,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                                                                                      options.getPreviewKind(),
                                                                                      options.optimiseStreams(),
                                                                                      executor,
+                                                                                     validationScheduler,
                                                                                      cfnames);
             if (session == null)
                 continue;
