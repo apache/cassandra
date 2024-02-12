@@ -748,22 +748,24 @@ public abstract class LocalLog implements Closeable
 
             public void run(Interruptible.State state) throws InterruptedException
             {
+                WaitQueue.Signal signal = null;
                 try
                 {
                     if (state != Interruptible.State.SHUTTING_DOWN)
                     {
                         Condition condition = subscriber.getAndSet(null);
                         // Grab a ticket ahead of time, so that we can't get into race with the exit from process pending
-                        WaitQueue.Signal signal = logNotifier.register();
+                        signal = logNotifier.register();
                         processPendingInternal();
                         if (condition != null)
                             condition.signalAll();
                         // if no new threads have subscribed since we started running, await
                         // otherwise, run again to process whatever work they may be waiting on
                         if (subscriber.get() == null)
+                        {
                             signal.await();
-                        else
-                            signal.cancel();
+                            signal = null;
+                        }
                     }
                 }
                 catch (StopProcessingException t)
@@ -779,6 +781,12 @@ public abstract class LocalLog implements Closeable
                 {
                     // TODO handle properly
                     logger.warn("Error in log follower", t);
+                }
+                finally
+                {
+                    // If signal was not consumed for some reason, cancel it
+                    if (signal != null)
+                        signal.cancel();
                 }
             }
         }
