@@ -1990,6 +1990,7 @@ public final class SystemKeyspace
         logger.info("Storing snapshot of cluster metadata at epoch {} (period {})", epoch, period);
         String query = String.format("INSERT INTO %s.%s (epoch, period, snapshot) VALUES (?, ?, ?)", SchemaConstants.SYSTEM_KEYSPACE_NAME, SNAPSHOT_TABLE_NAME);
         executeInternal(query, epoch.getEpoch(), period, snapshot);
+        forceBlockingFlush(SNAPSHOT_TABLE_NAME);
     }
 
     public static ByteBuffer getSnapshot(Epoch epoch)
