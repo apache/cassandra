@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.Sets;
@@ -38,13 +39,20 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SKIP_SCHEMA_CHECK;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.awaitRingJoin;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.pauseBeforeCommit;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.pauseBeforeEnacting;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.replaceHostAndStart;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseCommits;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseEnactment;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.waitForCMSToQuiesce;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -156,7 +164,7 @@ public class TransientRangeMovementTest extends TestBaseImpl
     }
 
     @Test
-    public void testRemoveNode() throws IOException, ExecutionException, InterruptedException
+    public void testRemoveNode() throws Exception
     {
         try (Cluster cluster = init(Cluster.build(4)
                                            .withTokenSupplier(new OPPTokens())
@@ -168,13 +176,32 @@ public class TransientRangeMovementTest extends TestBaseImpl
                                            .start()))
         {
             populate(cluster);
+
+            // Have the CMS node pause before the FINISH_LEAVE step is committed, so we can make a note of the _next_
+            // epoch (i.e. when the FINISH_LEAVE will be enacted). Then we can pause one replica before enacting it
+            Callable<Epoch> pending = pauseBeforeCommit(cluster.get(1), (e) -> e instanceof PrepareLeave.FinishLeave);
+
+            // Execute the remove
             String nodeId = cluster.get(4).callOnInstance(() -> ClusterMetadata.current().myNodeId().toUUID().toString());
             cluster.get(4).shutdown().get();
-            cluster.get(1).nodetoolResult("removenode", nodeId, "--force").asserts().success();
+            new Thread(() -> cluster.get(1).nodetoolResult("removenode", nodeId, "--force").asserts().success()).start();
+            Epoch pauseBeforeEnacting = pending.call().nextEpoch();
+
+            // Unpause the CMS. It will commit the FINISH_LEAVE, but instance 2 will wait before enacting it
+            Callable<?> beforeEnacted = pauseBeforeEnacting(cluster.get(2), pauseBeforeEnacting);
+            unpauseCommits(cluster.get(1));
+            beforeEnacted.call();
+
+            // before node2 completes the removal of node4 run cleanup. Node 2 is not yet a full
             cluster.forEach(i -> {
                 if (i.config().num() != 4)
                     i.nodetoolResult("cleanup").asserts().success();
             });
+
+            // Unpause node2 so it completes the removal of node4
+            unpauseEnactment(cluster.get(2));
+            waitForCMSToQuiesce(cluster, cluster.get(1));
+            cluster.get(2).nodetoolResult("cleanup").asserts().success();
 
             assertAllContained(localStrs(cluster.get(1)),
                                newArrayList("12", "14", "16", "18", "20"),
@@ -200,7 +227,7 @@ public class TransientRangeMovementTest extends TestBaseImpl
         {
             String key = toStr(i);
             if (contained(key, ranges))
-                assertTrue("NOT IN CURRENT: " + key + " -- " + Arrays.toString(ranges), cur.remove(key));
+                assertTrue("NOT IN CURRENT: " + key + " -- " + Arrays.toString(ranges) + " -- " + current, cur.remove(key));
             else if (expectTransient.remove(key))
                 cur.remove(key);
             else
@@ -263,7 +290,9 @@ public class TransientRangeMovementTest extends TestBaseImpl
         cluster.schemaChange("create table tr.x (id varchar primary key) with read_repair = 'NONE'");
         for (int i = 0; i < 50; i++)
             cluster.coordinator(1).execute("insert into tr.x (id) values (?)", ConsistencyLevel.QUORUM, toStr(i));
+
         cluster.forEach((i) -> i.nodetoolResult("repair", "-pr", "tr").asserts().success());
+
         cluster.get(1).shutdown().get();
         for (int i = 0; i < 50; i += 2)
             cluster.coordinator(2).execute("insert into tr.x (id) values (?)", ConsistencyLevel.QUORUM, toStr(i));
