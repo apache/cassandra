@@ -20,6 +20,8 @@ package org.apache.cassandra.tcm;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableSet;
@@ -165,60 +167,81 @@ public interface Transformation
 
     enum Kind
     {
-        PRE_INITIALIZE_CMS(() -> PreInitialize.serializer),
-        INITIALIZE_CMS(() -> Initialize.serializer),
-        FORCE_SNAPSHOT(() -> ForceSnapshot.serializer),
-        SEAL_PERIOD(() -> SealPeriod.serializer),
-        SCHEMA_CHANGE(() -> AlterSchema.serializer),
-        REGISTER(() -> Register.serializer),
-        UNREGISTER(() -> Unregister.serializer),
+        PRE_INITIALIZE_CMS(0, () -> PreInitialize.serializer),
+        INITIALIZE_CMS(1, () -> Initialize.serializer),
+        FORCE_SNAPSHOT(2, () -> ForceSnapshot.serializer),
+        SEAL_PERIOD(3, () -> SealPeriod.serializer),
+        SCHEMA_CHANGE(4, () -> AlterSchema.serializer),
+        REGISTER(5, () -> Register.serializer),
+        UNREGISTER(6, () -> Unregister.serializer),
 
-        UNSAFE_JOIN(() -> UnsafeJoin.serializer),
-        PREPARE_JOIN(() -> PrepareJoin.serializer),
-        START_JOIN(() -> PrepareJoin.StartJoin.serializer),
-        MID_JOIN(() -> PrepareJoin.MidJoin.serializer),
-        FINISH_JOIN(() -> PrepareJoin.FinishJoin.serializer),
+        UNSAFE_JOIN(7, () -> UnsafeJoin.serializer),
+        PREPARE_JOIN(8, () -> PrepareJoin.serializer),
+        START_JOIN(9, () -> PrepareJoin.StartJoin.serializer),
+        MID_JOIN(10, () -> PrepareJoin.MidJoin.serializer),
+        FINISH_JOIN(11, () -> PrepareJoin.FinishJoin.serializer),
 
-        PREPARE_MOVE(() -> PrepareMove.serializer),
-        START_MOVE(() -> PrepareMove.StartMove.serializer),
-        MID_MOVE(() -> PrepareMove.MidMove.serializer),
-        FINISH_MOVE(() -> PrepareMove.FinishMove.serializer),
+        PREPARE_MOVE(12, () -> PrepareMove.serializer),
+        START_MOVE(13, () -> PrepareMove.StartMove.serializer),
+        MID_MOVE(14, () -> PrepareMove.MidMove.serializer),
+        FINISH_MOVE(15, () -> PrepareMove.FinishMove.serializer),
 
-        PREPARE_LEAVE(() -> PrepareLeave.serializer),
-        START_LEAVE(() -> PrepareLeave.StartLeave.serializer),
-        MID_LEAVE(() -> PrepareLeave.MidLeave.serializer),
-        FINISH_LEAVE(() -> PrepareLeave.FinishLeave.serializer),
-        ASSASSINATE(() -> Assassinate.serializer),
+        PREPARE_LEAVE(16, () -> PrepareLeave.serializer),
+        START_LEAVE(17, () -> PrepareLeave.StartLeave.serializer),
+        MID_LEAVE(18, () -> PrepareLeave.MidLeave.serializer),
+        FINISH_LEAVE(19, () -> PrepareLeave.FinishLeave.serializer),
+        ASSASSINATE(20, () -> Assassinate.serializer),
 
-        PREPARE_REPLACE(() -> PrepareReplace.serializer),
-        START_REPLACE(() -> PrepareReplace.StartReplace.serializer),
-        MID_REPLACE(() -> PrepareReplace.MidReplace.serializer),
-        FINISH_REPLACE(() -> PrepareReplace.FinishReplace.serializer),
+        PREPARE_REPLACE(21, () -> PrepareReplace.serializer),
+        START_REPLACE(22, () -> PrepareReplace.StartReplace.serializer),
+        MID_REPLACE(23, () -> PrepareReplace.MidReplace.serializer),
+        FINISH_REPLACE(24, () -> PrepareReplace.FinishReplace.serializer),
 
-        CANCEL_SEQUENCE(() -> CancelInProgressSequence.serializer),
+        CANCEL_SEQUENCE(25, () -> CancelInProgressSequence.serializer),
 
         @Deprecated(since = "CEP-21")
-        START_ADD_TO_CMS(() -> StartAddToCMS.serializer),
+        START_ADD_TO_CMS(26, () -> StartAddToCMS.serializer),
         @Deprecated(since = "CEP-21")
-        FINISH_ADD_TO_CMS(() -> FinishAddToCMS.serializer),
+        FINISH_ADD_TO_CMS(27, () -> FinishAddToCMS.serializer),
         @Deprecated(since = "CEP-21")
-        REMOVE_FROM_CMS(() -> RemoveFromCMS.serializer),
+        REMOVE_FROM_CMS(28, () -> RemoveFromCMS.serializer),
 
-        STARTUP(() -> Startup.serializer),
+        STARTUP(29, () -> Startup.serializer),
 
-        CUSTOM(() -> CustomTransformation.serializer),
+        CUSTOM(30, () -> CustomTransformation.serializer),
 
-        PREPARE_SIMPLE_CMS_RECONFIGURATION(() -> PrepareCMSReconfiguration.Simple.serializer),
-        PREPARE_COMPLEX_CMS_RECONFIGURATION(() -> PrepareCMSReconfiguration.Complex.serializer),
-        ADVANCE_CMS_RECONFIGURATION(() -> AdvanceCMSReconfiguration.serializer),
-        CANCEL_CMS_RECONFIGURATION(() -> CancelCMSReconfiguration.serializer)
+        PREPARE_SIMPLE_CMS_RECONFIGURATION(31, () -> PrepareCMSReconfiguration.Simple.serializer),
+        PREPARE_COMPLEX_CMS_RECONFIGURATION(32, () -> PrepareCMSReconfiguration.Complex.serializer),
+        ADVANCE_CMS_RECONFIGURATION(33, () -> AdvanceCMSReconfiguration.serializer),
+        CANCEL_CMS_RECONFIGURATION(34, () -> CancelCMSReconfiguration.serializer)
         ;
 
         private final Supplier<AsymmetricMetadataSerializer<Transformation, ? extends Transformation>> serializer;
+        private final int id;
 
-        Kind(Supplier<AsymmetricMetadataSerializer<Transformation, ? extends Transformation>> serializer)
+        private static final Kind[] idToKindMap;
+
+        static
+        {
+            int max = Arrays.stream(Kind.values()).max(Comparator.comparingInt(a -> a.id)).get().id;
+            Kind[] idMap = new Kind[max + 1];
+            for (Kind k : values())
+            {
+                assert idMap[k.id] == null;
+                idMap[k.id] = k;
+            }
+            idToKindMap = idMap;
+        }
+
+        Kind(int id, Supplier<AsymmetricMetadataSerializer<Transformation, ? extends Transformation>> serializer)
         {
             this.serializer = serializer;
+            this.id = id;
+        }
+
+        public static Kind fromId(int id)
+        {
+            return idToKindMap[id];
         }
 
         public AsymmetricMetadataSerializer<Transformation, ? extends Transformation> serializer()
@@ -252,19 +275,19 @@ public interface Transformation
     {
         public void serialize(Transformation t, DataOutputPlus out, Version version) throws IOException
         {
-            out.writeUnsignedVInt32(t.kind().ordinal());
+            out.writeUnsignedVInt32(t.kind().id);
             t.kind().serializer().serialize(t, out, version);
         }
 
         public Transformation deserialize(DataInputPlus in, Version version) throws IOException
         {
-            Kind kind = Kind.values()[in.readUnsignedVInt32()];
+            Kind kind = Kind.fromId(in.readUnsignedVInt32());
             return kind.serializer().deserialize(in, version);
         }
 
         public long serializedSize(Transformation t, Version version)
         {
-            return TypeSizes.sizeofUnsignedVInt(t.kind().ordinal()) +
+            return TypeSizes.sizeofUnsignedVInt(t.kind().id) +
                    t.kind().serializer().serializedSize(t, version);
         }
     }
