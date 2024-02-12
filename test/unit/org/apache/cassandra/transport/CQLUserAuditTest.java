@@ -49,6 +49,7 @@ import org.apache.cassandra.diag.DiagnosticEventService;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 
+import static org.apache.cassandra.auth.AuthTestUtils.waitForExistingRoles;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUPERUSER_SETUP_DELAY_MS;
 import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 import static org.junit.Assert.assertEquals;
@@ -74,6 +75,8 @@ public class CQLUserAuditTest
         SUPERUSER_SETUP_DELAY_MS.setLong(0);
 
         embedded = ServerTestUtils.startEmbeddedCassandraService();
+
+        waitForExistingRoles();
 
         executeAs(Arrays.asList("CREATE ROLE testuser WITH LOGIN = true AND SUPERUSER = false AND PASSWORD = 'foo'",
                                 "CREATE ROLE testuser_nologin WITH LOGIN = false AND SUPERUSER = false AND PASSWORD = 'foo'",

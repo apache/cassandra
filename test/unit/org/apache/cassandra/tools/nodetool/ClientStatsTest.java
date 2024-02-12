@@ -43,6 +43,7 @@ import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.transport.TlsTestUtils;
 import org.assertj.core.groups.Tuple;
 
+import static org.apache.cassandra.auth.AuthTestUtils.waitForExistingRoles;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUPERUSER_SETUP_DELAY_MS;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -74,6 +75,9 @@ public class ClientStatsTest
         CASSANDRA_JMX_LOCAL_PORT.setInt(jmxPort);
 
         cassandra = ServerTestUtils.startEmbeddedCassandraService();
+
+        waitForExistingRoles();
+
         cluster = clusterBuilder()
                   .withCredentials("cassandra", "cassandra")
                   .build();

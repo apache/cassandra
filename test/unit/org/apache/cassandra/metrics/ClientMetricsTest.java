@@ -36,6 +36,7 @@ import org.apache.cassandra.config.OverrideConfigurationLoader;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.transport.TlsTestUtils;
 
+import static org.apache.cassandra.auth.AuthTestUtils.waitForExistingRoles;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUPERUSER_SETUP_DELAY_MS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -58,6 +59,8 @@ public class ClientMetricsTest
         SUPERUSER_SETUP_DELAY_MS.setLong(0);
 
         cassandra = ServerTestUtils.startEmbeddedCassandraService();
+
+        waitForExistingRoles();
 
         // Allow client to connect as cassandra using an mTLS identity.
         try (Cluster cluster = clusterBuilder()
