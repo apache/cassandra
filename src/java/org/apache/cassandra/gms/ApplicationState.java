@@ -61,7 +61,6 @@ public enum ApplicationState
     SSTABLE_VERSIONS,
     DISK_USAGE,
     INDEX_STATUS,
-    @Deprecated(since = "CASSANDRA-16999") NATIVE_ADDRESS_AND_PORT_SSL,
     // DO NOT EDIT OR REMOVE PADDING STATES BELOW - only add new states above.  See CASSANDRA-16484
     X1,
     X2,

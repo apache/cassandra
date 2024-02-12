@@ -128,14 +128,14 @@ public class PeersTable extends AbstractVirtualTable
     private static String peers_v2_query = "INSERT INTO %s.%s ("
                                             + "peer, peer_port, "
                                             + "preferred_ip, preferred_port, "
-                                            + "native_address, native_port, native_port_ssl, "
+                                            + "native_address, native_port, "
                                             + "data_center, rack, "
                                             + "host_id, "
                                             + "release_version, "
                                             + "schema_version,"
                                             + "tokens) " +
                                             "VALUES " +
-                                            "(?,?,?,?,?,?,?,?,?,?,?,?,?)";
+                                            "(?,?,?,?,?,?,?,?,?,?,?,?)";
 
     private static String legacy_peers_query = "INSERT INTO %s.%s ("
                                                + "peer, preferred_ip, rpc_address, "
@@ -184,7 +184,7 @@ public class PeersTable extends AbstractVirtualTable
             QueryProcessor.executeInternal(String.format(peers_v2_query, SYSTEM_KEYSPACE_NAME, PEERS_V2),
                                            addresses.broadcastAddress.getAddress(), addresses.broadcastAddress.getPort(),
                                            addresses.broadcastAddress.getAddress(), addresses.broadcastAddress.getPort(),
-                                           addresses.nativeAddress.getAddress(), addresses.nativeAddress.getPort(), addresses.nativeAddressSSL.getPort(),
+                                           addresses.nativeAddress.getAddress(), addresses.nativeAddress.getPort(),
                                            location.datacenter, location.rack,
                                            nodeId.toUUID(),
                                            next.directory.version(nodeId).cassandraVersion.toString(),

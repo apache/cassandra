@@ -81,7 +81,6 @@ import static org.apache.cassandra.gms.ApplicationState.HOST_ID;
 import static org.apache.cassandra.gms.ApplicationState.INTERNAL_ADDRESS_AND_PORT;
 import static org.apache.cassandra.gms.ApplicationState.INTERNAL_IP;
 import static org.apache.cassandra.gms.ApplicationState.NATIVE_ADDRESS_AND_PORT;
-import static org.apache.cassandra.gms.ApplicationState.NATIVE_ADDRESS_AND_PORT_SSL;
 import static org.apache.cassandra.gms.ApplicationState.RACK;
 import static org.apache.cassandra.gms.ApplicationState.RELEASE_VERSION;
 import static org.apache.cassandra.gms.ApplicationState.RPC_ADDRESS;

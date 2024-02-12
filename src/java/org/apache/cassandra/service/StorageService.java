@@ -2094,17 +2094,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         throw new RuntimeException(e);
                     }
                     break;
-                case NATIVE_ADDRESS_AND_PORT_SSL:
-                    try
-                    {
-                        InetAddressAndPort address = InetAddressAndPort.getByName(value.value);
-                        SystemKeyspace.updatePeerNativeAddressSSL(endpoint, address);
-                    }
-                    catch (UnknownHostException e)
-                    {
-                        throw new RuntimeException(e);
-                    }
-                    break;
                 case RPC_READY:
                     notifyRpcChange(endpoint, epState.isRpcReady());
                     break;
