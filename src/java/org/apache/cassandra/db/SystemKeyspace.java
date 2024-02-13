@@ -62,7 +62,6 @@ import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.compaction.CompactionHistoryTabularData;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.LongType;
-import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -73,6 +72,7 @@ import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.ReversedLocalLongPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.EndpointState;
@@ -505,7 +505,7 @@ public final class SystemKeyspace
                                                         "epoch bigint PRIMARY KEY," +
                                                         "period bigint," +
                                                         "snapshot blob)")
-                                                  .partitioner(new LocalPartitioner(ReversedType.getInstance(LongType.instance)))
+                                                  .partitioner(ReversedLocalLongPartitioner.instance)
                                                   .build();
 
     @Deprecated(since = "4.0")
@@ -2004,12 +2004,23 @@ public final class SystemKeyspace
     }
 
     /**
-     * WARNING: we use token(epoch) >= search in the query below - this is due the fact that we use LocalPartitioner with a reversed LongToken
-     *          and this is not quite supported (yet), so the query is actually `token(epoch) <= search` which is what we want here
+     * We use ReversedLocalLongPartitioner here, which calculates token as Long.MAX_VALUE - key
+     *
+     * table is something like (assuming Long.MAX_VALUE is 1000 for easier calculations...):
+     * epoch | token(epoch)
+     * --------------------
+     *   100 | 900
+     *    90 | 910
+     *    80 | 920
+     *    70 | 970
+     *    ...
+     *
+     * so to find the first snapshot before epoch 85, we query the table with token(epoch) >= token(85)=915. Which gives us
+     * epoch 80, 70... and the first row is the first snapshot before `search`
      */
     public static ByteBuffer findSnapshotBefore(Epoch search)
     {
-        String query = String.format("SELECT snapshot FROM %s.%s WHERE token(epoch) >= ? LIMIT 1", SchemaConstants.SYSTEM_KEYSPACE_NAME, SNAPSHOT_TABLE_NAME);
+        String query = String.format("SELECT snapshot FROM %s.%s WHERE token(epoch) >= token(?) LIMIT 1", SchemaConstants.SYSTEM_KEYSPACE_NAME, SNAPSHOT_TABLE_NAME);
 
         UntypedResultSet res = executeInternal(query, search.getEpoch());
         if (res != null && !res.isEmpty())
