@@ -26,6 +26,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import javax.annotation.Nullable;
@@ -85,9 +86,9 @@ import org.apache.cassandra.service.CASRequest;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.FailureRecordingCallback.AsMap;
 import org.apache.cassandra.service.paxos.Commit.Proposal;
+import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
-import org.apache.cassandra.service.paxos.cleanup.PaxosTableRepairs;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -386,12 +387,17 @@ public class Paxos
 
         static Participants get(TableMetadata table, Token token, ConsistencyLevel consistencyForConsensus)
         {
+            return get(table, token, consistencyForConsensus, FailureDetector.isReplicaAlive);
+        }
+
+        static Participants get(TableMetadata table, Token token, ConsistencyLevel consistencyForConsensus, Predicate<Replica> isReplicaAlive)
+        {
             Keyspace keyspace = Keyspace.open(table.keyspace);
             ReplicaLayout.ForTokenWrite all = forTokenWriteLiveAndDown(keyspace, token);
             ReplicaLayout.ForTokenWrite electorate = consistencyForConsensus.isDatacenterLocal()
                                                      ? all.filter(InOurDc.replicas()) : all;
 
-            EndpointsForToken live = all.all().filter(FailureDetector.isReplicaAlive);
+            EndpointsForToken live = all.all().filter(isReplicaAlive);
 
             return new Participants(keyspace, consistencyForConsensus, all, electorate, live);
         }
@@ -1255,6 +1261,6 @@ public class Paxos
 
     public static void evictHungRepairs()
     {
-        PaxosTableRepairs.evictHungRepairs();
+        PaxosRepairState.instance().evictHungRepairs();
     }
 }

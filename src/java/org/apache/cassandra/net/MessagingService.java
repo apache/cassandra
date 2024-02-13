@@ -449,11 +449,6 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         send(message.responseWith(response), message.respondTo());
     }
 
-    public <V> void respondWithFailure(RequestFailureReason reason, Message<?> message)
-    {
-        send(Message.failureResponse(message.id(), message.expiresAtNanos(), reason), message.respondTo());
-    }
-
     public void send(Message message, InetAddressAndPort to, ConnectionType specifyConnection)
     {
         if (logger.isTraceEnabled())

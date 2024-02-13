@@ -42,10 +42,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.UnavailableException;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.EndpointState;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.gms.IGossiper;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -55,6 +52,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -659,45 +657,24 @@ public class PaxosRepair extends AbstractPaxosRepair
         return (version.major == 4 && version.minor > 0) || version.major > 4;
     }
 
-    static String getPeerVersion(InetAddressAndPort peer)
+    static boolean validatePeerCompatibility(IGossiper gossiper, Replica peer)
     {
-        EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(peer);
-        if (epState == null)
-            return null;
-
-        VersionedValue value = epState.getApplicationState(ApplicationState.RELEASE_VERSION);
-        if (value == null)
-            return null;
-
-        try
-        {
-            return value.value;
-        }
-        catch (IllegalArgumentException e)
-        {
-            return null;
-        }
-    }
-
-    static boolean validatePeerCompatibility(Replica peer)
-    {
-        String versionString = getPeerVersion(peer.endpoint());
-        CassandraVersion version = versionString != null ? new CassandraVersion(versionString) : null;
+        CassandraVersion version = gossiper.getReleaseVersion(peer.endpoint());
         boolean result = validateVersionCompatibility(version);
         if (!result)
-            logger.info("PaxosRepair isn't supported by {} on version {}", peer, versionString);
+            logger.info("PaxosRepair isn't supported by {} on version {}", peer, version);
         return result;
     }
 
-    static boolean validatePeerCompatibility(TableMetadata table, Range<Token> range)
+    static boolean validatePeerCompatibility(SharedContext ctx, TableMetadata table, Range<Token> range)
     {
-        Participants participants = Participants.get(table, range.right, ConsistencyLevel.SERIAL);
-        return Iterables.all(participants.all, PaxosRepair::validatePeerCompatibility);
+        Participants participants = Participants.get(table, range.right, ConsistencyLevel.SERIAL, r -> ctx.failureDetector().isAlive(r.endpoint()));
+        return Iterables.all(participants.all, r -> validatePeerCompatibility(ctx.gossiper(), r));
     }
 
-    public static boolean validatePeerCompatibility(TableMetadata table, Collection<Range<Token>> ranges)
+    public static boolean validatePeerCompatibility(SharedContext ctx, TableMetadata table, Collection<Range<Token>> ranges)
     {
-        return Iterables.all(ranges, range -> validatePeerCompatibility(table, range));
+        return Iterables.all(ranges, range -> validatePeerCompatibility(ctx, table, range));
     }
 
     public static void shutdownAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException
