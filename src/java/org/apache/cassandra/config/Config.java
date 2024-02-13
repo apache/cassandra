@@ -275,6 +275,8 @@ public class Config
 
     public boolean start_native_transport = true;
     public int native_transport_port = 9042;
+    /** @deprecated See CASSANDRA-19392 */
+    @Deprecated(since = "5.0")
     public Integer native_transport_port_ssl = null;
     public int native_transport_max_threads = 128;
     @Replaces(oldName = "native_transport_max_frame_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
