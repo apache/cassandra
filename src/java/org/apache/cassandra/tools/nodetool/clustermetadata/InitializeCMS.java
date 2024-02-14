@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools.nodetool;
+package org.apache.cassandra.tools.nodetool.clustermetadata;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,7 +26,7 @@ import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 
-@Command(name = "initializecms", description = "Upgrade from gossip and initialize CMS")
+@Command(name = "initialize", description = "Upgrade from gossip and initialize CMS")
 public class InitializeCMS extends NodeTool.NodeToolCmd
 {
     @Option(title = "ignored endpoints", name = {"-i", "--ignore"}, description = "Hosts to ignore due to them being down", required = false)

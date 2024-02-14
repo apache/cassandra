@@ -54,7 +54,7 @@ import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.tools.nodetool.*;
 import org.apache.cassandra.tools.nodetool.clustermetadata.ClusterMetadataHelper;
 import org.apache.cassandra.tools.nodetool.clustermetadata.DescribeCMS;
-import org.apache.cassandra.tools.nodetool.clustermetadata.DumpClusterMetadata;
+import org.apache.cassandra.tools.nodetool.clustermetadata.InitializeCMS;
 import org.apache.cassandra.tools.nodetool.clustermetadata.ReconfigureCMS;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -161,7 +161,6 @@ public class NodeTool
                 GossipInfo.class,
                 Import.class,
                 Info.class,
-                InitializeCMS.class,
                 InvalidateCIDRPermissionsCache.class,
                 InvalidateCounterCache.class,
                 InvalidateCredentialsCache.class,
@@ -269,7 +268,7 @@ public class NodeTool
                .withDefaultCommand(ClusterMetadataHelper.class)
                .withCommand(DescribeCMS.class)
                .withCommand(ReconfigureCMS.class)
-               .withCommand(DumpClusterMetadata.class);
+               .withCommand(InitializeCMS.class);
 
         Cli<NodeToolCmdRunnable> parser = builder.build();
 

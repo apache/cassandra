@@ -39,7 +39,7 @@ public class ClusterMetadataSingleNodeUpgradeTest extends UpgradeTestBase
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
         })
         .runAfterClusterUpgrade((cluster) -> {
-            cluster.get(1).nodetoolResult("initializecms").asserts().success();
+            cluster.get(1).nodetoolResult("cms", "initialize").asserts().success();
             // make sure we can execute transformations:
             cluster.schemaChange(withKeyspace("ALTER TABLE %s.tbl with comment = 'hello123'"));
         }).run();
