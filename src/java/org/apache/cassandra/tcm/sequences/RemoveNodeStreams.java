@@ -29,7 +29,6 @@ import org.apache.cassandra.locator.EndpointsByReplica;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesByEndpoint;
-import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.locator.SystemStrategy;
 import org.apache.cassandra.net.Message;
@@ -122,6 +121,7 @@ public class RemoveNodeStreams implements LeaveStreams
 
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
             RangesByEndpoint startWriteAdditions = startDelta.get(params).writes.additions;
+            RangesByEndpoint startWriteRemovals = startDelta.get(params).writes.removals;
             // find current placements from the metadata, we need to stream from replicas that are not changed and are therefore not in the deltas
             PlacementForRange currentPlacements = metadata.placements.get(params).reads;
             startWriteAdditions.flattenValues()
@@ -131,33 +131,12 @@ public class RemoveNodeStreams implements LeaveStreams
                                        if (!replica.endpoint().equals(leaving) && !replica.endpoint().equals(newReplica.endpoint()))
                                            candidateBuilder.add(replica, ReplicaCollection.Builder.Conflict.NONE);
                                    });
-                                   movements.putAll(newReplica, candidateBuilder.build(), ReplicaCollection.Builder.Conflict.NONE);
+                                   EndpointsForRange sources = candidateBuilder.build();
+                                   // log if newReplica is an existing transient replica moving to a full replica
+                                   if (startWriteRemovals.get(newReplica.endpoint()).contains(newReplica.range(), false))
+                                       logger.debug("Streaming transient -> full conversion to {} from {}", newReplica.endpoint(), sources);
+                                   movements.putAll(newReplica, sources, ReplicaCollection.Builder.Conflict.NONE);
                                });
-            // and check if any replicas went from transient -> full:
-            for (Replica removal : finishDelta.get(params).writes.removals.flattenValues())
-            {
-                if (removal.isTransient())
-                {
-                    // if a replica (ignoring transientness) is being added as a read replica in midJoin, but removed as
-                    // a write replica in finishJoin (the "removal" replica) it means it must have changed from transient
-                    // to full (or the other way round)
-                    RangesByEndpoint midReadAdditions = midDelta.get(params).reads.additions;
-                    Replica toStream = midReadAdditions.get(removal.endpoint()).byRange().get(removal.range());
-                    if (toStream != null && toStream.isFull())
-                    {
-                        logger.debug("Conversion from transient to full replica {} -> {}", removal, toStream);
-                        EndpointsForRange.Builder candidateBuilder = new EndpointsForRange.Builder(removal.range());
-                        currentPlacements.forRange(removal.range()).get().forEach(replica -> {
-                            if (!replica.endpoint().equals(leaving) && !replica.endpoint().equals(removal.endpoint()))
-                                candidateBuilder.add(replica, ReplicaCollection.Builder.Conflict.NONE);
-                        });
-                        EndpointsForRange sources = candidateBuilder.build();
-                        logger.debug("Streaming transient -> full conversion to {} from {}", removal, sources);
-                        // `removal` is losing this transient range, but gaining the same full range, meaning we need to stream it in.
-                        movements.putAll(removal, sources, ReplicaCollection.Builder.Conflict.NONE);
-                    }
-                }
-            }
             allMovements.put(params, movements.build());
         });
         return allMovements.build();
