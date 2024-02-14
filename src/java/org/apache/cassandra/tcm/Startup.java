@@ -307,6 +307,8 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         metadata = metadata.forceEpoch(metadata.epoch.nextEpoch());
         ClusterMetadataService.unsetInstance();
         LocalLog.LogSpec logSpec = LocalLog.logSpec()
+                                           .afterReplay(Startup::scrubDataDirectories,
+                                                        (_metadata) -> StorageService.instance.registerMBeans())
                                            .withPreviousState(prev)
                                            .withInitialState(metadata)
                                            .withStorage(LogStorage.SystemKeyspace)
