@@ -24,20 +24,12 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.NavigableMap;
-import java.util.Random;
-import java.util.Set;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import org.apache.cassandra.harry.sut.TokenPlacementModel.Replica;
 import org.junit.Assert;
 
 import static org.apache.cassandra.harry.sut.TokenPlacementModel.Node;
@@ -70,16 +62,16 @@ public class PlacementSimulator
     {
         public final ReplicationFactor rf;
         public final List<Node> nodes;
-        public final NavigableMap<Range, List<Node>> readPlacements;
-        public final NavigableMap<Range, List<Node>> writePlacements;
+        public final NavigableMap<Range, List<Replica>> readPlacements;
+        public final NavigableMap<Range, List<Replica>> writePlacements;
         // Stashed states are steps required to finish the operation. For example, in case of
         // bootstrap, this could be adding replicas to write (and then read) sets after splitting ranges.
         public final List<Transformations> stashedStates;
 
         public SimulatedPlacements(ReplicationFactor rf,
                                    List<Node> nodes,
-                                   NavigableMap<Range, List<Node>> readPlacements,
-                                   NavigableMap<Range, List<Node>> writePlacements,
+                                   NavigableMap<Range, List<Replica>> readPlacements,
+                                   NavigableMap<Range, List<Replica>> writePlacements,
                                    List<Transformations> stashedStates)
         {
             this.rf = rf;
@@ -94,12 +86,12 @@ public class PlacementSimulator
             return new SimulatedPlacements(rf, newNodes, readPlacements, writePlacements, stashedStates);
         }
 
-        public SimulatedPlacements withReadPlacements(NavigableMap<Range, List<Node>> newReadPlacements)
+        public SimulatedPlacements withReadPlacements(NavigableMap<Range, List<Replica>> newReadPlacements)
         {
             return new SimulatedPlacements(rf, nodes, newReadPlacements, writePlacements, stashedStates);
         }
 
-        public SimulatedPlacements withWritePlacements(NavigableMap<Range, List<Node>> newWritePlacements)
+        public SimulatedPlacements withWritePlacements(NavigableMap<Range, List<Replica>> newWritePlacements)
         {
             return new SimulatedPlacements(rf, nodes, readPlacements, newWritePlacements, stashedStates);
         }
@@ -123,22 +115,22 @@ public class PlacementSimulator
 
         public boolean isWriteTargetFor(long token, Predicate<Node> predicate)
         {
-            return writePlacementsFor(token).stream().anyMatch(predicate);
+            return writePlacementsFor(token).stream().map(Replica::node).anyMatch(predicate);
         }
 
         public boolean isReadReplicaFor(long token, Predicate<Node> predicate)
         {
-            return readReplicasFor(token).stream().anyMatch(predicate);
+            return readReplicasFor(token).stream().map(Replica::node).anyMatch(predicate);
         }
 
         public boolean isReadReplicaFor(long minToken, long maxToken, Predicate<Node> predicate)
         {
-            return readReplicasFor(minToken, maxToken).stream().anyMatch(predicate);
+            return readReplicasFor(minToken, maxToken).stream().map(Replica::node).anyMatch(predicate);
         }
 
-        public List<Node> writePlacementsFor(long token)
+        public List<Replica> writePlacementsFor(long token)
         {
-            for (Map.Entry<Range, List<Node>> e : writePlacements.entrySet())
+            for (Map.Entry<Range, List<Replica>> e : writePlacements.entrySet())
             {
                 if (e.getKey().contains(token))
                     return e.getValue();
@@ -147,9 +139,9 @@ public class PlacementSimulator
             throw new AssertionError();
         }
 
-        public List<Node> readReplicasFor(long minToken, long maxToken)
+        public List<Replica> readReplicasFor(long minToken, long maxToken)
         {
-            for (Map.Entry<Range, List<Node>> e : readPlacements.entrySet())
+            for (Map.Entry<Range, List<Replica>> e : readPlacements.entrySet())
             {
                 if (e.getKey().contains(minToken, maxToken))
                     return e.getValue();
@@ -159,9 +151,9 @@ public class PlacementSimulator
         }
 
 
-        public List<Node> readReplicasFor(long token)
+        public List<Replica> readReplicasFor(long token)
         {
-            for (Map.Entry<Range, List<Node>> e : readPlacements.entrySet())
+            for (Map.Entry<Range, List<Replica>> e : readPlacements.entrySet())
             {
                 if (e.getKey().contains(token))
                     return e.getValue();
@@ -305,15 +297,15 @@ public class PlacementSimulator
     {
         long token = bootstrappingNode.token();
         List<Node> splitNodes = split(baseState.nodes, token);
-        Map<Range, List<Node>> maximalStateWithPlacement = baseState.rf.replicate(move(splitNodes, token, bootstrappingNode)).placementsForRange;
+        Map<Range, List<Replica>> maximalStateWithPlacement = baseState.rf.replicate(move(splitNodes, token, bootstrappingNode)).placementsForRange;
 
-        NavigableMap<Range, List<Node>> splitReadPlacements = baseState.rf.replicate(splitNodes).placementsForRange;
-        NavigableMap<Range, List<Node>> splitWritePlacements = baseState.rf.replicate(splitNodes).placementsForRange;
+        NavigableMap<Range, List<Replica>> splitReadPlacements = baseState.rf.replicate(splitNodes).placementsForRange;
+        NavigableMap<Range, List<Replica>> splitWritePlacements = baseState.rf.replicate(splitNodes).placementsForRange;
 
-        Map<Range, Diff<Node>> allWriteCommands = diff(splitWritePlacements, maximalStateWithPlacement);
-        Map<Range, Diff<Node>> step1WriteCommands = map(allWriteCommands, Diff::onlyAdditions);
-        Map<Range, Diff<Node>> step3WriteCommands = map(allWriteCommands, Diff::onlyRemovals);
-        Map<Range, Diff<Node>> readCommands = diff(splitReadPlacements, maximalStateWithPlacement);
+        Map<Range, Diff<Replica>> allWriteCommands = diff(splitWritePlacements, maximalStateWithPlacement);
+        Map<Range, Diff<Replica>> step1WriteCommands = map(allWriteCommands, Diff::onlyAdditions);
+        Map<Range, Diff<Replica>> step3WriteCommands = map(allWriteCommands, Diff::onlyRemovals);
+        Map<Range, Diff<Replica>> readCommands = diff(splitReadPlacements, maximalStateWithPlacement);
 
         Transformations steps = new Transformations();
 
@@ -344,7 +336,7 @@ public class PlacementSimulator
             },
             (model) -> { // revert
                 debug.log("Reverting start-join of " + bootstrappingNode + "\n");
-                Map<Range, Diff<Node>> inverted = map(step1WriteCommands, Diff::invert);
+                Map<Range, Diff<Replica>> inverted = map(step1WriteCommands, Diff::invert);
                 debug.log("Commands for reverting step 1 of bootstrap of %s.\n" +
                           "\twriteModifications=\n%s",
                           bootstrappingNode, diffsToString(inverted));
@@ -363,7 +355,7 @@ public class PlacementSimulator
             },
             (model) -> {  // revert
                 debug.log("Reverting mid-join of " + bootstrappingNode + "\n");
-                Map<Range, Diff<Node>> inverted = map(readCommands, Diff::invert);
+                Map<Range, Diff<Replica>> inverted = map(readCommands, Diff::invert);
                 debug.log(String.format("Commands for reverting step 2 of bootstrap of %s.\n" +
                                         "\treadCommands=\n%s",
                                         bootstrappingNode, diffsToString(inverted)));
@@ -408,10 +400,10 @@ public class PlacementSimulator
         finalNodes.add(movingNode.overrideToken(newToken));
         finalNodes.sort(Node::compareTo);
 
-        Map<Range, List<Node>> start = splitReplicated(baseState.rf.replicate(origNodes).placementsForRange, newToken);
-        Map<Range, List<Node>> end = splitReplicated(baseState.rf.replicate(finalNodes).placementsForRange, movingNode.token());
+        Map<Range, List<Replica>> start = splitReplicated(baseState.rf.replicate(origNodes).placementsForRange, newToken);
+        Map<Range, List<Replica>> end = splitReplicated(baseState.rf.replicate(finalNodes).placementsForRange, movingNode.token());
 
-        Map<Range, Diff<Node>> fromStartToEnd = diff(start, end);
+        Map<Range, Diff<Replica>> fromStartToEnd = diff(start, end);
 
         Transformations steps = new Transformations();
 
@@ -432,20 +424,20 @@ public class PlacementSimulator
         // Step 2: Start Move, add all potential owners to write quorums
         steps.add(new Transformation(
             (model) -> { // apply
-                Map<Range, Diff<Node>> diff = map(fromStartToEnd, Diff::onlyAdditions);
+                Map<Range, Diff<Replica>> diff = map(fromStartToEnd, Diff::onlyAdditions);
                 debug.log("Executing start-move of " + movingNode + "\n");
                 debug.log(String.format("Commands for step 1 of move of %s to %d.\n" +
                                         "\twriteModifications=\n%s",
                                         movingNode, newToken, diffsToString(diff)));
 
-                NavigableMap<Range, List<Node>> placements = model.writePlacements;
+                NavigableMap<Range, List<Replica>> placements = model.writePlacements;
                 placements = PlacementSimulator.apply(placements, diff);
                 return model.withWritePlacements(placements);
             },
             (model) -> { // revert
                 debug.log("Reverting start-move of " + movingNode + "\n");
-                Map<Range, Diff<Node>> diff = map(fromStartToEnd, Diff::onlyAdditions);
-                Map<Range, Diff<Node>> inverted = map(diff, Diff::invert);
+                Map<Range, Diff<Replica>> diff = map(fromStartToEnd, Diff::onlyAdditions);
+                Map<Range, Diff<Replica>> inverted = map(diff, Diff::invert);
                 debug.log(String.format("Commands for reverting step 1 of move of %s to %d.\n" +
                                         "\twriteModifications=\n%s",
                                         movingNode, newToken, diffsToString(inverted)));
@@ -461,12 +453,12 @@ public class PlacementSimulator
                                         "\treadModifications=\n%s",
                                         movingNode, newToken, diffsToString(fromStartToEnd)));
 
-                NavigableMap<Range, List<Node>> placements = model.readPlacements;
+                NavigableMap<Range, List<Replica>> placements = model.readPlacements;
                 placements = PlacementSimulator.apply(placements, fromStartToEnd);
                 return model.withReadPlacements(placements);
             },
             (model) -> {
-                NavigableMap<Range, List<Node>> placements = PlacementSimulator.apply(model.readPlacements, map(fromStartToEnd, Diff::invert));
+                NavigableMap<Range, List<Replica>> placements = PlacementSimulator.apply(model.readPlacements, map(fromStartToEnd, Diff::invert));
                 return model.withReadPlacements(placements);
             })
         );
@@ -474,7 +466,7 @@ public class PlacementSimulator
         // Step 4: Finish Move, remove all nodes that are losing ranges from write quorums
         steps.add(new Transformation(
             (model) -> {
-                Map<Range, Diff<Node>> diff = map(fromStartToEnd, Diff::onlyRemovals);
+                Map<Range, Diff<Replica>> diff = map(fromStartToEnd, Diff::onlyRemovals);
 
                 debug.log("Executing finish-move of " + movingNode + "\n");
                 debug.log(String.format("Commands for step 2 of move of %s to %d.\n" +
@@ -492,7 +484,7 @@ public class PlacementSimulator
                 newNodes.add(movingNode.overrideToken(newToken));
                 newNodes.sort(Node::compareTo);
 
-                Map<Range, List<Node>> writePlacements = model.writePlacements;
+                Map<Range, List<Replica>> writePlacements = model.writePlacements;
                 writePlacements = PlacementSimulator.apply(writePlacements, diff);
 
                 return model.withWritePlacements(mergeReplicated(writePlacements, movingNode.token()))
@@ -510,18 +502,18 @@ public class PlacementSimulator
     public static Transformations leave(SimulatedPlacements baseState, Node toRemove)
     {
         // calculate current placements - this is start state
-        Map<Range, List<Node>> start = baseState.rf.replicate(baseState.nodes).placementsForRange;
+        Map<Range, List<Replica>> start = baseState.rf.replicate(baseState.nodes).placementsForRange;
 
         List<Node> afterLeaveNodes = new ArrayList<>(baseState.nodes);
         afterLeaveNodes.remove(toRemove);
         // calculate placements based on existing ranges but final set of nodes - this is end state
-        Map<Range, List<Node>> end = baseState.rf.replicate(toRanges(baseState.nodes), afterLeaveNodes).placementsForRange;
+        Map<Range, List<Replica>> end = baseState.rf.replicate(toRanges(baseState.nodes), afterLeaveNodes).placementsForRange;
 
         // maximal state is union of start & end
-        Map<Range, Diff<Node>> allWriteCommands = diff(start, end);
-        Map<Range, Diff<Node>> step1WriteCommands = map(allWriteCommands, Diff::onlyAdditions);
-        Map<Range, Diff<Node>> step3WriteCommands = map(allWriteCommands, Diff::onlyRemovals);
-        Map<Range, Diff<Node>> readCommands = diff(start, end);
+        Map<Range, Diff<Replica>> allWriteCommands = diff(start, end);
+        Map<Range, Diff<Replica>> step1WriteCommands = map(allWriteCommands, Diff::onlyAdditions);
+        Map<Range, Diff<Replica>> step3WriteCommands = map(allWriteCommands, Diff::onlyRemovals);
+        Map<Range, Diff<Replica>> readCommands = diff(start, end);
         Transformations steps = new Transformations();
         steps.add(new Transformation(
             (model) -> { // apply
@@ -533,7 +525,7 @@ public class PlacementSimulator
             },
             (model) -> { // revert
                 debug.log("Reverting start-leave of " + toRemove + "\n");
-                Map<Range, Diff<Node>> inverted = map(step1WriteCommands, Diff::invert);
+                Map<Range, Diff<Replica>> inverted = map(step1WriteCommands, Diff::invert);
                 debug.log(String.format("Commands for reverting step 1 of decommission of %s.\n" +
                                         "\twriteModifications=\n%s",
                                         toRemove, diffsToString(inverted)));
@@ -552,7 +544,7 @@ public class PlacementSimulator
             },
             (model) -> { // revert
                 debug.log("Reverting mid-leave of " + toRemove + "\n");
-                Map<Range, Diff<Node>> inverted = map(readCommands, Diff::invert);
+                Map<Range, Diff<Replica>> inverted = map(readCommands, Diff::invert);
                 debug.log(String.format("Commands for reverting step 2 of decommission of %s.\n" +
                                         "\treadModifications=\n%s",
                                         toRemove,
@@ -571,7 +563,7 @@ public class PlacementSimulator
                 List<Node> newNodes = new ArrayList<>(model.nodes);
                 newNodes.remove(toRemove);
                 newNodes.sort(Node::compareTo);
-                Map<Range, List<Node>> writes = PlacementSimulator.apply(model.writePlacements, step3WriteCommands);
+                Map<Range, List<Replica>> writes = PlacementSimulator.apply(model.writePlacements, step3WriteCommands);
                 return model.withReadPlacements(mergeReplicated(model.readPlacements, toRemove.token()))
                             .withWritePlacements(mergeReplicated(writes, toRemove.token()))
                             .withNodes(newNodes);
@@ -586,18 +578,19 @@ public class PlacementSimulator
 
     public static Transformations replace(SimulatedPlacements baseState, Node toReplace, Node replacement)
     {
-        Map<Range, List<Node>> start = baseState.rf.replicate(baseState.nodes).placementsForRange;
-        Map<Range, Diff<Node>> allCommands = new TreeMap<>();
-        start.forEach((range, nodes) -> {
-            if (nodes.contains(toReplace))
-            {
-                allCommands.put(range, new Diff<>(Collections.singletonList(replacement),
-                                                  Collections.singletonList(toReplace)));
-            }
+        Map<Range, List<Replica>> start = baseState.rf.replicate(baseState.nodes).placementsForRange;
+        Map<Range, Diff<Replica>> allCommands = new TreeMap<>();
+        start.forEach((range, replicas) -> {
+            replicas.forEach(r -> {
+                if (r.node().equals(toReplace)) {
+                    allCommands.put(range, new Diff<>(Collections.singletonList(new Replica(replacement, r.isFull())),
+                                                      Collections.singletonList(r)));
+                }
+            });
         });
-        Map<Range, Diff<Node>> step1WriteCommands = map(allCommands, Diff::onlyAdditions);
-        Map<Range, Diff<Node>> step3WriteCommands = map(allCommands, Diff::onlyRemovals);
-        Map<Range, Diff<Node>> readCommands = allCommands;
+        Map<Range, Diff<Replica>> step1WriteCommands = map(allCommands, Diff::onlyAdditions);
+        Map<Range, Diff<Replica>> step3WriteCommands = map(allCommands, Diff::onlyRemovals);
+        Map<Range, Diff<Replica>> readCommands = allCommands;
         Transformations steps = new Transformations();
         steps.add(new Transformation(
             (model) -> { // apply
@@ -609,7 +602,7 @@ public class PlacementSimulator
             },
             (model) -> { // revert
                 debug.log(String.format("Reverting start-replace of %s for  %s\n", replacement, toReplace));
-                Map<Range, Diff<Node>> inverted = map(step1WriteCommands, Diff::invert);
+                Map<Range, Diff<Replica>> inverted = map(step1WriteCommands, Diff::invert);
                 debug.log(String.format("Commands for reverting step 1 of bootstrap of %s for replacement of %s.\n" +
                                         "\twriteModifications=\n%s",
                                         replacement, toReplace, diffsToString(inverted)));
@@ -628,7 +621,7 @@ public class PlacementSimulator
             },
             (model) -> { // revert
                 debug.log(String.format("Reverting mid-replace of %s for %s\n", replacement, toReplace));
-                Map<Range, Diff<Node>> inverted = map(readCommands, Diff::invert);
+                Map<Range, Diff<Replica>> inverted = map(readCommands, Diff::invert);
                 debug.log(String.format("Commands for reverting step 2 of bootstrap of %s for replacement of %s.\n" +
                                         "\treadModifications=\n%s",
                                         replacement, toReplace,
@@ -660,13 +653,13 @@ public class PlacementSimulator
         return steps;
     }
 
-    public static void assertPlacements(SimulatedPlacements placements, Map<Range, List<Node>> r, Map<Range, List<Node>> w)
+    public static void assertPlacements(SimulatedPlacements placements, Map<Range, List<Replica>> r, Map<Range, List<Replica>> w)
     {
         assertRanges(r, placements.readPlacements);
         assertRanges(w, placements.writePlacements);
     }
 
-    public static void assertRanges(Map<Range, List<Node>> expected, Map<Range, List<Node>> actual)
+    public static void assertRanges(Map<Range, List<Replica>> expected, Map<Range, List<Replica>> actual)
     {
         Assert.assertEquals(expected.keySet(), actual.keySet());
         expected.forEach((k, v) -> {
@@ -677,8 +670,8 @@ public class PlacementSimulator
             // bootstrap_diffBased implementation and the real code doesn't do this, only the endpoint matters for
             // correctness, so we limit this comparison to endpoints only.
             Assert.assertEquals(String.format("For key: %s\n", k),
-                                expected.get(k).stream().map(n -> n.idx()).sorted().collect(Collectors.toList()),
-                                actual.get(k).stream().map(n -> n.idx()).sorted().collect(Collectors.toList()));
+                                expected.get(k).stream().map(r -> r.node().idx()).sorted().collect(Collectors.toList()),
+                                actual.get(k).stream().map(r -> r.node().idx()).sorted().collect(Collectors.toList()));
         });
     }
 
@@ -696,15 +689,15 @@ public class PlacementSimulator
     /**
      * Applies a given diff to the placement map
      */
-    public static NavigableMap<Range, List<Node>> apply(Map<Range, List<Node>> orig, Map<Range, Diff<Node>> diff)
+    public static NavigableMap<Range, List<Replica>> apply(Map<Range, List<Replica>> orig, Map<Range, Diff<Replica>> diff)
     {
         assert containsAll(orig.keySet(), diff.keySet()) : String.format("Can't apply diff to a map with different sets of keys:" +
                                                                          "\nOrig ks: %s" +
                                                                          "\nDiff ks: %s" +
                                                                          "\nDiff: %s",
                                                                          orig.keySet(), diff.keySet(), diff);
-        NavigableMap<Range, List<Node>> res = new TreeMap<>();
-        for (Map.Entry<Range, List<Node>> entry : orig.entrySet())
+        NavigableMap<Range, List<Replica>> res = new TreeMap<>();
+        for (Map.Entry<Range, List<Replica>> entry : orig.entrySet())
         {
             Range range = entry.getKey();
             if (diff.containsKey(range))
@@ -718,28 +711,28 @@ public class PlacementSimulator
     /**
      * Apply diff to a list of nodes
      */
-    public static List<Node> apply(List<Node> nodes, Diff<Node> diff)
+    public static List<Replica> apply(List<Replica> nodes, Diff<Replica> diff)
     {
-        Set<Node> tmp = new HashSet<>(nodes);
+        Set<Replica> tmp = new HashSet<>(nodes);
         tmp.addAll(diff.additions);
-        for (Node removal : diff.removals)
+        for (Replica removal : diff.removals)
             tmp.remove(removal);
-        List<Node> newNodes = new ArrayList<>(tmp);
-        newNodes.sort(Node::compareTo);
-        return Collections.unmodifiableList(newNodes);
+        List<Replica> newReplicas = new ArrayList<>(tmp);
+        newReplicas.sort(Comparator.comparing(Replica::node));
+        return Collections.unmodifiableList(newReplicas);
     }
 
     /**
      * Diff two placement maps
      */
-    public static Map<Range, Diff<Node>> diff(Map<Range, List<Node>> l, Map<Range, List<Node>> r)
+    public static Map<Range, Diff<Replica>> diff(Map<Range, List<Replica>> l, Map<Range, List<Replica>> r)
     {
         assert l.keySet().equals(r.keySet()) : String.format("Can't diff events from different bases %s %s", l.keySet(), r.keySet());
-        Map<Range, Diff<Node>> diff = new TreeMap<>();
-        for (Map.Entry<Range, List<Node>> entry : l.entrySet())
+        Map<Range, Diff<Replica>> diff = new TreeMap<>();
+        for (Map.Entry<Range, List<Replica>> entry : l.entrySet())
         {
             Range range = entry.getKey();
-            Diff<Node> d = diff(entry.getValue(), r.get(range));
+            Diff<Replica> d = diff(entry.getValue(), r.get(range));
             if (!d.removals.isEmpty() || !d.additions.isEmpty())
                 diff.put(range, d);
         }
@@ -770,17 +763,17 @@ public class PlacementSimulator
      * Produce a diff (i.e. set of additions/subtractions that should be applied to the list of nodes in order to produce
      * r from l)
      */
-    public static Diff<Node> diff(List<Node> l, List<Node> r)
+    public static Diff<Replica> diff(List<Replica> l, List<Replica> r)
     {
         // additions things present in r but not in l
-        List<Node> additions = new ArrayList<>();
+        List<Replica> additions = new ArrayList<>();
         // removals are things present in l but not r
-        List<Node> removals = new ArrayList<>();
+        List<Replica> removals = new ArrayList<>();
 
-        for (Node i : r)
+        for (Replica i : r)
         {
             boolean isPresentInL = false;
-            for (Node j : l)
+            for (Replica j : l)
             {
                 if (i.equals(j))
                 {
@@ -793,10 +786,10 @@ public class PlacementSimulator
                 additions.add(i);
         }
 
-        for (Node i : l)
+        for (Replica i : l)
         {
             boolean isPresentInR = false;
-            for (Node j : r)
+            for (Replica j : r)
             {
                 if (i.equals(j))
                 {
@@ -811,15 +804,15 @@ public class PlacementSimulator
         return new Diff<>(additions, removals);
     }
 
-    public static Map<Range, List<Node>> superset(Map<Range, List<Node>> l, Map<Range, List<Node>> r)
+    public static Map<Range, List<Replica>> superset(Map<Range, List<Replica>> l, Map<Range, List<Replica>> r)
     {
         assert l.keySet().equals(r.keySet()) : String.format("%s != %s", l.keySet(), r.keySet());
 
-        Map<Range, List<Node>> newState = new TreeMap<>();
-        for (Map.Entry<Range, List<Node>> entry : l.entrySet())
+        Map<Range, List<Replica>> newState = new TreeMap<>();
+        for (Map.Entry<Range, List<Replica>> entry : l.entrySet())
         {
             Range range = entry.getKey();
-            Set<Node> nodes = new HashSet<>();
+            Set<Replica> nodes = new HashSet<>();
             nodes.addAll(entry.getValue());
             nodes.addAll(r.get(range));
             newState.put(range, new ArrayList<>(nodes));
@@ -828,22 +821,22 @@ public class PlacementSimulator
         return newState;
     }
 
-    public static NavigableMap<Range, List<Node>> mergeReplicated(Map<Range, List<Node>> orig, long removingToken)
+    public static NavigableMap<Range, List<Replica>> mergeReplicated(Map<Range, List<Replica>> orig, long removingToken)
     {
         if (removingToken == Long.MIN_VALUE)
         {
             Assert.assertEquals(Long.MIN_VALUE, orig.entrySet().iterator().next().getKey().start);
             return new TreeMap<>(orig);
         }
-        NavigableMap<Range, List<Node>> newState = new TreeMap<>();
-        Iterator<Map.Entry<Range, List<Node>>> iter = orig.entrySet().iterator();
+        NavigableMap<Range, List<Replica>> newState = new TreeMap<>();
+        Iterator<Map.Entry<Range, List<Replica>>> iter = orig.entrySet().iterator();
         while (iter.hasNext())
         {
-            Map.Entry<Range, List<Node>> current = iter.next();
+            Map.Entry<Range, List<Replica>> current = iter.next();
             if (current.getKey().end == removingToken)
             {
                 assert iter.hasNext() : "Cannot merge range, no more ranges in list";
-                Map.Entry<Range, List<Node>> next = iter.next();
+                Map.Entry<Range, List<Replica>> next = iter.next();
                 assert current.getValue().containsAll(next.getValue()) && current.getValue().size() == next.getValue().size()
                 : "Cannot merge ranges with different replica groups";
                 Range merged = new Range(current.getKey().start, next.getKey().end);
@@ -858,15 +851,15 @@ public class PlacementSimulator
         return newState;
     }
 
-    public static NavigableMap<Range, List<Node>> splitReplicated(Map<Range, List<Node>> orig, long splitAt)
+    public static NavigableMap<Range, List<Replica>> splitReplicated(Map<Range, List<Replica>> orig, long splitAt)
     {
         if (splitAt == Long.MIN_VALUE)
         {
             Assert.assertEquals(Long.MIN_VALUE, orig.entrySet().iterator().next().getKey().start);
             return new TreeMap<>(orig);
         }
-        NavigableMap<Range, List<Node>> newState = new TreeMap<>();
-        for (Map.Entry<Range, List<Node>> entry : orig.entrySet())
+        NavigableMap<Range, List<Replica>> newState = new TreeMap<>();
+        for (Map.Entry<Range, List<Replica>> entry : orig.entrySet())
         {
             Range range = entry.getKey();
             if (range.contains(splitAt))
@@ -985,20 +978,20 @@ public class PlacementSimulator
         }
     }
 
-    public static String diffsToString(Map<Range, Diff<Node>> placements)
+    public static String diffsToString(Map<Range, Diff<Replica>> placements)
     {
         StringBuilder builder = new StringBuilder();
-        for (Map.Entry<Range, Diff<Node>> e : placements.entrySet())
+        for (Map.Entry<Range, Diff<Replica>> e : placements.entrySet())
         {
             builder.append("\t\t").append(e.getKey()).append(": ").append(e.getValue()).append("\n");
         }
         return builder.toString();
     }
 
-    public static String placementsToString(Map<Range, List<Node>> placements)
+    public static String placementsToString(Map<Range, List<Replica>> placements)
     {
         StringBuilder builder = new StringBuilder();
-        for (Map.Entry<Range, List<Node>> e : placements.entrySet())
+        for (Map.Entry<Range, List<Replica>> e : placements.entrySet())
         {
             builder.append("\t\t").append(e.getKey()).append(": ").append(e.getValue()).append("\n");
         }

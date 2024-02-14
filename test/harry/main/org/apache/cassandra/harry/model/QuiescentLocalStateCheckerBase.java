@@ -21,6 +21,7 @@ package org.apache.cassandra.harry.model;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.cassandra.harry.sut.TokenPlacementModel.Replica;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -91,15 +92,15 @@ public abstract class QuiescentLocalStateCheckerBase extends QuiescentChecker
     protected void validate(Query query, TokenPlacementModel.ReplicatedRanges ring)
     {
         CompiledStatement compiled = query.toSelectStatement();
-        List<Node> replicas = ring.replicasFor(token(query.pd));
+        List<Replica> replicas = ring.replicasFor(token(query.pd));
 
         logger.trace("Predicted {} as replicas for {}. Ring: {}", replicas, query.pd, ring);
-        for (Node node : replicas)
+        for (Replica replica : replicas)
         {
             try
             {
                 validate(() -> {
-                    Object[][] objects = executeNodeLocal(compiled.cql(), node, compiled.bindings());
+                    Object[][] objects = executeNodeLocal(compiled.cql(), replica.node(), compiled.bindings());
 
                     List<ResultSetRow> result = new ArrayList<>();
                     for (Object[] obj : objects)
@@ -111,7 +112,7 @@ public abstract class QuiescentLocalStateCheckerBase extends QuiescentChecker
             catch (ValidationException e)
             {
                 throw new AssertionError(String.format("Caught error while validating replica %s of replica set %s",
-                                                       node, replicas),
+                                                       replica, replicas),
                                          e);
             }
         }
