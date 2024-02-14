@@ -32,10 +32,8 @@ import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.terms.Terms;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
@@ -153,11 +151,7 @@ public class FunctionCall extends Term.NonTerminal
 
         public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            KeyspaceMetadata ksm = ClusterMetadata.current().schema.getKeyspaces().getNullable(name.hasKeyspace() ? name.keyspace : keyspace);
-            UserFunctions userFunctions = UserFunctions.none();
-            if (ksm != null)
-                userFunctions = ksm.userFunctions;
-            Function fun = FunctionResolver.get(keyspace, name, terms, receiver.ksName, receiver.cfName, receiver.type, userFunctions);
+            Function fun = FunctionResolver.get(keyspace, name, terms, receiver.ksName, receiver.cfName, receiver.type, UserFunctions.getCurrentUserFunctions(name, keyspace));
             if (fun == null)
                 throw invalidRequest("Unknown function %s called", name);
             if (fun.isAggregate())
@@ -201,11 +195,7 @@ public class FunctionCall extends Term.NonTerminal
             // later with a more helpful error message that if we were to return false here.
             try
             {
-                KeyspaceMetadata ksm = ClusterMetadata.current().schema.getKeyspaces().getNullable(name.hasKeyspace() ? name.keyspace : keyspace);
-                UserFunctions userFunctions = UserFunctions.none();
-                if (ksm != null)
-                    userFunctions = ksm.userFunctions;
-                Function fun = FunctionResolver.get(keyspace, name, terms, receiver.ksName, receiver.cfName, receiver.type, userFunctions);
+                Function fun = FunctionResolver.get(keyspace, name, terms, receiver.ksName, receiver.cfName, receiver.type, UserFunctions.getCurrentUserFunctions(name, keyspace));
 
                 // Because the return type of functions built by factories is not fixed but depending on the types of
                 // their arguments, we'll always get EXACT_MATCH.  To handle potentially ambiguous function calls with
@@ -232,11 +222,7 @@ public class FunctionCall extends Term.NonTerminal
         {
             try
             {
-                KeyspaceMetadata ksm = ClusterMetadata.current().schema.getKeyspaces().getNullable(name.hasKeyspace() ? name.keyspace : keyspace);
-                UserFunctions userFunctions = UserFunctions.none();
-                if (ksm != null)
-                    userFunctions = ksm.userFunctions;
-                Function fun = FunctionResolver.get(keyspace, name, terms, null, null, null, userFunctions);
+                Function fun = FunctionResolver.get(keyspace, name, terms, null, null, null, UserFunctions.getCurrentUserFunctions(name, keyspace));
                 return fun == null ? null : fun.returnType();
             }
             catch (InvalidRequestException e)

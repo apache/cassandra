@@ -47,10 +47,8 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.CQLTypeParser;
-import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.schema.UserFunctions;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -126,11 +124,8 @@ public class ColumnMask
                                                   .add(reversed)
                                                   .addAll(partialArgumentTypes())
                                                   .build();
-        UserFunctions userFunctions = UserFunctions.none();
-        KeyspaceMetadata ksm = ClusterMetadata.current().schema.getKeyspaces().getNullable(function.name().keyspace);
-        if (ksm != null)
-            userFunctions = ksm.userFunctions;
-        Function newFunction = FunctionResolver.get(function.name().keyspace, function.name(), args, null, null, null, userFunctions);
+
+        Function newFunction = FunctionResolver.get(function.name().keyspace, function.name(), args, null, null, null, UserFunctions.getCurrentUserFunctions(function.name()));
         assert newFunction != null;
         return new ColumnMask((ScalarFunction) newFunction, partialArgumentValues);
     }
