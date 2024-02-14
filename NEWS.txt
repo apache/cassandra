@@ -315,10 +315,12 @@ Upgrading
     - `commitlog_sync_batch_window_in_ms` configuration property in cassandra.yaml was removed. Please ensure your configuration is not using this property.
     - The pluggable metrics reporter called metrics-reporter-config is removed. The way that metrics can be exported is
       fully covered by the dropwizard metrics library itself, using e.g. CsvReporter. See CASSANDRA-18743 for more details.
+    - Deprecated CQL compression parameters for table, `sstable_compression` and `chunk_length_kb`, were removed. Please use `class` and `chunk_length_in_kb` instead.
 
 
 Deprecation
 -----------
+    - Deprecated code in Cassandra 1.x and 2.x was removed. See CASSANDRA-18959 for more details.
     - In the JMX MBean `org.apache.cassandra.db:type=RepairService` (CASSANDRA-17668):
         - deprecate the getter/setter methods `getRepairSessionSpaceInMebibytes` and `setRepairSessionSpaceInMebibytes`
           in favor of `getRepairSessionSpaceInMiB` and `setRepairSessionSpaceInMiB` respectively
@@ -343,6 +345,10 @@ Deprecation
       The old property is still supported for backward compatibility, but now it is disabled by default.
     - CloudstackSnitch is marked as deprecated and it is not actively maintained anymore. It is scheduled to be removed 
       in the next major version of Cassandra.
+    - Usage of dual native ports (native_transport_port and native_transport_port_ssl) is deprecated and will be removed
+      in a future release. A single native port can be used for both encrypted and unencrypted traffic; see CASSANDRA-10559.
+      Cluster hosts running with dual native ports were not correctly identified in the system.peers tables and server-sent EVENTs,
+      causing clients that encrypt traffic to fail to maintain correct connection pools. For more information, see CASSANDRA-19392.
 
 4.1
 ===
