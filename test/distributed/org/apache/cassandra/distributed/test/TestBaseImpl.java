@@ -152,7 +152,7 @@ public class TestBaseImpl extends DistributedTestBase
         withProperty(JOIN_RING, false,
                      () -> newInstance.startup(cluster));
         newInstance.nodetoolResult("join").asserts().success();
-        newInstance.nodetoolResult("describecms").asserts().success(); // just make sure we're joined, remove later
+        newInstance.nodetoolResult("cms", "describe").asserts().success(); // just make sure we're joined, remove later
     }
 
     @SuppressWarnings("unchecked")

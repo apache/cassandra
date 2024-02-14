@@ -107,7 +107,6 @@ public class NodeTool
                 DataPaths.class,
                 Decommission.class,
                 DescribeCluster.class,
-                DescribeCMS.class,
                 DescribeRing.class,
                 DisableAuditLog.class,
                 DisableAutoCompaction.class,
@@ -158,7 +157,6 @@ public class NodeTool
                 GossipInfo.class,
                 Import.class,
                 Info.class,
-                InitializeCMS.class,
                 InvalidateCIDRPermissionsCache.class,
                 InvalidateCounterCache.class,
                 InvalidateCredentialsCache.class,
@@ -182,7 +180,6 @@ public class NodeTool
                 Rebuild.class,
                 RebuildIndex.class,
                 RecompressSSTables.class,
-                ReconfigureCMS.class,
                 Refresh.class,
                 RefreshSizeEstimates.class,
                 ReloadLocalSchema.class,
@@ -261,6 +258,13 @@ public class NodeTool
                .withCommand(RepairAdmin.CleanupDataCmd.class)
                .withCommand(RepairAdmin.SummarizePendingCmd.class)
                .withCommand(RepairAdmin.SummarizeRepairedCmd.class);
+
+        builder.withGroup("cms")
+               .withDescription("Manage cluster metadata")
+               .withDefaultCommand(CMSAdmin.DescribeCMS.class)
+               .withCommand(CMSAdmin.DescribeCMS.class)
+               .withCommand(CMSAdmin.InitializeCMS.class)
+               .withCommand(CMSAdmin.ReconfigureCMS.class);
 
         Cli<NodeToolCmdRunnable> parser = builder.build();
 

@@ -59,7 +59,7 @@ public class ClusterMetadataUpgradeHostIdTest extends UpgradeTestBase
             for (int i = 1; i <= 3; i++)
                 assertEquals(expectedUUIDs, getHostIds(cluster, i));
 
-            cluster.get(1).nodetoolResult("initializecms").asserts().success();
+            cluster.get(1).nodetoolResult("cms", "initialize").asserts().success();
 
             Map<InetAddressAndPort, UUID> postUpgradeUUIDs = new HashMap<>(getHostIds(cluster, 1));
             boolean found = false;

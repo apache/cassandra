@@ -60,7 +60,7 @@ public class TriggeredReconfigureCMSTest extends FuzzTestBase
                                                               .with(Feature.NETWORK, Feature.GOSSIP))
                                       .start())
         {
-            cluster.get(1).nodetoolResult("reconfigurecms", "3").asserts().success();
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "3").asserts().success();
             Set<String> cms = getCMSMembers(cluster.get(1));
             assertEquals(3, cms.size());
 
@@ -100,7 +100,7 @@ public class TriggeredReconfigureCMSTest extends FuzzTestBase
                                                               .with(Feature.NETWORK, Feature.GOSSIP))
                                       .start())
         {
-            cluster.get(1).nodetoolResult("reconfigurecms", "3").asserts().success();
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "3").asserts().success();
             Set<String> cms = getCMSMembers(cluster.get(1));
             assertEquals(3, cms.size());
             cluster.get(1).nodetoolResult("decommission").asserts().success();
@@ -119,7 +119,7 @@ public class TriggeredReconfigureCMSTest extends FuzzTestBase
                                                               .with(Feature.NETWORK, Feature.GOSSIP))
                                       .start())
         {
-            cluster.get(1).nodetoolResult("reconfigurecms", "3").asserts().success();
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "3").asserts().success();
             Set<String> cms = getCMSMembers(cluster.get(1));
             assertEquals(3, cms.size());
             assertTrue(cms.contains("/127.0.0.1"));

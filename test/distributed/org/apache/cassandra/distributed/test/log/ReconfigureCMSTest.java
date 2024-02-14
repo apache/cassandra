@@ -54,9 +54,9 @@ public class ReconfigureCMSTest extends FuzzTestBase
             cluster.setUncaughtExceptionsFilter(t -> t.getMessage() != null && t.getMessage().contains("There are not enough nodes in dc0 datacenter to satisfy replication factor"));
             Random rnd = new Random(2);
             Supplier<Integer> nodeSelector = () -> rnd.nextInt(cluster.size() - 1) + 1;
-            cluster.get(nodeSelector.get()).nodetoolResult("reconfigurecms", "0").asserts().failure();
-            cluster.get(nodeSelector.get()).nodetoolResult("reconfigurecms", "500").asserts().failure();
-            cluster.get(nodeSelector.get()).nodetoolResult("reconfigurecms", "5").asserts().success();
+            cluster.get(nodeSelector.get()).nodetoolResult("cms", "reconfigure", "0").asserts().failure();
+            cluster.get(nodeSelector.get()).nodetoolResult("cms", "reconfigure", "500").asserts().failure();
+            cluster.get(nodeSelector.get()).nodetoolResult("cms", "reconfigure", "5").asserts().success();
             cluster.get(1).runOnInstance(() -> {
                 ClusterMetadata metadata = ClusterMetadata.current();
                 Assert.assertEquals(5, metadata.fullCMSMembers().size());
@@ -67,7 +67,7 @@ public class ReconfigureCMSTest extends FuzzTestBase
                 Assert.assertTrue(i.executeInternal(String.format("SELECT * FROM %s.%s", SchemaConstants.METADATA_KEYSPACE_NAME, DistributedMetadataLogKeyspace.TABLE_NAME)).length > 0);
             });
 
-            cluster.get(nodeSelector.get()).nodetoolResult("reconfigurecms", "1").asserts().success();
+            cluster.get(nodeSelector.get()).nodetoolResult("cms", "reconfigure", "1").asserts().success();
             cluster.get(1).runOnInstance(() -> {
                 ClusterMetadata metadata = ClusterMetadata.current();
                 Assert.assertEquals(1, metadata.fullCMSMembers().size());
@@ -87,7 +87,7 @@ public class ReconfigureCMSTest extends FuzzTestBase
                                                               .with(Feature.NETWORK, Feature.GOSSIP))
                                       .start())
         {
-            cluster.get(1).nodetoolResult("reconfigurecms", "2").asserts().success();
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "2").asserts().success();
             cluster.get(1).runOnInstance(() -> {
                 ClusterMetadataService.instance().commit(new PrepareCMSReconfiguration.Complex(ReplicationParams.simple(3).asMeta()));
                 ReconfigureCMS reconfigureCMS = (ReconfigureCMS) ClusterMetadata.current().inProgressSequences.get(ReconfigureCMS.SequenceKey.instance);
@@ -105,7 +105,7 @@ public class ReconfigureCMSTest extends FuzzTestBase
                 reconfigureCMS = (ReconfigureCMS) ClusterMetadata.current().inProgressSequences.get(ReconfigureCMS.SequenceKey.instance);
                 Assert.assertNotNull(reconfigureCMS.next.activeTransition);
             });
-            cluster.get(1).nodetoolResult("reconfigurecms", "--cancel").asserts().success();
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "--cancel").asserts().success();
             cluster.get(1).runOnInstance(() -> {
                 ProgressBarrier.propagateLast(EntireRange.affectedRanges(ClusterMetadata.current()));
                 ClusterMetadata metadata = ClusterMetadata.current();
@@ -130,7 +130,7 @@ public class ReconfigureCMSTest extends FuzzTestBase
                 reconfigureCMS = (ReconfigureCMS) ClusterMetadata.current().inProgressSequences.get(ReconfigureCMS.SequenceKey.instance);
                 Assert.assertNull(reconfigureCMS.next.activeTransition);
             });
-            cluster.get(1).nodetoolResult("reconfigurecms", "--cancel").asserts().success();
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "--cancel").asserts().success();
             cluster.get(1).runOnInstance(() -> {
                 ProgressBarrier.propagateLast(EntireRange.affectedRanges(ClusterMetadata.current()));
                 ClusterMetadata metadata = ClusterMetadata.current();
@@ -141,4 +141,5 @@ public class ReconfigureCMSTest extends FuzzTestBase
                 Assert.assertEquals(placements.reads, placements.writes);
             });
         }
-    }}
+    }
+}
