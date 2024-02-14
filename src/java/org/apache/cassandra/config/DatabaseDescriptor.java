@@ -906,11 +906,19 @@ public class DatabaseDescriptor
         {
             conf.client_encryption_options.applyConfig();
 
-            if (conf.native_transport_port_ssl != null
-                && conf.native_transport_port_ssl != conf.native_transport_port
-                && conf.client_encryption_options.tlsEncryptionPolicy() == EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED)
+            if (conf.native_transport_port_ssl != null)
             {
-                throw new ConfigurationException("Encryption must be enabled in client_encryption_options for native_transport_port_ssl", false);
+                logger.warn("Usage of dual ports (native_transport_port together with native_transport_port_ssl) is " +
+                            "deprecated since Cassandra 5.0 and it will be removed in next releases. Please consider to use one port only " +
+                            "(native_transport_port) which can support unencrypted as well as encrypted traffic. This feature " +
+                            "is effectively not functioning properly except a corner-case of having a cluster " +
+                            "consisting of just one node. For more information, please consult deprecation " +
+                            "section in NEWS.txt");
+                if (conf.native_transport_port_ssl != conf.native_transport_port
+                    && (conf.client_encryption_options.tlsEncryptionPolicy() == EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED))
+                {
+                    throw new ConfigurationException("Encryption must be enabled in client_encryption_options for native_transport_port_ssl", false);
+                }
             }
         }
 
