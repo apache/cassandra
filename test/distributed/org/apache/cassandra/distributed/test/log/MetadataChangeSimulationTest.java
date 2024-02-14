@@ -35,6 +35,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
+import org.apache.cassandra.harry.sut.TokenPlacementModel.DCReplicas;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -372,9 +373,9 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                     // Sequentially bootstrap rf nodes first
                     .step((state, sut) -> state.currentNodes.isEmpty(),
                           (state, sut, entropySource) -> {
-                              for (Map.Entry<String, Integer> e : rf.asMap().entrySet())
+                              for (Map.Entry<String, DCReplicas> e : rf.asMap().entrySet())
                               {
-                                  int dcRf = e.getValue();
+                                  int dcRf = e.getValue().totalCount;
                                   int dc = Integer.parseInt(e.getKey().replace("datacenter", ""));
 
                                   for (int i = 0; i < dcRf + 1; i++)
@@ -505,7 +506,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         {
             ModelState state = ModelState.empty(nodeFactory(), 300, 1);
 
-            for (Map.Entry<String, Integer> e : rf.asMap().entrySet())
+            for (Map.Entry<String, DCReplicas> e : rf.asMap().entrySet())
             {
                 int dc = Integer.parseInt(e.getKey().replace("datacenter", ""));
 
@@ -639,7 +640,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
             for (SimulatedOperation op : modelState.inFlightOperations)
                 candidates.removeAll(Arrays.asList(op.nodes));
 
-            int rf = modelState.simulatedPlacements.rf.asMap().get(dc);
+            int rf = modelState.simulatedPlacements.rf.asMap().get(dc).totalCount;
             if (candidates.size() <= rf)
                 continue;
 
@@ -808,9 +809,9 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                              .add(replica.endpoint());
             }
 
-            for (Map.Entry<String, Integer> e : rf.asMap().entrySet())
+            for (Map.Entry<String, DCReplicas> e : rf.asMap().entrySet())
             {
-                int expectedRf = e.getValue();
+                int expectedRf = e.getValue().totalCount;
                 String dc = e.getKey();
                 int actualRf = endpointsByDc.get(dc).size();
 
