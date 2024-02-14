@@ -94,15 +94,15 @@ public class TokenPlacementModel
     public static class ReplicatedRanges
     {
         public final Range[] ranges;
-        public final NavigableMap<Range, List<Node>> placementsForRange;
+        public final NavigableMap<Range, List<Replica>> placementsForRange;
 
-        public ReplicatedRanges(Range[] ranges, NavigableMap<Range, List<Node>> placementsForRange)
+        public ReplicatedRanges(Range[] ranges, NavigableMap<Range, List<Replica>> placementsForRange)
         {
             this.ranges = ranges;
             this.placementsForRange = placementsForRange;
         }
 
-        public List<Node> replicasFor(long token)
+        public List<Replica> replicasFor(long token)
         {
             int idx = indexedBinarySearch(ranges, range -> {
                 // exclusive start, so token at the start belongs to a lower range
@@ -118,7 +118,7 @@ public class TokenPlacementModel
             return placementsForRange.get(ranges[idx]);
         }
 
-        public NavigableMap<Range, List<Node>> asMap()
+        public NavigableMap<Range, List<Replica>> asMap()
         {
             return placementsForRange;
         }
@@ -150,12 +150,12 @@ public class TokenPlacementModel
         int compareTo(V v);
     }
 
-    public static void addIfUnique(List<Node> nodes, Set<Integer> names, Node node)
+    public static void addIfUnique(List<Replica> replicas, Set<Integer> names, Replica replica)
     {
-        if (names.contains(node.idx()))
+        if (names.contains(replica.node().idx()))
             return;
-        nodes.add(node);
-        names.add(node.idx());
+        replicas.add(replica);
+        names.add(replica.node().idx());
     }
 
     /**
@@ -287,7 +287,7 @@ public class TokenPlacementModel
                 template.put(dc, new DatacenterNodes(rf, rackCount, nodeCount));
             }
 
-            NavigableMap<Range, Map<String, List<Node>>> replication = new TreeMap<>();
+            NavigableMap<Range, Map<String, List<Replica>>> replication = new TreeMap<>();
             Range skipped = null;
             for (Range range : ranges)
             {
@@ -311,7 +311,7 @@ public class TokenPlacementModel
                         cnt++;
                     }
 
-                    replication.put(range, mapValues(nodesInDCs, v -> v.nodes));
+                    replication.put(range, mapValues(nodesInDCs, v -> v.nodes.stream().map(n -> new Replica(n, true)).collect(Collectors.toList())));
                 }
                 else
                 {
@@ -336,16 +336,16 @@ public class TokenPlacementModel
         /**
          * Replicate ranges to rf nodes.
          */
-        private static ReplicatedRanges combine(NavigableMap<Range, Map<String, List<Node>>> orig)
+        private static ReplicatedRanges combine(NavigableMap<Range, Map<String, List<Replica>>> orig)
         {
 
             Range[] ranges = new Range[orig.size()];
             int idx = 0;
-            NavigableMap<Range, List<Node>> flattened = new TreeMap<>();
-            for (Map.Entry<Range, Map<String, List<Node>>> e : orig.entrySet())
+            NavigableMap<Range, List<Replica>> flattened = new TreeMap<>();
+            for (Map.Entry<Range, Map<String, List<Replica>>> e : orig.entrySet())
             {
-                List<Node> placementsForRange = new ArrayList<>();
-                for (List<Node> v : e.getValue().values())
+                List<Replica> placementsForRange = new ArrayList<>();
+                for (List<Replica> v : e.getValue().values())
                     placementsForRange.addAll(v);
                 ranges[idx++] = e.getKey();
                 flattened.put(e.getKey(), placementsForRange);
@@ -572,18 +572,18 @@ public class TokenPlacementModel
         public static ReplicatedRanges replicate(Range[] ranges, List<Node> nodes, DCReplicas dcReplicas)
         {
             assertStrictlySorted(nodes);
-            NavigableMap<Range, List<Node>> replication = new TreeMap<>();
+            NavigableMap<Range, List<Replica>> replication = new TreeMap<>();
             boolean minTokenOwned = nodes.stream().anyMatch(n -> n.token() == Long.MIN_VALUE);
             Range skipped = null;
             for (Range range : ranges)
             {
                 Set<Integer> names = new HashSet<>();
-                List<Node> replicas = new ArrayList<>();
+                List<Replica> replicas = new ArrayList<>();
                 int idx = primaryReplica(nodes, range);
                 if (idx >= 0)
                 {
                     for (int i = 0; i < nodes.size() && replicas.size() < dcReplicas.totalCount; i++)
-                        addIfUnique(replicas, names, nodes.get((idx + i) % nodes.size()));
+                        addIfUnique(replicas, names, new Replica(nodes.get((idx + i) % nodes.size()), true));
                     if (!minTokenOwned && range.start == Long.MIN_VALUE)
                         replication.put(ranges[ranges.length - 1], replicas);
                     replication.put(range, replicas);
@@ -816,6 +816,58 @@ public class TokenPlacementModel
             lookup.tokenOverrides.putAll(tokenOverrides);
             lookup.tokenOverrides.put(tokenIdx, token);
             return lookup;
+        }
+    }
+
+    public static class Replica implements Comparable<Replica>
+    {
+        private final Node node;
+        private final boolean full;
+
+        public Replica(Node node, boolean full)
+        {
+            this.node = node;
+            this.full = full;
+        }
+
+        public Node node()
+        {
+            return node;
+        }
+
+        public boolean isFull()
+        {
+            return full;
+        }
+
+        public boolean isTransient()
+        {
+            return !full;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || !Replica.class.isAssignableFrom(o.getClass())) return false;
+            Replica replica = (Replica) o;
+            return full == replica.full && Objects.equals(node, replica.node);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(full, node);
+        }
+
+        public String toString()
+        {
+            return String.format("%s(%s)", (full ? "Full" : "Transient"), node.toString());
+        }
+
+        @Override
+        public int compareTo(Replica o) {
+            return node.compareTo(o.node);
         }
     }
 

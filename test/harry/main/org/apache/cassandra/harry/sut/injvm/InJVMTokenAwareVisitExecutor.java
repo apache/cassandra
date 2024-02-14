@@ -85,21 +85,21 @@ public class InJVMTokenAwareVisitExecutor extends LoggingVisitor.LoggingVisitorE
         int retries = 0;
 
         Object[] pk = schema.inflatePartitionKey(pd);
-        List<TokenPlacementModel.Node> replicas = getRing().replicasFor(TokenUtil.token(ByteUtils.compose(ByteUtils.objectsToBytes(pk))));
+        List<TokenPlacementModel.Replica> replicas = getRing().replicasFor(TokenUtil.token(ByteUtils.compose(ByteUtils.objectsToBytes(pk))));
         while (retries++ < MAX_RETRIES)
         {
             try
             {
-                TokenPlacementModel.Node replica = replicas.get((int) (lts % replicas.size()));
+                TokenPlacementModel.Replica replica = replicas.get((int) (lts % replicas.size()));
                 if (cl == SystemUnderTest.ConsistencyLevel.NODE_LOCAL)
                 {
-                    return executeNodeLocal(statement.cql(), replica, statement.bindings());
+                    return executeNodeLocal(statement.cql(), replica.node(), statement.bindings());
                 }
                 else
                 {
                     return sut.cluster
                            .stream()
-                           .filter((n) -> n.config().broadcastAddress().toString().contains(replica.id()))
+                           .filter((n) -> n.config().broadcastAddress().toString().contains(replica.node().id()))
                            .findFirst()
                            .get()
                            .coordinator()

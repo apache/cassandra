@@ -669,17 +669,17 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         return sb.toString();
     }
 
-    public static void match(PlacementForRange actual, Map<TokenPlacementModel.Range, List<Node>> predicted) throws Throwable
+    public static void match(PlacementForRange actual, Map<TokenPlacementModel.Range, List<TokenPlacementModel.Replica>> predicted) throws Throwable
     {
         Map<Range<Token>, VersionedEndpoints.ForRange> actualGroups = actual.replicaGroups();
         assert predicted.size() == actualGroups.size() :
         String.format("\nPredicted:\n%s(%d)" +
                       "\nActual:\n%s(%d)", toString(predicted), predicted.size(), toString(actual.replicaGroups()), actualGroups.size());
 
-        for (Map.Entry<TokenPlacementModel.Range, List<Node>> entry : predicted.entrySet())
+        for (Map.Entry<TokenPlacementModel.Range, List<TokenPlacementModel.Replica>> entry : predicted.entrySet())
         {
             TokenPlacementModel.Range range = entry.getKey();
-            List<Node> predictedNodes = entry.getValue();
+            List<TokenPlacementModel.Replica> predictedReplicas = entry.getValue();
             Range<Token> predictedRange = new Range<Token>(new Murmur3Partitioner.LongToken(range.start),
                                                            new Murmur3Partitioner.LongToken(range.end));
             EndpointsForRange endpointsForRange = actualGroups.get(predictedRange).get();
@@ -689,19 +689,19 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                                              "\nExpected: %s" +
                                              "\nActual:   %s",
                                              range,
-                                             predictedNodes.stream().sorted().collect(Collectors.toList()),
+                                             predictedReplicas.stream().sorted().collect(Collectors.toList()),
                                              endpointsForRange.endpoints().stream().sorted().collect(Collectors.toList())),
-                         predictedNodes.size(), endpointsForRange.size());
-            for (Node node : predictedNodes)
+                         predictedReplicas.size(), endpointsForRange.size());
+            for (TokenPlacementModel.Replica replica : predictedReplicas)
             {
                 assertTrue(() -> String.format("Endpoints for range %s should have contained %s, but they have not." +
                                                "\nExpected: %s" +
                                                "\nActual:   %s.",
                                                endpointsForRange.range(),
-                                               node.id(),
-                                               predictedNodes,
+                                               replica.node().id(),
+                                               predictedReplicas,
                                                endpointsForRange.endpoints()),
-                           endpointsForRange.endpoints().contains(InetAddressAndPort.getByAddress(InetAddress.getByName(node.id()))));
+                           endpointsForRange.endpoints().contains(InetAddressAndPort.getByAddress(InetAddress.getByName(replica.node().id()))));
             }
         }
     }

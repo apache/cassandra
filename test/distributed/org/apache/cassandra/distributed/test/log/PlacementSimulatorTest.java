@@ -29,6 +29,7 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import org.apache.cassandra.harry.sut.TokenPlacementModel.Replica;
 import org.junit.Test;
 
 import org.apache.cassandra.harry.sut.TokenPlacementModel;
@@ -395,8 +396,8 @@ public class PlacementSimulatorTest
                                    Supplier<Transformations> opProvider,
                                    int stepsToExecute)
     {
-        Map<Range, List<Node>> startingReadPlacements = sim.readPlacements;
-        Map<Range, List<Node>> startingWritePlacements = sim.writePlacements;
+        Map<Range, List<Replica>> startingReadPlacements = sim.readPlacements;
+        Map<Range, List<Replica>> startingWritePlacements = sim.writePlacements;
         Transformations steps = opProvider.get();
         sim = sim.withStashed(steps);
         // execute the required steps
