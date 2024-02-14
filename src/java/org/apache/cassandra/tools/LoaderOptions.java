@@ -556,16 +556,9 @@ public class LoaderOptions
                 serverEncOptions.applyConfig();
 
                 if (cmd.hasOption(NATIVE_PORT_OPTION))
-                {
                     nativePort = Integer.parseInt(cmd.getOptionValue(NATIVE_PORT_OPTION));
-                }
                 else
-                {
-                    if (config.native_transport_port_ssl != null && (config.client_encryption_options.getEnabled() || clientEncOptions.getEnabled()))
-                        nativePort = config.native_transport_port_ssl;
-                    else
-                        nativePort = config.native_transport_port;
-                }
+                    nativePort = config.native_transport_port;
 
                 if (cmd.hasOption(INITIAL_HOST_ADDRESS_OPTION))
                 {

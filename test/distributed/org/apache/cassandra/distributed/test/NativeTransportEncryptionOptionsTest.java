@@ -43,7 +43,6 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.transport.TlsTestUtils;
 
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 
 public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOptionsImpl
 {
@@ -83,7 +82,6 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
         }
     }
 
-
     @Test
     public void optionalTlsConnectionAllowedWithKeystoreTest() throws Throwable
     {
@@ -104,57 +102,6 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
                                 ConnectResult.NEGOTIATED, tlsConnection.connect());
         }
     }
-
-    @Test
-    public void optionalTlsConnectionAllowedToRegularPortTest() throws Throwable
-    {
-        try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
-            c.with(Feature.NATIVE_PROTOCOL);
-            c.set("native_transport_port_ssl", 9043);
-            c.set("client_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
-                              .put("enabled", false)
-                              .put("optional", true)
-                              .build());
-        }).createWithoutStarting())
-        {
-            InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
-            int unencrypted_port = (int) cluster.get(1).config().get("native_transport_port");
-            int ssl_port = (int) cluster.get(1).config().get("native_transport_port_ssl");
-
-            // Create the connections and prove they cannot connect before server start
-            TlsConnection connectionToUnencryptedPort = new TlsConnection(address.getHostAddress(), unencrypted_port);
-            connectionToUnencryptedPort.assertCannotConnect();
-
-            TlsConnection connectionToEncryptedPort = new TlsConnection(address.getHostAddress(), ssl_port);
-            connectionToEncryptedPort.assertCannotConnect();
-
-            cluster.startup();
-
-            Assert.assertEquals("TLS native connection should be possible to native_transport_port_ssl",
-                                ConnectResult.NEGOTIATED, connectionToEncryptedPort.connect());
-            Assert.assertEquals("TLS native connection should not be possible on the regular port if an SSL port is specified",
-                                ConnectResult.FAILED_TO_NEGOTIATE, connectionToUnencryptedPort.connect()); // but did connect
-        }
-    }
-
-    @Test
-    public void unencryptedNativeConnectionNotlisteningOnTlsPortTest() throws Throwable
-    {
-        try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
-            c.with(Feature.NATIVE_PROTOCOL);
-            c.set("native_transport_port_ssl", 9043);
-            c.set("client_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
-                              .put("enabled", false)
-                              .put("optional", false)
-                              .build());
-        }).createWithoutStarting())
-        {
-            assertCannotStartDueToConfigurationException(cluster);
-        }
-    }
-
 
     /**
      * Tests that the negotiated protocol is the highest common protocol between the client and server.
@@ -300,24 +247,30 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
             InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
 
             // non-ssl connections should succeed
-            com.datastax.driver.core.Cluster nonSSLDriver = com.datastax.driver.core.Cluster.builder()
+            try (com.datastax.driver.core.Cluster nonSSLDriver = com.datastax.driver.core.Cluster.builder()
                                                                                             .addContactPoint(address.getHostAddress())
-                                                                                            .build();
-            assertNotNull(nonSSLDriver.connect());
+                                                                                            .build())
+            {
+                assertNotNull(nonSSLDriver.connect());
+            }
 
             // ssl connections should succeed
-            com.datastax.driver.core.Cluster sslDriver = com.datastax.driver.core.Cluster.builder()
+            try (com.datastax.driver.core.Cluster sslDriver = com.datastax.driver.core.Cluster.builder()
                                                                                          .addContactPoint(address.getHostAddress())
                                                                                          .withSSL(sslOptions(false))
-                                                                                         .build();
-            assertNotNull(sslDriver.connect());
+                                                                                         .build())
+            {
+                assertNotNull(sslDriver.connect());
+            }
 
             // mtls connections should succeed
-            com.datastax.driver.core.Cluster mtlsDriver = com.datastax.driver.core.Cluster.builder()
+            try (com.datastax.driver.core.Cluster mtlsDriver = com.datastax.driver.core.Cluster.builder()
                                                                                           .addContactPoint(address.getHostAddress())
                                                                                           .withSSL(sslOptions(true))
-                                                                                          .build();
-            assertNotNull(mtlsDriver.connect());
+                                                                                          .build())
+            {
+                assertNotNull(mtlsDriver.connect());
+            }
         }
     }
 
@@ -339,25 +292,31 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
             InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
 
             // ssl connections should succeed
-            com.datastax.driver.core.Cluster sslDriver = com.datastax.driver.core.Cluster.builder()
-                                                                                         .addContactPoint(address.getHostAddress())
-                                                                                         .withSSL(sslOptions(false))
-                                                                                         .build();
-            assertNotNull(sslDriver.connect());
+            try (com.datastax.driver.core.Cluster sslDriver = com.datastax.driver.core.Cluster.builder()
+                                                                                              .addContactPoint(address.getHostAddress())
+                                                                                              .withSSL(sslOptions(false))
+                                                                                              .build())
+            {
+                assertNotNull(sslDriver.connect());
+            }
 
             // mtls connections should succeed
-            com.datastax.driver.core.Cluster mtlsDriver = com.datastax.driver.core.Cluster.builder()
+            try (com.datastax.driver.core.Cluster mtlsDriver = com.datastax.driver.core.Cluster.builder()
                                                                                           .addContactPoint(address.getHostAddress())
                                                                                           .withSSL(sslOptions(true))
-                                                                                          .build();
-            assertNotNull(mtlsDriver.connect());
+                                                                                          .build())
+            {
+                assertNotNull(mtlsDriver.connect());
+            }
 
             // non-ssl connections should not succeed
-            com.datastax.driver.core.Cluster nonSSLDriver = com.datastax.driver.core.Cluster.builder()
+            try (com.datastax.driver.core.Cluster nonSSLDriver = com.datastax.driver.core.Cluster.builder()
                                                                                             .addContactPoint(address.getHostAddress())
-                                                                                            .build();
-            expectedException.expect(NoHostAvailableException.class);
-            assertNull(nonSSLDriver.connect());
+                                                                                            .build())
+            {
+                expectedException.expect(NoHostAvailableException.class);
+                nonSSLDriver.connect();
+            }
         }
     }
 
@@ -380,24 +339,30 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
             InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
 
             // non-ssl connections should succeed
-            com.datastax.driver.core.Cluster nonSSLDriver = com.datastax.driver.core.Cluster.builder()
-                                                                                            .addContactPoint(address.getHostAddress())
-                                                                                            .build();
-            assertNotNull(nonSSLDriver.connect());
+            try (com.datastax.driver.core.Cluster nonSSLDriver = com.datastax.driver.core.Cluster.builder()
+                                                                                                 .addContactPoint(address.getHostAddress())
+                                                                                                 .build())
+            {
+                assertNotNull(nonSSLDriver.connect());
+            }
 
             // ssl connections should succeed
-            com.datastax.driver.core.Cluster sslDriver = com.datastax.driver.core.Cluster.builder()
-                                                                                         .addContactPoint(address.getHostAddress())
-                                                                                         .withSSL(sslOptions(false))
-                                                                                         .build();
-            assertNotNull(sslDriver.connect());
+            try (com.datastax.driver.core.Cluster sslDriver = com.datastax.driver.core.Cluster.builder()
+                                                                                              .addContactPoint(address.getHostAddress())
+                                                                                              .withSSL(sslOptions(false))
+                                                                                              .build())
+            {
+                assertNotNull(sslDriver.connect());
+            }
 
             // mtls connections should succeed
-            com.datastax.driver.core.Cluster mtlsDriver = com.datastax.driver.core.Cluster.builder()
-                                                                                          .addContactPoint(address.getHostAddress())
-                                                                                          .withSSL(sslOptions(true))
-                                                                                          .build();
-            assertNotNull(mtlsDriver.connect());
+            try (com.datastax.driver.core.Cluster mtlsDriver = com.datastax.driver.core.Cluster.builder()
+                                                                                               .addContactPoint(address.getHostAddress())
+                                                                                               .withSSL(sslOptions(true))
+                                                                                               .build())
+            {
+                assertNotNull(mtlsDriver.connect());
+            }
         }
     }
 
@@ -436,17 +401,19 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
             SslContext sslContext = sslContextBuilder.trustManager(createTrustManagerFactory(TlsTestUtils.SERVER_TRUSTSTORE_PATH, TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD))
                                                      .build();
             final SSLOptions sslOptions = socketChannel -> sslContext.newHandler(socketChannel.alloc());
-            com.datastax.driver.core.Cluster driverCluster = com.datastax.driver.core.Cluster.builder()
-                                                                                             .addContactPoint(address.getHostAddress())
-                                                                                             .withSSL(sslOptions)
-                                                                                             .build();
 
-            if (!ipInSAN)
+            try (com.datastax.driver.core.Cluster driverCluster = com.datastax.driver.core.Cluster.builder()
+                                                                                                  .addContactPoint(address.getHostAddress())
+                                                                                                  .withSSL(sslOptions)
+                                                                                                  .build())
             {
-                expectedException.expect(NoHostAvailableException.class);
-            }
+                if (!ipInSAN)
+                {
+                    expectedException.expect(NoHostAvailableException.class);
+                }
 
-            driverCluster.connect();
+                driverCluster.connect();
+            }
         }
     }
 

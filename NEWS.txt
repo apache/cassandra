@@ -141,6 +141,11 @@ Upgrading
     which come up during or after an election will learn of the elected first CMS node and direct metadata updates to
     it. It is important to remember that at the completion of the election, the CMS still only comprises a single
     member. Just as in the upgrade case, operators should add further members as soon as possible.
+    - native_transport_port_ssl property was removed. Please transition to using one port only. Encrypted communication
+    may be optional by setting `optional` flag in `client_encryption_options` to `true` and it should be set only
+    while in unencrypted or transitional operation. Please consult `client_encryption_options` in cassandra.yaml
+    for more information.
+
 
 Deprecation
 -----------

@@ -159,7 +159,7 @@ public class SimpleClientPerfTest
                                             .withPort(port)
                                             .build();
 
-        ClientMetrics.instance.init(Collections.singleton(server));
+        ClientMetrics.instance.init(server);
         server.start();
 
         Message.Type.QUERY.unsafeSetCodec(new Message.Codec<QueryMessage>()

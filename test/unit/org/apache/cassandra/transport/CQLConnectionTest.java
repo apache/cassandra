@@ -509,7 +509,7 @@ public class CQLConnectionTest
                                   .withPort(port)
                                   .withPipelineConfigurator(configurator)
                                   .build();
-        ClientMetrics.instance.init(Collections.singleton(server));
+        ClientMetrics.instance.init(server);
         return server;
     }
 
