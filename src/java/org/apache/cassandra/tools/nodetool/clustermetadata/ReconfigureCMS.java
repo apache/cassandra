@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools.nodetool;
+package org.apache.cassandra.tools.nodetool.clustermetadata;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -29,7 +29,7 @@ import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 
-@Command(name = "reconfigurecms", description = "Reconfigure replication factor of CMS")
+@Command(name = "reconfigure", description = "Reconfigure replication factor of CMS")
 public class ReconfigureCMS extends NodeTool.NodeToolCmd
 {
     @Option(title = "status",

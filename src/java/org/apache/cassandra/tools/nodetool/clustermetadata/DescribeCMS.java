@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools.nodetool;
+package org.apache.cassandra.tools.nodetool.clustermetadata;
 
 import java.util.Map;
 
@@ -24,21 +24,21 @@ import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 
-@Command(name = "describecms", description = "Describe the current Cluster Metadata Service")
+@Command(name = "describe", description = "Describe the current Cluster Metadata Service")
 public class DescribeCMS extends NodeTool.NodeToolCmd
 {
     @Override
     protected void execute(NodeProbe probe)
     {
         Map<String, String> info = probe.getCMSOperationsProxy().describeCMS();
-        System.out.printf("Cluster Metadata Service:%n");
-        System.out.printf("Members: %s%n", info.get("MEMBERS"));
-        System.out.printf("Is Member: %s%n", info.get("IS_MEMBER"));
-        System.out.printf("Service State: %s%n", info.get("SERVICE_STATE"));
-        System.out.printf("Is Migrating: %s%n", info.get("IS_MIGRATING"));
-        System.out.printf("Epoch: %s%n", info.get("EPOCH"));
-        System.out.printf("Local Pending Count: %s%n", info.get("LOCAL_PENDING"));
-        System.out.printf("Commits Paused: %s%n", info.get("COMMITS_PAUSED"));
-        System.out.printf("Replication factor: %s%n", info.get("REPLICATION_FACTOR"));
+        output.out.printf("Cluster Metadata Service:%n");
+        output.out.printf("Members: %s%n", info.get("MEMBERS"));
+        output.out.printf("Is Member: %s%n", info.get("IS_MEMBER"));
+        output.out.printf("Service State: %s%n", info.get("SERVICE_STATE"));
+        output.out.printf("Is Migrating: %s%n", info.get("IS_MIGRATING"));
+        output.out.printf("Epoch: %s%n", info.get("EPOCH"));
+        output.out.printf("Local Pending Count: %s%n", info.get("LOCAL_PENDING"));
+        output.out.printf("Commits Paused: %s%n", info.get("COMMITS_PAUSED"));
+        output.out.printf("Replication factor: %s%n", info.get("REPLICATION_FACTOR"));
     }
 }

@@ -52,6 +52,10 @@ import com.google.common.base.Throwables;
 
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.tools.nodetool.*;
+import org.apache.cassandra.tools.nodetool.clustermetadata.ClusterMetadataHelper;
+import org.apache.cassandra.tools.nodetool.clustermetadata.DescribeCMS;
+import org.apache.cassandra.tools.nodetool.clustermetadata.DumpClusterMetadata;
+import org.apache.cassandra.tools.nodetool.clustermetadata.ReconfigureCMS;
 import org.apache.cassandra.utils.FBUtilities;
 
 import com.google.common.collect.Maps;
@@ -107,7 +111,6 @@ public class NodeTool
                 DataPaths.class,
                 Decommission.class,
                 DescribeCluster.class,
-                DescribeCMS.class,
                 DescribeRing.class,
                 DisableAuditLog.class,
                 DisableAutoCompaction.class,
@@ -182,7 +185,6 @@ public class NodeTool
                 Rebuild.class,
                 RebuildIndex.class,
                 RecompressSSTables.class,
-                ReconfigureCMS.class,
                 Refresh.class,
                 RefreshSizeEstimates.class,
                 ReloadLocalSchema.class,
@@ -262,6 +264,13 @@ public class NodeTool
                .withCommand(RepairAdmin.SummarizePendingCmd.class)
                .withCommand(RepairAdmin.SummarizeRepairedCmd.class);
 
+        builder.withGroup("cms")
+               .withDescription("Manage cluster metadata")
+               .withDefaultCommand(ClusterMetadataHelper.class)
+               .withCommand(DescribeCMS.class)
+               .withCommand(ReconfigureCMS.class)
+               .withCommand(DumpClusterMetadata.class);
+
         Cli<NodeToolCmdRunnable> parser = builder.build();
 
         int status = 0;
@@ -336,7 +345,7 @@ public class NodeTool
         }
     }
 
-    interface NodeToolCmdRunnable
+    public interface NodeToolCmdRunnable
     {
         void run(INodeProbeFactory nodeProbeFactory, Output output);
     }
