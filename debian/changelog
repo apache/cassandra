@@ -1,3 +1,9 @@
+cassandra (4.1.5) UNRELEASED; urgency=medium
+
+  * New release
+
+ -- Stefan Miklosovic <smiklosovic@apache.org>  Wed, 14 Feb 2024 21:02:09 +0100
+
 cassandra (4.1.4) unstable; urgency=medium
 
   * New release
