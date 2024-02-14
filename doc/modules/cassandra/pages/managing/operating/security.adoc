@@ -162,6 +162,11 @@ requirements demand it. To do so, set `optional` to false and use the
 `native_transport_port_ssl` setting in `cassandra.yaml` to specify the
 port to be used for secure client communication.
 
+[NOTE]
+====
+`native_transport_port_ssl` property was deprecated in Cassandra 5.0 and removed in Cassandra 5.1.
+====
+
 [[operation-roles]]
 == Roles
 

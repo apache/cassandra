@@ -19,8 +19,6 @@
 package org.apache.cassandra.metrics;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -54,7 +52,7 @@ public final class ClientMetrics
     private static final MetricNameFactory factory = new DefaultNameFactory("Client");
 
     private volatile boolean initialized = false;
-    private Collection<Server> servers = Collections.emptyList();
+    private Server server = null;
 
     @VisibleForTesting
     Meter authSuccess;
@@ -148,7 +146,7 @@ public final class ClientMetrics
     {
         List<ConnectedClient> clients = new ArrayList<>();
 
-        for (Server server : servers)
+        if (server != null)
             clients.addAll(server.getConnectedClients());
 
         return clients;
@@ -164,12 +162,12 @@ public final class ClientMetrics
         unknownException.mark();
     }
 
-    public synchronized void init(Collection<Server> servers)
+    public synchronized void init(Server servers)
     {
         if (initialized)
             return;
 
-        this.servers = servers;
+        this.server = servers;
 
         // deprecated the lower-cased initial letter metric names in 4.0
         connectedNativeClients = registerGauge(CONNECTED_NATIVE_CLIENTS, "connectedNativeClients", this::countConnectedClients);
@@ -225,23 +223,16 @@ public final class ClientMetrics
 
     private int countConnectedClients()
     {
-        int count = 0;
-
-        for (Server server : servers)
-            count += server.countConnectedClients();
-
-        return count;
+        return server == null ? 0 : server.countConnectedClients();
     }
 
     private Map<String, Integer> countConnectedClientsByUser()
     {
         Map<String, Integer> counts = new HashMap<>();
 
-        for (Server server : servers)
-        {
+        if (server != null)
             server.countConnectedClientsByUser()
                   .forEach((username, count) -> counts.put(username, counts.getOrDefault(username, 0) + count));
-        }
 
         return counts;
     }
@@ -250,32 +241,31 @@ public final class ClientMetrics
     {
         List<Map<String, String>> clients = new ArrayList<>();
 
-        for (Server server : servers)
+        if (server != null)
+        {
             for (ConnectedClient client : server.getConnectedClients())
                 clients.add(client.asMap());
+        }
 
         return clients;
     }
 
     private int countConnectedClients(Predicate<ServerConnection> predicate)
     {
-        int count = 0;
-
-        for (Server server : servers)
-            count += server.countConnectedClients(predicate);
-
-        return count;
+        return server == null ? 0 : server.countConnectedClients(predicate);
     }
 
     private List<Map<String, String>> recentClientStats()
     {
         List<Map<String, String>> stats = new ArrayList<>();
 
-        for (Server server : servers)
+        if (server != null)
+        {
             for (ClientStat stat : server.recentClientStats())
                 stats.add(new HashMap<>(stat.asMap())); // asMap returns guava, so need to convert to java for jmx
 
-        stats.sort(Comparator.comparing(map -> map.get(ClientStat.PROTOCOL_VERSION)));
+            stats.sort(Comparator.comparing(map -> map.get(ClientStat.PROTOCOL_VERSION)));
+        }
 
         return stats;
     }
