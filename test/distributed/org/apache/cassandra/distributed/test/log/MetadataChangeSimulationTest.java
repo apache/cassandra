@@ -39,6 +39,9 @@ import org.apache.cassandra.harry.sut.TokenPlacementModel.DCReplicas;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -77,12 +80,18 @@ import static org.apache.cassandra.harry.sut.TokenPlacementModel.nodeFactoryHuma
 
 public class MetadataChangeSimulationTest extends CMSTestBase
 {
+    private static final Logger logger = LoggerFactory.getLogger(MetadataChangeSimulationTest.class);
+    private static final long seed;
+    private static final Random rng;
     static
     {
+        seed = System.nanoTime();
+        logger.info("SEED: {}", seed);
+        rng = new Random(seed);
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
+        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
     }
 
-    private static final Random rng = new Random(1);
 
     @Test
     public void simulateNTS() throws Throwable
@@ -94,7 +103,12 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         for (int concurrency : new int[]{ 1, 3, 5 })
         {
             for (int rf : new int[]{ 2, 3, 5 })
-                simulate(50, 0, new NtsReplicationFactor(3, rf), concurrency);
+            {
+                for (int trans = 0; trans < rf; trans++)
+                {
+                    simulate(50, 0, new NtsReplicationFactor(3, rf, trans), concurrency);
+                }
+            }
         }
     }
 
@@ -104,7 +118,12 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         for (int concurrency : new int[]{ 1, 3, 5 })
         {
             for (int rf : new int[]{ 2, 3, 5 })
-                simulate(50, 0, new SimpleReplicationFactor(rf), concurrency);
+            {
+                for (int trans = 0; trans < rf; trans++)
+                {
+                    simulate(50, 0, new SimpleReplicationFactor(rf, trans), concurrency);
+                }
+            }
         }
     }
 
@@ -112,7 +131,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
     public void simulateSimpleOneTransient() throws Throwable
     {
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
-        simulate(5, 0, new SimpleReplicationFactor(3, 1), 1);
+        simulate(5, 0, new SimpleReplicationFactor(3, 2), 1);
     }
 
     @Test
@@ -376,8 +395,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
 
     public void simulate(int toBootstrap, int minSteps, ReplicationFactor rf, int concurrency) throws Throwable
     {
-        System.out.printf("RUNNING SIMULATION. TO BOOTSTRAP: %s, RF: %s, CONCURRENCY: %s%n",
-                          toBootstrap, rf, concurrency);
+        logger.info("RUNNING SIMULATION WITH SEED {}. TO BOOTSTRAP: {}, RF: {}, CONCURRENCY: {}", seed, toBootstrap, rf, concurrency);
         long startTime = System.currentTimeMillis();
         ModelChecker<ModelState, CMSSut> modelChecker = new ModelChecker<>();
         ClusterMetadataService.unsetInstance();
@@ -482,10 +500,10 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                         {
                             validatePlacementsFinal(sut, state);
                             sut.close();
-                            System.out.printf("(RF: %d, CONCURRENCY: %d, RUN TIME: %dms) - " +
-                                              "REGISTERED: %d, CURRENT SIZE: %d, REJECTED %d, INFLIGHT: %d" +
-                                              "FINISHED  (join,replace,leave,move): %s" +
-                                              "CANCELLED (join,replace,leave,move): %s%n",
+                            logger.info("(RF: {}, CONCURRENCY: {}, RUN TIME: {}ms) - " +
+                                              "REGISTERED: {}, CURRENT SIZE: {}, REJECTED {}, INFLIGHT: {} " +
+                                              "FINISHED  (join,replace,leave,move): {} " +
+                                              "CANCELLED (join,replace,leave,move): {} ",
                                               sut.rf.total(), concurrency, System.currentTimeMillis() - startTime,
                                               state.uniqueNodes, state.currentNodes.size(), state.rejected, state.inFlightOperations.size(),
                                               Arrays.toString(state.finished),

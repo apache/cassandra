@@ -85,7 +85,7 @@ public class TokenPlacementModel
             this.transientCount = transientCount;
         }
 
-        public String toRFString()
+        public String toString()
         {
             return totalCount + ((transientCount > 0) ? "/" + transientCount : "");
         }
@@ -360,7 +360,7 @@ public class TokenPlacementModel
             for (Map.Entry<String, DCReplicas> e : replication.entrySet())
             {
                 args[i * 2] = e.getKey();
-                args[i * 2 + 1] = e.getValue().toRFString();
+                args[i * 2 + 1] = e.getValue().toString();
                 i++;
             }
 
@@ -560,7 +560,7 @@ public class TokenPlacementModel
         {
             Map<String, String> options = new HashMap<>();
             options.put(ReplicationParams.CLASS, SimpleStrategy.class.getName());
-            options.put(SimpleStrategy.REPLICATION_FACTOR, dcReplicas().toRFString());
+            options.put(SimpleStrategy.REPLICATION_FACTOR, dcReplicas().toString());
             return KeyspaceParams.create(true, options);
         }
 
@@ -614,7 +614,7 @@ public class TokenPlacementModel
         public String toString()
         {
             return "SimpleReplicationFactor{" +
-                   "rf=" + dcReplicas().toRFString() +
+                   "rf=" + dcReplicas().toString() +
                    '}';
         }
     }
