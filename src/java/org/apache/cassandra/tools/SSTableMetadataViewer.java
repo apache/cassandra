@@ -348,6 +348,8 @@ public class SSTableMetadataViewer
             field("SSTable min local deletion time", stats.minLocalDeletionTime, deletion(stats.minLocalDeletionTime));
             field("SSTable max local deletion time", stats.maxLocalDeletionTime, deletion(stats.maxLocalDeletionTime));
             field("Compressor", compression != null ? compression.compressor().getClass().getName() : "-");
+            field("Compression chunk size", compression !=null ? compression.chunkLength(): "unknown");
+
             if (compression != null)
                 field("Compression ratio", stats.compressionRatio);
             field("TTL min", stats.minTTL, toDurationString(stats.minTTL, TimeUnit.SECONDS));

@@ -115,6 +115,7 @@ public class SSTableMetadataViewerTest extends OfflineToolUtils
         assertTrue(tool.getStdout(), CharMatcher.ascii().matchesAllOf(tool.getStdout()));
         Assertions.assertThat(tool.getStdout()).doesNotContain("Widest Partitions");
         Assertions.assertThat(tool.getStdout()).contains(sstable.replaceAll("-Data\\.db$", ""));
+        Assertions.assertThat(tool.getStdout()).contains("Compression chunk size");
         assertTrue(tool.getCleanedStderr(), tool.getCleanedStderr().isEmpty());
         assertEquals(0, tool.getExitCode());
         assertGoodEnvPostTest();
