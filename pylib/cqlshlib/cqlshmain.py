@@ -217,9 +217,11 @@ def show_warning_without_quoting_line(message, category, filename, lineno, file=
     except IOError:
         pass
 
+
 warnings.showwarning = show_warning_without_quoting_line
 warnings.filterwarnings('always', category=cql3handling.UnexpectedTableStructure)
 warnings.filterwarnings("ignore", r".*blist.*")
+
 
 class Shell(cmd.Cmd):
     DEFAULT_HOST = '127.0.0.1'
@@ -806,7 +808,7 @@ class Shell(cmd.Cmd):
         custom_handler = getattr(self, 'do_' + cmdword.lower(), None)
         if custom_handler:
             parsed = ruleset.cql_whole_parse_tokens(tokens, srcstr=srcstr,
-                                                       startsymbol='cqlshCommand')
+                                                    startsymbol='cqlshCommand')
             if parsed and not parsed.remainder:
                 # successful complete parse
                 return custom_handler(parsed)
@@ -1079,7 +1081,7 @@ class Shell(cmd.Cmd):
         begidx = readline.get_begidx() + len(prevlines)
         stuff_to_complete = wholestmt[:begidx]
         return ruleset.cql_complete(stuff_to_complete, text, cassandra_conn=self,
-                                       debug=debug_completion, startsymbol='cqlshCommand')
+                                    debug=debug_completion, startsymbol='cqlshCommand')
 
     def set_prompt(self, prompt, prepend_user=False):
         if prepend_user and self.username:
@@ -2126,6 +2128,7 @@ def read_options(cmdlineargs, parser, config_file, cql_dir, environment=os.envir
         parser.error('%r is not a valid port number.' % port)
     return options, hostname, port
 
+
 def get_docspath(path):
     cqldocs_url = Shell.DEFAULT_CQLDOCS_URL
     if os.path.exists(path + '/doc/cql3/CQL.html'):
@@ -2228,8 +2231,8 @@ def main(cmdline, pkgpath):
     if cfarguments.cqlshrc is not None:
         config_file = os.path.expanduser(cfarguments.cqlshrc)
         if not os.path.exists(config_file):
-            print('\nWarning: Specified cqlshrc location `%s` does not exist.  Using `%s` instead.\n' % (
-            config_file, default_cqlshrc))
+            print('\nWarning: Specified cqlshrc location `%s` does not exist.  Using `%s` instead.\n' %
+                  (config_file, default_cqlshrc))
             config_file = default_cqlshrc
     else:
         config_file = default_cqlshrc
