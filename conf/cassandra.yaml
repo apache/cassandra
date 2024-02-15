@@ -173,6 +173,7 @@ authenticator:
 #  class_name : org.apache.cassandra.auth.MutualTlsAuthenticator
 #  parameters :
 #    validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
+#    max_certificate_age: 365d
 
 # Authorization backend, implementing IAuthorizer; used to limit access/provide permissions
 # Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllAuthorizer,
@@ -969,6 +970,7 @@ listen_address: localhost
 #    validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
 #    trusted_peer_identities: "spiffe1,spiffe2"
 #    node_identity: "spiffe1"
+#    max_certificate_age: 365d
 # Whether to start the native transport server.
 # The address on which the native transport is bound is defined by rpc_address.
 start_native_transport: true

@@ -24,7 +24,7 @@ import org.apache.cassandra.exceptions.AuthenticationException;
 
 /**
  * Interface for certificate validation and authorization for mTLS authenticators.
- *
+ * <p>
  * This interface can be implemented to provide logic for extracting custom identities from client certificates
  * to uniquely identify the certificates. It can also be used to provide custom authorization logic to authenticate
  * clients using client certificates during mTLS connections.
@@ -35,29 +35,55 @@ public interface MutualTlsCertificateValidator
      * Perform any checks that are to be performed on the certificate before making authorization check to grant the
      * access to the client during mTLS connection.
      *
-     * For example
-     *  - Verifying CA information
-     *  - Checking CN information
-     *  - Validating Issuer information
-     *  - Checking organization information etc
+     * <p>For example:
+     * <ul>
+     *  <li>Verifying CA information
+     *  <li>Checking CN information
+     *  <li>Validating Issuer information
+     *  <li>Checking organization information etc
+     * </ul>
      *
      * @param clientCertificateChain client certificate chain
-     * @return returns if the certificate is valid or not
+     * @return returns {@code true} if the certificate is valid, {@code false} otherwise
      */
-    boolean isValidCertificate(Certificate[] clientCertificateChain);
+    default boolean isValidCertificate(Certificate[] clientCertificateChain)
+    {
+        return isValidCertificate(clientCertificateChain, Integer.MAX_VALUE);
+    }
+
+    /**
+     * Perform any checks that are to be performed on the certificate before making authorization check to grant the
+     * access to the client during mTLS connection.
+     *
+     * <p>For example:
+     * <ul>
+     *  <li>Verifying CA information
+     *  <li>Checking CN information
+     *  <li>Validating Issuer information
+     *  <li>Checking organization information etc
+     * </ul>
+     *
+     * @param clientCertificateChain   client certificate chain
+     * @param maxCertificateAgeMinutes the maximum age allowed for the certificates in the chain
+     * @return returns {@code true} if the certificate is valid, {@code false} otherwise
+     * @throws AuthenticationException when the age of the certificate is greater than the maximum allowed age
+     *                                 for the certificate
+     */
+    boolean isValidCertificate(Certificate[] clientCertificateChain, int maxCertificateAgeMinutes) throws AuthenticationException;
 
     /**
      * This method should provide logic to extract identity out of a certificate to perform mTLS authentication.
      *
-     * An example of identity could be the following
-     *  - an identifier in SAN of the certificate like SPIFFE
-     *  - CN of the certificate
-     *  - any other fields in the certificate can be combined and be used as identifier of the certificate
+     * <p>An example of identity could be the following:
+     * <ul>
+     *  <li>an identifier in SAN of the certificate like SPIFFE
+     *  <li>CN of the certificate
+     *  <li>any other fields in the certificate can be combined and be used as identifier of the certificate
+     * </ul>
      *
      * @param clientCertificateChain client certificate chain
      * @return identifier extracted from certificate
      * @throws AuthenticationException when identity cannot be extracted
      */
     String identity(Certificate[] clientCertificateChain) throws AuthenticationException;
-
 }

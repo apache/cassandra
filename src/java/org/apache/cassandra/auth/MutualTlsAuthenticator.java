@@ -35,6 +35,7 @@ import org.slf4j.helpers.MessageFormatter;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -44,34 +45,47 @@ import org.apache.cassandra.utils.NoSpamLogger;
 import static org.apache.cassandra.auth.IAuthenticator.AuthenticationMode.MTLS;
 import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
 
-/*
+/**
  * Performs mTLS authentication for client connections by extracting identities from client certificate
  * and verifying them against the authorized identities in IdentityCache. IdentityCache is a loading cache that
  * refreshes values on timely basis.
  *
- * During a client connection, after SSL handshake, identity of certificate is extracted using the certificate validator
+ * <p>During a client connection, after SSL handshake, identity of certificate is extracted using the certificate validator
  * and is verified whether the value exists in the cache or not. If it exists access is granted, otherwise, the connection
  * is rejected.
  *
- * Authenticator & Certificate validator can be configured using cassandra.yaml, one can write their own mTLS certificate
+ * <p>Authenticator & Certificate validator can be configured using cassandra.yaml, one can write their own mTLS certificate
  * validator and configure it in cassandra.yaml.Below is an example on how to configure validator.
  * note that this example uses SPIFFE based validator, It could be any other validator with any defined identifier format.
  *
- * Example:
+ * <p>Optionally, the authenticator can be configured to restrict the age of the client certificates. This allows for
+ * better server-side controls for authentication. In some cases, clients can provide certificates that expire multiple
+ * months/years after the certificate was issued. For those use cases, it is desirable to reject the certificate if
+ * the expiration date is too far away in the future.
+ *
+ * <p>Example:
+ * <pre>
  * authenticator:
  *   class_name : org.apache.cassandra.auth.MutualTlsAuthenticator
  *   parameters :
  *     validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
+ *     max_certificate_age: 5d
+ * </pre>
  */
 public class MutualTlsAuthenticator implements IAuthenticator
 {
     private static final Logger logger = LoggerFactory.getLogger(MutualTlsAuthenticator.class);
     private static final NoSpamLogger nospamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.MINUTES);
     private static final String VALIDATOR_CLASS_NAME = "validator_class_name";
+    private static final String MAX_CERTIFICATE_AGE_CONFIG = "max_certificate_age";
     private static final String CACHE_NAME = "IdentitiesCache";
     private final IdentityCache identityCache = new IdentityCache();
     private final MutualTlsCertificateValidator certificateValidator;
     private static final Set<AuthenticationMode> AUTHENTICATION_MODES = Collections.singleton(MTLS);
+    // For minute resolution, if the configuration is Integer.MAX_VALUE we can represent 4085 years.
+    // We should safely expect that no certificate expires after 4085 years of its creation.
+    @VisibleForTesting
+    final int maxCertificateAgeMinutes;
 
     // key for the 'identity' value in AuthenticatedUser metadata map.
     static final String METADATA_IDENTITY_KEY = "identity";
@@ -87,6 +101,18 @@ public class MutualTlsAuthenticator implements IAuthenticator
         }
         certificateValidator = ParameterizedClass.newInstance(new ParameterizedClass(certificateValidatorClassName),
                                                               Arrays.asList("", AuthConfig.class.getPackage().getName()));
+
+        String maxCertificateAgeConfig = parameters.get(MAX_CERTIFICATE_AGE_CONFIG);
+        if (maxCertificateAgeConfig != null)
+        {
+            DurationSpec.IntMinutesBound maxCertificateAge = new DurationSpec.IntMinutesBound(maxCertificateAgeConfig);
+            maxCertificateAgeMinutes = maxCertificateAge.toMinutes();
+        }
+        else
+        {
+            maxCertificateAgeMinutes = Integer.MAX_VALUE;
+        }
+
         AuthCacheService.instance.register(identityCache);
     }
 
@@ -187,14 +213,14 @@ public class MutualTlsAuthenticator implements IAuthenticator
                 throw new AuthenticationException("No certificate present on connection");
             }
 
-            if (!certificateValidator.isValidCertificate(clientCertificateChain))
+            if (!certificateValidator.isValidCertificate(clientCertificateChain, maxCertificateAgeMinutes))
             {
                 String message = "Invalid or not supported certificate";
                 nospamLogger.error(message);
                 throw new AuthenticationException(message);
             }
 
-            final String identity = certificateValidator.identity(clientCertificateChain);
+            String identity = certificateValidator.identity(clientCertificateChain);
             if (StringUtils.isEmpty(identity))
             {
                 String msg = "Unable to extract client identity from certificate for authentication";

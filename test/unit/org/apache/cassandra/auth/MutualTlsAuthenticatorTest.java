@@ -23,7 +23,10 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import org.junit.After;
@@ -44,6 +47,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.auth.AuthTestUtils.getMockInetAddress;
 import static org.apache.cassandra.auth.AuthTestUtils.initializeIdentityRolesTable;
@@ -86,7 +90,7 @@ public class MutualTlsAuthenticatorTest
     @After
     public void after() throws IOException, TimeoutException
     {
-        MBeanWrapper.instance.unregisterMBean("org.apache.cassandra.auth:type=IdentitiesCache");
+        MBeanWrapper.instance.unregisterMBean("org.apache.cassandra.auth:type=IdentitiesCache", MBeanWrapper.OnException.IGNORE);
         StorageService.instance.truncate(SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.IDENTITY_TO_ROLES);
     }
 
@@ -156,6 +160,50 @@ public class MutualTlsAuthenticatorTest
         expectedException.expect(ConfigurationException.class);
         expectedException.expectMessage("authenticator.parameters.validator_class_name is not set");
         new MutualTlsAuthenticator(Collections.emptyMap());
+    }
+
+    @Test
+    public void testInvalidMaxCertificateAge()
+    {
+        expectedException.expect(IllegalArgumentException.class);
+        expectedException.expectMessage("Invalid duration: not-a-valid-input Accepted units:[MINUTES, HOURS, DAYS] where case matters and only non-negative values.");
+
+        Map<String, String> parameters = new HashMap<>();
+        parameters.put("validator_class_name", getValidatorClass());
+        parameters.put("max_certificate_age", "not-a-valid-input");
+        new MutualTlsAuthenticator(parameters);
+    }
+
+    @Test
+    public void testNegativeMaxCertificateAge()
+    {
+        expectedException.expect(IllegalArgumentException.class);
+        expectedException.expectMessage("Invalid duration: -2d Accepted units:[MINUTES, HOURS, DAYS] where case matters and only non-negative values.");
+
+        Map<String, String> parameters = new HashMap<>();
+        parameters.put("validator_class_name", getValidatorClass());
+        parameters.put("max_certificate_age", "-2d");
+        new MutualTlsAuthenticator(parameters);
+    }
+
+    @Test
+    public void testValidMaxCertificateAgeConfiguration()
+    {
+        Map<String, String> parameters = new HashMap<>();
+        parameters.put("validator_class_name", getValidatorClass());
+
+        List<Pair<String, Integer>> testCases = List.of(Pair.create("2d", (int) TimeUnit.DAYS.toMinutes(2)),
+                                                        Pair.create("1m", 1),
+                                                        Pair.create("365d", (int) TimeUnit.DAYS.toMinutes(365)));
+
+        for (Pair<String, Integer> testCase : testCases)
+        {
+            parameters.put("max_certificate_age", testCase.left);
+            MutualTlsAuthenticator authenticator = new MutualTlsAuthenticator(parameters);
+            assertEquals(String.format("max_certificate_age=%s is expected to parse %d minutes", testCase.left, testCase.right),
+                         testCase.right.intValue(), authenticator.maxCertificateAgeMinutes);
+            MBeanWrapper.instance.unregisterMBean("org.apache.cassandra.auth:type=IdentitiesCache");
+        }
     }
 
     @Test
