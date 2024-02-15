@@ -207,4 +207,9 @@ public class RowMapping
     {
         return maxSSTableRowId >= 0 || maxStaticSSTableRowId >= 0;
     }
+
+    public int size(boolean isStatic)
+    {
+        return isStatic ? staticRowCount : rowCount;
+    }
 }

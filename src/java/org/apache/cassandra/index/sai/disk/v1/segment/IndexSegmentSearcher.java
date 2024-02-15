@@ -61,12 +61,7 @@ public abstract class IndexSegmentSearcher implements SegmentOrdering, Closeable
                                             SegmentMetadata segmentMetadata,
                                             StorageAttachedIndex index) throws IOException
     {
-        if (index.termType().isVector())
-            return new VectorIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, index);
-        else if (index.termType().isLiteral())
-            return new LiteralIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, index);
-        else
-            return new NumericIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, index);
+        return index.getStrategy().createSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata);
     }
 
     /**

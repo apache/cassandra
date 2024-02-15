@@ -67,10 +67,10 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
     private final ThreadLocal<SparseFixedBitSet> cachedBitSets;
     private final OptimizeFor optimizeFor;
 
-    VectorIndexSegmentSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
-                               PerColumnIndexFiles perIndexFiles,
-                               SegmentMetadata segmentMetadata,
-                               StorageAttachedIndex index) throws IOException
+    public VectorIndexSegmentSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
+                                      PerColumnIndexFiles perIndexFiles,
+                                      SegmentMetadata segmentMetadata,
+                                      StorageAttachedIndex index) throws IOException
     {
         super(primaryKeyMapFactory, perIndexFiles, segmentMetadata, index);
         graph = new DiskAnn(segmentMetadata.componentMetadatas, perIndexFiles, index.indexWriterConfig());
