@@ -246,7 +246,7 @@ public class CassandraStreamReceiver implements StreamReceiver
         checkNotNull(minVersion, "Unable to determine minimum cluster version");
         IAccordService accordService = AccordService.instance();
         if (session.streamOperation().requiresBarrierTransaction()
-            && cfs.metadata().isAccordEnabled()
+            && cfs.metadata().requiresAccordSupport()
             && CassandraVersion.CASSANDRA_5_0.compareTo(minVersion) >= 0)
             accordService.postStreamReceivingBarrier(cfs, ranges);
 

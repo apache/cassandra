@@ -18,7 +18,11 @@
 
 package org.apache.cassandra.service.consensus.migration;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.function.Predicate;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -26,6 +30,8 @@ import javax.annotation.Nullable;
 import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.FutureCallback;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -49,14 +55,12 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.transformations.BeginConsensusMigrationForTableAndRange;
 import org.apache.cassandra.tcm.transformations.MaybeFinishConsensusMigrationForTableAndRange;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+import static java.util.Collections.emptyList;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.ImmutableList.toImmutableList;
-import static java.util.Collections.emptyList;
 import static org.apache.cassandra.dht.Range.normalize;
 import static org.apache.cassandra.utils.CollectionSerializers.newListSerializer;
 
@@ -90,9 +94,7 @@ public abstract class ConsensusTableMigration
             if (tms == null || !Range.intersects(tms.migratingRanges, desc.ranges))
                 return;
 
-            if (tms.targetProtocol == ConsensusMigrationTarget.paxos && repairResult.consensusMigrationRepairResult.type != ConsensusMigrationRepairType.accord)
-                return;
-            if (tms.targetProtocol == ConsensusMigrationTarget.accord && repairResult.consensusMigrationRepairResult.type != ConsensusMigrationRepairType.paxos)
+            if (!tms.targetProtocol.isMigratedBy(repairResult.consensusMigrationRepairResult.type))
                 return;
 
             ClusterMetadataService.instance().commit(
@@ -311,7 +313,8 @@ public abstract class ConsensusTableMigration
         boolean repairPaxos = !accordRepair;
         boolean paxosOnly = false;
         boolean dontPurgeTombstones = false;
-        RepairOption repairOption = new RepairOption(RepairParallelism.PARALLEL, primaryRange, incremental, trace, numJobThreads, intersectingRanges, pullRepair, forceRepair, PreviewKind.NONE, optimiseStreams, ignoreUnreplicatedKeyspaces, repairPaxos, paxosOnly, dontPurgeTombstones, accordRepair);
+        boolean accordOnly = false;
+        RepairOption repairOption = new RepairOption(RepairParallelism.PARALLEL, primaryRange, incremental, trace, numJobThreads, intersectingRanges, pullRepair, forceRepair, PreviewKind.NONE, optimiseStreams, ignoreUnreplicatedKeyspaces, repairPaxos, paxosOnly, dontPurgeTombstones, accordOnly, true);
         tables.forEach(table -> repairOption.getColumnFamilies().add(table.tableName));
         return repairOption;
     }

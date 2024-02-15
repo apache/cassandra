@@ -78,7 +78,8 @@ public abstract class AbstractRepairTask implements RepairTask
                                                                                  options.repairPaxos(),
                                                                                  options.paxosOnly(),
                                                                                  options.dontPurgeTombstones(),
-                                                                                 options.accordRepair(),
+                                                                                 options.accordOnly(),
+                                                                                 options.isConsensusMigration(),
                                                                                  executor,
                                                                                  validationScheduler,
                                                                                  cfnames);

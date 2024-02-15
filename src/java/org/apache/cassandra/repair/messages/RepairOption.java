@@ -61,9 +61,7 @@ public class RepairOption
     public static final String REPAIR_PAXOS_KEY = "repairPaxos";
     public static final String PAXOS_ONLY_KEY = "paxosOnly";
     public static final String NO_TOMBSTONE_PURGING = "nopurge";
-
-
-    public static final String ACCORD_REPAIR_KEY = "accordRepair";
+    public static final String ACCORD_ONLY_KEY = "accordOnly";
 
     // we don't want to push nodes too much for repair
     public static final int MAX_JOB_THREADS = 4;
@@ -203,21 +201,16 @@ public class RepairOption
         boolean repairPaxos = Boolean.parseBoolean(options.get(REPAIR_PAXOS_KEY));
         boolean paxosOnly = Boolean.parseBoolean(options.get(PAXOS_ONLY_KEY));
         boolean dontPurgeTombstones = Boolean.parseBoolean(options.get(NO_TOMBSTONE_PURGING));
-        boolean accordRepair = Boolean.parseBoolean(options.get(ACCORD_REPAIR_KEY));
+        boolean accordOnly = Boolean.parseBoolean(options.get(ACCORD_ONLY_KEY));
+
+        if (paxosOnly && accordOnly)
+            throw new IllegalArgumentException("Cannot repair paxos and repair only");
 
         if (previewKind != PreviewKind.NONE)
         {
             Preconditions.checkArgument(!repairPaxos, "repairPaxos must be set to false for preview repairs");
             Preconditions.checkArgument(!paxosOnly, "paxosOnly must be set to false for preview repairs");
-            Preconditions.checkArgument(!accordRepair, "accordRepair must be set to false for preview repairs");
-        }
-
-        if (accordRepair)
-        {
-            Preconditions.checkArgument(!paxosOnly, "paxosOnly must be set to false for Accord repairs");
-            Preconditions.checkArgument(previewKind == PreviewKind.NONE, "Can't perform preview repair with an Accord repair");
-            Preconditions.checkArgument(!force, "Accord repair only requires a quorum to work so force is not supported");
-            incremental = false;
+            Preconditions.checkArgument(!accordOnly, "accordOnly must be set to false for preview repairs");
         }
 
         int jobThreads = 1;
@@ -237,7 +230,7 @@ public class RepairOption
 
         boolean asymmetricSyncing = Boolean.parseBoolean(options.get(OPTIMISE_STREAMS_KEY));
 
-        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, pullRepair, force, previewKind, asymmetricSyncing, ignoreUnreplicatedKeyspaces, repairPaxos, paxosOnly, dontPurgeTombstones, accordRepair);
+        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, pullRepair, force, previewKind, asymmetricSyncing, ignoreUnreplicatedKeyspaces, repairPaxos, paxosOnly, dontPurgeTombstones, accordOnly, false);
 
         // data centers
         String dataCentersStr = options.get(DATACENTERS_KEY);
@@ -320,7 +313,8 @@ public class RepairOption
     private final boolean paxosOnly;
     private final boolean dontPurgeTombstones;
 
-    private final boolean accordRepair;
+    private final boolean accordOnly;
+    private final boolean isConsensusMigration;
 
     private final Collection<String> columnFamilies = new HashSet<>();
     private final Collection<String> dataCenters = new HashSet<>();
@@ -330,7 +324,7 @@ public class RepairOption
     public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads,
                         Collection<Range<Token>> ranges, boolean pullRepair, boolean forceRepair,
                         PreviewKind previewKind, boolean optimiseStreams, boolean ignoreUnreplicatedKeyspaces, boolean repairPaxos,
-                        boolean paxosOnly, boolean dontPurgeTombstones, boolean accordRepair)
+                        boolean paxosOnly, boolean dontPurgeTombstones, boolean accordOnly, boolean isConsensusMigration)
     {
 
         this.parallelism = parallelism;
@@ -338,6 +332,7 @@ public class RepairOption
         this.incremental = incremental;
         this.trace = trace;
         this.jobThreads = jobThreads;
+        this.isConsensusMigration = isConsensusMigration;
         this.ranges.addAll(ranges);
         this.pullRepair = pullRepair;
         this.forceRepair = forceRepair;
@@ -347,17 +342,7 @@ public class RepairOption
         this.repairPaxos = repairPaxos;
         this.paxosOnly = paxosOnly;
         this.dontPurgeTombstones = dontPurgeTombstones;
-        this.accordRepair = accordRepair;
-    }
-
-    public RepairOption withAccordRepair(boolean accordRepair)
-    {
-        RepairOption repairOption = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, pullRepair, forceRepair, previewKind, optimiseStreams, ignoreUnreplicatedKeyspaces, repairPaxos, paxosOnly, dontPurgeTombstones, accordRepair);
-        repairOption.columnFamilies.addAll(columnFamilies);
-        repairOption.dataCenters.addAll(dataCenters);
-        repairOption.hosts.addAll(hosts);
-        repairOption.ranges.addAll(ranges);
-        return repairOption;
+        this.accordOnly = accordOnly;
     }
 
     public RepairParallelism getParallelism()
@@ -473,9 +458,14 @@ public class RepairOption
         return dontPurgeTombstones;
     }
 
-    public boolean accordRepair()
+    public boolean accordOnly()
     {
-        return accordRepair;
+        return accordOnly;
+    }
+
+    public boolean isConsensusMigration()
+    {
+        return isConsensusMigration;
     }
 
     @Override
@@ -498,7 +488,7 @@ public class RepairOption
                ", repairPaxos: " + repairPaxos +
                ", paxosOnly: " + paxosOnly +
                ", dontPurgeTombstones: " + dontPurgeTombstones +
-               ", accordRepair: " + accordRepair +
+               ", accordOnly: " + accordOnly +
                ')';
     }
 
@@ -521,7 +511,7 @@ public class RepairOption
         options.put(REPAIR_PAXOS_KEY, Boolean.toString(repairPaxos));
         options.put(PAXOS_ONLY_KEY, Boolean.toString(paxosOnly));
         options.put(NO_TOMBSTONE_PURGING, Boolean.toString(dontPurgeTombstones));
-        options.put(ACCORD_REPAIR_KEY, Boolean.toString(accordRepair));
+        options.put(ACCORD_ONLY_KEY, Boolean.toString(accordOnly));
         return options;
     }
 }

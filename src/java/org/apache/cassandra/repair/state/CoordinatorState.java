@@ -77,10 +77,6 @@ public class CoordinatorState extends AbstractState<CoordinatorState.State, Time
                 default: throw new AssertionError("Unknown preview kind: " + options.getPreviewKind());
             }
         }
-        else if (options.accordRepair())
-        {
-            return "accord repair";
-        }
         else if (options.isIncremental())
         {
             return "incremental";

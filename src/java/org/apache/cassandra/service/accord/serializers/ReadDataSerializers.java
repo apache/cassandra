@@ -82,6 +82,7 @@ public class ReadDataSerializers
             CommandSerializers.txnId.serialize(msg.txnId, out, version);
             KeySerializers.participants.serialize(msg.readScope, out, version);
             out.writeUnsignedVInt(msg.executeAtEpoch);
+            CommandSerializers.timestamp.serialize(msg.executeAt, out, version);
             KeySerializers.fullRoute.serialize(msg.route, out, version);
             CommandSerializers.partialTxn.serialize(msg.txn, out, version);
             DepsSerializer.partialDeps.serialize(msg.deps, out, version);
@@ -97,6 +98,7 @@ public class ReadDataSerializers
             CommandSerializers.txnId.deserialize(in, version),
             KeySerializers.participants.deserialize(in, version),
             in.readUnsignedVInt(),
+            CommandSerializers.timestamp.deserialize(in, version),
             KeySerializers.fullRoute.deserialize(in, version),
             CommandSerializers.partialTxn.deserialize(in, version),
             DepsSerializer.partialDeps.deserialize(in, version),
@@ -111,6 +113,7 @@ public class ReadDataSerializers
             return CommandSerializers.txnId.serializedSize(msg.txnId, version)
                    + KeySerializers.participants.serializedSize(msg.readScope, version)
                    + TypeSizes.sizeofUnsignedVInt(msg.executeAtEpoch)
+                   + CommandSerializers.timestamp.serializedSize(msg.executeAt, version)
                    + KeySerializers.fullRoute.serializedSize(msg.route, version)
                    + CommandSerializers.partialTxn.serializedSize(msg.txn, version)
                    + DepsSerializer.partialDeps.serializedSize(msg.deps, version)

@@ -26,7 +26,8 @@ public enum ConsensusMigrationRepairType
 {
     ineligible(0),
     paxos(1),
-    accord(2);
+    accord(2),
+    either(3);
 
     public final byte value;
 
@@ -52,6 +53,8 @@ public enum ConsensusMigrationRepairType
                 return ConsensusMigrationRepairType.paxos;
             case 2:
                 return ConsensusMigrationRepairType.accord;
+            case 3:
+                return ConsensusMigrationRepairType.either;
         }
     }
 }

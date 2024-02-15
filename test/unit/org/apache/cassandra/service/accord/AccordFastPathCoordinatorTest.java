@@ -38,7 +38,6 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import static org.apache.cassandra.service.accord.AccordTestUtils.*;
-import static org.apache.cassandra.service.accord.AccordTopologyTest.token;
 
 public class AccordFastPathCoordinatorTest 
 {
