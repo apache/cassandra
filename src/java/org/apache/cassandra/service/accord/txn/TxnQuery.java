@@ -216,6 +216,7 @@ public abstract class TxnQuery implements Query
         // and transaction statement will generate an error when it sees
         // the RetryOnNewProtocolResult
         PartitionKey partitionKey = (PartitionKey)keys.get(0);
+        // TODO (required): This is looking at ClusterMetadata, but not the ClusterMetadata for the specified epoch, just that epoch or later. Need to store ConsensusMigrationState in the global Topologies Accord stores for itself.
         return ConsensusRequestRouter.instance.isKeyInMigratingOrMigratedRangeFromAccord(epoch, partitionKey.table(), partitionKey.partitionKey());
     }
 }
