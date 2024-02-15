@@ -89,7 +89,7 @@ public class AccordMessageSinkTest
         Txn txn = Utils.readTxn(Keys.of(IntKey.key(42)));
         TxnId id = nextTxnId(epoch, txn);
         PartialTxn partialTxn = txn.slice(Ranges.of(IntKey.range(40, 50)), true);
-        Request request = new AbstractFetchCoordinator.FetchRequest(epoch, id, partialTxn.covering(), PartialDeps.NONE, partialTxn, true);
+        Request request = new AbstractFetchCoordinator.FetchRequest(epoch, id, partialTxn.covering(), PartialDeps.NONE, partialTxn);
 
         checkRequestReplies(request,
                             new AbstractFetchCoordinator.FetchResponse(null, null, id),

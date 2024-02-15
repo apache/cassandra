@@ -35,11 +35,9 @@ import com.google.common.collect.Sets;
 import org.junit.Assert;
 
 import accord.api.Data;
-import accord.api.Key;
 import accord.api.ProgressLog;
 import accord.api.Result;
 import accord.api.RoutingKey;
-import accord.impl.CommandsForKey;
 import accord.impl.InMemoryCommandStore;
 import accord.local.Command;
 import accord.local.CommandStore;
@@ -87,7 +85,6 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.PartitionKey;
-import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.Pair;
@@ -150,11 +147,6 @@ public class AccordTestUtils
             RoutingKey routingKey = key.asKey().toUnseekable();
             return new FullKeyRoute(routingKey, true, new RoutingKey[]{ routingKey });
         }
-    }
-
-    public static CommandsForKey commandsForKey(Key key)
-    {
-        return new CommandsForKey(key, CommandsForKeySerializer.loader);
     }
 
     public static <K, V> AccordCachingState<K, V> loaded(K key, V value, int index)

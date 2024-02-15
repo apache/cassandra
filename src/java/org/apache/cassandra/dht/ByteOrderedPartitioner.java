@@ -145,6 +145,12 @@ public class ByteOrderedPartitioner implements IPartitioner
         @Override
         public Token nextValidToken()
         {
+            throw new UnsupportedOperationException(String.format("Token type %s does not support token allocation.",
+                                                                  getClass().getSimpleName()));
+        }
+
+        public Token increaseSlightly()
+        {
             // find first byte we can increment
             int i = token.length - 1;
             while (i >= 0)
@@ -180,8 +186,6 @@ public class ByteOrderedPartitioner implements IPartitioner
             if (i == -1)
             {
                 byte[] newToken = Arrays.copyOf(token, token.length - 1);
-                if (newToken.length > 0)
-                    newToken[newToken.length - 1] = (byte)-1;
                 return new BytesToken(newToken);
             }
 

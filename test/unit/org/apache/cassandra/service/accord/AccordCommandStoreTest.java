@@ -18,12 +18,10 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.nio.ByteBuffer;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-import com.google.common.collect.ImmutableSortedMap;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -33,23 +31,18 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.Key;
 import accord.api.Result;
-import accord.impl.CommandTimeseries;
 import accord.impl.CommandsForKey;
 import accord.impl.CommandsForKeys;
 import accord.impl.TimestampsForKey;
 import accord.local.Command;
 import accord.local.CommonAttributes;
-import accord.local.KeyHistory;
-import accord.local.PreLoadContext;
 import accord.local.SaveStatus;
 import accord.messages.Apply;
 import accord.primitives.Ballot;
-import accord.primitives.Keys;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Ranges;
 import accord.primitives.Route;
-import accord.primitives.RoutableKey;
 import accord.primitives.RoutingKeys;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -65,10 +58,8 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.AccordCachingState.Modified;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
-import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 import org.apache.cassandra.utils.Pair;
 
 import static accord.local.Status.Durability.Majority;
@@ -157,6 +148,7 @@ public class AccordCommandStoreTest
                                               executeAt,
                                               dependencies,
                                               txn,
+                                              null,
                                               result.left,
                                               CommandSerializers.APPLIED);
         commandStore.appendToJournal(apply);
@@ -186,7 +178,6 @@ public class AccordCommandStoreTest
 
         AccordSafeTimestampsForKey tfk = new AccordSafeTimestampsForKey(loaded(key, null));
         tfk.initialize();
-        tfk.updateMax(maxTimestamp);
 
         CommandsForKeys.updateLastExecutionTimestamps(commandStore, tfk, txnId1, true);
         Assert.assertEquals(txnId1.hlc(), AccordSafeTimestampsForKey.timestampMicrosFor(tfk.current(), txnId1, true));
@@ -198,13 +189,10 @@ public class AccordCommandStoreTest
         Assert.assertEquals(txnId2.hlc(), tfk.lastExecutedMicros());
 
         AccordSafeCommandsForKey cfk = new AccordSafeCommandsForKey(loaded(key, null));
-        cfk.initialize(CommandsForKeySerializer.loader);
+        cfk.initialize();
 
-        AccordSafeCommandsForKeyUpdate ufk = new AccordSafeCommandsForKeyUpdate(loaded(key, null));
-        ufk.initialize();
-
-        CommandsForKeys.registerCommand(tfk, ufk, command1);
-        CommandsForKeys.registerCommand(tfk, ufk, command2);
+        cfk.set(cfk.current().update(null, command1));
+        cfk.set(cfk.current().update(null, command2));
 
         AccordKeyspace.getTimestampsForKeyMutation(commandStore, tfk, commandStore.nextSystemTimestampMicros()).apply();
         logger.info("E: {}", tfk);
@@ -232,20 +220,17 @@ public class AccordCommandStoreTest
         tfk.initialize();
 
         AccordSafeCommandsForKey cfk = new AccordSafeCommandsForKey(loaded(key, null));
-        cfk.initialize(CommandsForKeySerializer.loader);
+        cfk.initialize();
 
-        AccordSafeCommandsForKeyUpdate ufk = new AccordSafeCommandsForKeyUpdate(loaded(key, null));
-        ufk.initialize();
+        cfk.set(cfk.current().update(null, command1));
+        cfk.set(cfk.current().update(null, command2));
 
-        CommandsForKeys.registerCommand(tfk, ufk, command1);
-        CommandsForKeys.registerCommand(tfk, ufk, command2);
-
-        AccordKeyspace.getCommandsForKeyMutation(commandStore.id(), ufk.setUpdates(), commandStore.nextSystemTimestampMicros()).apply();
+        AccordKeyspace.getCommandsForKeyMutation(commandStore.id(), cfk.current(), commandStore.nextSystemTimestampMicros()).apply();
         logger.info("E: {}", cfk);
-        CommandsForKey actual = AccordKeyspace.loadDepsCommandsForKey(commandStore, key);
+        CommandsForKey actual = AccordKeyspace.loadCommandsForKey(commandStore, key);
         logger.info("A: {}", actual);
 
-        Assert.assertEquals(ufk.applyToDeps(cfk.current()), actual);
+        Assert.assertEquals(cfk.current(), actual);
     }
 
     private static <K, V extends AccordSafeState<K, ?>> NavigableMap<K, V> toNavigableMap(V safeState)
@@ -253,110 +238,5 @@ public class AccordCommandStoreTest
         TreeMap<K, V> map = new TreeMap<>();
         map.put(safeState.key(), safeState);
         return map;
-    }
-
-    @Test
-    public void commandsForKeyUpdateTest()
-    {
-        // check that updates are reflected in CFKs without marking them modified
-        AtomicLong clock = new AtomicLong(0);
-        AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
-
-        PartialTxn txn = createPartialTxn(1);
-        PartitionKey key = (PartitionKey) getOnlyElement(txn.keys());
-
-        TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
-
-        AccordSafeCommand safeCommand = commandStore.commandCache().acquireOrInitialize(txnId, t -> preaccepted(txnId, txn, timestamp(1, clock.incrementAndGet(), 1)));
-        AccordSafeTimestampsForKey timestamps = commandStore.timestampsForKeyCache().acquireOrInitialize(key, k -> new TimestampsForKey((Key) k));
-        AccordSafeCommandsForKey commands = commandStore.depsCommandsForKeyCache().acquireOrInitialize(key, k -> new CommandsForKey((Key) k, CommandsForKeySerializer.loader));
-        AccordSafeCommandsForKeyUpdate update = commandStore.updatesForKeyCache().acquireOrInitialize(key, CommandsForKeyUpdate::empty);
-
-        Assert.assertEquals(AccordCachingState.Status.LOADED, commandStore.commandCache().getUnsafe(txnId).status());
-        Assert.assertEquals(AccordCachingState.Status.LOADED, commandStore.timestampsForKeyCache().getUnsafe(key).status());
-        Assert.assertEquals(AccordCachingState.Status.LOADED, commandStore.depsCommandsForKeyCache().getUnsafe(key).status());
-        Assert.assertEquals(AccordCachingState.Status.LOADED, commandStore.updatesForKeyCache().getUnsafe(key).status());
-
-        AccordSafeCommandStore safeStore = commandStore.beginOperation(PreLoadContext.contextFor(txnId, Keys.of(key), KeyHistory.DEPS),
-                                                                       toNavigableMap(safeCommand),
-                                                                       toNavigableMap(timestamps),
-                                                                       toNavigableMap(commands),
-                                                                       new TreeMap<>(),
-                                                                       toNavigableMap(update));
-
-        AccordSafeCommandsForKeyUpdate updates = safeStore.getOrCreateCommandsForKeyUpdate(key);
-        Assert.assertEquals(AccordCachingState.Status.LOADED, commandStore.updatesForKeyCache().getUnsafe(key).status());
-
-        Command initialCommand = safeCommand.current();
-        CommandsForKey initialCFK = commands.current();
-        CommandsForKeyUpdate initialUpdate = updates.current();
-
-        updates.common().commands().add(txnId, initialCommand);
-
-        CommandsForKeyUpdate expected = new CommandsForKeyUpdate(key, updates.deps().toImmutable(), updates.all().toImmutable(), updates.common().toImmutable());
-        Assert.assertEquals(1, expected.common().commands().numChanges());
-        Assert.assertTrue(expected.deps().isEmpty());
-        Assert.assertTrue(expected.all().isEmpty());
-
-        Assert.assertSame(initialCFK, commands.current());
-        Assert.assertSame(initialUpdate, updates.current());
-
-        safeStore.postExecute(toNavigableMap(safeCommand),
-                              toNavigableMap(timestamps),
-                              toNavigableMap(commands),
-                              new TreeMap<>(),
-                              toNavigableMap(updates));
-        safeStore.complete();
-
-
-        Assert.assertEquals(AccordCachingState.Status.LOADED, commandStore.commandCache().getUnsafe(txnId).status());
-        Assert.assertEquals(AccordCachingState.Status.LOADED, commandStore.timestampsForKeyCache().getUnsafe(key).status());
-        Assert.assertEquals(AccordCachingState.Status.LOADED, commandStore.depsCommandsForKeyCache().getUnsafe(key).status());
-        Assert.assertEquals(AccordCachingState.Status.MODIFIED, commandStore.updatesForKeyCache().getUnsafe(key).status());
-
-        CommandsForKey finalCFK = commandStore.depsCommandsForKeyCache().getUnsafe(key).get();
-        Assert.assertEquals(txnId, getOnlyElement(finalCFK.commands().commands.keySet()));
-
-        Modified<RoutableKey, CommandsForKeyUpdate> loadedUpdate = (Modified<RoutableKey, CommandsForKeyUpdate>)  commandStore.updatesForKeyCache().getUnsafe(key).state();
-        Assert.assertNull(loadedUpdate.original);
-        Assert.assertEquals(expected, loadedUpdate.get());
-    }
-
-    /**
-     * Test that in memory cfk updates are applied to
-     */
-    @Test
-    public void commandsForKeyUpdateOnLoadTest()
-    {
-        AtomicLong clock = new AtomicLong(0);
-        AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
-
-        PartialTxn txn = createPartialTxn(1);
-        PartitionKey key = (PartitionKey) getOnlyElement(txn.keys());
-
-        TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
-
-        Command command = preaccepted(txnId, txn, timestamp(1, clock.incrementAndGet(), 1));
-
-        // make a cached update
-        AccordSafeCommandsForKeyUpdate updates = commandStore.updatesForKeyCache().acquireOrInitialize(key, k -> null);
-        updates.preExecute();
-        updates.common().commands().remove(command.txnId());
-        updates.setUpdates(); // apply the updates applied to the safe state to the cached value
-        updates.postExecute();  // apply the cached value to the global state
-        commandStore.updatesForKeyCache().release(updates);
-
-        // make an out of date CFK
-        CommandTimeseries.CommandLoader<ByteBuffer> loader = CommandsForKeySerializer.loader;
-        CommandsForKey staleCFK = CommandsForKey.SerializerSupport.create(key, loader,
-                                                                          ImmutableSortedMap.of(command.txnId(), loader.saveForCFK(command)));
-
-        Assert.assertEquals(txnId, getOnlyElement(staleCFK.commands().commands.keySet()));
-
-        // on loading the cfk into the cache, the in memory update should be applied
-        AccordSafeCommandsForKey commands = commandStore.depsCommandsForKeyCache().acquireOrInitialize(key, k -> new CommandsForKey((Key) k, CommandsForKeySerializer.loader));
-        commands.preExecute();
-
-        Assert.assertEquals(txnId, getOnlyElement(staleCFK.commands().commands.keySet()));
     }
 }

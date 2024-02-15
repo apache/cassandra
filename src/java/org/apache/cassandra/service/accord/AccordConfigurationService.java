@@ -149,7 +149,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
             }
 
             remoteSyncComplete.forEach(id -> receiveRemoteSyncComplete(id, epoch));
-            // TODO (now): disk doesn't get updated until we see our own notification, so there is an edge case where this instance notified others and fails in the middle, but Apply was already sent!  This could leave partial closed/redudant accross the cluster
+            // TODO (required): disk doesn't get updated until we see our own notification, so there is an edge case where this instance notified others and fails in the middle, but Apply was already sent!  This could leave partial closed/redudant accross the cluster
             receiveClosed(closed, epoch);
             receiveRedundant(redundant, epoch);
         }));

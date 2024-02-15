@@ -121,11 +121,6 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
         return status().isComplete();
     }
 
-    public boolean canEvict()
-    {
-        return true;
-    }
-
     int estimatedSizeOnHeap(ToLongFunction<V> estimator)
     {
         shouldUpdateSize = false;
