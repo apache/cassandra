@@ -1596,6 +1596,13 @@ server_encryption_options:
   #   TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, TLS_RSA_WITH_AES_128_GCM_SHA256, TLS_RSA_WITH_AES_128_CBC_SHA,
   #   TLS_RSA_WITH_AES_256_CBC_SHA
   # ]
+  # Optional setting to define the maximum allowed validity period of the client certificate used for the internode
+  # inbound connections. For example, if the specified max_certificate_validity_period is 30 days and the client
+  # uses a certificate that is issued for more than 30 days, the connection will be rejected.
+  # max_certificate_validity_period: 365d
+  # Optional setting that defines a warning threshold. When the threshold is exceeded for the internode certificate
+  # validity period, warnings with information about the certificate expiration will be logged.
+  # certificate_validity_warn_threshold: 10d
 
 # Configure client-to-server encryption.
 #
@@ -1642,6 +1649,15 @@ client_encryption_options:
   #   TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, TLS_RSA_WITH_AES_128_GCM_SHA256, TLS_RSA_WITH_AES_128_CBC_SHA,
   #   TLS_RSA_WITH_AES_256_CBC_SHA
   # ]
+  # Optional setting to define the maximum validity period of the client certificate allowed to establish
+  # connections to the server. For example, if max_certificate_validity_period is configured for 10 days,
+  # and a client attempts to authenticate with a certificate with a longer validity period (say 30 days),
+  # then the connection will be rejected.
+  # max_certificate_validity_period: 365d
+  # Optional setting that defines a warning threshold. When the threshold is exceeded for the client certificate
+  # validity, warnings with information about the certificate expiration will be logged. Additionally, client
+  # warnings will be reported during the session establishment.
+  # certificate_validity_warn_threshold: 10d
 
 # internode_compression controls whether traffic between nodes is
 # compressed.
