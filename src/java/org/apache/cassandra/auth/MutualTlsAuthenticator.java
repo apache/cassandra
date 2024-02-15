@@ -35,33 +35,42 @@ import org.slf4j.helpers.MessageFormatter;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.metrics.MutualTlsMetrics;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static org.apache.cassandra.auth.IAuthenticator.AuthenticationMode.MTLS;
 import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
 
-/*
+/**
  * Performs mTLS authentication for client connections by extracting identities from client certificate
  * and verifying them against the authorized identities in IdentityCache. IdentityCache is a loading cache that
  * refreshes values on timely basis.
  *
- * During a client connection, after SSL handshake, identity of certificate is extracted using the certificate validator
+ * <p>During a client connection, after SSL handshake, identity of certificate is extracted using the certificate validator
  * and is verified whether the value exists in the cache or not. If it exists access is granted, otherwise, the connection
  * is rejected.
  *
- * Authenticator & Certificate validator can be configured using cassandra.yaml, one can write their own mTLS certificate
+ * <p>Authenticator & Certificate validator can be configured using cassandra.yaml, one can write their own mTLS certificate
  * validator and configure it in cassandra.yaml.Below is an example on how to configure validator.
  * note that this example uses SPIFFE based validator, It could be any other validator with any defined identifier format.
  *
- * Example:
+ * <p>Optionally, the authenticator can be configured to restrict the validity period of the client certificates.
+ * This allows for better server-side controls for authentication. In some cases, clients can provide certificates
+ * that expire multiple months/years after the certificate was issued. For those use cases, it is desirable to
+ * reject the certificate if the validity period is too big (i.e. certificates issued for 10 years).
+ *
+ * <p>Example:
+ * <pre>
  * authenticator:
  *   class_name : org.apache.cassandra.auth.MutualTlsAuthenticator
  *   parameters :
  *     validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
+ * </pre>
  */
 public class MutualTlsAuthenticator implements IAuthenticator
 {
@@ -72,21 +81,28 @@ public class MutualTlsAuthenticator implements IAuthenticator
     private final IdentityCache identityCache = new IdentityCache();
     private final MutualTlsCertificateValidator certificateValidator;
     private static final Set<AuthenticationMode> AUTHENTICATION_MODES = Collections.singleton(MTLS);
+    private final MutualTlsCertificateValidityPeriodValidator certificateValidityPeriodValidator;
+    private final DurationSpec.IntMinutesBound certificateValidityWarnThreshold;
 
     // key for the 'identity' value in AuthenticatedUser metadata map.
     static final String METADATA_IDENTITY_KEY = "identity";
 
     public MutualTlsAuthenticator(Map<String, String> parameters)
     {
-        final String certificateValidatorClassName = parameters.get(VALIDATOR_CLASS_NAME);
+        final String certificateValidatorClassName = parameters != null ? parameters.get(VALIDATOR_CLASS_NAME) : null;
         if (StringUtils.isEmpty(certificateValidatorClassName))
         {
-            String message ="authenticator.parameters.validator_class_name is not set";
+            String message = "authenticator.parameters.validator_class_name is not set";
             logger.error(message);
             throw new ConfigurationException(message);
         }
         certificateValidator = ParameterizedClass.newInstance(new ParameterizedClass(certificateValidatorClassName),
                                                               Arrays.asList("", AuthConfig.class.getPackage().getName()));
+
+        Config config = DatabaseDescriptor.getRawConfig();
+        certificateValidityPeriodValidator = new MutualTlsCertificateValidityPeriodValidator(config.client_encryption_options.max_certificate_validity_period);
+        certificateValidityWarnThreshold = config.client_encryption_options.certificate_validity_warn_threshold;
+
         AuthCacheService.instance.register(identityCache);
     }
 
@@ -194,7 +210,7 @@ public class MutualTlsAuthenticator implements IAuthenticator
                 throw new AuthenticationException(message);
             }
 
-            final String identity = certificateValidator.identity(clientCertificateChain);
+            String identity = certificateValidator.identity(clientCertificateChain);
             if (StringUtils.isEmpty(identity))
             {
                 String msg = "Unable to extract client identity from certificate for authentication";
@@ -208,6 +224,21 @@ public class MutualTlsAuthenticator implements IAuthenticator
                 nospamLogger.error(msg, identity);
                 throw new AuthenticationException(MessageFormatter.format(msg, identity).getMessage());
             }
+
+            // Validates that the certificate validity period does not exceed the maximum certificate configured validity period
+            int minutesToCertificateExpiration = certificateValidityPeriodValidator.validate(clientCertificateChain);
+            int daysToCertificateExpiration = MutualTlsUtil.minutesToDays(minutesToCertificateExpiration);
+
+            if (certificateValidityWarnThreshold != null
+                && minutesToCertificateExpiration < certificateValidityWarnThreshold.toMinutes())
+            {
+                nospamLogger.warn("Certificate with identity '{}' will expire in {}",
+                                  identity, MutualTlsUtil.toHumanReadableCertificateExpiration(minutesToCertificateExpiration));
+            }
+
+            // Report metrics on client certificate expiration
+            MutualTlsMetrics.instance.clientCertificateExpirationDays.update(daysToCertificateExpiration);
+
             return new AuthenticatedUser(role, MTLS, Collections.singletonMap(METADATA_IDENTITY_KEY, identity));
         }
 

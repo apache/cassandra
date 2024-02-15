@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.lang3.StringUtils;
@@ -40,33 +41,42 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.metrics.MutualTlsMetrics;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
 
-/*
+/**
  * Performs mTLS authentication for internode connections by extracting identities from the certificates of incoming
  * connection and verifying them against a list of authorized peers. Authorized peers can be configured in
  * trusted_peer_identities in cassandra yaml, otherwise authenticator trusts connections from peers which has the same
  * identity as the one that the node uses for making outbound connections.
  *
- * Optionally cassandra can validate the identity extracted from outbound keystore with node_identity that is configured
+ * <p>Optionally cassandra can validate the identity extracted from outbound keystore with node_identity that is configured
  * in cassandra.yaml to avoid any configuration errors.
  *
- * Authenticator & Certificate validator can be configured using cassandra.yaml, operators can write their own mTLS
+ * <p>Authenticator & Certificate validator can be configured using cassandra.yaml, operators can write their own mTLS
  * certificate validator and configure it in cassandra.yaml.Below is an example on how to configure validator.
  * Note that this example uses SPIFFE based validator, it could be any other validator with any defined identifier format.
  *
+ * <p>Optionally, the authenticator can be configured to restrict the validity period of the client certificates.
+ * This allows for better server-side controls for authentication. In some cases, clients can provide certificates
+ * that expire multiple months/years after the certificate was issued. For those use cases, it is desirable to reject
+ * the certificate if the expiration date is too far away in the future.
+ *
+ * <pre>
  * internode_authenticator:
- *   class_name : org.apache.cassandra.auth.AllowAllInternodeAuthenticator
- *   parameters :
+ *   class_name: org.apache.cassandra.auth.MutualTlsInternodeAuthenticator
+ *   parameters:
  *     validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
  *     trusted_peer_identities: "spiffe1,spiffe2"
  *     node_identity: "spiffe1"
+ * </pre>
  */
 public class MutualTlsInternodeAuthenticator implements IInternodeAuthenticator
 {
@@ -77,6 +87,9 @@ public class MutualTlsInternodeAuthenticator implements IInternodeAuthenticator
     private final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 30L, TimeUnit.SECONDS);
     private final MutualTlsCertificateValidator certificateValidator;
     private final List<String> trustedIdentities;
+    @Nonnull
+    private final MutualTlsCertificateValidityPeriodValidator certificateValidityPeriodValidator;
+    private final DurationSpec.IntMinutesBound certificateValidityWarnThreshold;
 
     public MutualTlsInternodeAuthenticator(Map<String, String> parameters)
     {
@@ -107,10 +120,10 @@ public class MutualTlsInternodeAuthenticator implements IInternodeAuthenticator
                                                           config.server_encryption_options.store_type);
             // optionally, if node_identity is configured in the yaml, validate the identity extracted from outbound
             // keystore to avoid any configuration errors
-            if(parameters.containsKey(NODE_IDENTITY))
+            if (parameters.containsKey(NODE_IDENTITY))
             {
                 String nodeIdentity = parameters.get(NODE_IDENTITY);
-                if(!trustedIdentities.contains(nodeIdentity))
+                if (!trustedIdentities.contains(nodeIdentity))
                 {
                     throw new ConfigurationException("Configured node identity is not matching identity extracted" +
                                                      "from the keystore");
@@ -129,6 +142,9 @@ public class MutualTlsInternodeAuthenticator implements IInternodeAuthenticator
             logger.info(message);
             throw new ConfigurationException(message);
         }
+
+        certificateValidityPeriodValidator = new MutualTlsCertificateValidityPeriodValidator(config.server_encryption_options.max_certificate_validity_period);
+        certificateValidityWarnThreshold = config.server_encryption_options.certificate_validity_warn_threshold;
     }
 
     @Override
@@ -156,7 +172,6 @@ public class MutualTlsInternodeAuthenticator implements IInternodeAuthenticator
             logger.error(msg);
             throw new ConfigurationException(msg);
         }
-
     }
 
     protected boolean authenticateInternodeWithMtls(InetAddress remoteAddress, int remotePort, Certificate[] certificates,
@@ -171,11 +186,23 @@ public class MutualTlsInternodeAuthenticator implements IInternodeAuthenticator
                 return false;
             }
 
-            if(!trustedIdentities.contains(identity))
+            if (!trustedIdentities.contains(identity))
             {
                 noSpamLogger.error("Unable to authenticate user {}", identity);
                 return false;
             }
+
+            int minutesToCertificateExpiration = certificateValidityPeriodValidator.validate(certificates);
+
+            if (certificateValidityWarnThreshold != null
+                && minutesToCertificateExpiration < certificateValidityWarnThreshold.toMinutes())
+            {
+                noSpamLogger.warn("Certificate from {}:{} with identity '{}' will expire in {}",
+                                  remoteAddress, remotePort, identity,
+                                  MutualTlsUtil.toHumanReadableCertificateExpiration(minutesToCertificateExpiration));
+            }
+            MutualTlsMetrics.instance.internodeCertificateExpirationDays.update(MutualTlsUtil.minutesToDays(minutesToCertificateExpiration));
+
             return true;
         }
         // Outbound connections don't need to be authenticated again in certificate based connections. SSL handshake
@@ -221,5 +248,4 @@ public class MutualTlsInternodeAuthenticator implements IInternodeAuthenticator
         }
         return allUsers;
     }
-
 }

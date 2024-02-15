@@ -32,7 +32,7 @@ import static org.junit.Assert.assertEquals;
 
 public class SpiffeCertificateValidatorTest
 {
-    private static final String CERTIFICATE_PATH = "auth/SampleMtlsClientCertificate.pem";
+    static final String CERTIFICATE_PATH = "auth/SampleMtlsClientCertificate.pem";
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
