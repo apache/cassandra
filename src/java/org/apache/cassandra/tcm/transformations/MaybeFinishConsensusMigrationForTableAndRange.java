@@ -38,7 +38,6 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationRepairType;
-import org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget;
 import org.apache.cassandra.service.consensus.migration.ConsensusTableMigration;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.service.consensus.migration.TableMigrationState;
@@ -138,11 +137,8 @@ public class MaybeFinishConsensusMigrationForTableAndRange implements Transforma
         if (tms == null)
             return new Rejected(INVALID, format("Table %s is not currently performing consensus migration", ksAndCF));
 
-        if (tms.targetProtocol == ConsensusMigrationTarget.accord && repairType != ConsensusMigrationRepairType.paxos)
-            return new Rejected(INVALID, format("Table %s is not currently performing consensus migration to Accord and the repair was a Paxos repair", ksAndCF));
-
-        if (tms.targetProtocol == ConsensusMigrationTarget.paxos && repairType != ConsensusMigrationRepairType.accord)
-            return new Rejected(INVALID, format("Table %s is not currently performing consensus migration to Paxos and the repair was an Accord repair", ksAndCF));
+        if (!tms.targetProtocol.isMigratedBy(repairType))
+            return new Rejected(INVALID, format("Table %s is not currently performing consensus migration to %s and the repair was a %s repair", ksAndCF, tms.targetProtocol, repairType));
 
         List<Range<Token>> normalizedRepairedRanges = normalize(repairedRanges);
 

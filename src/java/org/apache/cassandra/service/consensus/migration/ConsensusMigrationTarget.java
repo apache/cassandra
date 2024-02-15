@@ -34,6 +34,17 @@ public enum ConsensusMigrationTarget
         this.value = SignedBytes.checkedCast(value);
     }
 
+    public boolean isMigratedBy(ConsensusMigrationRepairType repairType)
+    {
+        switch (repairType)
+        {
+            case either: return true;
+            case paxos: return this == accord;
+            case accord: return this == paxos;
+            default: return false;
+        }
+    }
+
     public static ConsensusMigrationTarget fromString(String targetProtocol)
     {
         return ConsensusMigrationTarget.valueOf(targetProtocol.toLowerCase());

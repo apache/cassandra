@@ -81,6 +81,9 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.metrics.AccordStateCacheMetrics;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
@@ -478,4 +481,20 @@ public class AccordTestUtils
     {
         return Arrays.stream(ids).mapToObj(AccordTestUtils::id).collect(Collectors.toSet());
     }
+
+    public static Token token(long t)
+    {
+        return new Murmur3Partitioner.LongToken(t);
+    }
+
+    public static Range<Token> range(Token left, Token right)
+    {
+        return new Range<>(left, right);
+    }
+
+    public static Range<Token> range(long left, long right)
+    {
+        return range(token(left), token(right));
+    }
+
 }
