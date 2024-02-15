@@ -191,9 +191,9 @@ public class TableMetrics
     /** Latency for locally run key migrations **/
     public final LatencyMetrics keyMigration;
     /** Latency for range migrations run by locally coordinated Accord repairs **/
-    public final LatencyMetrics rangeMigration;
-    public final TableMeter rangeMigrationUnexpectedFailures;
-    public final TableMeter rangeMigrationDependencyLimitFailures;
+    public final LatencyMetrics accordRepair;
+    public final TableMeter accordRepairUnexpectedFailures;
+    public final TableMeter accordRepairDependencyLimitFailures;
     /** percent of the data that is repaired */
     public final Gauge<Double> percentRepaired;
     /** Reports the size of sstables in repaired, unrepaired, and any ongoing repair buckets */
@@ -808,9 +808,9 @@ public class TableMetrics
         casPropose = createLatencyMetrics("CasPropose", cfs.keyspace.metric.casPropose);
         casCommit = createLatencyMetrics("CasCommit", cfs.keyspace.metric.casCommit);
         keyMigration = createLatencyMetrics("KeyMigration", cfs.keyspace.metric.keyMigration, GLOBAL_KEY_MIGRATION_LATENCY);
-        rangeMigration = createLatencyMetrics("RangeMigration", cfs.keyspace.metric.rangeMigration, GLOBAL_RANGE_MIGRATION_LATENCY);
-        rangeMigrationUnexpectedFailures = createTableMeter("RangeMigrationUnexpectedFailures", cfs.keyspace.metric.rangeMigrationUnexpectedFailures);
-        rangeMigrationDependencyLimitFailures = createTableMeter("RangeMigrationDependencyLimitFaiures", cfs.keyspace.metric.rangeMigrationDependencyLimitFailures);
+        accordRepair = createLatencyMetrics("AccordRepair", cfs.keyspace.metric.rangeMigration, GLOBAL_RANGE_MIGRATION_LATENCY);
+        accordRepairUnexpectedFailures = createTableMeter("AccordRepairUnexpectedFailures", cfs.keyspace.metric.rangeMigrationUnexpectedFailures);
+        accordRepairDependencyLimitFailures = createTableMeter("AccordRepairDependencyLimitFaiures", cfs.keyspace.metric.rangeMigrationDependencyLimitFailures);
 
         repairsStarted = createTableCounter("RepairJobsStarted");
         repairsCompleted = createTableCounter("RepairJobsCompleted");

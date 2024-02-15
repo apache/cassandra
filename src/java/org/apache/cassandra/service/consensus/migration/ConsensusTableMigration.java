@@ -90,9 +90,7 @@ public abstract class ConsensusTableMigration
             if (tms == null || !Range.intersects(tms.migratingRanges, desc.ranges))
                 return;
 
-            if (tms.targetProtocol == ConsensusMigrationTarget.paxos && repairResult.consensusMigrationRepairResult.type != ConsensusMigrationRepairType.accord)
-                return;
-            if (tms.targetProtocol == ConsensusMigrationTarget.accord && repairResult.consensusMigrationRepairResult.type != ConsensusMigrationRepairType.paxos)
+            if (!tms.targetProtocol.isMigratedBy(repairResult.consensusMigrationRepairResult.type))
                 return;
 
             ClusterMetadataService.instance().commit(
@@ -310,7 +308,8 @@ public abstract class ConsensusTableMigration
         boolean ignoreUnreplicatedKeyspaces = true;
         boolean repairPaxos = !accordRepair;
         boolean paxosOnly = false;
-        RepairOption repairOption = new RepairOption(RepairParallelism.PARALLEL, primaryRange, incremental, trace, numJobThreads, intersectingRanges, pullRepair, forceRepair, PreviewKind.NONE, optimiseStreams, ignoreUnreplicatedKeyspaces, repairPaxos, paxosOnly, accordRepair);
+        boolean accordOnly = false;
+        RepairOption repairOption = new RepairOption(RepairParallelism.PARALLEL, primaryRange, incremental, trace, numJobThreads, intersectingRanges, pullRepair, forceRepair, PreviewKind.NONE, optimiseStreams, ignoreUnreplicatedKeyspaces, repairPaxos, paxosOnly, accordOnly, true);
         tables.forEach(table -> repairOption.getColumnFamilies().add(table.tableName));
         return repairOption;
     }

@@ -74,7 +74,7 @@ import org.apache.cassandra.utils.concurrent.AsyncFuture;
  *
  * A given RepairSession repairs a set of replicas for a given set of ranges on a list
  * of column families. For each of the column family to repair, RepairSession
- * creates a {@link AbstractRepairJob} that handles the repair of that CF.
+ * creates a {@link RepairJob} that handles the repair of that CF.
  *
  * A given RepairJob has the 3 main phases:
  * <ol>
@@ -120,8 +120,12 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     /** Range to repair */
     public final boolean isIncremental;
     public final PreviewKind previewKind;
-    public final boolean repairPaxos;
+    public final boolean repairPaxos; // TODO (now): rename to repairPaxosIfSupported
     public final boolean paxosOnly;
+
+    public final boolean accordOnly;
+    public final boolean isConsensusMigration;
+
     public final boolean excludedDeadNodes;
 
     private final AtomicBoolean isFailed = new AtomicBoolean(false);
@@ -136,22 +140,24 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     public final boolean optimiseStreams;
     public final SharedContext ctx;
     public final Scheduler validationScheduler;
-    private volatile List<AbstractRepairJob> jobs = Collections.emptyList();
-    private final boolean accordRepair;
+    private volatile List<RepairJob> jobs = Collections.emptyList();
 
     private volatile boolean terminated = false;
 
     /**
      * Create new repair session.
-     * @param parentRepairSession the parent sessions id
-     * @param commonRange ranges to repair
-     * @param excludedDeadNodes Was the repair started for --force and were dead nodes excluded as a result
-     * @param keyspace name of keyspace
-     * @param parallelismDegree specifies the degree of parallelism when calculating the merkle trees
-     * @param pullRepair true if the repair should be one way (from remote host to this host and only applicable between two hosts--see RepairOption)
-     * @param repairPaxos true if incomplete paxos operations should be completed as part of repair
-     * @param paxosOnly true if we should only complete paxos operations, not run a normal repair
-     * @param cfnames names of columnfamilies
+     *
+     * @param parentRepairSession  the parent sessions id
+     * @param commonRange          ranges to repair
+     * @param excludedDeadNodes    Was the repair started for --force and were dead nodes excluded as a result
+     * @param keyspace             name of keyspace
+     * @param parallelismDegree    specifies the degree of parallelism when calculating the merkle trees
+     * @param pullRepair           true if the repair should be one way (from remote host to this host and only applicable between two hosts--see RepairOption)
+     * @param repairPaxos          true if incomplete paxos operations should be completed as part of repair
+     * @param paxosOnly            true if we should only complete paxos operations, not run a normal repair
+     * @param accordOnly           true if we should only complete accord operations, not run a normal repair
+     * @param isConsensusMigration true if this repair is being run by the consensus migration tool (affects accord repair availability requirements)
+     * @param cfnames              names of columnfamilies
      */
     public RepairSession(SharedContext ctx,
                          Scheduler validationScheduler,
@@ -166,13 +172,15 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
                          boolean optimiseStreams,
                          boolean repairPaxos,
                          boolean paxosOnly,
-                         boolean accordRepair,
+                         boolean accordOnly,
+                         boolean isConsensusMigration,
                          String... cfnames)
     {
         this.ctx = ctx;
         this.validationScheduler = validationScheduler;
         this.repairPaxos = repairPaxos;
         this.paxosOnly = paxosOnly;
+        this.isConsensusMigration = isConsensusMigration;
         assert cfnames.length > 0 : "Repairing no column families seems pointless, doesn't it";
         this.state = new SessionState(ctx.clock(), parentRepairSession, keyspace, cfnames, commonRange);
         this.parallelismDegree = parallelismDegree;
@@ -181,7 +189,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         this.pullRepair = pullRepair;
         this.optimiseStreams = optimiseStreams;
         this.taskExecutor = new SafeExecutor(createExecutor(ctx));
-        this.accordRepair = accordRepair;
+        this.accordOnly = accordOnly;
         this.excludedDeadNodes = excludedDeadNodes;
     }
 
@@ -305,7 +313,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         logger.info("{} parentSessionId = {}: new session: will sync {} on range {} for {}.{}",
                     previewKind.logPrefix(getId()), state.parentRepairSession, repairedNodes(), state.commonRange, state.keyspace, Arrays.toString(state.cfnames));
         Tracing.traceRepair("Syncing range {}", state.commonRange);
-        if (!previewKind.isPreview() && !paxosOnly)
+        if (!previewKind.isPreview() && !paxosOnly && !accordOnly)
         {
             SystemDistributedKeyspace.startRepairs(getId(), state.parentRepairSession, state.keyspace, state.cfnames, state.commonRange);
         }
@@ -343,12 +351,10 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
 
         // Create and submit RepairJob for each ColumnFamily
         state.phase.jobsSubmitted();
-        List<AbstractRepairJob> jobs = new ArrayList<>(state.cfnames.length);
+        List<RepairJob> jobs = new ArrayList<>(state.cfnames.length);
         for (String cfname : state.cfnames)
         {
-            AbstractRepairJob job = accordRepair ?
-                                    new AccordRepairJob(this, cfname) :
-                                    new CassandraRepairJob(this, cfname);
+            RepairJob job = new RepairJob(this, cfname);
             // Repairs can drive forward progress for consensus migration so always check
             job.addCallback(ConsensusTableMigration.completedRepairJobHandler);
             state.register(job.state);
@@ -390,10 +396,10 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     public synchronized void terminate(@Nullable Throwable reason)
     {
         terminated = true;
-        List<AbstractRepairJob> jobs = this.jobs;
+        List<RepairJob> jobs = this.jobs;
         if (jobs != null)
         {
-            for (AbstractRepairJob job : jobs)
+            for (RepairJob job : jobs)
                 job.abort(reason);
         }
         this.jobs = null;
