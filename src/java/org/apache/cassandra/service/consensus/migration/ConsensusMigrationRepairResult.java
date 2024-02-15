@@ -24,6 +24,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 public class ConsensusMigrationRepairResult
 {
+    private static final ConsensusMigrationRepairResult INELIGIBLE = new ConsensusMigrationRepairResult(ConsensusMigrationRepairType.ineligible, Epoch.EMPTY);
     public final ConsensusMigrationRepairType type;
     public final Epoch minEpoch;
 
@@ -33,18 +34,24 @@ public class ConsensusMigrationRepairResult
         this.minEpoch = minEpoch;
     }
 
-    public static ConsensusMigrationRepairResult fromCassandraRepair(Epoch minEpoch, boolean migrationEligibleRepair)
+    public static ConsensusMigrationRepairResult fromRepair(Epoch minEpoch, boolean paxosAndDataRepaired, boolean accordRepaired, boolean deadNodesExcluded)
     {
-        checkArgument(!migrationEligibleRepair || minEpoch.isAfter(Epoch.EMPTY), "Epoch should not be empty if Paxos and regular repairs were performed");
-        if (migrationEligibleRepair)
-            return new ConsensusMigrationRepairResult(ConsensusMigrationRepairType.paxos, minEpoch);
-        else
-            return new ConsensusMigrationRepairResult(ConsensusMigrationRepairType.ineligible, Epoch.EMPTY);
+        checkArgument((!paxosAndDataRepaired && !accordRepaired) || minEpoch.isAfter(Epoch.EMPTY), "Epoch should not be empty if Paxos and regular repairs were performed");
+
+        if (deadNodesExcluded) return INELIGIBLE;
+        if (paxosAndDataRepaired && accordRepaired) return new ConsensusMigrationRepairResult(ConsensusMigrationRepairType.either, minEpoch);
+        if (paxosAndDataRepaired) return new ConsensusMigrationRepairResult(ConsensusMigrationRepairType.paxos, minEpoch);
+        if (accordRepaired) return new ConsensusMigrationRepairResult(ConsensusMigrationRepairType.accord, minEpoch);
+        return INELIGIBLE;
     }
 
-    public static ConsensusMigrationRepairResult fromAccordRepair(Epoch minEpoch)
+    public static ConsensusMigrationRepairResult fromPaxosOnlyRepair(Epoch minEpoch, boolean deadNodesExcluded)
     {
-        checkArgument(minEpoch.isAfter(Epoch.EMPTY), "Accord repairs should always occur at an Epoch");
-        return new ConsensusMigrationRepairResult(ConsensusMigrationRepairType.accord, minEpoch);
+        return fromRepair(minEpoch, false, false, deadNodesExcluded);
+    }
+
+    public static ConsensusMigrationRepairResult fromAccordOnlyRepair(Epoch minEpoch, boolean deadNodesExcluded)
+    {
+        return fromRepair(minEpoch, false, true, deadNodesExcluded);
     }
 }

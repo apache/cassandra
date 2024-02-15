@@ -71,6 +71,7 @@ import org.apache.cassandra.repair.state.CoordinatorState;
 import org.apache.cassandra.repair.state.ParticipateState;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import org.apache.cassandra.service.ClientState;
@@ -298,12 +299,29 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
         }
     }
 
+    private void validate(RepairOption options)
+    {
+        if (options.paxosOnly() && options.accordOnly())
+            throw new IllegalArgumentException("Cannot specify a repair as both paxos only and accord only");
+
+        for (ColumnFamilyStore cfs : columnFamilies)
+        {
+            TableMetadata metadata = cfs.metadata();
+            if (options.paxosOnly() && !metadata.supportsPaxosOperations())
+                throw new IllegalArgumentException(String.format("Cannot run paxos only repair on %s.%s, which isn't configured for paxos operations", cfs.keyspace.getName(), cfs.name));
+
+            if (options.accordOnly() && !metadata.requiresAccordSupport())
+                throw new IllegalArgumentException(String.format("Cannot run accord only repair on %s.%s, which isn't configured for accord operations", cfs.keyspace.getName(), cfs.name));
+        }
+    }
+
     private void runMayThrow() throws Throwable
     {
         state.phase.setup();
         ctx.repair().recordRepairStatus(state.cmd, ParentRepairStatus.IN_PROGRESS, ImmutableList.of());
 
         populateColumnFamilies();
+        validate(state.options);
 
         this.traceState = maybeCreateTraceState(columnFamilies);
         notifyStarting();

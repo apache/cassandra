@@ -66,12 +66,7 @@ public class FailingRepairFuzzTest extends FuzzTestBase
                 Cluster.Node coordinator = coordinatorGen.next(rs);
 
                 // exclude accord repair as this test breaks validation/sync; which accord doesn't have
-                RepairOption options;
-                do
-                {
-                    options = repairOption(rs, coordinator, KEYSPACE, TABLES);
-                }
-                while (options.accordRepair());
+                RepairOption options = repairOption(rs, coordinator, KEYSPACE, TABLES);
                 RepairCoordinator repair = coordinator.repair(KEYSPACE, options, false);
                 repair.run();
                 InetAddressAndPort failingAddress = pickParticipant(rs, coordinator, repair);
