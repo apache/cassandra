@@ -157,7 +157,8 @@
             <attribute name="packaging" default="jar"/>
             <sequential>
                 <exec dir="." executable="sh">
-                    <arg line="-c 'mvn org.apache.maven.plugins:maven-gpg-plugin:1.6:sign-and-deploy-file -DretryFailedDeploymentCount=5 -Durl=${maven-repository-url} -DrepositoryId=${maven-repository-id} -DpomFile=@{pomFile} -Dfile=@{file} -Dclassifier=@{classifier} -Dpackaging=@{packaging}'" />
+                    <arg line="-c 'mvn org.apache.maven.plugins:maven-deploy-plugin:2.8.2:deploy-file -DretryFailedDeploymentCount=5 -Durl=${maven-repository-url} -DrepositoryId=${maven-repository-id} -DpomFile=@{pomFile} -Dfile=@{file} -Dclassifier=@{classifier} -Dpackaging=@{packaging}'" />
+                    <arg line="${maven-args}" />
                 </exec>
             </sequential>
         </macrodef>

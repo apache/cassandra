@@ -944,6 +944,16 @@
         <dependency groupId="org.jboss.byteman" artifactId="byteman-bmunit"/>
         <dependency groupId="com.github.seancfoley" artifactId="ipaddress" />
       </artifact:pom>
+        <artifact:pom id="dist-pom"
+                      artifactId="apache-cassandra"
+                      packaging="pom"
+                      url="http://cassandra.apache.org"
+                      name="Apache Cassandra">
+            <parent groupId="org.apache.cassandra"
+                    artifactId="cassandra-parent"
+                    version="${version}"/>
+            <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
+        </artifact:pom>
     </target>
 
     <!-- deprecated: legacy compatibility for build scripts in other repositories -->
@@ -1170,6 +1180,7 @@
 	    <artifact:writepom pomRefId="parent-pom" file="${build.dir}/${final.name}-parent.pom"/>
 	    <artifact:writepom pomRefId="all-pom" file="${build.dir}/${final.name}.pom"/>
 	    <artifact:writepom pomRefId="build-deps-pom" file="${build.dir}/tmp-${final.name}-deps.pom"/>
+        <artifact:writepom pomRefId="dist-pom" file="${build.dir}/${final.name}-dist.pom"/>
 	</target>
 
 	<target name="write-poms" unless="without.maven">
@@ -2461,6 +2472,18 @@
     <install pomFile="${build.dir}/${final.name}.pom"
              file="${build.dir}/${final.name}-javadoc.jar"
              classifier="javadoc"/>
+    <!-- the distribution -->
+    <install pomFile="${build.dir}/${final.name}-dist.pom"
+             file="${build.dir}/${final.name}-dist.pom"
+             packaging="pom"/>
+    <install pomFile="${build.dir}/${final.name}-dist.pom"
+             file="${build.dir}/${final.name}-bin.tar.gz"
+             packaging="tar.gz"
+             classifier="bin"/>
+    <install pomFile="${build.dir}/${final.name}-dist.pom"
+             file="${build.dir}/${final.name}-src.tar.gz"
+             packaging="tar.gz"
+             classifier="src"/>
   </target>
 
     <!-- Publish shaded artifacts to remote Maven repository -->
@@ -2499,8 +2522,10 @@
             classifier="javadoc"/>
 
     <!-- the distribution -->
-    <sign-dist file="${build.dir}/${final.name}-bin.tar.gz" />
-    <sign-dist file="${build.dir}/${final.name}-src.tar.gz" />
+    <deploy pomFile="${build.dir}/${final.name}-dist.pom"
+            file="${build.dir}/${final.name}-bin.tar.gz"
+            packaging="tar.gz"
+            classifier="bin"/>
 
   </target>
 

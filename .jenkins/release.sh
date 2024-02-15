@@ -17,18 +17,9 @@
 # limitations under the License.
 #
 
-# when publishing JAVA8 make sure to change the version so it won't conflict with JAVA11 builds
-
 set -ex
 
-echo "BRANCH: $BRANCH"
 echo "RELEASE: $RELEASE"
-
-wget http://artifactory.uber.internal:4587/artifactory/libs-release-local/oracle/server-jdk-linux-x64/1.8.0_111/server-jdk-linux-x64-1.8.0_111.tar.gz
-tar xzvf server-jdk-linux-x64-1.8.0_111.tar.gz
-JAVA_HOME="$(readlink -f jdk1.8.0_111)"
-export JAVA_HOME
-export PATH="$JAVA_HOME/bin:$PATH"
 
 RELEASE_URL="http://artifactory.uber.internal:4587/artifactory/libs-release-local/"
 SNAPSHOT_URL="http://artifactory.uber.internal:4587/artifactory/cassandra-snapshots/"
@@ -38,22 +29,24 @@ wget http://artifactory.uber.internal:4587/artifactory/libs-release-local/org/ap
 tar xzvf apache-ant-1.10.12-bin.tar.gz
 ANT_HOME="$(readlink -f apache-ant-1.10.12)"
 export ANT_HOME
-export PATH="$ANT_HOME/bin:$PATH"
+
+# update PATH
+export PATH="$ANT_HOME/bin:$JAVA_HOME/bin:$PATH"
+
+# use java 11
+export CASSANDRA_USE_JDK11=true
 
 ant realclean
-
-./build-shaded-cassandra-marmaray-jar.sh
+ant build
 
 if [ "$RELEASE" = "true" ]; then
-    ant publish-shaded -Drelease=set \
+    ant publish -Drelease=set \
     -Dmaven-repository-url="$RELEASE_URL" \
     -Dmaven-repository-id=central \
-    -Dartifact.remoteRepository.central="$RELEASE_URL" \
-    -Dno-checkstyle=true
+    -Dartifact.remoteRepository.central="$RELEASE_URL"
 else
-    ant publish-shaded \
+    ant publish \
     -Dmaven-repository-url="$SNAPSHOT_URL" \
     -Dmaven-repository-id=snapshots \
-    -Dartifact.remoteRepository.central="$RELEASE_URL" \
-    -Dno-checkstyle=true
+    -Dartifact.remoteRepository.central="$RELEASE_URL"
 fi

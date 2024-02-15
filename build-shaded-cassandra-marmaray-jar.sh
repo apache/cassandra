@@ -32,7 +32,7 @@ echo $CASSANDRA_VERSION
 echo SHADED_LOCAL_VERSION
 
 ant clean
-ant shaded-jar
+ant shaded-jar -Dno-checkstyle=true
 
 # Install the version that will be shaded
 mvn install:install-file               \
