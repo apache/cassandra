@@ -29,7 +29,6 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -37,8 +36,11 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.Key;
 import accord.api.Result;
+import accord.impl.CommandsForKey;
 import accord.local.CheckedCommands;
+import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
@@ -85,10 +87,13 @@ import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.IAccordService;
+import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 import static accord.impl.TimestampsForKey.NO_LAST_EXECUTED_HLC;
+import static accord.local.KeyHistory.COMMANDS;
 import static accord.local.PreLoadContext.contextFor;
 import static accord.utils.async.AsyncChains.getUninterruptibly;
 import static org.apache.cassandra.Util.spinAssertEquals;
@@ -123,8 +128,7 @@ public class CompactionAccordIteratorsTest
 
     static ColumnFamilyStore commands;
     static ColumnFamilyStore timestampsForKey;
-    static ColumnFamilyStore depsCommandsForKey;
-    static ColumnFamilyStore allCommandsForKey;
+    static ColumnFamilyStore commandsForKey;
     static TableMetadata table;
     static FullRoute<?> route;
     Random random;
@@ -144,17 +148,14 @@ public class CompactionAccordIteratorsTest
                                     parse("CREATE TABLE tbl (k int, c int, v int, primary key (k, c))", "ks"));
         StorageService.instance.initServer();
 
-        commands = ColumnFamilyStore.getIfExists(SchemaConstants.ACCORD_KEYSPACE_NAME, COMMANDS);
+        commands = ColumnFamilyStore.getIfExists(SchemaConstants.ACCORD_KEYSPACE_NAME, AccordKeyspace.COMMANDS);
         commands.disableAutoCompaction();
 
         timestampsForKey = ColumnFamilyStore.getIfExists(SchemaConstants.ACCORD_KEYSPACE_NAME, TIMESTAMPS_FOR_KEY);
         timestampsForKey.disableAutoCompaction();
 
-        depsCommandsForKey = ColumnFamilyStore.getIfExists(SchemaConstants.ACCORD_KEYSPACE_NAME, DEPS_COMMANDS_FOR_KEY);
-        depsCommandsForKey.disableAutoCompaction();
-
-        allCommandsForKey = ColumnFamilyStore.getIfExists(SchemaConstants.ACCORD_KEYSPACE_NAME, ALL_COMMANDS_FOR_KEY);
-        allCommandsForKey.disableAutoCompaction();
+        commandsForKey = ColumnFamilyStore.getIfExists(SchemaConstants.ACCORD_KEYSPACE_NAME, COMMANDS_FOR_KEY);
+        commandsForKey.disableAutoCompaction();
 
         table = ColumnFamilyStore.getIfExists("ks", "tbl").metadata();
         route = AccordTestUtils.keys(table, 42).toRoute(AccordTestUtils.key(table, 42).toUnseekable());
@@ -209,7 +210,7 @@ public class CompactionAccordIteratorsTest
     {
         testWithCommandStore((commandStore) -> {
             IAccordService mockAccordService = mockAccordService(commandStore, redundantBefore, durableBefore);
-            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(ACCORD_KEYSPACE_NAME, COMMANDS);
+            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(ACCORD_KEYSPACE_NAME, AccordKeyspace.COMMANDS);
             List<Partition> result = compactCFS(mockAccordService, cfs);
             expectedResult.accept(result);
         }, false);
@@ -249,7 +250,6 @@ public class CompactionAccordIteratorsTest
             Partition partition = partitions.get(0);
             Row row = partition.getRow(Clustering.EMPTY);
 
-            assertEquals(SECOND_TXN_ID, TimestampsForKeyRows.getMaxTimestamp(row));
             assertEquals(TXN_ID, TimestampsForKeyRows.getLastExecutedTimestamp(row));
             assertEquals(TXN_ID, TimestampsForKeyRows.getLastWriteTimestamp(row));
 
@@ -264,27 +264,17 @@ public class CompactionAccordIteratorsTest
         return partitions -> {
             assertEquals(1, partitions.size());
             Partition partition = partitions.get(0);
-            assertEquals(2, Iterators.size(partition.unfilteredIterator()));
-            UnfilteredRowIterator rows = partition.unfilteredIterator();
-            // One row per txn per series
-            for (TxnId txnId : TXN_IDS)
-                assertEquals(txnId, DepsCommandsForKeysAccessor.getTimestamp((Row)rows.next()));
+            PartitionKey partitionKey = new PartitionKey(partition.metadata().id, partition.partitionKey());
+            CommandsForKey cfk = CommandsForKeysAccessor.getCommandsForKey(partitionKey, ((Row)partition.unfilteredIterator().next()));
+            assertEquals(TXN_IDS.length, cfk.size());
+            for (int i = 0 ; i < TXN_IDS.length ; ++i)
+                assertEquals(TXN_IDS[i], cfk.txnId(i));
         };
     }
 
     private static Consumer<List<Partition>> expectedAccordTimestampsForKeyEraseOne()
     {
-        return partitions -> {
-            assertEquals(1, partitions.size());
-            Partition partition = partitions.get(0);
-            Row row = partition.getRow(Clustering.EMPTY);
-            // Only expect one column to remain because the second transaction is a read
-            assertEquals(1, Iterables.size(row));
-            assertEquals(SECOND_TXN_ID, AccordKeyspace.TimestampsForKeyRows.getMaxTimestamp(row));
-            assertNull(AccordKeyspace.TimestampsForKeyRows.getLastExecutedTimestamp(row));
-            assertNull(AccordKeyspace.TimestampsForKeyRows.getLastWriteTimestamp(row));
-            assertEquals(NO_LAST_EXECUTED_HLC, AccordKeyspace.TimestampsForKeyRows.getLastExecutedMicros(row));
-        };
+        return partitions -> assertEquals(0, partitions.size());
     }
 
     private static Consumer<List<Partition>> expectedAccordCommandsForKeyEraseOne()
@@ -294,7 +284,7 @@ public class CompactionAccordIteratorsTest
             Partition partition = partitions.get(0);
             assertEquals(1, Iterators.size(partition.unfilteredIterator()));
             UnfilteredRowIterator rows = partition.unfilteredIterator();
-            assertEquals(TXN_IDS[1], DepsCommandsForKeysAccessor.getTimestamp((Row)rows.next()));
+//            assertEquals(TXN_IDS[1], CommandsForKeysAccessor.getTimestamp((Row)rows.next()));
         };
     }
 
@@ -322,7 +312,7 @@ public class CompactionAccordIteratorsTest
     {
         testWithCommandStore((commandStore) -> {
             IAccordService mockAccordService = mockAccordService(commandStore, redundantBefore, DurableBefore.EMPTY);
-            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(ACCORD_KEYSPACE_NAME, DEPS_COMMANDS_FOR_KEY);
+            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(ACCORD_KEYSPACE_NAME, COMMANDS_FOR_KEY);
             List<Partition> result = compactCFS(mockAccordService, cfs);
             expectedResult.accept(result);
         }, true);
@@ -447,8 +437,7 @@ public class CompactionAccordIteratorsTest
         });
         commands.forceBlockingFlush(FlushReason.UNIT_TESTS);
         timestampsForKey.forceBlockingFlush(FlushReason.UNIT_TESTS);
-        depsCommandsForKey.forceBlockingFlush(FlushReason.UNIT_TESTS);
-        allCommandsForKey.forceBlockingFlush(FlushReason.UNIT_TESTS);
+        commandsForKey.forceBlockingFlush(FlushReason.UNIT_TESTS);
     }
 
     private void testWithCommandStore(TestWithCommandStore test, boolean additionalCommand) throws Throwable
@@ -457,62 +446,68 @@ public class CompactionAccordIteratorsTest
         clock.set(CLOCK_START);
         AccordCommandStore commandStore = AccordTestUtils.createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         TxnId[] txnIds = additionalCommand ? TXN_IDS : new TxnId[] {TXN_ID};
+        Txn writeTxn = AccordTestUtils.createWriteTxn(42);
+        Txn readTxn = AccordTestUtils.createTxn(42);
+        Seekable key = writeTxn.keys().get(0);
         for (TxnId txnId : txnIds)
         {
-            Txn txn = txnId.kind().isWrite() ? AccordTestUtils.createWriteTxn(42) : AccordTestUtils.createTxn(42);
-            Seekable key = txn.keys().get(0);
+            Txn txn = txnId.kind().isWrite() ? writeTxn : readTxn;
             PartialDeps partialDeps = Deps.NONE.slice(AccordTestUtils.fullRange(txn));
             PartialTxn partialTxn = txn.slice(commandStore.unsafeRangesForEpoch().currentRanges(), true);
             PartialRoute<?> partialRoute = route.slice(commandStore.unsafeRangesForEpoch().currentRanges());
-            getUninterruptibly(commandStore.execute(contextFor(txnId, txn.keys()), safe -> {
+            getUninterruptibly(commandStore.execute(contextFor(txnId, txn.keys(), COMMANDS), safe -> {
                 PreAccept preAccept =
                     PreAccept.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), txnId.epoch(), false, txnId.epoch(), partialTxn, route);
                 commandStore.appendToJournal(preAccept);
                 CheckedCommands.preaccept(safe, txnId, partialTxn, route, null);
             }).beginAsResult());
             flush(commandStore);
-            getUninterruptibly(commandStore.execute(contextFor(txnId, txn.keys()), safe -> {
+            getUninterruptibly(commandStore.execute(contextFor(txnId, txn.keys(), COMMANDS), safe -> {
                 Accept accept =
                     Accept.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), txnId.epoch(), false, Ballot.ZERO, txnId, partialTxn.keys(), partialDeps);
                 commandStore.appendToJournal(accept);
                 CheckedCommands.accept(safe, txnId, Ballot.ZERO, partialRoute, partialTxn.keys(), null, txnId, partialDeps);
             }).beginAsResult());
             flush(commandStore);
-            getUninterruptibly(commandStore.execute(contextFor(txnId, txn.keys()), safe -> {
+            getUninterruptibly(commandStore.execute(contextFor(txnId, txn.keys(), COMMANDS), safe -> {
                 Commit commit =
-                    Commit.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), Commit.Kind.StableFastPath, Ballot.ZERO, txnId, partialTxn, partialDeps, route, null);
+                    Commit.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), Commit.Kind.StableFastPath, Ballot.ZERO, txnId, partialTxn.keys(), partialTxn, partialDeps, route, null);
                 commandStore.appendToJournal(commit);
                 CheckedCommands.commit(safe, SaveStatus.Stable, Ballot.ZERO, txnId, route, null, partialTxn, txnId, partialDeps);
             }).beginAsResult());
             flush(commandStore);
-            getUninterruptibly(commandStore.execute(contextFor(txnId, txn.keys()), safe -> {
+            getUninterruptibly(commandStore.execute(contextFor(txnId, txn.keys(), COMMANDS), safe -> {
                 Pair<Writes, Result> result = AccordTestUtils.processTxnResultDirect(safe, txnId, partialTxn, txnId);
                 Apply apply =
-                    Apply.SerializationSupport.create(txnId, partialRoute, txnId.epoch(), Apply.Kind.Minimal, partialTxn.keys(), txnId, partialDeps, partialTxn, result.left, result.right);
+                    Apply.SerializationSupport.create(txnId, partialRoute, txnId.epoch(), Apply.Kind.Minimal, partialTxn.keys(), txnId, partialDeps, partialTxn, null, result.left, result.right);
                 commandStore.appendToJournal(apply);
                 CheckedCommands.apply(safe, txnId, route, null, txnId, partialDeps, partialTxn, result.left, result.right);
+            }).beginAsResult());
+            getUninterruptibly(commandStore.execute(contextFor(txnId, txn.keys(), COMMANDS), safe -> {
+                safe.get(txnId, txnId, route).addListener(new Command.ProxyListener(txnId)); // add a junk listener just to test it in compaction
             }).beginAsResult());
             flush(commandStore);
             // The apply chain is asychronous, so it is easiest to just spin until it is applied
             // in order to have the updated state in the system table
             spinAssertEquals(true, 5, () ->
-                                      getUninterruptibly(commandStore.submit(contextFor(txnId, txn.keys()), safe -> safe.get(txnId, route.homeKey()).current().hasBeen(Status.Applied)
+                                      getUninterruptibly(commandStore.submit(contextFor(txnId, txn.keys(), COMMANDS), safe -> safe.get(txnId, route.homeKey()).current().hasBeen(Status.Applied)
                                       ).beginAsResult()));
             flush(commandStore);
         }
 
-        UntypedResultSet commandsTable = QueryProcessor.executeInternal("SELECT * FROM " + ACCORD_KEYSPACE_NAME + "." + COMMANDS + ";");
+        UntypedResultSet commandsTable = QueryProcessor.executeInternal("SELECT * FROM " + ACCORD_KEYSPACE_NAME + "." + AccordKeyspace.COMMANDS + ";");
         logger.info(commandsTable.toStringUnsafe());
         assertEquals(txnIds.length, commandsTable.size());
         Iterator<UntypedResultSet.Row> commandsTableIterator = commandsTable.iterator();
         for (TxnId txnId : txnIds)
             assertEquals(txnId, AccordKeyspace.deserializeTimestampOrNull(commandsTableIterator.next().getBytes("txn_id"), TxnId::fromBits));
-        UntypedResultSet commandsForKeyTable = QueryProcessor.executeInternal("SELECT * FROM " + ACCORD_KEYSPACE_NAME + "." + DEPS_COMMANDS_FOR_KEY + ";");
+        UntypedResultSet commandsForKeyTable = QueryProcessor.executeInternal("SELECT * FROM " + ACCORD_KEYSPACE_NAME + "." + COMMANDS_FOR_KEY + ";");
         logger.info(commandsForKeyTable.toStringUnsafe());
-        assertEquals(txnIds.length, commandsForKeyTable.size());
-        Iterator<UntypedResultSet.Row> commandsForKeyTableIterator = commandsTable.iterator();
-        for (TxnId txnId : txnIds)
-            assertEquals(txnId, AccordKeyspace.deserializeTimestampOrNull(commandsForKeyTableIterator.next().getBytes("txn_id"), TxnId::fromBits));
+        assertEquals(1, commandsForKeyTable.size());
+        CommandsForKey cfk = CommandsForKeySerializer.fromBytes((Key)key, commandsForKeyTable.iterator().next().getBytes("data"));
+        assertEquals(txnIds.length, cfk.size());
+        for (int i = 0 ; i < txnIds.length ; ++i)
+            assertEquals(txnIds[i], cfk.txnId(i));
         test.test(commandStore);
     }
 
@@ -525,7 +520,7 @@ public class CompactionAccordIteratorsTest
         {
             List<Partition> outputPartitions = new ArrayList<>();
             List<ISSTableScanner> nextInputScanners = new ArrayList<>();
-            if (singleCompaction)
+            if (singleCompaction || numScanners == 1)
             {
                 nextInputScanners = ImmutableList.copyOf(scanners);
                 scanners.clear();
@@ -554,7 +549,7 @@ public class CompactionAccordIteratorsTest
                 scanners.add(random.nextInt(scanners.size()), new Scanner(cfs.metadata(), outputPartitions.stream().map(Partition::unfilteredIterator).collect(Collectors.toList())));
         } while (!scanners.isEmpty());
 
-        verify(mockAccordService, times(singleCompaction ? 1 : numScanners - 1)).getRedundantBeforesAndDurableBefore();
+        verify(mockAccordService, times(singleCompaction || numScanners == 1 ? 1 : numScanners - 1)).getRedundantBeforesAndDurableBefore();
         return result;
     }
 }

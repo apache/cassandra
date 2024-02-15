@@ -37,9 +37,6 @@ import org.slf4j.LoggerFactory;
 import accord.api.Agent;
 import accord.api.Data;
 import accord.api.Result;
-import accord.coordinate.Execute;
-import accord.coordinate.Persist;
-import accord.coordinate.ExecuteTxn;
 import accord.local.AgentExecutor;
 import accord.local.CommandStore;
 import accord.local.Node;
@@ -95,6 +92,8 @@ import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Clock;
 
+import static accord.coordinate.CoordinationAdapter.Factory.Step.Continue;
+import static accord.coordinate.CoordinationAdapter.Invoke.persist;
 import static accord.utils.Invariants.checkArgument;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteMetrics;
@@ -110,11 +109,11 @@ import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWri
  * on its inputs.
  *
  */
-public class AccordInteropExecution implements Execute, ReadCoordinator, MaximalCommitSender
+public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSender
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordInteropExecution.class);
 
-    private static class InteropExecutor implements AgentExecutor
+    static class InteropExecutor implements AgentExecutor
     {
         private final AccordAgent agent;
 
@@ -140,29 +139,6 @@ public class AccordInteropExecution implements Execute, ReadCoordinator, Maximal
             {
                 return AsyncChains.failure(e);
             }
-        }
-    }
-
-    public static class Factory implements Execute.Factory
-    {
-        private final InteropExecutor executor;
-        private final AccordEndpointMapper endpointMapper;
-
-        public Factory(AccordAgent agent, AccordEndpointMapper endpointMapper)
-        {
-            this.executor = new InteropExecutor(agent);
-            this.endpointMapper = endpointMapper;
-        }
-
-        @Override
-        public Execute create(Node node, Topologies topologies, Path path, TxnId txnId, Txn txn, FullRoute<?> route, Participants<?> readScope, Timestamp executeAt, Deps deps, BiConsumer<? super Result, Throwable> callback)
-        {
-            // Unrecoverable repair always needs to be run by AccordInteropExecution
-            AccordUpdate.Kind updateKind = AccordUpdate.kind(txn.update());
-            ConsistencyLevel consistencyLevel = txn.read() instanceof TxnRead ? ((TxnRead) txn.read()).cassandraConsistencyLevel() : null;
-            if (updateKind != AccordUpdate.Kind.UNRECOVERABLE_REPAIR && (consistencyLevel == null || consistencyLevel == ConsistencyLevel.ONE || txn.read().keys().isEmpty()))
-                return ExecuteTxn.FACTORY.create(node, topologies, path, txnId, txn, route, readScope, executeAt, deps, callback);
-            return new AccordInteropExecution(node, txnId, txn, updateKind, route, readScope, executeAt, deps, callback, executor, consistencyLevel, endpointMapper);
         }
     }
 
@@ -350,7 +326,6 @@ public class AccordInteropExecution implements Execute, ReadCoordinator, Maximal
                 node.send(to, new Commit(Kind.StableFastPath, to, coordinateTopology, allTopologies, txnId, txn, route, Ballot.ZERO, executeAt, deps, (ReadTxnData) null));
     }
 
-    @Override
     public void start()
     {
         if (coordinateTopology != executeTopology)
@@ -370,7 +345,7 @@ public class AccordInteropExecution implements Execute, ReadCoordinator, Maximal
         CommandStore cs = node.commandStores().select(route.homeKey());
         result.beginAsResult().withExecutor(cs).begin((data, failure) -> {
             if (failure == null)
-                Persist.persist(node, executes, route, txnId, txn, executeAt, deps, txn.execute(txnId, executeAt, data), txn.result(txnId, executeAt, data), callback);
+                persist(node.coordinationAdapter(txnId, Continue), node, executes, route, txnId, txn, executeAt, deps, txn.execute(txnId, executeAt, data), txn.result(txnId, executeAt, data), callback);
             else
                 callback.accept(null, failure);
         });

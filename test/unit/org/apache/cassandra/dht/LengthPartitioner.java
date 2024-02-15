@@ -76,7 +76,7 @@ public class LengthPartitioner extends AccordSplitter implements IPartitioner
     }
 
     @Override
-    public Token getMaximumToken()
+    public Token getMaximumTokenForSplitting()
     {
         return null;
     }

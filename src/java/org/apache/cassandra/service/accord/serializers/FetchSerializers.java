@@ -64,7 +64,6 @@ public class FetchSerializers
             KeySerializers.ranges.serialize((Ranges) request.readScope, out, version);
             DepsSerializer.partialDeps.serialize(request.partialDeps, out, version);
             StreamingTxn.serializer.serialize(request.read, out, version);
-            out.writeBoolean(request.collectMaxApplied);
         }
 
         @Override
@@ -74,8 +73,7 @@ public class FetchSerializers
                                     CommandSerializers.txnId.deserialize(in, version),
                                     KeySerializers.ranges.deserialize(in, version),
                                     DepsSerializer.partialDeps.deserialize(in, version),
-                                    StreamingTxn.serializer.deserialize(in, version),
-                                    in.readBoolean());
+                                    StreamingTxn.serializer.deserialize(in, version));
         }
 
         @Override
@@ -85,8 +83,7 @@ public class FetchSerializers
                    + CommandSerializers.txnId.serializedSize(request.txnId, version)
                    + KeySerializers.ranges.serializedSize((Ranges) request.readScope, version)
                    + DepsSerializer.partialDeps.serializedSize(request.partialDeps, version)
-                   + StreamingTxn.serializer.serializedSize(request.read, version)
-                   + TypeSizes.BYTE_SIZE;
+                   + StreamingTxn.serializer.serializedSize(request.read, version);
         }
     };
 

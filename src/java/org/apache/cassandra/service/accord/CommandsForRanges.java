@@ -31,6 +31,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -40,23 +41,17 @@ import com.google.common.collect.ImmutableSortedMap;
 
 import accord.api.Key;
 import accord.api.RoutingKey;
-import accord.impl.CommandTimeseries;
-import accord.impl.DomainCommands;
-import accord.impl.DomainTimestamps;
+import accord.impl.CommandsForKey;
+import accord.impl.CommandsSummary;
 import accord.local.Command;
-import accord.local.PreLoadContext;
-import accord.local.SafeCommand;
-import accord.local.SafeCommandStore;
 import accord.local.SaveStatus;
 import accord.primitives.AbstractKeys;
-import accord.primitives.PartialDeps;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
-import accord.primitives.Routable;
 import accord.primitives.RoutableKey;
 import accord.primitives.Seekable;
-import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
+import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import org.apache.cassandra.schema.TableId;
@@ -66,10 +61,17 @@ import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.IntervalTree;
 
+import static accord.local.SafeCommandStore.*;
+import static accord.local.SafeCommandStore.TestDep.ANY_DEPS;
+import static accord.local.SafeCommandStore.TestDep.WITH;
+import static accord.local.SafeCommandStore.TestStartedAt.ANY;
+import static accord.local.SafeCommandStore.TestStartedAt.STARTED_BEFORE;
+import static accord.local.SafeCommandStore.TestStatus.ANY_STATUS;
+import static accord.local.Status.Stable;
+import static accord.local.Status.Truncated;
+
 public class CommandsForRanges
 {
-    public interface DomainInfo extends DomainCommands, DomainTimestamps {}
-
     public enum TxnType
     {
         UNKNOWN, LOCAL, REMOTE;
@@ -135,42 +137,6 @@ public class CommandsForRanges
         public RangeCommandSummary withRanges(Ranges ranges, BiFunction<? super Ranges, ? super Ranges, ? extends Ranges> remappingFunction)
         {
             return new RangeCommandSummary(txnId, remappingFunction.apply(this.ranges, ranges), status, executeAt, deps);
-        }
-    }
-
-    private enum RangeCommandSummaryLoader implements CommandTimeseries.CommandLoader<RangeCommandSummary>
-    {
-        INSTANCE;
-
-        @Override
-        public RangeCommandSummary saveForCFK(Command command)
-        {
-            //TODO split write from read?
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public TxnId txnId(RangeCommandSummary data)
-        {
-            return data.txnId;
-        }
-
-        @Override
-        public Timestamp executeAt(RangeCommandSummary data)
-        {
-            return data.executeAt;
-        }
-
-        @Override
-        public SaveStatus saveStatus(RangeCommandSummary data)
-        {
-            return data.status;
-        }
-
-        @Override
-        public List<TxnId> depsIds(RangeCommandSummary data)
-        {
-            return data.deps;
         }
     }
 
@@ -307,50 +273,6 @@ public class CommandsForRanges
         }
     }
 
-    public static class Listener implements Command.DurableAndIdempotentListener
-    {
-        public final TxnId txnId;
-        private transient SaveStatus saveStatus;
-
-        public Listener(TxnId txnId)
-        {
-            this.txnId = txnId;
-        }
-
-        @Override
-        public void onChange(SafeCommandStore safeStore, SafeCommand safeCommand)
-        {
-            Command current = safeCommand.current();
-            if (current.saveStatus() == saveStatus)
-                return;
-            saveStatus = current.saveStatus();
-            PartialDeps deps = current.partialDeps();
-            if (deps == null)
-                return;
-            Seekables<?, ?> keysOrRanges = current.partialTxn().keys();
-            Invariants.checkArgument(keysOrRanges.domain() == Routable.Domain.Range, "Expected txn %s to be a Range txn, but was a %s", txnId, keysOrRanges.domain());
-
-            List<TxnId> dependsOn = deps.txnIds();
-            ((AccordSafeCommandStore) safeStore).updateRanges()
-                                                .put(txnId, (Ranges) keysOrRanges, current.saveStatus(), current.executeAt(), dependsOn);
-        }
-
-        @Override
-        public PreLoadContext listenerPreLoadContext(TxnId caller)
-        {
-            return caller.equals(txnId) ? PreLoadContext.contextFor(txnId) : PreLoadContext.contextFor(txnId, Collections.singletonList(caller));
-        }
-
-        @Override
-        public String toString()
-        {
-            return "Listener{" +
-                   "txnId=" + txnId +
-                   ", saveStatus=" + saveStatus +
-                   '}';
-        }
-    }
-
     private ImmutableSet<TxnId> localCommands;
     private ImmutableSortedMap<TxnId, RangeCommandSummary> commandsToRanges;
     private IntervalTree<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> rangesToCommands;
@@ -394,24 +316,29 @@ public class CommandsForRanges
         return maxRedundant;
     }
 
+    public static boolean needsUpdate(Command prev, Command updated)
+    {
+        return CommandsForKey.needsUpdate(prev, updated);
+    }
+
     public boolean containsLocally(TxnId txnId)
     {
         return localCommands.contains(txnId);
     }
 
-    public Iterable<DomainInfo> search(AbstractKeys<Key> keys)
+    public Iterable<CommandsSummary> search(AbstractKeys<Key> keys)
     {
         // group by the table, as ranges are based off TokenKey, which is scoped to a range
         Map<TableId, List<Key>> groupByTable = new TreeMap<>();
         for (Key key : keys)
             groupByTable.computeIfAbsent(((PartitionKey) key).table(), ignore -> new ArrayList<>()).add(key);
-        return () -> new AbstractIterator<DomainInfo>()
+        return () -> new AbstractIterator<CommandsSummary>()
         {
             Iterator<TableId> tblIt = groupByTable.keySet().iterator();
             Iterator<Map.Entry<Range, Set<RangeCommandSummary>>> rangeIt;
 
             @Override
-            protected DomainInfo computeNext()
+            protected CommandsSummary computeNext()
             {
                 while (true)
                 {
@@ -447,20 +374,20 @@ public class CommandsForRanges
     {
         TokenKey start = (TokenKey) interval.min;
         TokenKey end = (TokenKey) interval.max;
-        // TODO (correctness) : accord doesn't support wrap around, so decreaseSlightly may fail in some cases
-        // TODO (correctness) : this logic is mostly used for testing, so is it actually safe for all partitioners?
+        // TODO (required, correctness) : accord doesn't support wrap around, so decreaseSlightly may fail in some cases
+        // TODO (required, correctness) : this logic is mostly used for testing, so is it actually safe for all partitioners?
         return new TokenRange(start.withToken(start.token().decreaseSlightly()), end);
     }
 
     @Nullable
-    public DomainInfo search(Range range)
+    public CommandsSummary search(Range range)
     {
         List<RangeCommandSummary> matches = rangesToCommands.search(Interval.create(normalize(range.start(), range.startInclusive(), true),
                                                                                     normalize(range.end(), range.endInclusive(), false)));
         return result(range, matches);
     }
 
-    private DomainInfo result(Seekable seekable, Collection<RangeCommandSummary> matches)
+    private CommandsSummary result(Seekable seekable, Collection<RangeCommandSummary> matches)
     {
         if (matches.isEmpty())
             return null;
@@ -492,18 +419,20 @@ public class CommandsForRanges
             switch (ak.kindOfRoutingKey())
             {
                 case SENTINEL:
-                    key = ak.asSentinelKey().toTokenKey();
+                    // TODO (required, correctness): this doesn't work
+                    key = ak.asSentinelKey().toTokenKeyBroken();
                     continue;
                 case TOKEN:
                     TokenKey tk = ak.asTokenKey();
-                    return tk.withToken(upOrDown ? tk.token().nextValidToken() : tk.token().decreaseSlightly());
+                    // TODO (required, correctness): this doesn't work for ordered partitioner
+                    return tk.withToken(upOrDown ? tk.token().increaseSlightly() : tk.token().decreaseSlightly());
                 default:
                     throw new IllegalArgumentException("Unknown kind: " + ak.kindOfRoutingKey());
             }
         }
     }
 
-    private static class Holder implements DomainInfo
+    private static class Holder implements CommandsSummary
     {
         private final Seekable keyOrRange;
         private final Collection<RangeCommandSummary> matches;
@@ -515,27 +444,95 @@ public class CommandsForRanges
         }
 
         @Override
-        public CommandTimeseries<?> commands()
+        public <P1, T> T mapReduceFull(TxnId testTxnId, Txn.Kind.Kinds testKind, TestStartedAt testStartedAt, TestDep testDep, TestStatus testStatus, CommandFunction<P1, T, T> map, P1 p1, T accumulate)
         {
-            return build();
+            return mapReduce(testTxnId, testTxnId, testKind, testStartedAt, testDep, testStatus, map, p1, accumulate);
         }
 
         @Override
-        public Timestamp max()
+        public <P1, T> T mapReduceActive(Timestamp startedBefore, Txn.Kind.Kinds testKind, CommandFunction<P1, T, T> map, P1 p1, T accumulate)
         {
-            return commands().maxTimestamp();
+            return mapReduce(startedBefore, null, testKind, STARTED_BEFORE, ANY_DEPS, ANY_STATUS, map, p1, accumulate);
         }
 
-        private CommandTimeseries<?> build()
+        private <P1, T> T mapReduce(@Nonnull Timestamp testTimestamp, @Nullable TxnId testTxnId, Txn.Kind.Kinds testKind, TestStartedAt testStartedAt, TestDep testDep, TestStatus testStatus, CommandFunction<P1, T, T> map, P1 p1, T accumulate)
         {
-            CommandTimeseries.Builder<RangeCommandSummary> builder = new CommandTimeseries.Builder<>(keyOrRange, RangeCommandSummaryLoader.INSTANCE);
-            for (RangeCommandSummary m : matches)
+            // TODO (required): reconsider how we build this, to avoid having to provide range keys in order (or ensure our range search does this for us)
+            Map<Range, List<RangeCommandSummary>> collect = new TreeMap<>(Range::compare);
+            matches.forEach((summary -> {
+                if (summary.status.compareTo(SaveStatus.Erased) >= 0)
+                    return;
+
+                switch (testStartedAt)
+                {
+                    default: throw new AssertionError();
+                    case STARTED_AFTER:
+                        if (summary.txnId.compareTo(testTimestamp) <= 0) return;
+                        else break;
+                    case STARTED_BEFORE:
+                        if (summary.txnId.compareTo(testTimestamp) >= 0) return;
+                    case ANY:
+                        if (testDep != ANY_DEPS && (summary.executeAt == null || summary.executeAt.compareTo(testTxnId) < 0))
+                            return;
+                }
+
+                switch (testStatus)
+                {
+                    default: throw new AssertionError("Unhandled TestStatus: " + testStatus);
+                    case ANY_STATUS:
+                        break;
+                    case IS_PROPOSED:
+                        switch (summary.status)
+                        {
+                            default: return;
+                            case PreCommitted:
+                            case Committed:
+                            case Accepted:
+                        }
+                        break;
+                    case IS_STABLE:
+                        if (!summary.status.hasBeen(Stable) || summary.status.hasBeen(Truncated))
+                            return;
+                }
+
+                if (!testKind.test(summary.txnId.kind()))
+                    return;
+
+                if (testDep != ANY_DEPS)
+                {
+                    if (!summary.status.known.deps.hasProposedOrDecidedDeps())
+                        return;
+
+                    // TODO (required): we must ensure these txnId are limited to those we intersect in this command store
+                    // We are looking for transactions A that have (or have not) B as a dependency.
+                    // If B covers ranges [1..3] and A covers [2..3], but the command store only covers ranges [1..2],
+                    // we could have A adopt B as a dependency on [3..3] only, and have that A intersects B on this
+                    // command store, but also that there is no dependency relation between them on the overlapping
+                    // key range [2..2].
+
+                    // This can lead to problems on recovery, where we believe a transaction is a dependency
+                    // and so it is safe to execute, when in fact it is only a dependency on a different shard
+                    // (and that other shard, perhaps, does not know that it is a dependency - and so it is not durably known)
+                    // TODO (required): consider this some more
+                    if ((testDep == WITH) == !summary.deps.contains(testTxnId))
+                        return;
+                }
+
+                // TODO (required): ensure we are excluding any ranges that are now shard-redundant (not sure if this is enforced yet)
+                for (Range range : summary.ranges)
+                    collect.computeIfAbsent(range, ignore -> new ArrayList<>()).add(summary);
+            }));
+
+            for (Map.Entry<Range, List<RangeCommandSummary>> e : collect.entrySet())
             {
-                if (m.status == SaveStatus.Invalidated)
-                    continue;
-                builder.add(m.txnId, m);
+                for (RangeCommandSummary command : e.getValue())
+                {
+                    T initial = accumulate;
+                    accumulate = map.apply(p1, e.getKey(), command.txnId, command.executeAt, initial);
+                }
             }
-            return builder.build();
+
+            return accumulate;
         }
 
         @Override

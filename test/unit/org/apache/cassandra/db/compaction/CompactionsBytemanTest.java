@@ -179,7 +179,7 @@ public class CompactionsBytemanTest extends CQLTester
     {
         testStopCompactionRepaired((cfs) -> {
             Collection<Range<Token>> ranges = Collections.singleton(new Range<>(cfs.getPartitioner().getMinimumToken(),
-                                                                                cfs.getPartitioner().getMaximumToken()));
+                                                                                cfs.getPartitioner().getMaximumTokenForSplitting()));
             CompactionManager.instance.forceCompactionForTokenRange(cfs, ranges);
         });
     }

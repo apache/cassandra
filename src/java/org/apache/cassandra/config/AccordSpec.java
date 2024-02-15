@@ -44,4 +44,9 @@ public class AccordSpec
     public DurationSpec.IntMillisecondsBound range_barrier_timeout = new DurationSpec.IntMillisecondsBound("2m");
 
     public volatile DurationSpec fast_path_update_delay = new DurationSpec.IntSecondsBound(5);
+
+    public volatile DurationSpec schedule_durability_frequency = new DurationSpec.IntSecondsBound(15);
+    public volatile DurationSpec durability_txnid_lag = new DurationSpec.IntSecondsBound(5);
+    public volatile DurationSpec shard_durability_cycle = new DurationSpec.IntMinutesBound(2);
+    public volatile DurationSpec global_durability_cycle = new DurationSpec.IntMinutesBound(10);
 }

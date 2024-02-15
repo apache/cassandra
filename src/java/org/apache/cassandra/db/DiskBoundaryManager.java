@@ -194,7 +194,7 @@ public class DiskBoundaryManager
         List<PartitionPosition> diskBoundaries = new ArrayList<>();
         for (int i = 0; i < boundaries.size() - 1; i++)
             diskBoundaries.add(boundaries.get(i).maxKeyBound());
-        diskBoundaries.add(partitioner.getMaximumToken().maxKeyBound());
+        diskBoundaries.add(partitioner.getMaximumTokenForSplitting().maxKeyBound());
         return diskBoundaries;
     }
 }

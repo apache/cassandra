@@ -116,6 +116,7 @@ public class AsyncLoader
             case FAILED_TO_SAVE:
                 break;
             case FAILED_TO_LOAD:
+                // TODO (required): if this triggers, we trigger some other illegal state in cache management
                 throw new RuntimeException(safeRef.failure());
         }
     }
@@ -124,19 +125,18 @@ public class AsyncLoader
                                                  AsyncOperation.Context context,
                                                  List<AsyncChain<?>> listenChains)
     {
-        referenceAndAssembleReadsForKey(key, context.timestampsForKey, commandStore.timestampsForKeyCache(), listenChains);
         // recovery operations also need the deps data for their preaccept logic
         switch (keyHistory)
         {
-            case ALL:
-                referenceAndAssembleReadsForKey(key, context.allCommandsForKeys, commandStore.allCommandsForKeyCache(), listenChains);
-            case DEPS:
-                referenceAndAssembleReadsForKey(key, context.depsCommandsForKeys, commandStore.depsCommandsForKeyCache(), listenChains);
+            case TIMESTAMPS:
+                referenceAndAssembleReadsForKey(key, context.timestampsForKey, commandStore.timestampsForKeyCache(), listenChains);
+                break;
+            case COMMANDS:
+                referenceAndAssembleReadsForKey(key, context.commandsForKey, commandStore.commandsForKeyCache(), listenChains);
             case NONE:
                 break;
             default: throw new IllegalArgumentException("Unhandled keyhistory: " + keyHistory);
         }
-        referenceAndAssembleReadsForKey(key, context.updatesForKeys, commandStore.updatesForKeyCache(), listenChains);
     }
 
     private <K, V, S extends AccordSafeState<K, V>> void referenceAndAssembleReads(Iterable<? extends K> keys,
@@ -195,7 +195,7 @@ public class AsyncLoader
 
     private AsyncChain<Set<PartitionKey>> findOverlappingKeys(Range range)
     {
-        Set<PartitionKey> cached = commandStore.depsCommandsForKeyCache().stream()
+        Set<PartitionKey> cached = commandStore.commandsForKeyCache().stream()
                                                .map(n -> (PartitionKey) n.key())
                                                .filter(range::contains)
                                                .collect(Collectors.toSet());
@@ -214,7 +214,7 @@ public class AsyncLoader
         if (start instanceof TokenKey)
             return (TokenKey) start;
         if (start instanceof AccordRoutingKey.SentinelKey)
-            return ((AccordRoutingKey.SentinelKey) start).toTokenKey();
+            return ((AccordRoutingKey.SentinelKey) start).toTokenKeyBroken();
         throw new IllegalArgumentException(String.format("Unable to convert RoutingKey %s (type %s) to TokenKey", start, start.getClass()));
     }
 
