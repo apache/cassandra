@@ -67,7 +67,7 @@ public class ValidationTaskTest
 
         IPartitioner partitioner = Murmur3Partitioner.instance;
         MerkleTrees trees = new MerkleTrees(partitioner);
-        trees.addMerkleTree(128, new Range<>(partitioner.getMinimumToken(), partitioner.getMaximumToken()));
+        trees.addMerkleTree(128, new Range<>(partitioner.getMinimumToken(), partitioner.getMaximumTokenForSplitting()));
         task.treesReceived(trees);
         assertEquals(1, trees.size());
         

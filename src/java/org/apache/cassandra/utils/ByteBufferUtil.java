@@ -43,6 +43,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import net.nicoulaj.compilecommand.annotations.DontInline;
 import net.nicoulaj.compilecommand.annotations.Inline;
 
 import org.apache.cassandra.db.TypeSizes;
@@ -994,6 +995,104 @@ public class ByteBufferUtil
         catch (IOException e)
         {
             throw new RuntimeException(e);
+        }
+    }
+
+    public static void writeLeastSignificantBytes(long register, int bytes, ByteBuffer out)
+    {
+        writeMostSignificantBytesSlow(register << ((8 - bytes)*8), bytes, out);
+    }
+
+    public static void writeMostSignificantBytes(long register, int bytes, ByteBuffer out)
+    {
+        int position = out.position();
+        int limit = out.limit();
+        if (limit - position < Long.BYTES)
+        {
+            writeMostSignificantBytesSlow(register, bytes, out);
+        }
+        else
+        {
+            out.putLong(position, register);
+            out.position(position + bytes);
+        }
+    }
+
+    @DontInline
+    private static void writeMostSignificantBytesSlow(long register, int bytes, ByteBuffer out)
+    {
+        switch (bytes)
+        {
+            case 0:
+                break;
+            case 1:
+                out.put((byte)(register >>> 56));
+                break;
+            case 2:
+                out.putShort((short)(register >> 48));
+                break;
+            case 3:
+                out.putShort((short)(register >> 48));
+                out.put((byte)(register >> 40));
+                break;
+            case 4:
+                out.putInt((int)(register >> 32));
+                break;
+            case 5:
+                out.putInt((int)(register >> 32));
+                out.put((byte)(register >> 24));
+                break;
+            case 6:
+                out.putInt((int)(register >> 32));
+                out.putShort((short)(register >> 16));
+                break;
+            case 7:
+                out.putInt((int)(register >> 32));
+                out.putShort((short)(register >> 16));
+                out.put((byte)(register >> 8));
+                break;
+            case 8:
+                out.putLong(register);
+                break;
+            default:
+                throw new IllegalArgumentException();
+        }
+    }
+
+    public static long readLeastSignificantBytes(int bytes, ByteBuffer in)
+    {
+        if (bytes == 0)
+            return 0L;
+
+        int position = in.position();
+        int limit = in.limit();
+        if (limit - position < Long.BYTES)
+        {
+            return readLeastSignificantBytesSlow(bytes, in);
+        }
+        else
+        {
+            long result = in.getLong(position);
+            in.position(position + bytes);
+            return result >>> (64 - 8*bytes);
+        }
+    }
+
+    @DontInline
+    private static long readLeastSignificantBytesSlow(int bytes, ByteBuffer out)
+    {
+        switch (bytes)
+        {
+            case 0: return 0;
+            case 1: return out.get() & 0xffL;
+            case 2: return out.getShort() & 0xffffL;
+            case 3: return ((out.getShort() & 0xffffL) << 8) | (out.get() & 0xffL);
+            case 4: return out.getInt() & 0xffffffffL;
+            case 5: return ((out.getInt() & 0xffffffffL) << 8) | (out.get() & 0xffL);
+            case 6: return ((out.getInt() & 0xffffffffL) << 16) | (out.getShort() & 0xffffL);
+            case 7: return ((out.getInt() & 0xffffffffL) << 24) | ((out.getShort() & 0xffffL) << 8) | (out.get() & 0xffL);
+            case 8: return out.getLong();
+            default: throw new IllegalArgumentException();
         }
     }
 

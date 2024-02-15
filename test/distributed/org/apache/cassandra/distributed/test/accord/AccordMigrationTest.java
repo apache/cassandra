@@ -154,7 +154,7 @@ public class AccordMigrationTest extends AccordTestBase
         StorageService.instance.setPartitionerUnsafe(partitioner);
         ServerTestUtils.prepareServerNoRegister();
         minToken = partitioner.getMinimumToken();
-        maxToken = partitioner.getMaximumToken();
+        maxToken = partitioner.getMaximumTokenForSplitting();
         midToken = partitioner.midpoint(minToken, maxToken);
         upperMidToken = partitioner.midpoint(midToken, maxToken);
         lowerMidToken = partitioner.midpoint(minToken, midToken);

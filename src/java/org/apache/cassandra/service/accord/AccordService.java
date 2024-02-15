@@ -30,9 +30,12 @@ import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.primitives.Ints;
 
 import accord.coordinate.TopologyMismatch;
+import accord.impl.CoordinateDurabilityScheduling;
 import org.apache.cassandra.cql3.statements.RequestValidations;
+import org.apache.cassandra.service.accord.interop.AccordInteropAdapter.AccordInteropFactory;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.transformations.AddAccordTable;
 import org.slf4j.Logger;
@@ -89,9 +92,6 @@ import org.apache.cassandra.service.accord.api.AccordTopologySorter;
 import org.apache.cassandra.service.accord.api.CompositeTopologySorter;
 import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
 import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
-import org.apache.cassandra.service.accord.interop.AccordInteropApply;
-import org.apache.cassandra.service.accord.interop.AccordInteropExecution;
-import org.apache.cassandra.service.accord.interop.AccordInteropPersist;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -109,6 +109,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import static accord.messages.SimpleReply.Ok;
 import static accord.utils.Invariants.checkState;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteMetrics;
@@ -132,6 +133,7 @@ public class AccordService implements IAccordService, Shutdownable
     private final AccordScheduler scheduler;
     private final AccordDataStore dataStore;
     private final AccordJournal journal;
+    private final CoordinateDurabilityScheduling durabilityScheduling;
     private final AccordVerbHandler<? extends Request> verbHandler;
     private final LocalConfig configuration;
     @GuardedBy("this")
@@ -306,11 +308,10 @@ public class AccordService implements IAccordService, Shutdownable
                                                             new AccordTopologySorter.Supplier(configService, DatabaseDescriptor.getEndpointSnitch())),
                              SimpleProgressLog::new,
                              AccordCommandStores.factory(journal),
-                             new AccordInteropExecution.Factory(agent, configService),
-                             AccordInteropPersist.FACTORY,
-                             AccordInteropApply.FACTORY,
+                             new AccordInteropFactory(agent, configService),
                              configuration);
         this.nodeShutdown = toShutdownable(node);
+        this.durabilityScheduling = new CoordinateDurabilityScheduling(node);
         this.verbHandler = new AccordVerbHandler<>(node, configService, journal);
     }
 
@@ -324,6 +325,11 @@ public class AccordService implements IAccordService, Shutdownable
         ClusterMetadataService.instance().log().addListener(configService);
         fastPathCoordinator.start();
         ClusterMetadataService.instance().log().addListener(fastPathCoordinator);
+        durabilityScheduling.setGlobalCycleTime(Ints.checkedCast(DatabaseDescriptor.getAccordGlobalDurabilityCycle(SECONDS)), SECONDS);
+        durabilityScheduling.setShardCycleTime(Ints.checkedCast(DatabaseDescriptor.getAccordShardDurabilityCycle(SECONDS)), SECONDS);
+        durabilityScheduling.setTxnIdLag(Ints.checkedCast(DatabaseDescriptor.getAccordScheduleDurabilityTxnIdLag(SECONDS)), TimeUnit.SECONDS);
+        durabilityScheduling.setFrequency(Ints.checkedCast(DatabaseDescriptor.getAccordScheduleDurabilityFrequency(SECONDS)), SECONDS);
+        durabilityScheduling.start();
         state = State.STARTED;
     }
 

@@ -166,9 +166,9 @@ public class AccordTopologyTest
     {
         List<Range<Token>> ranges = ImmutableList.of(range(partitioner.getMinimumToken(), token(-100)),
                                                      range(-100, 100),
-                                                     range(token(100), partitioner.getMaximumToken()));
+                                                     range(token(100), partitioner.getMaximumTokenForSplitting()));
         Assert.assertEquals(partitioner.getMinimumToken(), ranges.get(0).left);
-        Assert.assertEquals(partitioner.getMaximumToken(), ranges.get(2).right);
+        Assert.assertEquals(partitioner.getMaximumTokenForSplitting(), ranges.get(2).right);
         ClusterMetadata metadata = configureCluster(ranges, Keyspaces.of(keyspace));
 
         Topology topology = AccordTopology.createAccordTopology(metadata, ks -> true);
@@ -204,7 +204,7 @@ public class AccordTopologyTest
     {
         List<Range<Token>> ranges = ImmutableList.of(range(partitioner.getMinimumToken(), token(-100)),
                                                      range(-100, 100),
-                                                     range(token(100), partitioner.getMaximumToken()));
+                                                     range(token(100), partitioner.getMaximumTokenForSplitting()));
         ClusterMetadata metadata = configureCluster(ranges, Keyspaces.of(keyspace));
         Topology topology = AccordTopology.createAccordTopology(metadata, ks -> true);
         Topology expected = new Topology(1,
@@ -235,7 +235,7 @@ public class AccordTopologyTest
     {
         List<Range<Token>> ranges = ImmutableList.of(range(partitioner.getMinimumToken(), token(-100)),
                                                      range(-100, 100),
-                                                     range(token(100), partitioner.getMaximumToken()));
+                                                     range(token(100), partitioner.getMaximumTokenForSplitting()));
         ClusterMetadata metadata = configureCluster(ranges, Keyspaces.of(keyspace));
         Topology topology = AccordTopology.createAccordTopology(metadata, ks -> true);
         Topology expected = new Topology(1,
