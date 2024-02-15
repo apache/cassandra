@@ -583,7 +583,10 @@ public class TokenPlacementModel
                 if (idx >= 0)
                 {
                     for (int i = 0; i < nodes.size() && replicas.size() < dcReplicas.totalCount; i++)
-                        addIfUnique(replicas, names, new Replica(nodes.get((idx + i) % nodes.size()), true));
+                    {
+                        boolean full = replicas.size() < dcReplicas.totalCount - dcReplicas.transientCount;
+                        addIfUnique(replicas, names, new Replica(nodes.get((idx + i) % nodes.size()), full));
+                    }
                     if (!minTokenOwned && range.start == Long.MIN_VALUE)
                         replication.put(ranges[ranges.length - 1], replicas);
                     replication.put(range, replicas);
