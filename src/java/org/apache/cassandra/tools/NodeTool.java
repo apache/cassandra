@@ -52,7 +52,7 @@ import com.google.common.base.Throwables;
 
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.tools.nodetool.*;
-import org.apache.cassandra.tools.nodetool.clustermetadata.ClusterMetadataHelper;
+import org.apache.cassandra.tools.nodetool.clustermetadata.CMSCmdGroupHelp;
 import org.apache.cassandra.tools.nodetool.clustermetadata.DescribeCMS;
 import org.apache.cassandra.tools.nodetool.clustermetadata.InitializeCMS;
 import org.apache.cassandra.tools.nodetool.clustermetadata.ReconfigureCMS;
@@ -263,9 +263,9 @@ public class NodeTool
                .withCommand(RepairAdmin.SummarizePendingCmd.class)
                .withCommand(RepairAdmin.SummarizeRepairedCmd.class);
 
-        builder.withGroup("cms")
+        builder.withGroup(CMSCmdGroupHelp.CMS_CMD_GROUP_NAME)
                .withDescription("Manage cluster metadata")
-               .withDefaultCommand(ClusterMetadataHelper.class)
+               .withDefaultCommand(CMSCmdGroupHelp.class)
                .withCommand(DescribeCMS.class)
                .withCommand(ReconfigureCMS.class)
                .withCommand(InitializeCMS.class);

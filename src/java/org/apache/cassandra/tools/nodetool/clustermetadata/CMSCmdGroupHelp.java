@@ -23,11 +23,15 @@ import org.apache.cassandra.tools.INodeProbeFactory;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.Output;
 
-public class ClusterMetadataHelper extends Help implements NodeTool.NodeToolCmdRunnable
+/**
+ * Help class for Cluster Metadata Service nodetool command group.
+ */
+public class CMSCmdGroupHelp extends Help implements NodeTool.NodeToolCmdRunnable
 {
-    public ClusterMetadataHelper()
+    public static final String CMS_CMD_GROUP_NAME = "cms";
+    public CMSCmdGroupHelp()
     {
-        command.add("cms");
+        command.add(CMS_CMD_GROUP_NAME);
     }
 
     @Override

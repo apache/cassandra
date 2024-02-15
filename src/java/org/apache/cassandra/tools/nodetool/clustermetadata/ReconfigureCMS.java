@@ -58,12 +58,12 @@ public class ReconfigureCMS extends NodeTool.NodeToolCmd
             Map<String, List<String>> status = probe.getCMSOperationsProxy().reconfigureCMSStatus();
             if (status == null)
             {
-                System.out.println("No active reconfiguration");
+                output.out.println("No active reconfiguration");
             }
             else
             {
                 for (Map.Entry<String, List<String>> e : status.entrySet())
-                    System.out.println(String.format("%s: %s", e.getKey(), e.getValue()));
+                    output.out.printf("%s: %s%n", e.getKey(), e.getValue());
             }
             return;
         }
