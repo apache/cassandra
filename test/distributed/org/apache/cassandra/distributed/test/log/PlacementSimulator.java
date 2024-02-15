@@ -303,8 +303,8 @@ public class PlacementSimulator
         NavigableMap<Range, List<Replica>> splitWritePlacements = baseState.rf.replicate(splitNodes).placementsForRange;
 
         Map<Range, Diff<Replica>> allWriteCommands = diff(splitWritePlacements, maximalStateWithPlacement);
-        Map<Range, Diff<Replica>> step1WriteCommands = map(allWriteCommands, Diff::onlyAdditions);
-        Map<Range, Diff<Replica>> step3WriteCommands = map(allWriteCommands, Diff::onlyRemovals);
+        Map<Range, Diff<Replica>> step1WriteCommands = map(allWriteCommands, PlacementSimulator::additionsAndTransientToFull);
+        Map<Range, Diff<Replica>> step3WriteCommands = map(allWriteCommands, PlacementSimulator::removalsAndFullToTransient);
         Map<Range, Diff<Replica>> readCommands = diff(splitReadPlacements, maximalStateWithPlacement);
 
         Transformations steps = new Transformations();
@@ -941,7 +941,8 @@ public class PlacementSimulator
         return Collections.unmodifiableList(newNodes);
     }
 
-    public static class Diff<T> {
+    public static class Diff<T>
+    {
         public final List<T> additions;
         public final List<T> removals;
 
@@ -976,6 +977,70 @@ public class PlacementSimulator
             // invert removals & additions
             return new Diff<>(removals, additions);
         }
+    }
+
+    public static Diff<Replica> additionsAndTransientToFull(Diff<Replica> unfiltered)
+    {
+        if (unfiltered.additions.isEmpty())
+            return null;
+        List<Replica> additions = new ArrayList<>(unfiltered.additions.size());
+        List<Replica> removals = new ArrayList<>(unfiltered.additions.size());
+        for (Replica added : unfiltered.additions)
+        {
+            // Include any new FULL replicas here. If there exists the removal of a corresponding Transient
+            // replica (i.e. a switch from T -> F), add that too. We want T -> F transitions to happen early
+            // in a multi-step operation, at the same time as new write replicas are added.
+            if (added.isFull())
+            {
+                additions.add(added);
+                for (Replica removed : unfiltered.removals)
+                    if (removed.node().equals(added.node()) && removed.isTransient())
+                        removals.add(removed);
+            }
+            else
+            {
+                // Conversely, when a replica transitions from F -> T, it's enacted late in a multi-step operation.
+                // So only include TRANSIENT additions if there is no removal of a corresponding FULL replica.
+                boolean include = unfiltered.removals.stream()
+                                                     .noneMatch(removed -> removed.node().equals(added.node())
+                                                                           && removed.isFull());
+                if (include)
+                    additions.add(added);
+            }
+        }
+        return new Diff<>(additions, removals);
+    }
+
+    public static Diff<Replica> removalsAndFullToTransient(Diff<Replica> unfiltered)
+    {
+        if (unfiltered.removals.isEmpty())
+            return null;
+        List<Replica> additions = new ArrayList<>(unfiltered.removals.size());
+        List<Replica> removals = new ArrayList<>(unfiltered.removals.size());
+        for (Replica removed : unfiltered.removals)
+        {
+            // Include any new FULL replicas here. If there exists the removal of a corresponding Transient
+            // replica (i.e. a switch from T -> F), add that too. We want T -> F transitions to happen early
+            // in a multi-step operation, at the same time as new write replicas are added.
+            if (removed.isFull())
+            {
+                removals.add(removed);
+                for (Replica added : unfiltered.additions)
+                    if (added.node().equals(removed.node()) && added.isTransient())
+                        additions.add(added);
+            }
+            else
+            {
+                // Conversely, when a replica transitions from F -> T, it's enacted late in a multi-step operation.
+                // So only include TRANSIENT additions if there is no removal of a corresponding FULL replica.
+                boolean include = unfiltered.additions.stream()
+                                                     .noneMatch(added -> added.node().equals(removed.node())
+                                                                           && added.isFull());
+                if (include)
+                    removals.add(removed);
+            }
+        }
+        return new Diff<>(additions, removals);
     }
 
     public static String diffsToString(Map<Range, Diff<Replica>> placements)
