@@ -105,6 +105,9 @@ public class Repair extends NodeToolCmd
     @Option(title = "paxos-only", name = {"-paxos-only", "--paxos-only"}, description = "If the --paxos-only flag is included, no table data is repaired, only paxos operations..")
     private boolean paxosOnly = false;
 
+    @Option(title = "accord-only", name = {"-accord-only", "--accord-only"}, description = "If the --accord-only flag is included, no table data is repaired, only accord operations..")
+    private boolean accordOnly = false;
+
     @Option(title = "ignore_unreplicated_keyspaces", name = {"-iuk","--ignore-unreplicated-keyspaces"}, description = "Use --ignore-unreplicated-keyspaces to ignore keyspaces which are not replicated, otherwise the repair will fail")
     private boolean ignoreUnreplicatedKeyspaces = false;
 
@@ -187,6 +190,7 @@ public class Repair extends NodeToolCmd
         options.put(RepairOption.IGNORE_UNREPLICATED_KS, Boolean.toString(ignoreUnreplicatedKeyspaces));
         options.put(RepairOption.REPAIR_PAXOS_KEY, Boolean.toString(!skipPaxos && getPreviewKind() == PreviewKind.NONE));
         options.put(RepairOption.PAXOS_ONLY_KEY, Boolean.toString(paxosOnly && getPreviewKind() == PreviewKind.NONE));
+        options.put(RepairOption.ACCORD_ONLY_KEY, Boolean.toString(accordOnly && getPreviewKind() == PreviewKind.NONE));
 
         if (!startToken.isEmpty() || !endToken.isEmpty())
         {
