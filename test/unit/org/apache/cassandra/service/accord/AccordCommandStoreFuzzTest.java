@@ -105,6 +105,8 @@ public class AccordCommandStoreFuzzTest extends CQLTester
     public static void setUpClass()
     {
         CQLTester.setUpClass();
+        // This test truncates between examples, so if this is enabled system.info flushes and backups up for every truncate;
+        // this becomes 95% the cost of running these tests...
         DatabaseDescriptor.setIncrementalBackupsEnabled(false);
     }
 
