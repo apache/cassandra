@@ -46,6 +46,8 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.serializers.IVersionedWithKeysSerializer.AbstractWithKeysSerializer;
+import org.apache.cassandra.service.accord.serializers.IVersionedWithKeysSerializer.NullableWithKeysSerializer;
 import org.apache.cassandra.service.accord.serializers.SmallEnumSerializer.NullableSmallEnumSerializer;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
@@ -140,7 +142,7 @@ public class CommandSerializers
         }
     }
 
-    public static class PartialTxnSerializer implements IVersionedSerializer<PartialTxn>
+    public static class PartialTxnSerializer extends AbstractWithKeysSerializer implements IVersionedWithKeysSerializer<Seekables<?, ?>, PartialTxn>
     {
         private final IVersionedSerializer<Read> readSerializer;
         private final IVersionedSerializer<Query> querySerializer;
@@ -156,9 +158,51 @@ public class CommandSerializers
         @Override
         public void serialize(PartialTxn txn, DataOutputPlus out, int version) throws IOException
         {
+            KeySerializers.seekables.serialize(txn.keys(), out, version);
+            serializeWithoutKeys(txn, out, version);
+        }
+
+        @Override
+        public PartialTxn deserialize(DataInputPlus in, int version) throws IOException
+        {
+            Seekables<?, ?> keys = KeySerializers.seekables.deserialize(in, version);
+            return deserializeWithoutKeys(keys, in, version);
+        }
+
+        @Override
+        public long serializedSize(PartialTxn txn, int version)
+        {
+            long size = KeySerializers.seekables.serializedSize(txn.keys(), version);
+            size += serializedSizeWithoutKeys(txn, version);
+            return size;
+        }
+
+        @Override
+        public void serialize(Seekables<?, ?> superset, PartialTxn txn, DataOutputPlus out, int version) throws IOException
+        {
+            serializeSubset(txn.keys(), superset, out);
+            serializeWithoutKeys(txn, out, version);
+        }
+
+        @Override
+        public PartialTxn deserialize(Seekables<?, ?> superset, DataInputPlus in, int version) throws IOException
+        {
+            Seekables<?, ?> keys = deserializeSubset(superset, in);
+            return deserializeWithoutKeys(keys, in, version);
+        }
+
+        @Override
+        public long serializedSize(Seekables<?, ?> superset, PartialTxn txn, int version)
+        {
+            long size = serializedSubsetSize(txn.keys(), superset);
+            size += serializedSizeWithoutKeys(txn, version);
+            return size;
+        }
+
+        private void serializeWithoutKeys(PartialTxn txn, DataOutputPlus out, int version) throws IOException
+        {
             CommandSerializers.kind.serialize(txn.kind(), out, version);
             KeySerializers.ranges.serialize(txn.covering(), out, version);
-            KeySerializers.seekables.serialize(txn.keys(), out, version);
             readSerializer.serialize(txn.read(), out, version);
             querySerializer.serialize(txn.query(), out, version);
             out.writeBoolean(txn.update() != null);
@@ -166,24 +210,21 @@ public class CommandSerializers
                 updateSerializer.serialize(txn.update(), out, version);
         }
 
-        @Override
-        public PartialTxn deserialize(DataInputPlus in, int version) throws IOException
+        private PartialTxn deserializeWithoutKeys(Seekables<?, ?> keys, DataInputPlus in, int version) throws IOException
         {
             Txn.Kind kind = CommandSerializers.kind.deserialize(in, version);
             Ranges covering = KeySerializers.ranges.deserialize(in, version);
-            Seekables<?, ?> keys = KeySerializers.seekables.deserialize(in, version);
             Read read = readSerializer.deserialize(in, version);
             Query query = querySerializer.deserialize(in, version);
             Update update = in.readBoolean() ? updateSerializer.deserialize(in, version) : null;
             return new PartialTxn.InMemory(covering, kind, keys, read, query, update);
         }
 
-        @Override
-        public long serializedSize(PartialTxn txn, int version)
+
+        private long serializedSizeWithoutKeys(PartialTxn txn, int version)
         {
             long size = CommandSerializers.kind.serializedSize(txn.kind(), version);
             size += KeySerializers.ranges.serializedSize(txn.covering(), version);
-            size += KeySerializers.seekables.serializedSize(txn.keys(), version);
             size += readSerializer.serializedSize(txn.read(), version);
             size += querySerializer.serializedSize(txn.query(), version);
             size += TypeSizes.sizeof(txn.update() != null);
@@ -197,8 +238,8 @@ public class CommandSerializers
     private static final IVersionedSerializer<Query> query = new CastingSerializer<>(TxnQuery.class, TxnQuery.serializer);
     private static final IVersionedSerializer<Update> update = new CastingSerializer<>(AccordUpdate.class, AccordUpdate.serializer);
 
-    public static final IVersionedSerializer<PartialTxn> partialTxn = new PartialTxnSerializer(read, query, update);
-    public static final IVersionedSerializer<PartialTxn> nullablePartialTxn = NullableSerializer.wrap(partialTxn);
+    public static final IVersionedWithKeysSerializer<Seekables<?, ?>, PartialTxn> partialTxn = new PartialTxnSerializer(read, query, update);
+    public static final IVersionedWithKeysSerializer<Seekables<?, ?>, PartialTxn> nullablePartialTxn = new NullableWithKeysSerializer<>(partialTxn);
 
     public static final EnumSerializer<SaveStatus> saveStatus = new EnumSerializer<>(SaveStatus.class);
     public static final EnumSerializer<Status> status = new EnumSerializer<>(Status.class);

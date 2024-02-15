@@ -463,7 +463,7 @@ public class Murmur3Partitioner implements IPartitioner
         return LongType.instance;
     }
 
-    public Token getMaximumToken()
+    public Token getMaximumTokenForSplitting()
     {
         return new LongToken(Long.MAX_VALUE);
     }

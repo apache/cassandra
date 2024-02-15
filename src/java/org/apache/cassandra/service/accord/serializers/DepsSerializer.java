@@ -28,6 +28,7 @@ import accord.primitives.PartialDeps;
 import accord.primitives.Range;
 import accord.primitives.RangeDeps;
 import accord.primitives.Ranges;
+import accord.primitives.Seekables;
 import accord.primitives.TxnId;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -39,9 +40,10 @@ import static accord.primitives.KeyDeps.SerializerSupport.keysToTxnIds;
 import static accord.primitives.KeyDeps.SerializerSupport.keysToTxnIdsCount;
 import static accord.primitives.RangeDeps.SerializerSupport.rangesToTxnIds;
 import static accord.primitives.RangeDeps.SerializerSupport.rangesToTxnIdsCount;
+import static accord.primitives.Routable.Domain.Key;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 
-public abstract class DepsSerializer<D extends Deps> implements IVersionedSerializer<D>
+public abstract class DepsSerializer<D extends Deps> extends IVersionedWithKeysSerializer.AbstractWithKeysSerializer implements IVersionedWithKeysSerializer<Seekables<?, ?>, D>
 {
     public static final DepsSerializer<Deps> deps = new DepsSerializer<Deps>()
     {
@@ -70,22 +72,84 @@ public abstract class DepsSerializer<D extends Deps> implements IVersionedSerial
         }
 
         @Override
+        public void serialize(Seekables<?, ?> keys, PartialDeps partialDeps, DataOutputPlus out, int version) throws IOException
+        {
+            super.serialize(keys, partialDeps, out, version);
+            KeySerializers.ranges.serialize(partialDeps.covering, out, version);
+        }
+
+        @Override
         public long serializedSize(PartialDeps partialDeps, int version)
         {
             return super.serializedSize(partialDeps, version)
+                 + KeySerializers.ranges.serializedSize(partialDeps.covering, version);
+        }
+
+        @Override
+        public long serializedSize(Seekables<?, ?> keys, PartialDeps partialDeps, int version)
+        {
+            return super.serializedSize(keys, partialDeps, version)
                  + KeySerializers.ranges.serializedSize(partialDeps.covering, version);
         }
     };
 
     public static final IVersionedSerializer<PartialDeps> nullablePartialDeps = NullableSerializer.wrap(partialDeps);
 
+    abstract D deserialize(KeyDeps keyDeps, RangeDeps rangeDeps, DataInputPlus in, int version) throws IOException;
+
     @Override
     public void serialize(D deps, DataOutputPlus out, int version) throws IOException
     {
+        KeySerializers.keys.serialize(deps.keyDeps.keys(), out, version);
+        serializeWithoutKeys(deps, out, version);
+    }
+
+    @Override
+    public void serialize(Seekables<?, ?> keys, D deps, DataOutputPlus out, int version) throws IOException
+    {
+        if (keys.domain() == Key) serializeSubset(deps.keyDeps.keys(), keys, out);
+        else KeySerializers.keys.serialize(deps.keyDeps.keys(), out, version);
+        serializeWithoutKeys(deps, out, version);
+    }
+
+    @Override
+    public D deserialize(DataInputPlus in, int version) throws IOException
+    {
+        Keys keys = KeySerializers.keys.deserialize(in, version);
+        return deserializeWithoutKeys(keys, in, version);
+    }
+
+    @Override
+    public D deserialize(Seekables<?, ?> superset, DataInputPlus in, int version) throws IOException
+    {
+        Keys keys;
+        if (superset.domain() == Key) keys = (Keys)deserializeSubset(superset, in);
+        else keys = KeySerializers.keys.deserialize(in, version);
+        return deserializeWithoutKeys(keys, in, version);
+    }
+
+    @Override
+    public long serializedSize(D deps, int version)
+    {
+        long size = KeySerializers.keys.serializedSize(deps.keyDeps.keys(), version);
+        size += serializedSizeWithoutKeys(deps, version);
+        return size;
+    }
+
+    @Override
+    public long serializedSize(Seekables<?, ?> keys, D deps, int version)
+    {
+        long size;
+        if (keys.domain() == Key) size = serializedSubsetSize(deps.keyDeps.keys(), keys);
+        else size = KeySerializers.keys.serializedSize(deps.keyDeps.keys(), version);
+        size += serializedSizeWithoutKeys(deps, version);
+        return size;
+    }
+
+    private void serializeWithoutKeys(D deps, DataOutputPlus out, int version) throws IOException
+    {
         KeyDeps keyDeps = deps.keyDeps;
         {
-            KeySerializers.keys.serialize(keyDeps.keys(), out, version);
-
             int txnIdCount = keyDeps.txnIdCount();
             out.writeUnsignedVInt32(txnIdCount);
             for (int i = 0; i < txnIdCount; i++)
@@ -116,13 +180,10 @@ public abstract class DepsSerializer<D extends Deps> implements IVersionedSerial
         }
     }
 
-    @Override
-    public D deserialize(DataInputPlus in, int version) throws IOException
+    private D deserializeWithoutKeys(Keys keys, DataInputPlus in, int version) throws IOException
     {
         KeyDeps keyDeps;
         {
-            Keys keys = KeySerializers.keys.deserialize(in, version);
-
             int txnIdCount = in.readUnsignedVInt32();
             TxnId[] txnIds = new TxnId[txnIdCount];
             for (int i = 0; i < txnIdCount; i++)
@@ -159,17 +220,12 @@ public abstract class DepsSerializer<D extends Deps> implements IVersionedSerial
         return deserialize(keyDeps, rangeDeps, in, version);
     }
 
-    abstract D deserialize(KeyDeps keyDeps, RangeDeps rangeDeps, DataInputPlus in, int version) throws IOException;
-
-    @Override
-    public long serializedSize(D deps, int version)
+    private long serializedSizeWithoutKeys(D deps, int version)
     {
         long size = 0L;
 
         KeyDeps keyDeps = deps.keyDeps;
         {
-            size += KeySerializers.keys.serializedSize(keyDeps.keys(), version);
-
             int txnIdCount = keyDeps.txnIdCount();
             size += sizeofUnsignedVInt(txnIdCount);
             for (int i = 0; i < txnIdCount; i++)
@@ -201,4 +257,5 @@ public abstract class DepsSerializer<D extends Deps> implements IVersionedSerial
 
         return size;
     }
+
 }

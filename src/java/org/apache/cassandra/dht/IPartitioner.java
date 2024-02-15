@@ -68,9 +68,9 @@ public interface IPartitioner
      * The biggest token for this partitioner, unlike getMinimumToken, this token is actually used and users wanting to
      * include all tokens need to do getMaximumToken().maxKeyBound()
      *
-     * Not implemented for the ordered partitioners
+     * THIS IS NOT SAFE FOR PURPOSES BESIDES SPLITTING/BALANCING
      */
-    default Token getMaximumToken()
+    default Token getMaximumTokenForSplitting()
     {
         throw new UnsupportedOperationException("If you are using a splitting partitioner, getMaximumToken has to be implemented");
     }

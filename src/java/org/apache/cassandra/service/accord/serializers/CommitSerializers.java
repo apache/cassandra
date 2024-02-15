@@ -28,6 +28,7 @@ import accord.primitives.FullRoute;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialRoute;
 import accord.primitives.PartialTxn;
+import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
@@ -60,29 +61,30 @@ public class CommitSerializers
             kind.serialize(msg.kind, out, version);
             CommandSerializers.ballot.serialize(msg.ballot, out, version);
             CommandSerializers.timestamp.serialize(msg.executeAt, out, version);
-            CommandSerializers.nullablePartialTxn.serialize(msg.partialTxn, out, version);
-            DepsSerializer.partialDeps.serialize(msg.partialDeps, out, version);
+            KeySerializers.seekables.serialize(msg.keys, out, version);
+            CommandSerializers.nullablePartialTxn.serialize(msg.keys, msg.partialTxn, out, version);
+            DepsSerializer.partialDeps.serialize(msg.keys, msg.partialDeps, out, version);
             serializeNullable(msg.route, out, version, KeySerializers.fullRoute);
             serializeNullable(msg.readData, out, version, read);
         }
 
         protected abstract C deserializeCommit(TxnId txnId, PartialRoute<?> scope, long waitForEpoch, Commit.Kind kind,
                                                Ballot ballot, Timestamp executeAt,
-                                               @Nullable PartialTxn partialTxn, PartialDeps partialDeps,
+                                               Seekables<?, ?> keys, @Nullable PartialTxn partialTxn, PartialDeps partialDeps,
                                                @Nullable FullRoute<?> fullRoute, @Nullable ReadData read);
 
         @Override
         public C deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute<?> scope, long waitForEpoch) throws IOException
         {
-            return deserializeCommit(txnId, scope, waitForEpoch,
-                                     kind.deserialize(in, version),
-                                     CommandSerializers.ballot.deserialize(in, version),
-                                     CommandSerializers.timestamp.deserialize(in, version),
-                                     CommandSerializers.nullablePartialTxn.deserialize(in, version),
-                                     DepsSerializer.partialDeps.deserialize(in, version),
-                                     deserializeNullable(in, version, KeySerializers.fullRoute),
-                                     deserializeNullable(in, version, read)
-            );
+            Commit.Kind kind = CommitSerializers.kind.deserialize(in, version);
+            Ballot ballot = CommandSerializers.ballot.deserialize(in, version);
+            Timestamp executeAt = CommandSerializers.timestamp.deserialize(in, version);
+            Seekables<?, ?> keys = KeySerializers.seekables.deserialize(in, version);
+            PartialTxn txn = CommandSerializers.nullablePartialTxn.deserialize(keys, in, version);
+            PartialDeps deps = DepsSerializer.partialDeps.deserialize(keys, in, version);
+            FullRoute<?> route = deserializeNullable(in, version, KeySerializers.fullRoute);
+            ReadData read = deserializeNullable(in, version, this.read);
+            return deserializeCommit(txnId, scope, waitForEpoch, kind, ballot, executeAt, keys, txn, deps, route, read);
         }
 
         @Override
@@ -91,8 +93,9 @@ public class CommitSerializers
             return kind.serializedSize(msg.kind, version)
                    + CommandSerializers.ballot.serializedSize(msg.ballot, version)
                    + CommandSerializers.timestamp.serializedSize(msg.executeAt, version)
-                   + CommandSerializers.nullablePartialTxn.serializedSize(msg.partialTxn, version)
-                   + DepsSerializer.partialDeps.serializedSize(msg.partialDeps, version)
+                   + KeySerializers.seekables.serializedSize(msg.keys, version)
+                   + CommandSerializers.nullablePartialTxn.serializedSize(msg.keys, msg.partialTxn, version)
+                   + DepsSerializer.partialDeps.serializedSize(msg.keys, msg.partialDeps, version)
                    + serializedNullableSize(msg.route, version, KeySerializers.fullRoute)
                    + serializedNullableSize(msg.readData, version, read);
         }
@@ -101,13 +104,13 @@ public class CommitSerializers
     public static final IVersionedSerializer<Commit> request = new CommitSerializer<Commit, ReadData>(ReadData.class, ReadDataSerializers.readData)
     {
         @Override
-        protected Commit deserializeCommit(TxnId txnId, PartialRoute<?> scope, long waitForEpoch, Commit.Kind kind, Ballot ballot, Timestamp executeAt, @Nullable PartialTxn partialTxn, PartialDeps partialDeps, @Nullable FullRoute<?> fullRoute, @Nullable ReadData read)
+        protected Commit deserializeCommit(TxnId txnId, PartialRoute<?> scope, long waitForEpoch, Commit.Kind kind, Ballot ballot, Timestamp executeAt, Seekables<?, ?> keys, @Nullable PartialTxn partialTxn, PartialDeps partialDeps, @Nullable FullRoute<?> fullRoute, @Nullable ReadData read)
         {
-            return Commit.SerializerSupport.create(txnId, scope, waitForEpoch, kind, ballot, executeAt, partialTxn, partialDeps, fullRoute, read);
+            return Commit.SerializerSupport.create(txnId, scope, waitForEpoch, kind, ballot, executeAt, keys, partialTxn, partialDeps, fullRoute, read);
         }
     };
 
-    public static final IVersionedSerializer<Commit.Invalidate> invalidate = new IVersionedSerializer<Commit.Invalidate>()
+    public static final IVersionedSerializer<Commit.Invalidate> invalidate = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(Commit.Invalidate invalidate, DataOutputPlus out, int version) throws IOException

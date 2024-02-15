@@ -77,15 +77,17 @@ public class ReadDataSerializers
     public static class ApplyThenWaitUntilAppliedSerializer implements ReadDataSerializer<ApplyThenWaitUntilApplied>
     {
         @Override
-        public void serialize(ApplyThenWaitUntilApplied applyThenWaitUntilApplied, DataOutputPlus out, int version) throws IOException
+        public void serialize(ApplyThenWaitUntilApplied msg, DataOutputPlus out, int version) throws IOException
         {
-            CommandSerializers.txnId.serialize(applyThenWaitUntilApplied.txnId, out, version);
-            KeySerializers.partialRoute.serialize(applyThenWaitUntilApplied.route, out, version);
-            DepsSerializer.partialDeps.serialize(applyThenWaitUntilApplied.deps, out, version);
-            KeySerializers.seekables.serialize(applyThenWaitUntilApplied.partialTxnKeys, out, version);
-            CommandSerializers.writes.serialize(applyThenWaitUntilApplied.writes, out, version);
-            TxnResult.serializer.serialize((TxnResult) applyThenWaitUntilApplied.txnResult, out, version);
-            out.writeBoolean(applyThenWaitUntilApplied.notifyAgent);
+            CommandSerializers.txnId.serialize(msg.txnId, out, version);
+            KeySerializers.participants.serialize(msg.readScope, out, version);
+            out.writeUnsignedVInt(msg.executeAtEpoch);
+            KeySerializers.fullRoute.serialize(msg.route, out, version);
+            CommandSerializers.partialTxn.serialize(msg.txn, out, version);
+            DepsSerializer.partialDeps.serialize(msg.deps, out, version);
+            CommandSerializers.writes.serialize(msg.writes, out, version);
+            TxnResult.serializer.serialize((TxnResult) msg.result, out, version);
+            KeySerializers.nullableSeekables.serialize(msg.notify, out, version);
         }
 
         @Override
@@ -93,24 +95,28 @@ public class ReadDataSerializers
         {
             return ApplyThenWaitUntilApplied.SerializerSupport.create(
             CommandSerializers.txnId.deserialize(in, version),
-            KeySerializers.partialRoute.deserialize(in, version),
+            KeySerializers.participants.deserialize(in, version),
+            in.readUnsignedVInt(),
+            KeySerializers.fullRoute.deserialize(in, version),
+            CommandSerializers.partialTxn.deserialize(in, version),
             DepsSerializer.partialDeps.deserialize(in, version),
-            KeySerializers.seekables.deserialize(in, version),
             CommandSerializers.writes.deserialize(in, version),
             TxnResult.serializer.deserialize(in, version),
-            in.readBoolean());
+            KeySerializers.nullableSeekables.deserialize(in, version));
         }
 
         @Override
-        public long serializedSize(ApplyThenWaitUntilApplied applyThenWaitUntilApplied, int version)
+        public long serializedSize(ApplyThenWaitUntilApplied msg, int version)
         {
-            return CommandSerializers.txnId.serializedSize(applyThenWaitUntilApplied.txnId, version)
-                   + KeySerializers.partialRoute.serializedSize(applyThenWaitUntilApplied.route, version)
-                   + DepsSerializer.partialDeps.serializedSize(applyThenWaitUntilApplied.deps, version)
-                   + KeySerializers.seekables.serializedSize(applyThenWaitUntilApplied.partialTxnKeys, version)
-                   + CommandSerializers.writes.serializedSize(applyThenWaitUntilApplied.writes, version)
-                   + TxnResult.serializer.serializedSize((TxnData)applyThenWaitUntilApplied.txnResult, version)
-                   + sizeof(applyThenWaitUntilApplied.notifyAgent);
+            return CommandSerializers.txnId.serializedSize(msg.txnId, version)
+                   + KeySerializers.participants.serializedSize(msg.readScope, version)
+                   + TypeSizes.sizeofUnsignedVInt(msg.executeAtEpoch)
+                   + KeySerializers.fullRoute.serializedSize(msg.route, version)
+                   + CommandSerializers.partialTxn.serializedSize(msg.txn, version)
+                   + DepsSerializer.partialDeps.serializedSize(msg.deps, version)
+                   + CommandSerializers.writes.serializedSize(msg.writes, version)
+                   + TxnResult.serializer.serializedSize((TxnData)msg.result, version)
+                   + KeySerializers.nullableSeekables.serializedSize(msg.notify, version);
         }
     }
 
@@ -210,7 +216,7 @@ public class ReadDataSerializers
 
     public static final class ReplySerializer<D extends Data> implements IVersionedSerializer<ReadReply>
     {
-        // TODO (now): use something other than ordinal
+        // TODO (expected): use something other than ordinal
         final CommitOrReadNack[] nacks = CommitOrReadNack.values();
         private final IVersionedSerializer<D> dataSerializer;
 

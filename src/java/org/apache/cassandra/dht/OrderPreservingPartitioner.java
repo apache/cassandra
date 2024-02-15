@@ -140,7 +140,7 @@ public class OrderPreservingPartitioner implements IPartitioner
         return MINIMUM;
     }
 
-    public StringToken getMaximumToken()
+    public StringToken getMaximumTokenForSplitting()
     {
         return MAXIMUM;
     }

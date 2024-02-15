@@ -18,17 +18,14 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.nio.ByteBuffer;
-import java.util.Map;
 import java.util.UUID;
 import java.util.function.ToLongFunction;
-
-import com.google.common.collect.ImmutableSortedMap;
 
 import accord.api.Key;
 import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.impl.CommandsForKey;
+import accord.impl.CommandsForKey.Info;
 import accord.impl.TimestampsForKey;
 import accord.local.Command;
 import accord.local.Command.WaitingOn;
@@ -69,7 +66,6 @@ import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
 import static org.apache.cassandra.utils.ObjectSizes.measure;
@@ -259,16 +255,10 @@ public class AccordObjectSizes
     }
 
     private static final long EMPTY_COMMAND_LISTENER = measure(new Command.ProxyListener(null));
-    private static final long EMPTY_CFK_LISTENER = measure(new CommandsForKey.Listener((Key) null));
-    private static final long EMPTY_CFR_LISTENER = measure(new CommandsForRanges.Listener(null));
     public static long listener(Command.DurableAndIdempotentListener listener)
     {
         if (listener instanceof Command.ProxyListener)
             return EMPTY_COMMAND_LISTENER + timestamp(((Command.ProxyListener) listener).txnId());
-        if (listener instanceof CommandsForKey.Listener)
-            return EMPTY_CFK_LISTENER + key(((CommandsForKey.Listener) listener).key());
-        if (listener instanceof CommandsForRanges.Listener)
-            return EMPTY_CFR_LISTENER + timestamp(((CommandsForRanges.Listener) listener).txnId);
         throw new IllegalArgumentException("Unhandled listener type: " + listener.getClass());
     }
 
@@ -362,34 +352,34 @@ public class AccordObjectSizes
         return size;
     }
 
-    private static long cfkSeriesSize(ImmutableSortedMap<Timestamp, ByteBuffer> series)
-    {
-        long size = 0;
-        for (Map.Entry<Timestamp, ByteBuffer> entry : series.entrySet())
-        {
-            size += timestamp(entry.getKey());
-            size += ByteBufferUtil.estimatedSizeOnHeap(entry.getValue());
-        }
-        return size;
-    }
-
-    private static long EMPTY_TFK_SIZE = measure(TimestampsForKey.SerializerSupport.create(null, null, null, 0, null));
+    private static long EMPTY_TFK_SIZE = measure(TimestampsForKey.SerializerSupport.create(null, null, 0, null));
 
     public static long timestampsForKey(TimestampsForKey timestamps)
     {
         long size = EMPTY_TFK_SIZE;
-        size += timestamp(timestamps.max());
         size += timestamp(timestamps.lastExecutedTimestamp());
         size += timestamp(timestamps.lastWriteTimestamp());
         return size;
     }
 
-    private static long EMPTY_CFK_SIZE = measure(CommandsForKey.SerializerSupport.create(null, null, ImmutableSortedMap.of()));
+    private static long EMPTY_CFK_SIZE = measure(new CommandsForKey(null));
+    private static long EMPTY_INFO_SIZE = measure(CommandsForKey.Info.createMock(null, null, null));
     public static long commandsForKey(CommandsForKey cfk)
     {
         long size = EMPTY_CFK_SIZE;
         size += key(cfk.key());
-        size += cfkSeriesSize((ImmutableSortedMap<Timestamp, ByteBuffer>) cfk.commands().commands);
+        size += 2 * ObjectSizes.sizeOfReferenceArray(cfk.size());
+        size += cfk.size() * TIMESTAMP_SIZE;
+        for (int i = 0 ; i < cfk.size() ; ++i)
+        {
+            Info info = cfk.info(i);
+            if (info.getClass() == CommandsForKey.NoInfo.class)
+                continue;
+
+            size += EMPTY_INFO_SIZE;
+            if (info.missing.length > 0)
+                size += ObjectSizes.sizeOfReferenceArray(info.missing.length);
+        }
         return size;
     }
 }

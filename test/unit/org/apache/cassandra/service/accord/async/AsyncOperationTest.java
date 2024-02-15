@@ -85,6 +85,7 @@ import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
 import org.mockito.Mockito;
 
+import static accord.local.KeyHistory.COMMANDS;
 import static accord.local.PreLoadContext.contextFor;
 import static accord.utils.Property.qt;
 import static accord.utils.async.AsyncChains.getUninterruptibly;
@@ -115,8 +116,7 @@ public class AsyncOperationTest
     {
         QueryProcessor.executeInternal(String.format("TRUNCATE %s.%s", SchemaConstants.ACCORD_KEYSPACE_NAME, AccordKeyspace.COMMANDS));
         QueryProcessor.executeInternal(String.format("TRUNCATE %s.%s", SchemaConstants.ACCORD_KEYSPACE_NAME, AccordKeyspace.TIMESTAMPS_FOR_KEY));
-        QueryProcessor.executeInternal(String.format("TRUNCATE %s.%s", SchemaConstants.ACCORD_KEYSPACE_NAME, AccordKeyspace.DEPS_COMMANDS_FOR_KEY));
-        QueryProcessor.executeInternal(String.format("TRUNCATE %s.%s", SchemaConstants.ACCORD_KEYSPACE_NAME, AccordKeyspace.ALL_COMMANDS_FOR_KEY));
+        QueryProcessor.executeInternal(String.format("TRUNCATE %s.%s", SchemaConstants.ACCORD_KEYSPACE_NAME, AccordKeyspace.COMMANDS_FOR_KEY));
     }
 
     /**
@@ -150,12 +150,12 @@ public class AsyncOperationTest
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
         getUninterruptibly(commandStore.execute(contextFor(key), instance -> {
-            SafeCommandsForKey cfk = ((AccordSafeCommandStore) instance).maybeDepsCommandsForKey(key);
+            SafeCommandsForKey cfk = ((AccordSafeCommandStore) instance).maybeCommandsForKey(key);
             Assert.assertNull(cfk);
         }));
 
         long nowInSeconds = FBUtilities.nowInSeconds();
-        SinglePartitionReadCommand command = AccordKeyspace.getDepsCommandsForKeyRead(commandStore.id(), key, (int) nowInSeconds);
+        SinglePartitionReadCommand command = AccordKeyspace.getCommandsForKeyRead(commandStore.id(), key, (int) nowInSeconds);
         try(ReadExecutionController controller = command.executionController();
             FilteredPartitions partitions = FilteredPartitions.filter(command.executeLocally(controller), nowInSeconds))
         {
@@ -177,6 +177,7 @@ public class AsyncOperationTest
                                             Commit.Kind.StableWithTxnAndDeps,
                                             Ballot.ZERO,
                                             executeAt,
+                                            command.partialTxn().keys(),
                                             command.partialTxn(),
                                             command.partialDeps(),
                                             Route.castToFullRoute(command.route()),
@@ -209,14 +210,14 @@ public class AsyncOperationTest
         PreAccept preAccept =
             PreAccept.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), txnId.epoch(), false, txnId.epoch(), partialTxn, route);
         Commit stable =
-            Commit.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), Commit.Kind.StableFastPath, Ballot.ZERO, executeAt, partialTxn, deps, route, null);
+            Commit.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), Commit.Kind.StableFastPath, Ballot.ZERO, executeAt, partialTxn.keys(), partialTxn, deps, route, null);
 
         commandStore.appendToJournal(preAccept);
         commandStore.appendToJournal(stable);
 
         try
         {
-            Command command = getUninterruptibly(commandStore.submit(contextFor(txnId, partialTxn.keys()), safe -> {
+            Command command = getUninterruptibly(commandStore.submit(contextFor(txnId, partialTxn.keys(), COMMANDS), safe -> {
                 CheckedCommands.preaccept(safe, txnId, partialTxn, route, null);
                 CheckedCommands.commit(safe, SaveStatus.Stable, Ballot.ZERO, txnId, route, null, partialTxn, executeAt, deps);
                 return safe.ifInitialised(txnId).current();
@@ -258,9 +259,9 @@ public class AsyncOperationTest
         Accept accept =
             Accept.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), txnId.epoch(), false, Ballot.ZERO, executeAt, partialTxn.keys(), deps);
         Commit commit =
-            Commit.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), Commit.Kind.Commit, Ballot.ZERO, executeAt, partialTxn, deps, route, null);
+            Commit.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), Commit.Kind.Commit, Ballot.ZERO, executeAt, partialTxn.keys(), partialTxn, deps, route, null);
         Commit stable =
-            Commit.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), Commit.Kind.StableSlowPath, Ballot.ZERO, executeAt, partialTxn, deps, route, null);
+            Commit.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), Commit.Kind.StableSlowPath, Ballot.ZERO, executeAt, partialTxn.keys(), partialTxn, deps, route, null);
 
         commandStore.appendToJournal(preAccept);
         commandStore.appendToJournal(accept);
@@ -269,7 +270,7 @@ public class AsyncOperationTest
 
         try
         {
-            Command command = getUninterruptibly(commandStore.submit(contextFor(txnId, partialTxn.keys()), safe -> {
+            Command command = getUninterruptibly(commandStore.submit(contextFor(txnId, partialTxn.keys(), COMMANDS), safe -> {
                 CheckedCommands.preaccept(safe, txnId, partialTxn, route, null);
                 CheckedCommands.accept(safe, txnId, Ballot.ZERO, partialRoute, partialTxn.keys(), null, executeAt, deps);
                 CheckedCommands.commit(safe, SaveStatus.Committed, Ballot.ZERO, txnId, route, null, partialTxn, executeAt, deps);
@@ -320,7 +321,7 @@ public class AsyncOperationTest
 
         createStableAndPersist(commandStore, txnId);
 
-        Consumer<SafeCommandStore> consumer = safeStore -> safeStore.ifInitialised(txnId).readyToExecute();
+        Consumer<SafeCommandStore> consumer = safeStore -> safeStore.ifInitialised(txnId).readyToExecute(safeStore);
         PreLoadContext ctx = contextFor(txnId);
         AsyncOperation<Void> operation = new AsyncOperation.ForConsumer(commandStore, ctx, consumer)
         {
@@ -380,7 +381,7 @@ public class AsyncOperationTest
 
             assertNoReferences(commandStore, ids, keys);
 
-            PreLoadContext ctx = contextFor(ids, keys);
+            PreLoadContext ctx = contextFor(null, ids, keys, COMMANDS);
 
             Consumer<SafeCommandStore> consumer = Mockito.mock(Consumer.class);
 
@@ -406,7 +407,7 @@ public class AsyncOperationTest
 
             // can we recover?
             commandStore.commandCache().unsafeSetLoadFunction(txnId -> AccordKeyspace.loadCommand(commandStore, txnId));
-            AsyncOperation.ForConsumer o2 = new AsyncOperation.ForConsumer(commandStore, ctx, store -> ids.forEach(id -> store.ifInitialised(id).readyToExecute()));
+            AsyncOperation.ForConsumer o2 = new AsyncOperation.ForConsumer(commandStore, ctx, store -> ids.forEach(id -> store.ifInitialised(id).readyToExecute(store)));
             getUninterruptibly(o2);
         });
     }
@@ -428,7 +429,7 @@ public class AsyncOperationTest
             createCommand(commandStore, rs, ids);
             assertNoReferences(commandStore, ids, keys);
 
-            PreLoadContext ctx = contextFor(ids, keys);
+            PreLoadContext ctx = contextFor(null, ids, keys, COMMANDS);
 
             Consumer<SafeCommandStore> consumer = Mockito.mock(Consumer.class);
             String errorMsg = "txn_ids " + ids;
@@ -482,7 +483,7 @@ public class AsyncOperationTest
         try
         {
             //TODO this is due to bad typing for Instance, it doesn't use ? extends RoutableKey
-            assertNoReferences(commandStore.depsCommandsForKeyCache(), (Iterable<RoutableKey>) (Iterable<?>) keys);
+            assertNoReferences(commandStore.commandsForKeyCache(), (Iterable<RoutableKey>) (Iterable<?>) keys);
         }
         catch (AssertionError e)
         {
@@ -524,7 +525,7 @@ public class AsyncOperationTest
     {
         awaitDone(commandStore.commandCache(), ids);
         //TODO this is due to bad typing for Instance, it doesn't use ? extends RoutableKey
-        awaitDone(commandStore.depsCommandsForKeyCache(), (Iterable<RoutableKey>) (Iterable<?>) keys);
+        awaitDone(commandStore.commandsForKeyCache(), (Iterable<RoutableKey>) (Iterable<?>) keys);
     }
 
     private static <T> void awaitDone(AccordStateCache.Instance<T, ?, ?> cache, Iterable<T> keys)

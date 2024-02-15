@@ -21,9 +21,7 @@ package org.apache.cassandra.service.accord.interop;
 import java.util.function.BiConsumer;
 
 import accord.api.Result;
-import accord.api.Update;
 import accord.coordinate.Persist;
-import accord.coordinate.PersistTxn;
 import accord.coordinate.tracking.AppliedTracker;
 import accord.coordinate.tracking.QuorumTracker;
 import accord.coordinate.tracking.RequestStatus;
@@ -39,7 +37,6 @@ import accord.primitives.Writes;
 import accord.topology.Topologies;
 import accord.utils.Invariants;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.utils.Throwables;
 
 /**
@@ -49,19 +46,6 @@ import org.apache.cassandra.utils.Throwables;
  */
 public class AccordInteropPersist extends Persist
 {
-    public static Persist.Factory FACTORY = new Persist.Factory()
-    {
-        @Override
-        public Persist create(Node node, Topologies topologies, TxnId txnId, FullRoute<?> route, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result)
-        {
-            Update update = txn.update();
-            ConsistencyLevel consistencyLevel = update instanceof AccordUpdate ? ((AccordUpdate) update).cassandraCommitCL() : null;
-            if (consistencyLevel == null || consistencyLevel == ConsistencyLevel.ANY || writes.isEmpty())
-                return PersistTxn.FACTORY.create(node, topologies, txnId, route, txn, executeAt, deps, writes, result);
-            return new AccordInteropPersist(node, topologies, txnId, route, txn, executeAt, deps, writes, result, consistencyLevel);
-        }
-    };
-
     private static class CallbackHolder
     {
         private final ResponseTracker tracker;
@@ -97,7 +81,6 @@ public class AccordInteropPersist extends Persist
             handleStatus(tracker.recordSuccess(node));
         }
 
-
         public void recordFailure(Node.Id node, Throwable throwable)
         {
             failure = Throwables.merge(failure, throwable);
@@ -106,29 +89,28 @@ public class AccordInteropPersist extends Persist
     }
 
     private final ConsistencyLevel consistencyLevel;
-    private CallbackHolder holder = null;
+    private CallbackHolder callback;
 
-    public AccordInteropPersist(Node node, Topologies topologies, TxnId txnId, FullRoute<?> route, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, ConsistencyLevel consistencyLevel)
+    public AccordInteropPersist(Node node, Topologies topologies, TxnId txnId, FullRoute<?> route, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, ConsistencyLevel consistencyLevel, BiConsumer<? super Result, Throwable> clientCallback)
     {
         super(node, topologies, txnId, route, txn, executeAt, deps, writes, result);
         Invariants.checkArgument(consistencyLevel == ConsistencyLevel.QUORUM || consistencyLevel == ConsistencyLevel.ALL || consistencyLevel == ConsistencyLevel.SERIAL || consistencyLevel == ConsistencyLevel.ONE);
         this.consistencyLevel = consistencyLevel;
+        registerClientCallback(result, clientCallback);
     }
 
-    @Override
-    public void registerClientCallback(Writes writes, Result result, BiConsumer<? super Result, Throwable> clientCallback)
+    public void registerClientCallback(Result result, BiConsumer<? super Result, Throwable> clientCallback)
     {
-
-        Invariants.checkState(holder == null);
+        Invariants.checkState(callback == null);
         switch (consistencyLevel)
         {
             case ONE: // Can safely upgrade ONE to QUORUM/SERIAL to get a synchronous commit
             case SERIAL:
             case QUORUM:
-                holder = new CallbackHolder(new QuorumTracker(topologies), result, clientCallback);
+                callback = new CallbackHolder(new QuorumTracker(topologies), result, clientCallback);
                 break;
             case ALL:
-                holder = new CallbackHolder(new AppliedTracker(topologies), result, clientCallback);
+                callback = new CallbackHolder(new AppliedTracker(topologies), result, clientCallback);
                 break;
             default:
                 throw new IllegalArgumentException("Unhandled consistency level: " + consistencyLevel);
@@ -143,7 +125,7 @@ public class AccordInteropPersist extends Persist
         {
             case Redundant:
             case Applied:
-                holder.recordSuccess(from);
+                callback.recordSuccess(from);
                 return;
             case Insufficient:
                 // On insufficient Persist will send a commit with the missing information
@@ -156,12 +138,12 @@ public class AccordInteropPersist extends Persist
     @Override
     public void onFailure(Node.Id from, Throwable failure)
     {
-        holder.recordFailure(from, failure);
+        callback.recordFailure(from, failure);
     }
 
     @Override
     public void onCallbackFailure(Node.Id from, Throwable failure)
     {
-        holder.recordFailure(from, failure);
+        callback.recordFailure(from, failure);
     }
 }

@@ -27,7 +27,6 @@ import org.junit.Test;
 import accord.api.Key;
 import accord.api.RoutingKey;
 import accord.impl.CommandsForKey;
-import accord.impl.TimestampsForKey;
 import accord.local.Command;
 import accord.local.KeyHistory;
 import accord.local.Node;
@@ -118,11 +117,8 @@ public class AccordCommandTest
             Assert.assertEquals(Status.PreAccepted, command.status());
             Assert.assertTrue(command.partialDeps() == null || command.partialDeps().isEmpty());
 
-            TimestampsForKey tfk = ((AccordSafeCommandStore) instance).timestampsForKey(key(1)).current();
-            Assert.assertEquals(txnId, tfk.max());
-
-            CommandsForKey cfk = ((AccordSafeCommandStore) instance).depsCommandsForKey(key(1)).current();
-            Assert.assertNotNull((cfk.commands()).get(txnId));
+            CommandsForKey cfk = ((AccordSafeCommandStore) instance).commandsForKey(key(1)).current();
+            Assert.assertTrue(cfk.indexOf(txnId) >= 0);
         }));
 
         // check accept
@@ -149,26 +145,23 @@ public class AccordCommandTest
             Assert.assertEquals(Status.Accepted, command.status());
             Assert.assertEquals(deps, command.partialDeps());
 
-            TimestampsForKey tfk = ((AccordSafeCommandStore) instance).timestampsForKey(key(1)).current();
-            Assert.assertEquals(executeAt, tfk.max());
-
-            CommandsForKey cfk = ((AccordSafeCommandStore) instance).depsCommandsForKey(key(1)).current();
-            Assert.assertNotNull((cfk.commands()).get(txnId));
+            CommandsForKey cfk = ((AccordSafeCommandStore) instance).commandsForKey(key(1)).current();
+            Assert.assertTrue(cfk.indexOf(txnId) >= 0);
         }));
 
         // check commit
-        Commit commit = Commit.SerializerSupport.create(txnId, route, 1, Commit.Kind.StableWithTxnAndDeps, Ballot.ZERO, executeAt, partialTxn, deps, fullRoute, null);
+        Commit commit = Commit.SerializerSupport.create(txnId, route, 1, Commit.Kind.StableWithTxnAndDeps, Ballot.ZERO, executeAt, partialTxn.keys(), partialTxn, deps, fullRoute, null);
         commandStore.appendToJournal(commit);
         getUninterruptibly(commandStore.execute(commit, commit::apply));
 
-        getUninterruptibly(commandStore.execute(PreLoadContext.contextFor(txnId, Keys.of(key), KeyHistory.DEPS), instance -> {
+        getUninterruptibly(commandStore.execute(PreLoadContext.contextFor(txnId, Keys.of(key), KeyHistory.COMMANDS), instance -> {
             Command command = instance.ifInitialised(txnId).current();
             Assert.assertEquals(commit.executeAt, command.executeAt());
             Assert.assertTrue(command.hasBeen(Status.Committed));
             Assert.assertEquals(commit.partialDeps, command.partialDeps());
 
-            CommandsForKey cfk = ((AccordSafeCommandStore) instance).depsCommandsForKey(key(1)).current();
-            Assert.assertNotNull((cfk.commands()).get(txnId));
+            CommandsForKey cfk = ((AccordSafeCommandStore) instance).commandsForKey(key(1)).current();
+            Assert.assertTrue(cfk.indexOf(txnId) >= 0);
         }));
     }
 

@@ -106,7 +106,7 @@ public class RepairJobTest
     private static final Range<Token> RANGE_3 = range(4, 5);
     private static final RepairJobDesc JOB_DESC = new RepairJobDesc(nextTimeUUID(), nextTimeUUID(), KEYSPACE, CF, Collections.emptyList());
     private static final List<Range<Token>> FULL_RANGE = Collections.singletonList(new Range<>(MURMUR3_PARTITIONER.getMinimumToken(),
-                                                                                               MURMUR3_PARTITIONER.getMaximumToken()));
+                                                                                               MURMUR3_PARTITIONER.getMaximumTokenForSplitting()));
     private static InetAddressAndPort addr1;
     private static InetAddressAndPort addr2;
     private static InetAddressAndPort addr3;

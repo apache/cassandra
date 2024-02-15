@@ -211,6 +211,8 @@ public class KeySerializers
         EnumSet.of(UnseekablesKind.FullKeyRoute, UnseekablesKind.FullRangeRoute)
     );
 
+    public static final IVersionedSerializer<FullRoute<?>> nullableFullRoute = NullableSerializer.wrap(fullRoute);
+
     public static final IVersionedSerializer<Unseekables<?>> unseekables = new AbstractRoutablesSerializer<>(
         EnumSet.allOf(UnseekablesKind.class)
     );
@@ -351,6 +353,8 @@ public class KeySerializers
             }
         }
     };
+
+    public static final IVersionedSerializer<Seekables<?, ?>> nullableSeekables = NullableSerializer.wrap(seekables);
 
     public static abstract class AbstractKeysSerializer<K extends RoutableKey, KS extends AbstractKeys<K>> implements IVersionedSerializer<KS>
     {

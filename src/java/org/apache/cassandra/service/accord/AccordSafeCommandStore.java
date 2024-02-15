@@ -18,53 +18,43 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.function.Predicate;
-import javax.annotation.Nullable;
+import java.util.function.BiFunction;
 
-import com.google.common.base.Predicates;
+import javax.annotation.Nullable;
 
 import accord.api.Agent;
 import accord.api.DataStore;
 import accord.api.Key;
 import accord.api.ProgressLog;
 import accord.impl.AbstractSafeCommandStore;
-import accord.impl.CommandTimeseries;
-import accord.impl.CommandTimeseries.CommandLoader;
 import accord.impl.CommandsForKey;
 import accord.impl.CommandsForKeys;
-import accord.impl.DomainCommands;
-import accord.impl.DomainTimestamps;
-import accord.impl.SafeTimestampsForKey;
+import accord.impl.CommandsSummary;
+import accord.local.Command;
 import accord.local.CommandStores.RangesForEpoch;
-import accord.local.CommonAttributes;
-import accord.local.KeyHistory;
 import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
-import accord.local.SafeCommand;
-import accord.local.Status;
 import accord.primitives.AbstractKeys;
 import accord.primitives.Deps;
-import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
 import accord.primitives.Routables;
-import accord.primitives.Seekable;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
-import accord.utils.TriFunction;
-import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 
-public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeCommand, AccordSafeTimestampsForKey, AccordSafeCommandsForKey, AccordSafeCommandsForKeyUpdate>
+import static accord.primitives.Routable.Domain.Range;
+
+public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeCommand, AccordSafeTimestampsForKey, AccordSafeCommandsForKey>
 {
     private final Map<TxnId, AccordSafeCommand> commands;
-    private final NavigableMap<RoutableKey, AccordSafeCommandsForKey> depsCommandsForKeys;
-    private final NavigableMap<RoutableKey, AccordSafeCommandsForKey> allCommandsForKeys;
+    private final NavigableMap<RoutableKey, AccordSafeCommandsForKey> commandsForKeys;
     private final NavigableMap<RoutableKey, AccordSafeTimestampsForKey> timestampsForKeys;
-    private final NavigableMap<RoutableKey, AccordSafeCommandsForKeyUpdate> updatesForKeys;
     private final AccordCommandStore commandStore;
     private final RangesForEpoch ranges;
     CommandsForRanges.Updater rangeUpdates = null;
@@ -72,17 +62,13 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     public AccordSafeCommandStore(PreLoadContext context,
                                   Map<TxnId, AccordSafeCommand> commands,
                                   NavigableMap<RoutableKey, AccordSafeTimestampsForKey> timestampsForKey,
-                                  NavigableMap<RoutableKey, AccordSafeCommandsForKey> depsCommandsForKey,
-                                  NavigableMap<RoutableKey, AccordSafeCommandsForKey> allCommandsForKeys,
-                                  NavigableMap<RoutableKey, AccordSafeCommandsForKeyUpdate> updatesForKeys,
+                                  NavigableMap<RoutableKey, AccordSafeCommandsForKey> commandsForKey,
                                   AccordCommandStore commandStore)
     {
         super(context);
         this.commands = commands;
         this.timestampsForKeys = timestampsForKey;
-        this.depsCommandsForKeys = depsCommandsForKey;
-        this.allCommandsForKeys = allCommandsForKeys;
-        this.updatesForKeys = updatesForKeys;
+        this.commandsForKeys = commandsForKey;
         this.commandStore = commandStore;
         this.ranges = commandStore.updateRangesForEpoch();
     }
@@ -107,55 +93,22 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         return command;
     }
 
-    private NavigableMap<RoutableKey, AccordSafeCommandsForKey> commandsForKeyMap(KeyHistory history)
+    @Override
+    protected AccordSafeCommandsForKey getCommandsForKeyInternal(RoutableKey key)
     {
-        switch (history)
-        {
-            case DEPS:
-                return depsCommandsForKeys;
-            case ALL:
-                return allCommandsForKeys;
-            default:
-                throw new IllegalArgumentException();
-        }
+        return commandsForKeys.get(key);
     }
 
     @Override
-    protected AccordSafeCommandsForKey getDepsCommandsForKeyInternal(RoutableKey key)
+    protected void addCommandsForKeyInternal(AccordSafeCommandsForKey cfk)
     {
-        return depsCommandsForKeys.get(key);
+        commandsForKeys.put(cfk.key(), cfk);
     }
 
     @Override
-    protected void addDepsCommandsForKeyInternal(AccordSafeCommandsForKey cfk)
+    protected AccordSafeCommandsForKey getCommandsForKeyIfLoaded(RoutableKey key)
     {
-        depsCommandsForKeys.put(cfk.key(), cfk);
-    }
-
-    @Override
-    protected AccordSafeCommandsForKey getDepsCommandsForKeyIfLoaded(RoutableKey key)
-    {
-        AccordSafeCommandsForKey cfk = commandStore.depsCommandsForKeyCache().acquireIfLoaded(key);
-        if (cfk != null) cfk.preExecute();
-        return cfk;
-    }
-
-    @Override
-    protected AccordSafeCommandsForKey getAllCommandsForKeyInternal(RoutableKey key)
-    {
-        return allCommandsForKeys.get(key);
-    }
-
-    @Override
-    protected void addAllCommandsForKeyInternal(AccordSafeCommandsForKey cfk)
-    {
-        allCommandsForKeys.put(cfk.key(), cfk);
-    }
-
-    @Override
-    protected AccordSafeCommandsForKey getAllCommandsForKeyIfLoaded(RoutableKey key)
-    {
-        AccordSafeCommandsForKey cfk = commandStore.allCommandsForKeyCache().acquireIfLoaded(key);
+        AccordSafeCommandsForKey cfk = commandStore.commandsForKeyCache().acquireIfLoaded(key);
         if (cfk != null) cfk.preExecute();
         return cfk;
     }
@@ -178,27 +131,6 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         AccordSafeTimestampsForKey cfk = commandStore.timestampsForKeyCache().acquireIfLoaded(key);
         if (cfk != null) cfk.preExecute();
         return cfk;
-    }
-
-    protected AccordSafeCommandsForKeyUpdate getCommandsForKeyUpdateInternal(RoutableKey key)
-    {
-        return updatesForKeys.get(key);
-    }
-
-    protected AccordSafeCommandsForKeyUpdate createCommandsForKeyUpdateInternal(RoutableKey key)
-    {
-        throw new IllegalStateException("CFK updates should be initialized for operation");
-    }
-
-    protected void addCommandsForKeyUpdateInternal(AccordSafeCommandsForKeyUpdate update)
-    {
-        updatesForKeys.put(update.key(), update);
-    }
-
-    protected void applyCommandForKeyUpdates()
-    {
-        // TODO (now): should this happen as part of invalidate? Less obvious it's happening, but eliminates possibility of post update changes
-        updatesForKeys.values().forEach(AccordSafeCommandsForKeyUpdate::setUpdates);
     }
 
     @Override
@@ -238,25 +170,13 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     @Override
-    public long latestEpoch()
-    {
-        return commandStore().time().epoch();
-    }
-
-    @Override
-    public Timestamp maxConflict(Seekables<?, ?> keysOrRanges, Ranges slice)
-    {
-        Timestamp maxConflict = mapReduce(keysOrRanges, slice, KeyHistory.NONE, (ts, commands, accum) -> Timestamp.max(ts.max(), accum), Timestamp.NONE, Predicates.isNull());
-        return Timestamp.nonNullOrMax(maxConflict, commandStore.commandsForRanges().maxRedundant());
-    }
-
-    @Override
     public void registerHistoricalTransactions(Deps deps)
     {
         // used in places such as accord.local.CommandStore.fetchMajorityDeps
         // We find a set of dependencies for a range then update CommandsFor to know about them
         Ranges allRanges = ranges.all();
         deps.keyDeps.keys().forEach(allRanges, key -> {
+            // TODO (now): batch register to minimise GC
             deps.keyDeps.forEach(key, txnId -> {
                 // TODO (desired, efficiency): this can be made more efficient by batching by epoch
                 if (ranges.coordinates(txnId).contains(key))
@@ -282,20 +202,13 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         });
     }
 
-    @Override
-    public void erase(SafeCommand safeCommand)
+    private <O> O mapReduce(Routables<?> keysOrRanges, Ranges slice, BiFunction<CommandsSummary, O, O> map, O accumulate)
     {
+        accumulate = commandStore.mapReduceForRange(keysOrRanges, slice, map, accumulate);
+        return mapReduceForKey(keysOrRanges, slice, map, accumulate);
     }
 
-    private <O> O mapReduce(Routables<?> keysOrRanges, Ranges slice, KeyHistory keyHistory, TriFunction<DomainTimestamps, DomainCommands, O, O> map, O accumulate, Predicate<? super O> terminate)
-    {
-        accumulate = commandStore.mapReduceForRange(keysOrRanges, slice, map, accumulate, terminate);
-        if (terminate.test(accumulate))
-            return accumulate;
-        return mapReduceForKey(keysOrRanges, slice, keyHistory, map, accumulate, terminate);
-    }
-
-    private <O> O mapReduceForKey(Routables<?> keysOrRanges, Ranges slice, KeyHistory keyHistory, TriFunction<DomainTimestamps, DomainCommands, O, O> map, O accumulate, Predicate<? super O> terminate)
+    private <O> O mapReduceForKey(Routables<?> keysOrRanges, Ranges slice, BiFunction<CommandsSummary, O, O> map, O accumulate)
     {
         switch (keysOrRanges.domain())
         {
@@ -308,11 +221,8 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                 for (Key key : keys)
                 {
                     if (!slice.contains(key)) continue;
-                    SafeTimestampsForKey timestamps = timestampsForKey(key);
-                    CommandsForKey commands = !keyHistory.isNone() ? commandsForKey(key, keyHistory).current() : null;
-                    accumulate = map.apply(timestamps.current(), commands, accumulate);
-                    if (terminate.test((accumulate)))
-                        return accumulate;
+                    CommandsForKey commands = commandsForKey(key).current();
+                    accumulate = map.apply(commands, accumulate);
                 }
             }
             break;
@@ -327,11 +237,8 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                 {
                     //TODO (duplicate code): this is a repeat of Key... only change is checking contains in range
                     if (!sliced.contains(key)) continue;
-                    SafeTimestampsForKey timestamps = timestampsForKey(key);
-                    CommandsForKey commands = !keyHistory.isNone() ? commandsForKey(key, keyHistory).current() : null;
-                    accumulate = map.apply(timestamps.current(), commands, accumulate);
-                    if (terminate.test(accumulate))
-                        return accumulate;
+                    CommandsForKey commands = commandsForKey(key).current();
+                    accumulate = map.apply(commands, accumulate);
                 }
             }
             break;
@@ -340,85 +247,41 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     @Override
-//<<<<<<< HEAD
-//    public <P1, T> T mapReduce(Seekables<?, ?> keysOrRanges, Ranges slice, Txn.Kind.Kinds testKind, TestTimestamp testTimestamp, Timestamp timestamp, TestDep testDep, @Nullable TxnId depId, @Nullable Status minStatus, @Nullable Status maxStatus, CommandFunction<P1, T, T> map, P1 p1, T accumulate, Predicate<? super T> terminate)   {
-//        accumulate = mapReduce(keysOrRanges, slice, (forKey, prev) -> {
-//            CommandTimeseries<?> timeseries;
-//=======
-    public <P1, T> T mapReduce(Seekables<?, ?> keysOrRanges, Ranges slice, KeyHistory keyHistory, Txn.Kind.Kinds testKind, TestTimestamp testTimestamp, Timestamp timestamp, TestDep testDep, @Nullable TxnId depId, @Nullable Status minStatus, @Nullable Status maxStatus, CommandFunction<P1, T, T> map, P1 p1, T accumulate, Predicate<? super T> terminate)
+    public <P1, T> T mapReduceActive(Seekables<?, ?> keysOrRanges, Ranges slice, @Nullable Timestamp withLowerTxnId, Txn.Kind.Kinds testKind, CommandFunction<P1, T, T> map, P1 p1, T accumulate)
     {
-        accumulate = mapReduce(keysOrRanges, slice, keyHistory, (timestamps, commands, prev) -> {
-            CommandTimeseries.TimestampType timestampType;
-            switch (testTimestamp)
-            {
-                default: throw new AssertionError();
-                case STARTED_AFTER:
-                case STARTED_BEFORE:
-                    timestampType = CommandTimeseries.TimestampType.TXN_ID;
-                    break;
-                case EXECUTES_AFTER:
-                case MAY_EXECUTE_BEFORE:
-                    timestampType = CommandTimeseries.TimestampType.EXECUTE_AT;
-            }
-            CommandTimeseries.TestTimestamp remapTestTimestamp;
-            switch (testTimestamp)
-            {
-                default: throw new AssertionError();
-                case STARTED_AFTER:
-                case EXECUTES_AFTER:
-                    remapTestTimestamp = CommandTimeseries.TestTimestamp.AFTER;
-                    break;
-                case STARTED_BEFORE:
-                case MAY_EXECUTE_BEFORE:
-                    remapTestTimestamp = CommandTimeseries.TestTimestamp.BEFORE;
-            }
-            return commands.commands().mapReduce(testKind, timestampType, remapTestTimestamp, timestamp, testDep, depId, minStatus, maxStatus, map, p1, prev, terminate);
-        }, accumulate, terminate);
-
-        return accumulate;
+        return mapReduce(keysOrRanges, slice, (summary, in) -> {
+            return summary.mapReduceActive(withLowerTxnId, testKind, map, p1, in);
+        }, accumulate);
     }
 
     @Override
-    public CommonAttributes completeRegistration(Seekables<?, ?> seekables, Ranges ranges, AccordSafeCommand liveCommand, CommonAttributes attrs)
+    public <P1, T> T mapReduceFull(Seekables<?, ?> keysOrRanges, Ranges slice, TxnId testTxnId, Txn.Kind.Kinds testKind, TestStartedAt testStartedAt, TestDep testDep, TestStatus testStatus, CommandFunction<P1, T, T> map, P1 p1, T accumulate)
     {
-        for (Seekable seekable : seekables)
-            attrs = completeRegistration(seekable, ranges, liveCommand, attrs);
-        return attrs;
+        return mapReduce(keysOrRanges, slice, (summary, in) -> {
+            return summary.mapReduceFull(testTxnId, testKind, testStartedAt, testDep, testStatus, map, p1, in);
+        }, accumulate);
     }
 
     @Override
-    public CommonAttributes completeRegistration(Seekable seekable, Ranges ranges, AccordSafeCommand liveCommand, CommonAttributes attrs)
+    protected void update(Command prev, Command updated, @Nullable Seekables<?, ?> keysOrRanges)
     {
-        switch (seekable.domain())
+        super.update(prev, updated, keysOrRanges);
+
+        if (updated.txnId().domain() == Range && CommandsForKey.needsUpdate(prev, updated))
         {
-            case Key:
+            if (keysOrRanges == null)
             {
-                Key key = seekable.asKey();
-                if (ranges.contains(key))
-                {
-                    CommandsForKeys.registerCommand(this, key, liveCommand.current());
-                    attrs = attrs.mutable().addListener(new CommandsForKey.Listener(key));
-                }
+                if (updated.known().isDefinitionKnown()) keysOrRanges = updated.partialTxn().keys();
+                else if (prev.known().isDefinitionKnown()) keysOrRanges = prev.partialTxn().keys();
+                else return;
             }
-            break;
-            case Range:
-                Range range = seekable.asRange();
-                if (!ranges.intersects(range))
-                    return attrs;
-                // TODO (api) : cleaner way to deal with this?  This is tracked at the Ranges level and not Range level
-                // but we register at the Range level...
-                if (!attrs.durableListeners().stream().anyMatch(l -> l instanceof CommandsForRanges.Listener))
-                {
-                    CommandsForRanges.Listener listener = new CommandsForRanges.Listener(liveCommand.txnId());
-                    attrs = attrs.mutable().addListener(listener);
-                    // trigger to allow it to run right away
-                    listener.onChange(this, liveCommand);
-                }
-                break;
-            default:
-                throw new UnsupportedOperationException("Unknown domain: " + seekable.domain());
+            List<TxnId> waitingOn;
+
+            if (updated.partialDeps() == null) waitingOn = Collections.emptyList();
+            // TODO (required): this is faulty: we cannot simply save the raw transaction ids, as they may be for other ranges
+            else waitingOn = updated.partialDeps().txnIds();
+            updateRanges().put(updated.txnId(), (Ranges)keysOrRanges, updated.saveStatus(), updated.executeAt(), waitingOn);
         }
-        return attrs;
     }
 
     protected CommandsForRanges.Updater updateRanges()
@@ -433,30 +296,18 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     {
         commands.values().forEach(AccordSafeCommand::invalidate);
         timestampsForKeys.values().forEach(AccordSafeTimestampsForKey::invalidate);
-        depsCommandsForKeys.values().forEach(AccordSafeCommandsForKey::invalidate);
-        allCommandsForKeys.values().forEach(AccordSafeCommandsForKey::invalidate);
-        updatesForKeys.values().forEach(AccordSafeCommandsForKeyUpdate::invalidate);
-    }
-
-    @Override
-    public CommandLoader<?> cfkLoader(RoutableKey key)
-    {
-        return CommandsForKeySerializer.loader;
+        commandsForKeys.values().forEach(AccordSafeCommandsForKey::invalidate);
     }
 
     public void postExecute(Map<TxnId, AccordSafeCommand> commands,
                             Map<RoutableKey, AccordSafeTimestampsForKey> timestampsForKey,
-                            Map<RoutableKey, AccordSafeCommandsForKey> depsCommandsForKeys,
-                            Map<RoutableKey, AccordSafeCommandsForKey> allCommandsForKeys,
-                            Map<RoutableKey, AccordSafeCommandsForKeyUpdate> updatesForKeys
+                            Map<RoutableKey, AccordSafeCommandsForKey> commandsForKeys
                             )
     {
         postExecute();
         commands.values().forEach(AccordSafeState::postExecute);
         timestampsForKey.values().forEach(AccordSafeState::postExecute);
-        depsCommandsForKeys.values().forEach(AccordSafeState::postExecute);
-        allCommandsForKeys.values().forEach(AccordSafeState::postExecute);
-        updatesForKeys.values().forEach(AccordSafeState::postExecute);
+        commandsForKeys.values().forEach(AccordSafeState::postExecute);
         if (rangeUpdates != null)
             rangeUpdates.apply();
     }

@@ -78,7 +78,7 @@ public class AccordKeyTest
         PartitionKey pk = new PartitionKey(TABLE1, dk);
         TokenKey tk = new TokenKey(TABLE1, dk.getToken());
         TokenKey tkLow = new TokenKey(TABLE1, dk.getToken().decreaseSlightly());
-        TokenKey tkHigh = new TokenKey(TABLE1, dk.getToken().nextValidToken());
+        TokenKey tkHigh = new TokenKey(TABLE1, dk.getToken().increaseSlightly());
 
         Assert.assertTrue(tk.compareTo(pk) > 0);
         Assert.assertTrue(tkLow.compareTo(pk) < 0);

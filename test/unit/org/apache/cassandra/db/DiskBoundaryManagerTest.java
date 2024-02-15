@@ -186,7 +186,7 @@ public class DiskBoundaryManagerTest extends CQLTester
 
         SSTableReader disk1Boundary = MockSchema.sstable(gen++, (long)sstableFirstDisk1.getTokenValue(), (long)tokens.get(0).getTokenValue(), 0, mock);
         SSTableReader disk2Full = MockSchema.sstable(gen++, (long)tokens.get(0).nextValidToken().getTokenValue(), (long)tokens.get(1).getTokenValue(), 0, mock);
-        SSTableReader disk3Full = MockSchema.sstable(gen++, (long)tokens.get(1).nextValidToken().getTokenValue(), (long)partitioner.getMaximumToken().getTokenValue(), 0, mock);
+        SSTableReader disk3Full = MockSchema.sstable(gen++, (long)tokens.get(1).nextValidToken().getTokenValue(), (long)partitioner.getMaximumTokenForSplitting().getTokenValue(), 0, mock);
 
         Assert.assertEquals(tableDirs, mock.getDirectoriesForFiles(ImmutableSet.of()));
         Assert.assertEquals(Lists.newArrayList(tableDirs.get(0)), mock.getDirectoriesForFiles(ImmutableSet.of(containedDisk1)));
