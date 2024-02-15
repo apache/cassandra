@@ -187,7 +187,7 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
                                                                     0,
                                                                     Long.MAX_VALUE,
                                                                     SAITester.TEST_FACTORY.create(DatabaseDescriptor.getPartitioner().getMinimumToken()),
-                                                                    SAITester.TEST_FACTORY.create(DatabaseDescriptor.getPartitioner().getMaximumToken()),
+                                                                    SAITester.TEST_FACTORY.create(DatabaseDescriptor.getPartitioner().getMaximumTokenForSplitting()),
                                                                     wrap(termsEnum.get(0).left),
                                                                     wrap(termsEnum.get(terms - 1).left),
                                                                     indexMetas);

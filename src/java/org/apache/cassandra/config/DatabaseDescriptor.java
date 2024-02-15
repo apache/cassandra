@@ -4921,9 +4921,49 @@ public class DatabaseDescriptor
         return conf.accord.fast_path_update_delay.to(TimeUnit.MILLISECONDS);
     }
 
-    public static void setAccordFastPathUpdateDelayMillis(long millis)
+    public static void setAccordFastPathUpdateDelaySeconds(long seconds)
     {
-        conf.accord.fast_path_update_delay = new DurationSpec.IntMillisecondsBound(millis);
+        conf.accord.fast_path_update_delay = new DurationSpec.IntSecondsBound(seconds);
+    }
+
+    public static long getAccordScheduleDurabilityFrequency(TimeUnit unit)
+    {
+        return conf.accord.schedule_durability_frequency.to(unit);
+    }
+
+    public static void setAccordScheduleDurabilityFrequencySeconds(long seconds)
+    {
+        conf.accord.schedule_durability_frequency = new DurationSpec.IntSecondsBound(seconds);
+    }
+
+    public static long getAccordScheduleDurabilityTxnIdLag(TimeUnit unit)
+    {
+        return conf.accord.durability_txnid_lag.to(unit);
+    }
+
+    public static void setAccordScheduleDurabilityTxnIdLagSeconds(long seconds)
+    {
+        conf.accord.durability_txnid_lag = new DurationSpec.IntSecondsBound(seconds);
+    }
+
+    public static long getAccordGlobalDurabilityCycle(TimeUnit unit)
+    {
+        return conf.accord.global_durability_cycle.to(unit);
+    }
+
+    public static void setAccordGlobalDurabilityCycleSeconds(long seconds)
+    {
+        conf.accord.global_durability_cycle = new DurationSpec.IntSecondsBound(seconds);
+    }
+
+    public static long getAccordShardDurabilityCycle(TimeUnit unit)
+    {
+        return conf.accord.shard_durability_cycle.to(unit);
+    }
+
+    public static void setAccordShardDurabilityCycleSeconds(long seconds)
+    {
+        conf.accord.shard_durability_cycle = new DurationSpec.IntSecondsBound(seconds);
     }
 
     public static boolean getForceNewPreparedStatementBehaviour()

@@ -76,7 +76,7 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
         // cfk initialization is legal, but doesn't need to be propagated to the cache (and would
         // cause an exception to be thrown if it were). Making an exception on the cache side could
         // throw away applied cfk updates as well, so it's special cased here
-        if (hasUpdate && original == null && current != null && current.commands().isEmpty())
+        if (hasUpdate && original == null && current != null && current.size() == 0)
             return false;
 
         return hasUpdate;
@@ -122,7 +122,8 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
     public void postExecute()
     {
         checkNotInvalidated();
-        // updates are applied directly by CommandsForKeyUpdate
+        if (current != original)
+            global.set(current);
     }
 
     @Override
