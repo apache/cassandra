@@ -100,6 +100,7 @@ import static java.lang.String.format;
 public class AccordTestUtils
 {
     public static final TableId TABLE_ID1 = TableId.fromString("00000000-0000-0000-0000-000000000001");
+    private static final AccordAgent AGENT = new AccordAgent();
 
     public static class Commands
     {
@@ -316,6 +317,11 @@ public class AccordTestUtils
     public static Txn createWriteTxn(int key)
     {
         return createTxn(key, key);
+    }
+
+    public static Txn createTxn(Txn.Kind kind, Seekables<?, ?> seekables)
+    {
+        return AGENT.emptyTxn(kind, seekables);
     }
 
     public static Ranges fullRange(Txn txn)

@@ -142,7 +142,7 @@ import static org.apache.cassandra.utils.CollectionSerializers.serializedListSiz
 import static org.apache.cassandra.utils.concurrent.Semaphore.newSemaphore;
 import static org.apache.cassandra.utils.vint.VIntCoding.computeUnsignedVIntSize;
 
-public class AccordJournal implements Shutdownable
+public class AccordJournal implements IJournal, Shutdownable
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordJournal.class);
 
@@ -295,6 +295,7 @@ public class AccordJournal implements Shutdownable
     }
 
     @VisibleForTesting
+    @Override
     public void appendMessageBlocking(Message message)
     {
         Type type = Type.fromMessageType(message.type());
@@ -1332,8 +1333,8 @@ public class AccordJournal implements Shutdownable
     /*
      * Message provider implementation
      */
-
-    SerializerSupport.MessageProvider makeMessageProvider(TxnId txnId)
+    @Override
+    public SerializerSupport.MessageProvider makeMessageProvider(TxnId txnId)
     {
         return LOG_MESSAGE_PROVIDER ? new LoggingMessageProvider(txnId, new MessageProvider(txnId)) : new MessageProvider(txnId);
     }

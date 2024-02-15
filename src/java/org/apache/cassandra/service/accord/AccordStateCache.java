@@ -141,36 +141,43 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         while (iter.hasNext() && bytesCached > maxSizeInBytes)
         {
             AccordCachingState<?, ?> node = iter.next();
-            checkState(node.references == 0);
+            maybeEvict(node);
+        }
+    }
 
-            if (!node.canEvict())
-                continue;
-            /*
-             * TODO (expected, efficiency):
-             *    can this be reworked so we're not skipping unevictable nodes everytime we try to evict?
-             */
-            Status status = node.status(); // status() call completes (if completeable)
-            switch (status)
-            {
-                default: throw new IllegalStateException("Unhandled status " + status);
-                case LOADED:
-                    unlink(node);
-                    evict(node);
-                    break;
-                case MODIFIED:
-                    // schedule a save to disk, keep linked and in the cache map
-                    Instance<?, ?, ?> instance = instanceForNode(node);
-                    node.save(saveExecutor, instance.saveFunction);
-                    maybeUpdateSize(node, instance.heapEstimator);
-                    break;
-                case SAVING:
-                    // skip over until completes to LOADED or FAILED_TO_SAVE
-                    break;
-                case FAILED_TO_SAVE:
-                    // TODO (consider): panic when a save fails
-                    // permanently unlink, but keep in the map
-                    unlink(node);
-            }
+    @VisibleForTesting
+    public boolean maybeEvict(AccordCachingState<?, ?> node)
+    {
+        checkState(node.references == 0);
+
+        if (!node.canEvict())
+            return false;
+        /*
+         * TODO (expected, efficiency):
+         *    can this be reworked so we're not skipping unevictable nodes everytime we try to evict?
+         */
+        Status status = node.status(); // status() call completes (if completeable)
+        switch (status)
+        {
+            default: throw new IllegalStateException("Unhandled status " + status);
+            case LOADED:
+                unlink(node);
+                evict(node);
+                return true;
+            case MODIFIED:
+                // schedule a save to disk, keep linked and in the cache map
+                Instance<?, ?, ?> instance = instanceForNode(node);
+                node.save(saveExecutor, instance.saveFunction);
+                maybeUpdateSize(node, instance.heapEstimator);
+                return false;
+            case SAVING:
+                // skip over until completes to LOADED or FAILED_TO_SAVE
+                return false;
+            case FAILED_TO_SAVE:
+                // TODO (consider): panic when a save fails
+                // permanently unlink, but keep in the map
+                unlink(node);
+                return false;
         }
     }
 

@@ -77,6 +77,7 @@ import accord.utils.async.Observable;
 import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.metrics.AccordStateCacheMetrics;
@@ -93,8 +94,12 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCommandStore.class);
 
+    private static final boolean CHECK_THREADS = CassandraRelevantProperties.ENABLE_ACCORD_THREAD_CHECKS.getBoolean();
+
     private static long getThreadId(ExecutorService executor)
     {
+        if (!CHECK_THREADS)
+            return 0;
         try
         {
             return executor.submit(() -> Thread.currentThread().getId()).get();
@@ -111,7 +116,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
     private final long threadId;
     public final String loggingId;
-    private final AccordJournal journal;
+    private final IJournal journal;
     private final ExecutorService executor;
     private final ExecutionOrder executionOrder;
     private final AccordCommandsForKeys keyCoordinator;
@@ -132,7 +137,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                               DataStore dataStore,
                               ProgressLog.Factory progressLogFactory,
                               EpochUpdateHolder epochUpdateHolder,
-                              AccordJournal journal,
+                              IJournal journal,
                               AccordStateCacheMetrics cacheMetrics)
     {
         this(id, time, agent, dataStore, progressLogFactory, epochUpdateHolder, journal, Stage.READ.executor(), Stage.MUTATION.executor(), cacheMetrics);
@@ -145,7 +150,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                               DataStore dataStore,
                               ProgressLog.Factory progressLogFactory,
                               EpochUpdateHolder epochUpdateHolder,
-                              AccordJournal journal,
+                              IJournal journal,
                               ExecutorPlus loadExecutor,
                               ExecutorPlus saveExecutor,
                               AccordStateCacheMetrics cacheMetrics)
@@ -287,6 +292,8 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     @Override
     public boolean inStore()
     {
+        if (!CHECK_THREADS)
+            return true;
         return Thread.currentThread().getId() == threadId;
     }
 
@@ -322,6 +329,8 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
     public void checkNotInStoreThread()
     {
+        if (!CHECK_THREADS)
+            return;
         Invariants.checkState(!inStore());
     }
 
