@@ -16,11 +16,14 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.repair;
+package org.apache.cassandra.service.accord.repair;
 
 import java.math.BigInteger;
 import javax.annotation.Nullable;
 
+import org.apache.cassandra.repair.AbstractRepairJob;
+import org.apache.cassandra.repair.RepairResult;
+import org.apache.cassandra.repair.RepairSession;
 import org.apache.cassandra.service.accord.AccordTopology;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -89,7 +92,7 @@ public class AccordRepairJob extends AbstractRepairJob
     }
 
     @Override
-    void abort(@Nullable Throwable reason)
+    protected void abort(@Nullable Throwable reason)
     {
         shouldAbort = reason == null ? new RuntimeException("Abort") : reason;
     }

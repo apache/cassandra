@@ -62,5 +62,5 @@ public abstract class AbstractRepairJob extends AsyncFuture<RepairResult> implem
 
     abstract protected void runRepair();
 
-    abstract void abort(@Nullable Throwable reason);
+    abstract protected void abort(@Nullable Throwable reason);
 }
