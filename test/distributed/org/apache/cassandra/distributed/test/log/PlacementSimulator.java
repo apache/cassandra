@@ -404,6 +404,8 @@ public class PlacementSimulator
         Map<Range, List<Replica>> end = splitReplicated(baseState.rf.replicate(finalNodes).placementsForRange, movingNode.token());
 
         Map<Range, Diff<Replica>> fromStartToEnd = diff(start, end);
+        Map<Range, Diff<Replica>> startMoveCommands = map(fromStartToEnd, PlacementSimulator::additionsAndTransientToFull);
+        Map<Range, Diff<Replica>> finishMoveCommands = map(fromStartToEnd, PlacementSimulator::removalsAndFullToTransient);
 
         Transformations steps = new Transformations();
 
@@ -424,20 +426,18 @@ public class PlacementSimulator
         // Step 2: Start Move, add all potential owners to write quorums
         steps.add(new Transformation(
             (model) -> { // apply
-                Map<Range, Diff<Replica>> diff = map(fromStartToEnd, Diff::onlyAdditions);
                 debug.log("Executing start-move of " + movingNode + "\n");
                 debug.log(String.format("Commands for step 1 of move of %s to %d.\n" +
                                         "\twriteModifications=\n%s",
-                                        movingNode, newToken, diffsToString(diff)));
+                                        movingNode, newToken, diffsToString(startMoveCommands)));
 
                 NavigableMap<Range, List<Replica>> placements = model.writePlacements;
-                placements = PlacementSimulator.apply(placements, diff);
+                placements = PlacementSimulator.apply(placements, startMoveCommands);
                 return model.withWritePlacements(placements);
             },
             (model) -> { // revert
                 debug.log("Reverting start-move of " + movingNode + "\n");
-                Map<Range, Diff<Replica>> diff = map(fromStartToEnd, Diff::onlyAdditions);
-                Map<Range, Diff<Replica>> inverted = map(diff, Diff::invert);
+                Map<Range, Diff<Replica>> inverted = map(startMoveCommands, Diff::invert);
                 debug.log(String.format("Commands for reverting step 1 of move of %s to %d.\n" +
                                         "\twriteModifications=\n%s",
                                         movingNode, newToken, diffsToString(inverted)));
@@ -466,12 +466,10 @@ public class PlacementSimulator
         // Step 4: Finish Move, remove all nodes that are losing ranges from write quorums
         steps.add(new Transformation(
             (model) -> {
-                Map<Range, Diff<Replica>> diff = map(fromStartToEnd, Diff::onlyRemovals);
-
                 debug.log("Executing finish-move of " + movingNode + "\n");
                 debug.log(String.format("Commands for step 2 of move of %s to %d.\n" +
                                         "\twriteModifications=\n%s",
-                                        movingNode, newToken, diffsToString(diff)));
+                                        movingNode, newToken, diffsToString(finishMoveCommands)));
 
                 List<Node> currentNodes = new ArrayList<>(model.nodes);
                 List<Node> newNodes = new ArrayList<>();
@@ -485,7 +483,7 @@ public class PlacementSimulator
                 newNodes.sort(Node::compareTo);
 
                 Map<Range, List<Replica>> writePlacements = model.writePlacements;
-                writePlacements = PlacementSimulator.apply(writePlacements, diff);
+                writePlacements = PlacementSimulator.apply(writePlacements, finishMoveCommands);
 
                 return model.withWritePlacements(mergeReplicated(writePlacements, movingNode.token()))
                             .withReadPlacements(mergeReplicated(model.readPlacements, movingNode.token()))
@@ -511,8 +509,8 @@ public class PlacementSimulator
 
         // maximal state is union of start & end
         Map<Range, Diff<Replica>> allWriteCommands = diff(start, end);
-        Map<Range, Diff<Replica>> step1WriteCommands = map(allWriteCommands, Diff::onlyAdditions);
-        Map<Range, Diff<Replica>> step3WriteCommands = map(allWriteCommands, Diff::onlyRemovals);
+        Map<Range, Diff<Replica>> step1WriteCommands = map(allWriteCommands, PlacementSimulator::additionsAndTransientToFull);
+        Map<Range, Diff<Replica>> step3WriteCommands = map(allWriteCommands, PlacementSimulator::removalsAndFullToTransient);
         Map<Range, Diff<Replica>> readCommands = diff(start, end);
         Transformations steps = new Transformations();
         steps.add(new Transformation(
