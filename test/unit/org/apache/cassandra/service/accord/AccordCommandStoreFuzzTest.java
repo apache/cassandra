@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -46,10 +45,8 @@ import accord.local.SaveStatus;
 import accord.messages.PreAccept;
 import accord.messages.TxnRequest;
 import accord.primitives.FullKeyRoute;
-import accord.primitives.FullRangeRoute;
 import accord.primitives.FullRoute;
 import accord.primitives.Keys;
-import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
 import accord.primitives.Timestamp;
@@ -73,13 +70,10 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.metrics.AccordStateCacheMetrics;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.transformations.AddAccordTable;
@@ -96,7 +90,9 @@ public class AccordCommandStoreFuzzTest extends CQLTester
 {
     static
     {
-        CassandraRelevantProperties.ENABLE_ACCORD_THREAD_CHECKS.setBoolean(false);
+        CassandraRelevantProperties.TEST_ACCORD_STORE_THREAD_CHECKS_ENABLED.setBoolean(false);
+        // Restarts are not covered in these tests and the range logic is getting rewritten, so disable loading
+        CassandraRelevantProperties.TEST_ACCORD_STORE_LOAD_RANGES_ENABLED.setBoolean(false);
         // since this test does frequent truncates, the info table gets updated and forced flushed... which is 90% of the cost of this test...
         // this flag disables that flush
         CassandraRelevantProperties.UNSAFE_SYSTEM.setBoolean(true);
@@ -193,153 +189,6 @@ public class AccordCommandStoreFuzzTest extends CQLTester
                 }
             }
         });
-    }
-
-    @Test
-    public void simpleRangeConflicts()
-    {
-        var tbl = reverseTokenTbl;
-        Ranges wholeRange = Ranges.of(fullRange(tbl.id));
-        int numSamples = 100;
-
-        qt().withExamples(10).check(rs -> {
-            clearSystemTables();
-            try (var instance = new Instance(rs))
-            {
-                long token = rs.nextLong(Long.MIN_VALUE  + 1, Long.MAX_VALUE);
-                ByteBuffer key = LongToken.keyForToken(token);
-                PartitionKey pk = new PartitionKey(tbl.id, tbl.partitioner.decorateKey(key));
-                Keys keys = Keys.of(pk);
-                FullKeyRoute keyRoute = keys.toRoute(pk.toUnseekable());
-                Txn keyTxn = createTxn(wrapInTxn("INSERT INTO " + tbl + "(pk, value) VALUES (?, ?)"), Arrays.asList(key, 42));
-
-                Ranges partialRange = Ranges.of(tokenRange(tbl.id, token - 1, token));
-                boolean useWholeRange = rs.nextBoolean();
-                Ranges ranges = useWholeRange ? wholeRange : partialRange;
-                FullRangeRoute rangeRoute = ranges.toRoute(pk.toUnseekable());
-                Txn rangeTxn = createTxn(Txn.Kind.ExclusiveSyncPoint, ranges);
-
-                List<TxnId> keyConflicts = new ArrayList<>(numSamples);
-                List<TxnId> rangeConflicts = new ArrayList<>(numSamples);
-                for (int i = 0; i < numSamples; i++)
-                {
-                    try
-                    {
-                        instance.maybeCacheEvict(keys, ranges);
-                        keyConflicts.add(assertPreAccept(instance, keyTxn, keyRoute, keyConflicts, keys));
-                        rangeConflicts.add(assertPreAccept(instance, rangeTxn, rangeRoute, keyConflicts, keys, rangeConflicts, ranges));
-                    }
-                    catch (Throwable t)
-                    {
-                        AssertionError error = new AssertionError("Unexpected error: i=" + i + ", token=" + token + ", isWholeRange=" + useWholeRange + ", range=" + ranges.get(0));
-                        t.addSuppressed(error);
-                        throw t;
-                    }
-                }
-            }
-        });
-    }
-
-    @Test
-    public void expandingRangeConflicts()
-    {
-        var tbl = reverseTokenTbl;
-        int numSamples = 100;
-
-        qt().withSeed(4760793912722218623L).withExamples(10).check(rs -> {
-            clearSystemTables();
-            try (var instance = new Instance(rs))
-            {
-                long token = rs.nextLong(Long.MIN_VALUE + numSamples + 1, Long.MAX_VALUE - numSamples);
-                ByteBuffer key = LongToken.keyForToken(token);
-                PartitionKey pk = new PartitionKey(tbl.id, tbl.partitioner.decorateKey(key));
-                Keys keys = Keys.of(pk);
-                FullKeyRoute keyRoute = keys.toRoute(pk.toUnseekable());
-                Txn keyTxn = createTxn(wrapInTxn("INSERT INTO " + tbl + "(pk, value) VALUES (?, ?)"), Arrays.asList(key, 42));
-
-                List<TxnId> keyConflicts = new ArrayList<>(numSamples);
-                List<TxnId> rangeConflicts = new ArrayList<>(numSamples);
-                for (int i = 0; i < numSamples; i++)
-                {
-                    Ranges partialRange = Ranges.of(tokenRange(tbl.id, token - i - 1, token + i));
-                    try
-                    {
-                        instance.maybeCacheEvict(keys, partialRange);
-                        keyConflicts.add(assertPreAccept(instance, keyTxn, keyRoute, keyConflicts, keys));
-
-                        FullRangeRoute rangeRoute = partialRange.toRoute(pk.toUnseekable());
-                        Txn rangeTxn = createTxn(Txn.Kind.ExclusiveSyncPoint, partialRange);
-                        rangeConflicts.add(assertPreAccept(instance, rangeTxn, rangeRoute, keyConflicts, keys, rangeConflicts, partialRange));
-                    }
-                    catch (Throwable t)
-                    {
-                        AssertionError error = new AssertionError("Unexpected error: i=" + i + ", token=" + token + ", range=" + partialRange.get(0));
-                        t.addSuppressed(error);
-                        throw t;
-                    }
-                }
-            }
-        });
-    }
-
-    @Test
-    public void overlappingRangeConflicts()
-    {
-        var tbl = reverseTokenTbl;
-        int numSamples = 100;
-
-        qt().withExamples(10).check(rs -> {
-            clearSystemTables();
-            try (var instance = new Instance(rs))
-            {
-                long token = rs.nextLong(Long.MIN_VALUE + numSamples + 1, Long.MAX_VALUE - numSamples);
-                ByteBuffer key = LongToken.keyForToken(token);
-                PartitionKey pk = new PartitionKey(tbl.id, tbl.partitioner.decorateKey(key));
-                Keys keys = Keys.of(pk);
-                FullKeyRoute keyRoute = keys.toRoute(pk.toUnseekable());
-                Txn keyTxn = createTxn(wrapInTxn("INSERT INTO " + tbl + "(pk, value) VALUES (?, ?)"), Arrays.asList(key, 42));
-
-                Ranges left = Ranges.of(tokenRange(tbl.id, token - 10, token + 5));
-                Ranges right = Ranges.of(tokenRange(tbl.id, token - 5, token + 10));
-
-                List<TxnId> keyConflicts = new ArrayList<>(numSamples);
-                List<TxnId> rangeConflicts = new ArrayList<>(numSamples);
-                for (int i = 0; i < numSamples; i++)
-                {
-                    Ranges partialRange = rs.nextBoolean() ? left : right;
-                    try
-                    {
-                        instance.maybeCacheEvict(keys, partialRange);
-                        keyConflicts.add(assertPreAccept(instance, keyTxn, keyRoute, keyConflicts, keys));
-
-                        FullRangeRoute rangeRoute = partialRange.toRoute(pk.toUnseekable());
-                        Txn rangeTxn = createTxn(Txn.Kind.ExclusiveSyncPoint, partialRange);
-                        rangeConflicts.add(assertPreAccept(instance, rangeTxn, rangeRoute, keyConflicts, keys, rangeConflicts, partialRange));
-                    }
-                    catch (Throwable t)
-                    {
-                        AssertionError error = new AssertionError("Unexpected error: i=" + i + ", token=" + token + ", range=" + partialRange.get(0));
-                        t.addSuppressed(error);
-                        throw t;
-                    }
-                }
-            }
-        });
-    }
-
-    private static TokenRange fullRange(TableId id)
-    {
-        return new TokenRange(AccordRoutingKey.SentinelKey.min(id), AccordRoutingKey.SentinelKey.max(id));
-    }
-
-    private static TokenRange tokenRange(TableId id, long start, long end)
-    {
-        return new TokenRange(start == Long.MIN_VALUE ? AccordRoutingKey.SentinelKey.min(id) : tokenKey(id, start), tokenKey(id, end));
-    }
-
-    private static AccordRoutingKey.TokenKey tokenKey(TableId id, long token)
-    {
-        return new AccordRoutingKey.TokenKey(id, new LongToken(token));
     }
 
     private static TxnId assertPreAccept(Instance instance,
@@ -544,13 +393,6 @@ public class AccordCommandStoreFuzzTest extends CQLTester
 //                    RoutableKey key = (RoutableKey) state.key();
 //                    if (keys.contains(key) && rs.nextBoolean())
 //                        cache.maybeEvict(state);
-                }
-                else if (Range.class.isAssignableFrom(keyType))
-                {
-                    Ranges key = Ranges.of((Range) state.key());
-                    if ((key.intersects(keys) || key.intersects(ranges))
-                        && shouldEvict.getAsBoolean())
-                        cache.maybeEvict(state);
                 }
                 else
                 {

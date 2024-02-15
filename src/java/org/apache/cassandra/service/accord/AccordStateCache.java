@@ -156,10 +156,12 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
          * TODO (expected, efficiency):
          *    can this be reworked so we're not skipping unevictable nodes everytime we try to evict?
          */
-        Status status = node.status(); // status() call completes (if completeable)
+        // node.status() call completes (if completeable), so avoid calling that; we don't want to promote Loading/Saving
+        Status status = node.state().status();
         switch (status)
         {
             default: throw new IllegalStateException("Unhandled status " + status);
+            case LOADING:
             case LOADED:
                 unlink(node);
                 evict(node);

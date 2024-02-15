@@ -94,7 +94,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCommandStore.class);
 
-    private static final boolean CHECK_THREADS = CassandraRelevantProperties.ENABLE_ACCORD_THREAD_CHECKS.getBoolean();
+    private static final boolean CHECK_THREADS = CassandraRelevantProperties.TEST_ACCORD_STORE_THREAD_CHECKS_ENABLED.getBoolean();
 
     private static long getThreadId(ExecutorService executor)
     {
@@ -234,6 +234,8 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
     private void loadRangesToCommands()
     {
+        if (!CassandraRelevantProperties.TEST_ACCORD_STORE_LOAD_RANGES_ENABLED.getBoolean())
+            return;
         AsyncPromise<CommandsForRanges> future = new AsyncPromise<>();
         AccordKeyspace.findAllCommandsByDomain(id, Routable.Domain.Range, ImmutableSet.of("txn_id", "status", "accepted_ballot", "execute_at"), new Observable<UntypedResultSet.Row>()
         {

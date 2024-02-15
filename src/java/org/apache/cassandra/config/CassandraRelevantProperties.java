@@ -204,7 +204,6 @@ public enum CassandraRelevantProperties
     DTEST_API_LOG_TOPOLOGY("cassandra.dtest.api.log.topology"),
     /** This property indicates if the code is running under the in-jvm dtest framework */
     DTEST_IS_IN_JVM_DTEST("org.apache.cassandra.dtest.is_in_jvm_dtest"),
-    ENABLE_ACCORD_THREAD_CHECKS("cassandra.test.accord.thread_checks_enabled", "true"),
     ENABLE_DC_LOCAL_COMMIT("cassandra.enable_dc_local_commit", "true"),
     /**
      * Whether {@link org.apache.cassandra.db.ConsistencyLevel#NODE_LOCAL} should be allowed.
@@ -542,7 +541,8 @@ public enum CassandraRelevantProperties
     TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA("cassandra.unsafe_boot_with_clustermetadata", null),
     TCM_USE_ATOMIC_LONG_PROCESSOR("cassandra.test.use_atomic_long_processor", "false"),
     TCM_USE_NO_OP_REPLICATOR("cassandra.test.use_no_op_replicator", "false"),
-
+    TEST_ACCORD_STORE_LOAD_RANGES_ENABLED("cassandra.test.accord.store.load_ranges_enabled", "true"),
+    TEST_ACCORD_STORE_THREAD_CHECKS_ENABLED("cassandra.test.accord.store.thread_checks_enabled", "true"),
     TEST_BBFAILHELPER_ENABLED("test.bbfailhelper.enabled"),
     TEST_BLOB_SHARED_SEED("cassandra.test.blob.shared.seed"),
     TEST_BYTEMAN_TRANSFORMATIONS_DEBUG("cassandra.test.byteman.transformations.debug"),
@@ -565,6 +565,7 @@ public enum CassandraRelevantProperties
      * faster. Note that this is disabled for unit tests but if an individual test requires schema to be flushed, it
      * can be also done manually for that particular case: {@code flush(SchemaConstants.SCHEMA_KEYSPACE_NAME);}. */
     TEST_FLUSH_LOCAL_SCHEMA_CHANGES("cassandra.test.flush_local_schema_changes", "true"),
+    TEST_HISTORY_VALIDATOR_LOGGING_ENABLED("cassandra.test.history_validator.logging.enabled", "false"),
     TEST_IGNORE_SIGAR("cassandra.test.ignore_sigar"),
     TEST_INVALID_LEGACY_SSTABLE_ROOT("invalid-legacy-sstable-root"),
     TEST_JVM_DTEST_DISABLE_SSL("cassandra.test.disable_ssl"),
