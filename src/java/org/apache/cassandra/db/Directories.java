@@ -861,12 +861,16 @@ public class Directories
         private String snapshotName;
         private final File[] dataPaths;
         private final TableMetadata metadata;
+        private final String keyspace;
+        private final String table;
 
         private SSTableLister(File[] dataPaths, TableMetadata metadata, OnTxnErr onTxnErr)
         {
             this.dataPaths = dataPaths;
             this.metadata = metadata;
             this.onTxnErr = onTxnErr;
+            keyspace = metadata.keyspace;
+            table = metadata.name;
         }
 
         public SSTableLister skipTemporary(boolean b)
@@ -946,21 +950,21 @@ public class Directories
 
                 if (snapshotName != null)
                 {
-                    LifecycleTransaction.getFiles(getSnapshotDirectory(location, snapshotName).toPath(), getFilter(), onTxnErr);
+                    LifecycleTransaction.getFiles(getSnapshotDirectory(location, snapshotName).toPath(), getFilter(keyspace, table), onTxnErr);
                     continue;
                 }
 
                 if (!onlyBackups)
-                    LifecycleTransaction.getFiles(location.toPath(), getFilter(), onTxnErr);
+                    LifecycleTransaction.getFiles(location.toPath(), getFilter(keyspace, table), onTxnErr);
 
                 if (includeBackups)
-                    LifecycleTransaction.getFiles(getBackupsDirectory(location).toPath(), getFilter(), onTxnErr);
+                    LifecycleTransaction.getFiles(getBackupsDirectory(location).toPath(), getFilter(keyspace, table), onTxnErr);
             }
 
             filtered = true;
         }
 
-        private BiPredicate<File, FileType> getFilter()
+        private BiPredicate<File, FileType> getFilter(final String keyspace, final String table)
         {
             // This function always return false since it adds to the components map
             return (file, type) ->
@@ -978,15 +982,22 @@ public class Directories
                         if (pair == null)
                             return false;
 
+                        Descriptor d = new Descriptor(pair.left.version,
+                                                      pair.left.directory,
+                                                      keyspace,
+                                                      table,
+                                                      pair.left.id,
+                                                      pair.left.formatType);
+
                         // we are only interested in the SSTable files that belong to the specific ColumnFamily
-                        if (!pair.left.ksname.equals(metadata.keyspace) || !pair.left.cfname.equals(metadata.name))
+                        if (!d.ksname.equals(metadata.keyspace) || !d.cfname.equals(metadata.name))
                             return false;
 
-                        Set<Component> previous = components.get(pair.left);
+                        Set<Component> previous = components.get(d);
                         if (previous == null)
                         {
                             previous = new HashSet<>();
-                            components.put(pair.left, previous);
+                            components.put(d, previous);
                         }
                         previous.add(pair.right);
                         nbFiles++;
