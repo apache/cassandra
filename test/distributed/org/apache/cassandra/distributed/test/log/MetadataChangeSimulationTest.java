@@ -109,6 +109,19 @@ public class MetadataChangeSimulationTest extends CMSTestBase
     }
 
     @Test
+    public void simulateSimpleOneTransient() throws Throwable
+    {
+        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
+        simulate(5, 0, new SimpleReplicationFactor(3, 1), 1);
+    }
+
+    @Test
+    public void simulateSimpleOneNonTransient() throws Throwable
+    {
+        simulate(5, 0, new SimpleReplicationFactor(3), 1);
+    }
+
+    @Test
     public void testMoveReal() throws Throwable
     {
         for (int i = 0; i < 4; i++)
