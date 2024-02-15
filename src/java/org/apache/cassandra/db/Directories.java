@@ -978,15 +978,18 @@ public class Directories
                         if (pair == null)
                             return false;
 
-                        // we are only interested in the SSTable files that belong to the specific ColumnFamily
-                        if (!pair.left.ksname.equals(metadata.keyspace) || !pair.left.cfname.equals(metadata.name))
-                            return false;
+                        Descriptor d = new Descriptor(pair.left.version,
+                                                      pair.left.directory,
+                                                      metadata.keyspace,
+                                                      metadata.name,
+                                                      pair.left.id,
+                                                      pair.left.formatType);
 
-                        Set<Component> previous = components.get(pair.left);
+                        Set<Component> previous = components.get(d);
                         if (previous == null)
                         {
                             previous = new HashSet<>();
-                            components.put(pair.left, previous);
+                            components.put(d, previous);
                         }
                         previous.add(pair.right);
                         nbFiles++;
