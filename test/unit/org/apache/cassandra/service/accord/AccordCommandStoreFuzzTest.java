@@ -98,7 +98,7 @@ public class AccordCommandStoreFuzzTest extends CQLTester
         CassandraRelevantProperties.UNSAFE_SYSTEM.setBoolean(true);
     }
 
-    private static TableMetadata intTbl, reverseTokenTbl;
+    private static TableMetadata intTbl;
     private static Node.Id nodeId;
 
     @BeforeClass
@@ -117,10 +117,6 @@ public class AccordCommandStoreFuzzTest extends CQLTester
         createTable("test", "CREATE TABLE test.tbl1 (pk int PRIMARY KEY, value int)");
         intTbl = Schema.instance.getTableMetadata("test", "tbl1");
         AddAccordTable.addTable(intTbl.id);
-
-        createTable("test", "CREATE TABLE test.tbl2 (pk vector<bigint, 2> PRIMARY KEY, value int)");
-        reverseTokenTbl = Schema.instance.getTableMetadata("test", "tbl2");
-        AddAccordTable.addTable(reverseTokenTbl.id);
 
         nodeId = AccordTopology.tcmIdToAccord(ClusterMetadata.current().myNodeId());
 
