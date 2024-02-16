@@ -141,4 +141,5 @@ public class ReconfigureCMSTest extends FuzzTestBase
                 Assert.assertEquals(placements.reads, placements.writes);
             });
         }
-    }}
+    }
+}

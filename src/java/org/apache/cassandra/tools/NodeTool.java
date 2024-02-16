@@ -267,8 +267,8 @@ public class NodeTool
                .withDescription("Manage cluster metadata")
                .withDefaultCommand(CMSCmdGroupHelp.class)
                .withCommand(DescribeCMS.class)
-               .withCommand(ReconfigureCMS.class)
-               .withCommand(InitializeCMS.class);
+               .withCommand(InitializeCMS.class)
+               .withCommand(ReconfigureCMS.class);
 
         Cli<NodeToolCmdRunnable> parser = builder.build();
 

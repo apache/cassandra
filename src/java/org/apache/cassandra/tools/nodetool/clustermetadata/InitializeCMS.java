@@ -29,8 +29,9 @@ import org.apache.cassandra.tools.NodeTool;
 @Command(name = "initialize", description = "Upgrade from gossip and initialize CMS")
 public class InitializeCMS extends NodeTool.NodeToolCmd
 {
-    @Option(title = "ignored endpoints", name = {"-i", "--ignore"}, description = "Hosts to ignore due to them being down", required = false)
+    @Option(title = "ignored endpoints", name = {"-i", "--ignore"}, description = "Hosts to ignore due to them being down")
     private List<String> endpoint = new ArrayList<>();
+
     @Override
     protected void execute(NodeProbe probe)
     {
