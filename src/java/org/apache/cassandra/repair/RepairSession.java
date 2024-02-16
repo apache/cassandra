@@ -59,6 +59,7 @@ import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.repair.state.SessionState;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.accord.repair.AccordRepairJob;
 import org.apache.cassandra.service.consensus.migration.ConsensusTableMigration;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tracing.Tracing;
@@ -120,8 +121,11 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     /** Range to repair */
     public final boolean isIncremental;
     public final PreviewKind previewKind;
-    public final boolean repairPaxos;
+    public final boolean repairPaxos; // TODO (now): rename to repairPaxosIfSupported
     public final boolean paxosOnly;
+
+    public final boolean accordOnly;
+
     public final boolean excludedDeadNodes;
 
     private final AtomicBoolean isFailed = new AtomicBoolean(false);
@@ -142,15 +146,16 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
 
     /**
      * Create new repair session.
+     *
      * @param parentRepairSession the parent sessions id
-     * @param commonRange ranges to repair
-     * @param excludedDeadNodes Was the repair started for --force and were dead nodes excluded as a result
-     * @param keyspace name of keyspace
-     * @param parallelismDegree specifies the degree of parallelism when calculating the merkle trees
-     * @param pullRepair true if the repair should be one way (from remote host to this host and only applicable between two hosts--see RepairOption)
-     * @param repairPaxos true if incomplete paxos operations should be completed as part of repair
-     * @param paxosOnly true if we should only complete paxos operations, not run a normal repair
-     * @param cfnames names of columnfamilies
+     * @param commonRange         ranges to repair
+     * @param excludedDeadNodes   Was the repair started for --force and were dead nodes excluded as a result
+     * @param keyspace            name of keyspace
+     * @param parallelismDegree   specifies the degree of parallelism when calculating the merkle trees
+     * @param pullRepair          true if the repair should be one way (from remote host to this host and only applicable between two hosts--see RepairOption)
+     * @param repairPaxos         true if incomplete paxos operations should be completed as part of repair
+     * @param paxosOnly           true if we should only complete paxos operations, not run a normal repair
+     * @param cfnames             names of columnfamilies
      */
     public RepairSession(SharedContext ctx,
                          TimeUUID parentRepairSession,
@@ -165,6 +170,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
                          boolean repairPaxos,
                          boolean paxosOnly,
                          boolean accordRepair,
+                         boolean accordOnly,
                          String... cfnames)
     {
         this.ctx = ctx;
@@ -179,6 +185,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         this.optimiseStreams = optimiseStreams;
         this.taskExecutor = new SafeExecutor(createExecutor(ctx));
         this.accordRepair = accordRepair;
+        this.accordOnly = accordOnly;
         this.excludedDeadNodes = excludedDeadNodes;
     }
 
@@ -302,7 +309,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         logger.info("{} parentSessionId = {}: new session: will sync {} on range {} for {}.{}",
                     previewKind.logPrefix(getId()), state.parentRepairSession, repairedNodes(), state.commonRange, state.keyspace, Arrays.toString(state.cfnames));
         Tracing.traceRepair("Syncing range {}", state.commonRange);
-        if (!previewKind.isPreview() && !paxosOnly)
+        if (!previewKind.isPreview() && !paxosOnly && !accordOnly)
         {
             SystemDistributedKeyspace.startRepairs(getId(), state.parentRepairSession, state.keyspace, state.cfnames, state.commonRange);
         }

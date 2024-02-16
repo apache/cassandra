@@ -128,7 +128,7 @@ public class RepairJobTest
                                         boolean accordRepair, String... cfnames)
         {
             super(SharedContext.Global.instance, parentRepairSession, commonRange, excludedDeadNodes, keyspace, parallelismDegree, isIncremental, pullRepair,
-                  previewKind, optimiseStreams, repairPaxos, paxosOnly, accordRepair, cfnames);
+                  previewKind, optimiseStreams, repairPaxos, paxosOnly, accordRepair, false, cfnames);
         }
 
         @Override

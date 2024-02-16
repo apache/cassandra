@@ -310,7 +310,8 @@ public abstract class ConsensusTableMigration
         boolean ignoreUnreplicatedKeyspaces = true;
         boolean repairPaxos = !accordRepair;
         boolean paxosOnly = false;
-        RepairOption repairOption = new RepairOption(RepairParallelism.PARALLEL, primaryRange, incremental, trace, numJobThreads, intersectingRanges, pullRepair, forceRepair, PreviewKind.NONE, optimiseStreams, ignoreUnreplicatedKeyspaces, repairPaxos, paxosOnly, accordRepair);
+        boolean accordOnly = false;
+        RepairOption repairOption = new RepairOption(RepairParallelism.PARALLEL, primaryRange, incremental, trace, numJobThreads, intersectingRanges, pullRepair, forceRepair, PreviewKind.NONE, optimiseStreams, ignoreUnreplicatedKeyspaces, repairPaxos, paxosOnly, accordRepair, accordOnly);
         tables.forEach(table -> repairOption.getColumnFamilies().add(table.tableName));
         return repairOption;
     }

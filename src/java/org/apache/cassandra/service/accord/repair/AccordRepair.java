@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord.repair;
 
 import java.math.BigInteger;
 import java.util.Collection;
+import java.util.concurrent.Executor;
 import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
@@ -38,6 +39,8 @@ import org.apache.cassandra.service.accord.AccordTopology;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Future;
 
 import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ACCORD_REPAIR_RANGE_STEP_UPDATE_INTERVAL;
@@ -48,6 +51,10 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.ACCORD_REP
  */
 public class AccordRepair
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordRepair.class);
+
+    public static final BigInteger TWO = BigInteger.valueOf(2);
+
     interface Listener
     {
         void onBarrierStart();
@@ -64,10 +71,6 @@ public class AccordRepair
         };
     }
 
-    private static final Logger logger = LoggerFactory.getLogger(AccordRepair.class);
-
-    public static final BigInteger TWO = BigInteger.valueOf(2);
-
     private final Listener listener;
 
     private final Ranges ranges;
@@ -76,7 +79,7 @@ public class AccordRepair
 
     private BigInteger rangeStep;
 
-    private Epoch minEpoch = ClusterMetadata.current().epoch;
+    private final Epoch minEpoch = ClusterMetadata.current().epoch;
 
     private volatile Throwable shouldAbort = null;
 
@@ -87,10 +90,32 @@ public class AccordRepair
         this.splitter = partitioner.accordSplitter().apply(this.ranges);
     }
 
+    public Epoch minEpoch()
+    {
+        return minEpoch;
+    }
+
     public void repair() throws Throwable
     {
         for (accord.primitives.Range range : ranges)
             repairRange((TokenRange)range);
+    }
+
+    public Future<Void> repair(Executor executor)
+    {
+        AsyncPromise<Void> future = new AsyncPromise<>();
+        executor.execute(() -> {
+            try
+            {
+                repair();
+                future.trySuccess(null);
+            }
+            catch (Throwable e)
+            {
+                future.tryFailure(e);
+            }
+        });
+        return future;
     }
 
     protected void abort(@Nullable Throwable reason)

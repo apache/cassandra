@@ -40,6 +40,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -47,9 +48,9 @@ import org.apache.cassandra.repair.asymmetric.DifferenceHolder;
 import org.apache.cassandra.repair.asymmetric.HostDifferences;
 import org.apache.cassandra.repair.asymmetric.PreferedNodeFilter;
 import org.apache.cassandra.repair.asymmetric.ReduceHelper;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.repair.AccordRepair;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationRepairResult;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanup;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -126,14 +127,18 @@ public class CassandraRepairJob extends AbstractRepairJob
         List<InetAddressAndPort> allEndpoints = new ArrayList<>(session.state.commonRange.endpoints);
         allEndpoints.add(ctx.broadcastAddressAndPort());
 
+        TableMetadata metadata = cfs.metadata();
+
         Future<List<TreeResponse>> treeResponses;
         Future<Void> paxosRepair;
         Epoch repairStartingEpoch = ClusterMetadata.current().epoch;
-        boolean doPaxosRepair = paxosRepairEnabled() && (((useV2() || isMetadataKeyspace()) && session.repairPaxos) || session.paxosOnly);
+        boolean doPaxosRepair = paxosRepairEnabled()
+                                && (((useV2() || isMetadataKeyspace()) && session.repairPaxos) || session.paxosOnly)
+                                && metadata.supportsPaxosOperations();
+
         if (doPaxosRepair)
         {
             logger.info("{} {}.{} starting paxos repair", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
-            TableMetadata metadata = Schema.instance.getTableMetadata(desc.keyspace, desc.columnFamily);
             paxosRepair = PaxosCleanup.cleanup(allEndpoints, metadata, desc.ranges, session.state.commonRange.hasSkippedReplicas, taskExecutor);
         }
         else
@@ -141,6 +146,7 @@ public class CassandraRepairJob extends AbstractRepairJob
             logger.info("{} {}.{} not running paxos repair", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
             paxosRepair = ImmediateFuture.success(null);
         }
+
 
         if (session.paxosOnly)
         {
@@ -164,6 +170,47 @@ public class CassandraRepairJob extends AbstractRepairJob
             return;
         }
 
+        Future<Void> accordRepair;
+        if (metadata.requiresAccordSupport())
+        {
+            accordRepair = paxosRepair.flatMap(unused -> {
+                logger.info("{} {}.{} starting accord repair", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
+                IPartitioner partitioner = desc.ranges.iterator().next().left.getPartitioner();
+                AccordRepair repair = new AccordRepair(null, partitioner, desc.keyspace, desc.ranges);
+                return repair.repair(taskExecutor);
+            }, taskExecutor);
+        }
+        else
+        {
+            accordRepair = paxosRepair.flatMap(unused -> {
+                logger.info("{} {}.{} not running accord repair", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
+                return ImmediateFuture.success(null);
+            });
+        }
+
+        if (session.accordOnly)
+        {
+            accordRepair.addCallback(new FutureCallback<Void>()
+            {
+                public void onSuccess(Void ignored)
+                {
+                    logger.info("{} {}.{} accord repair completed", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
+                    trySuccess(new RepairResult(desc, Collections.emptyList(), ConsensusMigrationRepairResult.fromCassandraRepair(repairStartingEpoch, false)));
+                }
+
+                /**
+                 * Snapshot, validation and sync failures are all handled here
+                 */
+                public void onFailure(Throwable t)
+                {
+                    logger.warn("{} {}.{} accord repair failed", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
+                    tryFailure(t);
+                }
+            }, taskExecutor);
+            return;
+        }
+        // TODO: always stream data for accord tables?
+
         // Create a snapshot at all nodes unless we're using pure parallel repairs
         if (parallelismDegree != RepairParallelism.PARALLEL)
         {
@@ -171,12 +218,12 @@ public class CassandraRepairJob extends AbstractRepairJob
             if (session.isIncremental)
             {
                 // consistent repair does it's own "snapshotting"
-                allSnapshotTasks = paxosRepair.map(input -> allEndpoints);
+                allSnapshotTasks = accordRepair.map(input -> allEndpoints);
             }
             else
             {
                 // Request snapshot to all replica
-                allSnapshotTasks = paxosRepair.flatMap(input -> {
+                allSnapshotTasks = accordRepair.flatMap(input -> {
                     List<Future<InetAddressAndPort>> snapshotTasks = new ArrayList<>(allEndpoints.size());
                     state.phase.snapshotsSubmitted();
                     for (InetAddressAndPort endpoint : allEndpoints)
@@ -203,7 +250,7 @@ public class CassandraRepairJob extends AbstractRepairJob
         else
         {
             // If not sequential, just send validation request to all replica
-            treeResponses = paxosRepair.flatMap(input -> sendValidationRequest(allEndpoints));
+            treeResponses = accordRepair.flatMap(input -> sendValidationRequest(allEndpoints));
         }
         treeResponses = treeResponses.map(a -> {
             state.phase.validationCompleted();

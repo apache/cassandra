@@ -18,32 +18,18 @@
 
 package org.apache.cassandra.service.accord.repair;
 
-import java.math.BigInteger;
 import javax.annotation.Nullable;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.repair.AbstractRepairJob;
 import org.apache.cassandra.repair.RepairResult;
 import org.apache.cassandra.repair.RepairSession;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationRepairResult;
-import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.Epoch;
 
 import static java.util.Collections.emptyList;
 
 public class AccordRepairJob extends AbstractRepairJob implements AccordRepair.Listener
 {
-    private static final Logger logger = LoggerFactory.getLogger(AccordRepair.class);
-
-    public static final BigInteger TWO = BigInteger.valueOf(2);
-
-    private BigInteger rangeStep;
-
-    private Epoch minEpoch = ClusterMetadata.current().epoch;
-
     private final AccordRepair repair;
     private volatile long barrierStart;
 
@@ -62,7 +48,7 @@ public class AccordRepairJob extends AbstractRepairJob implements AccordRepair.L
             repair.repair();
             state.phase.success();
             cfs.metric.repairsCompleted.inc();
-            trySuccess(new RepairResult(desc, emptyList(), ConsensusMigrationRepairResult.fromAccordRepair(minEpoch)));
+            trySuccess(new RepairResult(desc, emptyList(), ConsensusMigrationRepairResult.fromAccordRepair(repair.minEpoch())));
         }
         catch (Throwable t)
         {

@@ -79,6 +79,7 @@ public abstract class AbstractRepairTask implements RepairTask
                                                                                  options.repairPaxos(),
                                                                                  options.paxosOnly(),
                                                                                  options.accordRepair(),
+                                                                                 options.accordOnly(),
                                                                                  executor,
                                                                                  cfnames);
             if (session == null)
