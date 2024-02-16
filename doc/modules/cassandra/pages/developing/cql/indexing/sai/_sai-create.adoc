@@ -10,7 +10,7 @@ To create a simple SAI index:
 include::cassandra:example$CQL/sai/cyclist_semi_pro_sai_indices.cql[tag=createQuickStartIndices]
 ----
 
-For most SAI indexes, the column name is defined in the `CREATE CUSTOM INDEX` statement that also uses `USING 'StorageAttachedIndex'`.
+For most SAI indexes, the column name is defined in the `CREATE INDEX` statement that also uses `USING 'sai'`.
 The SAI index options are defined in the `WITH OPTIONS` clause.
 The `case_sensitive` option is set to `false` to allow case-insensitive searches.
 The `normalize` option is set to `true` to allow searches to be normalized for Unicode characters.

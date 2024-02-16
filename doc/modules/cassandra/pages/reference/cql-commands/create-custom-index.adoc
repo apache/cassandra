@@ -8,7 +8,6 @@ You can create multiple secondary indexes on the same database table, with each 
 All column date types except the following are supported for SAI indexes:
 
 * `counter`
-* geospatial types: `PointType`, `LineStringType`, `PolygonType`
 * non-frozen user-defined type (UDT)
 
 .One exception 
@@ -22,7 +21,7 @@ If you need to query based on one of those columns, an SAI index is a helpful op
 
 Defining one or more SAI indexes based on any column in a database table (with the rules noted above) subsequently gives you the ability to run performant queries that use the indexed column to filter results.
 
-See the xref:cassandra:developing/indexing/sai/sai-overview.adoc[SAI section].
+See the xref:cassandra:developing/cql/indexing/sai/sai-overview.adoc[SAI section].
 
 == Syntax
 
@@ -53,7 +52,7 @@ include::cassandra:partial$cql-syntax-legend.adoc[]
 
 index_name::
 Optional identifier for index.
-If no name is specified, the default is used, `<table_name>_<column_name>_idx`.
+If no name is specified, the default used is `<table_name>\_<column_name>\_idx`.
 Enclose in quotes to use special characters or to preserve capitalization.
 
 column_name::
@@ -63,7 +62,7 @@ SAI returns `InvalidRequestException` if you try to define an index on a column 
 
 map_name::
 // LLP FIX
-Used with xref:cassandra:developing/collections/collection-create.adoc[collections], identifier of the `map_name` specified in `CREATE TABLE` ...
+Used with xref:cassandra:developing/cql/collections/collection-create.adoc[collections], identifier of the `map_name` specified in `CREATE TABLE` ...
 `map(<map_name>)`.
 The regular column syntax applies for collection types `list` and `set`.
 
@@ -119,14 +118,14 @@ include::cassandra:example$CQL/sai/cyclist_semi_pro_sai_indices.cql[tag=createQu
 ----
 
 For sample queries that find data in `cycling.cyclist_semi_pro` via these sample SAI indexes, see xref:cassandra:getting-started/sai-quickstart.adoc#saiQuickStart__saiQuickStartSubmitQueries[Submit CQL queries].
-Also refer xref:cassandra:developing/indexing/sai/sai-query.adoc[Examine SAI column index and query rules].
+Also refer xref:cassandra:developing/cql/indexing/sai/sai-query.adoc[Querying with SAI].
 
 [[saiCollectionsExamples]]
 === SAI collection map examples with keys, values, and entries
 
 // LLP FIX
 The following examples demonstrate using collection maps of multiple types (`keys`, `values`, `entries`) in SAI indexes.
-For related information, see xref:cassandra:developing/collections/collection-create.adoc[Creating collections] and xref:cassandra:developing/collections/map.adoc[Using map type].
+For related information, see xref:cassandra:developing/cql/collections/collection-create.adoc[Creating collections] and xref:cassandra:developing/cql/collections/map.adoc[Using map type].
 
 Also refer to the SAI collection examples of type xref:#saiCreateCustomIndexCollectionsListAndSetExamples[list and set] in this topic.
 
@@ -293,9 +292,10 @@ Remember that in CQL queries using SAI indexes, the `CONTAINS` clauses are suppo
 These examples demonstrate using collections with the `list` and `set` types in SAI indexes.
 For related information, see:
 // LLP FIX
-* xref:cassandra:developing/collections/collection-create.adoc[Creating collections]
-* xref:cassandra:developing/collections/list.adoc[Using list type]
-* xref:cassandra:developing/collections/set.adoc[Using set type]
+
+* xref:cassandra:developing/cql/collections/collection-create.adoc[Creating collections]
+* xref:cassandra:developing/cql/collections/list.adoc[Using list type]
+* xref:cassandra:developing/cql/collections/set.adoc[Using set type]
 
 If you have not already, create the keyspace.
 

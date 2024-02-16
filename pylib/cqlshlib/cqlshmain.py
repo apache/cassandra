@@ -1280,7 +1280,7 @@ class Shell(cmd.Cmd):
         future = self.session.execute_async(stmt)
 
         if self.connection_versions['build'][0] < '4':
-            print('\nWARN: DESCRIBE|DESC was moved to server side in Cassandra 4.0. As a consequence DESRIBE|DESC '
+            print('\nWARN: DESCRIBE|DESC was moved to server side in Cassandra 4.0. As a consequence DESCRIBE|DESC '
                   'will not work in cqlsh %r connected to Cassandra %r, the version that you are connected to. '
                   'DESCRIBE does not exist server side prior Cassandra 4.0.'
                   % (version, self.connection_versions['build']))
