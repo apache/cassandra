@@ -41,13 +41,13 @@ public class NodeLocalConsistencyTest extends CQLTester
         ClientRequestsMetrics metrics = ClientRequestsMetricsProvider.instance.metrics(null);
         createTable("CREATE TABLE %s (key text, val int, PRIMARY KEY(key));");
 
-        long beforeLevel  = metrics.writeMetricsForLevel(NODE_LOCAL).latency.getCount();
-        long beforeGlobal = metrics.writeMetrics.latency.getCount();
+        long beforeLevel  = metrics.writeMetricsForLevel(NODE_LOCAL).executionTimeMetrics.latency.getCount();
+        long beforeGlobal = metrics.writeMetrics.executionTimeMetrics.latency.getCount();
 
         QueryProcessor.process(formatQuery("INSERT INTO %s (key, val) VALUES ('key', 0);"), NODE_LOCAL);
 
-        long afterLevel  = metrics.writeMetricsForLevel(NODE_LOCAL).latency.getCount();
-        long afterGlobal = metrics.writeMetrics.latency.getCount();
+        long afterLevel  = metrics.writeMetricsForLevel(NODE_LOCAL).executionTimeMetrics.latency.getCount();
+        long afterGlobal = metrics.writeMetrics.executionTimeMetrics.latency.getCount();
 
         assertEquals(1, afterLevel - beforeLevel);
         assertEquals(1, afterGlobal - beforeGlobal);
@@ -59,13 +59,13 @@ public class NodeLocalConsistencyTest extends CQLTester
         ClientRequestsMetrics metrics = ClientRequestsMetricsProvider.instance.metrics(null);
         createTable("CREATE TABLE %s (key text, val int, PRIMARY KEY(key));");
 
-        long beforeLevel  = metrics.writeMetricsForLevel(NODE_LOCAL).latency.getCount();
-        long beforeGlobal = metrics.writeMetrics.latency.getCount();
+        long beforeLevel  = metrics.writeMetricsForLevel(NODE_LOCAL).executionTimeMetrics.latency.getCount();
+        long beforeGlobal = metrics.writeMetrics.executionTimeMetrics.latency.getCount();
 
         QueryProcessor.process(formatQuery("BEGIN BATCH INSERT INTO %s (key, val) VALUES ('key', 0); APPLY BATCH;"), NODE_LOCAL);
 
-        long afterLevel  = metrics.writeMetricsForLevel(NODE_LOCAL).latency.getCount();
-        long afterGlobal = metrics.writeMetrics.latency.getCount();
+        long afterLevel  = metrics.writeMetricsForLevel(NODE_LOCAL).executionTimeMetrics.latency.getCount();
+        long afterGlobal = metrics.writeMetrics.executionTimeMetrics.latency.getCount();
 
         assertEquals(1, afterLevel - beforeLevel);
         assertEquals(1, afterGlobal - beforeGlobal);
@@ -77,13 +77,13 @@ public class NodeLocalConsistencyTest extends CQLTester
         ClientRequestsMetrics metrics = ClientRequestsMetricsProvider.instance.metrics(null);
         createTable("CREATE TABLE %s (key text, val int, PRIMARY KEY(key));");
 
-        long beforeLevel  = metrics.readMetricsForLevel(NODE_LOCAL).latency.getCount();
-        long beforeGlobal = metrics.readMetrics.latency.getCount();
+        long beforeLevel  = metrics.readMetricsForLevel(NODE_LOCAL).executionTimeMetrics.latency.getCount();
+        long beforeGlobal = metrics.readMetrics.executionTimeMetrics.latency.getCount();
 
         QueryProcessor.process(formatQuery("SELECT * FROM %s;"), NODE_LOCAL);
 
-        long afterLevel  = metrics.readMetricsForLevel(NODE_LOCAL).latency.getCount();
-        long afterGlobal = metrics.readMetrics.latency.getCount();
+        long afterLevel  = metrics.readMetricsForLevel(NODE_LOCAL).executionTimeMetrics.latency.getCount();
+        long afterGlobal = metrics.readMetrics.executionTimeMetrics.latency.getCount();
 
         assertEquals(1, afterLevel - beforeLevel);
         assertEquals(1, afterGlobal - beforeGlobal);

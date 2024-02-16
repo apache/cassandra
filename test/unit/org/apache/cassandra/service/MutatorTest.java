@@ -101,10 +101,12 @@ public class MutatorTest
         ClientRequestsMetrics metrics = new ClientRequestsMetrics("test");
         ClientState clientState = ClientState.forInternalCalls();
 
-        long count = metrics.writeMetrics.latency.getCount();
+        long count = metrics.writeMetrics.executionTimeMetrics.latency.getCount();
+        long countServiceTime = metrics.writeMetrics.serviceTimeMetrics.latency.getCount();
 
         mutator.mutateAtomically(mutations, consistency, true, now, metrics, clientState);
-        assertThat(metrics.writeMetrics.latency.getCount()).isEqualTo(count + 1);
+        assertThat(metrics.writeMetrics.executionTimeMetrics.latency.getCount()).isEqualTo(count + 1);
+        assertThat(metrics.writeMetrics.serviceTimeMetrics.latency.getCount()).isEqualTo(countServiceTime + 1);
 
         // verify batchlog is removed
         Util.assertEmpty(Util.cmd(cfs(SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.BATCHES)).withNowInSeconds(FBUtilities.nowInSeconds()).build());

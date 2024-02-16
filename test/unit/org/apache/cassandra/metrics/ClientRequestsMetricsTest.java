@@ -234,7 +234,8 @@ public class ClientRequestsMetricsTest
         metrics.timeouts.mark();
         metrics.failures.mark();
         metrics.unavailables.mark();
-        updateLatencyMetrics(metrics);
+        updateLatencyMetrics(metrics.executionTimeMetrics);
+        updateLatencyMetrics(metrics.serviceTimeMetrics);
     }
 
     private void updateLatencyMetrics(LatencyMetrics metrics)
@@ -284,7 +285,8 @@ public class ClientRequestsMetricsTest
         assertEquals(value, metrics.timeouts.getCount());
         assertEquals(value, metrics.failures.getCount());
         assertEquals(value, metrics.unavailables.getCount());
-        verifyLatencyMetrics(metrics, value);
+        verifyLatencyMetrics(metrics.executionTimeMetrics, value);
+        verifyLatencyMetrics(metrics.serviceTimeMetrics, value);
     }
 
     private void verifyLatencyMetrics(LatencyMetrics metrics, int value)

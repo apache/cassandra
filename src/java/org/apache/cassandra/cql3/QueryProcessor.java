@@ -286,7 +286,7 @@ public class QueryProcessor implements QueryHandler
         }
 
         ResultMessage result = options.getConsistency() == ConsistencyLevel.NODE_LOCAL
-                               ? processNodeLocalStatement(statement, queryState, options)
+                               ? processNodeLocalStatement(statement, queryState, options, queryStartNanoTime)
                                : statement.execute(queryState, options, queryStartNanoTime);
 
         return result == null ? new ResultMessage.Void() : result;
@@ -307,20 +307,20 @@ public class QueryProcessor implements QueryHandler
         interceptors.clear();
     }
 
-    private ResultMessage processNodeLocalStatement(CQLStatement statement, QueryState queryState, QueryOptions options)
+    private ResultMessage processNodeLocalStatement(CQLStatement statement, QueryState queryState, QueryOptions options, long queryStartNanoTime)
     {
         if (!ENABLE_NODELOCAL_QUERIES.getBoolean())
             throw new InvalidRequestException("NODE_LOCAL consistency level is highly dangerous and should be used only for debugging purposes");
 
         if (statement instanceof BatchStatement || statement instanceof ModificationStatement)
-            return processNodeLocalWrite(statement, queryState, options);
+            return processNodeLocalWrite(statement, queryState, options, queryStartNanoTime);
         else if (statement instanceof SelectStatement)
-            return processNodeLocalSelect((SelectStatement) statement, queryState, options);
+            return processNodeLocalSelect((SelectStatement) statement, queryState, options, queryStartNanoTime);
         else
             throw new InvalidRequestException("NODE_LOCAL consistency level can only be used with BATCH, UPDATE, INSERT, DELETE, and SELECT statements");
     }
 
-    private ResultMessage processNodeLocalWrite(CQLStatement statement, QueryState queryState, QueryOptions options)
+    private ResultMessage processNodeLocalWrite(CQLStatement statement, QueryState queryState, QueryOptions options, long queryStartNanoTime)
     {
         ClientRequestsMetrics metrics = ClientRequestsMetricsProvider.instance.metrics((statement instanceof QualifiedStatement) ? ((QualifiedStatement) statement).keyspace() : null);
         ClientRequestMetrics  levelMetrics = metrics.writeMetricsForLevel(ConsistencyLevel.NODE_LOCAL);
@@ -333,16 +333,19 @@ public class QueryProcessor implements QueryHandler
         }
         finally
         {
-            long latency = System.nanoTime() - startTime;
-             levelMetrics.addNano(latency);
-            globalMetrics.addNano(latency);
+            long endTime = System.nanoTime();
+            long latency = endTime - startTime;
+            levelMetrics.executionTimeMetrics.addNano(latency);
+            levelMetrics.serviceTimeMetrics.addNano(endTime - queryStartNanoTime);
+            globalMetrics.executionTimeMetrics.addNano(latency);
+            globalMetrics.serviceTimeMetrics.addNano(endTime - queryStartNanoTime);
         }
     }
 
-    private ResultMessage processNodeLocalSelect(SelectStatement statement, QueryState queryState, QueryOptions options)
+    private ResultMessage processNodeLocalSelect(SelectStatement statement, QueryState queryState, QueryOptions options, long queryStartNanoTime)
     {
         ClientRequestsMetrics metrics = ClientRequestsMetricsProvider.instance.metrics(statement.keyspace());
-        ClientRequestMetrics  levelMetrics = metrics.readMetricsForLevel(ConsistencyLevel.NODE_LOCAL);
+        ClientRequestMetrics levelMetrics = metrics.readMetricsForLevel(ConsistencyLevel.NODE_LOCAL);
         ClientRequestMetrics globalMetrics = metrics.readMetrics;
 
         if (StorageService.instance.isBootstrapMode() && !SchemaConstants.isLocalSystemKeyspace(statement.keyspace()))
@@ -359,9 +362,12 @@ public class QueryProcessor implements QueryHandler
         }
         finally
         {
-            long latency = System.nanoTime() - startTime;
-             levelMetrics.addNano(latency);
-            globalMetrics.addNano(latency);
+            long endTime = System.nanoTime();
+            long latency = endTime - startTime;
+            levelMetrics.executionTimeMetrics.addNano(latency);
+            levelMetrics.serviceTimeMetrics.addNano(endTime - queryStartNanoTime);
+            globalMetrics.executionTimeMetrics.addNano(latency);
+            globalMetrics.serviceTimeMetrics.addNano(endTime - queryStartNanoTime);
         }
     }
 
