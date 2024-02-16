@@ -1,4 +1,5 @@
 5.0-beta2
+ * Fix NullPointerException in ANN+WHERE when adding rows in another partition (CASSANDRA-19404)
  * Record latencies for SAI post-filtering reads against local storage (CASSANDRA-18940)
  * Fix VectorMemoryIndex#update logic to compare vectors. Fix Index view (CASSANDRA-19168)
  * Deprecate native_transport_port_ssl (CASSANDRA-19392)
