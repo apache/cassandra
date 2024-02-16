@@ -1,0 +1,179 @@
+= Dynamic Data Masking (DDM)
+:description: Dynamic Data Masking (DDM) is a method for making sensitive data unavailable to non-privileged users.
+
+Dynamic data masking (DDM) obscures sensitive information while still allowing access to the masked columns.
+DDM doesn't alter the stored data. 
+Instead, it just presents the data in its obscured form during `SELECT` queries.
+This aims to provide some degree of protection against accidental data exposure. However, anyone with direct access to the SSTable files will be able to read the clear data.
+
+== Masking functions
+
+DDM is based on a set of CQL native functions that obscure sensitive information. 
+The available functions are:
+
+include::partial$masking_functions.adoc[]
+
+Those functions can be used on `SELECT` queries to get an obscured view of the data. 
+For example:
+
+[source,cql]
+----
+include::example$CQL/select-with-mask-functions.cql[]
+----
+
+== Attaching masking functions to table columns
+
+A masking function can be permanently attached to any column of a table.
+If a masking column is defined, `SELECT` queries will always return the column values in their masked form.
+The masking will be transparent to the users running `SELECT` queries.
+The only way to know that a column is masked is to consult the table definition.
+
+This is an optional feature that is disabled by default.
+To use the feature, enable the `dynamic_data_masking_enabled` property in `cassandra.yaml`.
+
+The masks of the columns of a table can be defined in the `CREATE TABLE` to create the table schema. This example uses the `mask_inner` function with two arguments:
+
+[source,cql]
+----
+include::example$CQL/dynamic-data-masking.cql[tag=table-create-ddm]
+----
+
+When using a `SELECT` query on this data, three arguments are required for the `mask_inner` function, but the first argument is always omitted when attaching the function to the table schema.
+The value of that first argument is always interpreted as the value of the masked column, in this case a `text` column.
+
+For the same reason, using the masking function `mask_default` doesn't have any argument when creating the table schema, but it requires one argument when used on `SELECT` queries.
+
+Data can be normally inserted into the masked table without alteration. 
+For example:
+
+[source,cql]
+----
+include::example$CQL/dynamic-data-masking.cql[tag=data-insert-ddm]
+----
+
+The `SELECT` query will return the masked data.
+The masking function will be automatically applied to the column values.
+
+[source,cql]
+----
+include::example$CQL/dynamic-data-masking.cql[tag=select-with-masked-column]
+----
+
+An `ALTER TABLE` query can be used to make changes to a masking function on a table column.
+
+[source,cql]
+----
+include::example$CQL/dynamic-data-masking.cql[tag=table-alter-ddm]
+----
+
+In a similar way, a masking function can be detached from a column with an `ALTER TABLE` query:
+
+[source,cql]
+----
+include::example$CQL/dynamic-data-masking.cql[tag=table-alter-ddm-drop-mask]
+----
+
+== Permissions
+
+Ordinary users are created without the `UNMASK` permission and will see masked values.
+Giving a user the `UNMASK` permission allows them to retrieve the unmasked values of masked columns.
+Superusers are automatically created with the `UNMASK` permission,
+and will see the unmasked values in a `SELECT` query results.
+
+For example, suppose that we have a table with masked columns:
+
+[source,cql]
+----
+include::example$CQL/dynamic-data-masking.cql[tag=table-create-ddm]
+----
+
+And we insert some data into the table:
+
+[source,cql]
+----
+include::example$CQL/dynamic-data-masking.cql[tag=data-insert-ddm]
+----
+
+[source,cql]
+----
+include::example$CQL/dynamic-data-masking.cql[tag=select-without-unmask-permission]
+----
+
+Then we create two users with `SELECT` permission for the table, but we only grant the `UNMASK` permission to one of the users:
+
+[source,cql]
+----
+include::example$CQL/dynamic-data-masking.cql[tag=users-grant-ddm]
+----
+
+The user with the `UNMASK` permission can see the clear, unmasked data:
+
+[source,cql]
+----
+include::example$CQL/dynamic-data-masking.cql[tag=select-with-unmask-permission]
+----
+
+The user without the `UNMASK` permission can only see the masked data:
+
+[source,cql]
+----
+include::example$CQL/dynamic-data-masking.cql[tag=select-without-unmask-permission]
+----
+
+The `UNMASK` permission works like any other permission, and can be revoked at will:
+
+[source,cql]
+----
+include::example$CQL/dynamic-data-masking.cql[tag=users-revoke-ddm]
+----
+
+Please note that, when authentication is disabled, the anonymous default user has all the permissions, including the `UNMASK` permission, and can see the unmasked data.
+In other words, attaching data masking functions to columns only makes sense if authentication is enabled.
+
+Only users with the `UNMASK` permission are allowed to use masked columns in the `WHERE` clause of a `SELECT` query.
+Users without the `UNMASK` permission cannot use this feature.
+This feature prevents malicious users seeing clear data by running exhaustive, brute force queries. 
+The user without the `UNMASK` permission will see the following:
+
+[source,cql]
+----
+include::example$CQL/dynamic-data-masking.cql[tag=select-without-select-masked]
+----
+
+There are some use cases where a trusted database user needs to produce masked data that untrusted external users will query.
+For instance, a trusted app can connect to the database and with a query extract masked data that will be displayed to its end users.
+In that case, the trusted user (the app) can be given the `SELECT_MASKED` permission.
+This permission lets the user query masked columns in the `WHERE` clause of a `SELECT` query,
+while still only seeing the masked data in the query results:
+
+[source,cql]
+----
+include::example$CQL/dynamic-data-masking.cql[tag=select-with-select-masked]
+----
+
+== Custom functions
+
+xref:developing/cql/functions.adoc#user-defined-functions[User-defined functions (UDFs)] can be attached to a table column.
+The UDFs used for masking should belong to the same keyspace as the masked table.
+The column value to mask will be passed as the first argument of the attached UDF.
+Thus, the UDFs attached to a column should have at least one argument,
+and that argument should have the same type as the masked column.
+Also, the attached UDF should return values of the same type as the masked column:
+
+[source,cql]
+----
+include::example$CQL/dynamic-data-masking.cql[tag=table-create-ddm-udt]
+----
+
+This creates a dependency between the table schema and the functions.
+Any attempt to drop the function will be rejected while this dependency exists.
+Consequently, you must drop the mask column in the table before dropping the function:
+
+[source,cql]
+----
+include::example$CQL/dynamic-data-masking.cql[tag=table-alter-ddm-drop-mask]
+----
+
+Dropping the column, or its containing table, or its containing keyspace will also remove the dependency.
+
+xref:developing/cql/functions.adoc#aggregate-functions[Aggregate functions] cannot be used as masking functions.
