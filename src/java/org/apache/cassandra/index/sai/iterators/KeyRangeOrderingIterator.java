@@ -81,7 +81,8 @@ public class KeyRangeOrderingIterator extends KeyRangeIterator
     protected void performSkipTo(PrimaryKey nextToken)
     {
         input.skipTo(nextToken);
-        nextIterator.skipTo(nextToken);
+        if (nextIterator != null)
+            nextIterator.skipTo(nextToken);
     }
 
     public void close()
