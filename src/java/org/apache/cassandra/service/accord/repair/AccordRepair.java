@@ -48,9 +48,9 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.ACCORD_REP
  * Accord repair consists of creating a barrier transaction for all the ranges which ensure that all Accord transactions
  * before the Epoch and point in time at which the repair started have their side effects visible to Paxos and regular quorum reads.
  */
-public class AccordRepairJob extends AbstractRepairJob
+public class AccordRepair extends AbstractRepairJob
 {
-    private static final Logger logger = LoggerFactory.getLogger(AccordRepairJob.class);
+    private static final Logger logger = LoggerFactory.getLogger(AccordRepair.class);
 
     public static final BigInteger TWO = BigInteger.valueOf(2);
 
@@ -64,7 +64,7 @@ public class AccordRepairJob extends AbstractRepairJob
 
     private volatile Throwable shouldAbort = null;
 
-    public AccordRepairJob(RepairSession repairSession, String cfname)
+    public AccordRepair(RepairSession repairSession, String cfname)
     {
         super(repairSession, cfname);
         IPartitioner partitioner = desc.ranges.iterator().next().left.getPartitioner();
