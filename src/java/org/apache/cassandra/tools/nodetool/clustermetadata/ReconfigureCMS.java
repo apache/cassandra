@@ -34,7 +34,7 @@ public class ReconfigureCMS extends NodeTool.NodeToolCmd
 {
     @Option(title = "status",
     name = {"--status"},
-    description = "Poll status of the reconfigurecms command. All other flags and arguments are ignored when this one is used.")
+    description = "Poll status of the reconfigure command. All other flags and arguments are ignored when this one is used.")
     private boolean status = false;
 
     @Option(title = "resume",
