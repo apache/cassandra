@@ -18,18 +18,22 @@
 
 package org.apache.cassandra.metrics;
 
+import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
-import java.util.BitSet;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.LockSupport;
+import java.util.stream.Collectors;
 
-import org.assertj.core.api.Assertions;
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Clock;
 import com.codahale.metrics.Snapshot;
@@ -37,14 +41,19 @@ import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.Pair;
 import org.quicktheories.core.Gen;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.quicktheories.QuickTheory.qt;
-import static org.quicktheories.generators.SourceDSL.*;
+import static org.quicktheories.generators.SourceDSL.booleans;
+import static org.quicktheories.generators.SourceDSL.integers;
+import static org.quicktheories.generators.SourceDSL.longs;
 
 public class DecayingEstimatedHistogramReservoirTest
 {
+    public static final Logger logger = LoggerFactory.getLogger(DecayingEstimatedHistogramReservoirTest.class);
     private static final double DOUBLE_ASSERT_DELTA = 0;
 
     public static final int numExamples = 1000000;
@@ -579,13 +588,123 @@ public class DecayingEstimatedHistogramReservoirTest
         assertEquals(2, histogram.getSnapshot().size());
     }
 
+    /**
+     * This is a test that exposes CASSANDRA-19365 race condition
+     * The idea is to update a histogram from multiple threads
+     * and observe if the reported p99 doesn't get stuck at a low value or p50 at a high value
+     * due to update with high weight being inserted after the buckets are rescaled
+     * <p>
+     * The load has 95% of 42, and 5% of the time it's 1109. Despite that the histogram may be convinced for a long time
+     * that p99 is 42 or that p50 is 1109.
+     * The reason may be seen in the snapshot dump, where after rescale the bucket values may get
+     * very big due to the race condition and too big weight of the inserted samples.
+     * The values were picked to match bucket boundaries, but that's only for aesthetics.
+     * <p>
+     * In production the rescale happens every 30 minutes. In this test time flies roughly 1000 times faster to
+     * hit the condition in a reasonable time.
+     */
+    @Ignore("This test exposes a specific CASSANDRA-19365 race condition; it doesn't make sense to run it in CI")
+    @Test
+    public void testConcurrentUpdateAndRescale() throws InterruptedException
+    {
+        int maxTestDurationMillis = 60_000;
+        AtomicBoolean stop = new AtomicBoolean(false);
+        AtomicBoolean failed = new AtomicBoolean(false);
+        int NUM_UPDATE_THREADS = 60;
+        TestClock clock = new TestClock();
+
+        DecayingEstimatedHistogramReservoir histogram = new DecayingEstimatedHistogramReservoir(clock);
+
+        ExecutorService executors = Executors.newFixedThreadPool(2 + NUM_UPDATE_THREADS);
+        // NUM_UPDATE_THREADS threads updating the histogram
+        for (int i = 0; i < NUM_UPDATE_THREADS; i++)
+        {
+            executors.submit(() -> {
+                while (!stop.get())
+                {
+                    // a mischievous usage pattern to quickly trigger the
+                    // CASSANDRA-19365 race condition;
+                    // the load has 95% of 42, and only 5% of the time it's 1109
+                    // and yet, the histogram may be convinced for a long time that
+                    // the p99 is 42 or that the p50 is 1109
+                    for (int sampleIdx = 0; sampleIdx < 900; sampleIdx++)
+                    {
+                        histogram.update(42);
+                    }
+                    for (int sampleIdx = 0; sampleIdx < 50; sampleIdx++)
+                    {
+                        // add some noise so that low value samples do not race with the same likelyhood as the high value samples
+                        Uninterruptibles.sleepUninterruptibly(1, MILLISECONDS);
+                        histogram.update(1109);
+                    }
+                }
+            });
+        }
+        // clock update thread
+        executors.submit(() -> {
+            while (!stop.get())
+            {
+                Uninterruptibles.sleepUninterruptibly(1, TimeUnit.MILLISECONDS);
+                // x1000 speedup so that we hit rescale interval every 30 minutes / 1000 = 1.8s
+                clock.addMillis(1000);
+            }
+        });
+        // percentiles check thread
+        executors.submit(() -> {
+            // how many times in a row p99 was suspiciously low or P50 suspiciously high
+            int consecutiveInvalidPercentiles = 0;
+
+            // how often to check the percentiles
+            int iterationDelayMillis = 100;
+
+            // how many times in a row the percentiles may be invalid before we fail the test
+            int tooManySuspiciousPercentilesThreshold = 5; // 5 translates to 500ms * 1000 speedup = 500s = 8m20s;
+
+            for (int i = 0; i < maxTestDurationMillis / iterationDelayMillis; i++)
+            {
+                Uninterruptibles.sleepUninterruptibly(iterationDelayMillis, MILLISECONDS);
+                Snapshot snapshot = histogram.getSnapshot();
+                double p99 = snapshot.getValue(0.99);
+                double p50 = snapshot.getValue(0.50);
+                logger.info("{} p99: {}", clock.tick / 1_000_000, p99);
+                logger.info("{} p50: {}", clock.tick / 1_000_000, p50);
+                ByteArrayOutputStream output = new ByteArrayOutputStream();
+                snapshot.dump(output);
+                String decayingNonZeroBuckets = Arrays.stream(output.toString().split("\n"))
+                                                      .filter(s -> !s.equals("0"))
+                                                      .collect(Collectors.joining(","));
+                logger.info("decaying non-zero buckets:  {}", decayingNonZeroBuckets);
+                if (p99 < 100 || p50 > 900)
+                {
+                    consecutiveInvalidPercentiles++;
+                    logger.warn("p50 or p99 at suspicious level p50={}, p99={}", p50, p99);
+                    if (consecutiveInvalidPercentiles > tooManySuspiciousPercentilesThreshold)
+                    {
+                        failed.set(true);
+                        stop.set(true);
+                        break;
+                    }
+                }
+                else
+                {
+                    consecutiveInvalidPercentiles = 0;
+                }
+            }
+            stop.set(true);
+        });
+        executors.shutdown();
+        executors.awaitTermination(300, SECONDS);
+        Assert.assertFalse("p50 too high or p99 too low for too long", failed.get());
+    }
+
     private void assertEstimatedQuantile(long expectedValue, double actualValue)
     {
         assertTrue("Expected at least [" + expectedValue + "] but actual is [" + actualValue + "]", actualValue >= expectedValue);
         assertTrue("Expected less than [" + Math.round(expectedValue * 1.2) + "] but actual is [" + actualValue + "]", actualValue < Math.round(expectedValue * 1.2));
     }
 
-    public class TestClock extends Clock {
+    public class TestClock extends Clock
+    {
         private long tick = 0;
 
         public void addMillis(long millis)
