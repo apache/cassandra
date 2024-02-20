@@ -95,6 +95,13 @@ public class CassandraRepairJob extends AbstractRepairJob
     public CassandraRepairJob(RepairSession session, String columnFamily)
     {
         super(session, columnFamily);
+        TableMetadata metadata = cfs.metadata();
+        if (session.paxosOnly && !metadata.supportsPaxosOperations())
+            throw new IllegalArgumentException(String.format("Cannot run paxos only repair on %s.%s, which isn't configured for paxos operations", cfs.keyspace.getName(), cfs.name));
+
+        if (session.accordOnly && !metadata.requiresAccordSupport())
+            throw new IllegalArgumentException(String.format("Cannot run accord only repair on %s.%s, which isn't configured for accord operations", cfs.keyspace.getName(), cfs.name));
+
         this.ctx = session.ctx;
         this.session = session;
         this.taskExecutor = session.taskExecutor;
@@ -209,7 +216,6 @@ public class CassandraRepairJob extends AbstractRepairJob
             }, taskExecutor);
             return;
         }
-        // TODO: always stream data for accord tables?
 
         // Create a snapshot at all nodes unless we're using pure parallel repairs
         if (parallelismDegree != RepairParallelism.PARALLEL)
