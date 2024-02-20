@@ -203,6 +203,9 @@ public class RepairOption
         boolean accordRepair = Boolean.parseBoolean(options.get(ACCORD_REPAIR_KEY));
         boolean accordOnly = Boolean.parseBoolean(options.get(ACCORD_ONLY_KEY));
 
+        if (paxosOnly && accordOnly)
+            throw new IllegalArgumentException("Cannot repair paxos and repair only");
+
         if (previewKind != PreviewKind.NONE)
         {
             Preconditions.checkArgument(!repairPaxos, "repairPaxos must be set to false for preview repairs");

@@ -142,6 +142,7 @@ public class CassandraRepairJob extends AbstractRepairJob
         boolean doPaxosRepair = paxosRepairEnabled()
                                 && (((useV2() || isMetadataKeyspace()) && session.repairPaxos) || session.paxosOnly)
                                 && metadata.supportsPaxosOperations();
+        boolean doAccordRepair = metadata.requiresAccordSupport();
 
         if (doPaxosRepair)
         {
@@ -162,7 +163,7 @@ public class CassandraRepairJob extends AbstractRepairJob
                 public void onSuccess(Void ignored)
                 {
                     logger.info("{} {}.{} paxos repair completed", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
-                    trySuccess(new RepairResult(desc, Collections.emptyList(), ConsensusMigrationRepairResult.fromCassandraRepair(repairStartingEpoch, false)));
+                    trySuccess(new RepairResult(desc, Collections.emptyList(), ConsensusMigrationRepairResult.fromPaxosOnlyRepair(repairStartingEpoch, session.excludedDeadNodes)));
                 }
 
                 /**
@@ -178,7 +179,7 @@ public class CassandraRepairJob extends AbstractRepairJob
         }
 
         Future<Void> accordRepair;
-        if (metadata.requiresAccordSupport())
+        if (doAccordRepair)
         {
             accordRepair = paxosRepair.flatMap(unused -> {
                 logger.info("{} {}.{} starting accord repair", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
@@ -202,7 +203,7 @@ public class CassandraRepairJob extends AbstractRepairJob
                 public void onSuccess(Void ignored)
                 {
                     logger.info("{} {}.{} accord repair completed", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
-                    trySuccess(new RepairResult(desc, Collections.emptyList(), ConsensusMigrationRepairResult.fromCassandraRepair(repairStartingEpoch, false)));
+                    trySuccess(new RepairResult(desc, Collections.emptyList(), ConsensusMigrationRepairResult.fromAccordOnlyRepair(repairStartingEpoch, session.excludedDeadNodes)));
                 }
 
                 /**
@@ -280,7 +281,7 @@ public class CassandraRepairJob extends AbstractRepairJob
                 }
                 cfs.metric.repairsCompleted.inc();
                 logger.info("Completing repair with excludedDeadNodes {}", session.excludedDeadNodes);
-                trySuccess(new RepairResult(desc, stats, ConsensusMigrationRepairResult.fromCassandraRepair(repairStartingEpoch, doPaxosRepair && !session.excludedDeadNodes)));
+                trySuccess(new RepairResult(desc, stats, ConsensusMigrationRepairResult.fromRepair(repairStartingEpoch, doPaxosRepair, doAccordRepair, session.excludedDeadNodes)));
             }
 
             /**
