@@ -1367,8 +1367,6 @@ public class StorageProxy implements StorageProxyMBean
         Replica localReplica = null;
         Collection<Replica> endpointsToHint = null;
 
-        List<InetAddressAndPort> backPressureHosts = null;
-
         for (Replica destination : plan.contacts())
         {
             checkHintOverload(destination);
@@ -1408,11 +1406,6 @@ public class StorageProxy implements StorageProxyMBean
 
                         messages.add(destination);
                     }
-
-                    if (backPressureHosts == null)
-                        backPressureHosts = new ArrayList<>(plan.contacts().size());
-
-                    backPressureHosts.add(destination.endpoint());
                 }
             }
             else
