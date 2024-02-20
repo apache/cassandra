@@ -52,10 +52,6 @@ import com.google.common.base.Throwables;
 
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.tools.nodetool.*;
-import org.apache.cassandra.tools.nodetool.clustermetadata.CMSCmdGroupHelp;
-import org.apache.cassandra.tools.nodetool.clustermetadata.DescribeCMS;
-import org.apache.cassandra.tools.nodetool.clustermetadata.InitializeCMS;
-import org.apache.cassandra.tools.nodetool.clustermetadata.ReconfigureCMS;
 import org.apache.cassandra.utils.FBUtilities;
 
 import com.google.common.collect.Maps;
@@ -263,12 +259,12 @@ public class NodeTool
                .withCommand(RepairAdmin.SummarizePendingCmd.class)
                .withCommand(RepairAdmin.SummarizeRepairedCmd.class);
 
-        builder.withGroup(CMSCmdGroupHelp.CMS_CMD_GROUP_NAME)
+        builder.withGroup("cms")
                .withDescription("Manage cluster metadata")
-               .withDefaultCommand(CMSCmdGroupHelp.class)
-               .withCommand(DescribeCMS.class)
-               .withCommand(InitializeCMS.class)
-               .withCommand(ReconfigureCMS.class);
+               .withDefaultCommand(CMSAdmin.DescribeCMS.class)
+               .withCommand(CMSAdmin.DescribeCMS.class)
+               .withCommand(CMSAdmin.InitializeCMS.class)
+               .withCommand(CMSAdmin.ReconfigureCMS.class);
 
         Cli<NodeToolCmdRunnable> parser = builder.build();
 
@@ -344,7 +340,7 @@ public class NodeTool
         }
     }
 
-    public interface NodeToolCmdRunnable
+    interface NodeToolCmdRunnable
     {
         void run(INodeProbeFactory nodeProbeFactory, Output output);
     }
