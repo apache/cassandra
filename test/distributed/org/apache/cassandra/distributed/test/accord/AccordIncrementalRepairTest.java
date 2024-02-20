@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -47,6 +48,8 @@ import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.async.AsyncChains;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
@@ -59,6 +62,7 @@ import org.apache.cassandra.service.accord.AccordSafeCommandStore;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -295,10 +299,60 @@ public class AccordIncrementalRepairTest extends AccordTestBase
         });
     }
 
-    @Test
-    public void writeTest()
+    private void testSingleNodeWrite(TransactionalMode mode)
     {
+        SHARED_CLUSTER.schemaChange(format("CREATE TABLE %s.%s (k int primary key, v int) WITH transactional_mode='%s';", KEYSPACE, tableName, mode));
+        final String keyspace = KEYSPACE;
+        final String table = tableName;
 
+        SHARED_CLUSTER.get(3).runOnInstance(() -> {
+            QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (k, v) VALUES (1, 2);", keyspace, table));
+        });
+
+        SHARED_CLUSTER.get(3).runOnInstance(() -> {
+            UntypedResultSet result = QueryProcessor.executeInternal(format("SELECT * FROM %s.%s WHERE k=1", keyspace, table));
+            Assert.assertFalse(result.isEmpty());
+            UntypedResultSet.Row row = Iterables.getOnlyElement(result);
+            Assert.assertEquals(1, row.getInt("k"));
+            Assert.assertEquals(2, row.getInt("v"));
+
+
+
+            ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
+            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+            Assert.assertFalse(cfs.getLiveSSTables().isEmpty());
+            cfs.getLiveSSTables().forEach(sstable -> {
+                Assert.assertFalse(sstable.isRepaired());
+                Assert.assertFalse(sstable.isPendingRepair());
+            });
+        });
+        SHARED_CLUSTER.get(1, 2).forEach(instance -> instance.runOnInstance(() -> {
+            UntypedResultSet result = QueryProcessor.executeInternal(format("SELECT * FROM %s.%s WHERE k=1", keyspace, table));
+            Assert.assertTrue(result.isEmpty());
+
+            ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
+            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+            Assert.assertTrue(cfs.getLiveSSTables().isEmpty());
+        }));
+        SHARED_CLUSTER.forEach(instance -> instance.runOnInstance(() -> {
+            agent().reset();
+        }));
+
+        SHARED_CLUSTER.get(1).nodetool("repair", KEYSPACE);
+        SHARED_CLUSTER.forEach(instance -> instance.runOnInstance(() -> {
+            Assert.assertFalse( agent().executedBarriers().isEmpty());
+            ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
+            Assert.assertFalse(cfs.getLiveSSTables().isEmpty());
+            cfs.getLiveSSTables().forEach(sstable -> {
+                Assert.assertTrue(sstable.isRepaired() || sstable.isPendingRepair());
+            });
+
+            UntypedResultSet result = QueryProcessor.executeInternal(format("SELECT * FROM %s.%s WHERE k=1", keyspace, table));
+            Assert.assertFalse(result.isEmpty());
+            UntypedResultSet.Row row = Iterables.getOnlyElement(result);
+            Assert.assertEquals(1, row.getInt("k"));
+            Assert.assertEquals(2, row.getInt("v"));
+        }));
     }
 
     /**
@@ -307,7 +361,7 @@ public class AccordIncrementalRepairTest extends AccordTestBase
     @Test
     public void unsafeRepairTest()
     {
-
+        testSingleNodeWrite(TransactionalMode.unsafe);
     }
 
     /**
@@ -316,6 +370,6 @@ public class AccordIncrementalRepairTest extends AccordTestBase
     @Test
     public void repairCorrectnessBug()
     {
-
+        testSingleNodeWrite(TransactionalMode.full);
     }
 }
