@@ -23,12 +23,14 @@ import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.Throwables;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public final class LocalInfo extends NodeInfo
 {
     private final String key = "local";

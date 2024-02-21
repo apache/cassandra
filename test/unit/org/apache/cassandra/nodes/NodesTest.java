@@ -19,6 +19,7 @@
 package org.apache.cassandra.nodes;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -26,6 +27,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -33,6 +35,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -238,6 +242,24 @@ public class NodesTest
         assertFalse(snapshotsDir.isDirectory());
     }
 
+    @Test
+    public void testLocalInfoUnknownFieldsAreIgnoredDuringDeserialization() throws IOException
+    {
+        String clusterName = "clusterName_" + RandomStringUtils.randomAlphabetic(8).toLowerCase();
+        NonCompatibleLocalInfo existingLocalInfo = new NonCompatibleLocalInfo();
+        existingLocalInfo.setClusterName(clusterName);
+        existingLocalInfo.setUnsupportedField("unsupported");
+
+        File local = dir.toPath().resolve("local").toFile();
+        ObjectMapper objectMapper = Nodes.createObjectMapper();
+        objectMapper.writerFor(NonCompatibleLocalInfo.class).writeValue(local, existingLocalInfo);
+
+        Nodes.Instance.unsafeSetup(dir.toPath());
+
+        LocalInfo loadedLocalInfo = Nodes.local().get();
+        assertEquals(clusterName, loadedLocalInfo.getClusterName());
+    }
+
     static void fakePeer(PeerInfo p)
     {
         int nodeId = p.getPeer().address.getAddress()[3];
@@ -297,5 +319,39 @@ public class NodesTest
         assertNull(local.getListenAddressAndPort());
         assertNull(local.getNativeTransportAddressAndPort());
         assertNull(local.getSchemaVersion());
+    }
+
+    private static class NonCompatibleLocalInfo extends NodeInfo
+    {
+        private String clusterName;
+        private String unsupportedField;
+
+        @JsonProperty("cluster_name")
+        public String getClusterName()
+        {
+            return clusterName;
+        }
+
+        public void setClusterName(String clusterName)
+        {
+            this.clusterName = clusterName;
+        }
+
+        @Override
+        public NodeInfo copy()
+        {
+            throw new UnsupportedOperationException("copy is not meant to be used in the test");
+        }
+
+        @JsonProperty("unsupported_field")
+        public String getUnsupportedField()
+        {
+            return unsupportedField;
+        }
+
+        public void setUnsupportedField(String unsupportedField)
+        {
+            this.unsupportedField = unsupportedField;
+        }
     }
 }

@@ -275,13 +275,20 @@ public class Nodes
         maybeInitializeDirectories();
 
         // setup msgpack serialization
+        ObjectMapper objectMapper = createObjectMapper();
+
+        this.local = new Local(objectMapper, storageDirectory);
+        this.peers = new Peers(objectMapper, storageDirectory);
+    }
+
+    @VisibleForTesting
+    static ObjectMapper createObjectMapper()
+    {
         MessagePackFactory messagePackFactory = new MessagePackFactory();
         messagePackFactory.disable(JsonGenerator.Feature.AUTO_CLOSE_TARGET);
         ObjectMapper objectMapper = new ObjectMapper(messagePackFactory);
         objectMapper.registerModule(SerHelper.createMsgpackModule());
-
-        this.local = new Local(objectMapper, storageDirectory);
-        this.peers = new Peers(objectMapper, storageDirectory);
+        return objectMapper;
     }
 
     private void maybeInitializeDirectories()
