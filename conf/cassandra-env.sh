@@ -287,7 +287,7 @@ JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.password.file=/etc/cassandra/
 JVM_OPTS="$JVM_OPTS -Djava.library.path=$CASSANDRA_HOME/lib/sigar-bin"
 
 if [ "x$MX4J_ADDRESS" != "x" ]; then
-    if [[ "$MX4J_ADDRESS" == \-Dmx4jaddress* ]]; then
+    if [ "$(echo "$MX4J_ADDRESS" | grep -c "\-Dmx4jaddress")" = "1" ]; then
         # Backward compatible with the older style #13578
         JVM_OPTS="$JVM_OPTS $MX4J_ADDRESS"
     else
@@ -295,7 +295,7 @@ if [ "x$MX4J_ADDRESS" != "x" ]; then
     fi
 fi
 if [ "x$MX4J_PORT" != "x" ]; then
-    if [[ "$MX4J_PORT" == \-Dmx4jport* ]]; then
+    if [ "$(echo "$MX4J_PORT" | grep -c "\-Dmx4jport")" = "1" ]; then
         # Backward compatible with the older style #13578
         JVM_OPTS="$JVM_OPTS $MX4J_PORT"
     else
