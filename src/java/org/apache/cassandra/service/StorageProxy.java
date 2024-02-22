@@ -1478,8 +1478,6 @@ public class StorageProxy implements StorageProxyMBean
         Replica localReplica = null;
         Collection<Replica> endpointsToHint = null;
 
-        List<InetAddressAndPort> backPressureHosts = null;
-
         // For performance, Mutation caches serialized buffers that are computed lazily in serializedBuffer(). That
         // computation is not synchronized however and we will potentially call that method concurrently for each
         // dispatched message (not that concurrent calls to serializedBuffer() are "unsafe" per se, just that they
@@ -1528,11 +1526,6 @@ public class StorageProxy implements StorageProxyMBean
 
                         messages.add(destination);
                     }
-
-                    if (backPressureHosts == null)
-                        backPressureHosts = new ArrayList<>(plan.contacts().size());
-
-                    backPressureHosts.add(destination.endpoint());
                 }
             }
             else
