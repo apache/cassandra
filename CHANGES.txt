@@ -40,6 +40,7 @@ Merged from 4.1:
  * Fix StackOverflowError on ALTER after many previous schema changes (CASSANDRA-19166)
  * Memoize Cassandra verion (CASSANDRA-18902)
 Merged from 4.0:
+ * Remove redundant code in StorageProxy#sendToHintedReplicas (CASSANDRA-19412)
  * Remove bashisms for mx4j tool in cassandra-env.sh (CASSANDRA-19416)
  * Add new concurrent_merkle_tree_requests config property to prevent OOM during multi-range and/or multi-table repairs (CASSANDRA-19336)
 Merged from 3.11:
