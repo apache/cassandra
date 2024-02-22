@@ -125,10 +125,10 @@ public class RepairJobTest
         public MeasureableRepairSession(TimeUUID parentRepairSession, CommonRange commonRange, boolean excludedDeadNodes, String keyspace,
                                         RepairParallelism parallelismDegree, boolean isIncremental, boolean pullRepair,
                                         PreviewKind previewKind, boolean optimiseStreams, boolean repairPaxos, boolean paxosOnly,
-                                        boolean accordRepair, String... cfnames)
+                                        String... cfnames)
         {
             super(SharedContext.Global.instance, parentRepairSession, commonRange, excludedDeadNodes, keyspace, parallelismDegree, isIncremental, pullRepair,
-                  previewKind, optimiseStreams, repairPaxos, paxosOnly, accordRepair, false, cfnames);
+                  previewKind, optimiseStreams, repairPaxos, paxosOnly, false, cfnames);
         }
 
         @Override
@@ -194,7 +194,7 @@ public class RepairJobTest
         this.session = new MeasureableRepairSession(parentRepairSession,
                                                     new CommonRange(neighbors, emptySet(), FULL_RANGE), false,
                                                     KEYSPACE, SEQUENTIAL, false, false,
-                                                    NONE, false, true, false, false, CF);
+                                                    NONE, false, true, false, CF);
 
         this.job = new CassandraRepairJob(session, CF);
         this.sessionJobDesc = new RepairJobDesc(session.state.parentRepairSession, session.getId(),

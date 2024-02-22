@@ -61,8 +61,6 @@ public class RepairOption
     public static final String PAXOS_ONLY_KEY = "paxosOnly";
     public static final String ACCORD_ONLY_KEY = "accordOnly";
 
-    public static final String ACCORD_REPAIR_KEY = "accordRepair";
-
     // we don't want to push nodes too much for repair
     public static final int MAX_JOB_THREADS = 4;
 
@@ -200,7 +198,6 @@ public class RepairOption
         boolean ignoreUnreplicatedKeyspaces = Boolean.parseBoolean(options.get(IGNORE_UNREPLICATED_KS));
         boolean repairPaxos = Boolean.parseBoolean(options.get(REPAIR_PAXOS_KEY));
         boolean paxosOnly = Boolean.parseBoolean(options.get(PAXOS_ONLY_KEY));
-        boolean accordRepair = Boolean.parseBoolean(options.get(ACCORD_REPAIR_KEY));
         boolean accordOnly = Boolean.parseBoolean(options.get(ACCORD_ONLY_KEY));
 
         if (paxosOnly && accordOnly)
@@ -211,18 +208,6 @@ public class RepairOption
             Preconditions.checkArgument(!repairPaxos, "repairPaxos must be set to false for preview repairs");
             Preconditions.checkArgument(!paxosOnly, "paxosOnly must be set to false for preview repairs");
             Preconditions.checkArgument(!accordOnly, "accordOnly must be set to false for preview repairs");
-            Preconditions.checkArgument(!accordRepair, "accordRepair must be set to false for preview repairs");
-        }
-
-        if (accordRepair)
-        {
-            // FIXME: remove
-            if (true)
-                throw new RuntimeException("FIXME: remove explicit accord repair");
-            Preconditions.checkArgument(!paxosOnly, "paxosOnly must be set to false for Accord repairs");
-            Preconditions.checkArgument(previewKind == PreviewKind.NONE, "Can't perform preview repair with an Accord repair");
-            Preconditions.checkArgument(!force, "Accord repair only requires a quorum to work so force is not supported");
-            incremental = false;
         }
 
         int jobThreads = 1;
@@ -240,7 +225,7 @@ public class RepairOption
 
         boolean asymmetricSyncing = Boolean.parseBoolean(options.get(OPTIMISE_STREAMS_KEY));
 
-        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, pullRepair, force, previewKind, asymmetricSyncing, ignoreUnreplicatedKeyspaces, repairPaxos, paxosOnly, accordRepair, accordOnly);
+        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, pullRepair, force, previewKind, asymmetricSyncing, ignoreUnreplicatedKeyspaces, repairPaxos, paxosOnly, accordOnly);
 
         // data centers
         String dataCentersStr = options.get(DATACENTERS_KEY);
@@ -322,7 +307,6 @@ public class RepairOption
     private final boolean repairPaxos;
     private final boolean paxosOnly;
 
-    private final boolean accordRepair;
     private final boolean accordOnly;
 
     private final Collection<String> columnFamilies = new HashSet<>();
@@ -330,7 +314,7 @@ public class RepairOption
     private final Collection<String> hosts = new HashSet<>();
     private final Collection<Range<Token>> ranges = new HashSet<>();
 
-    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean pullRepair, boolean forceRepair, PreviewKind previewKind, boolean optimiseStreams, boolean ignoreUnreplicatedKeyspaces, boolean repairPaxos, boolean paxosOnly, boolean accordRepair, boolean accordOnly)
+    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean pullRepair, boolean forceRepair, PreviewKind previewKind, boolean optimiseStreams, boolean ignoreUnreplicatedKeyspaces, boolean repairPaxos, boolean paxosOnly, boolean accordOnly)
     {
 
         this.parallelism = parallelism;
@@ -346,18 +330,7 @@ public class RepairOption
         this.ignoreUnreplicatedKeyspaces = ignoreUnreplicatedKeyspaces;
         this.repairPaxos = repairPaxos;
         this.paxosOnly = paxosOnly;
-        this.accordRepair = accordRepair;
         this.accordOnly = accordOnly;
-    }
-
-    public RepairOption withAccordRepair(boolean accordRepair)
-    {
-        RepairOption repairOption = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, pullRepair, forceRepair, previewKind, optimiseStreams, ignoreUnreplicatedKeyspaces, repairPaxos, paxosOnly, accordRepair, accordOnly);
-        repairOption.columnFamilies.addAll(columnFamilies);
-        repairOption.dataCenters.addAll(dataCenters);
-        repairOption.hosts.addAll(hosts);
-        repairOption.ranges.addAll(ranges);
-        return repairOption;
     }
 
     public RepairParallelism getParallelism()
@@ -468,11 +441,6 @@ public class RepairOption
         return paxosOnly;
     }
 
-    public boolean accordRepair()
-    {
-        return accordRepair;
-    }
-
     public boolean accordOnly()
     {
         return accordOnly;
@@ -497,7 +465,6 @@ public class RepairOption
                ", ignore unreplicated keyspaces: "+ ignoreUnreplicatedKeyspaces +
                ", repairPaxos: " + repairPaxos +
                ", paxosOnly: " + paxosOnly +
-               ", accordRepair: " + accordRepair +
                ", accordOnly: " + accordOnly +
                ')';
     }
@@ -520,7 +487,6 @@ public class RepairOption
         options.put(OPTIMISE_STREAMS_KEY, Boolean.toString(optimiseStreams));
         options.put(REPAIR_PAXOS_KEY, Boolean.toString(repairPaxos));
         options.put(PAXOS_ONLY_KEY, Boolean.toString(paxosOnly));
-        options.put(ACCORD_REPAIR_KEY, Boolean.toString(accordRepair));
         options.put(ACCORD_ONLY_KEY, Boolean.toString(accordOnly));
         return options;
     }

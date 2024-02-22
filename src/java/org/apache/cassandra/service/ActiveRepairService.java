@@ -440,7 +440,6 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                              boolean optimiseStreams,
                                              boolean repairPaxos,
                                              boolean paxosOnly,
-                                             boolean accordRepair,
                                              boolean accordOnly,
                                              ExecutorPlus executor,
                                              String... cfnames)
@@ -457,7 +456,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         final RepairSession session = new RepairSession(ctx, parentRepairSession, range, excludedDeadNodes, keyspace,
                                                         parallelismDegree, isIncremental, pullRepair,
                                                         previewKind, optimiseStreams, repairPaxos, paxosOnly,
-                                                        accordRepair, accordOnly, cfnames);
+                                                        accordOnly, cfnames);
         repairs.getIfPresent(parentRepairSession).register(session.state);
 
         sessions.put(session.getId(), session);

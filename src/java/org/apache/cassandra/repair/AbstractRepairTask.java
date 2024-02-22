@@ -78,7 +78,6 @@ public abstract class AbstractRepairTask implements RepairTask
                                                                                  options.optimiseStreams(),
                                                                                  options.repairPaxos(),
                                                                                  options.paxosOnly(),
-                                                                                 options.accordRepair(),
                                                                                  options.accordOnly(),
                                                                                  executor,
                                                                                  cfnames);
