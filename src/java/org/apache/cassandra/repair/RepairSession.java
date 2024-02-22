@@ -74,7 +74,7 @@ import org.apache.cassandra.utils.concurrent.AsyncFuture;
  *
  * A given RepairSession repairs a set of replicas for a given set of ranges on a list
  * of column families. For each of the column family to repair, RepairSession
- * creates a {@link AbstractRepairJob} that handles the repair of that CF.
+ * creates a {@link RepairJob} that handles the repair of that CF.
  *
  * A given RepairJob has the 3 main phases:
  * <ol>
@@ -138,7 +138,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     public final SafeExecutor taskExecutor;
     public final boolean optimiseStreams;
     public final SharedContext ctx;
-    private volatile List<AbstractRepairJob> jobs = Collections.emptyList();
+    private volatile List<RepairJob> jobs = Collections.emptyList();
 
     private volatile boolean terminated = false;
 
@@ -343,10 +343,10 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
 
         // Create and submit RepairJob for each ColumnFamily
         state.phase.jobsSubmitted();
-        List<AbstractRepairJob> jobs = new ArrayList<>(state.cfnames.length);
+        List<RepairJob> jobs = new ArrayList<>(state.cfnames.length);
         for (String cfname : state.cfnames)
         {
-            AbstractRepairJob job = new CassandraRepairJob(this, cfname);
+            RepairJob job = new RepairJob(this, cfname);
             // Repairs can drive forward progress for consensus migration so always check
             job.addCallback(ConsensusTableMigration.completedRepairJobHandler);
             state.register(job.state);
@@ -388,10 +388,10 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     public synchronized void terminate(@Nullable Throwable reason)
     {
         terminated = true;
-        List<AbstractRepairJob> jobs = this.jobs;
+        List<RepairJob> jobs = this.jobs;
         if (jobs != null)
         {
-            for (AbstractRepairJob job : jobs)
+            for (RepairJob job : jobs)
                 job.abort(reason);
         }
         this.jobs = null;

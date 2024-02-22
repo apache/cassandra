@@ -40,6 +40,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -48,6 +50,7 @@ import org.apache.cassandra.repair.asymmetric.DifferenceHolder;
 import org.apache.cassandra.repair.asymmetric.HostDifferences;
 import org.apache.cassandra.repair.asymmetric.PreferedNodeFilter;
 import org.apache.cassandra.repair.asymmetric.ReduceHelper;
+import org.apache.cassandra.repair.state.JobState;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.repair.AccordRepair;
@@ -60,6 +63,7 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
@@ -71,11 +75,14 @@ import static org.apache.cassandra.service.paxos.Paxos.useV2;
 /**
  * RepairJob runs repair on given ColumnFamily.
  */
-public class CassandraRepairJob extends AbstractRepairJob
+public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
 {
-    private static final Logger logger = LoggerFactory.getLogger(CassandraRepairJob.class);
+    private static final Logger logger = LoggerFactory.getLogger(RepairJob.class);
 
+    protected final Keyspace ks;
+    protected final ColumnFamilyStore cfs;
     private final SharedContext ctx;
+    public final JobState state;
     private final RepairJobDesc desc;
     private final RepairSession session;
     private final RepairParallelism parallelismDegree;
@@ -92,21 +99,24 @@ public class CassandraRepairJob extends AbstractRepairJob
      *  @param session RepairSession that this RepairJob belongs
      * @param columnFamily name of the ColumnFamily to repair
      */
-    public CassandraRepairJob(RepairSession session, String columnFamily)
+    public RepairJob(RepairSession session, String columnFamily)
     {
-        super(session, columnFamily);
-        TableMetadata metadata = cfs.metadata();
+        this.ctx = session.ctx;
+        this.session = session;
+        this.taskExecutor = session.taskExecutor;
+        this.parallelismDegree = session.parallelismDegree;
+        this.desc = new RepairJobDesc(session.state.parentRepairSession, session.getId(), session.state.keyspace, columnFamily, session.state.commonRange.ranges);
+        this.ks = Keyspace.open(desc.keyspace);
+        this.cfs = ks.getColumnFamilyStore(columnFamily);
+        this.state = new JobState(ctx.clock(), desc, session.state.commonRange.endpoints);
+
+        TableMetadata metadata = this.cfs.metadata();
         if (session.paxosOnly && !metadata.supportsPaxosOperations())
             throw new IllegalArgumentException(String.format("Cannot run paxos only repair on %s.%s, which isn't configured for paxos operations", cfs.keyspace.getName(), cfs.name));
 
         if (session.accordOnly && !metadata.requiresAccordSupport())
             throw new IllegalArgumentException(String.format("Cannot run accord only repair on %s.%s, which isn't configured for accord operations", cfs.keyspace.getName(), cfs.name));
 
-        this.ctx = session.ctx;
-        this.session = session;
-        this.taskExecutor = session.taskExecutor;
-        this.parallelismDegree = session.parallelismDegree;
-        this.desc = new RepairJobDesc(session.state.parentRepairSession, session.getId(), session.state.keyspace, columnFamily, session.state.commonRange.ranges);
     }
 
     public long getNowInSeconds()
@@ -122,13 +132,20 @@ public class CassandraRepairJob extends AbstractRepairJob
         }
     }
 
+    @Override
+    public void run()
+    {
+        state.phase.start();
+        cfs.metric.repairsStarted.inc();
+        runRepair();
+    }
+
     /**
      * Runs repair job.
      *
      * This sets up necessary task and runs them on given {@code taskExecutor}.
      * After submitting all tasks, waits until validation with replica completes.
      */
-    @Override
     protected void runRepair()
     {
         List<InetAddressAndPort> allEndpoints = new ArrayList<>(session.state.commonRange.endpoints);
