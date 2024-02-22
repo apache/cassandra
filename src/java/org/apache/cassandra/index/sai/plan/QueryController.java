@@ -57,7 +57,6 @@ import org.apache.cassandra.index.sai.iterators.KeyRangeIntersectionIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeOrderingIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeUnionIterator;
-import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.schema.TableMetadata;
@@ -73,7 +72,6 @@ public class QueryController
     private final ColumnFamilyStore cfs;
     private final ReadCommand command;
     private final QueryContext queryContext;
-    private final TableQueryMetrics tableQueryMetrics;
     private final RowFilter filterOperation;
     private final List<DataRange> ranges;
     private final AbstractBounds<PartitionPosition> mergeRange;
@@ -85,13 +83,11 @@ public class QueryController
     public QueryController(ColumnFamilyStore cfs,
                            ReadCommand command,
                            RowFilter filterOperation,
-                           QueryContext queryContext,
-                           TableQueryMetrics tableQueryMetrics)
+                           QueryContext queryContext)
     {
         this.cfs = cfs;
         this.command = command;
         this.queryContext = queryContext;
-        this.tableQueryMetrics = tableQueryMetrics;
         this.filterOperation = filterOperation;
         this.ranges = dataRanges(command);
         DataRange first = ranges.get(0);
@@ -247,14 +243,6 @@ public class QueryController
     public boolean doesNotSelect(PrimaryKey key)
     {
         return key.kind() == PrimaryKey.Kind.WIDE && !command.clusteringIndexFilter(key.partitionKey()).selects(key.clustering());
-    }
-
-    /**
-     * Used to release all resources and record metrics when query finishes.
-     */
-    public void finish()
-    {
-        if (tableQueryMetrics != null) tableQueryMetrics.record(queryContext);
     }
 
     // This is an ANN only query
