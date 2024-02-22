@@ -38,7 +38,7 @@ public class QueryMetricsTest extends AbstractMetricsTest
     public ExpectedException exception = ExpectedException.none();
 
     @Test
-    public void testSameIndexNameAcrossKeyspaces() throws Throwable
+    public void testSameIndexNameAcrossKeyspaces()
     {
         String table = "test_same_index_name_across_keyspaces";
         String index = "test_same_index_name_across_keyspaces_index";
@@ -58,7 +58,9 @@ public class QueryMetricsTest extends AbstractMetricsTest
         assertEquals(1, rows.all().size());
 
         assertEquals(1L, getTableQueryMetrics(keyspace1, table, "TotalQueriesCompleted"));
+        assertEquals(1L, getTableQueryMetrics(keyspace1, table, "PostFilteringReadLatency"));
         assertEquals(0L, getTableQueryMetrics(keyspace2, table, "TotalQueriesCompleted"));
+        assertEquals(0L, getTableQueryMetrics(keyspace2, table, "PostFilteringReadLatency"));
 
         execute("INSERT INTO " + keyspace2 + '.' + table + " (id1, v1, v2) VALUES ('0', 0, '0')");
         execute("INSERT INTO " + keyspace2 + '.' + table + " (id1, v1, v2) VALUES ('1', 1, '1')");
@@ -71,6 +73,8 @@ public class QueryMetricsTest extends AbstractMetricsTest
 
         assertEquals(2L, getTableQueryMetrics(keyspace1, table, "TotalQueriesCompleted"));
         assertEquals(1L, getTableQueryMetrics(keyspace2, table, "TotalQueriesCompleted"));
+        assertEquals(2L, getTableQueryMetrics(keyspace1, table, "PostFilteringReadLatency"));
+        assertEquals(1L, getTableQueryMetrics(keyspace2, table, "PostFilteringReadLatency"));
     }
 
     @Test
