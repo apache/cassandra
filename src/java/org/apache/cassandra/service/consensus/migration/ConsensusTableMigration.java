@@ -90,9 +90,7 @@ public abstract class ConsensusTableMigration
             if (tms == null || !Range.intersects(tms.migratingRanges, desc.ranges))
                 return;
 
-            if (tms.targetProtocol == ConsensusMigrationTarget.paxos && repairResult.consensusMigrationRepairResult.type != ConsensusMigrationRepairType.accord)
-                return;
-            if (tms.targetProtocol == ConsensusMigrationTarget.accord && repairResult.consensusMigrationRepairResult.type != ConsensusMigrationRepairType.paxos)
+            if (!tms.targetProtocol.isMigratedBy(repairResult.consensusMigrationRepairResult.type))
                 return;
 
             ClusterMetadataService.instance().commit(

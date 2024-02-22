@@ -139,10 +139,13 @@ public class CassandraRepairJob extends AbstractRepairJob
         Future<List<TreeResponse>> treeResponses;
         Future<Void> paxosRepair;
         Epoch repairStartingEpoch = ClusterMetadata.current().epoch;
+
+        Preconditions.checkArgument(!session.paxosOnly || !session.accordOnly);
         boolean doPaxosRepair = paxosRepairEnabled()
                                 && (((useV2() || isMetadataKeyspace()) && session.repairPaxos) || session.paxosOnly)
-                                && metadata.supportsPaxosOperations();
-        boolean doAccordRepair = metadata.requiresAccordSupport();
+                                && metadata.supportsPaxosOperations()
+                                && !session.accordOnly;
+        boolean doAccordRepair = metadata.requiresAccordSupport() && !session.paxosOnly;
 
         if (doPaxosRepair)
         {
