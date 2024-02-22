@@ -32,6 +32,8 @@ public class TableQueryMetrics extends AbstractMetrics
 {
     public static final String TABLE_QUERY_METRIC_TYPE = "TableQueryMetrics";
 
+    public final Timer postFilteringReadLatency;
+
     private final PerQueryMetrics perQueryMetrics;
 
     private final Counter totalQueryTimeouts;
@@ -44,6 +46,8 @@ public class TableQueryMetrics extends AbstractMetrics
         super(table.keyspace, table.name, TABLE_QUERY_METRIC_TYPE);
 
         perQueryMetrics = new PerQueryMetrics(table);
+
+        postFilteringReadLatency = Metrics.timer(createMetricName("PostFilteringReadLatency"));
 
         totalPartitionReads = Metrics.counter(createMetricName("TotalPartitionReads"));
         totalRowsFiltered = Metrics.counter(createMetricName("TotalRowsFiltered"));
