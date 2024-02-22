@@ -19,6 +19,10 @@
 package org.apache.cassandra.auth;
 
 import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
+import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
+import java.util.function.Consumer;
 
 import org.apache.cassandra.exceptions.AuthenticationException;
 
@@ -44,32 +48,18 @@ public interface MutualTlsCertificateValidator
      * </ul>
      *
      * @param clientCertificateChain client certificate chain
-     * @return returns {@code true} if the certificate is valid, {@code false} otherwise
+     * @return {@code true} if the certificate is valid, {@code false} otherwise
      */
-    default boolean isValidCertificate(Certificate[] clientCertificateChain)
-    {
-        return isValidCertificate(clientCertificateChain, Integer.MAX_VALUE);
-    }
+    boolean isValidCertificate(Certificate[] clientCertificateChain);
 
     /**
-     * Perform any checks that are to be performed on the certificate before making authorization check to grant the
-     * access to the client during mTLS connection.
+     * Extracts the certificate(s) age(s) from the {@code clientCertificateChain} and provides it to the
+     * {@code ageConsumer} for further processing.
      *
-     * <p>For example:
-     * <ul>
-     *  <li>Verifying CA information
-     *  <li>Checking CN information
-     *  <li>Validating Issuer information
-     *  <li>Checking organization information etc
-     * </ul>
-     *
-     * @param clientCertificateChain   client certificate chain
-     * @param maxCertificateAgeMinutes the maximum age allowed for the certificates in the chain
-     * @return returns {@code true} if the certificate is valid, {@code false} otherwise
-     * @throws AuthenticationException when the age of the certificate is greater than the maximum allowed age
-     *                                 for the certificate
+     * @param clientCertificateChain client certificate chain
+     * @param ageConsumer            a consumer of certificate ages (in minutes)
      */
-    boolean isValidCertificate(Certificate[] clientCertificateChain, int maxCertificateAgeMinutes) throws AuthenticationException;
+    void certificateAgeConsumer(Certificate[] clientCertificateChain, Consumer<Integer> ageConsumer);
 
     /**
      * This method should provide logic to extract identity out of a certificate to perform mTLS authentication.
@@ -86,4 +76,27 @@ public interface MutualTlsCertificateValidator
      * @throws AuthenticationException when identity cannot be extracted
      */
     String identity(Certificate[] clientCertificateChain) throws AuthenticationException;
+
+    /**
+     * Filters out non-{@link X509Certificate}s and casts the certificate chain to {@link X509Certificate}s.
+     *
+     * @param clientCertificateChain client certificate chain
+     * @return an array of certificates that were cast to {@link X509Certificate}
+     */
+    default X509Certificate[] castCertsToX509(Certificate[] clientCertificateChain)
+    {
+        return Arrays.stream(clientCertificateChain)
+                     .filter(certificate -> certificate instanceof X509Certificate)
+                     .toArray(X509Certificate[]::new);
+    }
+
+    /**
+     * @param certificate the client certificate
+     * @return the age of the certificate in minutes
+     */
+    default int certificateAgeInMinutes(X509Certificate certificate)
+    {
+        return (int) ChronoUnit.MINUTES.between(certificate.getNotBefore().toInstant(),
+                                                certificate.getNotAfter().toInstant());
+    }
 }

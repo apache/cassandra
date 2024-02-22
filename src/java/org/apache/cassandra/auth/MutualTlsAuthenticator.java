@@ -95,7 +95,7 @@ public class MutualTlsAuthenticator implements IAuthenticator
         final String certificateValidatorClassName = parameters.get(VALIDATOR_CLASS_NAME);
         if (StringUtils.isEmpty(certificateValidatorClassName))
         {
-            String message ="authenticator.parameters.validator_class_name is not set";
+            String message = "authenticator.parameters.validator_class_name is not set";
             logger.error(message);
             throw new ConfigurationException(message);
         }
@@ -213,7 +213,7 @@ public class MutualTlsAuthenticator implements IAuthenticator
                 throw new AuthenticationException("No certificate present on connection");
             }
 
-            if (!certificateValidator.isValidCertificate(clientCertificateChain, maxCertificateAgeMinutes))
+            if (!certificateValidator.isValidCertificate(clientCertificateChain))
             {
                 String message = "Invalid or not supported certificate";
                 nospamLogger.error(message);
@@ -234,6 +234,16 @@ public class MutualTlsAuthenticator implements IAuthenticator
                 nospamLogger.error(msg, identity);
                 throw new AuthenticationException(MessageFormatter.format(msg, identity).getMessage());
             }
+
+            // Validates that the certificate age does not exceed the maximum certificate age
+            certificateValidator.certificateAgeConsumer(clientCertificateChain, certificateAgeMinutes -> {
+                if (certificateAgeMinutes > maxCertificateAgeMinutes)
+                {
+                    String errorMessage = String.format("The age of the provided certificate (%d minutes) exceeds the maximum allowed age of %d minutes",
+                                                        certificateAgeMinutes, maxCertificateAgeMinutes);
+                    throw new AuthenticationException(errorMessage);
+                }
+            });
             return new AuthenticatedUser(role, MTLS, Collections.singletonMap(METADATA_IDENTITY_KEY, identity));
         }
 

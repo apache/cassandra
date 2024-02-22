@@ -21,10 +21,9 @@ package org.apache.cassandra.auth;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
-import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Consumer;
 
 import org.apache.cassandra.exceptions.AuthenticationException;
 
@@ -54,18 +53,20 @@ public class SpiffeCertificateValidator implements MutualTlsCertificateValidator
      * {@inheritDoc}
      */
     @Override
-    public boolean isValidCertificate(Certificate[] clientCertificateChain, int maxCertificateAgeMinutes) throws AuthenticationException
+    public boolean isValidCertificate(Certificate[] clientCertificateChain) throws AuthenticationException
+    {
+        return true;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void certificateAgeConsumer(Certificate[] clientCertificateChain, Consumer<Integer> ageConsumer)
     {
         X509Certificate[] castedCerts = castCertsToX509(clientCertificateChain);
-        int certificateAgeInMinutes = getCertificateAgeInMinutes(castedCerts[0]);
-        if (certificateAgeInMinutes > maxCertificateAgeMinutes)
-        {
-            String errorMessage = String.format("The age of the provided certificate exceeds the maximum allowed age of %d minutes",
-                                                maxCertificateAgeMinutes);
-            throw new AuthenticationException(errorMessage);
-        }
-
-        return true;
+        int certificateAgeInMinutes = certificateAgeInMinutes(castedCerts[0]);
+        ageConsumer.accept(certificateAgeInMinutes);
     }
 
     /**
@@ -85,7 +86,7 @@ public class SpiffeCertificateValidator implements MutualTlsCertificateValidator
         }
     }
 
-    private static String getSANSpiffe(Certificate[] clientCertificates) throws CertificateException
+    private String getSANSpiffe(Certificate[] clientCertificates) throws CertificateException
     {
         int URI_TYPE = 6;
         X509Certificate[] castedCerts = castCertsToX509(clientCertificates);
@@ -104,18 +105,5 @@ public class SpiffeCertificateValidator implements MutualTlsCertificateValidator
             }
         }
         throw new CertificateException("Unable to extract Spiffe from the certificate");
-    }
-
-    private static int getCertificateAgeInMinutes(X509Certificate certificate)
-    {
-        return (int) ChronoUnit.MINUTES.between(certificate.getNotBefore().toInstant(),
-                                                certificate.getNotAfter().toInstant());
-    }
-
-    private static X509Certificate[] castCertsToX509(Certificate[] clientCertificateChain)
-    {
-        return Arrays.stream(clientCertificateChain)
-                     .filter(certificate -> certificate instanceof X509Certificate)
-                     .toArray(X509Certificate[]::new);
     }
 }

@@ -170,6 +170,7 @@ authenticator:
 # MutualTlsAuthenticator can be configured using the following configuration. One can add their own validator
 # which implements MutualTlsCertificateValidator class and provide logic for extracting identity out of certificates
 # and validating certificates.
+# When the max_certificate_age parameter is not set, the age validation will have no effect.
 #  class_name : org.apache.cassandra.auth.MutualTlsAuthenticator
 #  parameters :
 #    validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
@@ -965,6 +966,7 @@ listen_address: localhost
 # MutualTlsInternodeAuthenticator can be configured using the following configuration.One can add their own validator
 # which implements MutualTlsCertificateValidator class and provide logic for extracting identity out of certificates
 # and validating certificates.
+# When the max_certificate_age parameter is not set, the age validation will have no effect.
 #  class_name : org.apache.cassandra.auth.MutualTlsInternodeAuthenticator
 #  parameters :
 #    validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator

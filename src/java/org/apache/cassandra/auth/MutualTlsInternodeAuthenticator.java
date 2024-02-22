@@ -189,7 +189,7 @@ public class MutualTlsInternodeAuthenticator implements IInternodeAuthenticator
         if (connectionType == IInternodeAuthenticator.InternodeConnectionDirection.INBOUND)
         {
             String identity = certificateValidator.identity(certificates);
-            if (!certificateValidator.isValidCertificate(certificates, maxCertificateAgeMinutes))
+            if (!certificateValidator.isValidCertificate(certificates))
             {
                 noSpamLogger.error("Not a valid certificate from {}:{} with identity '{}'", remoteAddress, remotePort, identity);
                 return false;
@@ -200,6 +200,16 @@ public class MutualTlsInternodeAuthenticator implements IInternodeAuthenticator
                 noSpamLogger.error("Unable to authenticate user {}", identity);
                 return false;
             }
+
+            // Validates that the certificate age does not exceed the maximum certificate age
+            certificateValidator.certificateAgeConsumer(certificates, certificateAgeMinutes -> {
+                if (certificateAgeMinutes > maxCertificateAgeMinutes)
+                {
+                    String errorMessage = String.format("The age of the provided certificate (%d minutes) exceeds the maximum allowed age of %d minutes",
+                                                        certificateAgeMinutes, maxCertificateAgeMinutes);
+                    throw new AuthenticationException(errorMessage);
+                }
+            });
             return true;
         }
         // Outbound connections don't need to be authenticated again in certificate based connections. SSL handshake
