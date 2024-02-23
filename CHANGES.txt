@@ -5,6 +5,7 @@ Merged from 4.0:
  * Remove bashisms for mx4j tool in cassandra-env.sh (CASSANDRA-19416)
 Merged from 3.11:
 Merged from 3.0:
+ * Fix SCM URL link (CASSANDRA-19422)
 
 
 4.1.4
