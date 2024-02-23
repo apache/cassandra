@@ -42,6 +42,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalCause;
 import org.antlr.runtime.RecognitionException;
+
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -176,6 +177,16 @@ public class QueryProcessor implements QueryHandler
     public static int preparedStatementsCount()
     {
         return preparedStatements.asMap().size();
+    }
+
+    public static long preparedStatementsCacheMemoryUsedBytes()
+    {
+        long preparedStatementsCacheMemoryUsedBytes = 0;
+        for (Map.Entry<MD5Digest, Prepared> entry : preparedStatements.asMap().entrySet())
+        {
+            preparedStatementsCacheMemoryUsedBytes += getSizeOfPreparedStatementForCache(entry.getKey(), entry.getValue());
+        }
+        return preparedStatementsCacheMemoryUsedBytes;
     }
 
     // Work around initialization dependency

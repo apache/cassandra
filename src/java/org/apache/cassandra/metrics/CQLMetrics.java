@@ -37,6 +37,7 @@ public class CQLMetrics
 
     public final Gauge<Integer> preparedStatementsCount;
     public final Gauge<Double> preparedStatementsRatio;
+    public final Gauge<Long> preparedStatementsCacheSize;
 
     public CQLMetrics()
     {
@@ -64,5 +65,6 @@ public class CQLMetrics
                 return regularStatementsExecuted.getCount() + preparedStatementsExecuted.getCount();
             }
         });
+        preparedStatementsCacheSize = Metrics.register(factory.createMetricName("PreparedStatementsCacheSize"), QueryProcessor::preparedStatementsCacheMemoryUsedBytes);
     }
 }
