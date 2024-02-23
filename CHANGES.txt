@@ -1,4 +1,5 @@
 3.11.17
+ * Move ClientWarn.State#warnings to a thread-safe list (CASSANDRA-19427)
  * Fix delayed SSTable release with unsafe_aggressive_sstable_expiration (CASSANDRA-18756)
  * Revert CASSANDRA-18543 (CASSANDRA-18854)
  * Fix NPE when using udfContext in UDF after a restart of a node (CASSANDRA-18739)
