@@ -29,6 +29,7 @@ Merged from 4.0:
  * Revert unnecessary read lock acquisition when reading ring version in TokenMetadata introduced in CASSANDRA-16286 (CASSANDRA-19107)
 Merged from 3.11:
 Merged from 3.0:
+ * Fix SCM URL link (CASSANDRA-19422)
  * Backport CASSANDRA-16418 to 3.x (CASSANDRA-18824)
 
 
