@@ -46,6 +46,7 @@ Merged from 4.0:
  * Add new concurrent_merkle_tree_requests config property to prevent OOM during multi-range and/or multi-table repairs (CASSANDRA-19336)
 Merged from 3.11:
 Merged from 3.0:
+ * Fix SCM URL link (CASSANDRA-19422)
  * Backport CASSANDRA-16418 to 3.x (CASSANDRA-18824)
 
 

@@ -241,7 +241,7 @@
   <scm>
     <connection>scm:https://gitbox.apache.org/repos/asf/cassandra.git</connection>
     <developerConnection>scm:https://gitbox.apache.org/repos/asf/cassandra.git</developerConnection>
-    <url>https://gitbox.apache.org/repos/asf?p=cassandra.git;a=tree</url>
+    <url>https://gitbox.apache.org/repos/asf?p=cassandra.git</url>
   </scm>
 
   <profiles>
