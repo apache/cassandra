@@ -1,4 +1,5 @@
 5.1
+ * Expose Metric for Prepared Statement Cache Size (in bytes) (CASSANDRA-20864)
  * Add support for BEGIN TRANSACTION to allow mutations that touch multiple partitions (CASSANDRA-20857)
  * AutoRepair: Safeguard Full repair against disk protection(CASSANDRA-20045)
  * BEGIN TRANSACTION crashes if a mutation touches multiple rows (CASSANDRA-20844)

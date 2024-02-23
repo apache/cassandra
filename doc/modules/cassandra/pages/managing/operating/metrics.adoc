@@ -671,6 +671,8 @@ executed.
 
 |PreparedStatementsRatio |Gauge<Double> |Percentage of statements that
 are prepared vs unprepared.
+
+|PreparedStatementsCacheSize | Gauge<Long> | The size of the prepared statements cache in bytes.
 |===
 
 [[dropped-metrics]]

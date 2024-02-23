@@ -31,9 +31,12 @@ import com.datastax.driver.core.Session;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.EmbeddedCassandraService;
+import org.apache.cassandra.utils.MD5Digest;
 
 import static org.apache.cassandra.cql3.CQLTester.assertRowsContains;
 import static org.apache.cassandra.cql3.CQLTester.row;
@@ -95,18 +98,50 @@ public class CQLMetricsTest
     }
 
     @Test
-    public void testPreparedStatementsCount()
+    public void testPreparedStatementsCountWithUse()
+    {
+        int n = QueryProcessor.metrics.preparedStatementsCount.getValue();
+        // Use local test session to avoid interference with other tests due to CASSANDRA-17248
+        try (Session localSession = cluster.connect())
+        {
+            long useCountBefore = QueryProcessor.metrics.useStatementsExecuted.getCount();
+            localSession.execute("use junit");
+            Assert.assertEquals(useCountBefore + 1, QueryProcessor.metrics.useStatementsExecuted.getCount());
+            localSession.prepare("SELECT * FROM junit.metricstest WHERE id = ?");
+            assertEquals(n + 2, (int) QueryProcessor.metrics.preparedStatementsCount.getValue());
+
+            assertRowsContains(cluster, session.execute("SELECT * FROM system_metrics.cql_group"),
+                               row("org.apache.cassandra.metrics.CQL.PreparedStatementsCount", METRIC_SCOPE_UNDEFINED, "gauge",
+                                   String.valueOf(QueryProcessor.metrics.preparedStatementsCount.getValue())));
+        }
+    }
+
+    @Test
+    public void testPreparedStatementsCountWithoutUse()
     {
         int n = QueryProcessor.metrics.preparedStatementsCount.getValue();
         long useCountBefore = QueryProcessor.metrics.useStatementsExecuted.getCount();
-        session.execute("use junit");
-        Assert.assertEquals(useCountBefore + 1, QueryProcessor.metrics.useStatementsExecuted.getCount());
-        session.prepare("SELECT * FROM junit.metricstest WHERE id = ?");
-        assertEquals(n+2, (int) QueryProcessor.metrics.preparedStatementsCount.getValue());
+        session.prepare("SELECT * FROM junit.metricstest WHERE id = 101");
+        Assert.assertEquals(useCountBefore, QueryProcessor.metrics.useStatementsExecuted.getCount());
+        assertEquals(n+1, (int) QueryProcessor.metrics.preparedStatementsCount.getValue());
+    }
 
-        assertRowsContains(cluster, session.execute("SELECT * FROM system_metrics.cql_group"),
-                row("org.apache.cassandra.metrics.CQL.PreparedStatementsCount", METRIC_SCOPE_UNDEFINED, "gauge",
-                        String.valueOf(QueryProcessor.metrics.preparedStatementsCount.getValue())));
+    @Test
+    public void testPreparedStatementCacheMemoryUsed()
+    {
+        long n = QueryProcessor.metrics.preparedStatementsCacheSize.getValue();
+        String rawQueryString = "SELECT id, val FROM junit.metricstest WHERE id = 100";
+        PreparedStatement s = session.prepare(rawQueryString);
+
+        // Compute the expected size of a prepared statement.
+        QueryHandler.Prepared expected = QueryProcessor.parseAndPrepare(rawQueryString, ClientState.forInternalCalls(), false);
+        MD5Digest hashValue = MD5Digest.compute(rawQueryString);
+        long expectedHashSize = hashValue.size();
+        long expectedStatementSize = expected.pstmntSize;
+        long expectedSize = expectedHashSize + expectedStatementSize;
+
+        long actualSize = QueryProcessor.metrics.preparedStatementsCacheSize.getValue() - n;
+        assertEquals(expectedSize, actualSize);
     }
 
     @Test
