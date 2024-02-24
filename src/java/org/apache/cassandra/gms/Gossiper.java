@@ -844,9 +844,13 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         if (cms.contains(getBroadcastAddressAndPort()))
             return;
 
-        double probability = cms.size() / (double) (liveEndpoints.size() + unreachableEndpoints.size());
+        int totalEndpoints = liveEndpoints.size() + unreachableEndpoints.size();
+        if (totalEndpoints == 0)
+            return;
+
+        double probability = cms.size() / (double) totalEndpoints;
         double randDbl = random.nextDouble();
-        if (randDbl <= probability)
+        if (randDbl < probability)
         {
             logger.trace("Sending GossipDigestSyn to the CMS {}", cms);
             sendGossip(message, cms);
