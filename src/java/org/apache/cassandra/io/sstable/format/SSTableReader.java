@@ -319,7 +319,10 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
                 if (cardinality != null)
                     cardinalities.add(cardinality);
                 else
-                    logger.trace("Got a null cardinality estimator in: {}", sstable.getFilename());
+                {
+                    if (logger.isTraceEnabled())
+                        logger.trace("Got a null cardinality estimator in: {}", sstable.getFilename());
+                }
             }
             catch (IOException e)
             {
@@ -335,7 +338,9 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
             return 1;
 
         long totalKeyCountAfter = mergeCardinalities(cardinalities).cardinality();
-        logger.trace("Estimated compaction gain: {}/{}={}", totalKeyCountAfter, totalKeyCountBefore, ((double)totalKeyCountAfter)/totalKeyCountBefore);
+        if (logger.isTraceEnabled())
+            logger.trace("Estimated compaction gain: {}/{}={}", totalKeyCountAfter, totalKeyCountBefore, ((double)totalKeyCountAfter)/totalKeyCountBefore);
+
         return ((double)totalKeyCountAfter)/totalKeyCountBefore;
     }
 
@@ -519,9 +524,8 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
             if (validate)
                 sstable.validate();
 
-            if (sstable.getKeyCache() != null)
-                if (logger.isTraceEnabled())
-                    logger.trace("key cache contains {}/{} keys", sstable.getKeyCache().size(), sstable.getKeyCache().getCapacity());
+            if (sstable.getKeyCache() != null && logger.isTraceEnabled())
+                logger.trace("key cache contains {}/{} keys", sstable.getKeyCache().size(), sstable.getKeyCache().getCapacity());
 
             return sstable;
         }
@@ -760,7 +764,8 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         }
         catch (IOException e)
         {
-            logger.trace("Cannot save SSTable bloomfilter: ", e);
+            if (logger.isTraceEnabled())
+                logger.trace("Cannot save SSTable bloomfilter: ", e);
 
             // corrupted hence delete it and let it load it now.
             if (filterFile.exists())
@@ -1337,7 +1342,9 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
             return;
 
         KeyCacheKey cacheKey = new KeyCacheKey(metadata(), descriptor, key.getKey());
-        logger.trace("Adding cache entry for {} -> {}", cacheKey, info);
+        if (logger.isTraceEnabled())
+            logger.trace("Adding cache entry for {} -> {}", cacheKey, info);
+
         keyCache.put(cacheKey, info);
     }
 

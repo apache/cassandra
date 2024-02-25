@@ -211,7 +211,7 @@ public class CounterMutation implements IMutation
 
         List<PartitionUpdate.CounterMark> marks = changes.collectCounterMarks();
 
-        if (CacheService.instance.counterCache.getCapacity() != 0)
+        if (DatabaseDescriptor.getCounterCacheSizeInMiB() > 0)
         {
             Tracing.trace("Fetching {} counter values from cache", marks.size());
             updateWithCurrentValuesFromCache(marks, cfs);
