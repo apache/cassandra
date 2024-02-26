@@ -261,8 +261,8 @@ delete_job()
     sed -Ei.bak "/^    - ${2}/d" "$1"
   }
   file="$BASEDIR/$1"
-  delete_yaml_block "$file" "${2}"
-  delete_yaml_block "$file" "start_${2}"
+  delete_yaml_block "$file" "${2}:"
+  delete_yaml_block "$file" "start_${2}:"
 }
 
 # Define function to remove any unneeded repeated jobs.
