@@ -30,13 +30,23 @@ import io.github.jbellis.jvector.vector.VectorEncoding;
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.v1.vector.ConcurrentVectorValues;
+import org.apache.cassandra.index.sai.utils.Glove;
 import org.apache.cassandra.inject.ActionBuilder;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.inject.InvokePointBuilder;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 public class VectorTester extends SAITester
 {
+    protected static Glove.WordVector word2vec;
+
+    @BeforeClass
+    public static void loadModel() throws Throwable
+    {
+        word2vec = Glove.parse(VectorTester.class.getClassLoader().getResourceAsStream("glove.3K.50d.txt"));
+    }
+
     @Before
     public void setup() throws Throwable
     {
