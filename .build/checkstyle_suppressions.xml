@@ -22,4 +22,5 @@
 
 <suppressions>
   <suppress checks="RegexpSinglelineJava" files="Semaphore\.java"/>
+  <suppress files="[\\/]gen-java[\\/]" checks="[a-zA-Z0-9]*"/>
 </suppressions>

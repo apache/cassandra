@@ -17,14 +17,16 @@
  */
 package org.apache.cassandra.db.virtual;
 
-import java.util.Collection;
-
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
-
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Tables;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class VirtualKeyspace
 {
@@ -37,6 +39,15 @@ public class VirtualKeyspace
     {
         this.name = name;
         this.tables = ImmutableList.copyOf(tables);
+
+        List<String> duplicates = tables.stream()
+                .map(VirtualTable::name)
+                .distinct()
+                .filter(entry -> Collections.frequency(tables, entry) > 1)
+                .collect(Collectors.toList());
+
+        if (!duplicates.isEmpty())
+            throw new IllegalArgumentException(String.format("Duplicate table names in virtual keyspace %s: %s", name, duplicates));
 
         metadata = KeyspaceMetadata.virtual(name, Tables.of(Iterables.transform(tables, VirtualTable::metadata)));
     }

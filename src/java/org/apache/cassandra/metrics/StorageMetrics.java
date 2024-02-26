@@ -31,7 +31,8 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  */
 public class StorageMetrics
 {
-    private static final MetricNameFactory factory = new DefaultNameFactory("Storage");
+    public static final String TYPE_NAME = "Storage";
+    private static final MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME);
 
     public static final Counter load = Metrics.counter(factory.createMetricName("Load"));
     public static final Counter uncompressedLoad = Metrics.counter(factory.createMetricName("UncompressedLoad"));

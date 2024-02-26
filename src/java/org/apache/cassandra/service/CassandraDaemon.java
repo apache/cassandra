@@ -32,12 +32,13 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
-import javax.management.ObjectName;
 import javax.management.StandardMBean;
 import javax.management.remote.JMXConnectorServer;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import org.apache.cassandra.db.virtual.VirtualKeyspace;
+import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,7 +59,6 @@ import org.apache.cassandra.db.SystemKeyspaceMigrator41;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.virtual.SystemViewsKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
-import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.util.File;
@@ -100,6 +100,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSI
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NAME;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SIZE_RECORDER_INTERVAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.START_NATIVE_TRANSPORT;
+import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_METRICS;
 
 /**
  * The <code>CassandraDaemon</code> is an abstraction for a Cassandra daemon
@@ -132,8 +133,7 @@ public class CassandraDaemon
                 int separator = metricName.lastIndexOf('.');
                 String appenderName = metricName.substring(0, separator);
                 String metric = metricName.substring(separator + 1); // remove "."
-                ObjectName name = DefaultNameFactory.createMetricName(appenderName, metric, null).getMBeanName();
-                CassandraMetricsRegistry.Metrics.registerMBean(meter, name);
+                CassandraMetricsRegistry.Metrics.register(DefaultNameFactory.createMetricName(appenderName, metric, null), meter);
             }
         });
         logger = LoggerFactory.getLogger(CassandraDaemon.class);
@@ -546,6 +546,7 @@ public class CassandraDaemon
     {
         VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
         VirtualKeyspaceRegistry.instance.register(SystemViewsKeyspace.instance);
+        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(VIRTUAL_METRICS, CassandraMetricsRegistry.createMetricsKeyspaceTables()));
 
         // flush log messages to system_views.system_logs virtual table as there were messages already logged
         // before that virtual table was instantiated
