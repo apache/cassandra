@@ -28,7 +28,6 @@ import java.util.stream.IntStream;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
@@ -38,21 +37,12 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
-import org.apache.cassandra.index.sai.utils.Glove;
 import org.assertj.core.data.Percentage;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class VectorLocalTest extends VectorTester
 {
-    private static Glove.WordVector word2vec;
-
-    @BeforeClass
-    public static void loadModel() throws Throwable
-    {
-        word2vec = Glove.parse(VectorLocalTest.class.getClassLoader().getResourceAsStream("glove.3K.50d.txt"));
-    }
-
     @Test
     public void keyRestrictionsWithFilteringTest()
     {
@@ -566,12 +556,7 @@ public class VectorLocalTest extends VectorTester
 
     private float[] randomVector()
     {
-        float[] rawVector = new float[word2vec.dimension()];
-        for (int i = 0; i < word2vec.dimension(); i++)
-        {
-            rawVector[i] = getRandom().nextFloat();
-        }
-        return rawVector;
+        return word2vec.vector(getRandom().nextIntBetween(0, word2vec.size() - 1));
     }
 
     private void assertDescendingScore(float[] queryVector, List<float[]> resultVectors)
