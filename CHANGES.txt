@@ -19,6 +19,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Record latencies for SAI post-filtering reads against local storage (CASSANDRA-18940)
  * Fix VectorMemoryIndex#update logic to compare vectors. Fix Index view (CASSANDRA-19168)
  * Deprecate native_transport_port_ssl (CASSANDRA-19392)
  * Update packaging shell includes (CASSANDRA-19283)

@@ -115,22 +115,19 @@ public class OperationTest
         controller = new QueryController(BACKEND,
                                          command,
                                          null,
-                                         new QueryContext(command, DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.MILLISECONDS)),
-                                         null);
+                                         new QueryContext(command, DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.MILLISECONDS)));
 
         command = PartitionRangeReadCommand.allDataRead(CLUSTERING_BACKEND.metadata(), FBUtilities.nowInSeconds());
         controllerClustering = new QueryController(CLUSTERING_BACKEND,
                                                    command,
                                                    null,
-                                                   new QueryContext(command, DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.MILLISECONDS)),
-                                                   null);
+                                                   new QueryContext(command, DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.MILLISECONDS)));
 
         command = PartitionRangeReadCommand.allDataRead(STATIC_BACKEND.metadata(), FBUtilities.nowInSeconds());
         controllerStatic = new QueryController(STATIC_BACKEND,
                                                command,
                                                null,
-                                               new QueryContext(command, DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.MILLISECONDS)),
-                                               null);
+                                               new QueryContext(command, DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.MILLISECONDS)));
     }
 
     @Test

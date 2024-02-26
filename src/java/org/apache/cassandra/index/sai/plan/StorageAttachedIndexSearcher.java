@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -54,12 +55,14 @@ import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
+import org.apache.cassandra.utils.Clock;
 
 public class StorageAttachedIndexSearcher implements Index.Searcher
 {
     private final ReadCommand command;
     private final QueryController queryController;
     private final QueryContext queryContext;
+    private final TableQueryMetrics tableQueryMetrics;
 
     public StorageAttachedIndexSearcher(ColumnFamilyStore cfs,
                                         TableQueryMetrics tableQueryMetrics,
@@ -69,7 +72,8 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     {
         this.command = command;
         this.queryContext = new QueryContext(command, executionQuotaMs);
-        this.queryController = new QueryController(cfs, command, filterOperation, queryContext, tableQueryMetrics);
+        this.queryController = new QueryController(cfs, command, filterOperation, queryContext);
+        this.tableQueryMetrics = tableQueryMetrics;
     }
 
     @Override
@@ -95,10 +99,10 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     public UnfilteredPartitionIterator search(ReadExecutionController executionController) throws RequestTimeoutException
     {
         if (!command.isTopK())
-            return new ResultRetriever(queryController, executionController, queryContext, false);
+            return new ResultRetriever(executionController, false);
         else
         {
-            Supplier<ResultRetriever> resultSupplier = () -> new ResultRetriever(queryController, executionController, queryContext, true);
+            Supplier<ResultRetriever> resultSupplier = () -> new ResultRetriever(executionController, true);
 
             // VSTODO performance: if there is shadowed primary keys, we have to at least query twice.
             //  First time to find out there are shadow keys, second time to find out there are no more shadow keys.
@@ -115,7 +119,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         }
     }
 
-    private static class ResultRetriever extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
+    private class ResultRetriever extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
     {
         private final PrimaryKey firstPrimaryKey;
         private final PrimaryKey lastPrimaryKey;
@@ -124,26 +128,20 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
 
         private final KeyRangeIterator resultKeyIterator;
         private final FilterTree filterTree;
-        private final QueryController queryController;
         private final ReadExecutionController executionController;
-        private final QueryContext queryContext;
         private final PrimaryKey.Factory keyFactory;
         private final boolean topK;
 
         private PrimaryKey lastKey;
 
-        private ResultRetriever(QueryController queryController,
-                                ReadExecutionController executionController,
-                                QueryContext queryContext,
+        private ResultRetriever(ReadExecutionController executionController,
                                 boolean topK)
         {
             this.keyRanges = queryController.dataRanges().iterator();
             this.currentKeyRange = keyRanges.next().keyRange();
             this.resultKeyIterator = Operation.buildIterator(queryController);
             this.filterTree = Operation.buildFilter(queryController);
-            this.queryController = queryController;
             this.executionController = executionController;
-            this.queryContext = queryContext;
             this.keyFactory = queryController.primaryKeyFactory();
             this.firstPrimaryKey = queryController.firstPrimaryKeyInRange();
             this.lastPrimaryKey = queryController.lastPrimaryKeyInRange();
@@ -370,13 +368,20 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                 return null;
 
             lastKey = key;
+            long startTimeNanos = Clock.Global.nanoTime();
 
             try (UnfilteredRowIterator partition = queryController.queryStorage(key, executionController))
             {
                 queryContext.partitionsRead++;
                 queryContext.checkpoint();
 
-                return applyIndexFilter(key, partition, filterTree, queryContext);
+                UnfilteredRowIterator filtered = applyIndexFilter(key, partition, filterTree, queryContext);
+
+                // Note that we record the duration of the read after post-filtering, which actually 
+                // materializes the rows from disk.
+                tableQueryMetrics.postFilteringReadLatency.update(Clock.Global.nanoTime() - startTimeNanos, TimeUnit.NANOSECONDS);
+
+                return filtered;
             }
         }
 
@@ -428,7 +433,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             return new PartitionIterator(partition, staticRow, Iterators.filter(clusters.iterator(), u -> !((Row)u).isStatic()));
         }
 
-        private static class PartitionIterator extends AbstractUnfilteredRowIterator
+        private class PartitionIterator extends AbstractUnfilteredRowIterator
         {
             private final Iterator<Unfiltered> rows;
 
@@ -462,7 +467,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         public void close()
         {
             FileUtils.closeQuietly(resultKeyIterator);
-            queryController.finish();
+            if (tableQueryMetrics != null) tableQueryMetrics.record(queryContext);
         }
     }
 
