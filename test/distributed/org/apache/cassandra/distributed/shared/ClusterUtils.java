@@ -1296,11 +1296,41 @@ public class ClusterUtils
     }
 
     /**
+     * @return the native address in host:port format (ex. 127.0.0.1:9042)
+     */
+    public static InetSocketAddress getNativeInetSocketAddress(IInstance target)
+    {
+        return new InetSocketAddress(target.config().broadcastAddress().getAddress(),
+                                     getIntConfig(target.config(), "native_transport_port", 9042));
+    }
+
+    /**
      * Get the broadcast address InetAddess string (ex. localhost/127.0.0.1 or /127.0.0.1)
      */
     private static String getBroadcastAddressString(IInstance target)
     {
         return target.config().broadcastAddress().getAddress().toString();
+    }
+
+    /**
+     * Tries to return the integer configuration from the {@code config}, fallsback to {@code defaultValue}
+     * when it fails to retrieve the value.
+     *
+     * @param config       the config instance
+     * @param configName   the name of the configuration
+     * @param defaultValue the default value
+     * @return the integer value from the configuration, or the default value when it fails to retrieve it
+     */
+    public static int getIntConfig(IInstanceConfig config, String configName, int defaultValue)
+    {
+        try
+        {
+            return config.getInt(configName);
+        }
+        catch (NullPointerException npe)
+        {
+            return defaultValue;
+        }
     }
 
     public static final class RingInstanceDetails

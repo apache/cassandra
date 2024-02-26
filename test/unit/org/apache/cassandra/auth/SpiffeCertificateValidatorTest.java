@@ -32,7 +32,7 @@ import static org.junit.Assert.assertEquals;
 
 public class SpiffeCertificateValidatorTest
 {
-    private static final String CERTIFICATE_PATH = "auth/SampleMtlsClientCertificate.pem";
+    static final String CERTIFICATE_PATH = "auth/SampleMtlsClientCertificate.pem";
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
@@ -54,14 +54,5 @@ public class SpiffeCertificateValidatorTest
         expectedException.expectMessage("Unable to extract Spiffe from the certificate");
         expectedException.expect(AuthenticationException.class);
         validator.identity(chain);
-    }
-
-    @Test
-    public void testAgeConsumedFromCertificate() throws CertificateException
-    {
-        SpiffeCertificateValidator validator = new SpiffeCertificateValidator();
-        Certificate[] chain = loadCertificateChain(CERTIFICATE_PATH);
-        validator.certificateAgeConsumer(chain, (Integer age) ->
-                                                assertEquals("Age is expected to be ~10 (365*10) years", 5256000, age.intValue()));
     }
 }

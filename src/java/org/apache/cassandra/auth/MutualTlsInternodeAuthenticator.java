@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.lang3.StringUtils;
@@ -45,6 +46,7 @@ import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.metrics.MutualTlsMetrics;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
@@ -62,10 +64,10 @@ import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
  * certificate validator and configure it in cassandra.yaml.Below is an example on how to configure validator.
  * Note that this example uses SPIFFE based validator, it could be any other validator with any defined identifier format.
  *
- * <p>Optionally, the authenticator can be configured to restrict the age of the client certificates. This allows for
- * better server-side controls for authentication. In some cases, clients can provide certificates that expire multiple
- * months/years after the certificate was issued. For those use cases, it is desirable to reject the certificate if
- * the expiration date is too far away in the future.
+ * <p>Optionally, the authenticator can be configured to restrict the validity period of the client certificates.
+ * This allows for better server-side controls for authentication. In some cases, clients can provide certificates
+ * that expire multiple months/years after the certificate was issued. For those use cases, it is desirable to reject
+ * the certificate if the expiration date is too far away in the future.
  *
  * <pre>
  * internode_authenticator:
@@ -74,7 +76,6 @@ import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
  *     validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
  *     trusted_peer_identities: "spiffe1,spiffe2"
  *     node_identity: "spiffe1"
- *     max_certificate_age: 5d
  * </pre>
  */
 public class MutualTlsInternodeAuthenticator implements IInternodeAuthenticator
@@ -82,15 +83,13 @@ public class MutualTlsInternodeAuthenticator implements IInternodeAuthenticator
     private static final String VALIDATOR_CLASS_NAME = "validator_class_name";
     private static final String TRUSTED_PEER_IDENTITIES = "trusted_peer_identities";
     private static final String NODE_IDENTITY = "node_identity";
-    private static final String MAX_CERTIFICATE_AGE_CONFIG = "max_certificate_age";
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
     private final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 30L, TimeUnit.SECONDS);
     private final MutualTlsCertificateValidator certificateValidator;
     private final List<String> trustedIdentities;
-    // For minute resolution, if the configuration is Integer.MAX_VALUE we can represent 4085 years.
-    // We should safely expect that no certificate expires after 4085 years of its creation.
-    @VisibleForTesting
-    final int maxCertificateAgeMinutes;
+    @Nonnull
+    private final MutualTlsCertificateValidityPeriodValidator certificateValidityPeriodValidator;
+    private final DurationSpec.IntMinutesBound certificateValidityWarnThreshold;
 
     public MutualTlsInternodeAuthenticator(Map<String, String> parameters)
     {
@@ -144,16 +143,8 @@ public class MutualTlsInternodeAuthenticator implements IInternodeAuthenticator
             throw new ConfigurationException(message);
         }
 
-        String maxCertificateAgeConfig = parameters.get(MAX_CERTIFICATE_AGE_CONFIG);
-        if (maxCertificateAgeConfig != null)
-        {
-            DurationSpec.IntMinutesBound maxCertificateAge = new DurationSpec.IntMinutesBound(maxCertificateAgeConfig);
-            maxCertificateAgeMinutes = maxCertificateAge.toMinutes();
-        }
-        else
-        {
-            maxCertificateAgeMinutes = Integer.MAX_VALUE;
-        }
+        certificateValidityPeriodValidator = new MutualTlsCertificateValidityPeriodValidator(config.server_encryption_options.max_certificate_validity_period);
+        certificateValidityWarnThreshold = config.server_encryption_options.certificate_validity_warn_threshold;
     }
 
     @Override
@@ -201,21 +192,27 @@ public class MutualTlsInternodeAuthenticator implements IInternodeAuthenticator
                 return false;
             }
 
-            // Validates that the certificate age does not exceed the maximum certificate age
-            certificateValidator.certificateAgeConsumer(certificates, certificateAgeMinutes -> {
-                if (certificateAgeMinutes > maxCertificateAgeMinutes)
-                {
-                    String errorMessage = String.format("The age of the provided certificate (%d minutes) exceeds the maximum allowed age of %d minutes",
-                                                        certificateAgeMinutes, maxCertificateAgeMinutes);
-                    throw new AuthenticationException(errorMessage);
-                }
-            });
+            int minutesToCertificateExpiration = certificateValidityPeriodValidator.validate(certificates);
+
+            if (certificateValidityWarnThreshold != null
+                && minutesToCertificateExpiration < certificateValidityWarnThreshold.toMinutes())
+            {
+                noSpamLogger.warn("Certificate from {}:{} with identity '{}' will expire in {} minutes",
+                                  remoteAddress, remotePort, identity, minutesToCertificateExpiration);
+            }
+            MutualTlsMetrics.instance.internodeCertificateExpirationDays.update(toDays(minutesToCertificateExpiration));
+
             return true;
         }
         // Outbound connections don't need to be authenticated again in certificate based connections. SSL handshake
         // makes sure that we are talking to valid server by checking root certificates of the server in the
         // truststore of the client.
         return true;
+    }
+
+    private int toDays(int minutes)
+    {
+        return (int) TimeUnit.MINUTES.toDays(minutes);
     }
 
     @VisibleForTesting

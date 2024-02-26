@@ -19,10 +19,6 @@
 package org.apache.cassandra.auth;
 
 import java.security.cert.Certificate;
-import java.security.cert.X509Certificate;
-import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
-import java.util.function.Consumer;
 
 import org.apache.cassandra.exceptions.AuthenticationException;
 
@@ -53,15 +49,6 @@ public interface MutualTlsCertificateValidator
     boolean isValidCertificate(Certificate[] clientCertificateChain);
 
     /**
-     * Extracts the certificate(s) age(s) from the {@code clientCertificateChain} and provides it to the
-     * {@code ageConsumer} for further processing.
-     *
-     * @param clientCertificateChain client certificate chain
-     * @param ageConsumer            a consumer of certificate ages (in minutes)
-     */
-    void certificateAgeConsumer(Certificate[] clientCertificateChain, Consumer<Integer> ageConsumer);
-
-    /**
      * This method should provide logic to extract identity out of a certificate to perform mTLS authentication.
      *
      * <p>An example of identity could be the following:
@@ -76,27 +63,4 @@ public interface MutualTlsCertificateValidator
      * @throws AuthenticationException when identity cannot be extracted
      */
     String identity(Certificate[] clientCertificateChain) throws AuthenticationException;
-
-    /**
-     * Filters out non-{@link X509Certificate}s and casts the certificate chain to {@link X509Certificate}s.
-     *
-     * @param clientCertificateChain client certificate chain
-     * @return an array of certificates that were cast to {@link X509Certificate}
-     */
-    default X509Certificate[] castCertsToX509(Certificate[] clientCertificateChain)
-    {
-        return Arrays.stream(clientCertificateChain)
-                     .filter(certificate -> certificate instanceof X509Certificate)
-                     .toArray(X509Certificate[]::new);
-    }
-
-    /**
-     * @param certificate the client certificate
-     * @return the age of the certificate in minutes
-     */
-    default int certificateAgeInMinutes(X509Certificate certificate)
-    {
-        return (int) ChronoUnit.MINUTES.between(certificate.getNotBefore().toInstant(),
-                                                certificate.getNotAfter().toInstant());
-    }
 }

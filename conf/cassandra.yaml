@@ -170,11 +170,9 @@ authenticator:
 # MutualTlsAuthenticator can be configured using the following configuration. One can add their own validator
 # which implements MutualTlsCertificateValidator class and provide logic for extracting identity out of certificates
 # and validating certificates.
-# When the max_certificate_age parameter is not set, the age validation will have no effect.
 #  class_name : org.apache.cassandra.auth.MutualTlsAuthenticator
 #  parameters :
 #    validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
-#    max_certificate_age: 365d
 
 # Authorization backend, implementing IAuthorizer; used to limit access/provide permissions
 # Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllAuthorizer,
@@ -966,13 +964,11 @@ listen_address: localhost
 # MutualTlsInternodeAuthenticator can be configured using the following configuration.One can add their own validator
 # which implements MutualTlsCertificateValidator class and provide logic for extracting identity out of certificates
 # and validating certificates.
-# When the max_certificate_age parameter is not set, the age validation will have no effect.
 #  class_name : org.apache.cassandra.auth.MutualTlsInternodeAuthenticator
 #  parameters :
 #    validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
 #    trusted_peer_identities: "spiffe1,spiffe2"
 #    node_identity: "spiffe1"
-#    max_certificate_age: 365d
 # Whether to start the native transport server.
 # The address on which the native transport is bound is defined by rpc_address.
 start_native_transport: true
@@ -1600,6 +1596,13 @@ server_encryption_options:
   #   TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, TLS_RSA_WITH_AES_128_GCM_SHA256, TLS_RSA_WITH_AES_128_CBC_SHA,
   #   TLS_RSA_WITH_AES_256_CBC_SHA
   # ]
+  # Optional setting to define the maximum allowed validity period of the client certificate used for the internode
+  # inbound connections. For example, if the specified max_certificate_validity_period is 30 days and the client
+  # uses a certificate that is issued for more than 30 days, the connection will be rejected.
+  # max_certificate_validity_period: 365d
+  # Optional setting that defines a warning threshold. When the threshold is exceeded for the internode certificate
+  # validity period, warnings with information about the certificate expiration will be logged.
+  # certificate_validity_warn_threshold: 10d
 
 # Configure client-to-server encryption.
 #
@@ -1646,6 +1649,15 @@ client_encryption_options:
   #   TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, TLS_RSA_WITH_AES_128_GCM_SHA256, TLS_RSA_WITH_AES_128_CBC_SHA,
   #   TLS_RSA_WITH_AES_256_CBC_SHA
   # ]
+  # Optional setting to define the maximum validity period of the client certificate allowed to establish
+  # connections to the server. For example, if max_certificate_validity_period is configured for 10 days,
+  # and a client attempts to authenticate with a certificate with a longer validity period (say 30 days),
+  # then the connection will be rejected.
+  # max_certificate_validity_period: 365d
+  # Optional setting that defines a warning threshold. When the threshold is exceeded for the client certificate
+  # validity, warnings with information about the certificate expiration will be logged. Additionally, client
+  # warnings will be reported during the session establishment.
+  # certificate_validity_warn_threshold: 10d
 
 # internode_compression controls whether traffic between nodes is
 # compressed.

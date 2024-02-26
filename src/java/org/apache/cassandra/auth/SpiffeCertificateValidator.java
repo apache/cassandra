@@ -23,9 +23,10 @@ import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Consumer;
 
 import org.apache.cassandra.exceptions.AuthenticationException;
+
+import static org.apache.cassandra.auth.MutualTlsUtil.castCertsToX509;
 
 /**
  * This class assumes that the identity of a certificate is SPIFFE which is a URI that is present as part of the SAN
@@ -53,20 +54,9 @@ public class SpiffeCertificateValidator implements MutualTlsCertificateValidator
      * {@inheritDoc}
      */
     @Override
-    public boolean isValidCertificate(Certificate[] clientCertificateChain) throws AuthenticationException
+    public boolean isValidCertificate(Certificate[] clientCertificateChain)
     {
         return true;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void certificateAgeConsumer(Certificate[] clientCertificateChain, Consumer<Integer> ageConsumer)
-    {
-        X509Certificate[] castedCerts = castCertsToX509(clientCertificateChain);
-        int certificateAgeInMinutes = certificateAgeInMinutes(castedCerts[0]);
-        ageConsumer.accept(certificateAgeInMinutes);
     }
 
     /**
@@ -86,7 +76,7 @@ public class SpiffeCertificateValidator implements MutualTlsCertificateValidator
         }
     }
 
-    private String getSANSpiffe(Certificate[] clientCertificates) throws CertificateException
+    private static String getSANSpiffe(final Certificate[] clientCertificates) throws CertificateException
     {
         int URI_TYPE = 6;
         X509Certificate[] castedCerts = castCertsToX509(clientCertificates);

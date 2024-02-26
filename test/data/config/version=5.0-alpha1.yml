@@ -388,6 +388,8 @@ server_encryption_options:
   keystore: "java.lang.String"
   truststore: "java.lang.String"
   algorithm: "java.lang.String"
+  max_certificate_validity_period: "org.apache.cassandra.config.DurationSpec.IntMinutesBound"
+  certificate_validity_warn_threshold: "org.apache.cassandra.config.DurationSpec.IntMinutesBound"
 partition_tombstones_fail_threshold: "java.lang.Long"
 traverse_auth_from_root: "java.lang.Boolean"
 denylist_refresh: "org.apache.cassandra.config.DurationSpec.IntSecondsBound"

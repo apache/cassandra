@@ -26,7 +26,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import org.junit.Before;
@@ -43,13 +42,11 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.transport.TlsTestUtils;
-import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.auth.AuthTestUtils.loadCertificateChain;
 import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.INBOUND;
 import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.OUTBOUND;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -162,6 +159,7 @@ public class MutualTlsInternodeAuthenticatorTest
         new MutualTlsInternodeAuthenticator(parameters);
     }
 
+
     @Test
     public void testNoIdentitiesInKeystore()
     {
@@ -179,49 +177,6 @@ public class MutualTlsInternodeAuthenticatorTest
         List<String> identities = new MutualTlsInternodeAuthenticator(getParams()).getIdentitiesFromKeyStore("test/conf/cassandra_ssl_test_outbound.keystore", "cassandra", "JKS");
         assertFalse(identities.isEmpty());
         assertTrue(identities.contains(identity));
-    }
-
-    @Test
-    public void testInvalidMaxCertificateAge()
-    {
-        expectedException.expect(IllegalArgumentException.class);
-        expectedException.expectMessage("Invalid duration: not-a-valid-input Accepted units:[MINUTES, HOURS, DAYS] where case matters and only non-negative values.");
-
-        Map<String, String> parameters = new HashMap<>();
-        parameters.put("validator_class_name", getValidatorClass());
-        parameters.put("max_certificate_age", "not-a-valid-input");
-        new MutualTlsInternodeAuthenticator(parameters);
-    }
-
-    @Test
-    public void testNegativeMaxCertificateAge()
-    {
-        expectedException.expect(IllegalArgumentException.class);
-        expectedException.expectMessage("Invalid duration: -2d Accepted units:[MINUTES, HOURS, DAYS] where case matters and only non-negative values.");
-
-        Map<String, String> parameters = new HashMap<>();
-        parameters.put("validator_class_name", getValidatorClass());
-        parameters.put("max_certificate_age", "-2d");
-        new MutualTlsInternodeAuthenticator(parameters);
-    }
-
-    @Test
-    public void testValidMaxCertificateAgeConfiguration()
-    {
-        Map<String, String> parameters = new HashMap<>();
-        parameters.put("validator_class_name", getValidatorClass());
-
-        List<Pair<String, Integer>> testCases = List.of(Pair.create("2d", (int) TimeUnit.DAYS.toMinutes(2)),
-                                                        Pair.create("1m", 1),
-                                                        Pair.create("365d", (int) TimeUnit.DAYS.toMinutes(365)));
-
-        for (Pair<String, Integer> testCase : testCases)
-        {
-            parameters.put("max_certificate_age", testCase.left);
-            MutualTlsInternodeAuthenticator authenticator = new MutualTlsInternodeAuthenticator(parameters);
-            assertEquals(String.format("max_certificate_age=%s is expected to parse %d minutes", testCase.left, testCase.right),
-                         testCase.right.intValue(), authenticator.maxCertificateAgeMinutes);
-        }
     }
 
     Map<String, String> getParams()
