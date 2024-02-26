@@ -665,16 +665,14 @@ public class VectorTypeTest extends VectorTester
         createIndex("CREATE CUSTOM INDEX ON %s(entries(metadata)) USING 'StorageAttachedIndex'");
         createIndex("CREATE CUSTOM INDEX ON %s(row_v) USING 'StorageAttachedIndex'");
 
-        UntypedResultSet result = execute("SELECT * FROM %s WHERE metadata['map_k'] = 'map_v' AND pk = 0 ORDER BY row_v ann of [0.1, 0.2] LIMIT 4");
-        assertThat(result).hasSize(0);
+        String select = "SELECT * FROM %s WHERE metadata['map_k'] = 'map_v' AND pk = 0 ORDER BY row_v ann of [0.1, 0.2] LIMIT 4";
+        assertRows(execute(select));
 
         execute("INSERT INTO %s (pk, metadata, row_v) VALUES (0, {'map_k' : 'map_v'}, [0.11, 0.19])");
-
-        result = execute("SELECT * FROM %s WHERE metadata['map_k'] = 'map_v' AND pk = 0 ORDER BY row_v ann of [0.1, 0.2] LIMIT 4");
-        assertThat(result).hasSize(1);
+        Object[] row = row(0, map("map_k", "map_v"), vector(0.11f, 0.19f));
+        assertRows(execute(select), row);
 
         execute("INSERT INTO %s (pk, metadata, row_v) VALUES (10, {'map_k' : 'map_v'}, [0.11, 0.19])");
-        result = execute("SELECT * FROM %s WHERE metadata['map_k'] = 'map_v' AND pk = 0 ORDER BY row_v ann of [0.1, 0.2] LIMIT 4");
-        assertThat(result).hasSize(1);
+        assertRows(execute(select), row);
     }
 }
