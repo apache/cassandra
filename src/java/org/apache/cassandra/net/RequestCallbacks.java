@@ -81,7 +81,7 @@ public class RequestCallbacks implements OutboundMessageCallbacks
      * @return the registered {@link CallbackInfo} for this id and peer, or {@code null} if unset or expired.
      */
     @Nullable
-    CallbackInfo get(long id, InetAddressAndPort peer)
+    public CallbackInfo get(long id, InetAddressAndPort peer)
     {
         return callbacks.get(key(id, peer));
     }
@@ -265,7 +265,7 @@ public class RequestCallbacks implements OutboundMessageCallbacks
         }
     }
 
-    static class CallbackInfo
+    public static class CallbackInfo
     {
         final long createdAtNanos;
         final long expiresAtNanos;

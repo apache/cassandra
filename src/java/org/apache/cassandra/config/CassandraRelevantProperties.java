@@ -391,7 +391,12 @@ public enum CassandraRelevantProperties
 
     // Changes the semantic of the "THREE" consistency level to mean "all but one"
     // i.e. that all replicas except for at most one in the cluster (across all DCs) must accept the write for it to be successful.
-    THREE_MEANS_ALL_BUT_ONE("dse.consistency_level.three_means_all_but_one", "false");
+    THREE_MEANS_ALL_BUT_ONE("dse.consistency_level.three_means_all_but_one", "false"),
+    /**
+     * Allows to set a custom response messages handler for verbs {@link org.apache.cassandra.net.Verb#REQUEST_RSP} and
+     * {@link org.apache.cassandra.net.Verb#FAILURE_RSP}.
+     */
+    CUSTOM_RESPONSE_VERB_HANDLER_PROVIDER("cassandra.custom_response_verb_handler_provider_class"),;
 
     CassandraRelevantProperties(String key, String defaultVal)
     {
