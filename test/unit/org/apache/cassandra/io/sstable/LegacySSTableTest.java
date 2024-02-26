@@ -25,9 +25,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import org.apache.commons.lang3.StringUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -69,12 +73,15 @@ import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
+import org.quicktheories.generators.SourceDSL;
 
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.quicktheories.QuickTheory.qt;
 
 /**
  * Tests backwards compatibility for SSTables
@@ -92,21 +99,10 @@ public class LegacySSTableTest
      * See {@link #testGenerateSstables()} to generate sstables.
      * Take care on commit as you need to add the sstable files using {@code git add -f}
      */
-    public static final String[] legacyVersions = {"nc", "nb", "na", "me", "md", "mc", "mb", "ma", "aa", "ac", "ad", "ba", "bb", "ca", "cb"};
+    public static final String[] legacyVersions = {"nc", "nb", "na", "me", "md", "mc", "mb", "ma", "aa", "ac", "ad", "ba", "bb", "ca", "cb", "cc"};
 
     // 1200 chars
-    static final String longString = "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
-                                     "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
-                                     "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
-                                     "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
-                                     "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
-                                     "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
-                                     "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
-                                     "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
-                                     "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
-                                     "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
-                                     "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
-                                     "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789";
+    static final String longString = StringUtils.repeat("0123456789", 120);
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -274,10 +270,9 @@ public class LegacySSTableTest
         }
     }
 
-    private void doTestLegacyCqlTables() throws Exception
+    private void doTestLegacyCqlTables()
     {
-        for (String legacyVersion : legacyVersions)
-        {
+        qt().forAll(SourceDSL.arbitrary().pick(legacyVersions)).checkAssert(legacyVersion -> {
             logger.info("Loading legacy version: {}", legacyVersion);
             truncateLegacyTables(legacyVersion);
             loadLegacyTables(legacyVersion);
@@ -287,7 +282,7 @@ public class LegacySSTableTest
             if (Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion)).getLiveSSTables().stream().anyMatch(sstr -> sstr.descriptor.formatType.info.getType() == SSTableFormat.Type.BIG))
                 verifyCache(legacyVersion, startCount);
             compactLegacyTables(legacyVersion);
-        }
+        });
     }
 
     @Test
@@ -432,7 +427,7 @@ public class LegacySSTableTest
         new StreamPlan(StreamOperation.OTHER).transferStreams(FBUtilities.getBroadcastAddressAndPort(), streams).execute().get();
     }
 
-    public static void truncateLegacyTables(String legacyVersion) throws Exception
+    public static void truncateLegacyTables(String legacyVersion)
     {
         logger.info("Truncating legacy version {}", legacyVersion);
         Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion)).truncateBlocking();
@@ -441,7 +436,7 @@ public class LegacySSTableTest
         Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_clust_counter", legacyVersion)).truncateBlocking();
     }
 
-    private static void compactLegacyTables(String legacyVersion) throws Exception
+    private static void compactLegacyTables(String legacyVersion)
     {
         logger.info("Compacting legacy version {}", legacyVersion);
         Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion)).forceMajorCompaction();
@@ -450,23 +445,30 @@ public class LegacySSTableTest
         Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_clust_counter", legacyVersion)).forceMajorCompaction();
     }
 
-    public static void loadLegacyTables(String legacyVersion) throws Exception
+    public static void loadLegacyTables(String legacyVersion)
     {
-            logger.info("Preparing legacy version {}", legacyVersion);
-            loadLegacyTable("legacy_%s_simple", legacyVersion);
-            loadLegacyTable("legacy_%s_simple_counter", legacyVersion);
-            loadLegacyTable("legacy_%s_clust", legacyVersion);
-            loadLegacyTable("legacy_%s_clust_counter", legacyVersion);
+        logger.info("Preparing legacy version {}", legacyVersion);
+        loadLegacyTable("legacy_%s_simple", legacyVersion);
+        loadLegacyTable("legacy_%s_simple_counter", legacyVersion);
+        loadLegacyTable("legacy_%s_clust", legacyVersion);
+        loadLegacyTable("legacy_%s_clust_counter", legacyVersion);
     }
 
-    private static void verifyCache(String legacyVersion, long startCount) throws InterruptedException, java.util.concurrent.ExecutionException
+    private static void verifyCache(String legacyVersion, long startCount)
     {
         //For https://issues.apache.org/jira/browse/CASSANDRA-10778
         //Validate whether the key cache successfully saves in the presence of old keys as
         //well as loads the correct number of keys
         long endCount = CacheService.instance.keyCache.size();
         Assert.assertTrue(endCount > startCount);
-        CacheService.instance.keyCache.submitWrite(Integer.MAX_VALUE).get();
+        try
+        {
+            CacheService.instance.keyCache.submitWrite(Integer.MAX_VALUE).get(60, TimeUnit.MINUTES);
+        }
+        catch (Exception e)
+        {
+            throw new AssertionError(e);
+        }
         CacheService.instance.invalidateKeyCache();
         Assert.assertEquals(startCount, CacheService.instance.keyCache.size());
         CacheService.instance.keyCache.loadSaved();
@@ -574,7 +576,7 @@ public class LegacySSTableTest
         }
     }
 
-    private static void loadLegacyTable(String tablePattern, String legacyVersion) throws IOException
+    private static void loadLegacyTable(String tablePattern, String legacyVersion)
     {
         String table = String.format(tablePattern, legacyVersion);
 
@@ -584,10 +586,20 @@ public class LegacySSTableTest
 
         for (File cfDir : cfs.getDirectories().getCFDirectories())
         {
-            copySstablesToTestData(legacyVersion, table, cfDir);
+            try
+            {
+                copySstablesToTestData(legacyVersion, table, cfDir);
+            }
+            catch (IOException e)
+            {
+                throw new AssertionError(e);
+            }
         }
 
+        int s0 = cfs.getLiveSSTables().size();
         cfs.loadNewSSTables();
+        int s1 = cfs.getLiveSSTables().size();
+        assertThat(s1).isGreaterThan(s0);
     }
 
     /**
@@ -603,7 +615,7 @@ public class LegacySSTableTest
     @Test
     public void testGenerateSstables() throws Throwable
     {
-        Version version = BigFormat.latestVersion;
+        Version version = TrieIndexFormat.latestVersion;
         System.setProperty(SSTableFormat.FORMAT_DEFAULT_PROP, version.getSSTableFormat().getType().name);
         Random rand = new Random();
         StringBuilder sb = new StringBuilder();

@@ -75,7 +75,6 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.rows.RowIterators;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.exceptions.InvalidColumnTypeException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata.ClusteringOrder;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
@@ -1039,32 +1038,14 @@ public final class SchemaKeyspace
         return columns;
     }
 
-    private static AbstractType<?> validate(String keyspace,
-                                            String table,
-                                            ByteBuffer name,
+    private static AbstractType<?> validate(ByteBuffer name,
                                             AbstractType<?> type,
                                             boolean isPrimaryKeyColumn,
                                             boolean isCounterTable,
                                             boolean isDroppedColumn)
     {
-        try
-        {
-            type.validateForColumn(name, isPrimaryKeyColumn, isCounterTable, isDroppedColumn);
-            return type;
-        }
-        catch (InvalidColumnTypeException e)
-        {
-            AbstractType<?> fixed = e.tryFix();
-            if (fixed == null)
-                throw e;
-
-            logger.error("Error reading schema for table {}.{}, column {} had invalid type {} (invalid because: {}). "
-                         + "This was likely the result of a previous bug and the type was automatically converted to "
-                         + "valid type {}. If this is incorrect, or this message repeats itself, please contact "
-                         + "DataStax support", keyspace, table, ColumnIdentifier.toCQLString(name), type.asCQL3Type(),
-                         e.getMessage(), fixed.asCQL3Type());
-            return fixed;
-        }
+        type.validateForColumn(name, isPrimaryKeyColumn, isCounterTable, isDroppedColumn, false);
+        return type;
     }
 
     @VisibleForTesting
@@ -1083,7 +1064,7 @@ public final class SchemaKeyspace
             type = ReversedType.getInstance(type);
 
         ByteBuffer columnNameBytes = row.getBytes("column_name_bytes");
-        type = validate(keyspace, table, columnNameBytes, type, kind.isPrimaryKeyKind(), isCounterTable, false);
+        type = validate(columnNameBytes, type, kind.isPrimaryKeyKind(), isCounterTable, false);
 
         ColumnIdentifier name = new ColumnIdentifier(columnNameBytes, row.getString("column_name"));
 
@@ -1116,7 +1097,7 @@ public final class SchemaKeyspace
         assert kind == ColumnMetadata.Kind.REGULAR || kind == ColumnMetadata.Kind.STATIC
             : "Unexpected dropped column kind: " + kind;
 
-        type = validate(keyspace, table, UTF8Type.instance.decompose(name), type, false, isCounterTable, true);
+        type = validate(UTF8Type.instance.decompose(name), type, false, isCounterTable, true);
 
         ColumnMetadata column = ColumnMetadata.droppedColumn(keyspace, table, ColumnIdentifier.getInterned(name, true), type, kind);
         long droppedTime = TimeUnit.MILLISECONDS.toMicros(row.getLong("dropped_time"));

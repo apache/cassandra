@@ -739,43 +739,44 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     public void validateForColumn(ByteBuffer columnName,
                                   boolean isPrimaryKeyColumn,
                                   boolean isCounterTable,
-                                  boolean isDroppedColumn)
+                                  boolean isDroppedColumn,
+                                  boolean isForOfflineTool)
     {
         if (isPrimaryKeyColumn)
         {
             if (isMultiCell())
-                throw columnException(columnName, true, isCounterTable, isDroppedColumn,
+                throw columnException(columnName,
                                       "non-frozen %s are not supported for PRIMARY KEY columns", category());
             if (referencesCounter())
-                throw columnException(columnName, true, isCounterTable, isDroppedColumn,
+                throw columnException(columnName,
                                       "counters are not supported within PRIMARY KEY columns");
             // We don't allow durations in anything sorted (primary key here, or in the "name-comparator" part of
             // collections below). This isn't really a technical limitation, but duration sorts in a somewhat random
             // way, so CASSANDRA-11873 decided to reject them when sorting was involved.
             if (referencesDuration())
-                throw columnException(columnName, true, isCounterTable, isDroppedColumn,
+                throw columnException(columnName,
                                       "duration types are not supported within PRIMARY KEY columns");
 
             if (comparisonType == ComparisonType.NOT_COMPARABLE)
-                throw columnException(columnName, true, isCounterTable, isDroppedColumn,
-                                      "type %s is not comparable and cannot be used for PRIMARY KEY columns", asCQL3Type());
+                throw columnException(columnName,
+                                      "type %s is not comparable and cannot be used for PRIMARY KEY columns", asCQL3Type().toSchemaString());
         }
         else
         {
             if (isMultiCell())
             {
-                if (isTuple() && !isDroppedColumn)
-                    throw columnException(columnName, false, isCounterTable, false,
+                if (isTuple() && !isDroppedColumn && !isForOfflineTool)
+                    throw columnException(columnName,
                                           "tuple type %s is not frozen, which should not have happened",
-                                          asCQL3Type());
+                                          asCQL3Type().toSchemaString());
 
                 for (AbstractType<?> subType : subTypes())
                 {
                     if (subType.isMultiCell())
                     {
-                        throw columnException(columnName, false, isCounterTable, isDroppedColumn,
+                        throw columnException(columnName,
                                               "non-frozen %s are only supported at top-level: subtype %s of %s must be frozen",
-                                              subType.category(), subType.asCQL3Type(), asCQL3Type());
+                                              subType.category(), subType.asCQL3Type().toSchemaString(), asCQL3Type().toSchemaString());
                     }
                 }
 
@@ -789,7 +790,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
                         String what = this instanceof MapType
                                       ? "map keys"
                                       : (this instanceof SetType ? "sets" : category());
-                        throw columnException(columnName, false, isCounterTable, isDroppedColumn,
+                        throw columnException(columnName,
                                               "duration types are not supported within non-frozen %s", what);
                     }
                 }
@@ -807,34 +808,31 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
                     // their limitations, and we want to restrict how user can use them to hopefully make user think
                     // twice about their usage). In any case, a slightly more user-friendly message is probably nice.
                     if (referencesCounter())
-                        throw columnException(columnName, false, true, isDroppedColumn, "counters are not allowed within %s", category());
+                        throw columnException(columnName, "counters are not allowed within %s", category());
 
-                    throw columnException(columnName, false, true, isDroppedColumn, "Cannot mix counter and non counter columns in the same table");
+                    throw columnException(columnName, "Cannot mix counter and non counter columns in the same table");
                 }
             }
             else
             {
                 if (isCounter())
-                    throw columnException(columnName, false, false, isDroppedColumn, "Cannot mix counter and non counter columns in the same table");
+                    throw columnException(columnName, "Cannot mix counter and non counter columns in the same table");
 
                 // For nested counters, we prefer complaining about the nested-ness rather than this not being a counter
                 // table, because the table won't be marked as a counter one even if it has only nested counters, and so
                 // that's overall a more intuitive message.
                 if (referencesCounter())
-                    throw columnException(columnName, false, false, isDroppedColumn, "counters are not allowed within %s", category());
+                    throw columnException(columnName, "counters are not allowed within %s", category());
             }
         }
     }
 
     private InvalidColumnTypeException columnException(ByteBuffer columnName,
-                                                       boolean isPrimaryKeyColumn,
-                                                       boolean isCounterTable,
-                                                       boolean isDroppedColumn,
                                                        String reason,
                                                        Object... args)
     {
         String msg = args.length == 0 ? reason : String.format(reason, args);
-        return new InvalidColumnTypeException(columnName, this, isPrimaryKeyColumn, isCounterTable, isDroppedColumn, msg);
+        return new InvalidColumnTypeException(columnName, this, msg);
     }
 
     private String category()

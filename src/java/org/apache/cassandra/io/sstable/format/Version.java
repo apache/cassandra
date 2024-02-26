@@ -141,4 +141,13 @@ public abstract class Version
     public abstract boolean hasMaxColumnValueLengths();
 
     public abstract boolean hasOriginatingHostId();
+
+    /**
+     * Whether we expect that sstable has explicitly frozen tuples in its {@link org.apache.cassandra.db.SerializationHeader}.
+     * If {@code false}, we don't try to fix non-frozen tuples that are not types of dropped columns and fail loading
+     * the sstable. If {@code true}, we try to fix non-frozen tuples and load the sstable.
+     *
+     * See <a href="https://github.com/riptano/cndb/issues/8696">this</a> for reference.
+     */
+    public abstract boolean hasImplicitlyFrozenTuples();
 }

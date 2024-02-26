@@ -244,7 +244,7 @@ public class CreateTest extends CQLTester
         assertRows(execute("SELECT * FROM %s"),
                    row(1, tuple(1, Duration.from("1mo"))));
 
-        assertInvalidMessage("Invalid type tuple<int, duration> for column t: duration types are not supported within PRIMARY KEY columns",
+        assertInvalidMessage("Invalid type frozen<tuple<int, duration>> for column t: duration types are not supported within PRIMARY KEY columns",
                              "CREATE TABLE cql_test_keyspace.table0(t frozen<tuple<int, duration>> PRIMARY KEY, v int)");
 
         // Test duration within UDT
@@ -259,7 +259,7 @@ public class CreateTest extends CQLTester
                              "CREATE TABLE cql_test_keyspace.table0(pk int, u frozen<" + myType + ">, v int, PRIMARY KEY(pk, u))");
 
         // Test duration with several level of depth
-        assertInvalidMessage("Invalid type frozen<map<text, list<tuple<int, duration>>>> for column m: duration types are not supported within PRIMARY KEY columns",
+        assertInvalidMessage("Invalid type frozen<map<text, frozen<list<frozen<tuple<int, duration>>>>>> for column m: duration types are not supported within PRIMARY KEY columns",
                              "CREATE TABLE cql_test_keyspace.table0(pk int, m frozen<map<text, list<tuple<int, duration>>>>, v int, PRIMARY KEY (pk, m))");
     }
 

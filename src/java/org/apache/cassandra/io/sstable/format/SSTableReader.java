@@ -526,7 +526,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
         try
         {
-            return new SSTableReaderBuilder.ForBatch(descriptor, metadata, components, statsMetadata, header.toHeader(descriptor.toString(), metadata.get())).build();
+            return new SSTableReaderBuilder.ForBatch(descriptor, metadata, components, statsMetadata, header.toHeader(descriptor, metadata.get())).build();
         }
         catch (UnknownColumnException e)
         {
@@ -599,7 +599,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                                                        isOffline,
                                                        components,
                                                        statsMetadata,
-                                                       header.toHeader(descriptor.toString(), metadata.get())).build();
+                                                       header.toHeader(descriptor.toString(), metadata.get(), descriptor.version, isOffline)).build();
         }
         catch (UnknownColumnException e)
         {

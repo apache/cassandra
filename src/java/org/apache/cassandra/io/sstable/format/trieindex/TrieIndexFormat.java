@@ -306,6 +306,7 @@ public class TrieIndexFormat implements SSTableFormat
         // bb (DSE 6.8.5): added hostId of the node from which the sstable originated (DB-4629)
         // ca (DSE-DB aka Stargazer based on OSS 4.0): bb fields without maxColumnValueLengths + all OSS fields
         // cb (OSS 5.0): token space coverage
+        // cc : added explicitly frozen tuples in header, non-frozen UDT columns dropping support
         // NOTE: when adding a new version, please add that to LegacySSTableTest, too.
 
         private final boolean isLatestVersion;
@@ -320,6 +321,7 @@ public class TrieIndexFormat implements SSTableFormat
         private final boolean hasMaxColumnValueLengths;
 
         private final int correspondingMessagingVersion;
+        private final boolean hasExplicitlyFrozenTuples;
 
         TrieIndexVersion(String version)
         {
@@ -331,6 +333,7 @@ public class TrieIndexFormat implements SSTableFormat
             hasOriginatingHostId = version.matches("(a[d-z])|(b[b-z])") || version.compareTo("ca") >= 0;
             hasMaxColumnValueLengths = version.matches("b[a-z]"); // DSE only field
             correspondingMessagingVersion = version.compareTo("ca") >= 0 ? MessagingService.VERSION_SG_10 : MessagingService.VERSION_3014;
+            hasExplicitlyFrozenTuples = version.compareTo("cc") < 0 || version.compareTo("da") >= 0; // we don't know if what DA is going to be eventually, but it is almost certain it will not include explicitly frozen tuples
         }
 
         // this is for the ab version which was used in the LABS, and then has been renamed to ba
@@ -455,6 +458,12 @@ public class TrieIndexFormat implements SSTableFormat
         public boolean hasIsTransient()
         {
             return version.compareTo("ca") >= 0;
+        }
+
+        @Override
+        public boolean hasImplicitlyFrozenTuples()
+        {
+            return hasExplicitlyFrozenTuples;
         }
     }
 }
