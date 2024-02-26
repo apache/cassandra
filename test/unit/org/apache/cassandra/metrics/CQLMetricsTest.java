@@ -18,13 +18,6 @@
 
 package org.apache.cassandra.metrics;
 
-import java.io.IOException;
-
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Session;
@@ -34,7 +27,15 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.EmbeddedCassandraService;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
+import java.io.IOException;
+
+import static org.apache.cassandra.cql3.CQLTester.assertRowsContains;
+import static org.apache.cassandra.cql3.CQLTester.row;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -85,6 +86,10 @@ public class CQLMetricsTest
         {
             DatabaseDescriptor.setUseStatementsEnabled(true);
         }
+
+        assertRowsContains(cluster, session.execute("SELECT * FROM system_metrics.cql_group"),
+                row("org.apache.cassandra.metrics.CQL.UseStatementsExecuted", "unknown", "counter",
+                        String.valueOf(useCountBefore)));
     }
 
     @Test
@@ -96,6 +101,10 @@ public class CQLMetricsTest
         Assert.assertEquals(useCountBefore + 1, QueryProcessor.metrics.useStatementsExecuted.getCount());
         session.prepare("SELECT * FROM junit.metricstest WHERE id = ?");
         assertEquals(n+2, (int) QueryProcessor.metrics.preparedStatementsCount.getValue());
+
+        assertRowsContains(cluster, session.execute("SELECT * FROM system_metrics.cql_group"),
+                row("org.apache.cassandra.metrics.CQL.PreparedStatementsCount", "unknown", "gauge",
+                        String.valueOf(QueryProcessor.metrics.preparedStatementsCount.getValue())));
     }
 
     @Test
@@ -128,6 +137,12 @@ public class CQLMetricsTest
 
         assertEquals(10, QueryProcessor.metrics.preparedStatementsExecuted.getCount());
         assertEquals(0, QueryProcessor.metrics.regularStatementsExecuted.getCount());
+
+        assertRowsContains(cluster, session.execute("SELECT * FROM system_metrics.cql_group"),
+                row("org.apache.cassandra.metrics.CQL.RegularStatementsExecuted", "unknown", "counter",
+                        String.valueOf(QueryProcessor.metrics.regularStatementsExecuted.getCount())),
+                row("org.apache.cassandra.metrics.CQL.PreparedStatementsExecuted", "unknown", "counter",
+                        String.valueOf(QueryProcessor.metrics.preparedStatementsExecuted.getCount())));
     }
 
     @Test
@@ -145,6 +160,10 @@ public class CQLMetricsTest
         for (int i = 0; i < 10; i++)
             session.execute(String.format("INSERT INTO junit.metricstest (id, val) VALUES (%d, '%s')", i, "val" + i));
         assertEquals(0.5, QueryProcessor.metrics.preparedStatementsRatio.getValue(), 0.0);
+
+        assertRowsContains(cluster, session.execute("SELECT * FROM system_metrics.cql_group"),
+                row("org.apache.cassandra.metrics.CQL.PreparedStatementsRatio", "unknown", "gauge",
+                        String.valueOf(QueryProcessor.metrics.preparedStatementsRatio.getValue())));
     }
 
     private void clearMetrics()
