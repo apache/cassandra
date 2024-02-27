@@ -34,6 +34,8 @@ print_help()
   echo "   -a Generate the config.yml, config.yml.FREE and config.yml.PAID expanded configuration"
   echo "      files from the main config_template.yml reusable configuration file."
   echo "      Use this for permanent changes in config.yml that will be committed to the main repo."
+  echo "   -d Minimal development checks only. Sanity check during your dev before sending it to review for speed and cost reductions."
+  echo "      Submitting cleaning pre-commit clean CI run is still a requirement when the patch is ready for review"
   echo "   -f Generate config.yml for tests compatible with the CircleCI free tier resources"
   echo "   -p Generate config.yml for tests compatible with the CircleCI paid tier resources"
   echo "   -b Specify the base git branch for comparison when determining changed tests to"
@@ -80,14 +82,17 @@ print_help()
 all=false
 free=false
 paid=false
+dev_min=false
 env_vars=""
 has_env_vars=false
 check_env_vars=true
 detect_changed_tests=true
-while getopts "e:afpib:s" opt; do
+while getopts "e:afpdib:s" opt; do
   case $opt in
       a ) all=true
           detect_changed_tests=false
+          ;;
+      d ) dev_min=true
           ;;
       f ) free=true
           ;;
@@ -253,7 +258,7 @@ if $has_env_vars; then
 fi
 
 # Define function to remove unneeded jobs.
-# The first argument is the file name, and the second arguemnt is the job name.
+# The first argument is the file name, and the second argument is the job name.
 delete_job()
 {
   delete_yaml_block()
@@ -332,8 +337,87 @@ delete_repeated_jobs()
   fi
 }
 
+# Update the workflow names
+rename_workflow()
+{
+  file="$BASEDIR/$1"
+  echo "Updating workflow names in the configuration $2 -> $3"
+
+  sed -Ei.bak "s/$2/$3/g" "$file"
+}
+
+# Define function to leave only a single config run for each test group.
+# This builds a minimal sanity check config for dev only for time and cost purposes.
+# The first and only argument is the file name.
+build_dev_min_jobs()
+{
+  delete_job "$1" "j11_cqlsh_dtests_py311_offheap"
+  delete_job "$1" "j11_cqlsh_dtests_py38_offheap"
+  delete_job "$1" "j17_cqlsh_dtests_py311_offheap"
+  delete_job "$1" "j17_cqlsh_dtests_py38_offheap"
+  delete_job "$1" "j11_cqlsh_dtests_py311_vnode"
+  delete_job "$1" "j11_cqlsh_dtests_py38_vnode"
+  delete_job "$1" "j11_cqlsh_dtests_py38"
+  delete_job "$1" "j11_cqlshlib_cython_tests"
+  delete_job "$1" "j17_cqlsh_dtests_py311_vnode"
+  delete_job "$1" "j17_cqlsh_dtests_py311"
+  delete_job "$1" "j17_cqlsh_dtests_py38_vnode"
+  delete_job "$1" "j17_cqlsh_dtests_py38"
+  delete_job "$1" "j17_cqlshlib_tests"
+  delete_job "$1" "j17_cqlshlib_cython_tests"
+  delete_job "$1" "j11_dtests_vnode"
+  delete_job "$1" "j11_dtests_large_vnode"
+  delete_job "$1" "j11_dtests_offheap"
+  delete_job "$1" "j17_dtests_vnode"
+  delete_job "$1" "j17_dtests_large"
+  delete_job "$1" "j17_dtests_large_vnode"
+  delete_job "$1" "j17_dtests_offheap"
+  delete_job "$1" "j17_dtests"
+  delete_job "$1" "j11_jvm_dtests_vnode"
+  delete_job "$1" "j17_jvm_dtests_vnode"
+  delete_job "$1" "j17_jvm_dtests"
+  delete_job "$1" "j11_utests_oa"
+  delete_job "$1" "j11_utests_cdc"
+  delete_job "$1" "j11_utests_compression"
+  delete_job "$1" "j11_utests_fqltool"
+  delete_job "$1" "j11_utests_long"
+  delete_job "$1" "j11_utests_stress"
+  delete_job "$1" "j11_utests_trie"
+  delete_job "$1" "j11_utests_system_keyspace_directory"
+  delete_job "$1" "j17_unit_tests"
+  delete_job "$1" "j17_utests_oa"
+  delete_job "$1" "j17_utests_cdc"
+  delete_job "$1" "j17_utests_compression"
+  delete_job "$1" "j17_utests_fqltool"
+  delete_job "$1" "j17_utests_long"
+  delete_job "$1" "j17_utests_stress"
+  delete_job "$1" "j17_utests_trie"
+  delete_job "$1" "j17_utests_trie"
+  delete_job "$1" "j17_utests_system_keyspace_directory"
+  delete_job "$1" "start_utests_trie"
+  delete_job "$1" "start_utests_system_keyspace_directory"
+  delete_job "$1" "start_utests_stress"
+  delete_job "$1" "start_utests_long"
+  delete_job "$1" "start_utests_fqltool"
+  delete_job "$1" "start_utests_compression"
+  delete_job "$1" "start_utests_cdc"
+  delete_job "$1" "start_utests_trie"
+  delete_job "$1" "start_j17_cqlsh-dtests-offheap"
+  delete_job "$1" "start_j11_cqlsh_dtests_offheap"
+  delete_job "$1" "start_j17_cqlsh_tests"
+  delete_job "$1" "start_j17_cqlsh_tests_offheap"
+  delete_job "$1" "start_j11_cqlsh_tests_offheap"
+
+  rename_workflow "$1" "java11_pre-commit_tests" "java11_dev_tests"
+  rename_workflow "$1" "java17_pre-commit_tests" "java17_dev_tests"
+}
+
 delete_repeated_jobs "config.yml"
 if $all; then
   delete_repeated_jobs "config.yml.FREE"
   delete_repeated_jobs "config.yml.PAID"
+fi
+
+if $dev_min; then
+  build_dev_min_jobs "config.yml"
 fi
