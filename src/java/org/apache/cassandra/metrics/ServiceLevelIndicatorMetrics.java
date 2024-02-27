@@ -50,5 +50,21 @@ public class ServiceLevelIndicatorMetrics
     Metrics.meter(factory.createMetricName("WriteFailureExceptionMetrics"));
     public static final Meter serverErrorExceptionMetrics =
     Metrics.meter(factory.createMetricName("ServerErrorExceptionMetrics"));
+    public static final Meter protocolErrorExceptionMetrics =
+    Metrics.meter(factory.createMetricName("ProtocolErrorExceptionMetrics"));
+    public static final Meter badCredentialsExceptionMetrics =
+    Metrics.meter(factory.createMetricName("BadCredentialsExceptionMetrics"));
+    public static final Meter syntaxErrorExceptionMetrics =
+    Metrics.meter(factory.createMetricName("SyntaxErrorExceptionMetrics"));
+    public static final Meter unauthorizedExceptionMetrics =
+    Metrics.meter(factory.createMetricName("UnauthorizedExceptionMetrics"));
+    public static final Meter invalidExceptionMetrics =
+    Metrics.meter(factory.createMetricName("InvalidExceptionMetrics"));
+    public static final Meter configErrorExceptionMetrics =
+    Metrics.meter(factory.createMetricName("ConfigErrorExceptionMetrics"));
+    public static final Meter alreadyExistsExceptionMetrics =
+    Metrics.meter(factory.createMetricName("AlreadyExistsExceptionMetrics"));
+    public static final Meter unpreparedExceptionMetrics =
+    Metrics.meter(factory.createMetricName("UnpreparedExceptionMetrics"));
     public static final Meter otherExceptionMetrics = Metrics.meter(factory.createMetricName("OtherExceptionMetrics"));
 }

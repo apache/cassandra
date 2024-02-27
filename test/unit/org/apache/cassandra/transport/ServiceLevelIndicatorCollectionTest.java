@@ -26,6 +26,7 @@ import java.util.HashMap;
 
 import org.junit.*;
 
+import com.datastax.driver.core.exceptions.UnpreparedException;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -34,14 +35,22 @@ import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.exceptions.AlreadyExistsException;
+import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.CDCWriteException;
 import org.apache.cassandra.exceptions.CasWriteUnknownResultException;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.IsBootstrappingException;
 import org.apache.cassandra.exceptions.OverloadedException;
+import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.exceptions.TruncateException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
@@ -84,6 +93,14 @@ public class ServiceLevelIndicatorCollectionTest extends CQLTester
         long unavailableExceptionCount = ServiceLevelIndicatorMetrics.unavailableExceptionMetrics.getCount();
         long writeFailureExceptionCount = ServiceLevelIndicatorMetrics.writeFailureExceptionMetrics.getCount();
         long serverErrorExceptionCount = ServiceLevelIndicatorMetrics.serverErrorExceptionMetrics.getCount();
+        long protocolErrorExceptionCount = ServiceLevelIndicatorMetrics.protocolErrorExceptionMetrics.getCount();
+        long badCredentialsExceptionCount = ServiceLevelIndicatorMetrics.badCredentialsExceptionMetrics.getCount();
+        long syntaxErrorExceptionCount = ServiceLevelIndicatorMetrics.syntaxErrorExceptionMetrics.getCount();
+        long unauthorizedExceptionCount = ServiceLevelIndicatorMetrics.unauthorizedExceptionMetrics.getCount();
+        long invalidExceptionCount = ServiceLevelIndicatorMetrics.invalidExceptionMetrics.getCount();
+        long configErrorExceptionCount = ServiceLevelIndicatorMetrics.configErrorExceptionMetrics.getCount();
+        long alreadyExistsExceptionCount = ServiceLevelIndicatorMetrics.alreadyExistsExceptionMetrics.getCount();
+        long unpreparedExceptionCount = ServiceLevelIndicatorMetrics.unpreparedExceptionMetrics.getCount();
         long otherExceptionCount = ServiceLevelIndicatorMetrics.otherExceptionMetrics.getCount();
 
         ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new CDCWriteException("CDC write error"));
@@ -128,8 +145,32 @@ public class ServiceLevelIndicatorCollectionTest extends CQLTester
         ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new ServerError("server error"));
         assertEquals(ServiceLevelIndicatorMetrics.serverErrorExceptionMetrics.getCount(), serverErrorExceptionCount + 1);
 
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new ProtocolException("protocol error"));
+        assertEquals(ServiceLevelIndicatorMetrics.protocolErrorExceptionMetrics.getCount(), protocolErrorExceptionCount + 1);
+
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new AuthenticationException("bad credentials"));
+        assertEquals(ServiceLevelIndicatorMetrics.badCredentialsExceptionMetrics.getCount(), badCredentialsExceptionCount + 1);
+
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new SyntaxException("syntax error"));
+        assertEquals(ServiceLevelIndicatorMetrics.syntaxErrorExceptionMetrics.getCount(), syntaxErrorExceptionCount + 1);
+
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new UnauthorizedException("unauthorized"));
+        assertEquals(ServiceLevelIndicatorMetrics.unauthorizedExceptionMetrics.getCount(), unauthorizedExceptionCount + 1);
+
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new InvalidRequestException("invalid request"));
+        assertEquals(ServiceLevelIndicatorMetrics.invalidExceptionMetrics.getCount(), invalidExceptionCount + 1);
+
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new ConfigurationException("config error"));
+        assertEquals(ServiceLevelIndicatorMetrics.configErrorExceptionMetrics.getCount(), configErrorExceptionCount + 1);
+
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new AlreadyExistsException("already exists"));
+        assertEquals(ServiceLevelIndicatorMetrics.alreadyExistsExceptionMetrics.getCount(), alreadyExistsExceptionCount + 1);
+
+        ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new PreparedQueryNotFoundException(null));
+        assertEquals(ServiceLevelIndicatorMetrics.unpreparedExceptionMetrics.getCount(), unpreparedExceptionCount + 1);
+
         ServiceLevelIndicatorMetricsCollection.collectMetricsAndLog(new Exception("dummy exception"));
-        assertEquals(ServiceLevelIndicatorMetrics.otherExceptionMetrics.getCount(), otherExceptionCount + 1);
+        assertEquals(ServiceLevelIndicatorMetrics.otherExceptionMetrics.getCount(), otherExceptionCount + 8 + 1);
     }
 
     @Test

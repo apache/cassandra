@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-28111] Add metrics for each CQL-coded exception
  * [SO-27484] Disable DDL/DCL under guardrail framework
  * [SO-28187] Add ability to force shutdown a node from a remote node
  * [SO-27906] Add compression chunk size info in sstablemetadata tool
