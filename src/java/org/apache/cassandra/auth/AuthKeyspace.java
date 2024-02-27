@@ -74,11 +74,12 @@ public final class AuthKeyspace
                                      + "can_login boolean,"
                                      + "salted_hash text,"
                                      + "member_of set<text>,"
+                                     + "password_set_date date,"
                                      + "PRIMARY KEY(role))";
     private static final TableMetadata Roles =
-        parse(ROLES,
-              "role definitions",
-              ROLES_CQL);
+    parse(ROLES,
+          "role definitions",
+          ROLES_CQL);
 
     public static String IDENTITY_TO_ROLES_CQL = "CREATE TABLE IF NOT EXISTS %s ("
                                                  + "identity text," // opaque identity string for use by role authenticators
@@ -86,19 +87,19 @@ public final class AuthKeyspace
                                                  + "PRIMARY KEY(identity))";
 
     private static final TableMetadata IdentityToRoles =
-        parse(IDENTITY_TO_ROLES,
-              "mtls authorized identities lookup table",
-              IDENTITY_TO_ROLES_CQL
-          );
+    parse(IDENTITY_TO_ROLES,
+          "mtls authorized identities lookup table",
+          IDENTITY_TO_ROLES_CQL
+    );
 
     public static String ROLE_MEMBERS_CQL = "CREATE TABLE IF NOT EXISTS %s ("
                                             + "role text,"
                                             + "member text,"
                                             + "PRIMARY KEY(role, member))";
     private static final TableMetadata RoleMembers =
-        parse(ROLE_MEMBERS,
-              "role memberships lookup table",
-              ROLE_MEMBERS_CQL);
+    parse(ROLE_MEMBERS,
+          "role memberships lookup table",
+          ROLE_MEMBERS_CQL);
 
     public static String ROLE_PERMISSIONS_CQL = "CREATE TABLE IF NOT EXISTS %s ("
                                                 + "role text,"
@@ -106,27 +107,27 @@ public final class AuthKeyspace
                                                 + "permissions set<text>,"
                                                 + "PRIMARY KEY(role, resource))";
     private static final TableMetadata RolePermissions =
-        parse(ROLE_PERMISSIONS,
-              "permissions granted to db roles",
-              ROLE_PERMISSIONS_CQL);
+    parse(ROLE_PERMISSIONS,
+          "permissions granted to db roles",
+          ROLE_PERMISSIONS_CQL);
 
     public static String RESOURCE_ROLE_INDEX_CQL = "CREATE TABLE IF NOT EXISTS %s ("
-                                               + "resource text,"
-                                               + "role text,"
-                                               + "PRIMARY KEY(resource, role))";
+                                                   + "resource text,"
+                                                   + "role text,"
+                                                   + "PRIMARY KEY(resource, role))";
     private static final TableMetadata ResourceRoleIndex =
-        parse(RESOURCE_ROLE_INDEX,
-              "index of db roles with permissions granted on a resource",
-              RESOURCE_ROLE_INDEX_CQL);
+    parse(RESOURCE_ROLE_INDEX,
+          "index of db roles with permissions granted on a resource",
+          RESOURCE_ROLE_INDEX_CQL);
 
     public static String NETWORK_PERMISSIONS_CQL = "CREATE TABLE IF NOT EXISTS %s ("
                                                    + "role text, "
                                                    + "dcs frozen<set<text>>, "
                                                    + "PRIMARY KEY(role))";
     private static final TableMetadata NetworkPermissions =
-        parse(NETWORK_PERMISSIONS,
-              "user network permissions",
-              NETWORK_PERMISSIONS_CQL);
+    parse(NETWORK_PERMISSIONS,
+          "user network permissions",
+          NETWORK_PERMISSIONS_CQL);
 
     public static String CIDR_PERMISSIONS_CQL = "CREATE TABLE %s ("
                                                 + "role text, "
@@ -167,3 +168,4 @@ public final class AuthKeyspace
                                                  CIDRPermissions, CIDRGroups, IdentityToRoles));
     }
 }
+
