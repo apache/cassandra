@@ -47,6 +47,7 @@ import org.apache.cassandra.db.WriteOptions;
 import org.apache.cassandra.db.compaction.AbstractTableOperation;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compaction.TableOperation;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.Rows;
@@ -190,7 +191,7 @@ public class ViewBuilderTask extends AbstractTableOperation implements Callable<
             // If it's stopped due to a compaction interruption we should throw that exception.
             // Otherwise we assume that the task has been stopped due to a schema update and we can finish successfully.
             if (isCompactionInterrupted)
-                throw new StoppedException(ksName, view.name, getProgress());
+                throw new StoppedException(ksName, view.name, getProgress(), trigger());
         }
     }
 
@@ -214,7 +215,7 @@ public class ViewBuilderTask extends AbstractTableOperation implements Callable<
     }
 
     @Override
-    public void stop()
+    public void stop(StopTrigger trigger)
     {
         stop(true);
     }
@@ -247,9 +248,9 @@ public class ViewBuilderTask extends AbstractTableOperation implements Callable<
     {
         private final String ksName, viewName;
 
-        private StoppedException(String ksName, String viewName, OperationProgress info)
+        private StoppedException(String ksName, String viewName, OperationProgress info, TableOperation.StopTrigger trigger)
         {
-            super(info);
+            super(info, trigger);
             this.ksName = ksName;
             this.viewName = viewName;
         }

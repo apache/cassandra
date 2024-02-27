@@ -30,6 +30,7 @@ import java.util.stream.StreamSupport;
 
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.cassandra.db.compaction.TableOperation;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.index.TargetParser;
 import org.slf4j.Logger;
@@ -597,7 +598,7 @@ public class CustomCassandraIndex implements Index
     {
         // interrupt in-progress compactions
         Collection<ColumnFamilyStore> cfss = Collections.singleton(indexCfs);
-        CompactionManager.instance.interruptCompactionForCFs(cfss, (sstable) -> true, true);
+        CompactionManager.instance.interruptCompactionForCFs(cfss, (sstable) -> true, true, TableOperation.StopTrigger.INVALIDATE_INDEX);
         CompactionManager.instance.waitForCessation(cfss, (sstable) -> true);
         indexCfs.keyspace.writeOrder.awaitNewBarrier();
         indexCfs.forceBlockingFlush(UNIT_TESTS);

@@ -69,8 +69,7 @@ public class CollatedViewIndexBuilder extends SecondaryIndexBuilder
             PageSize pageSize = cfs.indexManager.calculateIndexingPageSize();
             while (iter.hasNext())
             {
-                if (isStopRequested())
-                    throw new CompactionInterruptedException(getProgress());
+                throwIfStopRequested();
                 DecoratedKey key = iter.next();
                 cfs.indexManager.indexPartition(key, indexers, pageSize);
             }

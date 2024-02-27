@@ -58,6 +58,7 @@ import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.db.compaction.CleanupTask;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compaction.RepairFinishedCompactionTask;
+import org.apache.cassandra.db.compaction.TableOperation;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.RangesAtEndpoint;
@@ -338,7 +339,7 @@ public class LocalSessions
                 return session != null && sessions.contains(session);
             };
             return cfs.runWithCompactionsDisabled(() -> doReleaseRepairData(cfs, sessions),
-                                                  predicate, false, true, true);
+                                                  predicate, false, true, true, TableOperation.StopTrigger.CLEANUP);
         }
         else
         {

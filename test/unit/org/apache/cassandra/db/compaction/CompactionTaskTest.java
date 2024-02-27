@@ -147,7 +147,7 @@ public class CompactionTaskTest
 
         when(obs.onOperationStart(any(TableOperation.class))).thenAnswer(invocation -> {
             TableOperation op = invocation.getArgument(0);
-            op.stop();
+            op.stop(TableOperation.StopTrigger.UNIT_TESTS);
             return cls;
         });
 

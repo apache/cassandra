@@ -23,16 +23,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -42,7 +37,6 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -62,7 +56,6 @@ import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 @RunWith(BMUnitRunner.class)
 public class PendingAntiCompactionBytemanTest extends AbstractPendingAntiCompactionTest
@@ -70,9 +63,10 @@ public class PendingAntiCompactionBytemanTest extends AbstractPendingAntiCompact
     @BMRules(rules = { @BMRule(name = "Throw exception anticompaction",
                                targetClass = "Range$OrderedRangeContainmentChecker",
                                targetMethod = "test",
-                               action = "throw new org.apache.cassandra.db.compaction.CompactionInterruptedException(null);")} )
+                               action = "throw new org.apache.cassandra.db.compaction.CompactionInterruptedException" +
+                                        "(null, org.apache.cassandra.db.compaction.TableOperation$StopTrigger.UNIT_TESTS);")} )
     @Test
-    public void testExceptionAnticompaction() throws InterruptedException
+    public void testExceptionAnticompaction()
     {
         cfs.disableAutoCompaction();
         cfs2.disableAutoCompaction();
@@ -86,16 +80,11 @@ public class PendingAntiCompactionBytemanTest extends AbstractPendingAntiCompact
             ranges.add(new Range<>(sstable.first.getToken(), sstable.last.getToken()));
         }
         UUID prsid = prepareSession();
-        try
-        {
-            PendingAntiCompaction pac = new PendingAntiCompaction(prsid, Lists.newArrayList(cfs, cfs2), atEndpoint(ranges, NO_RANGES), es, () -> false);
-            pac.run().get();
-            fail("PAC should throw exception when anticompaction throws exception!");
-        }
-        catch (ExecutionException e)
-        {
-            assertTrue(e.getCause() instanceof CompactionInterruptedException);
-        }
+        PendingAntiCompaction pac = new PendingAntiCompaction(prsid, Lists.newArrayList(cfs, cfs2), atEndpoint(ranges, NO_RANGES), es, () -> false);
+        Assertions.assertThatThrownBy(() -> pac.run().get())
+                  .hasCauseInstanceOf(CompactionInterruptedException.class)
+                  .hasMessageContaining("Compaction interrupted due to unit tests");
+
         // Note that since we fail the PAC immediately when any of the anticompactions fail we need to wait for the other
         // AC to finish as well before asserting that we have nothing compacting.
         CompactionManager.instance.waitForCessation(Lists.newArrayList(cfs, cfs2), (sstable) -> true);
@@ -161,7 +150,7 @@ public class PendingAntiCompactionBytemanTest extends AbstractPendingAntiCompact
             Future<?> future = pac.run();
             Assertions.assertThatThrownBy(future::get)
                       .hasCauseInstanceOf(CompactionInterruptedException.class)
-                      .hasMessageContaining("Compaction interrupted");
+                      .hasMessageContaining("Compaction interrupted due to user request");
         }
         finally
         {

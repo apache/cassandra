@@ -654,8 +654,7 @@ public class CompactionIterator implements UnfilteredPartitionIterator
         @Override
         protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
         {
-            if (op.isStopRequested())
-                throw new CompactionInterruptedException(op.getProgress());
+            op.throwIfStopRequested();
             return Transformation.apply(partition, abortableIter);
         }
     }
@@ -671,8 +670,7 @@ public class CompactionIterator implements UnfilteredPartitionIterator
 
         public Row applyToRow(Row row)
         {
-            if (op.isStopRequested())
-                throw new CompactionInterruptedException(op.getProgress());
+            op.throwIfStopRequested();
             return row;
         }
     }

@@ -279,9 +279,7 @@ public class Verifier implements Closeable
 
             while (!dataFile.isEOF())
             {
-
-                if (verifyInfo.isStopRequested())
-                    throw new CompactionInterruptedException(verifyInfo.getProgress());
+                verifyInfo.throwIfStopRequested();
 
                 rowStart = dataFile.getFilePointer();
                 outputHandler.debug("Reading row at " + rowStart);

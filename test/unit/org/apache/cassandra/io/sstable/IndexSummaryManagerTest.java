@@ -134,7 +134,7 @@ public class IndexSummaryManagerTest
     {
         for (TableOperation operation : CompactionManager.instance.active.getTableOperations())
         {
-            operation.stop();
+            operation.stop(TableOperation.StopTrigger.UNIT_TESTS);
         }
 
         String ksname = KEYSPACE1;
@@ -634,7 +634,10 @@ public class IndexSummaryManagerTest
     @Test
     public void testCancelIndexInterrupt() throws Exception
     {
-        testCancelIndexHelper((cfs) -> CompactionManager.instance.interruptCompactionFor(Collections.singleton(cfs.metadata()), (sstable) -> true, false));
+        testCancelIndexHelper(cfs -> CompactionManager.instance.interruptCompactionFor(Collections.singleton(cfs.metadata()),
+                                                                                       sstable -> true,
+                                                                                       false,
+                                                                                       TableOperation.StopTrigger.UNIT_TESTS));
     }
 
     public void testCancelIndexHelper(Consumer<ColumnFamilyStore> cancelFunction) throws Exception

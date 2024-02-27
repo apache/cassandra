@@ -46,6 +46,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.AbstractTableOperation;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compaction.TableOperation;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -232,7 +233,7 @@ public class PendingAntiCompaction
                 {
                     // Note that anticompactions are not disabled when running this. This is safe since runWithCompactionsDisabled
                     // is synchronized - acquireTuple and predicate can only be run by a single thread (for the given cfs).
-                    return cfs.runWithCompactionsDisabled(this::acquireTuple, predicate, false, false, false);
+                    return cfs.runWithCompactionsDisabled(this::acquireTuple, predicate, false, false, false, TableOperation.StopTrigger.ANTICOMPACTION);
                 }
                 catch (SSTableAcquisitionException e)
                 {

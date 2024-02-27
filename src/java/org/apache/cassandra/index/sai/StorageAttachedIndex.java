@@ -62,6 +62,7 @@ import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.WriteContext;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compaction.TableOperation;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -375,7 +376,8 @@ public class StorageAttachedIndex implements Index
         CompactionManager.instance.interruptCompactionFor(Collections.singleton(baseCfs.metadata()),
                                                           OperationType.REWRITES_SSTABLES,
                                                           Predicates.alwaysTrue(),
-                                                          true);
+                                                          true,
+                                                          TableOperation.StopTrigger.INDEX_BUILD);
 
         // Force another flush to make sure on disk index is generated for memtable data before marking it queryable.
         // In case of offline scrub, there is no live memtables.

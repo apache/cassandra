@@ -45,18 +45,11 @@ public abstract class AbstractTableOperation implements TableOperation
     private volatile StopTrigger trigger = StopTrigger.NONE;
 
     /**
-     * Interrupt the current operation if possible.
-     */
-    public void stop()
-    {
-        stopRequested = true;
-    }
-
-    /**
      * Interrupt the current operation if possible and if the predicate is true.
      *
      * @param trigger cause of compaction interruption
      */
+    @Override
     public void stop(StopTrigger trigger)
     {
         this.stopRequested = true;
@@ -67,6 +60,7 @@ public abstract class AbstractTableOperation implements TableOperation
     /**
      * @return true if the operation has received a request to be interrupted.
      */
+    @Override
     public boolean isStopRequested()
     {
         return stopRequested || (isGlobal() && CompactionManager.instance.isGlobalCompactionPaused());
@@ -77,6 +71,7 @@ public abstract class AbstractTableOperation implements TableOperation
      * does not consider any sstables, in which case it will always return true (the
      * default behaviour).
      */
+    @Override
     public boolean shouldStop(Predicate<SSTableReader> predicate)
     {
         OperationProgress progress = getProgress();
@@ -90,6 +85,7 @@ public abstract class AbstractTableOperation implements TableOperation
     /**
      * @return cause of compaction interruption.
      */
+    @Override
     public StopTrigger trigger()
     {
         return trigger;

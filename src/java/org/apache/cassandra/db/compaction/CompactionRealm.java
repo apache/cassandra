@@ -289,5 +289,5 @@ public interface CompactionRealm
     /**
      * Run an operation with concurrent compactions being stopped.
      */
-    <V> V runWithCompactionsDisabled(Callable<V> callable, boolean interruptValidation, boolean interruptViews);
+    <V> V runWithCompactionsDisabled(Callable<V> callable, boolean interruptValidation, boolean interruptViews, TableOperation.StopTrigger trigger);
 }

@@ -84,6 +84,7 @@ import org.apache.cassandra.utils.NonThrowingCloseable;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.utils.concurrent.Transactional;
+import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.junit.Assert.assertEquals;
@@ -431,7 +432,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
                         {
                             protected void runMayThrow()
                             {
-                                throw new CompactionInterruptedException(null);
+                                throw new CompactionInterruptedException(null, TableOperation.StopTrigger.UNIT_TESTS);
                             }
                         };
                         return es.submit(r);
@@ -440,14 +441,9 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
             }
         };
         ListenableFuture<?> fut = pac.run();
-        try
-        {
-            fut.get();
-            fail("Should throw exception");
-        }
-        catch(Throwable t)
-        {
-        }
+        Assertions.assertThatThrownBy(fut::get)
+                  .hasRootCauseInstanceOf(CompactionInterruptedException.class)
+                  .hasMessageContaining("Compaction interrupted due to unit tests");
     }
 
     @Test

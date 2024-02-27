@@ -199,7 +199,7 @@ public class LongLeveledCompactionStrategyTest
                 }
                 return null;
             }
-        }, true, true);
+        }, true, true, TableOperation.StopTrigger.UNIT_TESTS);
 
 
     }

@@ -74,7 +74,6 @@ import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.MockSchema;
@@ -631,7 +630,7 @@ public class CompactionsTest
         compactionRegistered.await(1, TimeUnit.MINUTES);
 
         // Interrupt the compaction, this only works if CompactionManager.instance.active.onOperationStart() has already been called
-        boolean ret = CompactionManager.instance.interruptCompactionFor(ImmutableList.of(store.metadata()));
+        boolean ret = CompactionManager.instance.interruptCompactionFor(ImmutableList.of(store.metadata()), TableOperation.StopTrigger.UNIT_TESTS);
         assertTrue("Compaction should have been interrupted", ret);
 
         // Let the compaction continue running

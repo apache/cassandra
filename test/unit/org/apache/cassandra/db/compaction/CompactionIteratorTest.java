@@ -23,8 +23,6 @@ import static org.apache.cassandra.db.transform.DuplicateRowCheckerTest.rows;
 import static org.junit.Assert.*;
 
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import com.google.common.collect.*;
 
@@ -325,7 +323,7 @@ public class CompactionIteratorTest extends CQLTester
             assertTrue(rows.hasNext());
             assertNotNull(rows.next());
 
-            op.stop();
+            op.stop(TableOperation.StopTrigger.UNIT_TESTS);
             try
             {
                 // Will call Transformation#applyToRow
@@ -354,7 +352,7 @@ public class CompactionIteratorTest extends CQLTester
                                                               controller, NOW, null))
         {
             TableOperation op = iter.getOperation();
-            op.stop();
+            op.stop(TableOperation.StopTrigger.UNIT_TESTS);
             try
             {
                 // Will call Transformation#applyToPartition

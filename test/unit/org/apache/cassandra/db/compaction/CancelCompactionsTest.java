@@ -63,6 +63,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NonThrowingCloseable;
 import org.apache.cassandra.utils.Throwables;
 
+import static org.apache.cassandra.db.compaction.TableOperation.StopTrigger.UNIT_TESTS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -90,14 +91,14 @@ public class CancelCompactionsTest extends CQLTester
             assertEquals(1, activeCompactions.size());
             assertEquals(activeCompactions.get(0).getProgress().sstables(), toMarkCompacting);
             // predicate requires the non-compacting sstables, should not cancel the one currently compacting:
-            cfs.runWithCompactionsDisabled(() -> null, (sstable) -> !toMarkCompacting.contains(sstable), false, false, true);
+            cfs.runWithCompactionsDisabled(() -> null, (sstable) -> !toMarkCompacting.contains(sstable), false, false, true, UNIT_TESTS);
             assertEquals(1, activeCompactions.size());
             assertFalse(activeCompactions.get(0).isStopRequested());
 
             // predicate requires the compacting ones - make sure stop is requested and that when we abort that
             // compaction we actually run the callable (countdown the latch)
             CountDownLatch cdl = new CountDownLatch(1);
-            Thread t = new Thread(() -> cfs.runWithCompactionsDisabled(() -> { cdl.countDown(); return null; }, toMarkCompacting::contains, false, false, true));
+            Thread t = new Thread(() -> cfs.runWithCompactionsDisabled(() -> { cdl.countDown(); return null; }, toMarkCompacting::contains, false, false, true, UNIT_TESTS));
             t.start();
             while (!activeCompactions.get(0).isStopRequested())
                 Thread.sleep(100);
@@ -143,13 +144,13 @@ public class CancelCompactionsTest extends CQLTester
             expectedSSTables.add(new HashSet<>(sstables.subList(6, 9)));
             assertEquals(compactingSSTables, expectedSSTables);
 
-            cfs.runWithCompactionsDisabled(() -> null, (sstable) -> false, false, false, true);
+            cfs.runWithCompactionsDisabled(() -> null, (sstable) -> false, false, false, true, UNIT_TESTS);
             assertEquals(2, activeCompactions.size());
             assertTrue(activeCompactions.stream().noneMatch(TableOperation::isStopRequested));
 
             CountDownLatch cdl = new CountDownLatch(1);
             // start a compaction which only needs the sstables where first token is > 50 - these are the sstables compacted by tcts.get(1)
-            Thread t = new Thread(() -> cfs.runWithCompactionsDisabled(() -> { cdl.countDown(); return null; }, (sstable) -> first(sstable) > 50, false, false, true));
+            Thread t = new Thread(() -> cfs.runWithCompactionsDisabled(() -> { cdl.countDown(); return null; }, (sstable) -> first(sstable) > 50, false, false, true, UNIT_TESTS));
             t.start();
             activeCompactions = getActiveCompactionsForTable(cfs);
             assertEquals(2, activeCompactions.size());
@@ -337,7 +338,7 @@ public class CancelCompactionsTest extends CQLTester
             }
         }
         assertTrue(foundCompaction);
-        cfs.runWithCompactionsDisabled(() -> {compactionsStopped.countDown(); return null;}, (sstable) -> true, false, false, true);
+        cfs.runWithCompactionsDisabled(() -> {compactionsStopped.countDown(); return null;}, (sstable) -> true, false, false, true, UNIT_TESTS);
         // wait for the runWithCompactionsDisabled callable
         compactionsStopped.await();
         assertEquals(1, getActiveCompactionsForTable(cfs).size());
@@ -436,7 +437,7 @@ public class CancelCompactionsTest extends CQLTester
         Set<SSTableReader> sstables = new HashSet<>();
         try (LifecycleTransaction txn = idx.getTracker().tryModify(idx.getLiveSSTables(), OperationType.COMPACTION))
         {
-            getCurrentColumnFamilyStore().runWithCompactionsDisabled(() -> true, (sstable) -> { sstables.add(sstable); return true;}, false, false, false);
+            getCurrentColumnFamilyStore().runWithCompactionsDisabled(() -> true, (sstable) -> { sstables.add(sstable); return true;}, false, false, false, UNIT_TESTS);
         }
         // the predicate only gets compacting sstables, and we are only compacting the 2i sstables - with interruptIndexes = false we should see no sstables here
         assertTrue(sstables.isEmpty());
@@ -498,7 +499,7 @@ public class CancelCompactionsTest extends CQLTester
         Thread t = new Thread(() -> {
             Uninterruptibles.awaitUninterruptibly(waitForBeginCompaction);
             getCurrentColumnFamilyStore().getCompactionStrategyContainer().pause();
-            CompactionManager.instance.interruptCompactionFor(metadatas, (s) -> true, false);
+            CompactionManager.instance.interruptCompactionFor(metadatas, (s) -> true, false, UNIT_TESTS);
             waitForStart.countDown();
             CompactionManager.instance.waitForCessation(Collections.singleton(getCurrentColumnFamilyStore()), (s) -> true);
             getCurrentColumnFamilyStore().getCompactionStrategyContainer().resume();

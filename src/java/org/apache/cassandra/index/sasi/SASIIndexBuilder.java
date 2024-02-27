@@ -84,8 +84,7 @@ class SASIIndexBuilder extends SecondaryIndexBuilder
                 {
                     while (!keys.isExhausted())
                     {
-                        if (isStopRequested())
-                            throw new CompactionInterruptedException(getProgress());
+                        throwIfStopRequested();
 
                         final DecoratedKey key = sstable.decorateKey(keys.key());
                         final long keyPosition = keys.keyPosition();

@@ -24,7 +24,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
-import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -33,6 +32,7 @@ import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.compaction.TableOperation;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -46,7 +46,6 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
-import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.dht.LocalPartitioner;
@@ -55,7 +54,6 @@ import org.apache.cassandra.index.*;
 import org.apache.cassandra.index.internal.composites.CompositesSearcher;
 import org.apache.cassandra.index.internal.keys.KeysSearcher;
 import org.apache.cassandra.index.transactions.IndexTransaction;
-import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.IndexMetadata;
@@ -650,7 +648,7 @@ public abstract class CassandraIndex implements Index
     {
         // interrupt in-progress compactions
         Collection<ColumnFamilyStore> cfss = Collections.singleton(indexCfs);
-        CompactionManager.instance.interruptCompactionForCFs(cfss, (sstable) -> true, true);
+        CompactionManager.instance.interruptCompactionForCFs(cfss, (sstable) -> true, true, TableOperation.StopTrigger.INVALIDATE_INDEX);
         CompactionManager.instance.waitForCessation(cfss, (sstable) -> true);
         Keyspace.writeOrder.awaitNewBarrier();
         indexCfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.INDEX_REMOVED);

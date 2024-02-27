@@ -47,12 +47,7 @@ public interface TableOperation
     AbstractTableOperation.OperationProgress getProgress();
 
     /**
-     * Interrupt the operation.
-     */
-    void stop();
-
-    /**
-     * Interrupt the current operation if possible and if the predicate is true.
+     * Interrupt the current operation if possible.
      *
      * @param trigger cause of compaction interruption
      */
@@ -62,6 +57,12 @@ public interface TableOperation
      * @return true if the operation has been requested to be interrupted.
      */
     boolean isStopRequested();
+
+    default void throwIfStopRequested()
+    {
+        if (isStopRequested())
+            throw new CompactionInterruptedException(getProgress(), trigger());
+    }
 
     /**
      * Return true if the predicate for the given sstables holds, or if the operation
@@ -78,13 +79,13 @@ public interface TableOperation
     /**
      * @return cause of compaction interruption.
      */
-    public StopTrigger trigger();
+    StopTrigger trigger();
 
     /**
      * if this compaction involves several/all tables we can safely check globalCompactionsPaused
      * in isStopRequested() below
      */
-    public abstract boolean isGlobal();
+    boolean isGlobal();
 
     /**
      * The unit for the {@link Progress} report.
@@ -112,23 +113,45 @@ public interface TableOperation
         }
     }
 
-    public enum StopTrigger
+    enum StopTrigger
     {
-        NONE(false),
-        TRUNCATE(true);
+        NONE("Unknwon reason", false),
+        TRUNCATE("Truncated table", true),
+        DROP_TABLE("Dropped table", true),
+        INVALIDATE_INDEX("Index invalidation", true),
+        SHUTDOWN("Shutdown", true),
+        USER_STOP("User request", true),
+        COMPACTION("Compaction", true),
+        CLEANUP("Cleanup", true),
+        ANTICOMPACTION("Anticompaction after repair", true),
+        INDEX_BUILD("Secondary index build", true),
+        SCRUB("Scrub", true),
+        VERIFY("Verify", true),
+        RELOCATE("Relocation", true),
+        GARBAGE_COLLECT("Garbage collection", true),
+        UPGRADE_SSTABLES("SStable upgrade", true),
+        UNIT_TESTS("Unit tests", true);
 
+        private final String name;
         private final boolean isFinal;
 
-        StopTrigger(boolean isFinal)
+        StopTrigger(String name, boolean isFinal)
         {
+            this.name = name;
             this.isFinal = isFinal;
         }
 
         // A stop trigger marked as final should not be overwritten. So a table operation that is
-        // marked with a final stop trigger cannot have it's stop trigger changed to another value.
+        // marked with a final stop trigger cannot have its stop trigger changed to another value.
         public boolean isFinal()
         {
             return isFinal;
+        }
+
+        @Override
+        public String toString()
+        {
+            return name;
         }
     }
 

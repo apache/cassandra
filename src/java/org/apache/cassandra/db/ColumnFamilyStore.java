@@ -84,6 +84,7 @@ import org.apache.cassandra.db.compaction.CompactionStrategyFactory;
 import org.apache.cassandra.db.compaction.CompactionStrategyManager;
 import org.apache.cassandra.db.compaction.CompactionStrategyOptions;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compaction.TableOperation;
 import org.apache.cassandra.db.compaction.Verifier;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.DataLimits;
@@ -2558,7 +2559,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 cfs.data.reset(memtableFactory.create(new AtomicReference<>(CommitLogPosition.NONE), cfs.metadata, cfs));
                 cfs.reloadCompactionStrategy(metadata().params.compaction, CompactionStrategyContainer.ReloadReason.FULL);
                 return null;
-            }, true, false);
+            }, true, false, TableOperation.StopTrigger.UNIT_TESTS);
         }
     }
 
@@ -2681,19 +2682,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             FBUtilities.waitOnFuture(dumpMemtable(ColumnFamilyStore.FlushReason.DROP));
     }
 
-    public <V> V runWithCompactionsDisabled(Callable<V> callable, boolean interruptValidation, boolean interruptViews)
-    {
-        return runWithCompactionsDisabled(callable, (sstable) -> true, interruptValidation, interruptViews, true);
-    }
-
-    public <V> V runWithCompactionsDisabled(Callable<V> callable, boolean interruptValidation, boolean interruptViews, AbstractTableOperation.StopTrigger trigger)
+    @Override
+    public <V> V runWithCompactionsDisabled(Callable<V> callable, boolean interruptValidation, boolean interruptViews, TableOperation.StopTrigger trigger)
     {
         return runWithCompactionsDisabled(callable, (sstable) -> true, interruptValidation, interruptViews, true, trigger);
-    }
-
-    public <V> V runWithCompactionsDisabled(Callable<V> callable, Predicate<SSTableReader> sstablesPredicate, boolean interruptValidation, boolean interruptViews, boolean interruptIndexes)
-    {
-        return runWithCompactionsDisabled(callable, sstablesPredicate, interruptValidation, interruptViews, interruptIndexes, AbstractTableOperation.StopTrigger.NONE);
     }
 
     /**
@@ -2705,8 +2697,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
      * @param interruptViews if we should interrupt view compactions
      * @param interruptIndexes if we should interrupt compactions on indexes. NOTE: if you set this to true your sstablePredicate
      *                         must be able to handle LocalPartitioner sstables!
+     * @param trigger the cause for interrupting compactions
      */
-    public <V> V runWithCompactionsDisabled(Callable<V> callable, Predicate<SSTableReader> sstablesPredicate, boolean interruptValidation, boolean interruptViews, boolean interruptIndexes, AbstractTableOperation.StopTrigger trigger)
+    public <V> V runWithCompactionsDisabled(Callable<V> callable,
+                                            Predicate<SSTableReader> sstablesPredicate,
+                                            boolean interruptValidation,
+                                            boolean interruptViews,
+                                            boolean interruptIndexes,
+                                            TableOperation.StopTrigger trigger)
     {
         // synchronize so that concurrent invocations don't re-enable compactions partway through unexpectedly,
         // and so we only run one major compaction at a time
@@ -2781,7 +2779,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return accumulate;
     }
 
-    public LifecycleTransaction markAllCompacting(final OperationType operationType)
+    public LifecycleTransaction markAllCompacting(final OperationType operationType, TableOperation.StopTrigger trigger)
     {
         Callable<LifecycleTransaction> callable = () -> {
             assert data.getCompacting().isEmpty() : data.getCompacting();
@@ -2791,9 +2789,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             return modifier;
         };
 
-        return runWithCompactionsDisabled(callable, false, false);
+        return runWithCompactionsDisabled(callable, false, false, trigger);
     }
-
 
     @Override
     public String toString()
@@ -3367,7 +3364,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         if (logger.isTraceEnabled())
             logger.trace("CFS {} is being dropped: indexes removed", name);
 
-        CompactionManager.instance.interruptCompactionForCFs(concatWithIndexes(), (sstable) -> true, true);
+        CompactionManager.instance.interruptCompactionForCFs(concatWithIndexes(), (sstable) -> true, true, TableOperation.StopTrigger.DROP_TABLE);
         if (logger.isTraceEnabled())
             logger.trace("CFS {} is being dropped: compactions stopped", name);
 

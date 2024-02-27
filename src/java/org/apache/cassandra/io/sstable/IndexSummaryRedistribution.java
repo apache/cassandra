@@ -98,8 +98,7 @@ public class IndexSummaryRedistribution extends AbstractTableOperation
         double totalReadsPerSec = 0.0;
         for (SSTableReader sstable : redistribute)
         {
-            if (isStopRequested())
-                throw new CompactionInterruptedException(getProgress());
+            throwIfStopRequested();
 
             if (sstable.getReadMeter() != null)
             {
@@ -151,8 +150,7 @@ public class IndexSummaryRedistribution extends AbstractTableOperation
         remainingSpace = memoryPoolCapacity;
         for (SSTableReader sstable : sstables)
         {
-            if (isStopRequested())
-                throw new CompactionInterruptedException(getProgress());
+            throwIfStopRequested();
 
             int minIndexInterval = sstable.metadata().params.minIndexInterval;
             int maxIndexInterval = sstable.metadata().params.maxIndexInterval;
@@ -248,8 +246,7 @@ public class IndexSummaryRedistribution extends AbstractTableOperation
         toDownsample.addAll(forceUpsample);
         for (ResampleEntry entry : toDownsample)
         {
-            if (isStopRequested())
-                throw new CompactionInterruptedException(getProgress());
+            throwIfStopRequested();
 
             SSTableReader sstable = entry.sstable;
             logger.trace("Re-sampling index summary for {} from {}/{} to {}/{} of the original number of entries",

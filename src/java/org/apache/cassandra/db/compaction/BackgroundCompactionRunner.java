@@ -283,8 +283,6 @@ public class BackgroundCompactionRunner implements Runnable
                 compactionTasks.handle((ignored, throwable) -> {
                     if (throwable != null)
                     {
-                        logger.warn(String.format("Aborting compaction of %s due to error", cfs),
-                                    Throwables.unwrapped(throwable));
                         handleCompactionError(throwable, cfs);
                         promise.completeExceptionallyInternal(throwable);
                     }
@@ -444,10 +442,6 @@ public class BackgroundCompactionRunner implements Runnable
     public static void handleCompactionError(Throwable t, ColumnFamilyStore cfs)
     {
         t = Throwables.unwrapped(t);
-        if (!(t instanceof CompactionInterruptedException))
-        {
-            CompactionManager.instance.incrementFailed();
-        }
 
         // FSDiskFullWriteErrors caught during compaction are expected to be recoverable, so we don't explicitly
         // trigger the disk failure policy because of them (see CASSANDRA-12385).
@@ -460,9 +454,14 @@ public class BackgroundCompactionRunner implements Runnable
             t = t instanceof FSError ? t : new FSWriteError(t);
             JVMStabilityInspector.inspectThrowable(t);
         }
+        else if (t instanceof CompactionInterruptedException)
+        {
+            logger.warn(String.format("Aborting background compaction of %s due to interruption", cfs), Throwables.unwrapped(t));
+        }
         else
         {
             logger.error("Exception during background compaction of table {}", cfs, t);
+            CompactionManager.instance.incrementFailed();
         }
     }
 }

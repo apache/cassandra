@@ -198,8 +198,7 @@ public class Scrubber implements Closeable
 
             while (!dataFile.isEOF())
             {
-                if (scrubInfo.isStopRequested())
-                    throw new CompactionInterruptedException(scrubInfo.getProgress());
+                scrubInfo.throwIfStopRequested();
 
                 // position in a data file where the partition starts
                 long dataStart = dataFile.getFilePointer();

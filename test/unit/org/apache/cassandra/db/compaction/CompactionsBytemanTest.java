@@ -189,7 +189,7 @@ public class CompactionsBytemanTest extends CQLTester
     targetClass = "CompactionTask$CompactionOperation",
     targetMethod = "<init>",
     targetLocation = "AT INVOKE getCompactionAwareWriter",
-    action = "$this.op.stop()")
+    action = "$this.op.stop(org.apache.cassandra.db.compaction.TableOperation$StopTrigger.UNIT_TESTS)")
     public void testStopUserDefinedCompactionRepaired() throws Throwable
     {
         testStopCompactionRepaired((cfs) -> {
@@ -203,7 +203,7 @@ public class CompactionsBytemanTest extends CQLTester
     targetClass = "CompactionTask$CompactionOperation",
     targetMethod = "<init>",
     targetLocation = "AT INVOKE getCompactionAwareWriter",
-    action = "$this.op.stop()")
+    action = "$this.op.stop(org.apache.cassandra.db.compaction.TableOperation$StopTrigger.UNIT_TESTS)")
     public void testStopSubRangeCompactionRepaired() throws Throwable
     {
         testStopCompactionRepaired((cfs) -> {
