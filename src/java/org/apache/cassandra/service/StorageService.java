@@ -1967,13 +1967,24 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         ClusterMetadata metadata = ClusterMetadata.current();
         KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaces().getNullable(keyspace);
-        TokenMap tokenMap = metadata.tokenMap;
-
         Map<Range<Token>, EndpointsForRange> rangeToEndpointMap = new HashMap<>(ranges.size());
-        for (Range<Token> range : ranges)
+        if (null != keyspaceMetadata)
         {
-            Token token = tokenMap.nextToken(tokenMap.tokens(), range.right.getToken());
-            rangeToEndpointMap.put(range, metadata.placements.get(keyspaceMetadata.params.replication).reads.forRange(token).get());
+            TokenMap tokenMap = metadata.tokenMap;
+
+            for (Range<Token> range : ranges)
+            {
+                Token token = tokenMap.nextToken(tokenMap.tokens(), range.right.getToken());
+                rangeToEndpointMap.put(range, metadata.placements.get(keyspaceMetadata.params.replication)
+                                              .reads.forRange(token).get());
+            }
+        }
+        else
+        {
+            // Handling the keyspaces which are not handled by CMS like system keyspace which uses LocalStrategy.
+            AbstractReplicationStrategy strategy = Keyspace.open(keyspace).getReplicationStrategy();
+            for (Range<Token> range : ranges)
+                rangeToEndpointMap.put(range, strategy.calculateNaturalReplicas(range.right, metadata));
         }
 
         return new EndpointsByRange(rangeToEndpointMap);
