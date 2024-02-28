@@ -23,7 +23,6 @@ import os
 import re
 from .basecase import BaseTestCase
 from .cassconnect import create_db, remove_db, cqlsh_testrun
-from .run_cqlsh import TimeoutError
 from cqlshlib.cql3handling import CqlRuleSet
 
 BEL = '\x07'  # the terminal-bell character
@@ -100,7 +99,7 @@ class CqlshCompletionCase(BaseTestCase):
 
         if split_completed_lines:
             completed_lines = list(map(set, (completion_separation_re.split(line.strip())
-                                  for line in choice_lines)))
+                                             for line in choice_lines)))
 
             if not completed_lines:
                 return set()
@@ -493,8 +492,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
                              'TOKEN(a) >= TOKEN(0) IF b CONTAINS '),
                             choices=['false', 'true', '<pgStringLiteral>',
                                      '-', '<float>', 'TOKEN', '<identifier>',
-                                     '<uuid>', '{', '[', 'NULL','<quotedStringLiteral>',
-                                     '<blobLiteral>','<wholenumber>', 'KEY'])
+                                     '<uuid>', '{', '[', 'NULL', '<quotedStringLiteral>',
+                                     '<blobLiteral>', '<wholenumber>', 'KEY'])
         self.trycompletions(('DELETE FROM twenty_rows_composite_table USING TIMESTAMP 0 WHERE '
                              'TOKEN(a) >= TOKEN(0) IF b < 0 '),
                             choices=['AND', ';'])
@@ -508,7 +507,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
     def test_complete_in_begin_batch(self):
         self.trycompletions('BEGIN ', choices=['BATCH', 'COUNTER', 'UNLOGGED'])
         self.trycompletions('BEGIN BATCH ', choices=['DELETE', 'INSERT', 'UPDATE', 'USING'])
-        self.trycompletions('BEGIN BATCH INSERT ', immediate='INTO ' )
+        self.trycompletions('BEGIN BATCH INSERT ', immediate='INTO ')
 
     def test_complete_in_create_keyspace(self):
         self.trycompletions('create keyspace ', '', choices=('<identifier>', '<quotedName>', 'IF'))
@@ -589,17 +588,17 @@ class TestCqlshCompletion(CqlshCompletionCase):
 
     def test_complete_in_drop_type(self):
         self.trycompletions('DROP TYPE ', choices=['IF', 'system_views.',
-                                                    'tags', 'system_traces.', 'system_distributed.', 'system_cluster_metadata.',
-                                                    'phone_number', 'quote_udt', 'band_info_type', 'address', 'system.', 'system_schema.',
-                                                    'system_auth.', 'system_virtual_schema.', self.cqlsh.keyspace + '.'
-                                                    ])
+                                                   'tags', 'system_traces.', 'system_distributed.', 'system_cluster_metadata.',
+                                                   'phone_number', 'quote_udt', 'band_info_type', 'address', 'system.', 'system_schema.',
+                                                   'system_auth.', 'system_virtual_schema.', self.cqlsh.keyspace + '.'
+                                                   ])
 
     def test_complete_in_create_trigger(self):
-        self.trycompletions('CREATE TRIGGER ', choices=['<identifier>', '<quotedName>', 'IF' ])
-        self.trycompletions('CREATE TRIGGER foo ', immediate='ON ' )
-        self.trycompletions('CREATE TRIGGER foo ON ', choices=['system.', 'system_auth.',
-                                           'system_distributed.', 'system_schema.', 'system_traces.', 'system_views.',
-                                           'system_virtual_schema.' ], other_choices_ok=True)
+        self.trycompletions('CREATE TRIGGER ', choices=['<identifier>', '<quotedName>', 'IF'])
+        self.trycompletions('CREATE TRIGGER foo ', immediate='ON ')
+        self.trycompletions('CREATE TRIGGER foo ON ',
+                            choices=['system.', 'system_auth.', 'system_distributed.', 'system_schema.', 'system_traces.',
+                                     'system_views.', 'system_virtual_schema.'], other_choices_ok=True)
 
     def create_columnfamily_table_template(self, name):
         """Parameterized test for CREATE COLUMNFAMILY and CREATE TABLE. Since
@@ -768,12 +767,12 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('CREATE MAT', immediate='ERIALIZED VIEW ')
         self.trycompletions('CREATE MATERIALIZED VIEW AS ', choices=['AS', 'SELECT'])
         self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * ', immediate='FROM ')
-        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers ', immediate = 'WHERE ')
-        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers WHERE host_id ', immediate='IS NOT NULL ' )
+        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers ', immediate='WHERE ')
+        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers WHERE host_id ', immediate='IS NOT NULL ')
         self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers WHERE host_id IS NOT NULL PR', immediate='IMARY KEY ( ')
-        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers WHERE host_id IS NOT NULL PRIMARY KEY (host_id) ', choices=[';','WITH'])
-        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers WHERE host_id IS NOT NULL PRIMARY KEY (a, b) ', choices=[';','WITH'])
-        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers WHERE host_id IS NOT NULL PRIMARY KEY ((a,b), c) ', choices=[';','WITH'])
+        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers WHERE host_id IS NOT NULL PRIMARY KEY (host_id) ', choices=[';', 'WITH'])
+        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers WHERE host_id IS NOT NULL PRIMARY KEY (a, b) ', choices=[';', 'WITH'])
+        self.trycompletions('CREATE MATERIALIZED VIEW AS SELECT * FROM system.peers WHERE host_id IS NOT NULL PRIMARY KEY ((a,b), c) ', choices=[';', 'WITH'])
 
     def test_complete_in_create_table(self):
         self.trycompletions('CREATE T', choices=['TRIGGER', 'TABLE', 'TYPE'])
@@ -896,8 +895,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
     def test_complete_in_use(self):
         self.trycompletions('US', immediate='E ')
         self.trycompletions('USE ', choices=[self.cqlsh.keyspace, 'system', 'system_auth',
-                                           'system_distributed', 'system_schema', 'system_traces', 'system_views',
-                                           'system_virtual_schema', 'system_cluster_metadata' ])
+                                             'system_distributed', 'system_schema', 'system_traces', 'system_views',
+                                             'system_virtual_schema', 'system_cluster_metadata'])
 
     def test_complete_in_create_index(self):
         self.trycompletions('CREATE I', immediate='NDEX ')
@@ -1033,9 +1032,9 @@ class TestCqlshCompletion(CqlshCompletionCase):
 
     def test_complete_in_create_role(self):
         self.trycompletions('CREATE ROLE ', choices=['<identifier>', 'IF', '<quotedName>'])
-        self.trycompletions('CREATE ROLE IF ', immediate='NOT EXISTS ');
+        self.trycompletions('CREATE ROLE IF ', immediate='NOT EXISTS ')
         self.trycompletions('CREATE ROLE foo WITH ', choices=['ACCESS', 'HASHED', 'LOGIN', 'OPTIONS', 'PASSWORD', 'SUPERUSER'])
-        self.trycompletions('CREATE ROLE foo WITH HASHED ', immediate='PASSWORD = ');
+        self.trycompletions('CREATE ROLE foo WITH HASHED ', immediate='PASSWORD = ')
         self.trycompletions('CREATE ROLE foo WITH ACCESS TO ', choices=['ALL', 'DATACENTERS'])
         self.trycompletions('CREATE ROLE foo WITH ACCESS TO ALL ', immediate='DATACENTERS ')
         self.trycompletions('CREATE ROLE foo WITH ACCESS FROM ', choices=['ALL', 'CIDRS'])
@@ -1051,10 +1050,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
     def test_complete_in_drop_role(self):
         self.trycompletions('DROP ROLE ', choices=['<identifier>', 'IF', '<quotedName>'])
 
-
     def test_complete_in_list(self):
         self.trycompletions('LIST ', choices=['ALL', 'AUTHORIZE', 'DESCRIBE', 'EXECUTE', 'ROLES', 'USERS', 'ALTER', 'CREATE', 'DROP', 'MODIFY', 'SELECT', 'UNMASK', 'SELECT_MASKED'])
-
 
     # Non-CQL Shell Commands
 
@@ -1062,8 +1059,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('CAPTURE ', choices=['OFF', ';', '<enter>'], other_choices_ok=True)
 
     def test_complete_in_paging(self):
-        self.trycompletions('PAGING ', choices=['ON', 'OFF', ';', '<enter>', '<wholenumber>' ] )
-        self.trycompletions('PAGING 50 ', choices=[';', '<enter>' ] )
+        self.trycompletions('PAGING ', choices=['ON', 'OFF', ';', '<enter>', '<wholenumber>'])
+        self.trycompletions('PAGING 50 ', choices=[';', '<enter>'])
 
     def test_complete_in_serial(self):
         self.trycompletions('SERIAL CONSISTENCY ', choices=[';', '<enter>', 'LOCAL_SERIAL', 'SERIAL'])
