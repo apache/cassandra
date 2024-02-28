@@ -42,7 +42,7 @@ import accord.api.Agent;
 import accord.api.DataStore;
 import accord.api.Key;
 import accord.api.ProgressLog;
-import accord.impl.CommandsForKey;
+import accord.local.CommandsForKey;
 import accord.impl.CommandsSummary;
 import accord.impl.TimestampsForKey;
 import accord.local.Command;
@@ -114,8 +114,8 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     private final ExecutionOrder executionOrder;
     private final AccordStateCache stateCache;
     private final AccordStateCache.Instance<TxnId, Command, AccordSafeCommand> commandCache;
-    private final AccordStateCache.Instance<RoutableKey, TimestampsForKey, AccordSafeTimestampsForKey> timestampsForKeyCache;
-    private final AccordStateCache.Instance<RoutableKey, CommandsForKey, AccordSafeCommandsForKey> commandsForKeyCache;
+    private final AccordStateCache.Instance<Key, TimestampsForKey, AccordSafeTimestampsForKey> timestampsForKeyCache;
+    private final AccordStateCache.Instance<Key, CommandsForKey, AccordSafeCommandsForKey> commandsForKeyCache;
     private AsyncOperation<?> currentOperation = null;
     private AccordSafeCommandStore current = null;
     private long lastSystemTimestampMicros = Long.MIN_VALUE;
@@ -161,7 +161,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                                 this::validateCommand,
                                 AccordObjectSizes::command);
         timestampsForKeyCache =
-            stateCache.instance(RoutableKey.class,
+            stateCache.instance(Key.class,
                                 AccordSafeTimestampsForKey.class,
                                 AccordSafeTimestampsForKey::new,
                                 this::loadTimestampsForKey,
@@ -169,7 +169,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                                 this::validateTimestampsForKey,
                                 AccordObjectSizes::timestampsForKey);
         commandsForKeyCache =
-            stateCache.instance(RoutableKey.class,
+            stateCache.instance(Key.class,
                                 AccordSafeCommandsForKey.class,
                                 AccordSafeCommandsForKey::new,
                                 this::loadCommandsForKey,
@@ -220,7 +220,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
                 MessageProvider messageProvider = journal.makeMessageProvider(txnId);
 
-                SerializerSupport.TxnAndDeps txnAndDeps = SerializerSupport.extractTxnAndDeps(status, accepted, messageProvider);
+                SerializerSupport.TxnAndDeps txnAndDeps = SerializerSupport.extractTxnAndDeps(unsafeRangesForEpoch(), status, accepted, messageProvider);
                 Seekables<?, ?> keys = txnAndDeps.txn.keys();
                 if (keys.domain() != Routable.Domain.Range)
                     throw new AssertionError(String.format("Txn keys are not range for %s", txnAndDeps.txn));
@@ -311,12 +311,12 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         return commandCache;
     }
 
-    public AccordStateCache.Instance<RoutableKey, TimestampsForKey, AccordSafeTimestampsForKey> timestampsForKeyCache()
+    public AccordStateCache.Instance<Key, TimestampsForKey, AccordSafeTimestampsForKey> timestampsForKeyCache()
     {
         return timestampsForKeyCache;
     }
 
-    public AccordStateCache.Instance<RoutableKey, CommandsForKey, AccordSafeCommandsForKey> commandsForKeyCache()
+    public AccordStateCache.Instance<Key, CommandsForKey, AccordSafeCommandsForKey> commandsForKeyCache()
     {
         return commandsForKeyCache;
     }
@@ -466,8 +466,8 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
     public AccordSafeCommandStore beginOperation(PreLoadContext preLoadContext,
                                                  Map<TxnId, AccordSafeCommand> commands,
-                                                 NavigableMap<RoutableKey, AccordSafeTimestampsForKey> timestampsForKeys,
-                                                 NavigableMap<RoutableKey, AccordSafeCommandsForKey> commandsForKeys)
+                                                 NavigableMap<Key, AccordSafeTimestampsForKey> timestampsForKeys,
+                                                 NavigableMap<Key, AccordSafeCommandsForKey> commandsForKeys)
     {
         Invariants.checkState(current == null);
         commands.values().forEach(AccordSafeState::preExecute);

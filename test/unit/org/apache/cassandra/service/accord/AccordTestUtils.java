@@ -30,6 +30,8 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.junit.Assert;
@@ -59,6 +61,7 @@ import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Participants;
 import accord.primitives.Ranges;
+import accord.primitives.Routable;
 import accord.primitives.Route;
 import accord.primitives.Seekable;
 import accord.primitives.Seekables;
@@ -199,8 +202,8 @@ public class AccordTestUtils
         @Override public void executed(Command command, ProgressShard progressShard) {}
         @Override public void clear(TxnId txnId) {}
         @Override public void durable(Command command) {}
-        @Override
-        public void waiting(SafeCommand blockedBy, LocalExecution blockedUntil, Route<?> blockedOnRoute, Participants<?> blockedOnParticipants) {}
+        @Override public void waiting(SafeCommand blockedBy, LocalExecution blockedUntil, Route<?> blockedOnRoute, Participants<?> blockedOnParticipants) {}
+        @Override public void waiting(TxnId blockedBy, LocalExecution blockedUntil, @Nullable Route<?> blockedOnRoute, @Nullable Participants<?> blockedOnParticipants) {}
     };
 
     public static TxnId txnId(long epoch, long hlc, int node)
@@ -211,6 +214,11 @@ public class AccordTestUtils
     public static TxnId txnId(long epoch, long hlc, int node, Txn.Kind kind)
     {
         return new TxnId(epoch, hlc, kind, Key, new Node.Id(node));
+    }
+
+    public static TxnId txnId(long epoch, long hlc, int node, Txn.Kind kind, Routable.Domain domain)
+    {
+        return new TxnId(epoch, hlc, kind, domain, new Node.Id(node));
     }
 
     public static Timestamp timestamp(long epoch, long hlc, int node)

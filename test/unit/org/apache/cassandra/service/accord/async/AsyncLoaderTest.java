@@ -32,13 +32,12 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import accord.api.Key;
-import accord.impl.CommandsForKey;
+import accord.local.CommandsForKey;
 import accord.impl.TimestampsForKey;
 import accord.local.Command;
 import accord.local.KeyHistory;
 import accord.primitives.Keys;
 import accord.primitives.PartialTxn;
-import accord.primitives.RoutableKey;
 import accord.primitives.TxnId;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
@@ -96,7 +95,7 @@ public class AsyncLoaderTest
         AccordStateCache.Instance<TxnId, Command, AccordSafeCommand> commandCache = commandStore.commandCache();
         commandStore.executeBlocking(() -> commandStore.setCapacity(1024));
 
-        AccordStateCache.Instance<RoutableKey, TimestampsForKey, AccordSafeTimestampsForKey> timestampsCache = commandStore.timestampsForKeyCache();
+        AccordStateCache.Instance<Key, TimestampsForKey, AccordSafeTimestampsForKey> timestampsCache = commandStore.timestampsForKeyCache();
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
         PartialTxn txn = createPartialTxn(0);
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
@@ -375,7 +374,7 @@ public class AsyncLoaderTest
     @Test
     public void inProgressCFKSaveTest()
     {
-        inProgressCFKSaveTest(COMMANDS, AccordCommandStore::commandsForKeyCache, context -> context.commandsForKey, CommandsForKey::new, (cfk, u) -> cfk.update(null, u));
+        this.inProgressCFKSaveTest(COMMANDS, AccordCommandStore::commandsForKeyCache, context -> context.commandsForKey, CommandsForKey::new, (cfk, u) -> cfk.update(null, u));
     }
 
     @Test
@@ -384,7 +383,7 @@ public class AsyncLoaderTest
         inProgressCFKSaveTest(TIMESTAMPS, AccordCommandStore::timestampsForKeyCache, context -> context.timestampsForKey, TimestampsForKey::new, (tfk, c) -> new TimestampsForKey(tfk.key(), c.executeAt(), c.executeAt().hlc(), c.executeAt()));
     }
 
-    private <T1, T2 extends AccordSafeState<RoutableKey, T1>, C extends AccordStateCache.Instance<RoutableKey, T1, T2>>  void inProgressCFKSaveTest(KeyHistory history, Function<AccordCommandStore, C> getter, Function<Context, TreeMap<?, ?>> inContext, Function<Key, T1> initialiser, BiFunction<T1, Command, T1> update)
+    private <T1, T2 extends AccordSafeState<Key, T1>, C extends AccordStateCache.Instance<Key, T1, T2>>  void inProgressCFKSaveTest(KeyHistory history, Function<AccordCommandStore, C> getter, Function<Context, TreeMap<?, ?>> inContext, Function<Key, T1> initialiser, BiFunction<T1, Command, T1> update)
     {
         AtomicLong clock = new AtomicLong(0);
         ManualExecutor executor = new ManualExecutor();

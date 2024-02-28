@@ -24,10 +24,10 @@ import java.util.Arrays;
 import com.google.common.primitives.Ints;
 
 import accord.api.Key;
-import accord.impl.CommandsForKey;
-import accord.impl.CommandsForKey.Info;
-import accord.impl.CommandsForKey.InternalStatus;
-import accord.impl.CommandsForKey.NoInfo;
+import accord.local.CommandsForKey;
+import accord.local.CommandsForKey.TxnInfo;
+import accord.local.CommandsForKey.InternalStatus;
+import accord.local.CommandsForKey.Unmanaged;
 import accord.local.Node;
 import accord.primitives.Routable.Domain;
 import accord.primitives.Timestamp;
@@ -35,8 +35,10 @@ import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
+import static accord.local.CommandsForKey.NO_PENDING_UNMANAGED;
 import static accord.primitives.Txn.Kind.ExclusiveSyncPoint;
 import static accord.primitives.Txn.Kind.Read;
 import static accord.primitives.Txn.Kind.Write;
@@ -104,23 +106,7 @@ public class CommandsForKeySerializer
     {
         int commandCount = cfk.size();
         if (commandCount == 0)
-        {
-            // TODO (expected): we should not need to special-case, but best solution here is not to store redundantBefore;
-            //    but this requires some modest deeper changes, so for now special-case serialization when empty
-            Timestamp redundantBefore = cfk.redundantBefore();
-            ByteBuffer out = ByteBuffer.allocate(TypeSizes.sizeofUnsignedVInt(0) +
-                                                 TypeSizes.sizeofUnsignedVInt(redundantBefore.epoch()) +
-                                                 TypeSizes.sizeofUnsignedVInt(redundantBefore.hlc()) +
-                                                 TypeSizes.sizeofUnsignedVInt(redundantBefore.flags()) +
-                                                 TypeSizes.sizeofUnsignedVInt(redundantBefore.node.id));
-            VIntCoding.writeUnsignedVInt32(0, out);
-            VIntCoding.writeUnsignedVInt(redundantBefore.epoch(), out);
-            VIntCoding.writeUnsignedVInt(redundantBefore.hlc(), out);
-            VIntCoding.writeUnsignedVInt32(redundantBefore.flags(), out);
-            VIntCoding.writeUnsignedVInt32(redundantBefore.node.id, out);
-            out.flip();
-            return out;
-        }
+            return ByteBuffer.allocate(1);
 
         int[] nodeIds = cachedInts().getInts(Math.min(64, commandCount));
         try
@@ -129,11 +115,9 @@ public class CommandsForKeySerializer
             // whether we have any missing transactions to encode, any executeAt that are not equal to their TxnId
             // and whether there are any non-standard flag bits to encode
             boolean hasNonStandardFlags = false;
-            int nodeIdCount, missingIdCount = 0, executeAtCount = 0, bitsPerExecuteAtFlags = 0;
+            int nodeIdCount = 0, missingIdCount = 0, executeAtCount = 0, bitsPerExecuteAtFlags = 0;
             int bitsPerExecuteAtEpochDelta = 0, bitsPerExecuteAtHlcDelta = 1; // to permit us to use full 64 bits and encode in 5 bits we force at least one hlc bit
             {
-                nodeIdCount = 1;
-                nodeIds[0] = cfk.redundantBefore().node.id;
                 for (int i = 0 ; i < commandCount ; ++i)
                 {
                     if (nodeIdCount + 1 >= nodeIds.length)
@@ -143,24 +127,19 @@ public class CommandsForKeySerializer
                             nodeIds = cachedInts().resize(nodeIds, nodeIds.length, nodeIds.length * 2);
                     }
 
-                    TxnId txnId = cfk.txnId(i);
-                    Info info = cfk.info(i);
+                    TxnInfo txn = cfk.get(i);
 
-                    hasNonStandardFlags |= txnIdFlags(txnId) != STANDARD;
-                    nodeIds[nodeIdCount++] = txnId.node.id;
+                    hasNonStandardFlags |= txnIdFlags(txn) != STANDARD;
+                    nodeIds[nodeIdCount++] = txn.node.id;
 
-                    if (info.getClass() == NoInfo.class)
+                    missingIdCount += txn.missing().length;
+                    if (txn.executeAt == txn)
                         continue;
 
-                    missingIdCount += info.missing.length;
-
-                    if (info.executeAt == txnId)
-                        continue;
-
-                    nodeIds[nodeIdCount++] = info.executeAt.node.id;
-                    bitsPerExecuteAtEpochDelta = Math.max(bitsPerExecuteAtEpochDelta, numberOfBitsToRepresent(info.executeAt.epoch() - txnId.epoch()));
-                    bitsPerExecuteAtHlcDelta = Math.max(bitsPerExecuteAtHlcDelta, numberOfBitsToRepresent(info.executeAt.hlc() - txnId.hlc()));
-                    bitsPerExecuteAtFlags = Math.max(bitsPerExecuteAtFlags, numberOfBitsToRepresent(info.executeAt.flags()));
+                    nodeIds[nodeIdCount++] = txn.executeAt.node.id;
+                    bitsPerExecuteAtEpochDelta = Math.max(bitsPerExecuteAtEpochDelta, numberOfBitsToRepresent(txn.executeAt.epoch() - txn.epoch()));
+                    bitsPerExecuteAtHlcDelta = Math.max(bitsPerExecuteAtHlcDelta, numberOfBitsToRepresent(txn.executeAt.hlc() - txn.hlc()));
+                    bitsPerExecuteAtFlags = Math.max(bitsPerExecuteAtFlags, numberOfBitsToRepresent(txn.executeAt.flags()));
                     executeAtCount += 1;
                 }
                 nodeIdCount = compact(nodeIds);
@@ -175,8 +154,8 @@ public class CommandsForKeySerializer
             int maxHeaderBits = minHeaderBits;
             int totalBytes = 0;
 
-            long prevEpoch = cfk.redundantBefore().epoch();
-            long prevHlc = cfk.redundantBefore().hlc();
+            long prevEpoch = cfk.get(0).epoch();
+            long prevHlc = cfk.get(0).hlc();
             int[] bytesHistogram = cachedInts().getInts(12);
             Arrays.fill(bytesHistogram, 0);
             for (int i = 0 ; i < commandCount ; ++i)
@@ -214,7 +193,7 @@ public class CommandsForKeySerializer
                 if (hasNonStandardFlags && txnIdFlags(txnId) == RAW)
                     totalBytes += 2;
 
-                Info info = cfk.info(i);
+                TxnInfo info = cfk.get(i);
                 if (info.status.hasInfo)
                     headerBits += infoHeaderBits;
                 maxHeaderBits = Math.max(headerBits, maxHeaderBits);
@@ -247,9 +226,11 @@ public class CommandsForKeySerializer
                 // then pick third number as 75th %ile, but at least 1 less than highest, and one more than second
                 // finally, ensure third then second are distributed so that there is no more than a gap of 4 between them and the next
                 int l0 = Math.max(0, Math.min(3, minBasicBytes - headerBytes));
-                int l1 = Math.max(l0+1, Math.min(l0+4,Arrays.binarySearch(bytesHistogram, commandCount/4) - headerBytes));
+                int l1 = Arrays.binarySearch(bytesHistogram, minBasicBytes, maxBasicBytes, commandCount/4);
+                l1 = Math.max(l0+1, Math.min(l0+4, (l1 < 0 ? -1 - l1 : l1) - headerBytes));
                 int l3 = Math.max(l1+2, maxBasicBytes - headerBytes);
-                int l2 = Math.max(l1+1, Math.min(l3-1, Arrays.binarySearch(bytesHistogram, (3*commandCount)/4) - headerBytes));
+                int l2 = Arrays.binarySearch(bytesHistogram, minBasicBytes, maxBasicBytes,(3*commandCount)/4);
+                l2 = Math.max(l1+1, Math.min(l3-1, (l2 < 0 ? -1 -l2 : l2) - headerBytes));
                 while (l3-l2 > 4) ++l2;
                 while (l2-l1 > 4) ++l1;
                 hlcBytesLookup = setHlcBytes(l0, l1, l2, l3);
@@ -267,16 +248,13 @@ public class CommandsForKeySerializer
                 totalBytes += TypeSizes.sizeofUnsignedVInt(nodeIds[i] - nodeIds[i-1]);
             totalBytes += 2;
 
-            Arrays.fill(bytesHistogram, minBasicBytes, maxBasicBytes + 1, 0);
             cachedInts().forceDiscard(bytesHistogram);
 
-            prevEpoch = cfk.redundantBefore().epoch();
-            prevHlc = cfk.redundantBefore().hlc();
+            prevEpoch = cfk.get(0).epoch();
+            prevHlc = cfk.get(0).hlc();
             // account for encoding redundantBefore
             totalBytes += TypeSizes.sizeofUnsignedVInt(prevEpoch);
             totalBytes += TypeSizes.sizeofUnsignedVInt(prevHlc);
-            totalBytes += 2; // flags TODO (expected): pack this along with uniqueIdBits, as usually zero bits should be needed
-            totalBytes += (bitsPerNodeId+7)/8;
 
             if (missingIdCount + executeAtCount > 0)
             {
@@ -291,6 +269,20 @@ public class CommandsForKeySerializer
                     totalBytes += 2;
             }
 
+            // count unmanaged bytes
+            int unmanagedPendingCommitCount = 0;
+            for (int i = 0 ; i < cfk.unmanagedCount() ; ++i)
+            {
+                Unmanaged unmanaged = cfk.getUnmanaged(i);
+                if (unmanaged.pending == Unmanaged.Pending.COMMIT)
+                    ++unmanagedPendingCommitCount;
+                totalBytes += CommandSerializers.txnId.serializedSize();
+                // TODO (desired): this could be more efficient, e.g. referencing one of the TxnInfo indexes for timestamp
+                totalBytes += CommandSerializers.timestamp.serializedSize();
+            }
+            totalBytes += TypeSizes.sizeofUnsignedVInt(unmanagedPendingCommitCount);
+            totalBytes += TypeSizes.sizeofUnsignedVInt(cfk.unmanagedCount() - unmanagedPendingCommitCount);
+
             ByteBuffer out = ByteBuffer.allocate(totalBytes);
             VIntCoding.writeUnsignedVInt32(commandCount, out);
             VIntCoding.writeUnsignedVInt32(nodeIdCount, out);
@@ -301,8 +293,6 @@ public class CommandsForKeySerializer
 
             VIntCoding.writeUnsignedVInt(prevEpoch, out);
             VIntCoding.writeUnsignedVInt(prevHlc, out);
-            out.putShort((short) cfk.redundantBefore().flags());
-            writeLeastSignificantBytes(Arrays.binarySearch(nodeIds, 0, nodeIdCount, cfk.redundantBefore().node.id), (bitsPerNodeId+7)/8, out);
 
             int executeAtMask = executeAtCount > 0 ? 1 : 0;
             int missingDepsMask = missingIdCount > 0 ? 1 : 0;
@@ -311,7 +301,7 @@ public class CommandsForKeySerializer
             for (int i = 0 ; i < commandCount ; ++i)
             {
                 TxnId txnId = cfk.txnId(i);
-                Info info = cfk.info(i);
+                TxnInfo info = cfk.get(i);
                 InternalStatus status = info.status;
 
                 long bits = status.ordinal();
@@ -322,7 +312,7 @@ public class CommandsForKeySerializer
                 bits |= hasExecuteAt << bitIndex;
                 bitIndex += statusHasInfo & executeAtMask;
 
-                long hasMissingIds = info.missing != CommandsForKey.NO_TXNIDS ? 1 : 0;
+                long hasMissingIds = info.missing() != CommandsForKey.NO_TXNIDS ? 1 : 0;
                 bits |= hasMissingIds << bitIndex;
                 bitIndex += statusHasInfo & missingDepsMask;
 
@@ -392,6 +382,20 @@ public class CommandsForKeySerializer
                 }
             }
 
+            VIntCoding.writeUnsignedVInt32(unmanagedPendingCommitCount, out);
+            VIntCoding.writeUnsignedVInt32(cfk.unmanagedCount() - unmanagedPendingCommitCount, out);
+            Unmanaged.Pending pending = unmanagedPendingCommitCount == 0 ? Unmanaged.Pending.APPLY : Unmanaged.Pending.COMMIT;
+            for (int i = 0 ; i < cfk.unmanagedCount() ; ++i)
+            {
+                Unmanaged unmanaged = cfk.getUnmanaged(i);
+                Invariants.checkState(unmanaged.pending == pending);
+                CommandSerializers.txnId.serialize(unmanaged.txnId, out, ByteBufferAccessor.instance, out.position());
+                out.position(out.position() + CommandSerializers.txnId.serializedSize());
+                CommandSerializers.timestamp.serialize(unmanaged.waitingUntil, out, ByteBufferAccessor.instance, out.position());
+                out.position(out.position() + CommandSerializers.timestamp.serializedSize());
+                if (--unmanagedPendingCommitCount == 0) pending = Unmanaged.Pending.APPLY;
+            }
+
             if ((executeAtCount | missingIdCount) > 0)
             {
                 int bitsPerCommandId =  numberOfBitsToRepresent(commandCount);
@@ -407,21 +411,17 @@ public class CommandsForKeySerializer
 
                 for (int i = 0 ; i < commandCount ; ++i)
                 {
-                    Info info = cfk.info(i);
-                    if (info.getClass() == NoInfo.class)
-                        continue;
-
-                    TxnId txnId = cfk.txnId(i);
-                    if (info.executeAt != txnId)
+                    TxnInfo txn = cfk.get(i);
+                    if (txn.executeAt != txn)
                     {
-                        Timestamp executeAt = info.executeAt;
+                        Timestamp executeAt = txn.executeAt;
                         int nodeIdx = Arrays.binarySearch(nodeIds, 0, nodeIdCount, executeAt.node.id);
                         if (bitsPerExecuteAt <= 64)
                         {
-                            Invariants.checkState(executeAt.epoch() >= txnId.epoch());
-                            long executeAtBits = executeAt.epoch() - txnId.epoch();
+                            Invariants.checkState(executeAt.epoch() >= txn.epoch());
+                            long executeAtBits = executeAt.epoch() - txn.epoch();
                             int offset = bitsPerExecuteAtEpochDelta;
-                            executeAtBits |= (executeAt.hlc() - txnId.hlc()) << offset ;
+                            executeAtBits |= (executeAt.hlc() - txn.hlc()) << offset ;
                             offset += bitsPerExecuteAtHlcDelta;
                             executeAtBits |= ((long)executeAt.flags()) << offset;
                             offset += bitsPerExecuteAtFlags;
@@ -431,9 +431,9 @@ public class CommandsForKeySerializer
                         }
                         else
                         {
-                            buffer = flushBits(buffer, bufferCount, executeAt.epoch() - txnId.epoch(), bitsPerExecuteAtEpochDelta, out);
+                            buffer = flushBits(buffer, bufferCount, executeAt.epoch() - txn.epoch(), bitsPerExecuteAtEpochDelta, out);
                             bufferCount = (bufferCount + bitsPerExecuteAtEpochDelta) & 63;
-                            buffer = flushBits(buffer, bufferCount, executeAt.hlc() - txnId.hlc(), bitsPerExecuteAtHlcDelta, out);
+                            buffer = flushBits(buffer, bufferCount, executeAt.hlc() - txn.hlc(), bitsPerExecuteAtHlcDelta, out);
                             bufferCount = (bufferCount + bitsPerExecuteAtHlcDelta) & 63;
                             buffer = flushBits(buffer, bufferCount, executeAt.flags(), bitsPerExecuteAtFlags, out);
                             bufferCount = (bufferCount + bitsPerExecuteAtFlags) & 63;
@@ -442,16 +442,17 @@ public class CommandsForKeySerializer
                         }
                     }
 
-                    if (info.missing.length > 0)
+                    TxnId[] missing = txn.missing();
+                    if (missing.length > 0)
                     {
                         int j = 0;
-                        while (j < info.missing.length - 1)
+                        while (j < missing.length - 1)
                         {
-                            int missingId = cfk.indexOf(info.missing[j++]);
+                            int missingId = cfk.indexOf(missing[j++]);
                             buffer = flushBits(buffer, bufferCount, missingId, bitsPerMissingId, out);
                             bufferCount = (bufferCount + bitsPerMissingId) & 63;
                         }
-                        int missingId = cfk.indexOf(info.missing[info.missing.length - 1]);
+                        int missingId = cfk.indexOf(missing[missing.length - 1]);
                         missingId |= 1L << bitsPerCommandId;
                         buffer = flushBits(buffer, bufferCount, missingId, bitsPerMissingId, out);
                         bufferCount = (bufferCount + bitsPerMissingId) & 63;
@@ -461,6 +462,7 @@ public class CommandsForKeySerializer
                 writeMostSignificantBytes(buffer, (bufferCount + 7)/8, out);
             }
 
+            Invariants.checkState(!out.hasRemaining());
             out.flip();
             return out;
         }
@@ -494,16 +496,10 @@ public class CommandsForKeySerializer
         in = in.duplicate();
         int commandCount = VIntCoding.readUnsignedVInt32(in);
         if (commandCount == 0)
-        {
-            long epoch = VIntCoding.readUnsignedVInt(in);
-            long hlc = VIntCoding.readUnsignedVInt(in);
-            int flags = VIntCoding.readUnsignedVInt32(in);
-            Node.Id id = new Node.Id(VIntCoding.readUnsignedVInt32(in));
-            return new CommandsForKey(key).withoutRedundant(TxnId.fromValues(epoch, hlc, flags, id));
-        }
+            return new CommandsForKey(key);
 
-        TxnId[] txnIds = new TxnId[commandCount];
-        Info[] infos = new Info[commandCount];
+        TxnId[] txnIds = cachedTxnIds().get(commandCount);
+        TxnInfo[] txns = new TxnInfo[commandCount];
         int nodeIdCount = VIntCoding.readUnsignedVInt32(in);
         int bitsPerNodeId = numberOfBitsToRepresent(nodeIdCount);
         long nodeIdMask = (1L << bitsPerNodeId) - 1;
@@ -526,12 +522,8 @@ public class CommandsForKeySerializer
             hlcBytesLookup = setHlcByteDeltas((flags >>> 5) & 0x3, (flags >>> 7) & 0x3, (flags >>> 9) & 0x3, (flags >>> 11) & 0x3);
         }
 
-        long prevEpoch = VIntCoding.readUnsignedVInt32(in);
-        long prevHlc = VIntCoding.readUnsignedVInt32(in);
-        TxnId redundantBefore = TxnId.fromValues(prevEpoch, prevHlc, in.getShort(),
-                                                 nodeIds[(int)readLeastSignificantBytes((bitsPerNodeId+7)/8, in)]);
-
-
+        long prevEpoch = VIntCoding.readUnsignedVInt(in);
+        long prevHlc = VIntCoding.readUnsignedVInt(in);
         for (int i = 0 ; i < commandCount ; ++i)
         {
             long header = readLeastSignificantBytes(headerByteCount, in);
@@ -601,10 +593,32 @@ public class CommandsForKeySerializer
                                        : TxnId.fromValues(epoch, hlc, flags, node);
 
             txnIds[i] = txnId;
-            infos[i] = DECODE_INFOS[(executeAtInfoOffset | missingDepsInfoOffset)*STATUS_COUNT + status.ordinal()];
+            txns[i] = DECODE_INFOS[(executeAtInfoOffset | missingDepsInfoOffset)*STATUS_COUNT + status.ordinal()];
 
             prevEpoch = epoch;
             prevHlc = hlc;
+        }
+
+        int unmanagedPendingCommitCount = VIntCoding.readUnsignedVInt32(in);
+        int unmanagedCount = unmanagedPendingCommitCount + VIntCoding.readUnsignedVInt32(in);
+        Unmanaged[] unmanageds;
+        if (unmanagedCount == 0)
+        {
+            unmanageds = NO_PENDING_UNMANAGED;
+        }
+        else
+        {
+            unmanageds = new Unmanaged[unmanagedCount];
+            Unmanaged.Pending pending = unmanagedPendingCommitCount == 0 ? Unmanaged.Pending.APPLY : Unmanaged.Pending.COMMIT;
+            for (int i = 0 ; i < unmanagedCount ; ++i)
+            {
+                TxnId txnId = CommandSerializers.txnId.deserialize(in, ByteBufferAccessor.instance, in.position());
+                in.position(in.position() + CommandSerializers.txnId.serializedSize());
+                Timestamp waitingUntil = CommandSerializers.timestamp.deserialize(in, ByteBufferAccessor.instance, in.position());
+                in.position(in.position() + CommandSerializers.timestamp.serializedSize());
+                unmanageds[i] = new Unmanaged(pending, txnId, waitingUntil);
+                if (--unmanagedPendingCommitCount == 0) pending = Unmanaged.Pending.APPLY;
+            }
         }
 
         if (executeAtMasks + missingDepsMasks > 0)
@@ -630,13 +644,10 @@ public class CommandsForKeySerializer
 
             for (int i = 0 ; i < commandCount ; ++i)
             {
-                Info info = infos[i];
-                if (info.getClass() == NoInfo.class)
-                    continue;
-
                 TxnId txnId = txnIds[i];
-                Timestamp executeAt = txnId;
-                if (info.executeAt == null)
+                TxnInfo placeholder = txns[i];
+                Timestamp executeAt;
+                if (placeholder.executeAt == null)
                 {
                     long epoch, hlc;
                     int flags;
@@ -661,8 +672,12 @@ public class CommandsForKeySerializer
                     }
                     executeAt = Timestamp.fromValues(epoch, hlc, flags, id);
                 }
+                else
+                {
+                    executeAt = txnId;
+                }
 
-                TxnId[] missing = info.missing;
+                TxnId[] missing = placeholder.missing();
                 if (missing == null)
                 {
                     int prev = -1;
@@ -684,13 +699,19 @@ public class CommandsForKeySerializer
                     missingIdCount = 0;
                 }
 
-                infos[i] = Info.create(txnId, info.status, executeAt, missing);
+                txns[i] = TxnInfo.create(txnId, placeholder.status, executeAt, missing);
             }
 
             cachedTxnIds().forceDiscard(missingIdBuffer, maxIdBufferCount);
         }
+        else
+        {
+            for (int i = 0 ; i < commandCount ; ++i)
+                txns[i] = TxnInfo.create(txnIds[i], txns[i].status, txnIds[i]);
+        }
+        cachedTxnIds().forceDiscard(txnIds, commandCount);
 
-        return CommandsForKey.SerializerSupport.create(key, redundantBefore, txnIds, infos);
+        return CommandsForKey.SerializerSupport.create(key, txns, unmanageds);
     }
 
     private static int getHlcBytes(int lookup, int index)
@@ -833,16 +854,16 @@ public class CommandsForKeySerializer
 
     private static final Txn.Kind[] TXN_ID_FLAG_BITS_KIND_LOOKUP = new Txn.Kind[] { Read, Write, ExclusiveSyncPoint, null };
     private static final int STATUS_COUNT = InternalStatus.values().length;
-    private static final Info[] DECODE_INFOS = new Info[4 * STATUS_COUNT];
+    private static final TxnInfo[] DECODE_INFOS = new TxnInfo[4 * STATUS_COUNT];
     static
     {
         for (InternalStatus status : InternalStatus.values())
         {
             int ordinal = status.ordinal();
-            DECODE_INFOS[ordinal] = status.asNoInfo;
-            DECODE_INFOS[STATUS_COUNT+ordinal] = Info.createMock(status, Timestamp.NONE, null);
-            DECODE_INFOS[2*STATUS_COUNT+ordinal] = Info.createMock(status, null, CommandsForKey.NO_TXNIDS);
-            DECODE_INFOS[3*STATUS_COUNT+ordinal] = Info.createMock(status, null, null);
+            DECODE_INFOS[ordinal] = TxnInfo.createMock(TxnId.NONE, status, TxnId.NONE, CommandsForKey.NO_TXNIDS);
+            DECODE_INFOS[STATUS_COUNT+ordinal] = TxnInfo.createMock(TxnId.NONE, status, TxnId.NONE, null);
+            DECODE_INFOS[2*STATUS_COUNT+ordinal] = TxnInfo.createMock(TxnId.NONE, status, null, CommandsForKey.NO_TXNIDS);
+            DECODE_INFOS[3*STATUS_COUNT+ordinal] = TxnInfo.createMock(TxnId.NONE, status, null, null);
         }
     }
 

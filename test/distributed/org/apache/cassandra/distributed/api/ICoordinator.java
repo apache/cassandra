@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.api;
 import java.util.Iterator;
 import java.util.UUID;
 import java.util.concurrent.Future;
+import java.util.function.BiConsumer;
 
 import org.apache.cassandra.distributed.shared.FutureUtils;
 
@@ -60,6 +61,8 @@ public interface ICoordinator
     }
 
     SimpleQueryResult executeWithResult(String query, ConsistencyLevel consistencyLevel, Object... boundValues);
+    Future<?> executeWithResult(BiConsumer<SimpleQueryResult, Throwable> callback, String query, ConsistencyLevel consistencyLevel, Object... boundValues);
+    Future<?> executeWithResult(BiConsumer<SimpleQueryResult, Throwable> callback, String query, ConsistencyLevel serialConsistencyLevel, ConsistencyLevel commitConsistencyLevel, Object... boundValues);
 
     default SimpleQueryResult executeWithResult(String query, ConsistencyLevel serialConsistencyLevel, ConsistencyLevel commitConsistencyLevel, Object... boundValues)
     {

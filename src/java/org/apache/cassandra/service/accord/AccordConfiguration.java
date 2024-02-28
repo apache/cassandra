@@ -23,6 +23,7 @@ import java.time.Duration;
 import accord.config.LocalConfig;
 import org.apache.cassandra.config.Config;
 
+// TODO (expected): should this be merged with AccordSpec?
 public class AccordConfiguration implements LocalConfig
 {
     private final Config config;

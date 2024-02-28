@@ -31,6 +31,7 @@ import accord.primitives.Range;
 import accord.topology.Topology;
 import accord.utils.RandomSource;
 import org.apache.cassandra.cache.CacheSize;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.AccordStateCacheMetrics;
 import org.apache.cassandra.metrics.CacheSizeMetrics;
 import org.apache.cassandra.schema.TableId;
@@ -47,7 +48,7 @@ public class AccordCommandStores extends CommandStores implements CacheSize
                         ShardDistributor shardDistributor, ProgressLog.Factory progressLogFactory, AccordJournal journal)
     {
         super(time, agent, store, random, shardDistributor, progressLogFactory, AccordCommandStore.factory(journal, new AccordStateCacheMetrics(ACCORD_STATE_CACHE)));
-        setCapacity(maxCacheSize());
+        setCapacity(DatabaseDescriptor.getAccordCacheSizeInMiB() << 20);
         this.cacheSizeMetrics = new CacheSizeMetrics(ACCORD_STATE_CACHE, this);
     }
 
@@ -108,11 +109,6 @@ public class AccordCommandStores extends CommandStores implements CacheSize
         long perStore = cacheSize / count();
         // TODO (low priority, safety): we might transiently breach our limit if we increase one store before decreasing another
         forEach(commandStore -> ((AccordSafeCommandStore) commandStore).commandStore().setCapacity(perStore));
-    }
-
-    private static long maxCacheSize()
-    {
-        return 5 << 20; // TODO (required): make configurable
     }
 
     @Override

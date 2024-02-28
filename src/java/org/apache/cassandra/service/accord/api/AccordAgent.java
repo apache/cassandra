@@ -117,6 +117,9 @@ public class AccordAgent implements Agent
     public boolean isExpired(TxnId initiated, long now)
     {
         // TODO: should distinguish between reads and writes
+        if (initiated.kind().isSyncPoint())
+            return false;
+
         return now - initiated.hlc() > getReadRpcTimeout(MICROSECONDS);
     }
 

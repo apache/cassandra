@@ -31,8 +31,7 @@ import accord.api.DataStore;
 import accord.api.Key;
 import accord.api.ProgressLog;
 import accord.impl.AbstractSafeCommandStore;
-import accord.impl.CommandsForKey;
-import accord.impl.CommandsForKeys;
+import accord.local.CommandsForKey;
 import accord.impl.CommandsSummary;
 import accord.local.Command;
 import accord.local.CommandStores.RangesForEpoch;
@@ -41,7 +40,6 @@ import accord.local.PreLoadContext;
 import accord.primitives.AbstractKeys;
 import accord.primitives.Deps;
 import accord.primitives.Ranges;
-import accord.primitives.RoutableKey;
 import accord.primitives.Routables;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
@@ -53,16 +51,16 @@ import static accord.primitives.Routable.Domain.Range;
 public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeCommand, AccordSafeTimestampsForKey, AccordSafeCommandsForKey>
 {
     private final Map<TxnId, AccordSafeCommand> commands;
-    private final NavigableMap<RoutableKey, AccordSafeCommandsForKey> commandsForKeys;
-    private final NavigableMap<RoutableKey, AccordSafeTimestampsForKey> timestampsForKeys;
+    private final NavigableMap<Key, AccordSafeCommandsForKey> commandsForKeys;
+    private final NavigableMap<Key, AccordSafeTimestampsForKey> timestampsForKeys;
     private final AccordCommandStore commandStore;
     private final RangesForEpoch ranges;
     CommandsForRanges.Updater rangeUpdates = null;
 
     public AccordSafeCommandStore(PreLoadContext context,
                                   Map<TxnId, AccordSafeCommand> commands,
-                                  NavigableMap<RoutableKey, AccordSafeTimestampsForKey> timestampsForKey,
-                                  NavigableMap<RoutableKey, AccordSafeCommandsForKey> commandsForKey,
+                                  NavigableMap<Key, AccordSafeTimestampsForKey> timestampsForKey,
+                                  NavigableMap<Key, AccordSafeCommandsForKey> commandsForKey,
                                   AccordCommandStore commandStore)
     {
         super(context);
@@ -94,7 +92,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     @Override
-    protected AccordSafeCommandsForKey getCommandsForKeyInternal(RoutableKey key)
+    protected AccordSafeCommandsForKey getCommandsForKeyInternal(Key key)
     {
         return commandsForKeys.get(key);
     }
@@ -106,7 +104,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     @Override
-    protected AccordSafeCommandsForKey getCommandsForKeyIfLoaded(RoutableKey key)
+    protected AccordSafeCommandsForKey getCommandsForKeyIfLoaded(Key key)
     {
         AccordSafeCommandsForKey cfk = commandStore.commandsForKeyCache().acquireIfLoaded(key);
         if (cfk != null) cfk.preExecute();
@@ -114,7 +112,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     @Override
-    protected AccordSafeTimestampsForKey getTimestampsForKeyInternal(RoutableKey key)
+    protected AccordSafeTimestampsForKey getTimestampsForKeyInternal(Key key)
     {
         return timestampsForKeys.get(key);
     }
@@ -126,7 +124,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     @Override
-    protected AccordSafeTimestampsForKey getTimestampsForKeyIfLoaded(RoutableKey key)
+    protected AccordSafeTimestampsForKey getTimestampsForKeyIfLoaded(Key key)
     {
         AccordSafeTimestampsForKey cfk = commandStore.timestampsForKeyCache().acquireIfLoaded(key);
         if (cfk != null) cfk.preExecute();
@@ -177,14 +175,14 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         Ranges allRanges = ranges.all();
         deps.keyDeps.keys().forEach(allRanges, key -> {
             // TODO (now): batch register to minimise GC
-            deps.keyDeps.forEach(key, txnId -> {
+            deps.keyDeps.forEach(key, (txnId, txnIdx) -> {
                 // TODO (desired, efficiency): this can be made more efficient by batching by epoch
                 if (ranges.coordinates(txnId).contains(key))
                     return; // already coordinates, no need to replicate
                 if (!ranges.allBefore(txnId.epoch()).contains(key))
                     return;
 
-                CommandsForKeys.registerNotWitnessed(this, key, txnId);
+                get(key).registerHistorical(this, txnId);
             });
         });
         CommandsForRanges commandsForRanges = commandStore.commandsForRanges();
@@ -221,7 +219,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                 for (Key key : keys)
                 {
                     if (!slice.contains(key)) continue;
-                    CommandsForKey commands = commandsForKey(key).current();
+                    CommandsForKey commands = get(key).current();
                     accumulate = map.apply(commands, accumulate);
                 }
             }
@@ -233,11 +231,11 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                 Routables<?> sliced = keysOrRanges.slice(slice, Routables.Slice.Minimal);
                 if (!context.keys().slice(slice, Routables.Slice.Minimal).containsAll(sliced))
                     throw new AssertionError("Range(s) detected not present in the PreLoadContext: expected " + context.keys() + " but given " + keysOrRanges);
-                for (RoutableKey key : timestampsForKeys.keySet())
+                for (Key key : commandsForKeys.keySet())
                 {
                     //TODO (duplicate code): this is a repeat of Key... only change is checking contains in range
                     if (!sliced.contains(key)) continue;
-                    CommandsForKey commands = commandsForKey(key).current();
+                    CommandsForKey commands = get(key).current();
                     accumulate = map.apply(commands, accumulate);
                 }
             }
@@ -263,22 +261,20 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     @Override
-    protected void update(Command prev, Command updated, @Nullable Seekables<?, ?> keysOrRanges)
+    protected void update(Command prev, Command updated)
     {
-        super.update(prev, updated, keysOrRanges);
+        super.update(prev, updated);
 
         if (updated.txnId().domain() == Range && CommandsForKey.needsUpdate(prev, updated))
         {
+            Seekables<?, ?> keysOrRanges = updated.keysOrRanges();
+            if (keysOrRanges == null) keysOrRanges = prev.keysOrRanges();
             if (keysOrRanges == null)
-            {
-                if (updated.known().isDefinitionKnown()) keysOrRanges = updated.partialTxn().keys();
-                else if (prev.known().isDefinitionKnown()) keysOrRanges = prev.partialTxn().keys();
-                else return;
-            }
-            List<TxnId> waitingOn;
+                return;
 
-            if (updated.partialDeps() == null) waitingOn = Collections.emptyList();
+            List<TxnId> waitingOn;
             // TODO (required): this is faulty: we cannot simply save the raw transaction ids, as they may be for other ranges
+            if (updated.partialDeps() == null) waitingOn = Collections.emptyList();
             else waitingOn = updated.partialDeps().txnIds();
             updateRanges().put(updated.txnId(), (Ranges)keysOrRanges, updated.saveStatus(), updated.executeAt(), waitingOn);
         }
@@ -300,8 +296,8 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     public void postExecute(Map<TxnId, AccordSafeCommand> commands,
-                            Map<RoutableKey, AccordSafeTimestampsForKey> timestampsForKey,
-                            Map<RoutableKey, AccordSafeCommandsForKey> commandsForKeys
+                            Map<Key, AccordSafeTimestampsForKey> timestampsForKey,
+                            Map<Key, AccordSafeCommandsForKey> commandsForKeys
                             )
     {
         postExecute();

@@ -23,18 +23,17 @@ import java.util.Objects;
 import com.google.common.annotations.VisibleForTesting;
 
 import accord.api.Key;
-import accord.impl.CommandsForKey;
-import accord.impl.SafeCommandsForKey;
-import accord.primitives.RoutableKey;
+import accord.local.CommandsForKey;
+import accord.local.SafeCommandsForKey;
 
-public class AccordSafeCommandsForKey extends SafeCommandsForKey implements AccordSafeState<RoutableKey, CommandsForKey>
+public class AccordSafeCommandsForKey extends SafeCommandsForKey implements AccordSafeState<Key, CommandsForKey>
 {
     private boolean invalidated;
-    private final AccordCachingState<RoutableKey, CommandsForKey> global;
+    private final AccordCachingState<Key, CommandsForKey> global;
     private CommandsForKey original;
     private CommandsForKey current;
 
-    public AccordSafeCommandsForKey(AccordCachingState<RoutableKey, CommandsForKey> global)
+    public AccordSafeCommandsForKey(AccordCachingState<Key, CommandsForKey> global)
     {
         super((Key) global.key());
         this.global = global;
@@ -83,7 +82,7 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
     }
 
     @Override
-    public AccordCachingState<RoutableKey, CommandsForKey> global()
+    public AccordCachingState<Key, CommandsForKey> global()
     {
         checkNotInvalidated();
         return global;

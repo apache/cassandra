@@ -132,7 +132,6 @@ public class AccordInteropApply extends Apply implements Command.TransientListen
             case PreCommitted:
             case Committed:
             case PreApplied:
-            case ReadyToExecute:
                 synchronized (this)
                 {
                     waitingOn.set(safeStore.commandStore().id());
@@ -249,7 +248,6 @@ public class AccordInteropApply extends Apply implements Command.TransientListen
             case PreCommitted:
             case Committed:
             case PreApplied:
-            case ReadyToExecute:
                 return;
 
             case Applied:

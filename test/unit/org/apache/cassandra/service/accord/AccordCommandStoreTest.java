@@ -31,8 +31,8 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.Key;
 import accord.api.Result;
-import accord.impl.CommandsForKey;
-import accord.impl.CommandsForKeys;
+import accord.local.CommandsForKey;
+import accord.impl.TimestampsForKeys;
 import accord.impl.TimestampsForKey;
 import accord.local.Command;
 import accord.local.CommonAttributes;
@@ -41,10 +41,13 @@ import accord.messages.Apply;
 import accord.primitives.Ballot;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
+import accord.primitives.Range;
 import accord.primitives.Ranges;
+import accord.primitives.Routable;
 import accord.primitives.Route;
 import accord.primitives.RoutingKeys;
 import accord.primitives.Timestamp;
+import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.ImmutableBitSet;
@@ -102,20 +105,20 @@ public class AccordCommandStoreTest
         AtomicLong clock = new AtomicLong(0);
         PartialTxn depTxn = createPartialTxn(0);
         Key key = (Key)depTxn.keys().get(0);
+        Range range = key.toUnseekable().asRange();
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
 
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, c, v) VALUES (0, 0, 1)");
         TableId tableId = Schema.instance.getTableMetadata("ks", "tbl").id;
-        TxnId oldTxnId1 = txnId(1, clock.incrementAndGet(), 1);
-        TxnId oldTxnId2 = txnId(1, clock.incrementAndGet(), 1);
-        TxnId oldTimestamp = txnId(1, clock.incrementAndGet(), 1);
-        TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
+        TxnId oldTxnId1 = txnId(1, clock.incrementAndGet(), 1, Txn.Kind.Write, Routable.Domain.Range);
+        TxnId oldTxnId2 = txnId(1, clock.incrementAndGet(), 1, Txn.Kind.Write, Routable.Domain.Range);
+        TxnId txnId = txnId(1, clock.incrementAndGet(), 1, Txn.Kind.Write, Routable.Domain.Range);
 
         PartialDeps dependencies;
         try (PartialDeps.Builder builder = PartialDeps.builder(depTxn.covering()))
         {
-            builder.add(key, oldTxnId1);
-            builder.add(key, oldTxnId2);
+            builder.add(range, oldTxnId1);
+            builder.add(range, oldTxnId2);
             dependencies = builder.build();
         }
 
@@ -130,11 +133,9 @@ public class AccordCommandStoreTest
         Ballot accepted = ballot(1, clock.incrementAndGet(), 1);
         Timestamp executeAt = timestamp(1, clock.incrementAndGet(), 1);
         attrs.partialDeps(dependencies);
-        SimpleBitSet waitingOnCommit = new SimpleBitSet(2);
-        waitingOnCommit.set(0);
-        SimpleBitSet waitingOnApply = new SimpleBitSet(2);
+        SimpleBitSet waitingOnApply = new SimpleBitSet(3);
         waitingOnApply.set(1);
-        Command.WaitingOn waitingOn = new Command.WaitingOn(dependencies, new ImmutableBitSet(waitingOnCommit), new ImmutableBitSet(waitingOnApply), new ImmutableBitSet(2));
+        Command.WaitingOn waitingOn = new Command.WaitingOn(dependencies.keyDeps.keys(), dependencies.rangeDeps.txnIds(), new ImmutableBitSet(waitingOnApply), new ImmutableBitSet(2));
         attrs.addListener(new Command.ProxyListener(oldTxnId1));
         Pair<Writes, Result> result = AccordTestUtils.processTxnResult(commandStore, txnId, txn, executeAt);
 
@@ -183,10 +184,10 @@ public class AccordCommandStoreTest
         AccordSafeTimestampsForKey tfk = new AccordSafeTimestampsForKey(loaded(key, null));
         tfk.initialize();
 
-        CommandsForKeys.updateLastExecutionTimestamps(commandStore, tfk, txnId1, true);
+        TimestampsForKeys.updateLastExecutionTimestamps(commandStore, tfk, txnId1, true);
         Assert.assertEquals(txnId1.hlc(), AccordSafeTimestampsForKey.timestampMicrosFor(tfk.current(), txnId1, true));
 
-        CommandsForKeys.updateLastExecutionTimestamps(commandStore, tfk, txnId2, true);
+        TimestampsForKeys.updateLastExecutionTimestamps(commandStore, tfk, txnId2, true);
         Assert.assertEquals(txnId2.hlc(), AccordSafeTimestampsForKey.timestampMicrosFor(tfk.current(), txnId2, true));
 
         Assert.assertEquals(txnId2, tfk.current().lastExecutedTimestamp());
