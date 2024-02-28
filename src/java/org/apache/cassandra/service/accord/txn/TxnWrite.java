@@ -35,9 +35,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.DataStore;
+import accord.api.Key;
 import accord.api.Write;
 import accord.impl.AbstractSafeCommandStore;
-import accord.impl.CommandsForKeys;
+import accord.impl.TimestampsForKeys;
 import accord.impl.TimestampsForKey;
 import accord.local.SafeCommandStore;
 import accord.primitives.PartialTxn;
@@ -375,7 +376,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         // TODO (expected, efficiency): 99.9999% of the time we can just use executeAt.hlc(), so can avoid bringing
         //  cfk into memory by retaining at all times in memory key ranges that are dirty and must use this logic;
         //  any that aren't can just use executeAt.hlc
-        TimestampsForKey cfk = CommandsForKeys.updateLastExecutionTimestamps((AbstractSafeCommandStore<?,?,?>) safeStore, (RoutableKey) key, executeAt, true);
+        TimestampsForKey cfk = TimestampsForKeys.updateLastExecutionTimestamps((AbstractSafeCommandStore<?,?,?>) safeStore, (Key) key, executeAt, true);
         long timestamp = AccordSafeTimestampsForKey.timestampMicrosFor(cfk, executeAt, true);
         // TODO (low priority - do we need to compute nowInSeconds, or can we just use executeAt?)
         int nowInSeconds = AccordSafeTimestampsForKey.nowInSecondsFor(cfk, executeAt, true);

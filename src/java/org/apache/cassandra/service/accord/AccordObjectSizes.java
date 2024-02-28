@@ -24,11 +24,12 @@ import java.util.function.ToLongFunction;
 import accord.api.Key;
 import accord.api.Result;
 import accord.api.RoutingKey;
-import accord.impl.CommandsForKey;
-import accord.impl.CommandsForKey.Info;
+import accord.local.CommandsForKey;
+import accord.local.CommandsForKey.TxnInfo;
 import accord.impl.TimestampsForKey;
 import accord.local.Command;
 import accord.local.Command.WaitingOn;
+import accord.local.CommandsForKey.TxnInfoWithMissing;
 import accord.local.CommonAttributes;
 import accord.local.Node;
 import accord.local.SaveStatus;
@@ -305,7 +306,6 @@ public class AccordObjectSizes
                     return ACCEPTED;
                 case Committed:
                 case Stable:
-                case ReadyToExecute:
                     return COMMITTED;
                 case PreApplied:
                 case Applied:
@@ -363,22 +363,25 @@ public class AccordObjectSizes
     }
 
     private static long EMPTY_CFK_SIZE = measure(new CommandsForKey(null));
-    private static long EMPTY_INFO_SIZE = measure(CommandsForKey.Info.createMock(null, null, null));
+    private static long EMPTY_INFO_SIZE = measure(TxnInfo.createMock(TxnId.NONE, null, null, null));
+    private static long EMPTY_INFO_WITH_MISSING_ADDITIONAL_SIZE = measure(TxnInfo.createMock(TxnId.NONE, null, null, null)) - EMPTY_INFO_SIZE;
     public static long commandsForKey(CommandsForKey cfk)
     {
         long size = EMPTY_CFK_SIZE;
         size += key(cfk.key());
-        size += 2 * ObjectSizes.sizeOfReferenceArray(cfk.size());
-        size += cfk.size() * TIMESTAMP_SIZE;
+        size += ObjectSizes.sizeOfReferenceArray(cfk.size());
+        size += cfk.size() * EMPTY_INFO_SIZE;
         for (int i = 0 ; i < cfk.size() ; ++i)
         {
-            Info info = cfk.info(i);
-            if (info.getClass() == CommandsForKey.NoInfo.class)
-                continue;
-
-            size += EMPTY_INFO_SIZE;
-            if (info.missing.length > 0)
-                size += ObjectSizes.sizeOfReferenceArray(info.missing.length);
+            TxnInfo info = cfk.get(i);
+            if (info.getClass() != TxnInfoWithMissing.class) continue;
+            TxnInfoWithMissing infoWithMissing = (TxnInfoWithMissing) info;
+            if (infoWithMissing.missing.length > 0)
+            {
+                size += EMPTY_INFO_WITH_MISSING_ADDITIONAL_SIZE;
+                size += ObjectSizes.sizeOfReferenceArray(infoWithMissing.missing.length);
+                size += infoWithMissing.missing.length * TIMESTAMP_SIZE;
+            }
         }
         return size;
     }

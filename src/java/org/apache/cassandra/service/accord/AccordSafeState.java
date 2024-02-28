@@ -25,6 +25,8 @@ public interface AccordSafeState<K, V> extends SafeState<V>
 {
     void set(V update);
     V original();
+    void invalidate();
+    boolean invalidated();
     void preExecute();
     void postExecute();
     AccordCachingState<K, V> global();

@@ -30,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
+import accord.api.Key;
 import accord.local.CommandStore;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
@@ -67,8 +68,8 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
     static class Context
     {
         final HashMap<TxnId, AccordSafeCommand> commands = new HashMap<>();
-        final TreeMap<RoutableKey, AccordSafeTimestampsForKey> timestampsForKey = new TreeMap<>();
-        final TreeMap<RoutableKey, AccordSafeCommandsForKey> commandsForKey = new TreeMap<>();
+        final TreeMap<Key, AccordSafeTimestampsForKey> timestampsForKey = new TreeMap<>();
+        final TreeMap<Key, AccordSafeCommandsForKey> commandsForKey = new TreeMap<>();
 
         void releaseResources(AccordCommandStore commandStore)
         {
