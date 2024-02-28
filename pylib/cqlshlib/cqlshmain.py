@@ -61,7 +61,7 @@ except ImportError:
     build_version = 'UNKNOWN'
 
 UTF8 = 'utf-8'
-version = "6.2.0"
+version = "6.3.0"
 
 readline = None
 try:
