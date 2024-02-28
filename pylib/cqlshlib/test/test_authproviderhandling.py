@@ -52,6 +52,7 @@ def _assert_auth_provider_matches(actual, klass, expected_props):
     assert isinstance(actual, klass)
     assert expected_props == vars(actual)
 
+
 class CustomAuthProviderTest(unittest.TestCase):
 
     def setUp(self):
@@ -81,18 +82,18 @@ class CustomAuthProviderTest(unittest.TestCase):
     def test_partial_property_example(self):
         actual = load_auth_provider(construct_config_path('partial_example'))
         _assert_auth_provider_matches(
-                actual,
-                NoUserNamePlainTextAuthProvider,
-                {"username": '',
-                 "password": ''})
+            actual,
+            NoUserNamePlainTextAuthProvider,
+            {"username": '',
+             "password": ''})
 
     def test_full_property_example(self):
         actual = load_auth_provider(construct_config_path('full_plain_text_example'))
         _assert_auth_provider_matches(
-                actual,
-                PlainTextAuthProvider,
-                {"username": 'user1',
-                 "password": 'pass1'})
+            actual,
+            PlainTextAuthProvider,
+            {"username": 'user1',
+             "password": 'pass1'})
 
     def test_empty_example(self):
         actual = load_auth_provider(construct_config_path('empty_example'))
@@ -102,10 +103,10 @@ class CustomAuthProviderTest(unittest.TestCase):
         creds_file = construct_config_path('plain_text_full_creds')
         actual = load_auth_provider(cred_file=creds_file)
         _assert_auth_provider_matches(
-                actual,
-                PlainTextAuthProvider,
-                {"username": 'user2',
-                 "password": 'pass2'})
+            actual,
+            PlainTextAuthProvider,
+            {"username": 'user2',
+             "password": 'pass2'})
 
     def test_no_cqlshrc_file(self):
         actual = load_auth_provider()
@@ -126,11 +127,11 @@ class CustomAuthProviderTest(unittest.TestCase):
 
         actual = load_auth_provider(cqlshrc, creds_file, 'user-from-legacy', 'pass-from-legacy')
         _assert_auth_provider_matches(
-                 actual,
-                 ComplexTextAuthProvider,
-                 {"username": 'user-from-legacy',
-                  "password": 'pass-from-legacy',
-                  "extra_flag": 'flag2'})
+            actual,
+            ComplexTextAuthProvider,
+            {"username": 'user-from-legacy',
+             "password": 'pass-from-legacy',
+             "extra_flag": 'flag2'})
 
     def test_creds_example(self):
         creds_file = construct_config_path('complex_auth_provider_creds')
@@ -138,11 +139,11 @@ class CustomAuthProviderTest(unittest.TestCase):
 
         actual = load_auth_provider(cqlshrc, creds_file)
         _assert_auth_provider_matches(
-                actual,
-                ComplexTextAuthProvider,
-                {"username": 'user1',
-                 "password": 'pass2',
-                 "extra_flag": 'flag2'})
+            actual,
+            ComplexTextAuthProvider,
+            {"username": 'user1',
+             "password": 'pass2',
+             "extra_flag": 'flag2'})
 
     def test_legacy_example_use_passed_username(self):
         creds_file = construct_config_path('plain_text_partial_creds')
@@ -150,10 +151,10 @@ class CustomAuthProviderTest(unittest.TestCase):
 
         actual = load_auth_provider(cqlshrc, creds_file, 'user3')
         _assert_auth_provider_matches(
-                actual,
-                PlainTextAuthProvider,
-                {"username": 'user3',
-                 "password": 'pass2'})
+            actual,
+            PlainTextAuthProvider,
+            {"username": 'user3',
+             "password": 'pass2'})
 
     def test_legacy_example_no_auth_provider_given(self):
         cqlshrc = construct_config_path('empty_example')
@@ -161,10 +162,10 @@ class CustomAuthProviderTest(unittest.TestCase):
 
         actual = load_auth_provider(cqlshrc, creds_file, 'user3', 'pass3')
         _assert_auth_provider_matches(
-                actual,
-                PlainTextAuthProvider,
-                {"username": 'user3',
-                 "password": 'pass3'})
+            actual,
+            PlainTextAuthProvider,
+            {"username": 'user3',
+             "password": 'pass3'})
 
     def test_shouldnt_pass_no_password_when_alt_auth_provider(self):
         cqlshrc = construct_config_path('complex_auth_provider')
@@ -172,11 +173,11 @@ class CustomAuthProviderTest(unittest.TestCase):
 
         actual = load_auth_provider(cqlshrc, creds_file, 'user3')
         _assert_auth_provider_matches(
-                actual,
-                ComplexTextAuthProvider,
-                {"username": 'user3',
-                 "password": 'default_pass',
-                 "extra_flag": 'flag1'})
+            actual,
+            ComplexTextAuthProvider,
+            {"username": 'user3',
+             "password": 'default_pass',
+             "extra_flag": 'flag1'})
 
     def test_legacy_example_no_password(self):
         cqlshrc = construct_config_path('plain_text_partial_example')
@@ -184,7 +185,7 @@ class CustomAuthProviderTest(unittest.TestCase):
 
         actual = load_auth_provider(cqlshrc, creds_file, 'user3')
         _assert_auth_provider_matches(
-                actual,
-                PlainTextAuthProvider,
-                {"username": 'user3',
-                 "password": None})
+            actual,
+            PlainTextAuthProvider,
+            {"username": 'user3',
+             "password": None})

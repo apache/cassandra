@@ -44,7 +44,7 @@ class CopyTaskTest(unittest.TestCase):
             Host('10.0.0.2', SimpleConvictionPolicy, 9000),
             Host('10.0.0.3', SimpleConvictionPolicy, 9000),
             Host('10.0.0.4', SimpleConvictionPolicy, 9000)
-    ]
+        ]
 
     def mock_shell(self):
         """
