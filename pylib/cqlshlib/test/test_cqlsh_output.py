@@ -609,12 +609,12 @@ class TestCqlshOutput(BaseTestCase):
                 self.assertEqual(outputlines[start_index], 'use NONEXISTENTKEYSPACE;')
                 start_index = 1
 
-            self.assertTrue(outputlines[start_index+1].endswith('cqlsh:system> '))
+            self.assertTrue(outputlines[start_index + 1].endswith('cqlsh:system> '))
             midline = ColoredText(outputlines[start_index])
             self.assertEqual(midline.plain(),
                              'InvalidRequest: Error from server: code=2200 [Invalid query] message="Keyspace \'nonexistentkeyspace\' does not exist"')
             self.assertColorFromTags(midline,
-                             "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR")
+                                     "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR")
 
     def test_describe_keyspace_output(self):
         with cqlsh_testrun(tty=True, env=self.default_env) as c:
@@ -799,12 +799,12 @@ class TestCqlshOutput(BaseTestCase):
         with cqlsh_testrun(tty=True, env=self.default_env) as c:
             output = c.cmd_and_response('show version;')
             self.assertRegex(output,
-                    r'^\[cqlsh \S+ \| Cassandra \S+ \| CQL spec \S+ \| Native protocol \S+\]$')
+                             r'^\[cqlsh \S+ \| Cassandra \S+ \| CQL spec \S+ \| Native protocol \S+\]$')
 
             output = c.cmd_and_response('show host;')
             self.assertHasColors(output)
             self.assertRegex(output, '^Connected to .* at %s:%d$'
-                                             % (re.escape(TEST_HOST), TEST_PORT))
+                             % (re.escape(TEST_HOST), TEST_PORT))
 
     def test_eof_prints_newline(self):
         with cqlsh_testrun(tty=True, env=self.default_env) as c:
@@ -972,13 +972,13 @@ class TestCqlshOutput(BaseTestCase):
 
         query = "SELECT text_data FROM " + ks + ".escape_quotes;"
         output, result = cqlsh_testcall(prompt=None, env=self.default_env,
-                                                tty=False, input=query)
+                                        tty=False, input=query)
         self.assertEqual(0, result)
         self.assertEqual(output.splitlines()[3].strip(), "I'm newb")
 
         query = "SELECT map_data FROM " + ks + ".escape_quotes;"
         output, result = cqlsh_testcall(prompt=None, env=self.default_env,
-                                                        tty=False, input=query)
+                                        tty=False, input=query)
         self.assertEqual(0, result)
         self.assertEqual(output.splitlines()[3].strip(), "{1: 'I''m newb'}")
 
@@ -988,21 +988,21 @@ class TestCqlshOutput(BaseTestCase):
         # Sets
         query = "SELECT set_data FROM " + ks + ".escape_quotes;"
         output, result = cqlsh_testcall(prompt=None, env=self.default_env,
-                                                        tty=False, input=query)
+                                        tty=False, input=query)
         self.assertEqual(0, result)
         self.assertEqual(output.splitlines()[3].strip(), "{'I''m newb'}")
 
         # Lists
         query = "SELECT list_data FROM " + ks + ".escape_quotes;"
         output, result = cqlsh_testcall(prompt=None, env=self.default_env,
-                                                        tty=False, input=query)
+                                        tty=False, input=query)
         self.assertEqual(0, result)
         self.assertEqual(output.splitlines()[3].strip(), "['I''m newb']")
 
         # Tuples
         query = "SELECT tuple_data FROM " + ks + ".escape_quotes;"
         output, result = cqlsh_testcall(prompt=None, env=self.default_env,
-                                                        tty=False, input=query)
+                                        tty=False, input=query)
         self.assertEqual(0, result)
         self.assertEqual(output.splitlines()[3].strip(), "(1, 'I''m newb')")
 
@@ -1011,6 +1011,6 @@ class TestCqlshOutput(BaseTestCase):
 
         query = "SELECT udt_data FROM " + ks + ".escape_quotes;"
         output, result = cqlsh_testcall(prompt=None, env=self.default_env,
-                                                        tty=False, input=query)
+                                        tty=False, input=query)
         self.assertEqual(0, result)
         self.assertEqual(output.splitlines()[3].strip(), "{data: 'I''m newb'}")
