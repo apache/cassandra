@@ -22,40 +22,63 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import accord.local.Command.WaitingOn;
-import accord.primitives.Deps;
+import accord.primitives.Keys;
+import accord.primitives.Routable;
+import accord.primitives.TxnId;
 import accord.utils.ImmutableBitSet;
 import accord.utils.Invariants;
 import accord.utils.SimpleBitSet;
+import accord.utils.SortedArrays.SortedArrayList;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.vint.VIntCoding;
 
 public class WaitingOnSerializer
 {
-    public static void serialize(WaitingOn waitingOn, DataOutputPlus out) throws IOException
+    public static void serialize(TxnId txnId, WaitingOn waitingOn, DataOutputPlus out) throws IOException
     {
-        // TODO (expected): use run length encoding; we know that at most 1/3rd of bits will be set between the three bitsets
-        int length = (waitingOn.deps.txnIdCount() + 63) / 64;
-        serialize(length, waitingOn.waitingOnCommit, out);
-        serialize(length, waitingOn.waitingOnApply, out);
-        serialize(length, waitingOn.appliedOrInvalidated, out);
+        out.writeUnsignedVInt32(waitingOn.keys.size());
+        out.writeUnsignedVInt32(waitingOn.txnIds.size());
+        int keyCount = waitingOn.keys.size();
+        int txnIdCount = waitingOn.txnIds.size();
+        int waitingOnLength = (txnIdCount + keyCount + 63) / 64;
+        serialize(waitingOnLength, waitingOn.waitingOn, out);
+        if (txnId.domain() == Routable.Domain.Range)
+        {
+            int appliedOrInvalidatedLength = (txnIdCount + 63) / 64;
+            serialize(appliedOrInvalidatedLength, waitingOn.appliedOrInvalidated, out);
+        }
     }
 
-    public static WaitingOn deserialize(Deps deps, DataInputPlus in) throws IOException
+    public static WaitingOn deserialize(TxnId txnId, Keys keys, SortedArrayList<TxnId> txnIds, DataInputPlus in) throws IOException
     {
-        int length = (deps.txnIdCount() + 63) / 64;
-        ImmutableBitSet waitingOnCommit = deserialize(length, in);
-        ImmutableBitSet waitingOnApply = deserialize(length, in);
-        ImmutableBitSet appliedOrInvalidated = deserialize(length, in);
-        return new WaitingOn(deps, waitingOnCommit, waitingOnApply, appliedOrInvalidated);
+        int a = in.readUnsignedVInt32();
+        int b = in.readUnsignedVInt32();
+        int waitingOnLength = (txnIds.size() + keys.size() + 63) / 64;
+        ImmutableBitSet waitingOn = deserialize(waitingOnLength, in);
+        ImmutableBitSet appliedOrInvalidated = null;
+        if (txnId.domain() == Routable.Domain.Range)
+        {
+            int appliedOrInvalidatedLength = (txnIds.size() + 63) / 64;
+            appliedOrInvalidated = deserialize(appliedOrInvalidatedLength, in);
+        }
+        return new WaitingOn(keys, txnIds, waitingOn, appliedOrInvalidated);
     }
 
     public static long serializedSize(WaitingOn waitingOn)
     {
-        int length = (waitingOn.deps.txnIdCount() + 63) / 64;
-        return serializedSize(length, waitingOn.waitingOnCommit)
-               + serializedSize(length, waitingOn.waitingOnApply)
-               + serializedSize(length, waitingOn.appliedOrInvalidated);
+        int keyCount = waitingOn.keys.size();
+        int txnIdCount = waitingOn.txnIds.size();
+        int waitingOnLength = (txnIdCount + keyCount + 63) / 64;
+        long size = serializedSize(waitingOnLength, waitingOn.waitingOn);
+        size += TypeSizes.sizeofUnsignedVInt(keyCount);
+        size += TypeSizes.sizeofUnsignedVInt(txnIdCount);
+        if (waitingOn.appliedOrInvalidated == null)
+            return size;
+
+        int appliedOrInvalidatedLength = (txnIdCount + 63) / 64;
+        return size + serializedSize(appliedOrInvalidatedLength, waitingOn.appliedOrInvalidated);
     }
 
     private static void serialize(int length, SimpleBitSet write, DataOutputPlus out) throws IOException
@@ -81,14 +104,23 @@ public class WaitingOnSerializer
         return (long) TypeSizes.LONG_SIZE * length;
     }
 
-    public static ByteBuffer serialize(WaitingOn waitingOn) throws IOException
+    public static ByteBuffer serialize(TxnId txnId, WaitingOn waitingOn) throws IOException
     {
-        int length = (waitingOn.deps.txnIdCount() + 63) / 64;
-        ByteBuffer out = ByteBuffer.allocate(TypeSizes.LONG_SIZE * length * 3);
-        serialize(length, waitingOn.waitingOnCommit, out);
-        serialize(length, waitingOn.waitingOnApply, out);
-        serialize(length, waitingOn.appliedOrInvalidated, out);
-        return (ByteBuffer) out.flip();
+        int keyCount = waitingOn.keys.size();
+        int txnIdCount = waitingOn.txnIds.size();
+        int waitingOnLength = (txnIdCount + keyCount + 63) / 64;
+        int appliedOrInvalidatedLength = 0;
+        if (txnId.domain() == Routable.Domain.Range)
+            appliedOrInvalidatedLength = (txnIdCount + 63) / 64;
+
+        ByteBuffer out = ByteBuffer.allocate(TypeSizes.sizeofUnsignedVInt(keyCount) + TypeSizes.sizeofUnsignedVInt(txnIdCount)
+                                             + TypeSizes.LONG_SIZE * (waitingOnLength + appliedOrInvalidatedLength));
+        VIntCoding.writeUnsignedVInt32(keyCount, out);
+        VIntCoding.writeUnsignedVInt32(txnIdCount, out);
+        serialize(waitingOnLength, waitingOn.waitingOn, out);
+        if (appliedOrInvalidatedLength > 0)
+            serialize(appliedOrInvalidatedLength, waitingOn.appliedOrInvalidated, out);
+        return out.flip();
     }
 
     private static void serialize(int length, SimpleBitSet write, ByteBuffer out)
@@ -99,16 +131,23 @@ public class WaitingOnSerializer
             out.putLong(bits[i]);
     }
 
-    public static WaitingOn deserialize(Deps deps, ByteBuffer in) throws IOException
+    public static WaitingOn deserialize(TxnId txnId, Keys keys, SortedArrayList<TxnId> txnIds, ByteBuffer in) throws IOException
     {
-        int length = (deps.txnIdCount() + 63) / 64;
+        int waitingOnLength = (txnIds.size() + keys.size() + 63) / 64;
         int position = in.position();
-        ImmutableBitSet waitingOnCommit = deserialize(position, length, in);
-        position += length*8;
-        ImmutableBitSet waitingOnApply = deserialize(position, length, in);
-        position += length*8;
-        ImmutableBitSet appliedOrInvalidated = deserialize(position, length, in);
-        return new WaitingOn(deps, waitingOnCommit, waitingOnApply, appliedOrInvalidated);
+        int a = VIntCoding.readUnsignedVInt32(in, position);
+        position += TypeSizes.sizeofUnsignedVInt(a);
+        int b = VIntCoding.readUnsignedVInt32(in, position);
+        position += TypeSizes.sizeofUnsignedVInt(a);
+        ImmutableBitSet waitingOn = deserialize(position, waitingOnLength, in);
+        ImmutableBitSet appliedOrInvalidated = null;
+        if (txnId.domain() == Routable.Domain.Range)
+        {
+            position += waitingOnLength*8;
+            int appliedOrInvalidatedLength = (txnIds.size() + 63) / 64;
+            appliedOrInvalidated = deserialize(position, appliedOrInvalidatedLength, in);
+        }
+        return new WaitingOn(keys, txnIds, waitingOn, appliedOrInvalidated);
     }
 
     private static ImmutableBitSet deserialize(int position, int length, ByteBuffer in)

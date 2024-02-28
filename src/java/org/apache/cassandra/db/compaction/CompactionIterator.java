@@ -978,11 +978,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             if (redundantBeforeEntry == null)
                 return row;
 
-            TxnId redundantBeforeTxnId = redundantBeforeEntry.shardRedundantBefore();
-            if (redundantBeforeTxnId.equals(TxnId.NONE))
-                return row;
-
-            return CommandsForKeysAccessor.withoutRedundantCommands(partitionKey, row, redundantBeforeTxnId);
+            return CommandsForKeysAccessor.withoutRedundantCommands(partitionKey, row, redundantBeforeEntry);
         }
 
         @Override

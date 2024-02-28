@@ -33,12 +33,12 @@ import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.Key;
 import accord.api.RoutingKey;
 import accord.local.KeyHistory;
 import accord.local.PreLoadContext;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
-import accord.primitives.RoutableKey;
 import accord.primitives.Seekables;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
@@ -121,7 +121,7 @@ public class AsyncLoader
         }
     }
 
-    private void referenceAndAssembleReadsForKey(RoutableKey key,
+    private void referenceAndAssembleReadsForKey(Key key,
                                                  AsyncOperation.Context context,
                                                  List<AsyncChain<?>> listenChains)
     {
@@ -157,7 +157,7 @@ public class AsyncLoader
         {
             case Key:
                 // cast to Keys fails...
-                Iterable<RoutableKey> keys = (Iterable<RoutableKey>) keysOrRanges;
+                Iterable<Key> keys = (Iterable<Key>) keysOrRanges;
                 keys.forEach(key -> referenceAndAssembleReadsForKey(key, context, chains));
                 break;
             case Range:
@@ -172,7 +172,7 @@ public class AsyncLoader
 
     private AsyncChain<?> referenceAndDispatchReadsForRange(AsyncOperation.Context context)
     {
-        AsyncChain<Set<? extends RoutableKey>> overlappingKeys = findOverlappingKeys((Ranges) keysOrRanges);
+        AsyncChain<Set<? extends Key>> overlappingKeys = findOverlappingKeys((Ranges) keysOrRanges);
 
         return overlappingKeys.flatMap(keys -> {
             if (keys.isEmpty())
@@ -183,14 +183,14 @@ public class AsyncLoader
         }, commandStore);
     }
 
-    private AsyncChain<Set<? extends RoutableKey>> findOverlappingKeys(Ranges ranges)
+    private AsyncChain<Set<? extends Key>> findOverlappingKeys(Ranges ranges)
     {
         Invariants.checkArgument(!ranges.isEmpty());
 
         List<AsyncChain<Set<PartitionKey>>> chains = new ArrayList<>(ranges.size());
         for (Range range : ranges)
             chains.add(findOverlappingKeys(range));
-        return AsyncChains.reduce(chains, (a, b) -> ImmutableSet.<RoutableKey>builder().addAll(a).addAll(b).build());
+        return AsyncChains.reduce(chains, (a, b) -> ImmutableSet.<Key>builder().addAll(a).addAll(b).build());
     }
 
     private AsyncChain<Set<PartitionKey>> findOverlappingKeys(Range range)

@@ -23,6 +23,8 @@ import org.junit.Test;
 
 import accord.local.Command;
 import accord.primitives.Deps;
+import accord.primitives.Routable;
+import accord.primitives.TxnId;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.SimpleBitSet;
@@ -52,19 +54,20 @@ public class WaitingOnSerializerTest
     {
         DataOutputBuffer buffer = new DataOutputBuffer();
         qt().forAll(waitingOnGen()).check(waitingOn -> {
+            TxnId txnId = TxnId.NONE;
+            if (waitingOn.appliedOrInvalidated != null) txnId = new TxnId(txnId.epoch(), txnId.hlc(), txnId.kind(), Routable.Domain.Range, txnId.node);
             buffer.clear();
             long expectedSize = WaitingOnSerializer.serializedSize(waitingOn);
-            WaitingOnSerializer.serialize(waitingOn, buffer);
+            WaitingOnSerializer.serialize(txnId, waitingOn, buffer);
             Assertions.assertThat(buffer.getLength()).isEqualTo(expectedSize);
-            Command.WaitingOn read = WaitingOnSerializer.deserialize(waitingOn.deps, new DataInputBuffer(buffer.unsafeGetBufferAndFlip(), false));
+            Command.WaitingOn read = WaitingOnSerializer.deserialize(txnId, waitingOn.keys, waitingOn.txnIds, new DataInputBuffer(buffer.unsafeGetBufferAndFlip(), false));
             Assertions.assertThat(read)
                       .isEqualTo(waitingOn)
-                      .isEqualTo(WaitingOnSerializer.deserialize(waitingOn.deps, WaitingOnSerializer.serialize(waitingOn)));
+                      .isEqualTo(WaitingOnSerializer.deserialize(txnId, waitingOn.keys, waitingOn.txnIds, WaitingOnSerializer.serialize(txnId, waitingOn)));
         });
     }
 
-    private enum WaitingOnSets
-    {COMMIT, APPLY, APPLYED_OR_INVALIDATED}
+    private enum WaitingOnSets { APPLY, APPLIED_OR_INVALIDATED }
 
     private static Gen<Command.WaitingOn> waitingOnGen()
     {
@@ -75,22 +78,20 @@ public class WaitingOnSerializerTest
         return rs -> {
             Deps deps = depsGen.next(rs);
             if (deps.isEmpty()) return Command.WaitingOn.EMPTY;
-            int[] selected = Gens.arrays(Gens.ints().between(0, deps.txnIdCount() - 1)).unique().ofSizeBetween(0, deps.txnIdCount() - 1).next(rs);
-            SimpleBitSet waitingOnCommit = new SimpleBitSet(deps.txnIdCount(), false);
-            SimpleBitSet waitingOnApply = new SimpleBitSet(deps.txnIdCount(), false);
-            SimpleBitSet appliedOrInvalidated = new SimpleBitSet(deps.txnIdCount(), false);
+            int txnIdCount = deps.rangeDeps.txnIdCount();
+            int keyCount = deps.keyDeps.keys().size();
+            int[] selected = Gens.arrays(Gens.ints().between(0, txnIdCount + keyCount - 1)).unique().ofSizeBetween(0, txnIdCount + keyCount).next(rs);
+            SimpleBitSet waitingOn = new SimpleBitSet(txnIdCount + keyCount, false);
+            SimpleBitSet appliedOrInvalidated = rs.nextBoolean() ? null : new SimpleBitSet(txnIdCount, false);
             for (int i : selected)
             {
-                WaitingOnSets set = sets.next(rs);
+                WaitingOnSets set = appliedOrInvalidated == null || i >= txnIdCount ? WaitingOnSets.APPLY : sets.next(rs);
                 switch (set)
                 {
-                    case COMMIT:
-                        waitingOnCommit.set(i);
-                        break;
                     case APPLY:
-                        waitingOnApply.set(i);
+                        waitingOn.set(i);
                         break;
-                    case APPLYED_OR_INVALIDATED:
+                    case APPLIED_OR_INVALIDATED:
                         appliedOrInvalidated.set(i);
                         break;
                     default:
@@ -98,7 +99,7 @@ public class WaitingOnSerializerTest
                 }
             }
 
-            return new Command.WaitingOn(deps, Utils.ensureImmutable(waitingOnCommit), Utils.ensureImmutable(waitingOnApply), Utils.ensureImmutable(appliedOrInvalidated));
+            return new Command.WaitingOn(deps.keyDeps.keys(), deps.rangeDeps.txnIds(), Utils.ensureImmutable(waitingOn), Utils.ensureImmutable(appliedOrInvalidated));
         };
     }
 }

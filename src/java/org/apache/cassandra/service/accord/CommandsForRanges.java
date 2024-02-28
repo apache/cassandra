@@ -41,7 +41,7 @@ import com.google.common.collect.ImmutableSortedMap;
 
 import accord.api.Key;
 import accord.api.RoutingKey;
-import accord.impl.CommandsForKey;
+import accord.local.CommandsForKey;
 import accord.impl.CommandsSummary;
 import accord.local.Command;
 import accord.local.SaveStatus;
@@ -64,7 +64,6 @@ import org.apache.cassandra.utils.IntervalTree;
 import static accord.local.SafeCommandStore.*;
 import static accord.local.SafeCommandStore.TestDep.ANY_DEPS;
 import static accord.local.SafeCommandStore.TestDep.WITH;
-import static accord.local.SafeCommandStore.TestStartedAt.ANY;
 import static accord.local.SafeCommandStore.TestStartedAt.STARTED_BEFORE;
 import static accord.local.SafeCommandStore.TestStatus.ANY_STATUS;
 import static accord.local.Status.Stable;
@@ -372,11 +371,13 @@ public class CommandsForRanges
 
     private static Range toRange(Interval<RoutableKey, RangeCommandSummary> interval)
     {
-        TokenKey start = (TokenKey) interval.min;
-        TokenKey end = (TokenKey) interval.max;
+        AccordRoutingKey start = (AccordRoutingKey) interval.min;
+        if (!(start instanceof AccordRoutingKey.SentinelKey))
+            start = new TokenKey(start.table(), start.token().decreaseSlightly());
+        AccordRoutingKey end = (AccordRoutingKey) interval.max;
         // TODO (required, correctness) : accord doesn't support wrap around, so decreaseSlightly may fail in some cases
         // TODO (required, correctness) : this logic is mostly used for testing, so is it actually safe for all partitioners?
-        return new TokenRange(start.withToken(start.token().decreaseSlightly()), end);
+        return new TokenRange(start, end);
     }
 
     @Nullable

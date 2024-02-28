@@ -26,17 +26,16 @@ import com.google.common.annotations.VisibleForTesting;
 import accord.api.Key;
 import accord.impl.SafeTimestampsForKey;
 import accord.impl.TimestampsForKey;
-import accord.primitives.RoutableKey;
 import accord.primitives.Timestamp;
 
-public class AccordSafeTimestampsForKey extends SafeTimestampsForKey implements AccordSafeState<RoutableKey, TimestampsForKey>
+public class AccordSafeTimestampsForKey extends SafeTimestampsForKey implements AccordSafeState<Key, TimestampsForKey>
 {
     private boolean invalidated;
-    private final AccordCachingState<RoutableKey, TimestampsForKey> global;
+    private final AccordCachingState<Key, TimestampsForKey> global;
     private TimestampsForKey original;
     private TimestampsForKey current;
 
-    public AccordSafeTimestampsForKey(AccordCachingState<RoutableKey, TimestampsForKey> global)
+    public AccordSafeTimestampsForKey(AccordCachingState<Key, TimestampsForKey> global)
     {
         super((Key) global.key());
         this.global = global;
@@ -71,7 +70,7 @@ public class AccordSafeTimestampsForKey extends SafeTimestampsForKey implements 
     }
 
     @Override
-    public AccordCachingState<RoutableKey, TimestampsForKey> global()
+    public AccordCachingState<Key, TimestampsForKey> global()
     {
         checkNotInvalidated();
         return global;

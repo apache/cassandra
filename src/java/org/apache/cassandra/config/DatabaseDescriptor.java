@@ -210,6 +210,7 @@ public class DatabaseDescriptor
 
     private static long keyCacheSizeInMiB;
     private static long paxosCacheSizeInMiB;
+    private static long accordCacheSizeInMiB;
     private static long consensusMigrationCacheSizeInMiB;
     private static long counterCacheSizeInMiB;
     private static long indexSummaryCapacityInMiB;
@@ -886,6 +887,22 @@ public class DatabaseDescriptor
                                   : conf.paxos_cache_size.toMebibytes();
 
             if (paxosCacheSizeInMiB < 0)
+                throw new NumberFormatException(); // to escape duplicating error message
+        }
+        catch (NumberFormatException e)
+        {
+            throw new ConfigurationException("paxos_cache_size option was set incorrectly to '"
+                                             + conf.paxos_cache_size + "', supported values are <integer> >= 0.", false);
+        }
+
+        try
+        {
+            // if paxosCacheSizeInMiB option was set to "auto" then size of the cache should be "max(10% of Heap (in MB), 1MB)
+            accordCacheSizeInMiB = (conf.accord_cache_size == null)
+                                  ? Math.max(1, (int) ((Runtime.getRuntime().totalMemory() * 0.10) / 1024 / 1024))
+                                  : conf.accord_cache_size.toMebibytes();
+
+            if (accordCacheSizeInMiB < 0)
                 throw new NumberFormatException(); // to escape duplicating error message
         }
         catch (NumberFormatException e)
@@ -3866,6 +3883,11 @@ public class DatabaseDescriptor
     public static long getPaxosCacheSizeInMiB()
     {
         return paxosCacheSizeInMiB;
+    }
+
+    public static long getAccordCacheSizeInMiB()
+    {
+        return accordCacheSizeInMiB;
     }
 
     public static long getConsensusMigrationCacheSizeInMiB()

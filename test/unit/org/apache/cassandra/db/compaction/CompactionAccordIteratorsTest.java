@@ -38,7 +38,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.Key;
 import accord.api.Result;
-import accord.impl.CommandsForKey;
+import accord.local.CommandsForKey;
 import accord.local.CheckedCommands;
 import accord.local.Command;
 import accord.local.CommandStore;

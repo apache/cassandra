@@ -126,12 +126,26 @@ public class VIntCoding
         return retval;
     }
 
+    @DontInline
+    private static long readUnsignedVIntSlow(ByteBuffer in, int position, byte firstByte)
+    {
+        int size = numberOfExtraBytesToRead(firstByte);
+        long retval = firstByte & firstByteValueMask(size);
+        for (int ii = 0; ii < size; ii++)
+        {
+            byte b = in.get(position++);
+            retval <<= 8;
+            retval |= b & 0xff;
+        }
+
+        return retval;
+    }
+
     public static long readUnsignedVInt(ByteBuffer in)
     {
         byte firstByte = in.get();
         if (firstByte >= 0)
             return firstByte;
-
 
         int position = in.position();
         int limit = in.limit();
@@ -145,6 +159,32 @@ public class VIntCoding
         if (in.order() == ByteOrder.LITTLE_ENDIAN)
             retval = Long.reverseBytes(retval);
         in.position(position + extraBytes);
+
+        // truncate the bytes we read in excess of those we needed
+        retval >>>= 64 - extraBits;
+        // remove the non-value bits from the first byte
+        firstByte &= VIntCoding.firstByteValueMask(extraBytes);
+        // shift the first byte up to its correct position
+        retval |= (long) firstByte << extraBits;
+        return retval;
+    }
+
+    public static long readUnsignedVInt(ByteBuffer in, int position)
+    {
+        byte firstByte = in.get(position++);
+        if (firstByte >= 0)
+            return firstByte;
+
+        int limit = in.limit();
+        if (limit - position < 8)
+            return readUnsignedVIntSlow(in, position, firstByte);
+
+        int extraBytes = VIntCoding.numberOfExtraBytesToRead(firstByte);
+        int extraBits = extraBytes * 8;
+
+        long retval = in.getLong(position);
+        if (in.order() == ByteOrder.LITTLE_ENDIAN)
+            retval = Long.reverseBytes(retval);
 
         // truncate the bytes we read in excess of those we needed
         retval >>>= 64 - extraBits;
@@ -328,6 +368,11 @@ public class VIntCoding
     public static int readUnsignedVInt32(ByteBuffer input)
     {
         return checkedCast(readUnsignedVInt(input));
+    }
+
+    public static int readUnsignedVInt32(ByteBuffer input, int position)
+    {
+        return checkedCast(readUnsignedVInt(input, position));
     }
 
     // & this with the first byte to give the value part for a given extraBytesToRead encoded in the byte

@@ -26,7 +26,7 @@ import org.junit.Test;
 
 import accord.api.Key;
 import accord.api.RoutingKey;
-import accord.impl.CommandsForKey;
+import accord.local.CommandsForKey;
 import accord.local.Command;
 import accord.local.KeyHistory;
 import accord.local.Node;
@@ -117,7 +117,7 @@ public class AccordCommandTest
             Assert.assertEquals(Status.PreAccepted, command.status());
             Assert.assertTrue(command.partialDeps() == null || command.partialDeps().isEmpty());
 
-            CommandsForKey cfk = ((AccordSafeCommandStore) instance).commandsForKey(key(1)).current();
+            CommandsForKey cfk = ((AccordSafeCommandStore) instance).get(key(1)).current();
             Assert.assertTrue(cfk.indexOf(txnId) >= 0);
         }));
 
@@ -145,7 +145,7 @@ public class AccordCommandTest
             Assert.assertEquals(Status.Accepted, command.status());
             Assert.assertEquals(deps, command.partialDeps());
 
-            CommandsForKey cfk = ((AccordSafeCommandStore) instance).commandsForKey(key(1)).current();
+            CommandsForKey cfk = ((AccordSafeCommandStore) instance).get(key(1)).current();
             Assert.assertTrue(cfk.indexOf(txnId) >= 0);
         }));
 
@@ -160,7 +160,7 @@ public class AccordCommandTest
             Assert.assertTrue(command.hasBeen(Status.Committed));
             Assert.assertEquals(commit.partialDeps, command.partialDeps());
 
-            CommandsForKey cfk = ((AccordSafeCommandStore) instance).commandsForKey(key(1)).current();
+            CommandsForKey cfk = ((AccordSafeCommandStore) instance).get(key(1)).current();
             Assert.assertTrue(cfk.indexOf(txnId) >= 0);
         }));
     }

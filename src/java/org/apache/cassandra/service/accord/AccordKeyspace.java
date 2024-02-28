@@ -45,7 +45,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Key;
-import accord.impl.CommandsForKey;
+import accord.local.CommandsForKey;
 import accord.impl.TimestampsForKey;
 import accord.local.Command;
 import accord.local.Command.WaitingOn;
@@ -592,7 +592,7 @@ public class AccordKeyspace
         }
 
         // TODO (expected): garbage-free filtering, reusing encoding
-        public Row withoutRedundantCommands(PartitionKey key, Row row, TxnId redundantBefore)
+        public Row withoutRedundantCommands(PartitionKey key, Row row, RedundantBefore.Entry redundantBefore)
         {
             Invariants.checkState(row.columnCount() == 1);
             Cell<?> cell = row.getCell(data);
@@ -600,7 +600,10 @@ public class AccordKeyspace
                 return row;
 
             CommandsForKey current = CommandsForKeySerializer.fromBytes(key, cell.buffer());
-            CommandsForKey updated = current.withoutRedundant(redundantBefore);
+            if (current == null)
+                return null;
+
+            CommandsForKey updated = current.withRedundantBefore(redundantBefore);
             if (current == updated)
                 return row;
 
@@ -822,7 +825,7 @@ public class AccordKeyspace
                 Command.Committed committed = command.asCommitted();
                 Command.Committed originalCommitted = original != null && original.isCommitted() ? original.asCommitted() : null;
                 if (originalCommitted == null || committed.waitingOn != originalCommitted.waitingOn)
-                    builder.addCell(live(CommandsColumns.waiting_on, timestampMicros, WaitingOnSerializer.serialize(committed.waitingOn)));
+                    builder.addCell(live(CommandsColumns.waiting_on, timestampMicros, WaitingOnSerializer.serialize(committed.txnId(), committed.waitingOn)));
             }
 
             Row row = builder.build();
@@ -1189,10 +1192,10 @@ public class AccordKeyspace
             Ballot promised = deserializePromisedOrNull(row);
             Ballot accepted = deserializeAcceptedOrNull(row);
 
-            WaitingOnProvider waitingOn = deserializeWaitingOn(row);
+            WaitingOnProvider waitingOn = deserializeWaitingOn(txnId, row);
             MessageProvider messages = commandStore.makeMessageProvider(txnId);
 
-            return SerializerSupport.reconstruct(attrs, status, executeAt, promised, accepted, waitingOn, messages);
+            return SerializerSupport.reconstruct(commandStore.unsafeRangesForEpoch(), attrs, status, executeAt, promised, accepted, waitingOn, messages);
         }
         catch (Throwable t)
         {
@@ -1270,7 +1273,7 @@ public class AccordKeyspace
         return deserializeTimestampOrNull(row.getBlob("accepted_ballot"), Ballot::fromBits);
     }
 
-    private static WaitingOnProvider deserializeWaitingOn(UntypedResultSet.Row row)
+    private static WaitingOnProvider deserializeWaitingOn(TxnId txnId, UntypedResultSet.Row row)
     {
         ByteBuffer bytes = row.getBlob("waiting_on");
 
@@ -1284,7 +1287,7 @@ public class AccordKeyspace
 
             try
             {
-                return WaitingOnSerializer.deserialize(deps, bytes);
+                return WaitingOnSerializer.deserialize(txnId, deps.keyDeps.keys(), deps.rangeDeps.txnIds(), bytes);
             }
             catch (IOException e)
             {
