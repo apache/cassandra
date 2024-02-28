@@ -123,7 +123,7 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
 
     int estimatedSizeOnHeap(ToLongFunction<V> estimator)
     {
-        shouldUpdateSize = false;
+        shouldUpdateSize = false;   // TODO (expected): probably not the safest place to clear need to compute size
         return lastQueriedEstimatedSizeOnHeap = Ints.checkedCast(EMPTY_SIZE + estimateStateOnHeapSize(estimator));
     }
 
@@ -204,7 +204,7 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
     protected State<K, V> state(State<K, V> next)
     {
         State<K, V> prev = state;
-        if (prev != next)
+        if (prev != next)   // TODO (expected): we change state to transition the cache state machine but often keep payload the same - so shouldn't recompute
             shouldUpdateSize = true;
         return state = next;
     }

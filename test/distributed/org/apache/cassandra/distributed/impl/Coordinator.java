@@ -26,6 +26,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Future;
+import java.util.function.BiConsumer;
 
 import com.google.common.collect.Iterators;
 
@@ -64,6 +65,30 @@ public class Coordinator implements ICoordinator
     public SimpleQueryResult executeWithResult(String query, ConsistencyLevel consistencyLevel, Object... boundValues)
     {
         return instance().sync(() -> unsafeExecuteInternal(query, consistencyLevel, boundValues)).call();
+    }
+
+    @Override
+    public Future<?> executeWithResult(BiConsumer<SimpleQueryResult, Throwable> callback, String query, ConsistencyLevel consistencyLevel, Object... boundValues)
+    {
+        return executeWithResult(callback, query, null, consistencyLevel, boundValues);
+    }
+
+    @Override
+    public Future<?> executeWithResult(BiConsumer<SimpleQueryResult, Throwable> callback, String query, ConsistencyLevel serialConsistencyLevel, ConsistencyLevel commitConsistencyLevel, Object... boundValues)
+    {
+        return instance().async(cb -> {
+            SimpleQueryResult result;
+            try
+            {
+                result = unsafeExecuteInternal(query, serialConsistencyLevel, commitConsistencyLevel, boundValues);
+            }
+            catch (Throwable t)
+            {
+                callback.accept(null, t);
+                return;
+            }
+            callback.accept(result, null);
+        }).apply(callback);
     }
 
     public Future<SimpleQueryResult> asyncExecuteWithTracingWithResult(UUID sessionId, String query, ConsistencyLevel consistencyLevelOrigin, Object... boundValues)

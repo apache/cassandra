@@ -36,7 +36,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.RoutingKey;
-import accord.impl.SafeCommandsForKey;
+import accord.local.SafeCommandsForKey;
 import accord.local.CheckedCommands;
 import accord.local.Command;
 import accord.local.PreLoadContext;
@@ -53,7 +53,6 @@ import accord.primitives.PartialDeps;
 import accord.primitives.PartialRoute;
 import accord.primitives.PartialTxn;
 import accord.primitives.Ranges;
-import accord.primitives.RoutableKey;
 import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
@@ -259,7 +258,7 @@ public class AsyncOperationTest
         Accept accept =
             Accept.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), txnId.epoch(), false, Ballot.ZERO, executeAt, partialTxn.keys(), deps);
         Commit commit =
-            Commit.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), Commit.Kind.Commit, Ballot.ZERO, executeAt, partialTxn.keys(), partialTxn, deps, route, null);
+            Commit.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), Commit.Kind.CommitSlowPath, Ballot.ZERO, executeAt, partialTxn.keys(), partialTxn, deps, route, null);
         Commit stable =
             Commit.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), Commit.Kind.StableSlowPath, Ballot.ZERO, executeAt, partialTxn.keys(), partialTxn, deps, route, null);
 
@@ -482,8 +481,7 @@ public class AsyncOperationTest
         }
         try
         {
-            //TODO this is due to bad typing for Instance, it doesn't use ? extends RoutableKey
-            assertNoReferences(commandStore.commandsForKeyCache(), (Iterable<RoutableKey>) (Iterable<?>) keys);
+            assertNoReferences(commandStore.commandsForKeyCache(), keys);
         }
         catch (AssertionError e)
         {
@@ -524,8 +522,7 @@ public class AsyncOperationTest
     private static void awaitDone(AccordCommandStore commandStore, List<TxnId> ids, Keys keys)
     {
         awaitDone(commandStore.commandCache(), ids);
-        //TODO this is due to bad typing for Instance, it doesn't use ? extends RoutableKey
-        awaitDone(commandStore.commandsForKeyCache(), (Iterable<RoutableKey>) (Iterable<?>) keys);
+        awaitDone(commandStore.commandsForKeyCache(), keys);
     }
 
     private static <T> void awaitDone(AccordStateCache.Instance<T, ?, ?> cache, Iterable<T> keys)

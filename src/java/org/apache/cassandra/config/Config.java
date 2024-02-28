@@ -480,6 +480,7 @@ public class Config
     public volatile int counter_cache_keys_to_save = Integer.MAX_VALUE;
 
     public DataStorageSpec.LongMebibytesBound paxos_cache_size = null;
+    public DataStorageSpec.LongMebibytesBound accord_cache_size = null;
 
     public DataStorageSpec.LongMebibytesBound consensus_migration_cache_size = null;
 
