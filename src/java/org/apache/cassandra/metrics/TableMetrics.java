@@ -295,6 +295,7 @@ public class TableMetrics
     public final TableMeter coordinatorReadSizeWarnings;
     public final TableMeter coordinatorReadSizeAborts;
     public final TableHistogram coordinatorReadSize;
+    public final TableHistogram coordinatorReadRowCount;
 
     public final TableMeter localReadSizeWarnings;
     public final TableMeter localReadSizeAborts;
@@ -1055,6 +1056,7 @@ public class TableMetrics
         coordinatorReadSizeWarnings = createTableMeter("CoordinatorReadSizeWarnings", cfs.keyspace.metric.coordinatorReadSizeWarnings);
         coordinatorReadSizeAborts = createTableMeter("CoordinatorReadSizeAborts", cfs.keyspace.metric.coordinatorReadSizeAborts);
         coordinatorReadSize = createTableHistogram("CoordinatorReadSize", cfs.keyspace.metric.coordinatorReadSize, false);
+        coordinatorReadRowCount = createTableHistogram("CoordinatorReadRowCount", cfs.keyspace.metric.coordinatorReadRowCount, true);
 
         localReadSizeWarnings = createTableMeter("LocalReadSizeWarnings", cfs.keyspace.metric.localReadSizeWarnings);
         localReadSizeAborts = createTableMeter("LocalReadSizeAborts", cfs.keyspace.metric.localReadSizeAborts);

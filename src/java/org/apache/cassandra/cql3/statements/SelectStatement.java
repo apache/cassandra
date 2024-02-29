@@ -931,11 +931,14 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
     private void maybeWarn(ResultSetBuilder result, QueryOptions options)
     {
-        if (!options.isReadThresholdsEnabled())
-            return;
         ColumnFamilyStore store = cfs();
         if (store != null)
+        {
             store.metric.coordinatorReadSize.update(result.getSize());
+            store.metric.coordinatorReadRowCount.update(result.getRowCount());
+        }
+        if (!options.isReadThresholdsEnabled())
+            return;
         if (result.shouldWarn(options.getCoordinatorReadSizeWarnThresholdBytes()))
         {
             String msg = String.format("Read on table %s has exceeded the size warning threshold of %,d bytes", table, options.getCoordinatorReadSizeWarnThresholdBytes());

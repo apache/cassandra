@@ -35,6 +35,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 public class CoordinatorReadSizeWarningTest extends AbstractClientSizeWarning
 {
+    private static long[] previousReadRowCount = new long[0];
+
     @BeforeClass
     public static void setupClass() throws IOException
     {
@@ -46,6 +48,12 @@ public class CoordinatorReadSizeWarningTest extends AbstractClientSizeWarning
             DatabaseDescriptor.setCoordinatorReadSizeWarnThreshold(new DataStorageSpec.LongBytesBound(1, KIBIBYTES));
             DatabaseDescriptor.setCoordinatorReadSizeFailThreshold(new DataStorageSpec.LongBytesBound(2, KIBIBYTES));
         }));
+    }
+
+    @After
+    public void tearDown()
+    {
+        previousReadRowCount = new long[0];
     }
 
     private static void assertPrefix(String expectedPrefix, String actual)
@@ -84,5 +92,29 @@ public class CoordinatorReadSizeWarningTest extends AbstractClientSizeWarning
     protected long totalAborts()
     {
         return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.CoordinatorReadSizeAborts." + KEYSPACE)).sum();
+    }
+
+    @Override
+    protected void assertHistogramNotUpdated()
+    {
+        // Here the read size and read row count histogram is always updated, regardless if the thresholds are
+        // enabled or no
+        long[] latestCount = getHistogram();
+        long[] lastRowCount = getReadRowCountHistogram();
+        try
+        {
+            assertThat(latestCount).isNotEqualTo(previous);
+            assertThat(latestCount).isNotEqualTo(previousReadRowCount);
+        }
+        finally
+        {
+            previous = latestCount;
+            previousReadRowCount = lastRowCount;
+        }
+    }
+
+    protected long[] getReadRowCountHistogram()
+    {
+        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.CoordinatorReadRowCount." + KEYSPACE)).toArray();
     }
 }

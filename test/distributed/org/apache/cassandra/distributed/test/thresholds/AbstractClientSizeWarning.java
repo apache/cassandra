@@ -29,6 +29,7 @@ import java.util.Random;
 import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableSet;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -92,6 +93,12 @@ public abstract class AbstractClientSizeWarning extends TestBaseImpl
         init(CLUSTER);
         // disable key cache so RowIndexEntry is read each time
         CLUSTER.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v blob, PRIMARY KEY (pk, ck)) WITH caching = { 'keys' : 'NONE'}");
+    }
+
+    @After
+    public void tearDown()
+    {
+        previous = new long[0];
     }
 
     @Test
@@ -335,7 +342,7 @@ public abstract class AbstractClientSizeWarning extends TestBaseImpl
     }
 
     protected abstract long[] getHistogram();
-    private static long[] previous = new long[0];
+    protected static long[] previous = new long[0];
     protected void assertHistogramUpdated()
     {
         long[] latestCount = getHistogram();

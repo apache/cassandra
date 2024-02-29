@@ -33,13 +33,8 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.cql3.statements.SelectStatement;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.KeyspaceNotDefinedException;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
-import org.apache.cassandra.metrics.KeyspaceMetrics;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.tracing.Tracing;
@@ -221,28 +216,6 @@ public class ExecuteMessage extends Message.Request
                     // and compare it with the metadata to be returned to client.
                     if (options.skipMetadata() && prepared.resultMetadataId.equals(resultMetadata.getResultMetadataId()))
                         resultMetadata.setSkipMetadata();
-                }
-
-                // monitor result set size for each prepared SELECT query
-                // The metric is kept per keyspace -- clients frequently check system keyspace, but we're more interested
-                // in user keyspace
-                if (statement instanceof SelectStatement
-                    && !state.getClientState().isInternal) {
-                    String keyspaceName = ((SelectStatement) statement).keyspace();
-                    String tableName = ((SelectStatement) statement).table.name;
-                    logger.debug(String.format("resultsize=%d, schema:%s.%s, q:%s",
-                                               rows.result.size(),
-                                               keyspaceName,
-                                               tableName,
-                                               prepared.rawCQLStatement));
-                    // skip virtual keyspaces
-                    KeyspaceMetadata keyspace = Schema.instance.getKeyspaceMetadata(keyspaceName);
-                    // shouldn't happen: keyspace is checked when executing
-                    assert keyspace != null;
-                    if (!keyspace.isVirtual()) {
-                        KeyspaceMetrics metrics = Keyspace.open(keyspaceName).metric;
-                        metrics.resultsetSize.inc(rows.result.size());
-                    }
                 }
             }
 

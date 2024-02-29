@@ -93,6 +93,11 @@ public final class ResultSetBuilder
         return size;
     }
 
+    public long getRowCount()
+    {
+        return resultSet.size();
+    }
+
     public void add(ByteBuffer v)
     {
         inputRow.add(v);
