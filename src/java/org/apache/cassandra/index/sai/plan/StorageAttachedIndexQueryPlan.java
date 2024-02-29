@@ -30,6 +30,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
@@ -37,23 +38,26 @@ import org.apache.cassandra.schema.TableMetadata;
 
 public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
 {
+    public static final String UNSUPPORTED_NON_STRICT_OPERATOR =
+            "Operator %s is only supported in intersections for reads that do not require replica reconciliation.";
+
     private final ColumnFamilyStore cfs;
     private final TableQueryMetrics queryMetrics;
     private final RowFilter postIndexFilter;
-    private final RowFilter filterOperation;
+    private final RowFilter indexFilter;
     private final Set<Index> indexes;
     private final boolean isTopK;
 
     private StorageAttachedIndexQueryPlan(ColumnFamilyStore cfs,
                                           TableQueryMetrics queryMetrics,
                                           RowFilter postIndexFilter,
-                                          RowFilter filterOperation,
+                                          RowFilter indexFilter,
                                           ImmutableSet<Index> indexes)
     {
         this.cfs = cfs;
         this.queryMetrics = queryMetrics;
         this.postIndexFilter = postIndexFilter;
-        this.filterOperation = filterOperation;
+        this.indexFilter = indexFilter;
         this.indexes = indexes;
         this.isTopK = indexes.stream().anyMatch(i -> i instanceof StorageAttachedIndex && ((StorageAttachedIndex) i).termType().isVector());
     }
@@ -62,27 +66,33 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
     public static StorageAttachedIndexQueryPlan create(ColumnFamilyStore cfs,
                                                        TableQueryMetrics queryMetrics,
                                                        Set<StorageAttachedIndex> indexes,
-                                                       RowFilter rowFilter)
+                                                       RowFilter filter)
     {
         ImmutableSet.Builder<Index> selectedIndexesBuilder = ImmutableSet.builder();
 
-        RowFilter preIndexFilter = rowFilter;
-        RowFilter postIndexFilter = rowFilter;
+        RowFilter preIndexFilter = filter;
+        RowFilter postIndexFilter = filter;
 
-        for (RowFilter.Expression expression : rowFilter)
+        for (RowFilter.Expression expression : filter)
         {
-            // we ignore any expressions here (currently IN and user-defined expressions) where we don't have a way to
-            // translate their #isSatifiedBy method, they will be included in the filter returned by QueryPlan#postIndexQueryFilter()
+            // We ignore any expressions here (currently IN and user-defined expressions) where we don't have a way to
+            // translate their #isSatifiedBy method, they will be included in the filter returned by 
+            // QueryPlan#postIndexQueryFilter(). If strict filtering is not allowed, we must reject the query until the
+            // expression(s) in question are compatible with #isSatifiedBy.
             //
             // Note: For both the pre- and post-filters we need to check that the expression exists before removing it
             // because the without method assert if the expression doesn't exist. This can be the case if we are given
             // a duplicate expression - a = 1 and a = 1. The without method removes all instances of the expression.
             if (expression.operator().isIN() || expression.isUserDefined())
             {
+                if (!filter.isStrict())
+                    throw new InvalidRequestException(String.format(UNSUPPORTED_NON_STRICT_OPERATOR, expression.operator()));
+
                 if (preIndexFilter.getExpressions().contains(expression))
                     preIndexFilter = preIndexFilter.without(expression);
                 continue;
             }
+
             if (postIndexFilter.getExpressions().contains(expression))
                 postIndexFilter = postIndexFilter.without(expression);
 
@@ -129,7 +139,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
         return new StorageAttachedIndexSearcher(cfs,
                                                 queryMetrics,
                                                 command,
-                                                filterOperation,
+                                                indexFilter,
                                                 DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.MILLISECONDS));
     }
 

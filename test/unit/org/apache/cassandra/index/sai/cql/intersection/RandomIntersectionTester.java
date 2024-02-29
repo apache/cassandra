@@ -80,7 +80,8 @@ public abstract class RandomIntersectionTester extends SAIRandomizedTester
         Map<Integer, List<TestRow>> testRowMap = buildAndLoadTestRows();
 
         beforeAndAfterFlush(() -> {
-            for (int queryCount = 0; queryCount < nextInt(10, 100); queryCount++)
+            int queryCount = nextInt(10, 80);
+            for (int i = 0; i < queryCount; i++)
             {
                 int pk = testRowMap.keySet().stream().skip(nextInt(0, testRowMap.size())).findFirst().orElseThrow();
                 int v1 = nextV1();
@@ -127,7 +128,8 @@ public abstract class RandomIntersectionTester extends SAIRandomizedTester
         Map<Integer, List<TestRow>> testRowMap = buildAndLoadTestRows();
 
         beforeAndAfterFlush(() -> {
-            for (int queryCount = 0; queryCount < nextInt(10, 100); queryCount++)
+            int queryCount = nextInt(10, 80);
+            for (int i = 0; i < queryCount; i++)
             {
                 int v1 = nextV1();
                 int v2 = nextV2();

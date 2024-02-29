@@ -44,30 +44,34 @@ public class KeyRangeUnionIterator extends KeyRangeIterator
     public PrimaryKey computeNext()
     {
         candidates.clear();
-        PrimaryKey candidate = null;
+        PrimaryKey candidateKey = null;
         for (KeyRangeIterator range : ranges)
         {
             if (range.hasNext())
             {
-                // Avoid repeated values but only if we have read at least one value
-                while (next != null && range.hasNext() && range.peek().compareTo(getCurrent()) == 0)
-                    range.next();
-                if (!range.hasNext())
-                    continue;
-                if (candidate == null)
+                if (candidateKey == null)
                 {
-                    candidate = range.peek();
+                    candidateKey = range.peek();
                     candidates.add(range);
                 }
                 else
                 {
-                    int cmp = candidate.compareTo(range.peek());
+                    PrimaryKey peeked = range.peek();
+    
+                    int cmp = candidateKey.compareTo(peeked);
+
                     if (cmp == 0)
+                    {
+                        // Replace any existing candidate key if this one is STATIC:  
+                        if (peeked.kind() == PrimaryKey.Kind.STATIC)
+                            candidateKey = peeked;
+
                         candidates.add(range);
+                    }
                     else if (cmp > 0)
                     {
                         candidates.clear();
-                        candidate = range.peek();
+                        candidateKey = peeked;
                         candidates.add(range);
                     }
                 }
@@ -75,8 +79,18 @@ public class KeyRangeUnionIterator extends KeyRangeIterator
         }
         if (candidates.isEmpty())
             return endOfData();
-        candidates.forEach(KeyRangeIterator::next);
-        return candidate;
+
+        for (KeyRangeIterator candidate : candidates)
+        {
+            do
+            {
+                // Consume the remaining values equal to the candidate key:
+                candidate.next();
+            }
+            while (candidate.hasNext() && candidate.peek().compareTo(candidateKey) == 0);
+        }
+
+        return candidateKey;
     }
 
     @Override
