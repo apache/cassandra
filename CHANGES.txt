@@ -4,6 +4,7 @@
  * Remove bashisms for mx4j tool in cassandra-env.sh (CASSANDRA-19416)
  * Add new concurrent_merkle_tree_requests config property to prevent OOM during multi-range and/or multi-table repairs (CASSANDRA-19336)
 Merged from 3.11:
+ * Move ClientWarn.State#warnings to a thread-safe list (CASSANDRA-19427)
 Merged from 3.0:
  * Fix SCM URL link (CASSANDRA-19422)
  * Backport CASSANDRA-16418 to 3.x (CASSANDRA-18824)
