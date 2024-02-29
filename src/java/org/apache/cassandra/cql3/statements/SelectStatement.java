@@ -98,12 +98,12 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 /**
  * Encapsulates a completely parsed SELECT query, including the target
  * column family, expression, result count, and ordering clause.
- *
+ * <p>
  * A number of public methods here are only used internally. However,
  * many of these are made accessible for the benefit of custom
  * QueryHandler implementations, so before reducing their accessibility
  * due consideration should be given.
- *
+ * <p>
  * Note that select statements can be accessed by multiple threads, so we cannot rely on mutable attributes.
  */
 @ThreadSafe
@@ -306,9 +306,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                        options.getConsistency() == ConsistencyLevel.SERIAL,
                        String.format(TOPK_CONSISTENCY_LEVEL_ERROR, options.getConsistency()));
 
-            if (options.getConsistency() != ConsistencyLevel.ONE &&
-                options.getConsistency() != ConsistencyLevel.LOCAL_ONE &&
-                options.getConsistency() != ConsistencyLevel.NODE_LOCAL)
+            if (options.getConsistency().needsReconciliation())
             {
                 ConsistencyLevel supplied = options.getConsistency();
                 ConsistencyLevel downgrade = supplied.isDatacenterLocal() ? ConsistencyLevel.LOCAL_ONE : ConsistencyLevel.ONE;
@@ -362,7 +360,6 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
         return rows;
     }
-
 
     public AggregationSpecification getAggregationSpec(QueryOptions options)
     {
