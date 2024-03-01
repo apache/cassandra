@@ -618,12 +618,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return 0L;
     }
 
-    private boolean isShutdown(InetAddressAndPort endpoint)
+    private String getVersionedValueString(EndpointState epState)
     {
-        EndpointState epState = endpointStateMap.get(endpoint);
         if (epState == null)
         {
-            return false;
+            return null;
         }
 
         VersionedValue versionedValue = epState.getApplicationState(ApplicationState.STATUS_WITH_PORT);
@@ -632,15 +631,47 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             versionedValue = epState.getApplicationState(ApplicationState.STATUS);
             if (versionedValue == null)
             {
-                return false;
+                return null;
             }
         }
+        return versionedValue.value;
+    }
 
-        String value = versionedValue.value;
+    private String getVersionedValueString(InetAddressAndPort endpoint)
+    {
+        return getVersionedValueString(endpointStateMap.get(endpoint));
+    }
+
+    private boolean isShutdown(InetAddressAndPort endpoint)
+    {
+        String value = getVersionedValueString(endpoint);
+        if (value == null)
+            return false;
         String[] pieces = value.split(VersionedValue.DELIMITER_STR, -1);
         assert (pieces.length > 0);
         String state = pieces[0];
         return state.equals(VersionedValue.SHUTDOWN);
+    }
+
+    private boolean isForceShutdown(InetAddressAndPort endpoint)
+    {
+        String value = getVersionedValueString(endpoint);
+        if (value == null)
+            return false;
+        String[] pieces = value.split(VersionedValue.DELIMITER_STR, -1);
+        assert (pieces.length > 0);
+        String state = pieces[0];
+        return state.equals(VersionedValue.SHUTDOWN) && pieces.length > 1 && pieces[1].equals(VersionedValue.FORCE);
+    }
+
+    private boolean isForceShutdown(EndpointState epState) {
+        String value = getVersionedValueString(epState);
+        if (value == null)
+            return false;
+        String[] pieces = value.split(VersionedValue.DELIMITER_STR, -1);
+        assert (pieces.length > 0);
+        String state = pieces[0];
+        return state.equals(VersionedValue.SHUTDOWN) && pieces.length > 1 && pieces[1].equals(VersionedValue.FORCE);
     }
 
     public static void runInGossipStageBlocking(Runnable runnable)
@@ -704,13 +735,19 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     protected void markAsShutdown(InetAddressAndPort endpoint)
     {
+        markAsShutdown(endpoint, isForceShutdown(endpoint));
+    }
+
+    protected void markAsShutdown(InetAddressAndPort endpoint, boolean forceShutdown)
+    {
         checkProperThreadForStateMutation();
         EndpointState epState = endpointStateMap.get(endpoint);
+        // do not mark shutdown if the current state is forceshutdown
         if (epState == null || epState.isStateEmpty())
             return;
-        VersionedValue shutdown = StorageService.instance.valueFactory.shutdown(true);
+        VersionedValue shutdown = forceShutdown ? StorageService.instance.valueFactory.forceShutdown() : StorageService.instance.valueFactory.shutdown(true);
         epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, shutdown);
-        epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.shutdown(true));
+        epState.addApplicationState(ApplicationState.STATUS, shutdown);
         epState.addApplicationState(ApplicationState.RPC_READY, StorageService.instance.valueFactory.rpcReady(false));
         epState.forceHighestPossibleVersionUnsafe();
         markDead(endpoint, epState);
@@ -718,7 +755,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         GossiperDiagnostics.markedAsShutdown(this, endpoint);
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
             subscriber.onChange(endpoint, ApplicationState.STATUS_WITH_PORT, shutdown);
-        logger.debug("Marked {} as shutdown", endpoint);
+
+        if (forceShutdown)
+            logger.debug("Marked {} as force shutdown", endpoint);
+        else
+            logger.debug("Marked {} as shutdown", endpoint);
     }
 
     /**
@@ -937,6 +978,29 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         Uninterruptibles.sleepUninterruptibly(intervalInMillis * 2, TimeUnit.MILLISECONDS);
     }
 
+    public void shutdownEndpoint(String address, boolean forceShutdown) throws UnknownHostException
+    {
+        InetAddressAndPort endpoint = InetAddressAndPort.getByName(address);
+        runInGossipStageBlocking(() -> {
+            EndpointState epState = endpointStateMap.get(endpoint);
+            logger.warn("Force shutting down {} via gossip", endpoint);
+
+            if (epState == null)
+            {
+                throw new RuntimeException("Not able to find endpoint state from gossip endpoint state map for endpoint: " + endpoint);
+            }
+            VersionedValue value = forceShutdown ? StorageService.instance.valueFactory.forceShutdown() : StorageService.instance.valueFactory.shutdown(true);
+            epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, value);
+            epState.updateTimestamp(); // make sure we don't evict it too soon
+            epState.getHeartBeatState().forceNewerGenerationUnsafe();
+            epState.getHeartBeatState().forceHighestPossibleVersionUnsafe();
+
+            handleMajorStateChange(endpoint, epState);
+            Uninterruptibles.sleepUninterruptibly(intervalInMillis * 4, TimeUnit.MILLISECONDS);
+            logger.warn("Finished force shutting down {} in gossip", endpoint);
+        });
+    }
+
     public void unsafeAssassinateEndpoint(String address) throws UnknownHostException
     {
         logger.warn("Gossiper.unsafeAssassinateEndpoint is deprecated and will be removed in the next release; use assassinateEndpoint instead");
@@ -1127,6 +1191,12 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         // if there's no previous state, we're good
         if (epState == null)
             return true;
+
+        if (isForceShutdown(epState))
+        {
+            logger.error("This node is marked as force shutdown, not safe to start!");
+            return false;
+        }
 
         String status = getGossipStatus(epState);
 
@@ -1656,6 +1726,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         for (Entry<InetAddressAndPort, EndpointState> entry : epStateMap.entrySet())
         {
             InetAddressAndPort ep = entry.getKey();
+            EndpointState remoteState = entry.getValue();
+            if (ep.equals(getBroadcastAddressAndPort()) && isForceShutdown(remoteState))
+            {
+                logger.info("Shutting down local node because gossip marked local node as force shutdown.");
+                markAsShutdown(ep, true); // mark local node as force shutdown
+                StorageService.instance.stopTransports();
+                JVMStabilityInspector.killCurrentJVM(new RuntimeException("Force shutdown, killing JVM!"), false);
+            }
             if (ep.equals(getBroadcastAddressAndPort()) && !isInShadowRound())
                 continue;
             if (justRemovedEndpoints.containsKey(ep))
@@ -1666,7 +1744,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             }
 
             EndpointState localEpStatePtr = endpointStateMap.get(ep);
-            EndpointState remoteState = entry.getValue();
             if (!hasMajorVersion3OrUnknownNodes())
                 remoteState.removeMajorVersion3LegacyApplicationStates();
 
@@ -2225,12 +2302,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public void stop()
     {
         EndpointState mystate = endpointStateMap.get(getBroadcastAddressAndPort());
+        boolean forceShutdown = isForceShutdown(mystate);
+        VersionedValue value = forceShutdown ? StorageService.instance.valueFactory.forceShutdown() : StorageService.instance.valueFactory.shutdown(true);
         if (mystate != null && !isSilentShutdownState(mystate) && StorageService.instance.isJoined())
         {
             logger.info("Announcing shutdown");
-            addLocalApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.shutdown(true));
-            addLocalApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.shutdown(true));
-            Message message = Message.out(Verb.GOSSIP_SHUTDOWN, noPayload);
+            addLocalApplicationState(ApplicationState.STATUS_WITH_PORT, value);
+            addLocalApplicationState(ApplicationState.STATUS, value);
+            Message message = Message.out(Verb.GOSSIP_SHUTDOWN, forceShutdown);
             for (InetAddressAndPort ep : liveEndpoints)
                 MessagingService.instance().send(message, ep);
             Uninterruptibles.sleepUninterruptibly(SHUTDOWN_ANNOUNCE_DELAY_IN_MS.getInt(), TimeUnit.MILLISECONDS);

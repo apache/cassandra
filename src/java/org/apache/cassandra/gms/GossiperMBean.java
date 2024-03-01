@@ -31,6 +31,8 @@ public interface GossiperMBean
 
     public void assassinateEndpoint(String address) throws UnknownHostException;
 
+    public void shutdownEndpoint(String address, boolean forceShutdown) throws UnknownHostException;
+
     public List<String> reloadSeeds();
 
     public List<String> getSeeds();

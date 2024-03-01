@@ -142,7 +142,7 @@ public enum Verb
     GOSSIP_DIGEST_SYN      (14,  P0, longTimeout,     GOSSIP,            () -> GossipDigestSyn.serializer,           () -> GossipDigestSynVerbHandler.instance                      ),
     GOSSIP_DIGEST_ACK      (15,  P0, longTimeout,     GOSSIP,            () -> GossipDigestAck.serializer,           () -> GossipDigestAckVerbHandler.instance                      ),
     GOSSIP_DIGEST_ACK2     (16,  P0, longTimeout,     GOSSIP,            () -> GossipDigestAck2.serializer,          () -> GossipDigestAck2VerbHandler.instance                     ),
-    GOSSIP_SHUTDOWN        (29,  P0, rpcTimeout,      GOSSIP,            () -> NoPayload.serializer,                 () -> GossipShutdownVerbHandler.instance                       ),
+    GOSSIP_SHUTDOWN        (29,  P0, rpcTimeout,      GOSSIP,            () -> BooleanSerializer.serializer,         () -> GossipShutdownVerbHandler.instance                       ),
 
     ECHO_RSP               (91,  P0, rpcTimeout,      GOSSIP,            () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
     ECHO_REQ               (31,  P0, rpcTimeout,      GOSSIP,            () -> NoPayload.serializer,                 () -> EchoVerbHandler.instance,            ECHO_RSP            ),

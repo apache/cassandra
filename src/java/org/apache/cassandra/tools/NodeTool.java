@@ -210,6 +210,7 @@ public class NodeTool
                 SetBadQueryThreshold.class,
                 SetAutoRepairConfig.class,
                 RunAutoRepairOnce.class,
+                Shutdown.class,
                 SetAuthEnforcementFlag.class,
                 SetGossipServiceCacheMismatchConfig.class,
                 SetBatchlogReplayThrottle.class,

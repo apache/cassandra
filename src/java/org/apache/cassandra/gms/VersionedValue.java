@@ -82,6 +82,8 @@ public class VersionedValue implements Comparable<VersionedValue>
     public final static String HIBERNATE = "hibernate";
     public final static String SHUTDOWN = "shutdown";
 
+    public final static String FORCE = "force";
+
     // values for ApplicationState.REMOVAL_COORDINATOR
     public final static String REMOVAL_COORDINATOR = "REMOVER";
     public final static Set<String> BOOTSTRAPPING_STATUS = ImmutableSet.of(STATUS_BOOTSTRAPPING, STATUS_BOOTSTRAPPING_REPLACE);
@@ -258,6 +260,11 @@ public class VersionedValue implements Comparable<VersionedValue>
         public VersionedValue shutdown(boolean value)
         {
             return new VersionedValue(VersionedValue.SHUTDOWN + VersionedValue.DELIMITER + value);
+        }
+
+        public VersionedValue forceShutdown()
+        {
+            return new VersionedValue(VersionedValue.SHUTDOWN + VersionedValue.DELIMITER + FORCE);
         }
 
         public VersionedValue datacenter(String dcId)
