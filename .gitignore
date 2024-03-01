@@ -4,6 +4,7 @@
 build
 build/
 src/gen-java/
+test/gen-java/
 src/resources/org/apache/cassandra/config/
 logs/
 data/

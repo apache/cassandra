@@ -48,6 +48,12 @@
                     <encoding>UTF-8</encoding>
                 </source-folder>
                 <source-folder>
+                    <label>test/gen-java</label>
+                    <type>java</type>
+                    <location>${project.dir}/test/gen-java</location>
+                    <encoding>UTF-8</encoding>
+                </source-folder>
+                <source-folder>
                     <label>test/fqltool/</label>
                     <type>java</type>
                     <location>${project.dir}/tools/fqltool/test/unit</location>

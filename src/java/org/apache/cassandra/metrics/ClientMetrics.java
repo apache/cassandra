@@ -18,21 +18,11 @@
  */
 package org.apache.cassandra.metrics;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Predicate;
-
-import com.google.common.annotations.VisibleForTesting;
-
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Reservoir;
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthenticator.AuthenticationMode;
@@ -43,13 +33,23 @@ import org.apache.cassandra.transport.ConnectedClient;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.transport.ServerConnection;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
+
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 public final class ClientMetrics
 {
+    public static final String TYPE_NAME = "Client";
     public static final ClientMetrics instance = new ClientMetrics();
 
-    private static final MetricNameFactory factory = new DefaultNameFactory("Client");
+    private static final MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME);
 
     private volatile boolean initialized = false;
     private Server server = null;
@@ -282,9 +282,7 @@ public final class ClientMetrics
 
     private <T> Gauge<T> registerGauge(String name, String deprecated, Gauge<T> gauge)
     {
-        Gauge<T> registeredGauge = registerGauge(name, gauge);
-        Metrics.registerMBean(registeredGauge, factory.createMetricName(deprecated).getMBeanName());
-        return registeredGauge;
+        return Metrics.gauge(factory.createMetricName(name), factory.createMetricName(deprecated), () -> gauge);
     }
 
     private Meter registerMeter(String name)

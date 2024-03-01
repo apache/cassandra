@@ -34,6 +34,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 
+import static org.apache.cassandra.cql3.CQLTester.assertRowsContains;
+import static org.apache.cassandra.cql3.CQLTester.row;
 import static org.apache.cassandra.cql3.statements.BatchStatement.metrics;
 import static org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.EstimatedHistogramReservoirSnapshot;
 import static org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.Range;
@@ -163,6 +165,14 @@ public class BatchMetricsTest
             assertEquals(expectedPartitionsPerUnloggedBatchCount, metrics.partitionsPerUnloggedBatch.getCount());
             assertEquals(expectedPartitionsPerLoggedBatchCount, metrics.partitionsPerLoggedBatch.getCount());
             assertEquals(expectedPartitionsPerCounterBatchCount, metrics.partitionsPerCounterBatch.getCount());
+
+            assertRowsContains(cluster, session.execute("SELECT * FROM system_metrics.batch_group"),
+                    row("org.apache.cassandra.metrics.Batch.PartitionsPerUnloggedBatch",
+                            "unknown", "histogram", String.valueOf(metrics.partitionsPerUnloggedBatch.getSnapshot().getMedian())),
+                    row("org.apache.cassandra.metrics.Batch.PartitionsPerLoggedBatch",
+                            "unknown", "histogram", String.valueOf(metrics.partitionsPerLoggedBatch.getSnapshot().getMedian())),
+                    row("org.apache.cassandra.metrics.Batch.PartitionsPerCounterBatch",
+                            "unknown", "histogram", String.valueOf(metrics.partitionsPerCounterBatch.getSnapshot().getMedian())));
 
             EstimatedHistogramReservoirSnapshot partitionsPerLoggedBatchSnapshot = (EstimatedHistogramReservoirSnapshot) metrics.partitionsPerLoggedBatch.getSnapshot();
             EstimatedHistogramReservoirSnapshot partitionsPerUnloggedBatchSnapshot = (EstimatedHistogramReservoirSnapshot) metrics.partitionsPerUnloggedBatch.getSnapshot();
