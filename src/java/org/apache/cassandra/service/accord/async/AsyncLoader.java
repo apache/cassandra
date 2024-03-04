@@ -175,26 +175,19 @@ public class AsyncLoader
         Ranges ranges = (Ranges) keysOrRanges;
 
         List<AsyncChain<?>> root = new ArrayList<>(ranges.size() + 1);
-        //TODO (now, coverage): is this enough?  We have ExecutionOrder make sure we run things in the insertion order
-        // and we know the key's right away because the load scheduled or touched them... so do we need to stop listening
-        // at preExecution like range?  Or is this logic correct and can stop listener after we found the keys on disk?
         class Watcher implements AccordStateCache.Listener<RoutableKey, CommandsForKey>
         {
-            Set<PartitionKey> cached = commandStore.commandsForKeyCache().stream()
-                                                   .map(n -> (PartitionKey) n.key())
-                                                   .filter(ranges::contains)
-                                                   .collect(Collectors.toSet());
+            private final Set<PartitionKey> cached = commandStore.commandsForKeyCache().stream()
+                                                                 .map(n -> (PartitionKey) n.key())
+                                                                 .filter(ranges::contains)
+                                                                 .collect(Collectors.toSet());
 
             @Override
             public void onAdd(AccordCachingState<RoutableKey, CommandsForKey> state)
             {
                 PartitionKey pk = (PartitionKey) state.key();
                 if (ranges.contains(pk))
-                {
-                    if (cached == null)
-                        cached = new HashSet<>();
                     cached.add(pk);
-                }
             }
         }
         Watcher watcher = new Watcher();

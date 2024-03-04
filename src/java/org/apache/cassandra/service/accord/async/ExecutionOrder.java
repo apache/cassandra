@@ -133,7 +133,6 @@ public class ExecutionOrder
                     canRun &= register(seekable.asKey(), operation);
                     break;
                 case Range:
-                    //TODO (now, correctness): add range support
                     canRun &= register(seekable.asRange(), operation);
                     break;
                 default:
@@ -339,8 +338,7 @@ public class ExecutionOrder
         {
             for (var r : conflicts.rangeConflicts)
             {
-                var subState = state(r);
-                if (!subState.canRun(operation))
+                if (!state(r).canRun(operation))
                     return false;
             }
         }
