@@ -49,8 +49,6 @@ import org.apache.cassandra.index.sai.accord.RoutesSearcher;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.utils.Pair;
 
-//TODO (now, correctness): registerHistoricalTransactions, need to handle range -> txn for these
-//TODO (now, correctness): DurableBefore filtering
 public class CommandsForRangesLoader
 {
     private final RoutesSearcher searcher = new RoutesSearcher();
