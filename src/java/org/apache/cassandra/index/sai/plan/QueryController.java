@@ -175,11 +175,11 @@ public class QueryController
      * the {@link SSTableIndex}s that will satisfy the expression.
      * <p>
      * Each (expression, SSTable indexes) pair is then passed to
-     * {@link IndexSearchResultIterator#build(Expression, Collection, AbstractBounds, QueryContext, boolean)}
+     * {@link IndexSearchResultIterator#build(Expression, Collection, AbstractBounds, QueryContext, boolean, Runnable)}
      * to search the in-memory index associated with the expression and the SSTable indexes, the results of
      * which are unioned and returned.
      * <p>
-     * The results from each call to {@link IndexSearchResultIterator#build(Expression, Collection, AbstractBounds, QueryContext, boolean)}
+     * The results from each call to {@link IndexSearchResultIterator#build(Expression, Collection, AbstractBounds, QueryContext, boolean, Runnable)}
      * are added to a {@link KeyRangeIntersectionIterator} and returned if strict filtering is allowed.
      * <p>
      * If strict filtering is not allowed, indexes are split into two groups according to the repaired status of their 
@@ -195,10 +195,11 @@ public class QueryController
         // VSTODO move ANN out of expressions and into its own abstraction? That will help get generic ORDER BY support
         expressions = expressions.stream().filter(e -> e.getIndexOperator() != Expression.IndexOperator.ANN).collect(Collectors.toList());
 
-        KeyRangeIterator.Builder builder = command.rowFilter().isStrict()
-                                           ? KeyRangeIntersectionIterator.builder(expressions.size())
-                                           : KeyRangeUnionIterator.builder(expressions.size());
         QueryViewBuilder.QueryView queryView = new QueryViewBuilder(expressions, mergeRange).build();
+        Runnable onClose = () -> queryView.referencedIndexes.forEach(SSTableIndex::releaseQuietly);
+        KeyRangeIterator.Builder builder = command.rowFilter().isStrict()
+                                           ? KeyRangeIntersectionIterator.builder(expressions.size(), onClose)
+                                           : KeyRangeUnionIterator.builder(expressions.size(), onClose);
 
         try
         {
@@ -210,11 +211,11 @@ public class QueryController
                 // This usually means we are making this local index query in the context of a user query that reads 
                 // from a single replica and thus can safely perform local intersections.
                 for (Pair<Expression, Collection<SSTableIndex>> queryViewPair : queryView.view)
-                    builder.add(IndexSearchResultIterator.build(queryViewPair.left, queryViewPair.right, mergeRange, queryContext, true));
+                    builder.add(IndexSearchResultIterator.build(queryViewPair.left, queryViewPair.right, mergeRange, queryContext, true, () -> {}));
             }
             else
             {
-                KeyRangeIterator.Builder repairedBuilder = KeyRangeIntersectionIterator.builder(expressions.size());
+                KeyRangeIterator.Builder repairedBuilder = KeyRangeIntersectionIterator.builder(expressions.size(), () -> {});
 
                 for (Pair<Expression, Collection<SSTableIndex>> queryViewPair : queryView.view)
                 {
@@ -232,10 +233,10 @@ public class QueryController
 
                     // Always build an iterator for the un-repaired set, given this must include Memtable indexes...  
                     IndexSearchResultIterator unrepairedIterator =
-                            IndexSearchResultIterator.build(queryViewPair.left, unrepaired, mergeRange, queryContext, true);
+                            IndexSearchResultIterator.build(queryViewPair.left, unrepaired, mergeRange, queryContext, true, () -> {});
 
                     // ...but ignore it if our combined results are empty.
-                    if (unrepairedIterator.getCount() > 0)
+                    if (unrepairedIterator.getMaxKeys() > 0)
                     {
                         builder.add(unrepairedIterator);
                         queryContext.hasUnrepairedMatches = true;
@@ -248,7 +249,7 @@ public class QueryController
 
                     // ...then only add an iterator to the repaired intersection if repaired SSTable indexes exist. 
                     if (!repaired.isEmpty())
-                        repairedBuilder.add(IndexSearchResultIterator.build(queryViewPair.left, repaired, mergeRange, queryContext, false));
+                        repairedBuilder.add(IndexSearchResultIterator.build(queryViewPair.left, repaired, mergeRange, queryContext, false, () -> {}));
                 }
 
                 if (repairedBuilder.rangeCount() > 0)
@@ -259,7 +260,6 @@ public class QueryController
         {
             // all sstable indexes in view have been referenced, need to clean up when exception is thrown
             builder.cleanup();
-            queryView.referencedIndexes.forEach(SSTableIndex::releaseQuietly);
             throw t;
         }
         return builder;
@@ -315,6 +315,7 @@ public class QueryController
         KeyRangeIterator memtableResults = index.memtableIndexManager().searchMemtableIndexes(queryContext, planExpression, mergeRange);
 
         QueryViewBuilder.QueryView queryView = new QueryViewBuilder(Collections.singleton(planExpression), mergeRange).build();
+        Runnable onClose = () -> queryView.referencedIndexes.forEach(SSTableIndex::releaseQuietly);
 
         try
         {
@@ -322,12 +323,13 @@ public class QueryController
                                                                    .stream()
                                                                    .map(this::createRowIdIterator)
                                                                    .collect(Collectors.toList());
-            return IndexSearchResultIterator.build(sstableIntersections, memtableResults, queryView.referencedIndexes, queryContext);
+
+            return IndexSearchResultIterator.build(sstableIntersections, memtableResults, queryView.referencedIndexes, queryContext, onClose);
         }
         catch (Throwable t)
         {
             // all sstable indexes in view have been referenced, need to clean up when exception is thrown
-            queryView.referencedIndexes.forEach(SSTableIndex::release);
+            onClose.run();
             throw t;
         }
     }
@@ -353,6 +355,7 @@ public class QueryController
         // search memtable before referencing sstable indexes; otherwise we may miss newly flushed memtable index
         KeyRangeIterator memtableResults = index.memtableIndexManager().limitToTopResults(queryContext, sourceKeys, planExpression);
         QueryViewBuilder.QueryView queryView = new QueryViewBuilder(Collections.singleton(planExpression), mergeRange).build();
+        Runnable onClose = () -> queryView.referencedIndexes.forEach(SSTableIndex::releaseQuietly);
 
         try
         {
@@ -371,12 +374,12 @@ public class QueryController
                                                                    })
                                                                    .collect(Collectors.toList());
 
-            return IndexSearchResultIterator.build(sstableIntersections, memtableResults, queryView.referencedIndexes, queryContext);
+            return IndexSearchResultIterator.build(sstableIntersections, memtableResults, queryView.referencedIndexes, queryContext, onClose);
         }
         catch (Throwable t)
         {
             // all sstable indexes in view have been referenced, need to clean up when exception is thrown
-            queryView.referencedIndexes.forEach(SSTableIndex::release);
+            onClose.run();
             throw t;
         }
     }

@@ -77,7 +77,7 @@ public class PostingListRangeIterator extends KeyRangeIterator
                                     PrimaryKeyMap primaryKeyMap,
                                     IndexSegmentSearcherContext searcherContext)
     {
-        super(searcherContext.minimumKey, searcherContext.maximumKey, searcherContext.count());
+        super(searcherContext.minimumKey, searcherContext.maximumKey, searcherContext.count(), () -> {});
 
         this.indexIdentifier = indexIdentifier;
         this.primaryKeyMap = primaryKeyMap;
