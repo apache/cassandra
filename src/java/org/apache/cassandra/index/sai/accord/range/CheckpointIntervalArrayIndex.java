@@ -57,12 +57,6 @@ public class CheckpointIntervalArrayIndex
     private static final Accessor<Interval[], Interval, byte[]> LIST_INTERVAL_ACCESSOR = new Accessor<>()
     {
         @Override
-        public boolean endInclusive(Interval[] intervals)
-        {
-            return true;
-        }
-
-        @Override
         public int size(Interval[] intervals)
         {
             return intervals.length;
@@ -513,12 +507,6 @@ public class CheckpointIntervalArrayIndex
                 var buffer = new Interval();
                 Accessor<IndexInput, byte[], byte[]> accessor = new Accessor<>()
                 {
-                    @Override
-                    public boolean endInclusive(IndexInput indexInput)
-                    {
-                        return true;
-                    }
-
                     @Override
                     public int size(IndexInput indexInput)
                     {

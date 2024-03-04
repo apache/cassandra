@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -42,6 +43,8 @@ import accord.primitives.Range;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
+import accord.utils.SearchableRangeList;
+import org.agrona.collections.IntArrayList;
 import org.agrona.collections.LongArrayList;
 import org.assertj.core.api.Assertions;
 
@@ -154,7 +157,7 @@ public class RTreeTest
     // Having different models makes sure that the RTree is flexiable enough and can be used with the semantics the user
     // needs (with regard to inclusivity).  It also adds more confidence that the search logic is correct as different
     // algorithems help validate this.
-    private enum ModelType {List, IntervalTree}
+    private enum ModelType {List, IntervalTree, SearchableRangeList}
     private final Pattern pattern;
     private final ModelType modelType;
 
@@ -166,6 +169,7 @@ public class RTreeTest
 
     @Parameterized.Parameters(name = "{0}, {1}")
     public static Collection<Object[]> data() {
+//        return Stream.of(Pattern.values()).map(p -> new Object[] {p, ModelType.SearchableRangeList}).collect(Collectors.toList());
         return Stream.of(Pattern.values())
                      .flatMap(p ->
                               Stream.of(ModelType.values())
@@ -357,7 +361,9 @@ public class RTreeTest
     {
         switch (modelType)
         {
-            case List: return new RTreeModel(new RTree<>(COMPARATOR, END_INCLUSIVE));
+            case List:
+            case SearchableRangeList:
+                return new RTreeModel(new RTree<>(COMPARATOR, END_INCLUSIVE));
             case IntervalTree: return new RTreeModel(new RTree<>(COMPARATOR, ALL_INCLUSIVE));
             default:
                 throw new AssertionError("Unknown type: " + modelType);
@@ -369,6 +375,7 @@ public class RTreeTest
         switch (modelType)
         {
             case List: return new ListModel();
+            case SearchableRangeList: return new SearchableRangeListModel();
             case IntervalTree: return new IntervalTreeModel();
             default:
                 throw new AssertionError("Unknown type: " + modelType);
@@ -494,6 +501,69 @@ public class RTreeTest
             assert builder != null;
             actual = builder.build();
             builder = null;
+        }
+    }
+
+    private static class SearchableRangeListModel implements Model
+    {
+        private final Map<Range, IntArrayList> map = new HashMap<>();
+        private Range[] ranges;
+        private SearchableRangeList list = null;
+
+        @Override
+        public Object actual()
+        {
+            return list;
+        }
+
+        @Override
+        public void put(Range range, int value)
+        {
+            map.computeIfAbsent(range, ignore -> new IntArrayList()).addInt(value);
+        }
+
+        @Override
+        public List<Map.Entry<Range, Integer>> intersectsToken(Routing key)
+        {
+            List<Map.Entry<Range, Integer>> matches = new ArrayList<>();
+            // find ranges, then add the values
+            list.forEach(key, (a, b, c, d, idx) -> {
+                Range match = ranges[idx];
+                map.get(match).forEachInt(v -> matches.add(Map.entry(match, v)));
+            }, (a, b, c, d, start, end) -> {
+                for (int i = start; i < end; i++)
+                {
+                    Range match = ranges[i];
+                    map.get(match).forEachInt(v -> matches.add(Map.entry(match, v)));
+                }
+            }, 0, 0, 0, 0, 0);
+            return matches;
+        }
+
+        @Override
+        public List<Map.Entry<Range, Integer>> intersects(Range range)
+        {
+            List<Map.Entry<Range, Integer>> matches = new ArrayList<>();
+            // find ranges, then add the values
+            list.forEach(range, (a, b, c, d, idx) -> {
+                Range match = ranges[idx];
+                map.get(match).forEachInt(v -> matches.add(Map.entry(match, v)));
+            }, (a, b, c, d, start, end) -> {
+                for (int i = start; i < end; i++)
+                {
+                    Range match = ranges[i];
+                    map.get(match).forEachInt(v -> matches.add(Map.entry(match, v)));
+                }
+            }, 0, 0, 0, 0, 0);
+            return matches;
+        }
+
+        @Override
+        public void done()
+        {
+            List<Range> ranges = new ArrayList<>(map.keySet());
+            ranges.sort(Range::compare);
+            list = SearchableRangeList.build(this.ranges = ranges.toArray(Range[]::new));
         }
     }
 }
