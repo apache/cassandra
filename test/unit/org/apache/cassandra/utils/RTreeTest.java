@@ -169,7 +169,6 @@ public class RTreeTest
 
     @Parameterized.Parameters(name = "{0}, {1}")
     public static Collection<Object[]> data() {
-//        return Stream.of(Pattern.values()).map(p -> new Object[] {p, ModelType.SearchableRangeList}).collect(Collectors.toList());
         return Stream.of(Pattern.values())
                      .flatMap(p ->
                               Stream.of(ModelType.values())
