@@ -43,38 +43,42 @@ public class KeyRangeUnionIterator extends KeyRangeIterator
     @Override
     public PrimaryKey computeNext()
     {
+        // the design is to find the next best value from all the ranges,
+        // and then advance all the ranges that have the same value.
         candidates.clear();
         PrimaryKey candidateKey = null;
         for (KeyRangeIterator range : ranges)
         {
-            if (range.hasNext())
+            if (!range.hasNext())
+                continue;
+
+            if (candidateKey == null)
             {
-                if (candidateKey == null)
+                candidateKey = range.peek();
+                candidates.add(range);
+            }
+            else
+            {
+                PrimaryKey peeked = range.peek();
+    
+                int cmp = candidateKey.compareTo(peeked);
+
+                if (cmp == 0)
                 {
-                    candidateKey = range.peek();
+                    // Replace any existing candidate key if this one is STATIC:
+                    if (peeked.kind() == PrimaryKey.Kind.STATIC)
+                        candidateKey = peeked;
+
                     candidates.add(range);
                 }
-                else
+                else if (cmp > 0)
                 {
-                    PrimaryKey peeked = range.peek();
-    
-                    int cmp = candidateKey.compareTo(peeked);
-
-                    if (cmp == 0)
-                    {
-                        // Replace any existing candidate key if this one is STATIC:  
-                        if (peeked.kind() == PrimaryKey.Kind.STATIC)
-                            candidateKey = peeked;
-
-                        candidates.add(range);
-                    }
-                    else if (cmp > 0)
-                    {
-                        candidates.clear();
-                        candidateKey = peeked;
-                        candidates.add(range);
-                    }
+                    // we found a new best candidate, throw away the old ones
+                    candidates.clear();
+                    candidateKey = peeked;
+                    candidates.add(range);
                 }
+                // else, existing candidate is less than the next in this range
             }
         }
         if (candidates.isEmpty())
@@ -137,7 +141,7 @@ public class KeyRangeUnionIterator extends KeyRangeIterator
             if (range == null)
                 return this;
 
-            if (range.getCount() > 0)
+            if (range.getMaxKeys() > 0)
             {
                 rangeIterators.add(range);
                 statistics.update(range);
@@ -179,7 +183,7 @@ public class KeyRangeUnionIterator extends KeyRangeIterator
         {
             min = nullSafeMin(min, range.getMinimum());
             max = nullSafeMax(max, range.getMaximum());
-            count += range.getCount();
+            count += range.getMaxKeys();
         }
     }
 }

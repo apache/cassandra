@@ -235,7 +235,7 @@ public class QueryController
                             IndexSearchResultIterator.build(queryViewPair.left, unrepaired, mergeRange, queryContext, true);
 
                     // ...but ignore it if our combined results are empty.
-                    if (unrepairedIterator.getCount() > 0)
+                    if (unrepairedIterator.getMaxKeys() > 0)
                     {
                         builder.add(unrepairedIterator);
                         queryContext.hasUnrepairedMatches = true;
