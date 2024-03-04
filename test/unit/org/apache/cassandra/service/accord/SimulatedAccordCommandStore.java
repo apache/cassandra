@@ -51,6 +51,7 @@ import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.topology.Topologies;
 import accord.topology.Topology;
+import accord.utils.Gens;
 import accord.utils.RandomSource;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
@@ -190,20 +191,8 @@ class SimulatedAccordCommandStore implements AutoCloseable
 
     private static BooleanSupplier boolSource(RandomSource rs)
     {
-        int selection = rs.nextInt(0, 3);
-        switch (selection)
-        {
-            case 0: // uniform 50/50
-                return rs::nextBoolean;
-            case 1: // variable frequency
-                var freq = rs.nextFloat();
-                return () -> rs.decide(freq);
-            case 2: // fixed result
-                boolean result = rs.nextBoolean();
-                return () -> result;
-            default:
-                throw new IllegalStateException("Unexpected int for bool selection: " + selection);
-        }
+        var gen = Gens.bools().mixedDistribution().next(rs);
+        return () -> gen.next(rs);
     }
 
     public TxnId nextTxnId(Txn.Kind kind, Routable.Domain domain)
