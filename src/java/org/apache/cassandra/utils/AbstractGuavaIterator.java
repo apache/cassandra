@@ -33,7 +33,7 @@ import static com.google.common.base.Preconditions.checkState;
  */
 public abstract class AbstractGuavaIterator<T> implements PeekingIterator<T>
 {
-    private State state = State.NOT_READY;
+    protected State state = State.NOT_READY;
 
     /** Constructor for use by subclasses. */
     protected AbstractGuavaIterator() {}
