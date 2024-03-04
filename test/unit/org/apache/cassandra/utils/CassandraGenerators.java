@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -632,13 +631,6 @@ public final class CassandraGenerators
 
     private enum SupportedPartitioners { Murmur, ByteOrdered, Random, Local, OrderPreserving}
 
-    // need to use Supplier<Gen> here else this loads AbstractTypeGenerators, which depends on this class; so circular dependency
-    private static final ImmutableMap<SupportedPartitioners, Supplier<Gen<Token>>> PARTITIONERS = ImmutableMap.of(SupportedPartitioners.Murmur, CassandraGenerators::murmurToken,
-                                                                                                                  SupportedPartitioners.ByteOrdered, CassandraGenerators::byteOrderToken,
-                                                                                                                  SupportedPartitioners.Random, CassandraGenerators::randomPartitionerToken,
-                                                                                                                  SupportedPartitioners.Local, CassandraGenerators::localPartitionerToken,
-                                                                                                                  SupportedPartitioners.OrderPreserving, CassandraGenerators::orderPreservingToken);
-
     public static Gen<IPartitioner> partitioners()
     {
         var pGen = SourceDSL.arbitrary().enumValues(SupportedPartitioners.class);
@@ -657,8 +649,21 @@ public final class CassandraGenerators
 
     public static Gen<Token> token()
     {
-        var pGen = SourceDSL.arbitrary().enumValues(SupportedPartitioners.class);
-        return pGen.flatMap(p -> PARTITIONERS.get(p).get());
+        return SourceDSL.arbitrary().enumValues(SupportedPartitioners.class)
+                        .flatMap(CassandraGenerators::token);
+    }
+
+    private static Gen<Token> token(SupportedPartitioners p)
+    {
+        switch (p)
+        {
+            case Murmur: return murmurToken();
+            case Local: return localPartitionerToken();
+            case Random: return randomPartitionerToken();
+            case ByteOrdered: return byteOrderToken();
+            case OrderPreserving: return orderPreservingToken();
+            default: throw new AssertionError("Unknown partitioner: " + p);
+        }
     }
 
     public static Gen<Token> token(IPartitioner partitioner)
