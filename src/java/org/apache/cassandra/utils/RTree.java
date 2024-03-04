@@ -29,7 +29,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-
 import javax.annotation.CheckForNull;
 
 import com.google.common.collect.AbstractIterator;
@@ -94,22 +93,9 @@ public class RTree<Token, Range, Value> implements Iterable<Map.Entry<Range, Val
         return matches;
     }
 
-    public boolean get(Range range, Consumer<Map.Entry<Range, Value>> onMatch)
+    public void get(Range range, Consumer<Map.Entry<Range, Value>> onMatch)
     {
-        class Matcher implements Consumer<Map.Entry<Range, Value>>
-        {
-            boolean match = false;
-
-            @Override
-            public void accept(Map.Entry<Range, Value> e)
-            {
-                match = true;
-                onMatch.accept(e);
-            }
-        }
-        Matcher matcher =  new Matcher();
-        node.search(range, matcher, e -> e.getKey().equals(range), Function.identity());
-        return matcher.match;
+        node.search(range, onMatch, e -> e.getKey().equals(range), Function.identity());
     }
 
     public List<Map.Entry<Range, Value>> search(Range range)

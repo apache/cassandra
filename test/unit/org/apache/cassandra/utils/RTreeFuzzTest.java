@@ -19,7 +19,9 @@
 package org.apache.cassandra.utils;
 
 import java.util.Arrays;
+import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.Consumer;
 
 import org.junit.Test;
 
@@ -76,7 +78,20 @@ public class RTreeFuzzTest
                             after = rs.nextInt();
                         model.put(key, after);
                         int finalAfter = after;
-                        Assertions.assertThat(tree.get(key, e -> e.setValue(finalAfter)))
+                        class Matcher implements Consumer<Map.Entry<Integer, Integer>>
+                        {
+                            boolean match = false;
+
+                            @Override
+                            public void accept(Map.Entry<Integer, Integer> e)
+                            {
+                                match = true;
+                                e.setValue(finalAfter);
+                            }
+                        }
+                        Matcher matcher = new Matcher();
+                        tree.get(key, matcher);
+                        Assertions.assertThat(matcher.match)
                                   .isTrue();
                         Assertions.assertThat(tree.size())
                                   .isEqualTo(model.size());
