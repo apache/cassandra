@@ -64,6 +64,7 @@
 -Djdk.attach.allowAttachSelf=true
 --add-exports java.base/jdk.internal.misc=ALL-UNNAMED
 --add-exports java.management.rmi/com.sun.jmx.remote.internal.rmi=ALL-UNNAMED
+--add-exports java.management/com.sun.jmx.remote.security=ALL-UNNAMED
 --add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED
 --add-exports java.rmi/sun.rmi.server=ALL-UNNAMED
 --add-exports java.sql/java.sql=ALL-UNNAMED
