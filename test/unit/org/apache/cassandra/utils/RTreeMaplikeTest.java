@@ -31,7 +31,7 @@ import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
 
-public class RTreeFuzzTest
+public class RTreeMaplikeTest
 {
     private enum Action { Create, Read, Update, Delete }
 
