@@ -57,6 +57,7 @@ public class CommitLogReader
     public static final int ALL_MUTATIONS = -1;
     private final CRC32 checksum;
     private final Map<TableId, AtomicInteger> invalidMutations;
+    public final List<String> segmentsWithInvalidMutations;
 
     private byte[] buffer;
 
@@ -64,6 +65,7 @@ public class CommitLogReader
     {
         checksum = new CRC32();
         invalidMutations = new HashMap<>();
+        segmentsWithInvalidMutations = new ArrayList<String>();
         buffer = new byte[4096];
     }
 
@@ -444,9 +446,12 @@ public class CommitLogReader
             {
                 i = new AtomicInteger(1);
                 invalidMutations.put(ex.id, i);
+                segmentsWithInvalidMutations.add(desc.fileName());
             }
             else
                 i.incrementAndGet();
+
+            handler.handleInvalidMutation(ex.id);
             return;
         }
         catch (Throwable t)
@@ -476,6 +481,9 @@ public class CommitLogReader
 
         if (shouldReplay)
             handler.handleMutation(mutation, size, entryLocation, desc);
+
+        // if the commit log segment was previously added to this list due to invalid mutations, it will be removed after successful replay
+        segmentsWithInvalidMutations.remove(desc.fileName());
     }
 
     /**

@@ -92,6 +92,7 @@ public class CommitLog implements CommitLogMBean
     public final CommitLogArchiver archiver;
     public final CommitLogMetrics metrics;
     final AbstractCommitLogService executor;
+    public List<String> segmentsWithInvalidMutations = new ArrayList<>();
 
     volatile Configuration configuration;
     private boolean started = false;
@@ -234,7 +235,16 @@ public class CommitLog implements CommitLogMBean
             logger.info("Log replay complete, {} replayed mutations", replayedKeyspaces.values().stream().reduce(Integer::sum).orElse(0));
 
             for (File f : files)
-                segmentManager.handleReplayedSegment(f);
+            {
+                if(segmentsWithInvalidMutations.contains(f.name()))
+                {
+                    logger.debug("File {} should not be deleted as it contains invalid mutations", f.name());
+                }
+                else
+                {
+                    segmentManager.handleReplayedSegment(f);
+                }
+            }
         }
 
         return replayedKeyspaces;
@@ -253,6 +263,17 @@ public class CommitLog implements CommitLogMBean
     {
         CommitLogReplayer replayer = CommitLogReplayer.construct(this, getLocalHostId());
         replayer.replayFiles(clogs);
+
+        /*we need to reload segments with invalid mutations as it may have been updated by the commit log replayer
+          Now, we can do delete removed segments and add new ones or just reload afresh
+          I decided to simply reload as this list is likely to be small, if it exists at all
+         */
+        segmentsWithInvalidMutations = new ArrayList<>();
+        replayer.commitLogReader.segmentsWithInvalidMutations.forEach((file) ->
+        {
+            logger.warn("Skipped invalid mutations from file {}", file);
+            segmentsWithInvalidMutations.add(file);
+        });
         return replayer.blockForWrites(flushReason);
     }
 
