@@ -33,6 +33,7 @@ public class CloseableIterators
             public void close()
             {
                 self.close();
+                next = null;
             }
 
             @Override
