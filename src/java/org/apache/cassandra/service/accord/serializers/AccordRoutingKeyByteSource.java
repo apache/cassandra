@@ -102,8 +102,7 @@ public class AccordRoutingKeyByteSource
         {
             if (token.getPartitioner() != partitioner)
                 throw new IllegalArgumentException("Attempted to use the wrong partitioner: given " + token.getPartitioner() + " but expected " + partitioner);
-            ByteSource[] srcs = { tokenPrefix(), token.asComparableBytes(version) };
-            return ByteSource.withTerminator(ByteSource.TERMINATOR, srcs);
+            return ByteSource.withTerminator(ByteSource.TERMINATOR, tokenPrefix(), token.asComparableBytes(version));
         }
 
         public <V> Token tokenFromComparableBytes(ValueAccessor<V> accessor, V data) throws IOException
