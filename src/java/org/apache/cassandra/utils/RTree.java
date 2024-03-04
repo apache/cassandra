@@ -198,7 +198,7 @@ public class RTree<Token, Range, Value> implements Iterable<Map.Entry<Range, Val
 
     private class Node implements Iterable<Map.Entry<Range, Value>>
     {
-        private List<Map.Entry<Range, Value>> values = new ArrayList<>(10);
+        private List<Map.Entry<Range, Value>> values = new ArrayList<>();
         private List<Node> children = null;
         private int size = 0;
         private Token minStart, maxStart, minEnd, maxEnd;
