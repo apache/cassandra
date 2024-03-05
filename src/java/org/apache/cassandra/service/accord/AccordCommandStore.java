@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
@@ -59,11 +60,13 @@ import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.metrics.AccordStateCacheMetrics;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.service.accord.async.ExecutionOrder;
+import org.apache.cassandra.service.accord.events.CacheEvents;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
@@ -119,6 +122,63 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         this(id, time, agent, dataStore, progressLogFactory, epochUpdateHolder, journal, Stage.READ.executor(), Stage.MUTATION.executor(), cacheMetrics);
     }
 
+    private static <K, V> void registerJfrListener(int id, AccordStateCache.Instance<K, V, ?> instance, String name)
+    {
+        if (!DatabaseDescriptor.getAccordStateCacheListenerJFREnabled())
+            return;
+        instance.register(new AccordStateCache.Listener<K, V>() {
+            private final IdentityHashMap<AccordCachingState<?, ?>, CacheEvents.Evict> pendingEvicts = new IdentityHashMap<>();
+
+            @Override
+            public void onAdd(AccordCachingState<K, V> state)
+            {
+                CacheEvents.Add add = new CacheEvents.Add();
+                CacheEvents.Evict evict = new CacheEvents.Evict();
+                if (!add.isEnabled())
+                    return;
+                add.begin();
+                evict.begin();
+                add.store = evict.store = id;
+                add.instance = evict.instance = name;
+                add.key = evict.key = state.key().toString();
+                updateMutable(instance, state, add);
+                add.commit();
+                pendingEvicts.put(state, evict);
+            }
+
+            @Override
+            public void onRelease(AccordCachingState<K, V> state)
+            {
+
+            }
+
+            @Override
+            public void onEvict(AccordCachingState<K, V> state)
+            {
+                CacheEvents.Evict event = pendingEvicts.remove(state);
+                if (event == null) return;
+                updateMutable(instance, state, event);
+                event.commit();
+            }
+        });
+    }
+
+    private static void updateMutable(AccordStateCache.Instance<?, ?, ?> instance, AccordCachingState<?, ?> state, CacheEvents event)
+    {
+        event.status = state.state().status().name();
+
+        event.lastQueriedEstimatedSizeOnHeap = state.lastQueriedEstimatedSizeOnHeap();
+
+        event.instanceAllocated = instance.weightedSize();
+
+        event.globalSize = instance.size();
+        event.globalReferenced = instance.globalReferencedEntries();
+        event.globalUnreferenced = instance.globalUnreferencedEntries();
+        event.globalCapacity = instance.capacity();
+        event.globalAllocated = instance.globalAllocated();
+        event.globalFree = 1.0D - (event.globalAllocated / (double) event.globalCapacity);
+    }
+
     @VisibleForTesting
     public AccordCommandStore(int id,
                               NodeTimeService time,
@@ -146,6 +206,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                                 this::saveCommand,
                                 this::validateCommand,
                                 AccordObjectSizes::command);
+        registerJfrListener(id, commandCache, "Command");
         timestampsForKeyCache =
             stateCache.instance(RoutableKey.class,
                                 AccordSafeTimestampsForKey.class,
@@ -154,6 +215,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                                 this::saveTimestampsForKey,
                                 this::validateTimestampsForKey,
                                 AccordObjectSizes::timestampsForKey);
+        registerJfrListener(id, timestampsForKeyCache, "TimestampsForKey");
         commandsForKeyCache =
             stateCache.instance(RoutableKey.class,
                                 AccordSafeCommandsForKey.class,
@@ -163,6 +225,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                                 this::validateCommandsForKey,
                                 AccordObjectSizes::commandsForKey,
                                 AccordCachingState::new);
+        registerJfrListener(id, commandsForKeyCache, "CommandsForKey");
 
         this.commandsForRangesLoader = new CommandsForRangesLoader(this);
 

@@ -260,8 +260,8 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
     public interface Listener<K, V>
     {
         default void onAdd(AccordCachingState<K, V> state) {}
-        default void onEvict(AccordCachingState<K, V> state) {}
         default void onRelease(AccordCachingState<K, V> state) {}
+        default void onEvict(AccordCachingState<K, V> state) {}
     }
 
     public class Instance<K, V, S extends AccordSafeState<K, V>> implements CacheSize, Iterable<AccordCachingState<K, V>>
@@ -614,6 +614,21 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         public long weightedSize()
         {
             return bytesCached;
+        }
+
+        public long globalAllocated()
+        {
+            return AccordStateCache.this.bytesCached;
+        }
+
+        public int globalReferencedEntries()
+        {
+            return AccordStateCache.this.numReferencedEntries();
+        }
+
+        public int globalUnreferencedEntries()
+        {
+            return AccordStateCache.this.numUnreferencedEntries();
         }
 
         @Override

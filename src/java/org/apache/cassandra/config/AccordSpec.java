@@ -49,4 +49,6 @@ public class AccordSpec
     public volatile DurationSpec durability_txnid_lag = new DurationSpec.IntSecondsBound(5);
     public volatile DurationSpec shard_durability_cycle = new DurationSpec.IntMinutesBound(2);
     public volatile DurationSpec global_durability_cycle = new DurationSpec.IntMinutesBound(10);
+
+    public boolean state_cache_listener_jfr_enabled = true;
 }
