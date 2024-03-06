@@ -33,16 +33,15 @@ public class MetadataSnapshotListener implements LogListener
     public void notify(Entry entry, Transformation.Result result)
     {
         ClusterMetadata next = result.success().metadata;
-        if (entry.transform.kind() == Transformation.Kind.SEAL_PERIOD)
+        if (entry.transform.kind() == Transformation.Kind.TRIGGER_SNAPSHOT)
         {
-            assert next.lastInPeriod;
             try
             {
                 ClusterMetadataService.instance().snapshotManager().storeSnapshot(next);
             }
             catch (Throwable e)
             {
-                logger.warn("Unable to serialize metadata snapshot triggered by SealPeriod transformation", e);
+                logger.warn("Unable to serialize metadata snapshot triggered by TriggerSnapshot transformation", e);
             }
         }
     }

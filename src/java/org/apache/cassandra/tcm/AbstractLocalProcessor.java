@@ -90,10 +90,7 @@ public abstract class AbstractLocalProcessor implements Processor
             {
                 Epoch nextEpoch = result.success().metadata.epoch;
                 // If metadata applies, try committing it to the log
-                boolean applied = tryCommitOne(entryId, transform,
-                                               previous.epoch, nextEpoch,
-                                               previous.period, previous.nextPeriod(),
-                                               result.success().metadata.lastInPeriod);
+                boolean applied = tryCommitOne(entryId, transform, previous.epoch, nextEpoch);
 
                 // Application here semantially means "succeeded in committing to the distributed log".
                 if (applied)
@@ -195,7 +192,6 @@ public abstract class AbstractLocalProcessor implements Processor
 
     @Override
     public abstract ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy);
-    protected abstract boolean tryCommitOne(Entry.Id entryId, Transformation transform,
-                                            Epoch previousEpoch, Epoch nextEpoch,
-                                            long previousPeriod, long nextPeriod, boolean sealPeriod);
+    protected abstract boolean tryCommitOne(Entry.Id entryId, Transformation transform, Epoch previousEpoch, Epoch nextEpoch);
+
 }

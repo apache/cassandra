@@ -44,7 +44,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
 import org.apache.cassandra.tcm.transformations.ForceSnapshot;
-import org.apache.cassandra.tcm.transformations.SealPeriod;
+import org.apache.cassandra.tcm.transformations.TriggerSnapshot;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
@@ -88,7 +88,7 @@ public class LocalLogTest
     }
 
     @Test
-    public void sealPeriodForceSnapshotCollisionWithGap()
+    public void forceSnapshotCollisionWithGap()
     {
         LocalLog log = LocalLog.logSpec()
                                .sync()
@@ -101,7 +101,7 @@ public class LocalLogTest
             entries.add(entry(i));
         entries.add(new Entry(Entry.Id.NONE,
                               Epoch.create(11),
-                              SealPeriod.instance));
+                              TriggerSnapshot.instance));
 
         entries.add(new Entry(Entry.Id.NONE,
                               Epoch.create(11),
@@ -129,7 +129,7 @@ public class LocalLogTest
             entries.add(entry(i));
         entries.add(new Entry(Entry.Id.NONE,
                               Epoch.create(11),
-                              SealPeriod.instance));
+                              TriggerSnapshot.instance));
 
         entries.add(new Entry(Entry.Id.NONE,
                               Epoch.create(11),

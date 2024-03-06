@@ -28,35 +28,24 @@ import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
-import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
-
 /**
- * Period is an entity that is completely transparent to the users of CMS, and is a consequence of a fact that
- * LWTs only work on a single partition. It would be unwise to hold all epochs in a single partition, as it
- * will eventually get extremely large. At the same time, we can not use Epoch as a primary key (even though
- * IF NOT EXISTS queries would technically work for append puposes), since it would make log scans much more
- * expensive.
- *
- * Another reason for having periods is that replaying an entire log for a freshly starting log in an old
- * cluster can be very expensive, so in such cases the node can be caught up using a snapshot serving as a base
- * state and a small number of entries instead.
- *
- * Transformation that seals the period and requests local state to take a snapshot. Snapshot taking is an
- * asynchonous action, and we generally do not rely on the fact snapshot is, in fact going to be
- * there all the time. Snapshots are used as a performance optimization.
+ * Snapshots are used during startup or catchup between peers to avoid having to replay or transmit the entire log.
+ * This transformation simply inserts a marker entry into the metadata log. Enacting the epoch on a peer triggers the
+ * snapshot action on that peer. By default, taking a snapshot taking is an asynchonous action, and we generally do not
+ * rely on the fact snapshot is, in fact going to be available immediately (or even durably).
  */
-public class SealPeriod implements Transformation
+public class TriggerSnapshot implements Transformation
 {
     public static final Serializer serializer = new Serializer();
 
-    public static SealPeriod instance = new SealPeriod();
+    public static TriggerSnapshot instance = new TriggerSnapshot();
 
-    private SealPeriod(){}
+    private TriggerSnapshot(){}
 
     @Override
     public Kind kind()
     {
-        return Kind.SEAL_PERIOD;
+        return Kind.TRIGGER_SNAPSHOT;
     }
 
     @Override
@@ -68,20 +57,17 @@ public class SealPeriod implements Transformation
     @Override
     public Result execute(ClusterMetadata prev)
     {
-        if (prev.lastInPeriod)
-            return new Rejected(INVALID, "Have just sealed this period");
-
-        return Transformation.success(prev.transformer(true), LockedRanges.AffectedRanges.EMPTY);
+        return Transformation.success(prev.transformer(), LockedRanges.AffectedRanges.EMPTY);
     }
 
-    static class Serializer implements AsymmetricMetadataSerializer<Transformation, SealPeriod>
+    static class Serializer implements AsymmetricMetadataSerializer<Transformation, TriggerSnapshot>
     {
         public void serialize(Transformation t, DataOutputPlus out, Version version) throws IOException
         {
             assert t == instance;
         }
 
-        public SealPeriod deserialize(DataInputPlus in, Version version) throws IOException
+        public TriggerSnapshot deserialize(DataInputPlus in, Version version) throws IOException
         {
             return instance;
         }
@@ -95,6 +81,6 @@ public class SealPeriod implements Transformation
     @Override
     public String toString()
     {
-        return "SealPeriod{}";
+        return "TriggerSnapshot{}";
     }
 }

@@ -135,7 +135,7 @@ public class BootWithMetadataTest
         seq = addSequence(seq, move(partitioner, random, seq::contains));
         seq = addSequence(seq, addToCMS(random, seq::contains));
         t = t.with(seq);
-        ClusterMetadata toWrite = t.build().metadata.forceEpoch(epoch).forcePeriod(999);
+        ClusterMetadata toWrite = t.build().metadata.forceEpoch(epoch);
 
         // before exporting to file, make the local node the single CMS member in the CM instance
         // as CMS membership is a requirement for re-initialising from file

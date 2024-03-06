@@ -4457,6 +4457,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         List<DecoratedKey> keys = new ArrayList<>();
         for (Keyspace keyspace : Keyspace.nonLocalStrategy())
         {
+            if (keyspace.getMetadata().params.replication.isMeta())
+                continue;
             for (Range<Token> range : getPrimaryRangesForEndpoint(keyspace.getName(), getBroadcastAddressAndPort()))
                 keys.addAll(keySamples(keyspace.getColumnFamilyStores(), range));
         }

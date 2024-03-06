@@ -30,11 +30,13 @@ import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class SnapshotTest extends TestBaseImpl
 {
@@ -61,20 +63,19 @@ public class SnapshotTest extends TestBaseImpl
                                               "WHERE id IS NOT NULL AND x IS NOT NULL\n" +
                                               "PRIMARY KEY (x, id)"));
 
-            cluster.get(1).runOnInstance(() -> {
+            long snapshotEpoch = cluster.get(1).callOnInstance(() -> {
                 ClusterMetadata before = ClusterMetadata.current();
-                ClusterMetadata after = ClusterMetadataService.instance().sealPeriod();
+                ClusterMetadata after = ClusterMetadataService.instance().triggerSnapshot();
                 ClusterMetadata serialized = ClusterMetadataService.instance().snapshotManager().getSnapshot(after.epoch);
                 assertEquals(before.placements, serialized.placements);
                 assertEquals(before.tokenMap, serialized.tokenMap);
                 assertEquals(before.directory, serialized.directory);
                 assertEquals(before.schema, serialized.schema);
+                return serialized.epoch.getEpoch();
             });
 
             cluster.schemaChange(withKeyspace("create table %s.tbl2 (id int primary key, x int)"));
-            cluster.get(1).runOnInstance(() -> {
-                assertEquals(2, ClusterMetadata.current().period);
-            });
+            assertEquals(snapshotEpoch + 1, ClusterUtils.getCurrentEpoch(cluster.get(1)).getEpoch());
         }
     }
 
@@ -91,15 +92,14 @@ public class SnapshotTest extends TestBaseImpl
         {
             cluster.schemaChange(withKeyspace("create table %s.tbl1 (id int primary key, x int)"));
 
-            cluster.get(1).runOnInstance(() -> ClusterMetadataService.instance().sealPeriod());
+            Epoch snapshotEpoch = ClusterUtils.snapshotClusterMetadata(cluster.get(1));
 
             cluster.schemaChange(withKeyspace("create table %s.tbl2 (id int primary key, x int)"));
             cluster.schemaChange(withKeyspace("create table %s.tbl3 (id int primary key, x int)"));
-
+            Epoch expected = snapshotEpoch.nextEpoch().nextEpoch();
             ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1));
             for (int i = 1; i <= 2; i++)
-                cluster.get(i).runOnInstance(() -> { assertEquals(2, ClusterMetadata.current().period); });
-
+                assertTrue(expected.is(ClusterUtils.getCurrentEpoch(cluster.get(i))));
 
             IInstanceConfig config = cluster.newInstanceConfig()
                                             .set("auto_bootstrap", true)
@@ -110,18 +110,11 @@ public class SnapshotTest extends TestBaseImpl
             cluster.schemaChange(withKeyspace("create table %s.tbl4 (id int primary key, x int)"));
             cluster.schemaChange(withKeyspace("create table %s.tbl5 (id int primary key, x int)"));
 
-            cluster.get(1).runOnInstance(() -> ClusterMetadataService.instance().sealPeriod());
-
+            snapshotEpoch = ClusterUtils.snapshotClusterMetadata(cluster.get(1));
             ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1));
+            // no events executed after snapshot, epoch is unchanged
             for (int i = 1; i <= 3; i++)
-            {
-                cluster.get(i).runOnInstance(() -> {
-                    // no events executed after NewPeriod, period is still 2
-                    assertEquals(2, ClusterMetadata.current().period);
-                    // but the next one is 3
-                    assertEquals(true, ClusterMetadata.current().lastInPeriod);
-                });
-            }
+                assertTrue(snapshotEpoch.is(ClusterUtils.getCurrentEpoch(cluster.get(i))));
 
             config = cluster.newInstanceConfig()
                             .set("auto_bootstrap", true)
@@ -148,16 +141,15 @@ public class SnapshotTest extends TestBaseImpl
         {
             cluster.schemaChange(withKeyspace("create table %s.tbl1 (id int primary key, x int)"));
 
-            cluster.get(1).runOnInstance(() -> ClusterMetadataService.instance().sealPeriod());
-
+            Epoch snapshotEpoch = ClusterUtils.snapshotClusterMetadata(cluster.get(1));
             cluster.schemaChange(withKeyspace("create table %s.tbl2 (id int primary key, x int)"));
             cluster.schemaChange(withKeyspace("create table %s.tbl3 (id int primary key, x int)"));
-
+            Epoch expected = snapshotEpoch.nextEpoch().nextEpoch();
             ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1));
             for (int i = 1; i <= 3; i++)
-                cluster.get(i).runOnInstance(() -> { assertEquals(2, ClusterMetadata.current().period); });
+                assertTrue(expected.is(ClusterUtils.getCurrentEpoch(cluster.get(i))));
 
-            cluster.get(1).runOnInstance(() -> ClusterMetadataService.instance().sealPeriod());
+            snapshotEpoch = ClusterUtils.snapshotClusterMetadata(cluster.get(1));
             ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1));
             long epochBefore = ClusterUtils.getCurrentEpoch(cluster.get(1)).getEpoch();
 
@@ -208,16 +200,15 @@ public class SnapshotTest extends TestBaseImpl
         {
             cluster.schemaChange(withKeyspace("create table %s.tbl1 (id int primary key, x int)"));
 
-            cluster.get(1).runOnInstance(() -> ClusterMetadataService.instance().sealPeriod());
-
+            Epoch snapshotEpoch = ClusterUtils.snapshotClusterMetadata(cluster.get(1));
             cluster.schemaChange(withKeyspace("create table %s.tbl2 (id int primary key, x int)"));
             cluster.schemaChange(withKeyspace("create table %s.tbl3 (id int primary key, x int)"));
-
+            Epoch expected = snapshotEpoch.nextEpoch().nextEpoch();
             ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1));
             for (int i = 1; i <= 3; i++)
-                cluster.get(i).runOnInstance(() -> { assertEquals(2, ClusterMetadata.current().period); });
+                assertTrue(expected.is(ClusterUtils.getCurrentEpoch(cluster.get(i))));
 
-            cluster.get(1).runOnInstance(() -> ClusterMetadataService.instance().sealPeriod());
+            cluster.get(1).runOnInstance(() -> ClusterMetadataService.instance().triggerSnapshot());
             ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1));
             long epochBefore = ClusterUtils.getCurrentEpoch(cluster.get(1)).getEpoch();
 

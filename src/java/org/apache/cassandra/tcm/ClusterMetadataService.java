@@ -63,7 +63,7 @@ import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.ForceSnapshot;
-import org.apache.cassandra.tcm.transformations.SealPeriod;
+import org.apache.cassandra.tcm.transformations.TriggerSnapshot;
 import org.apache.cassandra.tcm.transformations.cms.PrepareCMSReconfiguration;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -160,7 +160,7 @@ public class ClusterMetadataService
         {
             log = logSpec.sync().createLog();
             localProcessor = wrapProcessor.apply(new AtomicLongBackedProcessor(log, logSpec.isReset()));
-            fetchLogHandler = new FetchCMSLog.Handler((e, ignored) -> logSpec.storage().getLogState(log.metadata().period, e));
+            fetchLogHandler = new FetchCMSLog.Handler((e, ignored) -> logSpec.storage().getLogState(e));
         }
         else
         {
@@ -354,7 +354,7 @@ public class ClusterMetadataService
                                                  .collect(toImmutableSet());
 
             Election.instance.nominateSelf(candidates, ignored, metadata::equals, metadata);
-            ClusterMetadataService.instance().sealPeriod();
+            ClusterMetadataService.instance().triggerSnapshot();
         }
         else
         {
@@ -402,8 +402,7 @@ public class ClusterMetadataService
         logger.warn("Reverting to epoch {}", epoch);
         ClusterMetadata metadata = ClusterMetadata.current();
         ClusterMetadata toApply = transformSnapshot(LogState.getForRecovery(epoch))
-                                  .forceEpoch(metadata.epoch.nextEpoch())
-                                  .forcePeriod(metadata.nextPeriod());
+                                  .forceEpoch(metadata.epoch.nextEpoch());
         forceSnapshot(toApply);
     }
 
@@ -436,8 +435,7 @@ public class ClusterMetadataService
         logger.warn("Loading cluster metadata from {}", file);
         ClusterMetadata metadata = ClusterMetadata.current();
         ClusterMetadata toApply = deserializeClusterMetadata(file)
-                                  .forceEpoch(metadata.epoch.nextEpoch())
-                                  .forcePeriod(metadata.nextPeriod());
+                                  .forceEpoch(metadata.epoch.nextEpoch());
         forceSnapshot(toApply);
     }
 
@@ -754,14 +752,9 @@ public class ClusterMetadataService
         return snapshots;
     }
 
-    public ClusterMetadata sealPeriod()
+    public ClusterMetadata triggerSnapshot()
     {
-        return ClusterMetadataService.instance.commit(SealPeriod.instance,
-                                                      (ClusterMetadata metadata) -> metadata,
-                                                      (code, reason) -> {
-                                                          // If the transformation got rejected, someone else has beat us to seal this period
-                                                          return ClusterMetadata.current();
-                                                      });
+        return ClusterMetadataService.instance.commit(TriggerSnapshot.instance);
     }
 
     public boolean isMigrating()

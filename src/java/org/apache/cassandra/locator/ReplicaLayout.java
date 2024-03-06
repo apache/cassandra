@@ -383,17 +383,32 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
 
     static EndpointsForRange forNonLocalStategyRangeRead(ClusterMetadata metadata, KeyspaceMetadata keyspace, AbstractBounds<PartitionPosition> range)
     {
-        return metadata.placements.get(keyspace.params.replication).reads.forRange(range.right.getToken()).get();
+        // MetaStrategy distributes the entire keyspace to all replicas. In addition, its tables (currently only
+        // the dist log table) don't use the globally configured partitioner. For these reasons we don't lookup the
+        // replicas using the supplied token as this can actually be of the incorrect type (for example when
+        // performing Paxos repair).
+        Token searchToken = keyspace.params.replication.isMeta() ? MetaStrategy.entireRange.right : range.right.getToken();
+        return metadata.placements.get(keyspace.params.replication).reads.forRange(searchToken).get();
     }
 
     static EndpointsForToken forNonLocalStrategyTokenRead(ClusterMetadata metadata, KeyspaceMetadata keyspace, Token token)
     {
-        return metadata.placements.get(keyspace.params.replication).reads.forToken(token).get();
+        // MetaStrategy distributes the entire keyspace to all replicas. In addition, its tables (currently only
+        // the dist log table) don't use the globally configured partitioner. For these reasons we don't lookup the
+        // replicas using the supplied token as this can actually be of the incorrect type (for example when
+        // performing Paxos repair).
+        Token searchToken = keyspace.params.replication.isMeta() ? MetaStrategy.entireRange.left : token;
+        return metadata.placements.get(keyspace.params.replication).reads.forToken(searchToken).get();
     }
 
     static EndpointsForToken forNonLocalStrategyTokenWrite(ClusterMetadata metadata, KeyspaceMetadata keyspace, Token token)
     {
-        return metadata.placements.get(keyspace.params.replication).writes.forToken(token).get();
+        // MetaStrategy distributes the entire keyspace to all replicas. In addition, its tables (currently only
+        // the dist log table) don't use the globally configured partitioner. For these reasons we don't lookup the
+        // replicas using the supplied token as this can actually be of the incorrect type (for example when
+        // performing Paxos repair).
+        Token searchToken = keyspace.params.replication.isMeta() ? MetaStrategy.entireRange.left : token;
+        return metadata.placements.get(keyspace.params.replication).writes.forToken(searchToken).get();
     }
 
     static EndpointsForRange forLocalStrategyRange(ClusterMetadata metadata, AbstractReplicationStrategy replicationStrategy, AbstractBounds<PartitionPosition> range)

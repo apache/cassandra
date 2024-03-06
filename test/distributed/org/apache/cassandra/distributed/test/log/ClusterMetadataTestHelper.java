@@ -60,10 +60,8 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Commit;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
-import org.apache.cassandra.tcm.Period;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.log.LocalLog;
-import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -143,8 +141,6 @@ public class ClusterMetadataTestHelper
     public static ClusterMetadata minimalForTesting(IPartitioner partitioner)
     {
         return new ClusterMetadata(Epoch.EMPTY,
-                                   Period.EMPTY,
-                                   false,
                                    partitioner,
                                    null,
                                    null,
@@ -158,8 +154,6 @@ public class ClusterMetadataTestHelper
     public static ClusterMetadata minimalForTesting(Keyspaces keyspaces)
     {
         return new ClusterMetadata(Epoch.EMPTY,
-                                   Period.EMPTY,
-                                   false,
                                    Murmur3Partitioner.instance,
                                    new DistributedSchema(keyspaces),
                                    null,
@@ -168,25 +162,6 @@ public class ClusterMetadataTestHelper
                                    null,
                                    null,
                                    ImmutableMap.of());
-    }
-
-    public static void forceCurrentPeriodTo(long period)
-    {
-        ClusterMetadataService.unsetInstance();
-        ClusterMetadataService.setInstance(instanceForTest());
-        ClusterMetadata metadata = ClusterMetadata.currentNullable();
-        metadata = new ClusterMetadata(metadata.epoch.nextEpoch(),
-                                       period,
-                                       metadata.lastInPeriod,
-                                       metadata.partitioner,
-                                       metadata.schema,
-                                       metadata.directory,
-                                       metadata.tokenMap,
-                                       metadata.placements,
-                                       metadata.lockedRanges,
-                                       metadata.inProgressSequences,
-                                       metadata.extensions);
-        ClusterMetadataService.instance().log().append(new LogState(metadata, LogState.EMPTY.entries));
     }
 
     public static ClusterMetadataService syncInstanceForTest()
