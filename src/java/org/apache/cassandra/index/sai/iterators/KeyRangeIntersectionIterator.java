@@ -38,7 +38,7 @@ import javax.annotation.Nullable;
  * A simple intersection iterator that makes no real attempts at optimising the iteration apart from
  * initially sorting the ranges. This implementation also supports an intersection limit via
  * {@code CassandraRelevantProperties.SAI_INTERSECTION_CLAUSE_LIMIT} which limits the number of ranges that will 
- * be included in the intersection.
+ * be included in the intersection. This currently defaults to 2.
  * <p> 
  * Intersection only works for ranges that are compatible according to {@link PrimaryKey.Kind#isIntersectable(Kind)}.
  */
@@ -52,21 +52,20 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
     }
 
     private final List<KeyRangeIterator> ranges;
+    private PrimaryKey highestKey;
 
     private KeyRangeIntersectionIterator(Builder.Statistics statistics, List<KeyRangeIterator> ranges)
     {
         super(statistics);
         this.ranges = ranges;
+        this.highestKey = null;
     }
 
     @Override
     protected PrimaryKey computeNext()
     {
-        // Advance one iterator to the next key and remember the key as the highest seen so far.
-        // It can become null when we reach the end of the iterator.
-        // If there are both static and non-static keys being iterated here, we advance a non-static one,
-        // regardless of the order of ranges in the ranges list.
-        PrimaryKey highestKey = advanceOneRange();
+        if (highestKey == null)
+            highestKey = computeHighestKey();
 
         outer:
         // After advancing one iterator, we must try to advance all the other iterators that got behind,
@@ -81,14 +80,17 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
             // Once this inner loop finishes normally, all iterators are guaranteed to be at the same value.
             for (KeyRangeIterator range : ranges)
             {
-                if (range.getCurrent().compareTo(highestKey) < 0)
+                if (!range.hasNext())
+                    return endOfData();
+
+                if (range.peek().compareTo(highestKey) < 0)
                 {
                     // If we advance a STATIC key, then we must advance it to the same partition as the highestKey.
                     // Advancing a STATIC key to a WIDE key directly (without throwing away the clustering) would
                     // go too far, as WIDE keys are stored after STATIC in the posting list.
-                    PrimaryKey nextKey = range.getCurrent().kind() == Kind.STATIC
-                                         ? nextOrNull(range, highestKey.toStatic())
-                                         : nextOrNull(range, highestKey);
+                    PrimaryKey nextKey = range.peek().kind() == Kind.STATIC
+                                         ? skipAndPeek(range, highestKey.toStatic())
+                                         : skipAndPeek(range, highestKey);
 
                     // We use strict comparison here, since it orders WIDE primary keys after STATIC primary keys
                     // in the same partition. When WIDE keys are present, we want to return them rather than STATIC
@@ -111,7 +113,17 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
 
             // If we get here, all iterators have been advanced to the same key. When STATIC and WIDE keys are
             // mixed, this means WIDE keys point to exactly the same row, and STATIC keys the same partition.
-            return highestKey;
+            PrimaryKey result = highestKey;
+
+            // Advance one iterator to the next key and remember the key as the highest seen so far.
+            // It can become null when we reach the end of the iterator.
+            // If there are both static and non-static keys being iterated here, we advance a non-static one,
+            // regardless of the order of ranges in the ranges list.
+            highestKey = advanceOneRange();
+
+            // If we get here, all iterators have been advanced to the same key. When STATIC and WIDE keys are
+            // mixed, this means WIDE keys point to exactly the same row, and STATIC keys the same partition.
+            return result;
         }
 
         return endOfData();
@@ -125,25 +137,47 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
      */
     private @Nullable PrimaryKey advanceOneRange()
     {
-        PrimaryKey highestKey = getCurrent();
-
         for (KeyRangeIterator range : ranges)
-            if (range.getCurrent().kind() != Kind.STATIC)
-                return nextOrNull(range, highestKey);
+            if (range.peek().kind() != Kind.STATIC)
+            {
+                range.next();
+                return range.hasNext() ? range.peek() : null;
+            }
         
         for (KeyRangeIterator range : ranges)
-            if (range.getCurrent().kind() == Kind.STATIC)
-                return nextOrNull(range, highestKey);
+            if (range.peek().kind() == Kind.STATIC)
+            {
+                range.next();
+                return range.hasNext() ? range.peek() : null;
+            }
 
         throw new IllegalStateException("There should be at least one range to advance!");
+    }
+
+    private @Nullable PrimaryKey computeHighestKey()
+    {
+        PrimaryKey max = getMinimum();
+        for (KeyRangeIterator range : ranges)
+        {
+            if (!range.hasNext())
+                return null;
+            if (range.peek().compareToStrict(max) > 0)
+                max = range.peek();
+        }
+        return max;
     }
 
     @Override
     protected void performSkipTo(PrimaryKey nextKey)
     {
+        // Resist the temptation to call range.hasNext before skipTo: this is a pessimisation, hasNext will invoke
+        // computeNext under the hood, which is an expensive operation to produce a value that we plan to throw away.
+        // Instead, it is the responsibility of the child iterators to make skipTo fast when the iterator is exhausted.
         for (KeyRangeIterator range : ranges)
-            if (range.hasNext())
-                range.skipTo(nextKey);
+            range.skipTo(nextKey);
+
+        // Force recomputing the highest key on the next call to computeNext()
+        highestKey = null;
     }
 
     @Override
@@ -156,10 +190,10 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
      * Fetches the next available item from the iterator, such that the item is not lower than the given key.
      * If no such items are available, returns null.
      */
-    private PrimaryKey nextOrNull(KeyRangeIterator iterator, PrimaryKey minKey)
+    private PrimaryKey skipAndPeek(KeyRangeIterator iterator, PrimaryKey minKey)
     {
         iterator.skipTo(minKey);
-        return iterator.hasNext() ? iterator.next() : null;
+        return iterator.hasNext() ? iterator.peek() : null;
     }
 
     public static Builder builder(int size)
@@ -205,7 +239,7 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
             if (range == null)
                 return this;
 
-            if (range.getCount() > 0)
+            if (range.getMaxKeys() > 0)
                 rangeIterators.add(range);
             else
                 FileUtils.closeQuietly(range);
@@ -230,7 +264,7 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
         @Override
         protected KeyRangeIterator buildIterator()
         {
-            rangeIterators.sort(Comparator.comparingLong(KeyRangeIterator::getCount));
+            rangeIterators.sort(Comparator.comparingLong(KeyRangeIterator::getMaxKeys));
             int initialSize = rangeIterators.size();
             // all ranges will be included
             if (limit >= rangeIterators.size() || limit <= 0)
@@ -248,7 +282,7 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
                 Tracing.trace("Selecting {} {} of {} out of {} indexes",
                               rangeIterators.size(),
                               rangeIterators.size() > 1 ? "indexes with cardinalities" : "index with cardinality",
-                              rangeIterators.stream().map(KeyRangeIterator::getCount).map(Object::toString).collect(Collectors.joining(", ")),
+                              rangeIterators.stream().map(KeyRangeIterator::getMaxKeys).map(Object::toString).collect(Collectors.joining(", ")),
                               initialSize);
 
             return buildIterator(selectiveStatistics, rangeIterators);
@@ -277,7 +311,11 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
             
             for (KeyRangeIterator range : ranges)
             {
-                PrimaryKey key = range.getCurrent();
+                PrimaryKey key;
+                if(range.hasNext())
+                    key = range.peek();
+                else
+                    key = range.getMaximum();
 
                 if (key != null)
                     if (firstKind == null)
@@ -310,11 +348,11 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
             if (empty)
             {
                 empty = false;
-                count = range.getCount();
+                count = range.getMaxKeys();
             }
             else
             {
-                count = Math.min(count, range.getCount());
+                count = Math.min(count, range.getMaxKeys());
             }
         }
     }
@@ -322,7 +360,7 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
     @VisibleForTesting
     protected static boolean isDisjoint(KeyRangeIterator a, KeyRangeIterator b)
     {
-        return isDisjointInternal(a.getCurrent(), a.getMaximum(), b);
+        return isDisjointInternal(a.peek(), a.getMaximum(), b);
     }
 
     /**
@@ -344,6 +382,6 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
      */
     private static boolean isDisjointInternal(PrimaryKey min, PrimaryKey max, KeyRangeIterator b)
     {
-        return min == null || max == null || b.getCount() == 0 || min.compareTo(b.getMaximum()) > 0 || b.getCurrent().compareTo(max) > 0;
+        return min == null || max == null || b.getMaxKeys() == 0 || min.compareTo(b.getMaximum()) > 0 || (b.hasNext() &&  b.peek().compareTo(max) > 0);
     }
 }

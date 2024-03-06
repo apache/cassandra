@@ -124,6 +124,16 @@ public class SAIRandomizedTester extends SAITester
         return between(min, max - 1);
     }
 
+    public static double nextDouble()
+    {
+        return randomDoubleBetween(0, 1);
+    }
+
+    public static boolean nextBoolean()
+    {
+        return getRandom().nextBoolean();
+    }
+
     public static int between(int min, int max)
     {
         return getRandom().nextIntBetween(min, max - 1);
@@ -147,6 +157,11 @@ public class SAIRandomizedTester extends SAITester
         if (min > max) throw new IllegalArgumentException("max must be >= min: " + min + ", " + max);
 
         return min == max ? min : min + (max - min) * getRandom().nextDouble();
+    }
+
+    public static double randomDouble()
+    {
+        return getRandom().nextDouble();
     }
 
     public static String randomSimpleString(int minLength, int maxLength)
