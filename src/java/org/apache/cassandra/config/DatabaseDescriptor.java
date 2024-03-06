@@ -5133,6 +5133,11 @@ public class DatabaseDescriptor
         conf.progress_barrier_backoff = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
     }
 
+    public static long getDiscoveryTimeout(TimeUnit unit)
+    {
+        return conf.discovery_timeout.to(unit);
+    }
+
     public static boolean getUnsafeTCMMode()
     {
         return conf.unsafe_tcm_mode;

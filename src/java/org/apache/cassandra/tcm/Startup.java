@@ -132,9 +132,12 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
      */
     public static void initializeAsFirstCMSNode()
     {
-        ClusterMetadataService.instance().log().bootstrap(FBUtilities.getBroadcastAddressAndPort());
-        assert ClusterMetadataService.state() == LOCAL : String.format("Can't initialize as node hasn't transitioned to CMS state. State: %s.\n%s", ClusterMetadataService.state(), ClusterMetadata.current());
-        Initialize initialize = new Initialize(ClusterMetadata.current());
+        InetAddressAndPort addr = FBUtilities.getBroadcastAddressAndPort();
+        ClusterMetadataService.instance().log().bootstrap(addr);
+        ClusterMetadata metadata =  ClusterMetadata.current();
+        assert ClusterMetadataService.state() == LOCAL : String.format("Can't initialize as node hasn't transitioned to CMS state. State: %s.\n%s", ClusterMetadataService.state(),  metadata);
+
+        Initialize initialize = new Initialize(metadata.initializeClusterIdentifier(addr.hashCode()));
         ClusterMetadataService.instance().commit(initialize);
     }
 

@@ -92,7 +92,12 @@ public class Commit
 
         public void serialize(Commit t, DataOutputPlus out, int version) throws IOException
         {
+            // TODO: switch to VInt
             out.writeInt(serializationVersion.asInt());
+
+            if (serializationVersion.isAtLeast(Version.V2))
+                out.writeUnsignedVInt32(ClusterMetadata.current().metadataIdentifier);
+
             Entry.Id.serializer.serialize(t.entryId, out, serializationVersion);
             Transformation.transformationSerializer.serialize(t.transform, out, serializationVersion);
             Epoch.serializer.serialize(t.lastKnown, out, serializationVersion);
@@ -101,6 +106,10 @@ public class Commit
         public Commit deserialize(DataInputPlus in, int version) throws IOException
         {
             Version deserializationVersion = Version.fromInt(in.readInt());
+
+            if (deserializationVersion.isAtLeast(Version.V2))
+                ClusterMetadata.checkIdentifier(in.readUnsignedVInt32());
+
             Entry.Id entryId = Entry.Id.serializer.deserialize(in, deserializationVersion);
             Transformation transform = Transformation.transformationSerializer.deserialize(in, deserializationVersion);
             Epoch lastKnown = Epoch.serializer.deserialize(in, deserializationVersion);
@@ -109,7 +118,12 @@ public class Commit
 
         public long serializedSize(Commit t, int version)
         {
-            return TypeSizes.sizeof(serializationVersion.asInt()) +
+            int size = TypeSizes.sizeof(serializationVersion.asInt());
+
+            if (serializationVersion.isAtLeast(Version.V2))
+                size += TypeSizes.sizeofUnsignedVInt(ClusterMetadata.current().metadataIdentifier);
+
+            return size +
                    Transformation.transformationSerializer.serializedSize(t.transform, serializationVersion) +
                    Entry.Id.serializer.serializedSize(t.entryId, serializationVersion) +
                    Epoch.serializer.serializedSize(t.lastKnown, serializationVersion);
