@@ -106,10 +106,7 @@ public class PrepareMessage extends RepairMessage
             message.parentRepairSession.serialize(out);
             out.writeInt(message.ranges.size());
             for (Range<Token> r : message.ranges)
-            {
-                IPartitioner.validate(r);
                 Range.tokenSerializer.serialize(r, out, version);
-            }
             out.writeBoolean(message.isIncremental);
             out.writeLong(message.repairedAt);
             out.writeBoolean(message.isGlobal);

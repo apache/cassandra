@@ -24,9 +24,9 @@ import java.util.Objects;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.tcm.Transformation;
-import org.apache.cassandra.tcm.ownership.EntireRange;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
@@ -38,7 +38,7 @@ public abstract class BaseMembershipTransformation implements Transformation
     protected BaseMembershipTransformation(InetAddressAndPort endpoint)
     {
         this.endpoint = endpoint;
-        this.replica = EntireRange.replica(endpoint);
+        this.replica = MetaStrategy.replica(endpoint);
     }
 
     // TODO: to node id

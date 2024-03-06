@@ -19,92 +19,89 @@
 package org.apache.cassandra.tcm.log;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Ordering;
 
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
-import org.apache.cassandra.tcm.Period;
 
 public interface LogReader
 {
     /**
-     * Gets all entries where epoch >= since in the given period - could be empty if since is in a later epoch
+     * Gets all entries where epoch >= since - could be empty if since is a later epoch than the current highest seen
      */
-    EntryHolder getEntries(long period, Epoch since) throws IOException;
+    EntryHolder getEntries(Epoch since) throws IOException;
     MetadataSnapshots snapshots();
 
     /**
-     * Idea is to fill LogState "backwards" - we start querying the partition at currentPeriod, and if that doesn't
-     * include `since` we read currentPeriod - 1. Assuming we have something like
-
-     * epoch | period | transformation
-     *    10 |      2 | SEAL_PERIOD
-     *    11 |      3 | SOMETHING
-     *    12 |      3 | SOMETHING
-     *    13 |      3 | SEAL_PERIOD
-     *    14 |      4 | SOMETHING
-     *    15 |      4 | SOMETHING
-     *    16 |      4 | SEAL_PERIOD
-     *    17 |      5 | SOMETHING
+     * Assuming we have something like:
      *
-     * and `since` is 14, we want to return epoch 15, 16, 17 - not the snapshot at 16 + entry at 17 since it is assumed that the full
-     * snapshot is much larger than the transformations.
-     * But, if `since` is 11, we want to return the most recent snapshot (at epoch 16) + entry at 17.
+     * epoch | transformation
+     *    10 | TRIGGER_SNAPSHOT
+     *    11 | SOMETHING
+     *    12 | SOMETHING
+     *    13 | TRIGGER_SNAPSHOT
+     *    14 | SOMETHING
+     *    15 | SOMETHING
+     *    16 | TRIGGER_SNAPSHOT
+     *    17 | SOMETHING
      *
-     * If a snapshot is missing we keep reading backwards until we find one, or we end up at period 0 and in that
-     * case we return all transformations in the log.
+     * and `startEpoch` is 14, we want to return epoch 15, 16, 17 - not the snapshot at 16 + entry at 17 since it is
+     * assumed that the full snapshot is much larger than the transformations.
+     * But, if `startEpoch` is 11, we want to return the most recent snapshot (at epoch 16) + entry at 17.
+     *
+     * If a snapshot is missing we keep reading backwards until we find one, or we end up at `startEpoch` and in that
+     * case we return all subsequent entries in the log.
      */
-    default LogState getLogState(long currentPeriod, Epoch since)
+    default LogState getLogState(Epoch startEpoch)
     {
         try
         {
-            EntryHolder current = getEntries(currentPeriod, since);
-            if (current.done)
-                return new LogState(null, ImmutableList.sortedCopyOf(current.entries));
-            List<Entry> allEntries = new ArrayList<>(current.entries);
-            int i = 0;
-            while (true)
-            {
-                i++;
-                EntryHolder previous = getEntries(currentPeriod - i, since);
-                allEntries.addAll(previous.entries);
-                if (isContinuous(since, allEntries) && (previous.done || currentPeriod - i == Period.FIRST))
-                {
-                    return new LogState(null, ImmutableList.sortedCopyOf(allEntries));
-                }
-                else
-                {
-                    if (i == 1)
-                    {
-                        // we end up here if `since` is not in currentPeriod or currentPeriod - 1
-                        // so we should return a snapshot - we prefer returning the most recent snapshot + entries in `current`
-                        // but if that doesn't exist we check previous.
-                        if (current.min == null && previous.min == null) // we found no entries >= since in the tables -> since > current
-                            return LogState.EMPTY;
-                        ClusterMetadata snapshot = snapshots().getSnapshot(Epoch.create(current.min.getEpoch() - 1));
-                        if (snapshot != null)
-                            return new LogState(snapshot, ImmutableList.sortedCopyOf(current.entries));
-                    }
-                    else
-                    {
-                        // There were no entries in this period with epoch >= since (i.e. we have iterated back to before
-                        // since) but we've also been unable to find a suitable snapshot. The best thing we can do is to
-                        // include all the entries we have collected so far, even if they are non-contiguous. The caller
-                        // will buffer them in its LocalLog and attempt to fill any gaps by requesting a LogState from
-                        // other peers.
-                        if (previous.min == null)
-                            return new LogState(null, ImmutableList.sortedCopyOf(allEntries));
-                    }
+            EntryHolder entries = null;
+            // List of snapshots with an epoch > startEpoch
+            List<Epoch> snapshotEpochs = snapshots().listSnapshotsSince(startEpoch);
 
-                    ClusterMetadata snapshot = snapshots().getSnapshot(Epoch.create(previous.min.getEpoch() - 1));
-                    if (snapshot != null)
-                        return new LogState(snapshot, ImmutableList.sortedCopyOf(allEntries));
+            // If there is at most 1 snapshot with an epoch > startEpoch, we prefer to skip that snapshot and just build a
+            // list of consecutive entries
+            if (snapshotEpochs.size() <= 1)
+            {
+                entries = getEntries(startEpoch);
+                if (entries.isContinuous())
+                    return new LogState(null, entries.immutable());
+                // Gaps in a persisted log are never expected, but we have not been able to construct a continuous
+                // sequence of all entries between startEpoch and the current epoch, so fall back to the general case.
+            }
+
+            assert Ordering.<Epoch>from(Comparator.reverseOrder()).isOrdered(snapshotEpochs) : "Epochs from snapshots().listSnapshotsSince(...) should be ordered by most recent epoch first";
+            // From the list of snapshots which come after startEpoch, read the latest one available and create a
+            // LogState with that as the base plus any subsequent entries. If we have already read a list of entries,
+            // this must necessarily be a superset of entries startEpoch the available snapshot.
+            // This may include a non-continuous list of entries, which the caller will buffer in its LocalLog and
+            // attempt to fill any gaps by requesting additional LogStates from other peers.
+            for (Epoch snapshotAt : snapshotEpochs)
+            {
+                ClusterMetadata snapshot = snapshots().getSnapshot(snapshotAt);
+                if (null != snapshot)
+                {
+                    ImmutableList<Entry> sublist = entries != null
+                                                   ? entries.immutable(snapshotAt)
+                                                   : getEntries(snapshotAt).immutable();
+                    return new LogState(snapshot, sublist);
                 }
             }
+
+            // We have been unable to find any suitable snapshot, so the best thing we can do is to include all the
+            // entries we have after startEpoch, even if that's a non-continuous list. If we have already read a list of
+            // entries subsequent to startEpoch, we can reuse that.
+            if (entries == null)
+                entries = getEntries(startEpoch);
+            return new LogState(null, entries.immutable());
 
         }
         catch (IOException e)
@@ -113,47 +110,47 @@ public interface LogReader
         }
     }
 
-    private static boolean isContinuous(Epoch since, List<Entry> entries)
-    {
-        entries.sort(Entry::compareTo);
-        Epoch prev = since;
-        for (Entry e : entries)
-        {
-            if (!e.epoch.isDirectlyAfter(prev))
-                return false;
-            prev = e.epoch;
-        }
-        return true;
-    }
-
     class EntryHolder
     {
-        List<Entry> entries;
-        Epoch min = null;
+        SortedSet<Entry> entries;
         Epoch since;
-        boolean done = false;
 
         public EntryHolder(Epoch since)
         {
-            this.entries = new ArrayList<>();
+            this.entries = new TreeSet<>();
             this.since = since;
         }
 
         public void add(Entry entry)
         {
             if (entry.epoch.isAfter(since))
-            {
-                if (entry.epoch.isDirectlyAfter(since))
-                    done = true;
-                if (min == null || min.isAfter(entry.epoch))
-                    min = entry.epoch;
                 entries.add(entry);
-            }
-            else if (entry.epoch.is(since))
+        }
+
+        private boolean isContinuous()
+        {
+            Epoch prev = since;
+            for (Entry e : entries)
             {
-                // if `since` is the most recent epoch committed, this avoids an extra query
-                done = true;
+                if (!e.epoch.isDirectlyAfter(prev))
+                    return false;
+                prev = e.epoch;
             }
+            return true;
+        }
+
+        private ImmutableList<Entry> immutable()
+        {
+            return ImmutableList.copyOf(entries);
+        }
+
+        private ImmutableList<Entry> immutable(Epoch startExclusive)
+        {
+            ImmutableList.Builder<Entry> list = ImmutableList.builder();
+            for (Entry e : entries)
+                if (e.epoch.isAfter(startExclusive))
+                    list.add(e);
+            return list.build();
         }
     }
 

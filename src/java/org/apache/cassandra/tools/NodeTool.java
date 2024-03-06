@@ -195,7 +195,6 @@ public class NodeTool
                 ResumeHandoff.class,
                 Ring.class,
                 Scrub.class,
-                SealPeriod.class,
                 SetAuthCacheConfig.class,
                 SetBatchlogReplayThrottle.class,
                 SetCacheCapacity.class,
@@ -264,7 +263,8 @@ public class NodeTool
                .withDefaultCommand(CMSAdmin.DescribeCMS.class)
                .withCommand(CMSAdmin.DescribeCMS.class)
                .withCommand(CMSAdmin.InitializeCMS.class)
-               .withCommand(CMSAdmin.ReconfigureCMS.class);
+               .withCommand(CMSAdmin.ReconfigureCMS.class)
+               .withCommand(CMSAdmin.Snapshot.class);
 
         Cli<NodeToolCmdRunnable> parser = builder.build();
 

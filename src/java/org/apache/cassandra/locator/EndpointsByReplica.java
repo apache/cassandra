@@ -24,9 +24,9 @@ import com.google.common.collect.Maps;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.IPartitionerDependentSerializer;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
@@ -72,7 +72,7 @@ public class EndpointsByReplica extends ReplicaMultimap<Replica, EndpointsForRan
         }
     }
 
-    public static class Serializer implements IVersionedSerializer<EndpointsByReplica>
+    public static class Serializer implements IPartitionerDependentSerializer<EndpointsByReplica>
     {
         @Override
         public void serialize(EndpointsByReplica t, DataOutputPlus out, int version) throws IOException
@@ -90,18 +90,18 @@ public class EndpointsByReplica extends ReplicaMultimap<Replica, EndpointsForRan
         }
 
         @Override
-        public EndpointsByReplica deserialize(DataInputPlus in, int version) throws IOException
+        public EndpointsByReplica deserialize(DataInputPlus in, IPartitioner partitioner, int version) throws IOException
         {
             int size = in.readUnsignedVInt32();
             EndpointsByReplica.Builder builder = new EndpointsByReplica.Builder();
             for (int i = 0; i < size; i++)
             {
-                Replica replica = Replica.serializer.deserialize(in, version);
-                Range<Token> range = (Range<Token>) tokenSerializer.deserialize(in, IPartitioner.global(), version);
+                Replica replica = Replica.serializer.deserialize(in, partitioner, version);
+                Range<Token> range = (Range<Token>) tokenSerializer.deserialize(in, partitioner, version);
                 int efrSize = in.readUnsignedVInt32();
                 EndpointsForRange.Builder efrBuilder = new EndpointsForRange.Builder(range, efrSize);
                 for (int j = 0; j < efrSize; j++)
-                    efrBuilder.add(Replica.serializer.deserialize(in, version), Conflict.NONE);
+                    efrBuilder.add(Replica.serializer.deserialize(in, partitioner, version), Conflict.NONE);
                 builder.putAll(replica, efrBuilder.build(), Conflict.NONE);
 
             }
@@ -111,13 +111,13 @@ public class EndpointsByReplica extends ReplicaMultimap<Replica, EndpointsForRan
         @Override
         public long serializedSize(EndpointsByReplica t, int version)
         {
-            long size = TypeSizes.sizeofVInt(t.map.size());
+            long size = TypeSizes.sizeofUnsignedVInt(t.map.size());
             for (Map.Entry<Replica, EndpointsForRange> entry : t.map.entrySet())
             {
                 size += Replica.serializer.serializedSize(entry.getKey(), version);
                 EndpointsForRange efr = entry.getValue();
                 size += tokenSerializer.serializedSize(efr.range(), version);
-                size += TypeSizes.sizeofVInt(efr.size());
+                size += TypeSizes.sizeofUnsignedVInt(efr.size());
                 for (Replica replica : efr)
                     size += Replica.serializer.serializedSize(replica, version);
             }

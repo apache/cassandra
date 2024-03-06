@@ -19,7 +19,6 @@
 package org.apache.cassandra.tcm.ownership;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
@@ -32,6 +31,7 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.EndpointsForRange;
@@ -44,7 +44,6 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
-import static org.apache.cassandra.tcm.ownership.EntireRange.entireRange;
 
 public class DataPlacements extends ReplicationMap<DataPlacement> implements MetadataValue<DataPlacements>
 {
@@ -96,9 +95,14 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
         // it's unlikely to happen, but perfectly safe to create multiple times, so no need to lock or statically init
         if (null == LOCAL_PLACEMENT)
         {
-            PlacementForRange placement = new PlacementForRange(Collections.singletonMap(entireRange,
-                                                                                         VersionedEndpoints.forRange(Epoch.EMPTY,
-                                                                                                                         EndpointsForRange.of(EntireRange.replica(FBUtilities.getBroadcastAddressAndPort())))));
+            // todo remove this entirely
+            EndpointsForRange endpoints = EndpointsForRange.of(new Replica(FBUtilities.getBroadcastAddressAndPort(),
+                                                                           DatabaseDescriptor.getPartitioner().getMinimumToken(),
+                                                                           DatabaseDescriptor.getPartitioner().getMinimumToken(),
+                                                                           true));
+            PlacementForRange placement = PlacementForRange.builder(1)
+                                                           .withReplicaGroup(VersionedEndpoints.forRange(Epoch.EMPTY, endpoints))
+                                                           .build();
             LOCAL_PLACEMENT = new DataPlacement(placement, placement);
         }
         return LOCAL_PLACEMENT;
@@ -220,7 +224,7 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
             for (Map.Entry<ReplicationParams, DataPlacement> entry : map.entrySet())
             {
                 ReplicationParams.serializer.serialize(entry.getKey(), out, version);
-                DataPlacement.serializer.serialize(entry.getValue(), out, version);
+                DataPlacement.serializerFor(entry.getKey()).serialize(entry.getValue(), out, version);
             }
             Epoch.serializer.serialize(t.lastModified, out, version);
         }
@@ -232,8 +236,7 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
             for (int i = 0; i < size; i++)
             {
                 ReplicationParams params = ReplicationParams.serializer.deserialize(in, version);
-                DataPlacement dp = DataPlacement.serializer.deserialize(in, version);
-                map.put(params, dp);
+                map.put(params, DataPlacement.serializerFor(params).deserialize(in, version));
             }
             Epoch lastModified = Epoch.serializer.deserialize(in, version);
             return new DataPlacements(lastModified, map);
@@ -241,11 +244,11 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
 
         public long serializedSize(DataPlacements t, Version version)
         {
-            int size = sizeof(t.size());
+            long size = sizeof(t.size());
             for (Map.Entry<ReplicationParams, DataPlacement> entry : t.asMap().entrySet())
             {
                 size += ReplicationParams.serializer.serializedSize(entry.getKey(), version);
-                size += DataPlacement.serializer.serializedSize(entry.getValue(), version);
+                size += DataPlacement.serializerFor(entry.getKey()).serializedSize(entry.getValue(), version);
             }
             size += Epoch.serializer.serializedSize(t.lastModified, version);
             return size;

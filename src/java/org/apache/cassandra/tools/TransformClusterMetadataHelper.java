@@ -27,13 +27,13 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
-import org.apache.cassandra.tcm.ownership.EntireRange;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
@@ -84,7 +84,7 @@ public class TransformClusterMetadataHelper
             builder.withoutReadReplica(metadata.epoch, replica)
                    .withoutWriteReplica(metadata.epoch, replica);
         }
-        Replica newCMS = EntireRange.replica(endpoint);
+        Replica newCMS = MetaStrategy.replica(endpoint);
         builder.withReadReplica(metadata.epoch, newCMS)
                .withWriteReplica(metadata.epoch, newCMS);
         return metadata.transformer().with(metadata.placements.unbuild().with(metaParams,

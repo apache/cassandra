@@ -31,8 +31,10 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.schema.SchemaConstants;
 
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 
@@ -69,6 +71,7 @@ public class StreamRequest
             out.writeInt(request.columnFamilies.size());
 
             inetAddressAndPortSerializer.serialize(request.full.endpoint(), out, version);
+
             serializeReplicas(request.full, out, version);
             serializeReplicas(request.transientReplicas, out, version);
             for (String cf : request.columnFamilies)
@@ -81,7 +84,6 @@ public class StreamRequest
 
             for (Replica replica : replicas)
             {
-                IPartitioner.validate(replica.range());
                 Token.serializer.serialize(replica.range().left, out, version);
                 Token.serializer.serialize(replica.range().right, out, version);
             }
@@ -93,15 +95,21 @@ public class StreamRequest
             int cfCount = in.readInt();
             InetAddressAndPort endpoint = inetAddressAndPortSerializer.deserialize(in, version);
 
-            RangesAtEndpoint full = deserializeReplicas(in, version, endpoint, true);
-            RangesAtEndpoint transientReplicas = deserializeReplicas(in, version, endpoint, false);
+            // TODO: It would be nicer to actually serialize the partitioner rather than infer it from the keyspace
+            //  but at the moment that would require us to get it from the tokens of the full/transient replicas or
+            //  looking up the KeyspaceMetadata. This way is not pleasant but it is cheap and easy.
+            IPartitioner partitioner = keyspace.equals(SchemaConstants.METADATA_KEYSPACE_NAME)
+                                       ? MetaStrategy.partitioner
+                                       : IPartitioner.global();
+            RangesAtEndpoint full = deserializeReplicas(in, version, endpoint, true, partitioner);
+            RangesAtEndpoint transientReplicas = deserializeReplicas(in, version, endpoint, false, partitioner);
             List<String> columnFamilies = new ArrayList<>(cfCount);
             for (int i = 0; i < cfCount; i++)
                 columnFamilies.add(in.readUTF());
             return new StreamRequest(keyspace, full, transientReplicas, columnFamilies);
         }
 
-        RangesAtEndpoint deserializeReplicas(DataInputPlus in, int version, InetAddressAndPort endpoint, boolean isFull) throws IOException
+        RangesAtEndpoint deserializeReplicas(DataInputPlus in, int version, InetAddressAndPort endpoint, boolean isFull, IPartitioner partitioner) throws IOException
         {
             int replicaCount = in.readInt();
 
@@ -111,8 +119,8 @@ public class StreamRequest
                 //TODO, super need to review the usage of streaming vs not streaming endpoint serialization helper
                 //to make sure I'm not using the wrong one some of the time, like do repair messages use the
                 //streaming version?
-                Token left = Token.serializer.deserialize(in, IPartitioner.global(), version);
-                Token right = Token.serializer.deserialize(in, IPartitioner.global(), version);
+                Token left = Token.serializer.deserialize(in, partitioner, version);
+                Token right = Token.serializer.deserialize(in, partitioner, version);
                 replicas.add(new Replica(endpoint, new Range<>(left, right), isFull));
             }
             return replicas.build();

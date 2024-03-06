@@ -43,8 +43,10 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.CMSIdentifierMismatchException;
 import org.apache.cassandra.schema.DistributedSchema;
@@ -71,7 +73,6 @@ import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
@@ -84,8 +85,6 @@ public class ClusterMetadata
     public final int metadataIdentifier;
 
     public final Epoch epoch;
-    public final long period;
-    public final boolean lastInPeriod;
     public final IPartitioner partitioner;       // Set during (initial) construction and not modifiable via Transformer
 
     public final DistributedSchema schema;
@@ -97,7 +96,7 @@ public class ClusterMetadata
     public final ImmutableMap<ExtensionKey<?,?>, ExtensionValue<?>> extensions;
 
     // These two fields are lazy but only for the test purposes, since their computation requires initialization of the log ks
-    private Set<Replica> fullCMSReplicas;
+    private EndpointsForRange fullCMSReplicas;
     private Set<InetAddressAndPort> fullCMSEndpoints;
 
     public ClusterMetadata(IPartitioner partitioner)
@@ -116,8 +115,6 @@ public class ClusterMetadata
     {
         this(EMPTY_METADATA_IDENTIFIER,
              Epoch.EMPTY,
-             Period.EMPTY,
-             true,
              partitioner,
              schema,
              directory,
@@ -129,8 +126,6 @@ public class ClusterMetadata
     }
 
     public ClusterMetadata(Epoch epoch,
-                           long period,
-                           boolean lastInPeriod,
                            IPartitioner partitioner,
                            DistributedSchema schema,
                            Directory directory,
@@ -142,8 +137,6 @@ public class ClusterMetadata
     {
         this(EMPTY_METADATA_IDENTIFIER,
              epoch,
-             period,
-             lastInPeriod,
              partitioner,
              schema,
              directory,
@@ -156,8 +149,6 @@ public class ClusterMetadata
 
     private ClusterMetadata(int metadataIdentifier,
                            Epoch epoch,
-                           long period,
-                           boolean lastInPeriod,
                            IPartitioner partitioner,
                            DistributedSchema schema,
                            Directory directory,
@@ -173,8 +164,6 @@ public class ClusterMetadata
         assert tokenMap == null || tokenMap.partitioner().getClass().equals(partitioner.getClass()) : "Partitioner for TokenMap doesn't match base partitioner";
         this.metadataIdentifier = metadataIdentifier;
         this.epoch = epoch;
-        this.period = period;
-        this.lastInPeriod = lastInPeriod;
         this.partitioner = partitioner;
         this.schema = schema;
         this.directory = directory;
@@ -192,10 +181,10 @@ public class ClusterMetadata
         return fullCMSEndpoints;
     }
 
-    public Set<Replica> fullCMSMembersAsReplicas()
+    public EndpointsForRange fullCMSMembersAsReplicas()
     {
         if (fullCMSReplicas == null)
-            this.fullCMSReplicas = ImmutableSet.copyOf(placements.get(ReplicationParams.meta(this)).reads.byEndpoint().flattenValues());
+            fullCMSReplicas = placements.get(ReplicationParams.meta(this)).reads.forRange(MetaStrategy.entireRange).get();
         return fullCMSReplicas;
     }
 
@@ -206,12 +195,7 @@ public class ClusterMetadata
 
     public Transformer transformer()
     {
-        return new Transformer(this, this.nextEpoch(), false);
-    }
-
-    public Transformer transformer(boolean sealPeriod)
-    {
-        return new Transformer(this, this.nextEpoch(), sealPeriod);
+        return new Transformer(this, this.nextEpoch());
     }
 
     public ClusterMetadata forceEpoch(Epoch epoch)
@@ -227,8 +211,6 @@ public class ClusterMetadata
         // greater than the epoch we're forcing here.
         return new ClusterMetadata(metadataIdentifier,
                                    epoch,
-                                   period,
-                                   lastInPeriod,
                                    partitioner,
                                    capLastModified(schema, epoch),
                                    capLastModified(directory, epoch),
@@ -249,24 +231,6 @@ public class ClusterMetadata
 
         return new ClusterMetadata(clusterIdentifier,
                                    epoch,
-                                   period,
-                                   lastInPeriod,
-                                   partitioner,
-                                   schema,
-                                   directory,
-                                   tokenMap,
-                                   placements,
-                                   lockedRanges,
-                                   inProgressSequences,
-                                   extensions);
-    }
-
-    public ClusterMetadata forcePeriod(long period)
-    {
-        return new ClusterMetadata(metadataIdentifier,
-                                   epoch,
-                                   period,
-                                   false,
                                    partitioner,
                                    schema,
                                    directory,
@@ -302,11 +266,6 @@ public class ClusterMetadata
         return epoch.nextEpoch();
     }
 
-    public long nextPeriod()
-    {
-        return lastInPeriod ? period + 1 : period;
-    }
-
     public DataPlacement writePlacementAllSettled(KeyspaceMetadata ksm)
     {
         ClusterMetadata metadata = this;
@@ -325,6 +284,8 @@ public class ClusterMetadata
     {
         PlacementForRange writes = placements.get(ksm.params.replication).writes;
         PlacementForRange reads = placements.get(ksm.params.replication).reads;
+        if (ksm.params.replication.isMeta())
+            return !reads.equals(writes);
         return !reads.forToken(token).equals(writes.forToken(token));
     }
 
@@ -391,8 +352,6 @@ public class ClusterMetadata
     {
         private final ClusterMetadata base;
         private final Epoch epoch;
-        private final long period;
-        private final boolean lastInPeriod;
         private final IPartitioner partitioner;
         private DistributedSchema schema;
         private Directory directory;
@@ -403,12 +362,10 @@ public class ClusterMetadata
         private final Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions;
         private final Set<MetadataKey> modifiedKeys;
 
-        private Transformer(ClusterMetadata metadata, Epoch epoch, boolean lastInPeriod)
+        private Transformer(ClusterMetadata metadata, Epoch epoch)
         {
             this.base = metadata;
             this.epoch = epoch;
-            this.period = metadata.nextPeriod();
-            this.lastInPeriod = lastInPeriod;
             this.partitioner = metadata.partitioner;
             this.schema = metadata.schema;
             this.directory = metadata.directory;
@@ -625,8 +582,6 @@ public class ClusterMetadata
 
             return new Transformed(new ClusterMetadata(base.metadataIdentifier,
                                                        epoch,
-                                                       period,
-                                                       lastInPeriod,
                                                        partitioner,
                                                        schema,
                                                        directory,
@@ -642,8 +597,6 @@ public class ClusterMetadata
         {
             return new ClusterMetadata(base.metadataIdentifier,
                                        Epoch.UPGRADE_GOSSIP,
-                                       Period.EMPTY,
-                                       true,
                                        partitioner,
                                        schema,
                                        directory,
@@ -660,7 +613,6 @@ public class ClusterMetadata
             return "Transformer{" +
                    "baseEpoch=" + base.epoch +
                    ", epoch=" + epoch +
-                   ", lastInPeriod=" + lastInPeriod +
                    ", partitioner=" + partitioner +
                    ", schema=" + schema +
                    ", directory=" + schema +
@@ -772,7 +724,6 @@ public class ClusterMetadata
         if (!(o instanceof ClusterMetadata)) return false;
         ClusterMetadata that = (ClusterMetadata) o;
         return epoch.equals(that.epoch) &&
-               lastInPeriod == that.lastInPeriod &&
                schema.equals(that.schema) &&
                directory.equals(that.directory) &&
                tokenMap.equals(that.tokenMap) &&
@@ -789,10 +740,6 @@ public class ClusterMetadata
         if (!epoch.equals(other.epoch))
         {
             logger.warn("Epoch {} != {}", epoch, other.epoch);
-        }
-        if (lastInPeriod != other.lastInPeriod)
-        {
-            logger.warn("lastInPeriod {} != {}", lastInPeriod, other.lastInPeriod);
         }
         if (!schema.equals(other.schema))
         {
@@ -831,7 +778,7 @@ public class ClusterMetadata
     @Override
     public int hashCode()
     {
-        return Objects.hash(epoch, lastInPeriod, schema, directory, tokenMap, placements, lockedRanges, inProgressSequences, extensions);
+        return Objects.hash(epoch, schema, directory, tokenMap, placements, lockedRanges, inProgressSequences, extensions);
     }
 
     public static ClusterMetadata current()
@@ -900,8 +847,6 @@ public class ClusterMetadata
                 out.writeUnsignedVInt32(metadata.metadataIdentifier);
 
             Epoch.serializer.serialize(metadata.epoch, out);
-            out.writeUnsignedVInt(metadata.period);
-            out.writeBoolean(metadata.lastInPeriod);
 
             if (version.isBefore(Version.V1))
                 out.writeUTF(metadata.partitioner.getClass().getCanonicalName());
@@ -938,8 +883,6 @@ public class ClusterMetadata
             }
 
             Epoch epoch = Epoch.serializer.deserialize(in);
-            long period = in.readUnsignedVInt();
-            boolean lastInPeriod = in.readBoolean();
 
             if (version.isBefore(Version.V1))
                 partitioner = FBUtilities.newPartitioner(in.readUTF());
@@ -961,8 +904,6 @@ public class ClusterMetadata
             }
             return new ClusterMetadata(clusterIdentifier,
                                        epoch,
-                                       period,
-                                       lastInPeriod,
                                        partitioner,
                                        schema,
                                        dir,
@@ -985,8 +926,6 @@ public class ClusterMetadata
                 size += TypeSizes.sizeofUnsignedVInt(metadata.metadataIdentifier);
 
             size += Epoch.serializer.serializedSize(metadata.epoch) +
-                    VIntCoding.computeUnsignedVIntSize(metadata.period) +
-                    TypeSizes.BOOL_SIZE +
                     sizeof(metadata.partitioner.getClass().getCanonicalName()) +
                     DistributedSchema.serializer.serializedSize(metadata.schema, version) +
                     Directory.serializer.serializedSize(metadata.directory, version) +

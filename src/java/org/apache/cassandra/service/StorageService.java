@@ -146,6 +146,7 @@ import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.RangesByEndpoint;
 import org.apache.cassandra.locator.Replica;
@@ -1971,13 +1972,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Map<Range<Token>, EndpointsForRange> rangeToEndpointMap = new HashMap<>(ranges.size());
         if (null != keyspaceMetadata)
         {
-            TokenMap tokenMap = metadata.tokenMap;
-
-            for (Range<Token> range : ranges)
+            if (keyspaceMetadata.params.replication.isMeta())
             {
-                Token token = tokenMap.nextToken(tokenMap.tokens(), range.right.getToken());
-                rangeToEndpointMap.put(range, metadata.placements.get(keyspaceMetadata.params.replication)
-                                              .reads.forRange(token).get());
+                rangeToEndpointMap.put(MetaStrategy.entireRange,
+                                       metadata.placements.get(keyspaceMetadata.params.replication)
+                                       .reads.forRange(MetaStrategy.entireRange).get());
+            }
+            else
+            {
+                TokenMap tokenMap = metadata.tokenMap;
+                for (Range<Token> range : ranges)
+                {
+                    Token token = tokenMap.nextToken(tokenMap.tokens(), range.right.getToken());
+                    rangeToEndpointMap.put(range, metadata.placements.get(keyspaceMetadata.params.replication)
+                                                  .reads.forRange(token).get());
+                }
             }
         }
         else
@@ -4469,6 +4478,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         List<DecoratedKey> keys = new ArrayList<>();
         for (Keyspace keyspace : Keyspace.nonLocalStrategy())
         {
+            if (keyspace.getMetadata().params.replication.isMeta())
+                continue;
             for (Range<Token> range : getPrimaryRangesForEndpoint(keyspace.getName(), getBroadcastAddressAndPort()))
                 keys.addAll(keySamples(keyspace.getColumnFamilyStores(), range));
         }
