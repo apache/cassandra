@@ -170,13 +170,23 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         event.lastQueriedEstimatedSizeOnHeap = state.lastQueriedEstimatedSizeOnHeap();
 
         event.instanceAllocated = instance.weightedSize();
+        AccordStateCache.Stats stats = instance.stats();
+        event.instanceStatsQueries = stats.queries;
+        event.instanceStatsHits = stats.hits;
+        event.instanceStatsMisses = stats.misses;
 
         event.globalSize = instance.size();
         event.globalReferenced = instance.globalReferencedEntries();
         event.globalUnreferenced = instance.globalUnreferencedEntries();
         event.globalCapacity = instance.capacity();
         event.globalAllocated = instance.globalAllocated();
-        event.globalFree = 1.0D - (event.globalAllocated / (double) event.globalCapacity);
+
+        stats = instance.globalStats();
+        event.globalStatsQueries = stats.queries;
+        event.globalStatsHits = stats.hits;
+        event.globalStatsMisses = stats.misses;
+
+        event.update();
     }
 
     @VisibleForTesting

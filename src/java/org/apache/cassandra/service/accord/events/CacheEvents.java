@@ -37,13 +37,32 @@ public abstract class CacheEvents extends Event
     @DataAmount(DataAmount.BYTES)
     public int lastQueriedEstimatedSizeOnHeap;
 
+    // instance
+    @DataAmount(DataAmount.BYTES)
+    public long instanceAllocated;
+    public long instanceStatsQueries, instanceStatsHits, instanceStatsMisses;
+
+    @Percentage
+    public double instanceStatsHitRate;
+
+    // cache
     @DataAmount(DataAmount.BYTES)
     public long globalCapacity, globalAllocated;
     public int globalSize, globalReferenced, globalUnreferenced;
+
+    public long globalStatsQueries, globalStatsHits, globalStatsMisses;
+
+    @Percentage
+    public double globalStatsHitRate;
+
     @Percentage
     public double globalFree;
-    @DataAmount(DataAmount.BYTES)
-    public long instanceAllocated;
+    public void update()
+    {
+        instanceStatsHitRate =  1D - (instanceStatsHits / (double) instanceStatsQueries);
+        globalStatsHitRate =  1D - (globalStatsHits / (double) globalStatsQueries);
+        globalFree =  1.0D - (globalAllocated / (double) globalCapacity);
+    }
 
     @Name("cassandra.accord.cache.Add")
     @Label("Accord Cache Add")

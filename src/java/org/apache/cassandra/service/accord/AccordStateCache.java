@@ -71,9 +71,9 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
 
     static class Stats
     {
-        private long queries;
-        private long hits;
-        private long misses;
+        long queries;
+        long hits;
+        long misses;
     }
 
     private ImmutableList<Instance<?, ?, ?>> instances = ImmutableList.of();
@@ -86,6 +86,7 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
 
     @VisibleForTesting
     final AccordStateCacheMetrics metrics;
+    final Stats stats = new Stats();
 
     public AccordStateCache(ExecutorPlus loadExecutor, ExecutorPlus saveExecutor, long maxSizeInBytes, AccordStateCacheMetrics metrics)
     {
@@ -566,18 +567,34 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         {
             instanceMetrics.requests.mark();
             metrics.requests.mark();
+            stats.queries++;
+            AccordStateCache.this.stats.queries++;
         }
 
         private void incrementCacheHits()
         {
             instanceMetrics.hits.mark();
             metrics.hits.mark();
+            stats.hits++;
+            AccordStateCache.this.stats.hits++;
         }
 
         private void incrementCacheMisses()
         {
             instanceMetrics.misses.mark();
             metrics.misses.mark();
+            stats.misses++;
+            AccordStateCache.this.stats.misses++;
+        }
+
+        public Stats stats()
+        {
+            return stats;
+        }
+
+        public Stats globalStats()
+        {
+            return AccordStateCache.this.stats;
         }
 
         @VisibleForTesting
