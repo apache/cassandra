@@ -48,6 +48,7 @@ public class CQLSSTableWriterClientTest extends CQLSSTableWriterTest
     @After
     public void tearDown()
     {
-        DatabaseDescriptor.setPartitionerUnsafe(oldPartitioner);
+        if (oldPartitioner != null)
+            DatabaseDescriptor.setPartitionerUnsafe(oldPartitioner);
     }
 }

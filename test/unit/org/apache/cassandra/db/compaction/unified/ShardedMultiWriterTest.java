@@ -50,7 +50,7 @@ public class ShardedMultiWriterTest extends CQLTester
         long totSizeBytes = ((minSSTableSizeMB << 20) * numShards) * 2;
 
         // We have double the data required for 5 shards so we should get 5 shards
-        testShardedCompactionWriter(numShards, totSizeBytes, numShards);
+        testShardedCompactionWriter(numShards, totSizeBytes, numShards, minSSTableSizeMB);
     }
 
     @Test
@@ -61,7 +61,7 @@ public class ShardedMultiWriterTest extends CQLTester
         long totSizeBytes = (minSSTableSizeMB << 20);
 
         // there should be only 1 shard if there is <= minSSTableSize
-        testShardedCompactionWriter(numShards, totSizeBytes, 1);
+        testShardedCompactionWriter(numShards, totSizeBytes, 1, minSSTableSizeMB);
     }
 
     @Test
@@ -72,18 +72,19 @@ public class ShardedMultiWriterTest extends CQLTester
         long totSizeBytes = (minSSTableSizeMB << 20) * 3;
 
         // there should be only 3 shards if there is minSSTableSize * 3 data
-        testShardedCompactionWriter(numShards, totSizeBytes, 3);
+        testShardedCompactionWriter(numShards, totSizeBytes, 3, minSSTableSizeMB);
     }
 
-    private void testShardedCompactionWriter(int numShards, long totSizeBytes, int numOutputSSTables) throws Throwable
+    private void testShardedCompactionWriter(int numShards, long totSizeBytes, int numOutputSSTables, int minSSTableSizeMB) throws Throwable
     {
         createTable(String.format("CREATE TABLE %%s (k int, t int, v blob, PRIMARY KEY (k, t)) with compaction = " +
-                                  "{'class':'UnifiedCompactionStrategy', 'base_shard_count' : '%d'} ", numShards));
+                                  "{'class':'UnifiedCompactionStrategy', 'base_shard_count' : '%d', 'min_sstable_size': '" + minSSTableSizeMB + "MiB'} ", numShards));
 
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.disableAutoCompaction();
 
         int rowCount = insertData(totSizeBytes);
+        cfs.metric.flushSizeOnDisk.update(totSizeBytes); // flush size is only updated after the flush completes; set here so that flush uses correct size
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         assertEquals(numOutputSSTables, cfs.getLiveSSTables().size());
