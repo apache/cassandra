@@ -31,6 +31,11 @@ import org.apache.cassandra.tcm.migration.ClusterMetadataHolder;
  * MessagingService and the appropriate version is not established based on the
  * peer receiving the messages, but is the lowest supported version of any member
  * of the cluster.
+ *
+ * NOTE: Serialization version here is used for convenience of serializing the message
+ * on the outgoing path. Since receiving node may have a different view of
+ * min serialization version, we _always_ have to either use a {@link VerboseMetadataSerializer}
+ * (like {@link LogState}/ {@link Replication} or explicitly serialize the version (like {@link Commit}).
  */
 public class MessageSerializers
 {

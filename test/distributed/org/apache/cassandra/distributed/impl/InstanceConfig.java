@@ -107,6 +107,7 @@ public class InstanceConfig implements IInstanceConfig
                 .set("endpoint_snitch", DistributedTestSnitch.class.getName())
                 .set("seed_provider", new ParameterizedClass(SimpleSeedProvider.class.getName(),
                         Collections.singletonMap("seeds", seedIp + ':' + seedPort)))
+                .set("discovery_timeout", "3s")
                 // required settings for dtest functionality
                 .set("diagnostic_events_enabled", true)
                 .set("auto_bootstrap", false)

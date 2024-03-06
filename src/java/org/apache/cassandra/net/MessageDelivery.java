@@ -36,8 +36,11 @@ import org.apache.cassandra.utils.concurrent.Future;
 public interface MessageDelivery
 {
     Logger logger = LoggerFactory.getLogger(MessageDelivery.class);
-
     static <REQ, RSP> Collection<Pair<InetAddressAndPort, RSP>> fanoutAndWait(MessageDelivery messaging, Set<InetAddressAndPort> sendTo, Verb verb, REQ payload)
+    {
+        return fanoutAndWait(messaging, sendTo, verb, payload, DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+    }
+    static <REQ, RSP> Collection<Pair<InetAddressAndPort, RSP>> fanoutAndWait(MessageDelivery messaging, Set<InetAddressAndPort> sendTo, Verb verb, REQ payload, long timeout, TimeUnit timeUnit)
     {
         Accumulator<Pair<InetAddressAndPort, RSP>> responses = new Accumulator<>(sendTo.size());
         CountDownLatch cdl = CountDownLatch.newCountDownLatch(sendTo.size());
@@ -63,7 +66,7 @@ public interface MessageDelivery
             logger.info("Election for metadata migration sending {} ({}) to {}", verb, payload.toString(), ep);
             messaging.sendWithCallback(Message.out(verb, payload), ep, callback);
         });
-        cdl.awaitUninterruptibly(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+        cdl.awaitUninterruptibly(timeout, timeUnit);
         return responses.snapshot();
     }
 
