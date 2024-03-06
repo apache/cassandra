@@ -44,10 +44,14 @@ import org.apache.cassandra.streaming.StreamException;
 import org.apache.cassandra.streaming.StreamResultFuture;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
-import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
-import static org.apache.cassandra.distributed.test.hostreplacement.HostReplacementTest.setupCluster;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.addInstance;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.startHostReplacement;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
+import static org.apache.cassandra.distributed.test.hostreplacement.HostReplacementTest.setupCluster;
+import static org.apache.cassandra.distributed.test.ring.BootstrapTest.getMetricGaugeValue;
+import static org.apache.cassandra.distributed.test.ring.BootstrapTest.getMetricMeterRate;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class FailedBootstrapTest extends TestBaseImpl
 {
@@ -82,6 +86,12 @@ public class FailedBootstrapTest extends TestBaseImpl
                 result.asserts().success();
                 logger.info("gossipinfo for node{}\n{}", i.config().num(), result.getStdout());
             });
+
+            assertTrue(getMetricGaugeValue(added, "BootstrapFilesTotal", Long.class) > 0L);
+            assertTrue(getMetricGaugeValue(added, "BootstrapFilesReceived", Long.class) > 0L);
+            assertEquals("Beginning bootstrap process", getMetricGaugeValue(added, "BootstrapLastSeenStatus", String.class));
+            assertEquals("Stream failed", getMetricGaugeValue(added, "BootstrapLastSeenError", String.class));
+            assertTrue(getMetricMeterRate(added, "BootstrapFilesThroughput") > 0);
         }
     }
 

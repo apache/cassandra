@@ -1,4 +1,5 @@
 5.1
+ * Register the measurements of the bootstrap process as Dropwizard metrics (CASSANDRA-19447)
  * Add LIST SUPERUSERS CQL statement (CASSANDRA-19417)
  * Modernize CQLSH datetime conversions (CASSANDRA-18879)
  * Harry model and in-JVM tests for partition-restricted 2i queries (CASSANDRA-18275)
