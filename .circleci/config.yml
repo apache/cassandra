@@ -24,7 +24,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -111,10 +111,10 @@ jobs:
   j17_dtests:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -281,10 +281,10 @@ jobs:
   j17_cqlsh_dtests_py311_offheap:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -392,7 +392,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -481,7 +481,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -636,7 +636,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -750,10 +750,10 @@ jobs:
   j17_cqlsh_dtests_py38_vnode:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -858,10 +858,10 @@ jobs:
   j17_dtests_vnode_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1012,10 +1012,10 @@ jobs:
   j17_dtests_offheap_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1144,10 +1144,10 @@ jobs:
   j11_dtests_vnode_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1280,7 +1280,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1398,7 +1398,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1488,7 +1488,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1605,7 +1605,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1691,10 +1691,10 @@ jobs:
   j11_cqlsh_dtests_py311:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1800,10 +1800,10 @@ jobs:
   j17_dtests_large_vnode_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1932,10 +1932,10 @@ jobs:
   j17_dtests_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2089,7 +2089,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2204,10 +2204,10 @@ jobs:
   j17_cqlsh_dtests_py311:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2312,10 +2312,10 @@ jobs:
   j11_cqlsh_dtests_py38:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2424,7 +2424,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2513,7 +2513,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2603,7 +2603,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2720,7 +2720,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2913,7 +2913,7 @@ jobs:
   j11_dtests_large_vnode:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
     parallelism: 4
@@ -2998,10 +2998,10 @@ jobs:
   j11_dtests_large_vnode_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -3134,7 +3134,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -3248,10 +3248,10 @@ jobs:
   j11_cqlsh_dtests_py38_offheap:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -3357,7 +3357,7 @@ jobs:
   j11_dtests_large:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
     parallelism: 4
@@ -3445,7 +3445,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -3535,7 +3535,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -3650,10 +3650,10 @@ jobs:
   j11_upgrade_dtests_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -3786,7 +3786,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 1
+    parallelism: 10
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -3903,7 +3903,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -4204,7 +4204,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -4322,7 +4322,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -4480,10 +4480,10 @@ jobs:
   j11_dtests_offheap_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -4616,7 +4616,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 1
+    parallelism: 10
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -4910,7 +4910,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -5113,7 +5113,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 1
+    parallelism: 4
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -5303,7 +5303,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -5390,10 +5390,10 @@ jobs:
   j17_dtests_vnode:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -5496,10 +5496,10 @@ jobs:
   j11_dtests_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -5632,7 +5632,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -5750,7 +5750,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -5836,10 +5836,10 @@ jobs:
   j11_cqlsh_dtests_py311_offheap:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -5948,7 +5948,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -6063,10 +6063,10 @@ jobs:
   j11_upgrade_dtests:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 100
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -6148,10 +6148,10 @@ jobs:
   j11_dtests_large_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -6284,7 +6284,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -6441,7 +6441,7 @@ jobs:
   j17_dtests_large_vnode:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
     parallelism: 4
@@ -6525,10 +6525,10 @@ jobs:
   j11_dtests_offheap:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -6610,10 +6610,10 @@ jobs:
   j11_cqlsh_dtests_py38_vnode:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -6722,7 +6722,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -6812,7 +6812,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -6902,7 +6902,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -6989,10 +6989,10 @@ jobs:
   j17_cqlsh_dtests_py38_offheap:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -7160,10 +7160,10 @@ jobs:
   j11_cqlsh_dtests_py311_vnode:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -7272,7 +7272,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -7386,10 +7386,10 @@ jobs:
   j17_cqlsh_dtests_py311_vnode:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -7497,7 +7497,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 1
+    parallelism: 10
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -7686,7 +7686,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -7883,7 +7883,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -8034,10 +8034,10 @@ jobs:
   j11_dtests:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -8122,7 +8122,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 1
+    parallelism: 10
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -8236,10 +8236,10 @@ jobs:
   j17_cqlsh_dtests_py38:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -8347,7 +8347,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -8464,7 +8464,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -8550,7 +8550,7 @@ jobs:
   j17_dtests_large:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
     parallelism: 4
@@ -8637,7 +8637,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -8798,7 +8798,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -8884,10 +8884,10 @@ jobs:
   j11_dtests_vnode:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -8972,7 +8972,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -9058,10 +9058,10 @@ jobs:
   j17_dtests_offheap:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -9164,10 +9164,10 @@ jobs:
   j17_dtests_large_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -9299,7 +9299,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -9388,7 +9388,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -9493,24 +9493,6 @@ workflows:
         requires:
         - start_j11_jvm_dtests
         - j11_build
-    - start_j11_jvm_dtests_vnode:
-        type: approval
-    - j11_jvm_dtests_vnode:
-        requires:
-        - start_j11_jvm_dtests_vnode
-        - j11_build
-    - start_j17_jvm_dtests:
-        type: approval
-    - j17_jvm_dtests:
-        requires:
-        - start_j17_jvm_dtests
-        - j11_build
-    - start_j17_jvm_dtests_vnode:
-        type: approval
-    - j17_jvm_dtests_vnode:
-        requires:
-        - start_j17_jvm_dtests_vnode
-        - j11_build
     - start_j11_simulator_dtests:
         type: approval
     - j11_simulator_dtests:
@@ -9522,126 +9504,6 @@ workflows:
     - j11_cqlshlib_tests:
         requires:
         - start_j11_cqlshlib_tests
-        - j11_build
-    - start_j11_cqlshlib_cython_tests:
-        type: approval
-    - j11_cqlshlib_cython_tests:
-        requires:
-        - start_j11_cqlshlib_cython_tests
-        - j11_build
-    - start_j17_cqlshlib_tests:
-        type: approval
-    - j17_cqlshlib_tests:
-        requires:
-        - start_j17_cqlshlib_tests
-        - j11_build
-    - start_j17_cqlshlib_cython_tests:
-        type: approval
-    - j17_cqlshlib_cython_tests:
-        requires:
-        - start_j17_cqlshlib_cython_tests
-        - j11_build
-    - start_j17_unit_tests:
-        type: approval
-    - j17_unit_tests:
-        requires:
-        - start_j17_unit_tests
-        - j11_build
-    - start_j11_utests_oa:
-        type: approval
-    - j11_utests_oa:
-        requires:
-        - start_j11_utests_oa
-        - j11_build
-    - start_j17_utests_oa:
-        type: approval
-    - j17_utests_oa:
-        requires:
-        - start_j17_utests_oa
-        - j11_build
-    - start_j11_utests_long:
-        type: approval
-    - j11_utests_long:
-        requires:
-        - start_j11_utests_long
-        - j11_build
-    - start_j17_utests_long:
-        type: approval
-    - j17_utests_long:
-        requires:
-        - start_j17_utests_long
-        - j11_build
-    - start_j11_utests_cdc:
-        type: approval
-    - j11_utests_cdc:
-        requires:
-        - start_j11_utests_cdc
-        - j11_build
-    - start_j17_utests_cdc:
-        type: approval
-    - j17_utests_cdc:
-        requires:
-        - start_j17_utests_cdc
-        - j11_build
-    - start_j11_utests_compression:
-        type: approval
-    - j11_utests_compression:
-        requires:
-        - start_j11_utests_compression
-        - j11_build
-    - start_j17_utests_compression:
-        type: approval
-    - j17_utests_compression:
-        requires:
-        - start_j17_utests_compression
-        - j11_build
-    - start_j11_utests_trie:
-        type: approval
-    - j11_utests_trie:
-        requires:
-        - start_j11_utests_trie
-        - j11_build
-    - start_j17_utests_trie:
-        type: approval
-    - j17_utests_trie:
-        requires:
-        - start_j17_utests_trie
-        - j11_build
-    - start_j11_utests_stress:
-        type: approval
-    - j11_utests_stress:
-        requires:
-        - start_j11_utests_stress
-        - j11_build
-    - start_j17_utests_stress:
-        type: approval
-    - j17_utests_stress:
-        requires:
-        - start_j17_utests_stress
-        - j11_build
-    - start_j11_utests_fqltool:
-        type: approval
-    - j11_utests_fqltool:
-        requires:
-        - start_j11_utests_fqltool
-        - j11_build
-    - start_j17_utests_fqltool:
-        type: approval
-    - j17_utests_fqltool:
-        requires:
-        - start_j17_utests_fqltool
-        - j11_build
-    - start_j11_utests_system_keyspace_directory:
-        type: approval
-    - j11_utests_system_keyspace_directory:
-        requires:
-        - start_j11_utests_system_keyspace_directory
-        - j11_build
-    - start_j17_utests_system_keyspace_directory:
-        type: approval
-    - j17_utests_system_keyspace_directory:
-        requires:
-        - start_j17_utests_system_keyspace_directory
         - j11_build
     - start_j11_dtest_jars_build:
         type: approval
@@ -9661,115 +9523,17 @@ workflows:
         requires:
         - start_j11_dtests
         - j11_build
-    - start_j11_dtests_vnode:
-        type: approval
-    - j11_dtests_vnode:
-        requires:
-        - start_j11_dtests_vnode
-        - j11_build
-    - start_j11_dtests_offheap:
-        type: approval
-    - j11_dtests_offheap:
-        requires:
-        - start_j11_dtests_offheap
-        - j11_build
-    - start_j17_dtests:
-        type: approval
-    - j17_dtests:
-        requires:
-        - start_j17_dtests
-        - j11_build
-    - start_j17_dtests_vnode:
-        type: approval
-    - j17_dtests_vnode:
-        requires:
-        - start_j17_dtests_vnode
-        - j11_build
-    - start_j17_dtests_offheap:
-        type: approval
-    - j17_dtests_offheap:
-        requires:
-        - start_j17_dtests_offheap
-        - j11_build
     - start_j11_dtests_large:
         type: approval
     - j11_dtests_large:
         requires:
         - start_j11_dtests_large
         - j11_build
-    - start_j11_dtests_large_vnode:
-        type: approval
-    - j11_dtests_large_vnode:
-        requires:
-        - start_j11_dtests_large_vnode
-        - j11_build
-    - start_j17_dtests_large:
-        type: approval
-    - j17_dtests_large:
-        requires:
-        - start_j17_dtests_large
-        - j11_build
-    - start_j17_dtests_large_vnode:
-        type: approval
-    - j17_dtests_large_vnode:
-        requires:
-        - start_j17_dtests_large_vnode
-        - j11_build
     - start_j11_cqlsh_tests:
         type: approval
-    - j11_cqlsh_dtests_py38:
-        requires:
-        - start_j11_cqlsh_tests
-        - j11_build
     - j11_cqlsh_dtests_py311:
         requires:
         - start_j11_cqlsh_tests
-        - j11_build
-    - j11_cqlsh_dtests_py38_vnode:
-        requires:
-        - start_j11_cqlsh_tests
-        - j11_build
-    - j11_cqlsh_dtests_py311_vnode:
-        requires:
-        - start_j11_cqlsh_tests
-        - j11_build
-    - start_j11_cqlsh_tests_offheap:
-        type: approval
-    - j11_cqlsh_dtests_py38_offheap:
-        requires:
-        - start_j11_cqlsh_tests_offheap
-        - j11_build
-    - j11_cqlsh_dtests_py311_offheap:
-        requires:
-        - start_j11_cqlsh_tests_offheap
-        - j11_build
-    - start_j17_cqlsh_tests:
-        type: approval
-    - j17_cqlsh_dtests_py38:
-        requires:
-        - start_j17_cqlsh_tests
-        - j11_build
-    - j17_cqlsh_dtests_py311:
-        requires:
-        - start_j17_cqlsh_tests
-        - j11_build
-    - j17_cqlsh_dtests_py38_vnode:
-        requires:
-        - start_j17_cqlsh_tests
-        - j11_build
-    - j17_cqlsh_dtests_py311_vnode:
-        requires:
-        - start_j17_cqlsh_tests
-        - j11_build
-    - start_j17_cqlsh_tests_offheap:
-        type: approval
-    - j17_cqlsh_dtests_py38_offheap:
-        requires:
-        - start_j17_cqlsh_tests_offheap
-        - j11_build
-    - j17_cqlsh_dtests_py311_offheap:
-        requires:
-        - start_j17_cqlsh_tests_offheap
         - j11_build
     - start_j11_upgrade_dtests:
         type: approval
@@ -9777,7 +9541,7 @@ workflows:
         requires:
         - start_j11_upgrade_dtests
         - j11_build
-  java11_pre-commit_tests:
+  java11_dev_tests:
     jobs:
     - start_pre-commit_tests:
         type: approval
@@ -9787,110 +9551,14 @@ workflows:
     - j11_unit_tests:
         requires:
         - j11_build
-    - j11_utests_oa:
-        requires:
-        - j11_build
     - j11_simulator_dtests:
         requires:
         - j11_build
     - j11_jvm_dtests:
         requires:
         - j11_build
-    - j11_jvm_dtests_vnode:
-        requires:
-        - j11_build
-    - j17_jvm_dtests:
-        requires:
-        - j11_build
-    - j17_jvm_dtests_vnode:
-        requires:
-        - j11_build
     - j11_cqlshlib_tests:
         requires:
-        - j11_build
-    - j11_cqlshlib_cython_tests:
-        requires:
-        - j11_build
-    - j17_cqlshlib_tests:
-        requires:
-        - j11_build
-    - j17_cqlshlib_cython_tests:
-        requires:
-        - j11_build
-    - j17_unit_tests:
-        requires:
-        - j11_build
-    - j17_utests_oa:
-        requires:
-        - j11_build
-    - start_utests_long:
-        type: approval
-    - j11_utests_long:
-        requires:
-        - start_utests_long
-        - j11_build
-    - j17_utests_long:
-        requires:
-        - start_utests_long
-        - j11_build
-    - start_utests_cdc:
-        type: approval
-    - j11_utests_cdc:
-        requires:
-        - start_utests_cdc
-        - j11_build
-    - j17_utests_cdc:
-        requires:
-        - start_utests_cdc
-        - j11_build
-    - start_utests_compression:
-        type: approval
-    - j11_utests_compression:
-        requires:
-        - start_utests_compression
-        - j11_build
-    - j17_utests_compression:
-        requires:
-        - start_utests_compression
-        - j11_build
-    - start_utests_trie:
-        type: approval
-    - j11_utests_trie:
-        requires:
-        - start_utests_trie
-        - j11_build
-    - j17_utests_trie:
-        requires:
-        - start_utests_trie
-        - j11_build
-    - start_utests_stress:
-        type: approval
-    - j11_utests_stress:
-        requires:
-        - start_utests_stress
-        - j11_build
-    - j17_utests_stress:
-        requires:
-        - start_utests_stress
-        - j11_build
-    - start_utests_fqltool:
-        type: approval
-    - j11_utests_fqltool:
-        requires:
-        - start_utests_fqltool
-        - j11_build
-    - j17_utests_fqltool:
-        requires:
-        - start_utests_fqltool
-        - j11_build
-    - start_utests_system_keyspace_directory:
-        type: approval
-    - j11_utests_system_keyspace_directory:
-        requires:
-        - j11_build
-    - j17_utests_system_keyspace_directory:
-        requires:
-        - start_utests_system_keyspace_directory
         - j11_build
     - start_jvm_upgrade_dtests:
         type: approval
@@ -9904,90 +9572,14 @@ workflows:
     - j11_dtests:
         requires:
         - j11_build
-    - j11_dtests_vnode:
-        requires:
-        - j11_build
-    - start_j11_dtests_offheap:
-        type: approval
-    - j11_dtests_offheap:
-        requires:
-        - start_j11_dtests_offheap
-        - j11_build
-    - j17_dtests:
-        requires:
-        - j11_build
-    - j17_dtests_vnode:
-        requires:
-        - j11_build
-    - start_j17_dtests_offheap:
-        type: approval
-    - j17_dtests_offheap:
-        requires:
-        - start_j17_dtests_offheap
-        - j11_build
     - start_j11_dtests_large:
         type: approval
     - j11_dtests_large:
         requires:
         - start_j11_dtests_large
         - j11_build
-    - j11_dtests_large_vnode:
-        requires:
-        - start_j11_dtests_large
-        - j11_build
-    - start_j17_dtests_large:
-        type: approval
-    - j17_dtests_large:
-        requires:
-        - start_j17_dtests_large
-        - j11_build
-    - j17_dtests_large_vnode:
-        requires:
-        - start_j17_dtests_large
-        - j11_build
-    - j11_cqlsh_dtests_py38:
-        requires:
-        - j11_build
     - j11_cqlsh_dtests_py311:
         requires:
-        - j11_build
-    - j11_cqlsh_dtests_py38_vnode:
-        requires:
-        - j11_build
-    - j11_cqlsh_dtests_py311_vnode:
-        requires:
-        - j11_build
-    - start_j11_cqlsh_dtests_offheap:
-        type: approval
-    - j11_cqlsh_dtests_py38_offheap:
-        requires:
-        - start_j11_cqlsh_dtests_offheap
-        - j11_build
-    - j11_cqlsh_dtests_py311_offheap:
-        requires:
-        - start_j11_cqlsh_dtests_offheap
-        - j11_build
-    - j17_cqlsh_dtests_py38:
-        requires:
-        - j11_build
-    - j17_cqlsh_dtests_py311:
-        requires:
-        - j11_build
-    - j17_cqlsh_dtests_py38_vnode:
-        requires:
-        - j11_build
-    - j17_cqlsh_dtests_py311_vnode:
-        requires:
-        - j11_build
-    - start_j17_cqlsh-dtests-offheap:
-        type: approval
-    - j17_cqlsh_dtests_py38_offheap:
-        requires:
-        - start_j17_cqlsh-dtests-offheap
-        - j11_build
-    - j17_cqlsh_dtests_py311_offheap:
-        requires:
-        - start_j17_cqlsh-dtests-offheap
         - j11_build
     - start_j11_upgrade_dtests:
         type: approval
@@ -10002,250 +9594,10 @@ workflows:
     - j17_build:
         requires:
         - start_j17_build
-    - start_j17_unit_tests:
-        type: approval
-    - j17_unit_tests:
-        requires:
-        - start_j17_unit_tests
-        - j17_build
-    - start_j17_jvm_dtests:
-        type: approval
-    - j17_jvm_dtests:
-        requires:
-        - start_j17_jvm_dtests
-        - j17_build
-    - start_j17_jvm_dtests_vnode:
-        type: approval
-    - j17_jvm_dtests_vnode:
-        requires:
-        - start_j17_jvm_dtests_vnode
-        - j17_build
-    - start_j17_cqlshlib_tests:
-        type: approval
-    - j17_cqlshlib_tests:
-        requires:
-        - start_j17_cqlshlib_tests
-        - j17_build
-    - start_j17_cqlshlib_cython_tests:
-        type: approval
-    - j17_cqlshlib_cython_tests:
-        requires:
-        - start_j17_cqlshlib_cython_tests
-        - j17_build
-    - start_j17_dtests:
-        type: approval
-    - j17_dtests:
-        requires:
-        - start_j17_dtests
-        - j17_build
-    - start_j17_dtests_vnode:
-        type: approval
-    - j17_dtests_vnode:
-        requires:
-        - start_j17_dtests_vnode
-        - j17_build
-    - start_j17_dtests_offheap:
-        type: approval
-    - j17_dtests_offheap:
-        requires:
-        - start_j17_dtests_offheap
-        - j17_build
-    - start_j17_dtests_large:
-        type: approval
-    - j17_dtests_large:
-        requires:
-        - start_j17_dtests_large
-        - j17_build
-    - start_j17_dtests_large_vnode:
-        type: approval
-    - j17_dtests_large_vnode:
-        requires:
-        - start_j17_dtests_large_vnode
-        - j17_build
-    - start_j17_cqlsh_tests:
-        type: approval
-    - j17_cqlsh_dtests_py38:
-        requires:
-        - start_j17_cqlsh_tests
-        - j17_build
-    - j17_cqlsh_dtests_py311:
-        requires:
-        - start_j17_cqlsh_tests
-        - j17_build
-    - j17_cqlsh_dtests_py38_vnode:
-        requires:
-        - start_j17_cqlsh_tests
-        - j17_build
-    - j17_cqlsh_dtests_py311_vnode:
-        requires:
-        - start_j17_cqlsh_tests
-        - j17_build
-    - start_j17_cqlsh-dtests-offheap:
-        type: approval
-    - j17_cqlsh_dtests_py38_offheap:
-        requires:
-        - start_j17_cqlsh-dtests-offheap
-        - j17_build
-    - j17_cqlsh_dtests_py311_offheap:
-        requires:
-        - start_j17_cqlsh-dtests-offheap
-        - j17_build
-    - start_j17_utests_oa:
-        type: approval
-    - j17_utests_oa:
-        requires:
-        - start_j17_utests_oa
-        - j17_build
-    - start_j17_utests_long:
-        type: approval
-    - j17_utests_long:
-        requires:
-        - start_j17_utests_long
-        - j17_build
-    - start_j17_utests_cdc:
-        type: approval
-    - j17_utests_cdc:
-        requires:
-        - start_j17_utests_cdc
-        - j17_build
-    - start_j17_utests_compression:
-        type: approval
-    - j17_utests_compression:
-        requires:
-        - start_j17_utests_compression
-        - j17_build
-    - start_j17_utests_trie:
-        type: approval
-    - j17_utests_trie:
-        requires:
-        - start_j17_utests_trie
-        - j17_build
-    - start_j17_utests_stress:
-        type: approval
-    - j17_utests_stress:
-        requires:
-        - start_j17_utests_stress
-        - j17_build
-    - start_j17_utests_fqltool:
-        type: approval
-    - j17_utests_fqltool:
-        requires:
-        - start_j17_utests_fqltool
-        - j17_build
-    - start_j17_utests_system_keyspace_directory:
-        type: approval
-    - j17_utests_system_keyspace_directory:
-        requires:
-        - start_j17_utests_system_keyspace_directory
-        - j17_build
-  java17_pre-commit_tests:
+  java17_dev_tests:
     jobs:
     - start_pre-commit_tests:
         type: approval
     - j17_build:
         requires:
         - start_pre-commit_tests
-    - j17_unit_tests:
-        requires:
-        - j17_build
-    - j17_utests_oa:
-        requires:
-        - j17_build
-    - j17_jvm_dtests:
-        requires:
-        - j17_build
-    - j17_jvm_dtests_vnode:
-        requires:
-        - j17_build
-    - j17_cqlshlib_tests:
-        requires:
-        - j17_build
-    - j17_cqlshlib_cython_tests:
-        requires:
-        - j17_build
-    - j17_dtests:
-        requires:
-        - j17_build
-    - j17_dtests_vnode:
-        requires:
-        - j17_build
-    - start_j17_dtests_offheap:
-        type: approval
-    - j17_dtests_offheap:
-        requires:
-        - start_j17_dtests_offheap
-        - j17_build
-    - start_j17_dtests_large:
-        type: approval
-    - j17_dtests_large:
-        requires:
-        - start_j17_dtests_large
-        - j17_build
-    - j17_dtests_large_vnode:
-        requires:
-        - start_j17_dtests_large
-        - j17_build
-    - j17_cqlsh_dtests_py38:
-        requires:
-        - j17_build
-    - j17_cqlsh_dtests_py311:
-        requires:
-        - j17_build
-    - j17_cqlsh_dtests_py38_vnode:
-        requires:
-        - j17_build
-    - j17_cqlsh_dtests_py311_vnode:
-        requires:
-        - j17_build
-    - start_j17_cqlsh-dtests-offheap:
-        type: approval
-    - j17_cqlsh_dtests_py38_offheap:
-        requires:
-        - start_j17_cqlsh-dtests-offheap
-        - j17_build
-    - j17_cqlsh_dtests_py311_offheap:
-        requires:
-        - start_j17_cqlsh-dtests-offheap
-        - j17_build
-    - start_utests_long:
-        type: approval
-    - j17_utests_long:
-        requires:
-        - start_utests_long
-        - j17_build
-    - start_utests_cdc:
-        type: approval
-    - j17_utests_cdc:
-        requires:
-        - start_utests_cdc
-        - j17_build
-    - start_utests_compression:
-        type: approval
-    - j17_utests_compression:
-        requires:
-        - start_utests_compression
-        - j17_build
-    - start_utests_trie:
-        type: approval
-    - j17_utests_trie:
-        requires:
-        - start_utests_trie
-        - j17_build
-    - start_utests_stress:
-        type: approval
-    - j17_utests_stress:
-        requires:
-        - start_utests_stress
-        - j17_build
-    - start_utests_fqltool:
-        type: approval
-    - j17_utests_fqltool:
-        requires:
-        - start_utests_fqltool
-        - j17_build
-    - start_utests_system_keyspace_directory:
-        type: approval
-    - j17_utests_system_keyspace_directory:
-        requires:
-        - start_utests_system_keyspace_directory
-        - j17_build
