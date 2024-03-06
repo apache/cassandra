@@ -153,7 +153,6 @@ public class RegisterTest extends TestBaseImpl
                     {
                         throw new RuntimeException(e);
                     }
-
                 }
                 catch (UnknownHostException e)
                 {
