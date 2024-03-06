@@ -20,7 +20,10 @@ package org.apache.cassandra.diag;
 
 import java.io.InvalidClassException;
 import java.io.Serializable;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.SortedMap;
@@ -31,8 +34,10 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.diag.store.DiagnosticEventMemoryStore;
 import org.apache.cassandra.diag.store.DiagnosticEventStore;
+import org.apache.cassandra.utils.FBUtilities;
 
 
 /**
@@ -44,9 +49,28 @@ public final class DiagnosticEventPersistence
 
     private static final DiagnosticEventPersistence instance = new DiagnosticEventPersistence();
 
-    private final Map<Class, DiagnosticEventStore<Long>> stores = new ConcurrentHashMap<>();
+    private volatile InMemoryDiagnosticLogger inMemoryLogger;
+    private volatile DiagnosticLogOptions diagnosticLogOptions;
+    private volatile IDiagnosticLogger diagnosticLogger;
+    private volatile Collection<Consumer<DiagnosticEvent>> consumers;
+    private volatile boolean initialized = false;
 
-    private final Consumer<DiagnosticEvent> eventConsumer = this::onEvent;
+    public synchronized void initialize()
+    {
+        if (initialized)
+            return;
+
+        inMemoryLogger = new InMemoryDiagnosticLogger();
+        diagnosticLogOptions = DatabaseDescriptor.getDiagnosticLoggingOptions();
+        diagnosticLogger = getDiagnosticLogger(diagnosticLogOptions);
+        consumers = new HashSet<Consumer<DiagnosticEvent>>()
+        {{
+            add(inMemoryLogger);
+            add(diagnosticLogger);
+        }};
+
+        initialized = true;
+    }
 
     public static void start()
     {
@@ -57,6 +81,66 @@ public final class DiagnosticEventPersistence
     public static DiagnosticEventPersistence instance()
     {
         return instance;
+    }
+
+    public synchronized void disableDiagnosticLogging()
+    {
+        if (diagnosticLogger == null)
+        {
+            return;
+        }
+
+        try
+        {
+            diagnosticLogger.stop();
+        }
+        finally
+        {
+            consumers.remove(diagnosticLogger);
+            diagnosticLogger = null;
+            diagnosticLogOptions.enabled = false;
+        }
+    }
+
+    public synchronized DiagnosticLogOptions getDiagnosticLogOptions()
+    {
+        if (diagnosticLogOptions == null)
+            return DatabaseDescriptor.getDiagnosticLoggingOptions();
+
+        return diagnosticLogOptions.enabled ? diagnosticLogOptions : DatabaseDescriptor.getDiagnosticLoggingOptions();
+    }
+
+    public synchronized void enableDiagnosticLogging(DiagnosticLogOptions options)
+    {
+        if (!options.enabled)
+            return;
+
+        logger.info("Enabling diagnostic logging");
+
+        IDiagnosticLogger oldLogger = diagnosticLogger;
+
+        diagnosticLogger = getDiagnosticLogger(options);
+        this.diagnosticLogOptions = options;
+
+        // subscribe to all events there are some subscriptions for to log all events
+        // which are somewhere subscribed
+        for (Class clazz : DiagnosticEventService.instance().getAllEventClassesWithSubscribers())
+        {
+            DiagnosticEventService.instance().subscribe(clazz, diagnosticLogger);
+        }
+
+        consumers.add(diagnosticLogger);
+
+        if (oldLogger != null)
+        {
+            oldLogger.stop();
+            consumers.remove(oldLogger);
+        }
+    }
+
+    public boolean isDiagnosticLogEnabled()
+    {
+        return diagnosticLogger != null && diagnosticLogger.isEnabled() && consumers.contains(diagnosticLogger);
     }
 
     public SortedMap<Long, Map<String, Serializable>> getEvents(String eventClazz, Long key, int limit, boolean includeKey)
@@ -74,7 +158,7 @@ public final class DiagnosticEventPersistence
         {
             throw new RuntimeException(e);
         }
-        DiagnosticEventStore<Long> store = getStore(cls);
+        DiagnosticEventStore<Long> store = inMemoryLogger.getStore(cls);
 
         NavigableMap<Long, DiagnosticEvent> events = store.scan(key, includeKey ? limit : limit + 1);
         if (!includeKey && !events.isEmpty()) events = events.tailMap(key, false);
@@ -97,8 +181,8 @@ public final class DiagnosticEventPersistence
     {
         try
         {
-            logger.debug("Enabling events: {}", eventClazz);
-            DiagnosticEventService.instance().subscribe(getEventClass(eventClazz), eventConsumer);
+            logger.info("Enabling events: {}", eventClazz);
+            DiagnosticEventService.instance().subscribe(getEventClass(eventClazz), consumers);
         }
         catch (ClassNotFoundException | InvalidClassException e)
         {
@@ -110,23 +194,13 @@ public final class DiagnosticEventPersistence
     {
         try
         {
-            logger.debug("Disabling events: {}", eventClazz);
-            DiagnosticEventService.instance().unsubscribe(getEventClass(eventClazz), eventConsumer);
+            logger.info("Disabling events: {}", eventClazz);
+            DiagnosticEventService.instance().unsubscribe(getEventClass(eventClazz), consumers);
         }
         catch (ClassNotFoundException | InvalidClassException e)
         {
             throw new RuntimeException(e);
         }
-    }
-
-    private void onEvent(DiagnosticEvent event)
-    {
-        Class<? extends DiagnosticEvent> cls = event.getClass();
-        if (logger.isTraceEnabled())
-            logger.trace("Persisting received {} event", cls.getName());
-        DiagnosticEventStore<Long> store = getStore(cls);
-        store.store(event);
-        LastEventIdBroadcaster.instance().setLastEventId(event.getClass().getName(), store.getLastEventId());
     }
 
     private Class<DiagnosticEvent> getEventClass(String eventClazz) throws ClassNotFoundException, InvalidClassException
@@ -144,8 +218,43 @@ public final class DiagnosticEventPersistence
         return clazz;
     }
 
-    private DiagnosticEventStore<Long> getStore(Class cls)
+    private IDiagnosticLogger getDiagnosticLogger(DiagnosticLogOptions options)
     {
-        return stores.computeIfAbsent(cls, (storeKey) -> new DiagnosticEventMemoryStore());
+        if (!options.enabled)
+            return new NoOpDiagnosticLogger(Collections.emptyMap());
+
+        return FBUtilities.newDiagnosticLogger(options.logger.class_name, options.toMap());
+    }
+
+    private static class InMemoryDiagnosticLogger implements IDiagnosticLogger
+    {
+        private final Map<Class, DiagnosticEventStore<Long>> stores = new ConcurrentHashMap<>();
+
+        @Override
+        public boolean isEnabled()
+        {
+            return true;
+        }
+
+        @Override
+        public void stop()
+        {
+        }
+
+        @Override
+        public void accept(DiagnosticEvent event)
+        {
+            Class<? extends DiagnosticEvent> cls = event.getClass();
+            if (logger.isTraceEnabled())
+                logger.trace("Persisting received {} event", cls.getName());
+            DiagnosticEventStore<Long> store = getStore(cls);
+            store.store(event);
+            LastEventIdBroadcaster.instance().setLastEventId(event.getClass().getName(), store.getLastEventId());
+        }
+
+        public DiagnosticEventStore<Long> getStore(Class cls)
+        {
+            return stores.computeIfAbsent(cls, (storeKey) -> new DiagnosticEventMemoryStore());
+        }
     }
 }

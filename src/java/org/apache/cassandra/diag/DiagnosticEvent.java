@@ -49,4 +49,15 @@ public abstract class DiagnosticEvent
      * class versioning conflicts.
      */
     public abstract Map<String, Serializable> toMap();
+
+    public String getLogString()
+    {
+        return new StringBuilder(100)
+        .append("event:").append(this.getClass().getSimpleName())
+        .append("|type:").append(getType())
+        .append("|thread:").append(threadName)
+        .append("|timestamp:").append(timestamp)
+        .append("|content:").append(toMap())
+        .toString();
+    }
 }
