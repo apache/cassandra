@@ -41,10 +41,12 @@ public class BounceIndexRebuildTest extends TestBaseImpl
             cluster.schemaChange(withKeyspace("create index idx on %s.tbl (x)"));
             Object[][] res = cluster.coordinator(1).execute(withKeyspace("select * from %s.tbl where x=5"), ConsistencyLevel.ALL);
             assert res.length > 0;
+            final String pattern = "Index build of idx complete|Index \\[idx\\] became queryable after successful build";
+            int preBounce = cluster.get(1).logs().grep(pattern).getResult().size();
 
             cluster.get(1).shutdown().get();
             cluster.get(1).startup();
-            assertEquals(1, cluster.get(1).logs().grep("Index build of idx complete").getResult().size());
+            assertEquals(preBounce + 1, cluster.get(1).logs().grep(pattern).getResult().size());
             res = cluster.coordinator(1).execute(withKeyspace("select * from %s.tbl where x=5"), ConsistencyLevel.ALL);
             assert res.length > 0;
         }
