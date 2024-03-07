@@ -26,7 +26,8 @@ import org.apache.cassandra.schema.TableMetadata;
 
 import static java.lang.Long.max;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
+
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * Virtual table that lists currently running queries on the NTR (coordinator) and Read/Mutation (local) stages
@@ -78,7 +79,7 @@ final class QueriesTable extends AbstractVirtualTable
             
             long creationTimeNanos = task.creationTimeNanos();
             long startTimeNanos = task.startTimeNanos();
-            long now = approxTime.now();
+            long now = nanoTime();
 
             long queuedMicros = NANOSECONDS.toMicros(max((startTimeNanos > 0 ? startTimeNanos : now) - creationTimeNanos, 0));
             long runningMicros = startTimeNanos > 0 ? NANOSECONDS.toMicros(now - startTimeNanos) : 0;
