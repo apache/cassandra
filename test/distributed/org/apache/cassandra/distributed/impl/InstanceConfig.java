@@ -31,6 +31,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.vdurmont.semver4j.Semver;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
@@ -114,6 +115,44 @@ public class InstanceConfig implements IInstanceConfig
                 .set("counter_cache_size", "50MiB")
                 .set("key_cache_size", "50MiB")
                 .set("commitlog_disk_access_mode", "legacy");
+        if (CassandraRelevantProperties.DTEST_JVM_DTESTS_USE_LATEST.getBoolean())
+        {
+            // TODO: make this load latest_diff.yaml or cassandra_latest.yaml
+            this.set("memtable", Map.of(
+                "configurations", Map.of(
+                    "default", Map.of(
+                        "class_name", "TrieMemtable"))))
+                .set("key_cache_size", "0MiB")
+
+                .set("memtable_allocation_type", "offheap_objects")
+
+                .set("commitlog_disk_access_mode", "auto")
+
+                .set("trickle_fsync", "true")
+
+                .set("sstable", Map.of(
+                    "selected_format", "bti"))
+
+                .set("column_index_size", "4KiB")
+
+                .set("default_compaction", Map.of(
+                    "class_name", "UnifiedCompactionStrategy",
+                    "parameters", Map.of(
+                        "scaling_parameters", "T4",
+                        "max_sstables_to_compact", "64",
+                        "target_sstable_size", "1GiB",
+                        "sstable_growth","0.3333333333333333",
+                        "min_sstable_size", "100MiB")))
+
+                .set("concurrent_compactors", "8")
+
+                .set("stream_entire_sstables", "true")
+
+                .set("default_secondary_index", "sai")
+                .set("default_secondary_index_enabled", "true")
+
+                .set("storage_compatibility_mode", "NONE");
+        }
         this.featureFlags = EnumSet.noneOf(Feature.class);
         this.jmxPort = jmx_port;
     }

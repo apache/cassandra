@@ -134,7 +134,7 @@ case ${target} in
         # check that ${cassandra_dtest_dir} is valid
         [ -f "${cassandra_dtest_dir}/dtest.py" ] || { echo >&2 "${cassandra_dtest_dir}/dtest.py not found. please specify 'cassandra_dtest_dir' to point to the local cassandra-dtest source"; exit 1; }
     ;;
-    "test"| "test-cdc" | "test-compression" | "test-oa" | "test-system-keyspace-directory" | "test-trie" | "jvm-dtest" | "jvm-dtest-upgrade" | "jvm-dtest-novnode" | "jvm-dtest-upgrade-novnode" | "simulator-dtest")
+    "test"| "test-cdc" | "test-compression" | "test-oa" | "test-system-keyspace-directory" | "test-latest" | "jvm-dtest" | "jvm-dtest-upgrade" | "jvm-dtest-novnode" | "jvm-dtest-upgrade-novnode" | "simulator-dtest")
         [[ ${mem} -gt $((5 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { echo >&2 "tests require minimum docker memory 6g (per jenkins executor (${jenkins_executors})), found ${mem}"; exit 1; }
         max_docker_runs_by_cores=$( echo "sqrt( ${cores} / ${jenkins_executors} )" | bc )
         max_docker_runs_by_mem=$(( ${mem} / ( 5 * 1024 * 1024 * 1024 * ${jenkins_executors} ) ))

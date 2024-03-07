@@ -49,7 +49,7 @@ public class CompactionStressTest extends OfflineToolUtils
                                                  "-p",
                                                  profileFile,
                                                  "-t",
-                                                 "4");
+                                                 "8");
         tool.assertOnCleanExit();
 
         tool = ToolRunner.invokeClass("org.apache.cassandra.stress.CompactionStress",
@@ -59,7 +59,7 @@ public class CompactionStressTest extends OfflineToolUtils
                                       "-p",
                                       profileFile,
                                       "-t",
-                                      "4");
+                                      "8");
               tool.assertOnCleanExit();
     }
 }

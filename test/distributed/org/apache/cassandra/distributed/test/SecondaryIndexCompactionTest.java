@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test;
 import java.io.IOException;
 import java.util.Set;
 
+import org.junit.Assume;
 import org.junit.Test;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -43,6 +44,8 @@ public class SecondaryIndexCompactionTest extends TestBaseImpl
     {
         try (Cluster cluster = init(Cluster.build(1).start()))
         {
+            Assume.assumeFalse("Test only valid for legacy index",
+                               "sai".equals(cluster.get(1).config().getString("default_secondary_index")));
             cluster.schemaChange(withKeyspace("create table %s.tbl (id int, ck int, something int, else int, primary key (id, ck));"));
             cluster.schemaChange(withKeyspace("create index tbl_idx on %s.tbl (ck)"));
 

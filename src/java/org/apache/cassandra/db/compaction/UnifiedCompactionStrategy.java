@@ -95,6 +95,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         super(cfs, options);
         this.controller = controller;
         estimatedRemainingTasks = 0;
+        lastExpiredCheck = Clock.Global.currentTimeMillis();
     }
 
     public static Map<String, String> validateOptions(Map<String, String> options) throws ConfigurationException

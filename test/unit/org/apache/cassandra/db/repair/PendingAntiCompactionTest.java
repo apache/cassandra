@@ -736,6 +736,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
     @Test
     public void testWith2i() throws ExecutionException, InterruptedException
     {
+        Util.assumeLegacySecondaryIndex();
         cfs2.disableAutoCompaction();
         makeSSTables(2, cfs2, 100);
         ColumnFamilyStore idx = cfs2.indexManager.getAllIndexColumnFamilyStores().iterator().next();

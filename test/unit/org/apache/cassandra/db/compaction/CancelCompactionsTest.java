@@ -32,8 +32,10 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.junit.Assume;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -44,6 +46,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.StubIndex;
+import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.index.internal.CollatedViewIndexBuilder;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
@@ -426,6 +429,8 @@ public class CancelCompactionsTest extends CQLTester
     @Test
     public void test2iCancellation() throws Throwable
     {
+        Assume.assumeTrue("Tests legacy index",
+                           DatabaseDescriptor.getDefaultSecondaryIndex().equals(CassandraIndex.NAME));
         createTable("create table %s (id int primary key, something int)");
         createIndex("create index on %s(something)");
         getCurrentColumnFamilyStore().disableAutoCompaction();
@@ -446,6 +451,8 @@ public class CancelCompactionsTest extends CQLTester
     @Test
     public void testSubrangeCompactionWith2i() throws Throwable
     {
+        Assume.assumeTrue("Tests legacy index",
+                          DatabaseDescriptor.getDefaultSecondaryIndex().equals(CassandraIndex.NAME));
         createTable("create table %s (id int primary key, something int)");
         createIndex("create index on %s(something)");
         getCurrentColumnFamilyStore().disableAutoCompaction();

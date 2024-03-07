@@ -59,6 +59,7 @@ public class CQLSSTableWriterClientTest extends CQLSSTableWriterTest
     public void tearDown()
     {
         FileUtils.deleteRecursive(this.testDirectory);
-        DatabaseDescriptor.setPartitionerUnsafe(oldPartitioner);
+        if (oldPartitioner != null)
+            DatabaseDescriptor.setPartitionerUnsafe(oldPartitioner);
     }
 }

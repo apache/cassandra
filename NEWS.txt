@@ -156,6 +156,12 @@ Deprecation
 
 New features
 ------------
+    - A new configuration file, `cassandra_latest.yaml`, is provided for users that would like to evaluate and
+      experiment with the latest recommended features and changes in Cassandra, which provide improved functionality and
+      performance. This file is intended to be used in a development environment and is only recommended for production
+      use after careful evaluation. The file is located in the conf directory and is not selected by default.
+      To use it, one may specify the file using the `-Dcassandra.config` option, e.g. by running
+      `cassandra -Dcassandra.config=file://$CASSANDRA_HOME/conf/cassandra_latest.yaml`.
     - Added a new authorizer, CIDR authorizer, to restrict user access based on CIDR groups.
     - Pluggable crypto providers were made possible via `crypto_provider` section in cassandra.yaml. The default provider is 
       Amazon Corretto Crypto Provider and it is installed automatically upon node's start. Only x86_64 and aarch64 architectures are supported now.
