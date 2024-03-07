@@ -9,7 +9,7 @@
  * Improve setup and initialisation of LocalLog/LogSpec (CASSANDRA-19271)
  * Refactor structure of caching metrics and expose auth cache metrics via JMX (CASSANDRA-17062)
  * Allow CQL client certificate authentication to work without sending an AUTHENTICATE request (CASSANDRA-18857)
- * Extend nodetool tpstats and system_views.thread_pools with detailed pool parameters (CASSANDRA-19289) 
+ * Extend nodetool tpstats and system_views.thread_pools with detailed pool parameters (CASSANDRA-19289)
  * Remove dependency on Sigar in favor of OSHI (CASSANDRA-16565)
  * Simplify the bind marker and Term logic (CASSANDRA-18813)
  * Limit cassandra startup to supported JDKs, allow higher JDKs by setting CASSANDRA_JDK_UNSUPPORTED (CASSANDRA-18688)
@@ -21,6 +21,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Add an optimized default configuration to tests and make it available for new users (CASSANDRA-18753)
  * Fix remote JMX under Java17 (CASSANDRA-19453)
  * Avoid consistency violations for SAI intersections over unrepaired data at consistency levels requiring reconciliation (CASSANDRA-19018)
  * Fix NullPointerException in ANN+WHERE when adding rows in another partition (CASSANDRA-19404)

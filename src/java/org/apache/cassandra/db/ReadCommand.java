@@ -677,6 +677,9 @@ public abstract class ReadCommand extends AbstractReadQuery
             @Override
             protected Row applyToStatic(Row row)
             {
+                if (row == Rows.EMPTY_STATIC_ROW)
+                    return row;
+
                 return applyToRow(row);
             }
 

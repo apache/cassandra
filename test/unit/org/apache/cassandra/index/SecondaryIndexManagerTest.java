@@ -31,6 +31,7 @@ import com.google.common.collect.Sets;
 import org.junit.After;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -109,6 +110,7 @@ public class SecondaryIndexManagerTest extends CQLTester
     @Test
     public void addingSSTablesMarksTheIndexAsBuilt()
     {
+        Util.assumeLegacySecondaryIndex();
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
         String indexName = createIndex("CREATE INDEX ON %s(c)");
 
