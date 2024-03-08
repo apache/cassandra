@@ -1,4 +1,5 @@
 5.0-beta2
+ * Set uuid_sstable_identifiers_enabled to true in cassandra-latest.yaml (CASSANDRA-19460)
  * Revert switching to approxTime in Dispatcher (CASSANDRA-19454)
  * Add an optimized default configuration to tests and make it available for new users (CASSANDRA-18753)
  * Fix remote JMX under Java17 (CASSANDRA-19453)

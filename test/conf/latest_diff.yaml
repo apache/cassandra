@@ -53,6 +53,8 @@ default_compaction:
 
 concurrent_compactors: 8
 
+uuid_sstable_identifiers_enabled: true
+
 stream_entire_sstables: true
 
 default_secondary_index: sai

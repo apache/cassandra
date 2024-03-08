@@ -146,6 +146,8 @@ public class InstanceConfig implements IInstanceConfig
 
                 .set("concurrent_compactors", "8")
 
+                .set("uuid_sstable_identifiers_enabled", "true")
+
                 .set("stream_entire_sstables", "true")
 
                 .set("default_secondary_index", "sai")
