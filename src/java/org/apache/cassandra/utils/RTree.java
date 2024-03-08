@@ -27,11 +27,13 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import javax.annotation.CheckForNull;
 
 import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.Lists;
 
 public class RTree<Token, Range, Value> implements Iterable<Map.Entry<Range, Value>>
 {
@@ -75,6 +77,8 @@ public class RTree<Token, Range, Value> implements Iterable<Map.Entry<Range, Val
 
     public RTree(Comparator<Token> comparator, Accessor<Token, Range> accessor, int sizeTarget, int numChildren)
     {
+        if (numChildren <= 1)
+            throw new IllegalArgumentException("Number of children must be 2 or more");
         this.comparator = comparator;
         this.accessor = accessor;
         this.sizeTarget = sizeTarget;
@@ -312,7 +316,7 @@ public class RTree<Token, Range, Value> implements Iterable<Map.Entry<Range, Val
                         && comparator.compare(minEnd, maxEnd) == 0);
         }
 
-        void split()
+        List<List<Map.Entry<Range, Value>>> partitionByEnd()
         {
             List<Token> allEndpoints = new ArrayList<>(values.size() * 2);
             for (Map.Entry<Range, Value> a : values)
@@ -335,28 +339,83 @@ public class RTree<Token, Range, Value> implements Iterable<Map.Entry<Range, Val
                 }
             }
 
-            children = new ArrayList<>(numChildren);
+            List<List<Map.Entry<Range, Value>>> partitions = new ArrayList<>(numChildren);
             for (int i = 0; i < numChildren; i++)
-                children.add(new Node());
+                partitions.add(new ArrayList<>());
 
             for (Map.Entry<Range, Value> a : values)
             {
                 Token end = accessor.end(a.getKey());
-                Node selected = null;
+                List<Map.Entry<Range, Value>> selected = null;
                 for (int i = 0; i < numChildren; i++)
                 {
                     if (comparator.compare(end, maxToken.get(i)) < 0)
                     {
-                        selected = children.get(i);
+                        selected = partitions.get(i);
                         break;
                     }
                 }
                 if (selected == null)
-                    selected = children.get(children.size() - 1);
-                selected.add(a.getKey(), a.getValue());
+                    selected = partitions.get(partitions.size() - 1);
+                selected.add(a);
             }
+            int[] sizes = partitions.stream().mapToInt(List::size).toArray();
+            return goodEnough(sizes) ? partitions : null;
+        }
+
+        private boolean goodEnough(int[] sizes)
+        {
+            double sum = 0.0;
+            for (int i : sizes)
+                sum += i;
+            double mean = sum / sizes.length;
+            double stddev = 0.0;
+            for (int i : sizes)
+                stddev += Math.pow(i - mean, 2);
+            stddev = Math.sqrt(stddev / sizes.length);
+            return stddev < 1.5;
+        }
+
+        void split()
+        {
+            children = new ArrayList<>(numChildren);
+            for (int i = 0; i < numChildren; i++)
+                children.add(new Node());
+
+            List<List<Map.Entry<Range, Value>>> partitions = partitionByEnd();
+            if (partitions == null)
+                partitions = partitionEven();
+            for (int i = 0; i < children.size(); i++)
+            {
+                Node c = children.get(i);
+                List<Map.Entry<Range, Value>> entries = partitions.get(i);
+                entries.forEach(e -> c.add(e.getKey(), e.getValue()));
+            }
+
             values.clear();
             values = null;
+        }
+
+        private List<List<Map.Entry<Range, Value>>> partitionEven()
+        {
+            values.sort((a, b) -> {
+                Range left = a.getKey();
+                Range right = b.getKey();
+                int rc = comparator.compare(accessor.start(left), accessor.start(right));
+                if (rc == 0)
+                    rc = comparator.compare(accessor.end(left), accessor.end(right));
+                return rc;
+            });
+            List<List<Map.Entry<Range, Value>>> partition = new ArrayList<>(numChildren);
+            int size = Math.max(1, values.size() / numChildren);
+            int offset = 0;
+            for (int i = 0; i < numChildren - 1; i++)
+            {
+                partition.add(new ArrayList<>(values.subList(offset, offset + size)));
+                offset += size;
+            }
+            partition.add(new ArrayList<>(values.subList(offset, values.size())));
+            return partition;
         }
 
         <T> void search(Range range, Consumer<T> matches, Predicate<Map.Entry<Range, Value>> predicate, Function<Map.Entry<Range, Value>, T> transformer)
