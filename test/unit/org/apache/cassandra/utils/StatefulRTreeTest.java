@@ -19,11 +19,12 @@
 package org.apache.cassandra.utils;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import org.junit.Test;
 
@@ -36,6 +37,7 @@ import accord.utils.Property.Command;
 import accord.utils.Property.Commands;
 import accord.utils.Property.UnitCommand;
 import org.apache.cassandra.service.accord.RTreeRangeAccessor;
+import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.stateful;
 
@@ -50,6 +52,7 @@ public class StatefulRTreeTest
     @Test
     public void test()
     {
+        //TODO (now): drop org.apache.cassandra.utils.RTreeMaplikeTest.mapLike in favor of this class
         stateful().check(new Commands<State, Sut>()
         {
             @Override
@@ -87,15 +90,28 @@ public class StatefulRTreeTest
                 List<Gen<Command<State, Sut, ?>>> possible = new ArrayList<>();
                 // create
                 possible.add(rs -> {
-                    var existing = state.uniqRanges;
                     Range range;
-                    while ((existing.contains(range = state.rangeGen.next(rs)))) {}
+                    while ((state.uniqRanges.contains(range = state.rangeGen.next(rs)))) {}
                     int value = SMALL_INT_GEN.nextInt(rs);
                     return new Create(range, value);
                 });
-                // read
-                // update
-                // delete
+                // read missing
+                possible.add(rs -> {
+                    Range range;
+                    while ((state.uniqRanges.contains(range = state.rangeGen.next(rs)))) {}
+                    return new Read(range);
+                });
+                // iterate
+                possible.add(ignore -> Iterate.instance);
+                if (!state.uniqRanges.isEmpty())
+                {
+                    // read existing
+                    possible.add(rs -> new Read(rs.pick(state.uniqRanges)));
+                    // update
+                    possible.add(rs -> new Update(rs.pick(state.uniqRanges), SMALL_INT_GEN.nextInt(rs)));
+                    // delete
+                    possible.add(rs -> new Delete(rs.pick(state.uniqRanges)));
+                }
                 return Gens.oneOf(possible);
             }
         });
@@ -113,12 +129,6 @@ public class StatefulRTreeTest
         }
 
         @Override
-        public String detailed(State state)
-        {
-            return "Create(" + range + ", " + value + ")";
-        }
-
-        @Override
         public void applyUnit(State state)
         {
             state.add(range, value);
@@ -129,12 +139,174 @@ public class StatefulRTreeTest
         {
             sut.tree.add(range, value);
         }
+
+        @Override
+        public void checkPostconditions(State state, Void expected,
+                                        Sut sut, Void actual)
+        {
+            Assertions.assertThat(sut.tree.size()).isEqualTo(state.list.size());
+        }
+
+        @Override
+        public String detailed(State state)
+        {
+            return "Create(" + range + ", " + value + ")";
+        }
+    }
+
+    static class Read implements Command<State, Sut, List<Integer>>
+    {
+        private final Range range;
+
+        Read(Range range)
+        {
+            this.range = range;
+        }
+
+        @Override
+        public List<Integer> apply(State state)
+        {
+            return state.get(range);
+        }
+
+        @Override
+        public List<Integer> run(Sut sut)
+        {
+            return sut.tree.get(range);
+        }
+
+        @Override
+        public void checkPostconditions(State state, List<Integer> expected,
+                                        Sut sut, List<Integer> actual)
+        {
+            expected.sort(Comparator.naturalOrder());
+            actual.sort(Comparator.naturalOrder());
+            Assertions.assertThat(actual).isEqualTo(expected);
+        }
+
+        @Override
+        public String detailed(State state)
+        {
+            return "Read(" + range + ")";
+        }
+    }
+
+    static class Update implements UnitCommand<State, Sut>
+    {
+        private final Range range;
+        private final int value;
+
+        Update(Range range, int value)
+        {
+            this.range = range;
+            this.value = value;
+        }
+
+        @Override
+        public void applyUnit(State state)
+        {
+            state.update(range, value);
+        }
+
+        @Override
+        public void runUnit(Sut sut)
+        {
+            sut.tree.get(range, e -> e.setValue(value));
+        }
+
+        @Override
+        public void checkPostconditions(State state, Void expected,
+                                        Sut sut, Void actual)
+        {
+            Assertions.assertThat(sut.tree.size()).isEqualTo(state.list.size());
+        }
+
+        @Override
+        public String detailed(State state)
+        {
+            return "Update(" + range + ", " + value + ")";
+        }
+    }
+
+    static class Delete implements UnitCommand<State, Sut>
+    {
+        private final Range range;
+
+        Delete(Range range)
+        {
+            this.range = range;
+        }
+
+        @Override
+        public void applyUnit(State state)
+        {
+            state.remove(range);
+        }
+
+        @Override
+        public void runUnit(Sut sut)
+        {
+            sut.tree.remove(range);
+        }
+
+        @Override
+        public void checkPostconditions(State state, Void expected,
+                                        Sut sut, Void actual)
+        {
+            Assertions.assertThat(sut.tree.size()).isEqualTo(state.list.size());
+        }
+
+        @Override
+        public String detailed(State state)
+        {
+            return "Delete(" + range + ")";
+        }
+    }
+
+    enum Iterate implements Command<State, Sut, List<Map.Entry<Range, Integer>>>
+    {
+        instance;
+
+        static final Comparator<Map.Entry<Range, Integer>> COMPARATOR = (a, b) -> {
+            int rc = a.getKey().compare(b.getKey());
+            if (rc == 0)
+                rc = a.getValue().compareTo(b.getValue());
+            return rc;
+        };
+
+        @Override
+        public List<Map.Entry<Range, Integer>> apply(State state)
+        {
+            return state.list;
+        }
+
+        @Override
+        public List<Map.Entry<Range, Integer>> run(Sut sut)
+        {
+            return sut.tree.stream().collect(Collectors.toList());
+        }
+
+        @Override
+        public void checkPostconditions(State state, List<Map.Entry<Range, Integer>> expected,
+                                        Sut sut, List<Map.Entry<Range, Integer>> actual)
+        {
+
+            expected.sort(COMPARATOR);
+            actual.sort(COMPARATOR);
+            Assertions.assertThat(actual).isEqualTo(expected);
+        }
+
+        @Override
+        public String detailed(State state)
+        {
+            return "Iterate(size=" + state.list.size() + ")";
+        }
     }
 
     private static class State
     {
         private final List<Map.Entry<Range, Integer>> list = new ArrayList<>();
-        private final Set<Range> uniqRanges = new HashSet<>();
+        private final TreeSet<Range> uniqRanges = new TreeSet<>(Range::compare);
         private final int sizeTarget, numChildren;
         private final Gen<Range> rangeGen;
 
@@ -147,7 +319,7 @@ public class StatefulRTreeTest
 
         public void add(Range range, int value)
         {
-            list.add(Map.entry(range, value));
+            list.add(new MutableEntry<>(range, value));
             uniqRanges.add(range);
         }
 
@@ -158,6 +330,31 @@ public class StatefulRTreeTest
                    "sizeTarget=" + sizeTarget +
                    ", numChildren=" + numChildren +
                    '}';
+        }
+
+        public List<Integer> get(Range range)
+        {
+            if (!uniqRanges.contains(range))
+                return Collections.emptyList();
+            return list.stream().filter(e -> e.getKey().equals(range)).map(e -> e.getValue()).collect(Collectors.toList());
+        }
+
+        public void update(Range range, int value)
+        {
+            if (!uniqRanges.contains(range))
+                return;
+            list.forEach(e -> {
+                if (e.getKey().equals(range))
+                    e.setValue(value);
+            });
+        }
+
+        public void remove(Range range)
+        {
+            if (!uniqRanges.contains(range))
+                return;
+            uniqRanges.remove(range);
+            list.removeIf(e -> e.getKey().equals(range));
         }
     }
 

@@ -23,17 +23,14 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import javax.annotation.CheckForNull;
 
 import com.google.common.collect.AbstractIterator;
-import com.google.common.collect.Lists;
 
 public class RTree<Token, Range, Value> implements Iterable<Map.Entry<Range, Value>>
 {
@@ -532,58 +529,6 @@ public class RTree<Token, Range, Value> implements Iterable<Map.Entry<Range, Val
                     }
                 }
             };
-        }
-    }
-
-    private static class MutableEntry<K, V> implements Map.Entry<K, V>
-    {
-        private final K k;
-        private V v;
-
-        private MutableEntry(K k, V v)
-        {
-            this.k = k;
-            this.v = v;
-        }
-
-        @Override
-        public K getKey()
-        {
-            return k;
-        }
-
-        @Override
-        public V getValue()
-        {
-            return v;
-        }
-
-        @Override
-        public V setValue(V value)
-        {
-            V previous = v;
-            v = Objects.requireNonNull(value);
-            return previous;
-        }
-
-        @Override
-        public boolean equals(Object o)
-        {
-            if (this == o) return true;
-            if (o == null || !(o instanceof Map.Entry)) return false;
-            Map.Entry<?, ?> that = (Map.Entry<?, ?>) o;
-            return Objects.equals(k, that.getKey()) && Objects.equals(v, that.getValue());
-        }
-
-        @Override
-        public int hashCode()
-        {
-            return Objects.hash(k, v);
-        }
-
-        @Override
-        public String toString() {
-            return k + "=" + v;
         }
     }
 }
