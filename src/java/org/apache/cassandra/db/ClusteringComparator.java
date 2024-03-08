@@ -197,34 +197,6 @@ public class ClusteringComparator implements Comparator<Clusterable>
     }
 
     /**
-     * Returns whether this clustering comparator is compatible with the provided one,
-     * that is if the provided one can be safely replaced by this new one.
-     *
-     * @param previous the previous comparator that we want to replace and test
-     * compatibility with.
-     *
-     * @return whether {@code previous} can be safely replaced by this comparator.
-     */
-    public boolean isCompatibleWith(ClusteringComparator previous)
-    {
-        if (this == previous)
-            return true;
-
-        // Extending with new components is fine, shrinking is not
-        if (size() < previous.size())
-            return false;
-
-        for (int i = 0; i < previous.size(); i++)
-        {
-            AbstractType<?> tprev = previous.subtype(i);
-            AbstractType<?> tnew = subtype(i);
-            if (!tnew.isCompatibleWith(tprev))
-                return false;
-        }
-        return true;
-    }
-
-    /**
      * Validates the provided prefix for corrupted data.
      *
      * @param clustering the clustering prefix to validate.

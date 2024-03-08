@@ -20,6 +20,7 @@ package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -36,14 +37,12 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-
 import org.apache.commons.lang3.ArrayUtils;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -95,6 +94,7 @@ import org.quicktheories.impl.JavaRandom;
 
 import static org.apache.cassandra.utils.Generators.IDENTIFIER_GEN;
 import static org.apache.cassandra.utils.Generators.filter;
+import static org.quicktheories.generators.SourceDSL.arbitrary;
 
 @SuppressWarnings({"unchecked", "rawtypes"})
 public final class AbstractTypeGenerators
@@ -127,7 +127,7 @@ public final class AbstractTypeGenerators
     }
 
 
-    private static final Map<AbstractType<?>, TypeSupport<?>> PRIMITIVE_TYPE_DATA_GENS =
+    public static final Map<AbstractType<?>, TypeSupport<?>> PRIMITIVE_TYPE_DATA_GENS =
     Stream.of(TypeSupport.of(BooleanType.instance, BOOLEAN_GEN),
               TypeSupport.of(ByteType.instance, SourceDSL.integers().between(0, Byte.MAX_VALUE * 2 + 1).map(Integer::byteValue)),
               TypeSupport.of(ShortType.instance, SourceDSL.integers().between(0, Short.MAX_VALUE * 2 + 1).map(Integer::shortValue)),
@@ -160,7 +160,7 @@ public final class AbstractTypeGenerators
     {
         ArrayList<AbstractType<?>> types = new ArrayList<>(PRIMITIVE_TYPE_DATA_GENS.keySet());
         types.sort(Comparator.comparing(a -> a.getClass().getName()));
-        PRIMITIVE_TYPE_GEN = SourceDSL.arbitrary().pick(types);
+        PRIMITIVE_TYPE_GEN = arbitrary().pick(types);
     }
 
     private static final Set<Class<? extends AbstractType>> NON_PRIMITIVE_TYPES = ImmutableSet.<Class<? extends AbstractType>>builder()
@@ -190,7 +190,23 @@ public final class AbstractTypeGenerators
         COUNTER
     }
 
-    private static final Gen<TypeKind> TYPE_KIND_GEN = SourceDSL.arbitrary().enumValuesWithNoOrder(TypeKind.class);
+    private static final Gen<TypeKind> TYPE_KIND_GEN = arbitrary().enumValuesWithNoOrder(TypeKind.class);
+
+    public static Collection<AbstractType<?>> primitiveTypes()
+    {
+        return PRIMITIVE_TYPE_DATA_GENS.keySet();
+    }
+
+    public static Stream<Pair<AbstractType<?>, AbstractType<?>>> primitiveTypePairs()
+    {
+        return primitiveTypePairs(a -> true);
+    }
+
+    public static Stream<Pair<AbstractType<?>, AbstractType<?>>> primitiveTypePairs(Predicate<AbstractType<?>> filter)
+    {
+        return primitiveTypes().stream().filter(filter).flatMap(a -> primitiveTypes().stream().filter(filter).map(b -> Pair.create(a, b)));
+    }
+
 
     public static Set<Class<? extends AbstractType>> knownTypes()
     {
@@ -250,6 +266,7 @@ public final class AbstractTypeGenerators
         private Function<Integer, Gen<AbstractType<?>>> defaultSetKeyFunc;
         private Predicate<AbstractType<?>> typeFilter = null;
         private Gen<String> udtName = null;
+        private Gen<Boolean> multiCellGen = BOOLEAN_GEN;
 
         public TypeGenBuilder()
         {
@@ -300,13 +317,13 @@ public final class AbstractTypeGenerators
 
         public TypeGenBuilder withUserTypeKeyspace(String keyspace)
         {
-            userTypeKeyspaceGen = SourceDSL.arbitrary().constant(keyspace);
+            userTypeKeyspaceGen = arbitrary().constant(keyspace);
             return this;
         }
 
         public TypeGenBuilder withDefaultSizeGen(int size)
         {
-            return withDefaultSizeGen(SourceDSL.arbitrary().constant(size));
+            return withDefaultSizeGen(arbitrary().constant(size));
         }
 
         public TypeGenBuilder withDefaultSizeGen(Gen<Integer> sizeGen)
@@ -360,7 +377,7 @@ public final class AbstractTypeGenerators
         public TypeGenBuilder withPrimitives(AbstractType<?> first, AbstractType<?>... remaining)
         {
             // any previous filters will be ignored...
-            primitiveGen = SourceDSL.arbitrary().pick(ArrayUtils.add(remaining, first));
+            primitiveGen = arbitrary().pick(ArrayUtils.add(remaining, first));
             return this;
         }
 
@@ -408,6 +425,18 @@ public final class AbstractTypeGenerators
             return this;
         }
 
+        public TypeGenBuilder multiCellIfRelevant()
+        {
+            this.multiCellGen = arbitrary().constant(true);
+            return this;
+        }
+
+        public TypeGenBuilder frozenIfRelevant()
+        {
+            this.multiCellGen = arbitrary().constant(false);
+            return this;
+        }
+
         public Gen<AbstractType<?>> build()
         {
             if (udtName == null)
@@ -428,11 +457,11 @@ public final class AbstractTypeGenerators
             {
                 ArrayList<TypeKind> ts = new ArrayList<>(kinds);
                 Collections.sort(ts);
-                kindGen = SourceDSL.arbitrary().pick(ts);
+                kindGen = arbitrary().pick(ts);
             }
             else
-                kindGen = SourceDSL.arbitrary().enumValues(TypeKind.class);
-            return buildRecursive(maxDepth, maxDepth, kindGen, BOOLEAN_GEN);
+                kindGen = arbitrary().enumValues(TypeKind.class);
+            return buildRecursive(maxDepth, maxDepth, kindGen, multiCellGen);
         }
 
         private Gen<AbstractType<?>> buildRecursive(int maxDepth, int level, Gen<TypeKind> typeKindGen, Gen<Boolean> multiCellGen)
@@ -465,7 +494,7 @@ public final class AbstractTypeGenerators
                             return mapTypeGen(defaultSetKeyFunc.apply(level - 1), next.get(), multiCellGen).generate(rnd);
                         return mapTypeGen(next.get(), next.get(), multiCellGen).generate(rnd);
                     case TUPLE:
-                        return tupleTypeGen(atBottom ? primitiveGen : buildRecursive(maxDepth, level - 1, typeKindGen, SourceDSL.arbitrary().constant(false)), tupleSizeGen != null ? tupleSizeGen : defaultSizeGen).generate(rnd);
+                        return tupleTypeGen(atBottom ? primitiveGen : buildRecursive(maxDepth, level - 1, typeKindGen, arbitrary().constant(false)), tupleSizeGen != null ? tupleSizeGen : defaultSizeGen).generate(rnd);
                     case UDT:
                         return userTypeGen(next.get(), udtSizeGen != null ? udtSizeGen : defaultSizeGen, userTypeKeyspaceGen, udtName, multiCellGen).generate(rnd);
                     case VECTOR:
@@ -756,7 +785,7 @@ public final class AbstractTypeGenerators
         TypeSupport<T> support;
         if (gen != null)
         {
-            support = gen;
+            support = gen.withValueDomain(valueDomainGen);
         }
         // might be... complex...
         else if (type instanceof SetType)
@@ -811,9 +840,9 @@ public final class AbstractTypeGenerators
             // T = Map<A, B> so can not use T here
             MapType<Object, Object> mapType = (MapType<Object, Object>) type;
             // do not use valueDomainGen as map doesn't allow null/empty
-            TypeSupport<Object> keySupport = getTypeSupport(mapType.getKeysType(), sizeGen, null);
+            TypeSupport<Object> keySupport = getTypeSupport(mapType.getKeysType(), sizeGen, valueDomainGen);
             Comparator<Object> keyType = keySupport.valueComparator;
-            TypeSupport<Object> valueSupport = getTypeSupport(mapType.getValuesType(), sizeGen, null);
+            TypeSupport<Object> valueSupport = getTypeSupport(mapType.getValuesType(), sizeGen, valueDomainGen);
             Comparator<Object> valueType = valueSupport.valueComparator;
             Comparator<Map<Object, Object>> comparator = (Map<Object, Object> a, Map<Object, Object> b) -> {
                 List<Object> ak = new ArrayList<>(a.keySet());

@@ -215,7 +215,7 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
             if (!orReplace)
                 throw ire("Aggregate '%s' already exists", aggregateName);
 
-            if (!returnType.isCompatibleWith(existingAggregate.returnType()))
+            if (!returnType.isCompatibleWith(existingAggregate.returnType())) // shouldn't this condition be opposite direction? existingAggregate.returnType().isCompatibleWith(returnType)?
             {
                 throw ire("Cannot replace aggregate '%s', the new return type %s isn't compatible with the return type %s of existing function",
                           aggregateName,
