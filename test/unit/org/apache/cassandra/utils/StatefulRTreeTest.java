@@ -21,6 +21,7 @@ package org.apache.cassandra.utils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
@@ -45,11 +46,27 @@ import static accord.utils.Property.stateful;
 public class StatefulRTreeTest
 {
     private static final Gen.IntGen SMALL_INT_GEN = rs -> rs.nextInt(0, 10);
+    private static final Gen.IntGen NUM_CHILDREN_GEN = rs -> rs.nextInt(2, 12);
+    private static final Gen<Gen.IntGen> SIZE_TARGET_DISTRIBUTION = Gens.mixedDistribution(1 << 3, 1 << 9);
     private static final int MIN_TOKEN = 0, MAX_TOKEN = 1 << 16;
     private static final int TOKEN_RANGE_SIZE = MAX_TOKEN - MIN_TOKEN + 1;
     private static final Gen<Gen.IntGen> TOKEN_DISTRIBUTION = Gens.mixedDistribution(MIN_TOKEN, MAX_TOKEN + 1);
     private static final Gen<Gen.IntGen> RANGE_SIZE_DISTRIBUTION = Gens.mixedDistribution(10, (int) (TOKEN_RANGE_SIZE * .01));
+    static final Comparator<Map.Entry<Range, Integer>> COMPARATOR = (a, b) -> {
+        int rc = a.getKey().compare(b.getKey());
+        if (rc == 0)
+            rc = a.getValue().compareTo(b.getValue());
+        return rc;
+    };
 
+    /**
+     * Stateful test for RTree.
+     *
+     * This test is very similar to {@link org.apache.cassandra.utils.RTreeTest#test} but is fully mutable, so can not
+     * use the immutable search trees (else rebuidling becomes a large cost).  Both tests should exist as they use different
+     * models, which helps build confidence that the RTree does the correct thing; that test also covers start and end
+     * inclusive, which this test does not.
+     */
     @Test
     public void test()
     {
@@ -60,22 +77,17 @@ public class StatefulRTreeTest
             public Gen<State> genInitialState()
             {
                 return rs -> {
-                    Gen.IntGen tokenGen = TOKEN_DISTRIBUTION.next(rs);
-                    Gen.IntGen rangeSizeGen = RANGE_SIZE_DISTRIBUTION.next(rs);
-                    Gen<Range> rangeGen = r -> {
-                        int a = tokenGen.nextInt(r);
-                        int rangeSize = rangeSizeGen.nextInt(r);
-                        int b = a + rangeSize;
-                        if (b > MAX_TOKEN)
-                        {
-                            b = a;
-                            a = b - rangeSize;
-                        }
-                        return IntKey.range(a, b);
-                    };
-                    return new State(rs.pickInt(1 << 3, 1 << 5, 1 << 7, 1 << 9),
-                                     rs.nextInt(2, 12),
-                                     rangeGen);
+                    Gen<Range> rangeGen = rangeGen(rs);
+                    int numChildren = NUM_CHILDREN_GEN.nextInt(rs);
+                    int sizeTarget = SIZE_TARGET_DISTRIBUTION.next(rs).filter(s -> s > numChildren).nextInt(rs);
+                    int createWeight = rs.nextInt(1, 100);
+                    int updateWeight = rs.nextInt(1, 20);
+                    int deleteWeight = rs.nextInt(1, 20);
+                    int clearWeight = rs.nextInt(0, 2); // either disabled or enabled with weight=1
+                    int readWeight = rs.nextInt(1, 20);
+                    return new State(sizeTarget, numChildren,
+                                     TOKEN_DISTRIBUTION.next(rs), rangeGen,
+                                     createWeight, updateWeight, deleteWeight, clearWeight, readWeight);
                 };
             }
 
@@ -88,25 +100,71 @@ public class StatefulRTreeTest
             @Override
             public Gen<Command<State, Sut, ?>> commands(State state)
             {
-                List<Gen<Command<State, Sut, ?>>> possible = new ArrayList<>();
-                // create
-                possible.add(rs -> new Create(state.newRange(rs), SMALL_INT_GEN.nextInt(rs)));
-                // read missing
-                possible.add(rs -> new Read(state.newRange(rs)));
-                // iterate
-                possible.add(ignore -> Iterate.instance);
+                Map<Gen<Command<State, Sut, ?>>, Integer> possible = new HashMap<>();
+                possible.put(rs -> new Create(state.newRange(rs), SMALL_INT_GEN.nextInt(rs)), state.createWeight);
+                possible.put(rs -> new Read(state.newRange(rs)), state.readWeight);
+                possible.put(rs -> new KeyRead(IntKey.routing(state.tokenGen.nextInt(rs))), state.readWeight);
+                possible.put(rs -> new RangeRead(state.rangeGen.next(rs)), state.readWeight);
+                possible.put(ignore -> Iterate.instance, state.readWeight);
+                possible.put(ignore -> Clear.instance, state.clearWeight);
                 if (!state.uniqRanges.isEmpty())
                 {
-                    // read existing
-                    possible.add(rs -> new Read(rs.pick(state.uniqRanges)));
-                    // update
-                    possible.add(rs -> new Update(rs.pick(state.uniqRanges), SMALL_INT_GEN.nextInt(rs)));
-                    // delete
-                    possible.add(rs -> new Delete(rs.pick(state.uniqRanges)));
+                    possible.put(rs -> new Read(rs.pick(state.uniqRanges)), state.readWeight);
+                    possible.put(rs -> {
+                        Range range = rs.pick(state.uniqRanges);
+                        int token = rs.nextInt(((IntKey.Routing) range.start()).key, ((IntKey.Routing) range.end()).key) + 1;
+                        return new KeyRead(IntKey.routing(token));
+                    }, state.readWeight);
+                    possible.put(rs -> new RangeRead(rs.pick(state.uniqRanges)), state.readWeight);
+                    possible.put(rs -> new Update(rs.pick(state.uniqRanges), SMALL_INT_GEN.nextInt(rs)), state.updateWeight);
+                    possible.put(rs -> new Delete(rs.pick(state.uniqRanges)), state.deleteWeight);
                 }
                 return Gens.oneOf(possible);
             }
         });
+    }
+
+    private static Gen<Range> rangeGen(RandomSource rand)
+    {
+        Gen.IntGen tokenGen = TOKEN_DISTRIBUTION.next(rand);
+        switch (rand.nextInt(0, 3))
+        {
+            case 0: // pure random
+                return rs -> {
+                    int a = tokenGen.nextInt(rs);
+                    int b = tokenGen.nextInt(rs);
+                    while (a == b)
+                        b = tokenGen.nextInt(rs);
+                    if (a > b)
+                    {
+                        int tmp = a;
+                        a = b;
+                        b = tmp;
+                    }
+                    return IntKey.range(a, b);
+                };
+            case 1: // small range
+                Gen.IntGen rangeSizeGen = RANGE_SIZE_DISTRIBUTION.next(rand);
+                return rs -> {
+                    int a = tokenGen.nextInt(rs);
+                    int rangeSize = rangeSizeGen.nextInt(rs);
+                    int b = a + rangeSize;
+                    if (b > MAX_TOKEN)
+                    {
+                        b = a;
+                        a = b - rangeSize;
+                    }
+                    return IntKey.range(a, b);
+                };
+            case 2: // single element
+                return rs -> {
+                    int a = tokenGen.nextInt(rs);
+                    int b = a + 1;
+                    return IntKey.range(a, b);
+                };
+            default:
+                throw new AssertionError();
+        }
     }
 
     static class Create implements UnitCommand<State, Sut>
@@ -146,12 +204,32 @@ public class StatefulRTreeTest
         }
     }
 
-    static class Read implements Command<State, Sut, List<Integer>>
+    static abstract class AbstractRead<T> implements Command<State, Sut, List<T>>
+    {
+        private final Comparator<T> comparator;
+
+        protected AbstractRead(Comparator<T> comparator)
+        {
+            this.comparator = comparator;
+        }
+
+        @Override
+        public void checkPostconditions(State state, List<T> expected,
+                                        Sut sut, List<T> actual)
+        {
+            expected.sort(comparator);
+            actual.sort(comparator);
+            Assertions.assertThat(actual).isEqualTo(expected);
+        }
+    }
+
+    static class Read extends AbstractRead<Integer>
     {
         private final Range range;
 
         Read(Range range)
         {
+            super(Comparator.naturalOrder());
             this.range = range;
         }
 
@@ -168,18 +246,67 @@ public class StatefulRTreeTest
         }
 
         @Override
-        public void checkPostconditions(State state, List<Integer> expected,
-                                        Sut sut, List<Integer> actual)
+        public String detailed(State state)
         {
-            expected.sort(Comparator.naturalOrder());
-            actual.sort(Comparator.naturalOrder());
-            Assertions.assertThat(actual).isEqualTo(expected);
+            return "Read(" + range + ")";
+        }
+    }
+
+    static class RangeRead extends AbstractRead<Map.Entry<Range, Integer>>
+    {
+        private final Range range;
+
+        RangeRead(Range range)
+        {
+            super(COMPARATOR);
+            this.range = range;
+        }
+
+        @Override
+        public List<Map.Entry<Range, Integer>> apply(State state)
+        {
+            return state.list.stream().filter(e -> e.getKey().compareIntersecting(range) == 0).collect(Collectors.toList());
+        }
+
+        @Override
+        public List<Map.Entry<Range, Integer>> run(Sut sut)
+        {
+            return sut.tree.search(range);
         }
 
         @Override
         public String detailed(State state)
         {
-            return "Read(" + range + ")";
+            return "Range Read(" + range + ")";
+        }
+    }
+
+    static class KeyRead extends AbstractRead<Map.Entry<Range, Integer>>
+    {
+        final RoutingKey key;
+
+        KeyRead(RoutingKey key)
+        {
+            super(COMPARATOR);
+            this.key = key;
+        }
+
+        @Override
+        public List<Map.Entry<Range, Integer>> apply(State state)
+        {
+            return state.list.stream().filter(e -> e.getKey().contains(key)).collect(Collectors.toList());
+        }
+
+        @Override
+        public List<Map.Entry<Range, Integer>> run(Sut sut)
+        {
+            return sut.tree.searchToken(key);
+        }
+
+        @Override
+        public String detailed(State state)
+        {
+            return "Token Read(" + key + ")";
         }
     }
 
@@ -204,13 +331,6 @@ public class StatefulRTreeTest
         public void runUnit(Sut sut)
         {
             sut.tree.get(range, e -> e.setValue(value));
-        }
-
-        @Override
-        public void checkPostconditions(State state, Void expected,
-                                        Sut sut, Void actual)
-        {
-            Assertions.assertThat(sut.tree.size()).isEqualTo(state.list.size());
         }
 
         @Override
@@ -255,16 +375,37 @@ public class StatefulRTreeTest
         }
     }
 
-    enum Iterate implements Command<State, Sut, List<Map.Entry<Range, Integer>>>
+    static class Clear implements UnitCommand<State, Sut>
     {
-        instance;
+        static final Clear instance = new Clear();
 
-        static final Comparator<Map.Entry<Range, Integer>> COMPARATOR = (a, b) -> {
-            int rc = a.getKey().compare(b.getKey());
-            if (rc == 0)
-                rc = a.getValue().compareTo(b.getValue());
-            return rc;
-        };
+        @Override
+        public void applyUnit(State state)
+        {
+            state.uniqRanges.clear();
+            state.list.clear();
+        }
+
+        @Override
+        public void runUnit(Sut sut)
+        {
+            sut.tree.clear();
+        }
+
+        @Override
+        public String detailed(State state)
+        {
+            return "Clear(size=" + state.list.size() + ")";
+        }
+    }
+
+    static class Iterate extends AbstractRead<Map.Entry<Range, Integer>>
+    {
+        static final Iterate instance = new Iterate();
+        public Iterate()
+        {
+            super(COMPARATOR);
+        }
 
         @Override
         public List<Map.Entry<Range, Integer>> apply(State state)
@@ -279,16 +420,6 @@ public class StatefulRTreeTest
         }
 
         @Override
-        public void checkPostconditions(State state, List<Map.Entry<Range, Integer>> expected,
-                                        Sut sut, List<Map.Entry<Range, Integer>> actual)
-        {
-
-            expected.sort(COMPARATOR);
-            actual.sort(COMPARATOR);
-            Assertions.assertThat(actual).isEqualTo(expected);
-        }
-
-        @Override
         public String detailed(State state)
         {
             return "Iterate(size=" + state.list.size() + ")";
@@ -300,13 +431,23 @@ public class StatefulRTreeTest
         private final List<Map.Entry<Range, Integer>> list = new ArrayList<>();
         private final TreeSet<Range> uniqRanges = new TreeSet<>(Range::compare);
         private final int sizeTarget, numChildren;
+        private final Gen.IntGen tokenGen;
         private final Gen<Range> rangeGen;
+        private final int createWeight, updateWeight, deleteWeight, clearWeight, readWeight;
 
-        private State(int sizeTarget, int numChildren, Gen<Range> rangeGen)
+        private State(int sizeTarget, int numChildren,
+                      Gen.IntGen tokenGen, Gen<Range> rangeGen,
+                      int createWeight, int updateWeight, int deleteWeight, int clearWeight, int readWeight)
         {
             this.sizeTarget = sizeTarget;
             this.numChildren = numChildren;
+            this.tokenGen = tokenGen;
             this.rangeGen = rangeGen;
+            this.createWeight = createWeight;
+            this.updateWeight = updateWeight;
+            this.deleteWeight = deleteWeight;
+            this.clearWeight = clearWeight;
+            this.readWeight = readWeight;
         }
 
         public Range newRange(RandomSource rs)
@@ -320,15 +461,6 @@ public class StatefulRTreeTest
         {
             list.add(new MutableEntry<>(range, value));
             uniqRanges.add(range);
-        }
-
-        @Override
-        public String toString()
-        {
-            return "State{" +
-                   "sizeTarget=" + sizeTarget +
-                   ", numChildren=" + numChildren +
-                   '}';
         }
 
         public List<Integer> get(Range range)
@@ -354,6 +486,15 @@ public class StatefulRTreeTest
                 return;
             uniqRanges.remove(range);
             list.removeIf(e -> e.getKey().equals(range));
+        }
+
+        @Override
+        public String toString()
+        {
+            return "State{" +
+                   "sizeTarget=" + sizeTarget +
+                   ", numChildren=" + numChildren +
+                   '}';
         }
     }
 

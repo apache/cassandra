@@ -74,8 +74,12 @@ public class RTree<Token, Range, Value> implements Iterable<Map.Entry<Range, Val
 
     public RTree(Comparator<Token> comparator, Accessor<Token, Range> accessor, int sizeTarget, int numChildren)
     {
+        if (sizeTarget <= 1)
+            throw new IllegalArgumentException("size target must be 2 or more");
         if (numChildren <= 1)
             throw new IllegalArgumentException("Number of children must be 2 or more");
+        if (sizeTarget < numChildren)
+            throw new IllegalArgumentException("Size target (" + sizeTarget + ") was less than number of children (" + numChildren + ")");
         this.comparator = comparator;
         this.accessor = accessor;
         this.sizeTarget = sizeTarget;
@@ -408,8 +412,9 @@ public class RTree<Token, Range, Value> implements Iterable<Map.Entry<Range, Val
             int offset = 0;
             for (int i = 0; i < numChildren - 1; i++)
             {
-                partition.add(new ArrayList<>(values.subList(offset, offset + size)));
-                offset += size;
+                int total = size;
+                partition.add(new ArrayList<>(values.subList(offset, offset + total)));
+                offset += total;
             }
             partition.add(new ArrayList<>(values.subList(offset, values.size())));
             return partition;
