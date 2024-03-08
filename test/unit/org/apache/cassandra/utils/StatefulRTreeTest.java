@@ -36,6 +36,7 @@ import accord.utils.Gens;
 import accord.utils.Property.Command;
 import accord.utils.Property.Commands;
 import accord.utils.Property.UnitCommand;
+import accord.utils.RandomSource;
 import org.apache.cassandra.service.accord.RTreeRangeAccessor;
 import org.assertj.core.api.Assertions;
 
@@ -89,18 +90,9 @@ public class StatefulRTreeTest
             {
                 List<Gen<Command<State, Sut, ?>>> possible = new ArrayList<>();
                 // create
-                possible.add(rs -> {
-                    Range range;
-                    while ((state.uniqRanges.contains(range = state.rangeGen.next(rs)))) {}
-                    int value = SMALL_INT_GEN.nextInt(rs);
-                    return new Create(range, value);
-                });
+                possible.add(rs -> new Create(state.newRange(rs), SMALL_INT_GEN.nextInt(rs)));
                 // read missing
-                possible.add(rs -> {
-                    Range range;
-                    while ((state.uniqRanges.contains(range = state.rangeGen.next(rs)))) {}
-                    return new Read(range);
-                });
+                possible.add(rs -> new Read(state.newRange(rs)));
                 // iterate
                 possible.add(ignore -> Iterate.instance);
                 if (!state.uniqRanges.isEmpty())
@@ -315,6 +307,13 @@ public class StatefulRTreeTest
             this.sizeTarget = sizeTarget;
             this.numChildren = numChildren;
             this.rangeGen = rangeGen;
+        }
+
+        public Range newRange(RandomSource rs)
+        {
+            Range range;
+            while ((uniqRanges.contains(range = rangeGen.next(rs)))) {}
+            return range;
         }
 
         public void add(Range range, int value)
