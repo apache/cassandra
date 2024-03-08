@@ -43,6 +43,7 @@ import org.quicktheories.core.Gen;
 import org.quicktheories.core.RandomnessSource;
 import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.Constraint;
+import org.quicktheories.impl.JavaRandom;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_BLOB_SHARED_SEED;
 
@@ -599,5 +600,13 @@ public final class Generators
     private static long toMicros(ZonedDateTime zdt)
     {
         return zdt.toInstant().toEpochMilli() * 1000 + zdt.getNano() / 1000;
+    }
+
+    public static <T> accord.utils.Gen<T> toGen(org.quicktheories.core.Gen<T> qt)
+    {
+        return rs -> {
+            JavaRandom r = new JavaRandom(rs.asJdkRandom());
+            return qt.generate(r);
+        };
     }
 }
