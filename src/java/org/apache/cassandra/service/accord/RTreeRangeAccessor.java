@@ -20,7 +20,6 @@ package org.apache.cassandra.service.accord;
 
 import accord.api.RoutingKey;
 import accord.primitives.Range;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.utils.RTree;
 
 public enum RTreeRangeAccessor implements RTree.Accessor<RoutingKey, Range>
@@ -58,7 +57,9 @@ public enum RTreeRangeAccessor implements RTree.Accessor<RoutingKey, Range>
     @Override
     public boolean intersects(Range range, RoutingKey start, RoutingKey end)
     {
-        return intersects(range, new TokenRange((AccordRoutingKey) start, (AccordRoutingKey) end));
+        if (range.start().compareTo(end) >= 0) return false;
+        if (range.end().compareTo(start) <= 0) return false;
+        return true;
     }
 
     @Override
