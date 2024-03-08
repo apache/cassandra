@@ -691,7 +691,7 @@ public class CustomIndexTest extends CQLTester
         }
 
         // SSTables remain uncommitted.
-        assertEquals(1, getCurrentColumnFamilyStore().getDirectories().getDirectoryForNewSSTables().tryList().length);
+        assertEquals(0, getCurrentColumnFamilyStore().getDirectories().getDirectoryForNewSSTables().tryList().length);
     }
 
     @Test
