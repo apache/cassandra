@@ -131,7 +131,6 @@ import static org.quicktheories.QuickTheory.qt;
 import static org.quicktheories.generators.SourceDSL.arbitrary;
 import static org.quicktheories.generators.SourceDSL.doubles;
 import static org.quicktheories.generators.SourceDSL.floats;
-import static org.quicktheories.generators.SourceDSL.integers;
 
 @SuppressWarnings("unchecked")
 public class AbstractTypeTest
@@ -848,7 +847,7 @@ public class AbstractTypeTest
         assertions.assertAll();
     }
 
-    private static <L, R> void verifyTypesCompatibility(AbstractType left, AbstractType right, Gen rightGen)
+    private static void verifyTypesCompatibility(AbstractType left, AbstractType right, Gen rightGen)
     {
         if (left.equals(right))
             return;
@@ -872,8 +871,8 @@ public class AbstractTypeTest
             Assertions.assertThatNoException().describedAs(typeRelDesc(".decompose", left, right)).isThrownBy(() -> {
 
                 // value compatibility means that we can use left's type serializer to decompose a value of right's type
-                ByteBuffer rightDecomposed = right.decompose((R) v);
-                L leftComposed = (L) left.compose(rightDecomposed);
+                ByteBuffer rightDecomposed = right.decompose(v);
+                Object leftComposed = left.compose(rightDecomposed);
                 ByteBuffer leftDecomposed = left.decompose(leftComposed);
                 assertThat(leftDecomposed.hasRemaining()).isEqualTo(rightDecomposed.hasRemaining());
             });
@@ -897,14 +896,13 @@ public class AbstractTypeTest
 
         // types compatibility means that we can compare values of right's type using left's type comparator additionally
         // to types being serialization compatible
+        if (!left.isMultiCell() && !right.isMultiCell())
+        {
+            // make sure that frozen<left> isCompatibleWith frozen<right> ==> left isCompatibleWith right
+            assertThat(left.unfreeze().isCompatibleWith(right.unfreeze())).isTrue();
+        }
         qt().withExamples(10).forAll(rightGen, rightGen).checkAssert((r1, r2) -> {
             Assertions.assertThatNoException().describedAs(typeRelDesc(".compare", left, right)).isThrownBy(() -> {
-                if (!left.isMultiCell() && !right.isMultiCell())
-                {
-                    // make sure that frozen<left> isCompatibleWith frozen<right> ==> left isCompatibleWith right
-                    assertThat(left.unfreeze().isCompatibleWith(right.unfreeze())).isTrue();
-                }
-
                 ByteBuffer rBuf1 = right.decompose(r1);
                 ByteBuffer rBuf2 = right.decompose(r2);
                 ByteBuffer lBuf1 = left.decompose(left.compose(rBuf1));
@@ -1256,7 +1254,7 @@ public class AbstractTypeTest
                                       .as(descProvider.apply(left, right))
                                       .isEqualTo(expectPredicate.test(left, right));
 
-                            verifyTypesCompatibility(left, right, getTypeSupport(right, integers().between(2, 2), SourceDSL.arbitrary().constant(AbstractTypeGenerators.ValueDomain.NORMAL)).valueGen);
+                            verifyTypesCompatibility(left, right, getTypeSupport(right, ignored -> 2, null).valueGen);
                         }
         }
 
