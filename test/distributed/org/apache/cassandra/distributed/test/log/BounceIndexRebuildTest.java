@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.test.log;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
@@ -41,12 +42,20 @@ public class BounceIndexRebuildTest extends TestBaseImpl
             cluster.schemaChange(withKeyspace("create index idx on %s.tbl (x)"));
             Object[][] res = cluster.coordinator(1).execute(withKeyspace("select * from %s.tbl where x=5"), ConsistencyLevel.ALL);
             assert res.length > 0;
-            final String pattern = "Index build of idx complete|Index \\[idx\\] became queryable after successful build";
-            int preBounce = cluster.get(1).logs().grep(pattern).getResult().size();
+            String patternLegacyBuild = "Index build of idx complete";
+            int preBounceLegacyBuilds = cluster.get(1).logs().grep(patternLegacyBuild).getResult().size();
+
+            final String patternSaiValidation = "Validating per-column index components for distributed_test_keyspace.idx";
+            int preBounceSaiValidations = cluster.get(1).logs().grep(patternSaiValidation).getResult().size();
 
             cluster.get(1).shutdown().get();
             cluster.get(1).startup();
-            assertEquals(preBounce + 1, cluster.get(1).logs().grep(pattern).getResult().size());
+            // Make sure legacy index does not rebuild on restart
+            assertEquals(preBounceLegacyBuilds, cluster.get(1).logs().grep(patternLegacyBuild).getResult().size());
+            // If we are using SAI, we want the index to validate rather than build
+            if (preBounceLegacyBuilds == 0)
+                Assert.assertTrue(cluster.get(1).logs().grep(patternSaiValidation).getResult().size() > preBounceSaiValidations);
+
             res = cluster.coordinator(1).execute(withKeyspace("select * from %s.tbl where x=5"), ConsistencyLevel.ALL);
             assert res.length > 0;
         }
