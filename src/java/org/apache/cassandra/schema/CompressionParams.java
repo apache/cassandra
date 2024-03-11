@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 
@@ -51,7 +52,6 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.DETERMINIS
 
 public final class CompressionParams
 {
-    public static final CompressorType DEFAULT_COMPRESSION_TYPE = CompressorType.lz4;
     public static final int DEFAULT_CHUNK_LENGTH = 1024 * 16; // in KB
     public static final double DEFAULT_MIN_COMPRESS_RATIO = 0.0;        // Since pre-4.0 versions do not understand the
                                                                         // new compression parameter we can't use a

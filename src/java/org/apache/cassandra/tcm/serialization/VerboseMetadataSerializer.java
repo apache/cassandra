@@ -40,7 +40,8 @@ public class VerboseMetadataSerializer
     {
         int x = in.readUnsignedVInt32();
         Version v = Version.fromInt(x);
-        return base.deserialize(in, v);
+        return base.
+               deserialize(in, v);
     }
 
     public static <In, Out> long serializedSize(AsymmetricMetadataSerializer<In, Out> base,

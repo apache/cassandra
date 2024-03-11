@@ -878,7 +878,7 @@ public class ReadCommandTest
         cfs.disableAutoCompaction();
         cfs.metadata().withSwapped(cfs.metadata().params.unbuild()
                                                         .caching(CachingParams.CACHE_NOTHING)
-                                                        .build(KEYSPACE, CF9));
+                                                        .build(KEYSPACE));
         // Insert and repair
         insert(cfs, IntStream.range(0, 10), () -> IntStream.range(0, 10));
         Util.flush(cfs);
@@ -929,7 +929,7 @@ public class ReadCommandTest
 
     private void setGCGrace(ColumnFamilyStore cfs, int gcGrace)
     {
-        TableParams newParams = cfs.metadata().params.unbuild().gcGraceSeconds(gcGrace).build(cfs.keyspace.getName(), cfs.name);
+        TableParams newParams = cfs.metadata().params.unbuild().gcGraceSeconds(gcGrace).build(cfs.keyspace.getName());
         KeyspaceMetadata keyspaceMetadata = Schema.instance.getKeyspaceMetadata(cfs.metadata().keyspace);
         SchemaTestUtil.addOrUpdateKeyspace(
             keyspaceMetadata.withSwapped(

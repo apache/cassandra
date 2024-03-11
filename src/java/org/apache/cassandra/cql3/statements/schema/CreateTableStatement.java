@@ -18,7 +18,6 @@
 package org.apache.cassandra.cql3.statements.schema;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -159,7 +158,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
         if (useCompactStorage)
             Guardrails.compactTablesEnabled.ensureEnabled(state);
 
-        validateDefaultTimeToLive(attrs.asNewTableParams(keyspaceName, tableName));
+        validateDefaultTimeToLive(attrs.asNewTableParams(keyspaceName));
 
         rawColumns.forEach((name, raw) -> raw.validate(state, name));
     }
@@ -193,8 +192,8 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
     public TableMetadata.Builder builder(Types types, UserFunctions functions)
     {
-        attrs.validate(keyspaceName, tableName);
-        TableParams params = attrs.asNewTableParams(keyspaceName, tableName);
+        attrs.validate(keyspaceName);
+        TableParams params = attrs.asNewTableParams(keyspaceName);
 
         // use a TreeMap to preserve ordering across JDK versions (see CASSANDRA-9492) - important for stable unit tests
         Map<ColumnIdentifier, ColumnProperties> columns = new TreeMap<>(comparing(o -> o.bytes));
@@ -266,7 +265,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
         List<ColumnIdentifier> nonClusterColumn = clusteringOrder.keySet().stream()
                                                                  .filter((id) -> !clusteringColumns.contains(id))
-                                                                 .collect(Collectors.toList());
+                                                                 .toList();
         if (!nonClusterColumn.isEmpty())
         {
             throw ire("Only clustering key columns can be defined in CLUSTERING ORDER directive: " + nonClusterColumn + " are not clustering columns");
@@ -293,7 +292,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
         }
         else
         {
-            // Static columns only make sense if we have at least one clustering column. Otherwise everything is static anyway
+            // Static columns only make sense if we have at least one clustering column. Otherwise, everything is static anyway
             if (clusteringColumns.isEmpty() && !staticColumns.isEmpty())
                 throw ire("Static columns are only useful (and thus allowed) if the table has at least one clustering column");
         }
@@ -402,7 +401,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
         if (hasCounters)
             flags.add(TableMetadata.Flag.COUNTER);
 
-        boolean isStaticCompact = !isDense && !isCompound;
+        boolean isStaticCompact = !isDense;
 
         builder.flags(flags);
 
@@ -424,7 +423,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
         else if (!builder.hasRegularColumns())
         {
             // Even for dense, we might not have our regular column if it wasn't part of the declaration. If
-            // that's the case, add it but with a specific EmptyType so we can recognize that case later
+            // that's the case, add it but with a specific EmptyType, so we can recognize that case later
             builder.addRegularColumn(names.defaultCompactValueName(), EmptyType.instance);
         }
     }
