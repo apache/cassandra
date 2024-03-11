@@ -1059,7 +1059,7 @@ public final class SchemaKeyspace
 
         assert tableName != null;
 
-        return builder.build(row.getString("keyspace_name"), tableName);
+        return builder.build(row.getString("keyspace_name"));
     }
 
     private static List<ColumnMetadata> fetchColumns(String keyspace, String table, Types types, UserFunctions functions)

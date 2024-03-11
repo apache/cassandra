@@ -205,7 +205,7 @@ public class TableMetadata implements SchemaElement
         epoch = builder.epoch;
         partitioner = builder.partitioner;
         kind = builder.kind;
-        params = builder.params.build(keyspace, name);
+        params = builder.params.build(keyspace);
 
         indexName = kind == Kind.INDEX ? name.substring(name.indexOf('.') + 1) : null;
 
@@ -666,9 +666,8 @@ public class TableMetadata implements SchemaElement
 
         Builder unbuilt = unbuild();
         String keyspace = unbuilt.keyspace;
-        String table = unbuilt.name;
 
-        return unbuilt.params(builder.build(keyspace, table)).build();
+        return unbuilt.params(builder.build(keyspace)).build();
     }
 
     boolean referencesUserType(ByteBuffer name)
@@ -1774,7 +1773,7 @@ public class TableMetadata implements SchemaElement
             t.id.serialize(out);
             out.writeUTF(t.partitioner.getClass().getCanonicalName());
             out.writeUTF(t.kind.name());
-            TableParams.serializer.serialize(t.params, out, version);
+            new TableParams.Serializer(t.keyspace).serialize(t.params, out, version);
 
             out.writeInt(t.flags.size());
             for (Flag f : t.flags)
@@ -1810,7 +1809,7 @@ public class TableMetadata implements SchemaElement
             builder.epoch(epoch);
             builder.partitioner(FBUtilities.newPartitioner(in.readUTF()));
             builder.kind(Kind.valueOf(in.readUTF()));
-            builder.params(TableParams.serializer.deserialize(in, version));
+            builder.params(new TableParams.Serializer(ks).deserialize(in, version));
             int flagCount = in.readInt();
             Set<Flag> flags = new HashSet<>();
             for (int i = 0; i < flagCount; i++)
@@ -1836,7 +1835,7 @@ public class TableMetadata implements SchemaElement
                         t.id.serializedSize() +
                         sizeof(t.partitioner.getClass().getCanonicalName()) +
                         sizeof(t.kind.name()) +
-                        TableParams.serializer.serializedSize(t.params, version);
+                        new TableParams.Serializer(t.keyspace).serializedSize(t.params, version);
 
             size += sizeof(t.epoch != null);
             if (t.epoch != null)

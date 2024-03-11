@@ -243,8 +243,6 @@ public class DatabaseDescriptor
 
     private static ParameterizedClass sstableCompression;
 
-    private static ParameterizedClass sstableCompression;
-
     private static Function<CommitLog, AbstractCommitLogSegmentManager> commitLogSegmentMgrProvider = c -> DatabaseDescriptor.isCDCEnabled()
                                                                                                            ? new CommitLogSegmentManagerCDC(c, DatabaseDescriptor.getCommitLogLocation())
                                                                                                            : new CommitLogSegmentManagerStandard(c, DatabaseDescriptor.getCommitLogLocation());
