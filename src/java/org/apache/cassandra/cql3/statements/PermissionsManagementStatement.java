@@ -21,6 +21,7 @@ import java.util.Set;
 
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.RoleName;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -64,6 +65,8 @@ public abstract class PermissionsManagementStatement extends AuthorizationStatem
 
         if (!resource.exists())
             throw new InvalidRequestException(String.format("Resource %s doesn't exist", resource));
+
+        Guardrails.dclEnabled.ensureEnabled(state);
     }
 
     public void authorize(ClientState state) throws UnauthorizedException

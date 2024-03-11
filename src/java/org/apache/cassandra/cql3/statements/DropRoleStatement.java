@@ -22,6 +22,7 @@ import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.RoleName;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -62,6 +63,8 @@ public class DropRoleStatement extends AuthenticationStatement
         AuthenticatedUser user = state.getUser();
         if (user != null && user.getName().equals(role.getRoleName()))
             throw new InvalidRequestException("Cannot DROP primary role for current login");
+
+        Guardrails.dclEnabled.ensureEnabled(state);
     }
 
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException

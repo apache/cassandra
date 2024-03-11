@@ -85,6 +85,9 @@ public final class CreateTypeStatement extends AlterSchemaStatement
             throw ire("A user type with name '%s' already exists", typeName);
         }
 
+        // if apply is not no-op then we check guardrail for this ddl op
+        Guardrails.ddlEnabled.ensureEnabled(state);
+
         Set<FieldIdentifier> usedNames = new HashSet<>();
         for (FieldIdentifier name : fieldNames)
             if (!usedNames.add(name))

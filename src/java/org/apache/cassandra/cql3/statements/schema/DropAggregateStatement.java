@@ -31,6 +31,7 @@ import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.UDAggregate;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
@@ -109,6 +110,9 @@ public final class DropAggregateStatement extends AlterSchemaStatement
 
             throw ire("Aggregate '%s' doesn't exist", name);
         }
+
+        // if apply is not no-op then we check guardrail for this ddl op
+        Guardrails.ddlEnabled.ensureEnabled(state);
 
         return schema.withAddedOrUpdated(keyspace.withSwapped(keyspace.functions.without(aggregate)));
     }

@@ -24,6 +24,7 @@ import org.apache.cassandra.auth.IRoleManager.Option;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.PasswordObfuscator;
 import org.apache.cassandra.cql3.RoleName;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -69,6 +70,8 @@ public class AlterRoleStatement extends AuthenticationStatement
         {
             checkTrue(ifExists, "Role %s doesn't exist", role.getRoleName());
         }
+
+        Guardrails.dclEnabled.ensureEnabled(state);
     }
 
     public void authorize(ClientState state) throws UnauthorizedException
