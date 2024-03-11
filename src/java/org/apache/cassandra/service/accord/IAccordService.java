@@ -18,16 +18,6 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
-import javax.annotation.Nonnull;
-
-import com.google.common.collect.ImmutableSet;
-
 import accord.api.BarrierType;
 import accord.local.DurableBefore;
 import accord.local.Node.Id;
@@ -37,29 +27,31 @@ import accord.primitives.Ranges;
 import accord.primitives.Seekables;
 import accord.primitives.Txn;
 import accord.topology.TopologyManager;
+import com.google.common.collect.ImmutableSet;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.service.accord.api.AccordRoutableKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
-import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
 import org.apache.cassandra.service.accord.txn.TxnResult;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tcm.transformations.AddAccordTable;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Future;
 
+import javax.annotation.Nonnull;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
+
 public interface IAccordService
 {
-    Set<ConsistencyLevel> SUPPORTED_COMMIT_CONSISTENCY_LEVELS = ImmutableSet.of(ConsistencyLevel.ANY, ConsistencyLevel.ONE, ConsistencyLevel.QUORUM, ConsistencyLevel.SERIAL, ConsistencyLevel.ALL);
+    Set<ConsistencyLevel> SUPPORTED_COMMIT_CONSISTENCY_LEVELS = ImmutableSet.of(ConsistencyLevel.ANY, ConsistencyLevel.ONE, ConsistencyLevel.LOCAL_ONE, ConsistencyLevel.QUORUM, ConsistencyLevel.SERIAL, ConsistencyLevel.ALL);
     Set<ConsistencyLevel> SUPPORTED_READ_CONSISTENCY_LEVELS = ImmutableSet.of(ConsistencyLevel.ONE, ConsistencyLevel.QUORUM, ConsistencyLevel.SERIAL);
 
     IVerbHandler<? extends Request> verbHandler();
@@ -112,51 +104,9 @@ public interface IAccordService
     void receive(Message<List<AccordSyncPropagator.Notification>> message);
 
     /**
-     * Temporary method to avoid double-streaming keyspaces
-     * @param tableId
-     * @return
-     */
-    boolean isAccordManagedTable(TableId tableId);
-
-    /**
      * Fetch the redundnant befores for every command store
      */
     Pair<Int2ObjectHashMap<RedundantBefore>, DurableBefore> getRedundantBeforesAndDurableBefore();
 
     default Id nodeId() { throw new UnsupportedOperationException(); }
-
-    default void maybeConvertTablesToAccord(Txn txn)
-    {
-        Set<TableId> allTables = new HashSet<>();
-        Set<TableId> newTables = new HashSet<>();
-        txn.keys().forEach(key -> {
-            TableId table = key instanceof AccordRoutableKey ? ((AccordRoutableKey) key).table() : ((TokenRange) key).table();
-            if (allTables.add(table) && !isAccordManagedTable(table))
-                newTables.add(table);
-        });
-
-        if (newTables.isEmpty())
-            return;
-
-        for (TableId table : newTables)
-            AddAccordTable.addTable(table);
-
-        // we need to avoid creating a txnId in an epoch when no one has any ranges
-        FBUtilities.waitOnFuture(epochReady(ClusterMetadata.current().epoch));
-
-        for (TableId table : allTables)
-        {
-            if (!isAccordManagedTable(table))
-                throw new IllegalStateException(table + " is not an accord managed table");
-        }
-    }
-
-    void ensureTableIsAccordManaged(TableId tableId);
-
-    default void ensureKeyspaceIsAccordManaged(String keyspace)
-    {
-        // TODO: remove when accord enabled is handled via schema
-        Keyspace ks = Keyspace.open(keyspace);
-        ks.getMetadata().tables.forEach(metadata -> ensureTableIsAccordManaged(metadata.id));
-    }
 }

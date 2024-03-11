@@ -410,7 +410,7 @@ public class AuditLoggerTest extends CQLTester
     @Test
     public void testTransactionAuditing()
     {
-        createTable("CREATE TABLE %s (key int PRIMARY KEY, val int)");
+        createTable("CREATE TABLE %s (key int PRIMARY KEY, val int) WITH transactional_mode='full'");
 
         Session session = sessionNet();
         String fqTableName = KEYSPACE + "." + currentTable();

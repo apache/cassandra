@@ -22,16 +22,16 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.config.Config.LWTStrategy;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.ReplicaLayout;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigratedAt;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -43,9 +43,8 @@ import static org.apache.cassandra.service.consensus.migration.ConsensusKeyMigra
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingDecision.accord;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingDecision.paxosV1;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingDecision.paxosV2;
-import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationTarget;
-import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationTarget.paxos;
-import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.TableMigrationState;
+
+import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget.paxos;
 
 /**
  * Helper class to decide where to route a request that requires consensus, migrating a key if necessary
@@ -76,43 +75,85 @@ public class ConsensusRequestRouter
 
     protected ConsensusRequestRouter() {}
 
-    public ConsensusRoutingDecision routeAndMaybeMigrate(@Nonnull DecoratedKey key, @Nonnull String keyspace, @Nonnull String table, ConsistencyLevel consistencyLevel, long queryStartNanoTime, long timeoutNanos, boolean isForWrite)
+    ConsensusRoutingDecision decisionFor(TransactionalMode transactionalMode)
     {
-        if (DatabaseDescriptor.getLWTStrategy() == LWTStrategy.accord)
+        if (transactionalMode.accordIsEnabled)
             return accord;
 
-        ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspace, table);
-        if (cfs == null)
+        return pickPaxos();
+    }
+
+    private static TableMetadata metadata(ClusterMetadata cm, String keyspace, String table)
+    {
+        KeyspaceMetadata ksm = cm.schema.getKeyspaceMetadata(keyspace);
+        TableMetadata tbm = ksm != null ? ksm.getTableOrViewNullable(table) : null;
+
+        if (tbm == null)
             throw new IllegalStateException("Can't route consensus request to nonexistent CFS %s.%s".format(keyspace, table));
-        return routeAndMaybeMigrate(key, cfs, consistencyLevel, queryStartNanoTime, timeoutNanos, isForWrite);
+
+        return tbm;
+    }
+
+    public ConsensusRoutingDecision routeAndMaybeMigrate(@Nonnull DecoratedKey key, @Nonnull String keyspace, @Nonnull String table, ConsistencyLevel consistencyLevel, long queryStartNanoTime, long timeoutNanos, boolean isForWrite)
+    {
+        ClusterMetadata cm = ClusterMetadata.current();
+        TableMetadata metadata = metadata(cm, keyspace, table);
+        return routeAndMaybeMigrate(cm, metadata, key, consistencyLevel, queryStartNanoTime, timeoutNanos, isForWrite);
     }
 
     public ConsensusRoutingDecision routeAndMaybeMigrate(@Nonnull DecoratedKey key, @Nonnull TableId tableId, ConsistencyLevel consistencyLevel,  long queryStartNanotime, long timeoutNanos, boolean isForWrite)
     {
-        // In accord mode there might be migration state in CM (unless cleanup gets added), but it doesn't
-        // matter. All other consensus protocols are not used.
-        if (DatabaseDescriptor.getLWTStrategy() == LWTStrategy.accord)
-            return accord;
-
-        ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
-        if (cfs == null)
+        ClusterMetadata cm = ClusterMetadata.current();
+        TableMetadata metadata = cm.schema.getTableMetadata(tableId);
+        if (metadata == null)
             throw new IllegalStateException("Can't route consensus request for nonexistent table %s".format(tableId.toString()));
-        return routeAndMaybeMigrate(key, cfs, consistencyLevel, queryStartNanotime, timeoutNanos, isForWrite);
+        return routeAndMaybeMigrate(cm, metadata, key, consistencyLevel, queryStartNanotime, timeoutNanos, isForWrite);
     }
 
-    protected ConsensusRoutingDecision routeAndMaybeMigrate(@Nonnull  DecoratedKey key, @Nonnull ColumnFamilyStore cfs, ConsistencyLevel consistencyLevel, long queryStartNanoTime, long timeoutNanos, boolean isForWrite)
+    protected static boolean mayWriteThroughAccord(TableMetadata metadata)
+    {
+        return metadata.params.transactionalMode.writesThroughAccord || metadata.params.transactionalMigrationFrom.writesThroughAccord();
+    }
+
+    public boolean shouldWriteThroughAccordAndMaybeMigrate(@Nonnull DecoratedKey key, @Nonnull TableId tableId, ConsistencyLevel consistencyLevel,  long queryStartNanotime, long timeoutNanos, boolean isForWrite)
     {
         ClusterMetadata cm = ClusterMetadata.current();
+        TableMetadata metadata = cm.schema.getTableMetadata(tableId);
+        if (metadata == null)
+            throw new IllegalStateException("Can't route consensus request for nonexistent table %s".format(tableId.toString()));
 
-        TableMigrationState tms = cm.consensusMigrationState.tableStates.get(cfs.getTableId());
+        if (!mayWriteThroughAccord(metadata))
+            return false;
+
+        consistencyLevel = consistencyLevel.isDatacenterLocal() ? ConsistencyLevel.LOCAL_SERIAL : ConsistencyLevel.SERIAL;
+        ConsensusRoutingDecision decision = routeAndMaybeMigrate(cm, metadata, key, consistencyLevel, queryStartNanotime, timeoutNanos, isForWrite);
+        switch (decision)
+        {
+            case paxosV1:
+            case paxosV2:
+                return false;
+            case accord:
+                return true;
+            default:
+                throw new IllegalStateException("Unsupported consensus " + decision);
+        }
+    }
+
+    protected ConsensusRoutingDecision routeAndMaybeMigrate(ClusterMetadata cm, @Nonnull TableMetadata tmd, @Nonnull DecoratedKey key, ConsistencyLevel consistencyLevel, long queryStartNanoTime, long timeoutNanos, boolean isForWrite)
+    {
+
+        if (!tmd.params.transactionalMigrationFrom.isMigrating())
+            return decisionFor(tmd.params.transactionalMode);
+
+        TableMigrationState tms = cm.consensusMigrationState.tableStates.get(tmd.id);
         if (tms == null)
-            return pickPaxos();
+            return decisionFor(tmd.params.transactionalMigrationFrom.from);
 
         if (Range.isInNormalizedRanges(key.getToken(), tms.migratedRanges))
             return pickMigrated(tms.targetProtocol);
 
         if (Range.isInNormalizedRanges(key.getToken(), tms.migratingRanges))
-            return pickBasedOnKeyMigrationStatus(cm, tms, key, cfs, consistencyLevel, queryStartNanoTime, timeoutNanos, isForWrite);
+            return pickBasedOnKeyMigrationStatus(cm, tmd, tms, key, consistencyLevel, queryStartNanoTime, timeoutNanos, isForWrite);
 
         // It's not migrated so infer the protocol from the target
         return pickNotMigrated(tms.targetProtocol);
@@ -122,10 +163,13 @@ public class ConsensusRequestRouter
      * If the key was already migrated then we can pick the target protocol otherwise
      * we have to run a repair operation on the key to migrate it.
      */
-    private static ConsensusRoutingDecision pickBasedOnKeyMigrationStatus(ClusterMetadata cm, TableMigrationState tms, DecoratedKey key, ColumnFamilyStore cfs, ConsistencyLevel consistencyLevel, long queryStartNanos, long timeoutNanos, boolean isForWrite)
+    private static ConsensusRoutingDecision pickBasedOnKeyMigrationStatus(ClusterMetadata cm, TableMetadata tmd, TableMigrationState tms, DecoratedKey key, ConsistencyLevel consistencyLevel, long queryStartNanos, long timeoutNanos, boolean isForWrite)
     {
         checkState(pickPaxos() != paxosV1, "Can't migrate from PaxosV1 to anything");
 
+        ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tmd.id);
+        if (cfs == null)
+            throw new IllegalStateException("Can't route consensus request to nonexistent CFS %s.%s".format(tmd.keyspace, tmd.name));
         // If it is locally replicated we can check our local migration state to see if it was already migrated
         EndpointsForToken naturalReplicas = ReplicaLayout.forNonLocalStrategyTokenRead(cm, cfs.keyspace.getMetadata(), key.getToken());
         boolean isLocallyReplicated = naturalReplicas.lookup(FBUtilities.getBroadcastAddressAndPort()) != null;
@@ -202,15 +246,18 @@ public class ConsensusRequestRouter
     {
         ClusterMetadata cm = ClusterMetadataService.instance().fetchLogFromCMS(epoch);
         TableMigrationState tms = cm.consensusMigrationState.tableStates.get(tableId);
-        return isKeyInMigratingOrMigratedRangeFromAccord(tms, key);
+        return isKeyInMigratingOrMigratedRangeFromAccord(cm.schema.getTableMetadata(tableId), tms, key);
     }
 
     /*
      * A lightweight check against cluster metadata that doesn't check if the key has already been migrated
      * using local system table state.
      */
-    public boolean isKeyInMigratingOrMigratedRangeFromAccord(TableMigrationState tms, DecoratedKey key)
+    public boolean isKeyInMigratingOrMigratedRangeFromAccord(TableMetadata metadata, TableMigrationState tms, DecoratedKey key)
     {
+        if (!metadata.params.transactionalMigrationFrom.isMigrating())
+            return false;
+
         // No state means no migration for this table
         if (tms == null)
             return false;

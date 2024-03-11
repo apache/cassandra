@@ -62,9 +62,11 @@ import org.apache.cassandra.db.SinglePartitionReadQuery;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.api.AccordRoutableKey;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnData;
@@ -76,13 +78,12 @@ import org.apache.cassandra.service.accord.txn.TxnReference;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static accord.primitives.Txn.Kind.EphemeralRead;
 import static accord.primitives.Txn.Kind.Read;
-import static org.apache.cassandra.config.Config.NonSerialWriteStrategy.accord;
-import static org.apache.cassandra.config.DatabaseDescriptor.getNonSerialWriteStrategy;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
@@ -313,6 +314,11 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         return new Keys(keySet);
     }
 
+    private static TransactionalMode transactionalModeForSingleKey(Keys keys)
+    {
+        return Schema.instance.getTableMetadata(((AccordRoutableKey) keys.get(0)).table()).params.transactionalMode;
+    }
+
     @VisibleForTesting
     public Txn createTxn(ClientState state, QueryOptions options)
     {
@@ -325,7 +331,8 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             List<TxnNamedRead> reads = createNamedReads(options, state, ImmutableMap.of(), keySet::add);
             Keys txnKeys = toKeys(keySet);
             TxnRead read = createTxnRead(reads, txnKeys, null);
-            Txn.Kind kind = txnKeys.size() == 1 && getNonSerialWriteStrategy() == accord ? EphemeralRead : Read;
+            Txn.Kind kind = txnKeys.size() == 1 && transactionalModeForSingleKey(txnKeys) == TransactionalMode.full
+                            ? EphemeralRead : Read;
             return new Txn.InMemory(kind, txnKeys, read, TxnQuery.ALL, null);
         }
         else
@@ -374,8 +381,6 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 checkFalse(isSelectingMultipleClusterings(returningSelect.select, options), INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, "returning SELECT", returningSelect.select.source);
 
             Txn txn = createTxn(state.getClientState(), options);
-
-            AccordService.instance().maybeConvertTablesToAccord(txn);
 
             TxnResult txnResult = AccordService.instance().coordinate(txn, options.getConsistency(), queryStartNanoTime);
             if (txnResult.kind() == retry_new_protocol)

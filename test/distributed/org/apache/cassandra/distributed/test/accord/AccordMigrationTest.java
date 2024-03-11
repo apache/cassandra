@@ -31,8 +31,10 @@ import java.util.function.Function;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -58,21 +60,24 @@ import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
-import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState;
-import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationState;
-import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationTarget;
-import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.TableMigrationState;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget;
+import org.apache.cassandra.service.consensus.migration.TableMigrationState;
+import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Ballot.Flag;
 import org.apache.cassandra.service.paxos.BallotGenerator;
 import org.apache.cassandra.service.paxos.Commit.Agreed;
 import org.apache.cassandra.service.paxos.Commit.Proposal;
 import org.apache.cassandra.service.paxos.PaxosState;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -85,6 +90,7 @@ import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.lang.String.format;
 import static java.util.Collections.emptyList;
 import static org.apache.cassandra.Util.spinUntilSuccess;
+import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.db.SystemKeyspace.CONSENSUS_MIGRATION_STATE;
 import static org.apache.cassandra.db.SystemKeyspace.PAXOS;
 import static org.apache.cassandra.dht.Range.normalize;
@@ -95,8 +101,7 @@ import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingDecision.paxosV2;
 import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.PROMISE;
 import static org.assertj.core.api.Fail.fail;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 /*
  * This test suite is intended to serve as an integration test with some pretty good visibility into actual execution
@@ -145,11 +150,8 @@ public class AccordMigrationTest extends AccordTestBase
         ServerTestUtils.daemonInitialization();
         // Otherwise repair complains if you don't specify a keyspace
         CassandraRelevantProperties.SYSTEM_TRACES_DEFAULT_RF.setInt(3);
-        AccordTestBase.setupCluster(builder ->
-                                        builder.appendConfig(config ->
-                                                             config.set("paxos_variant", PaxosVariant.v2.name())
-                                                                   .set("non_serial_write_strategy", "migration")),
-                                    3);
+        AccordTestBase.setupCluster(builder -> builder.appendConfig(config -> config.set("paxos_variant", PaxosVariant.v2.name())
+                                                                                    .set("accord.range_migration", "explicit")), 3);
         partitioner = FBUtilities.newPartitioner(SHARED_CLUSTER.get(1).callsOnInstance(() -> DatabaseDescriptor.getPartitioner().getClass().getSimpleName()).call());
         StorageService.instance.setPartitionerUnsafe(partitioner);
         ServerTestUtils.prepareServerNoRegister();
@@ -175,9 +177,6 @@ public class AccordMigrationTest extends AccordTestBase
         forEach(() -> {
             ConsensusRequestRouter.resetInstance();
             ConsensusKeyMigrationState.reset();
-        });
-        SHARED_CLUSTER.get(1).runOnInstance(() -> {
-            ConsensusTableMigrationState.reset();
         });
         SHARED_CLUSTER.coordinators().forEach(coordinator -> coordinator.execute(format("TRUNCATE TABLE %s.%s", SYSTEM_KEYSPACE_NAME, CONSENSUS_MIGRATION_STATE), ALL));
         SHARED_CLUSTER.coordinators().forEach(coordinator -> coordinator.execute(format("TRUNCATE TABLE %s.%s", SYSTEM_KEYSPACE_NAME, PAXOS), ALL));
@@ -242,10 +241,10 @@ public class AccordMigrationTest extends AccordTestBase
         boolean routed;
 
         @Override
-        protected ConsensusRoutingDecision routeAndMaybeMigrate(@Nonnull DecoratedKey key, @Nonnull ColumnFamilyStore cfs, ConsistencyLevel consistencyLevel, long queryStartNanoTime, long timeoutNanos, boolean isForWrite)
+        protected ConsensusRoutingDecision routeAndMaybeMigrate(ClusterMetadata cm, @Nonnull TableMetadata tmd, @Nonnull DecoratedKey key, ConsistencyLevel consistencyLevel, long queryStartNanoTime, long timeoutNanos, boolean isForWrite)
         {
             if (routed)
-                return super.routeAndMaybeMigrate(key, cfs, consistencyLevel, queryStartNanoTime, timeoutNanos, isForWrite);
+                return super.routeAndMaybeMigrate(cm, tmd, key, consistencyLevel, queryStartNanoTime, timeoutNanos, isForWrite);
             routed = true;
             return paxosV2;
         }
@@ -278,10 +277,10 @@ public class AccordMigrationTest extends AccordTestBase
         boolean routed;
 
         @Override
-        protected ConsensusRoutingDecision routeAndMaybeMigrate(@Nonnull DecoratedKey key, @Nonnull ColumnFamilyStore cfs, ConsistencyLevel consistencyLevel, long queryStartNanoTime, long timeoutNanos, boolean isForWrite)
+        protected ConsensusRoutingDecision routeAndMaybeMigrate(ClusterMetadata cm, @Nonnull TableMetadata tmd, @Nonnull DecoratedKey key, ConsistencyLevel consistencyLevel, long queryStartNanoTime, long timeoutNanos, boolean isForWrite)
         {
             if (routed)
-                return super.routeAndMaybeMigrate(key, cfs, consistencyLevel, queryStartNanoTime, timeoutNanos, isForWrite);
+                return super.routeAndMaybeMigrate(cm, tmd, key, consistencyLevel, queryStartNanoTime, timeoutNanos, isForWrite);
             routed = true;
             return ConsensusRoutingDecision.accord;
         }
@@ -342,6 +341,21 @@ public class AccordMigrationTest extends AccordTestBase
     {
         test(format(TABLE_FMT, qualifiedTableName),
           cluster -> {
+              String table = tableName;
+              cluster.forEach(node -> node.runOnInstance(() -> {
+                  TableMetadata tbl = Schema.instance.getTableMetadata(KEYSPACE, table);
+                  Assert.assertEquals(TransactionalMode.off, tbl.params.transactionalMode);
+                  Assert.assertEquals(TransactionalMigrationFromMode.none, tbl.params.transactionalMigrationFrom);
+              }));
+
+              cluster.schemaChange(format("ALTER TABLE %s.%s WITH transactional_mode='%s'", KEYSPACE, tableName, TransactionalMode.full));
+
+              cluster.forEach(node -> node.runOnInstance(() -> {
+                  TableMetadata tbl = Schema.instance.getTableMetadata(KEYSPACE, table);
+                  Assert.assertEquals(TransactionalMode.full, tbl.params.transactionalMode);
+                  Assert.assertEquals(TransactionalMigrationFromMode.off, tbl.params.transactionalMigrationFrom);
+              }));
+
               String casCQL = format(CAS_FMT, qualifiedTableName, CLUSTERING_VALUE);
               Consumer<Integer> runCasNoApply = key -> assertRowEquals(cluster, new Object[]{false}, casCQL, key);
               Consumer<Integer> runCasApplies = key -> assertRowEquals(cluster, new Object[]{true}, casCQL, key);
@@ -411,14 +425,18 @@ public class AccordMigrationTest extends AccordTestBase
               // key migration occurred
               assertTargetAccordWrite(runCasApplies, 1, migratingKey, 1, 0, 1, 0, 0);
 
-              // This will force the request to run on Paxos up to Accept
-              // and the accept will be rejected at both nodes and we are certain we need to retry the transaction
+              // This will force the write to use the normal write patch
               cluster.get(1).runOnInstance(() -> ConsensusRequestRouter.setInstance(new PaxosToAccordMigrationNotHappeningUpToBegin()));
               // Update inserted row so the condition can apply, if the condition check doesn't apply
               // then it won't get to propose/accept
               migratingKey = testingKeys.next();
-              Consumer<Integer> makeCASApply = key -> cluster.coordinator(1).execute("UPDATE " + qualifiedTableName + " SET v = 42 WHERE id = ? AND c = ?", ALL, key, CLUSTERING_VALUE);
+              String query = "UPDATE " + qualifiedTableName + " SET v = 42 WHERE id = ? AND c = ?";
+              Consumer<Integer> makeCASApply = key -> cluster.forEach(instance -> instance.runOnInstance(() -> executeInternal(query, key, CLUSTERING_VALUE)));
               makeCASApply.accept(migratingKey);
+
+              // This will force the request to run on Paxos up to Accept
+              // and the accept will be rejected at both nodes and we are certain we need to retry the transaction
+              cluster.get(1).runOnInstance(() -> ConsensusRequestRouter.setInstance(new PaxosToAccordMigrationNotHappeningUpToBegin()));
               assertTargetAccordWrite(runCasApplies, 1, migratingKey, 1, 1, 1, 0, 1);
 
               // One node will now accept the other will reject and we are uncertain if we should retry the transaction
@@ -428,7 +446,9 @@ public class AccordMigrationTest extends AccordTestBase
               cluster.get(1).runOnInstance(() -> ConsensusRequestRouter.setInstance(new PaxosToAccordMigrationNotHappeningUpToAccept()));
               try
               {
+                  cluster.filters().allVerbs().to(3).from(3).drop();
                   runCasNoApply.accept(migratingKey);
+                  cluster.filters().reset();
                   fail("Should have thrown timeout exception");
               }
               catch (Throwable t)
@@ -468,7 +488,7 @@ public class AccordMigrationTest extends AccordTestBase
     {
         test(format(TABLE_FMT, qualifiedTableName),
           cluster -> {
-              String tableName = qualifiedTableName.split("\\.")[1];
+              cluster.schemaChange(format("ALTER TABLE %s.%s WITH transactional_mode='%s'", KEYSPACE, tableName, TransactionalMode.full));
               String readCQL = format("SELECT * FROM %s WHERE id = ? and c = %s", qualifiedTableName, CLUSTERING_VALUE);
               Function<Integer, Object[][]> runRead = key -> cluster.coordinator(1).execute(readCQL, SERIAL, key);
               Range<Token> migratingRange = new Range<>(new LongToken(Long.MIN_VALUE + 1), new LongToken(Long.MIN_VALUE));
@@ -489,6 +509,25 @@ public class AccordMigrationTest extends AccordTestBase
           });
     }
 
+    private void alterTableTransactionalMode(TransactionalMode mode)
+    {
+        SHARED_CLUSTER.schemaChange(format("ALTER TABLE %s WITH %s", qualifiedTableName, mode.asCqlParam()));
+    }
+
+    private void assertTransactionalModes(String keyspace, String table, TransactionalMode mode, TransactionalMigrationFromMode migration)
+    {
+        forEach(() -> {
+            TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
+            Assert.assertEquals(mode, metadata.params.transactionalMode);
+            Assert.assertEquals(migration, metadata.params.transactionalMigrationFrom);
+        });
+    }
+
+    private void assertTransactionalModes(TransactionalMode mode, TransactionalMigrationFromMode migration)
+    {
+        assertTransactionalModes(KEYSPACE, tableName, mode, migration);
+    }
+
     @Test
     public void testAccordToPaxos() throws Exception
     {
@@ -497,6 +536,9 @@ public class AccordMigrationTest extends AccordTestBase
                  String casCQL = format(CAS_FMT, qualifiedTableName, CLUSTERING_VALUE);
                  Consumer<Integer> runCasNoApply = key -> assertRowEquals(cluster, new Object[]{false}, casCQL, key);
                  String tableName = qualifiedTableName.split("\\.")[1];
+
+                 alterTableTransactionalMode(TransactionalMode.mixed_reads);
+                 assertTransactionalModes(TransactionalMode.mixed_reads, TransactionalMigrationFromMode.off);
 
                  // Mark a subrange as migrating and finish migrating half of it
                  nodetool(coordinator, "consensus_admin", "begin-migration", "-st", midToken.toString(), "-et", maxToken.toString(), "-tp", "accord", KEYSPACE, tableName);
@@ -507,7 +549,8 @@ public class AccordMigrationTest extends AccordTestBase
                  assertMigrationState(tableName, ConsensusMigrationTarget.accord, ImmutableList.of(accordMigratedRange), ImmutableList.of(accordMigratingRange), 1);
 
                  // Test that we can reverse the migration and go back to Paxos
-                 nodetool(coordinator, "consensus_admin", "set-target-protocol", "-tp", "paxos", KEYSPACE, tableName);
+                 alterTableTransactionalMode(TransactionalMode.off);
+                 assertTransactionalModes(TransactionalMode.off, TransactionalMigrationFromMode.mixed_reads);
                  assertMigrationState(tableName, ConsensusMigrationTarget.paxos, ImmutableList.of(new Range(minToken, midToken), new Range(maxToken, minToken)), ImmutableList.of(accordMigratingRange), 1);
                  Iterator<Integer> paxosNonMigratingKeys = getKeysBetweenTokens(minToken, midToken);
                  Iterator<Integer> paxosMigratingKeys = getKeysBetweenTokens(upperMidToken, maxToken);
@@ -546,6 +589,38 @@ public class AccordMigrationTest extends AccordTestBase
              });
     }
 
+    private static void assertCompletedMigrationState(String tableName) throws Throwable
+    {
+        // Validate nodetool consensus admin list output
+        String yamlResultString = nodetool(SHARED_CLUSTER.coordinator(1), "consensus_admin", "list");
+        Map<String, Object> yamlStateMap = new Yaml().load(yamlResultString);
+        String minifiedYamlResultString = nodetool(SHARED_CLUSTER.coordinator(1), "consensus_admin", "list", "-f", "minified-yaml");
+        Map<String, Object> minifiedYamlStateMap = new Yaml().load(minifiedYamlResultString);
+        String jsonResultString = nodetool(SHARED_CLUSTER.coordinator(1), "consensus_admin", "list", "-f", "json");
+        Map<String, Object> jsonStateMap = JsonUtils.JSON_OBJECT_MAPPER.readValue(jsonResultString, new TypeReference<Map<String, Object>>(){});
+        String minifiedJsonResultString = nodetool(SHARED_CLUSTER.coordinator(1), "consensus_admin", "list", "-f", "minified-json");
+        Map<String, Object> minifiedJsonStateMap = JsonUtils.JSON_OBJECT_MAPPER.readValue(minifiedJsonResultString, new TypeReference<Map<String, Object>>(){});
+
+        for (Map<String, Object> migrationStateMap : ImmutableList.of(yamlStateMap, jsonStateMap, minifiedYamlStateMap, minifiedJsonStateMap)) {
+            assertEquals(PojoToString.CURRENT_VERSION, migrationStateMap.get("version"));
+            assertTrue(Epoch.EMPTY.getEpoch() < ((Number) migrationStateMap.get("lastModifiedEpoch")).longValue());
+            List<Map<String, Object>> tableStates = (List<Map<String, Object>>) migrationStateMap.get("tableStates");
+            assertEquals(0, tableStates.size());
+        }
+
+        spinUntilSuccess(() -> {
+            for (IInvokableInstance instance : SHARED_CLUSTER)
+            {
+                ConsensusMigrationState snapshot = getMigrationStateSnapshot(instance);
+                assertEquals(0, snapshot.tableStates.size());
+                instance.runOnInstance(() -> {
+                    TableMetadata tbl = Schema.instance.getTableMetadata(KEYSPACE, tableName);
+                    Assert.assertEquals(TransactionalMigrationFromMode.none, tbl.params.transactionalMigrationFrom);
+                });
+            }
+        });
+    }
+
     private static void assertMigrationState(String tableName, ConsensusMigrationTarget target, List<Range<Token>> migratedRanges, List<Range<Token>> migratingRanges, int numMigratingEpochs) throws Throwable
     {
         // Validate nodetool consensus admin list output
@@ -563,9 +638,20 @@ public class AccordMigrationTest extends AccordTestBase
         {
             assertEquals(PojoToString.CURRENT_VERSION, migrationStateMap.get("version"));
             assertTrue(Epoch.EMPTY.getEpoch() < ((Number) migrationStateMap.get("lastModifiedEpoch")).longValue());
-            List<Map<String, Object>> tableStates = (List<Map<String, Object>>) migrationStateMap.get("tableStates");
-            assertEquals(tableStates.size(), 1);
-            Map<String, Object> tableStateMap = tableStates.get(0);
+
+            Map<String, Object> tableStateMap = null;
+            for (Map<String, Object> stateMap : (List<Map<String, Object>>) migrationStateMap.get("tableStates"))
+            {
+                Object table = stateMap.get("table");
+                Object keyspace = stateMap.get("keyspace");
+                if (KEYSPACE.equals(keyspace) && tableName.equals(table))
+                {
+                    tableStateMap = stateMap;
+                    break;
+                }
+            }
+            assertNotNull(tableStateMap);
+
             assertEquals(tableName, tableStateMap.get("table"));
             assertEquals(KEYSPACE, tableStateMap.get("keyspace"));
             tableIds.add((String) tableStateMap.get("tableId"));
@@ -590,21 +676,22 @@ public class AccordMigrationTest extends AccordTestBase
             for (IInvokableInstance instance : SHARED_CLUSTER)
             {
                 ConsensusMigrationState snapshot = getMigrationStateSnapshot(instance);
-                assertEquals(1, snapshot.tableStates.size());
-                TableMigrationState state = snapshot.tableStates.values().iterator().next();
-                assertEquals(KEYSPACE, state.keyspaceName);
-                assertEquals(tableName, state.tableName);
                 for (String tableId : tableIds)
-                    assertEquals(tableId, state.tableId.toString());
-                assertEquals(target, state.targetProtocol);
-                assertEquals("Migrated ranges:", migratedRanges, state.migratedRanges);
-                assertEquals("Migrating ranges:", migratingRanges, state.migratingRanges);
-                assertEquals("Migrating and migrated ranges:", migratingAndMigratedRanges, state.migratingAndMigratedRanges);
-                assertEquals(numMigratingEpochs, state.migratingRangesByEpoch.size());
-                if (migratingRanges.isEmpty())
-                    assertEquals(0, state.migratingRangesByEpoch.size());
-                else
-                    assertEquals(migratingRanges, state.migratingRangesByEpoch.values().iterator().next());
+                {
+                    TableMigrationState state = snapshot.tableStates.get(TableId.fromString(tableId));
+                    assertNotNull(state);
+                    assertEquals(KEYSPACE, state.keyspaceName);
+                    assertEquals(tableName, state.tableName);
+                    assertEquals(target, state.targetProtocol);
+                    assertEquals("Migrated ranges:", migratedRanges, state.migratedRanges);
+                    assertEquals("Migrating ranges:", migratingRanges, state.migratingRanges);
+                    assertEquals("Migrating and migrated ranges:", migratingAndMigratedRanges, state.migratingAndMigratedRanges);
+                    assertEquals(numMigratingEpochs, state.migratingRangesByEpoch.size());
+                    if (migratingRanges.isEmpty())
+                        assertEquals(0, state.migratingRangesByEpoch.size());
+                    else
+                        assertEquals(migratingRanges, state.migratingRangesByEpoch.values().iterator().next());
+                }
             }
         });
     }

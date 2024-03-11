@@ -84,7 +84,7 @@ public class AccordTopologyTest
     {
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        TableMetadata table = parse("CREATE TABLE tbl (k int, c int, v int, primary key (k, c))", "ks").build();
+        TableMetadata table = parse("CREATE TABLE tbl (k int, c int, v int, primary key (k, c)) WITH transactional_mode='full'", "ks").build();
         tableId = table.id;
         keyspace = KeyspaceMetadata.create("ks", KeyspaceParams.simple(3), Tables.of(table));
     }
@@ -171,7 +171,7 @@ public class AccordTopologyTest
         Assert.assertEquals(partitioner.getMaximumTokenForSplitting(), ranges.get(2).right);
         ClusterMetadata metadata = configureCluster(ranges, Keyspaces.of(keyspace));
 
-        Topology topology = AccordTopology.createAccordTopology(metadata, ks -> true);
+        Topology topology = AccordTopology.createAccordTopology(metadata);
         Topology expected = new Topology(1,
                                          new Shard(AccordTopology.minRange(tableId, ranges.get(0).right), NODE_LIST, NODE_SET),
                                          new Shard(AccordTopology.range(tableId, ranges.get(1)), NODE_LIST, NODE_SET),
@@ -189,7 +189,7 @@ public class AccordTopologyTest
                                                      range(100, -100));
 
         ClusterMetadata metadata = configureCluster(ranges, Keyspaces.of(keyspace));
-        Topology topology = AccordTopology.createAccordTopology(metadata, ks -> true);
+        Topology topology = AccordTopology.createAccordTopology(metadata);
         Topology expected = new Topology(1,
                                          new Shard(AccordTopology.minRange(tableId, ranges.get(0).left), NODE_LIST, NODE_SET),
                                          new Shard(AccordTopology.range(tableId, ranges.get(0)), NODE_LIST, NODE_SET),
@@ -206,7 +206,7 @@ public class AccordTopologyTest
                                                      range(-100, 100),
                                                      range(token(100), partitioner.getMaximumTokenForSplitting()));
         ClusterMetadata metadata = configureCluster(ranges, Keyspaces.of(keyspace));
-        Topology topology = AccordTopology.createAccordTopology(metadata, ks -> true);
+        Topology topology = AccordTopology.createAccordTopology(metadata);
         Topology expected = new Topology(1,
                                          new Shard(AccordTopology.minRange(tableId, ranges.get(0).right), NODE_LIST, NODE_SET),
                                          new Shard(AccordTopology.range(tableId, ranges.get(1)), NODE_LIST, NODE_SET),
@@ -214,7 +214,7 @@ public class AccordTopologyTest
                                          new Shard(AccordTopology.maxRange(tableId, ranges.get(2).right), NODE_LIST, NODE_SET));
         Assert.assertEquals(expected, topology);
 
-        topology = AccordTopology.createAccordTopology(metadata.transformer().withFastPathStatusSince(new Id(1), AccordFastPath.Status.UNAVAILABLE, 1, 1).build().metadata, ks -> true);
+        topology = AccordTopology.createAccordTopology(metadata.transformer().withFastPathStatusSince(new Id(1), AccordFastPath.Status.UNAVAILABLE, 1, 1).build().metadata);
 
         Set<Node.Id> fastPath = new HashSet<>(NODE_SET);
         fastPath.remove(new Node.Id(1));
@@ -237,7 +237,7 @@ public class AccordTopologyTest
                                                      range(-100, 100),
                                                      range(token(100), partitioner.getMaximumTokenForSplitting()));
         ClusterMetadata metadata = configureCluster(ranges, Keyspaces.of(keyspace));
-        Topology topology = AccordTopology.createAccordTopology(metadata, ks -> true);
+        Topology topology = AccordTopology.createAccordTopology(metadata);
         Topology expected = new Topology(1,
                                          new Shard(AccordTopology.minRange(tableId, ranges.get(0).right), NODE_LIST, NODE_SET),
                                          new Shard(AccordTopology.range(tableId, ranges.get(1)), NODE_LIST, NODE_SET),
@@ -249,7 +249,7 @@ public class AccordTopologyTest
                            .withFastPathStatusSince(new Id(1), AccordFastPath.Status.UNAVAILABLE, 1, 1)
                            .withFastPathStatusSince(new Id(2), AccordFastPath.Status.UNAVAILABLE, 1, 1)
                            .build().metadata;
-        topology = AccordTopology.createAccordTopology(metadata, ks -> true);
+        topology = AccordTopology.createAccordTopology(metadata);
 
         Set<Node.Id> fastPath = new HashSet<>(NODE_SET);
         fastPath.remove(new Node.Id(1));
