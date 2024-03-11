@@ -92,8 +92,7 @@ public class Commit
 
         public void serialize(Commit t, DataOutputPlus out, int version) throws IOException
         {
-            // TODO: switch to VInt
-            out.writeInt(serializationVersion.asInt());
+            out.writeUnsignedVInt32(serializationVersion.asInt());
 
             if (serializationVersion.isAtLeast(Version.V2))
                 out.writeUnsignedVInt32(ClusterMetadata.current().metadataIdentifier);
@@ -105,7 +104,7 @@ public class Commit
 
         public Commit deserialize(DataInputPlus in, int version) throws IOException
         {
-            Version deserializationVersion = Version.fromInt(in.readInt());
+            Version deserializationVersion = Version.fromInt(in.readUnsignedVInt32());
 
             if (deserializationVersion.isAtLeast(Version.V2))
                 ClusterMetadata.checkIdentifier(in.readUnsignedVInt32());
@@ -118,7 +117,7 @@ public class Commit
 
         public long serializedSize(Commit t, int version)
         {
-            int size = TypeSizes.sizeof(serializationVersion.asInt());
+            int size = TypeSizes.sizeofUnsignedVInt(serializationVersion.asInt());
 
             if (serializationVersion.isAtLeast(Version.V2))
                 size += TypeSizes.sizeofUnsignedVInt(ClusterMetadata.current().metadataIdentifier);
