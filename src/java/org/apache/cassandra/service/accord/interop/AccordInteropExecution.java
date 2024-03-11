@@ -86,8 +86,8 @@ import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.UnrecoverableRepairUpdate;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
-import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState;
-import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.TableMigrationState;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigration;
+import org.apache.cassandra.service.consensus.migration.TableMigrationState;
 import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Clock;
@@ -262,9 +262,9 @@ public class AccordInteropExecution implements ReadCoordinator, MaximalCommitSen
                 // because they haven't yet updated their cluster metadata.
                 // It would be harmless to do the read, but we can respond faster skipping it
                 // and getting the transaction on the correct protocol
-                TableMigrationState tms = ConsensusTableMigrationState.getTableMigrationState(command.metadata().id);
+                TableMigrationState tms = ConsensusTableMigration.getTableMigrationState(command.metadata().id);
                 AccordClientRequestMetrics metrics = txn.kind().isWrite() ? accordWriteMetrics : accordReadMetrics;
-                if (ConsensusRequestRouter.instance.isKeyInMigratingOrMigratedRangeFromAccord(tms, command.partitionKey()))
+                if (ConsensusRequestRouter.instance.isKeyInMigratingOrMigratedRangeFromAccord(command.metadata(), tms, command.partitionKey()))
                 {
                     metrics.migrationSkippedReads.mark();
                     results.add(AsyncChains.success(TxnData.emptyPartition(fragment.txnDataName(), command)));
