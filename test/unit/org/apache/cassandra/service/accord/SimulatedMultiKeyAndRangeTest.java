@@ -46,6 +46,7 @@ import accord.utils.Gens;
 import accord.utils.async.AsyncResult;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.RTree;
+import org.apache.cassandra.utils.RangeTree;
 
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.dht.Murmur3Partitioner.LongToken.keyForToken;
@@ -74,7 +75,7 @@ public class SimulatedMultiKeyAndRangeTest extends SimulatedAccordCommandStoreTe
                 Gen<Domain> domainGen = domainDistribution.next(rs);
                 Gen<DepsMessage> msgGen = msgDistribution.next(rs);
                 Map<Key, List<TxnId>> keyConflicts = new HashMap<>();
-                RTree<RoutingKey, Range, TxnId> rangeConflicts = RTree.create(RTreeRangeAccessor.instance);
+                RangeTree<RoutingKey, Range, TxnId> rangeConflicts = RTree.create(RangeTreeRangeAccessor.instance);
                 List<AsyncResult<?>> asyncs = new ArrayList<>(numSamples);
 
                 Gen.IntGen keyCountGen = keyDistribution.next(rs);

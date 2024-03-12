@@ -32,7 +32,7 @@ import javax.annotation.CheckForNull;
 
 import com.google.common.collect.AbstractIterator;
 
-public class RTree<Token, Range, Value> implements Iterable<Map.Entry<Range, Value>>
+public class RTree<Token, Range, Value> implements RangeTree<Token, Range, Value>
 {
     /**
      * Tuning size target can be tricky as it is based on expected access patterns and expected matche sizes.  There is also
@@ -44,22 +44,6 @@ public class RTree<Token, Range, Value> implements Iterable<Map.Entry<Range, Val
      */
     private static final int DEFAULT_SIZE_TARGET = 1 << 7;
     private static final int DEFAULT_NUMBER_OF_CHILDREN = 6;
-
-    public interface Accessor<Token, Range>
-    {
-        Token start(Range range);
-        Token end(Range range);
-        boolean contains(Token start, Token end, Token token);
-        default boolean contains(Range range, Token token)
-        {
-            return contains(start(range), end(range), token);
-        }
-        boolean intersects(Range range, Token start, Token end);
-        default boolean intersects(Range left, Range right)
-        {
-            return intersects(left, start(right), end(right));
-        }
-    }
 
     private final Comparator<Token> comparator;
     private final Accessor<Token, Range> accessor;
@@ -91,6 +75,7 @@ public class RTree<Token, Range, Value> implements Iterable<Map.Entry<Range, Val
         return new RTree<>(Comparator.naturalOrder(), accessor);
     }
 
+    @Override
     public List<Value> get(Range range)
     {
         List<Value> matches = new ArrayList<>();
@@ -98,11 +83,13 @@ public class RTree<Token, Range, Value> implements Iterable<Map.Entry<Range, Val
         return matches;
     }
 
+    @Override
     public void get(Range range, Consumer<Map.Entry<Range, Value>> onMatch)
     {
         node.search(range, onMatch, e -> e.getKey().equals(range), Function.identity());
     }
 
+    @Override
     public List<Map.Entry<Range, Value>> search(Range range)
     {
         List<Map.Entry<Range, Value>> matches = new ArrayList<>();
@@ -110,6 +97,7 @@ public class RTree<Token, Range, Value> implements Iterable<Map.Entry<Range, Val
         return matches;
     }
 
+    @Override
     public void search(Range range, Consumer<Map.Entry<Range, Value>> onMatch)
     {
         node.search(range, onMatch, ignore -> true, Function.identity());
@@ -127,6 +115,7 @@ public class RTree<Token, Range, Value> implements Iterable<Map.Entry<Range, Val
         node.search(range, onMatch, ignore -> true, Map.Entry::getValue);
     }
 
+    @Override
     public List<Map.Entry<Range, Value>> searchToken(Token token)
     {
         List<Map.Entry<Range, Value>> matches = new ArrayList<>();
@@ -134,6 +123,7 @@ public class RTree<Token, Range, Value> implements Iterable<Map.Entry<Range, Val
         return matches;
     }
 
+    @Override
     public void searchToken(Token token, Consumer<Map.Entry<Range, Value>> onMatch)
     {
         node.searchToken(token, onMatch, ignore -> true, Function.identity());
@@ -151,12 +141,14 @@ public class RTree<Token, Range, Value> implements Iterable<Map.Entry<Range, Val
         node.searchToken(token, onMatch, ignore -> true, Map.Entry::getValue);
     }
 
+    @Override
     public boolean add(Range key, Value value)
     {
         node.add(key, value);
         return true;
     }
 
+    @Override
     public int remove(Range key)
     {
         return node.removeIf(e -> e.getKey().equals(key));
@@ -167,17 +159,20 @@ public class RTree<Token, Range, Value> implements Iterable<Map.Entry<Range, Val
         var match = Map.entry(key, value);
         return node.removeIf(match::equals);
     }
-    
+
+    @Override
     public void clear()
     {
         node = new Node();
     }
 
+    @Override
     public int size()
     {
         return node.size;
     }
 
+    @Override
     public boolean isEmpty()
     {
         return node.size == 0;
@@ -196,6 +191,7 @@ public class RTree<Token, Range, Value> implements Iterable<Map.Entry<Range, Val
         return node.iterator();
     }
 
+    @Override
     public Stream<Map.Entry<Range, Value>> stream()
     {
         return StreamSupport.stream(spliterator(), false);

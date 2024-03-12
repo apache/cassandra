@@ -29,8 +29,9 @@ import accord.primitives.Seekable;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import org.agrona.collections.Object2ObjectHashMap;
-import org.apache.cassandra.service.accord.RTreeRangeAccessor;
+import org.apache.cassandra.service.accord.RangeTreeRangeAccessor;
 import org.apache.cassandra.utils.RTree;
+import org.apache.cassandra.utils.RangeTree;
 
 /**
  * Assists with correct ordering of {@link AsyncOperation} execution wrt each other,
@@ -116,7 +117,7 @@ public class ExecutionOrder
     }
 
     private final Object2ObjectHashMap<Object, Object> queues = new Object2ObjectHashMap<>();
-    private final RTree<RoutingKey, Range, RangeState> rangeQueues = RTree.create(RTreeRangeAccessor.instance);
+    private final RangeTree<RoutingKey, Range, RangeState> rangeQueues = RTree.create(RangeTreeRangeAccessor.instance);
 
     /**
      * Register an operation as having a dependency on its keys and TxnIds

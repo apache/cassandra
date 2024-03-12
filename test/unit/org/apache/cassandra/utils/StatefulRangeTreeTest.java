@@ -38,12 +38,12 @@ import accord.utils.Property.Command;
 import accord.utils.Property.Commands;
 import accord.utils.Property.UnitCommand;
 import accord.utils.RandomSource;
-import org.apache.cassandra.service.accord.RTreeRangeAccessor;
+import org.apache.cassandra.service.accord.RangeTreeRangeAccessor;
 import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.stateful;
 
-public class StatefulRTreeTest
+public class StatefulRangeTreeTest
 {
     private static final Gen.IntGen SMALL_INT_GEN = rs -> rs.nextInt(0, 10);
     private static final Gen.IntGen NUM_CHILDREN_GEN = rs -> rs.nextInt(2, 12);
@@ -62,7 +62,7 @@ public class StatefulRTreeTest
     /**
      * Stateful test for RTree.
      *
-     * This test is very similar to {@link org.apache.cassandra.utils.RTreeTest#test} but is fully mutable, so can not
+     * This test is very similar to {@link RangeTreeTest#test} but is fully mutable, so can not
      * use the immutable search trees (else rebuidling becomes a large cost).  Both tests should exist as they use different
      * models, which helps build confidence that the RTree does the correct thing; that test also covers start and end
      * inclusive, which this test does not.
@@ -70,7 +70,6 @@ public class StatefulRTreeTest
     @Test
     public void test()
     {
-        //TODO (now): drop org.apache.cassandra.utils.RTreeMaplikeTest.mapLike in favor of this class
         stateful().check(new Commands<State, Sut>()
         {
             @Override
@@ -500,11 +499,11 @@ public class StatefulRTreeTest
 
     public static class Sut
     {
-        private final RTree<RoutingKey, Range, Integer> tree;
+        private final RangeTree<RoutingKey, Range, Integer> tree;
 
         private Sut(int sizeTarget, int numChildren)
         {
-            tree = new RTree(Comparator.naturalOrder(), RTreeRangeAccessor.instance, sizeTarget, numChildren);
+            tree = new RTree(Comparator.naturalOrder(), RangeTreeRangeAccessor.instance, sizeTarget, numChildren);
         }
     }
 }

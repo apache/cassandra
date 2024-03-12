@@ -51,11 +51,11 @@ import org.assertj.core.api.Assertions;
 import static accord.utils.Property.qt;
 
 @RunWith(Parameterized.class)
-public class RTreeTest
+public class RangeTreeTest
 {
-    private static final Logger logger = LoggerFactory.getLogger(RTreeTest.class);
+    private static final Logger logger = LoggerFactory.getLogger(RangeTreeTest.class);
     private static final Comparator<Routing> COMPARATOR = Comparator.naturalOrder();
-    private static final RTree.Accessor<Routing, Range> END_INCLUSIVE = new RTree.Accessor<>()
+    private static final RangeTree.Accessor<Routing, Range> END_INCLUSIVE = new RangeTree.Accessor<>()
     {
         @Override
         public Routing start(Range range)
@@ -97,7 +97,7 @@ public class RTreeTest
             return left.compareIntersecting(right) == 0;
         }
     };
-    private static final RTree.Accessor<Routing, Range> ALL_INCLUSIVE = new RTree.Accessor<>()
+    private static final RangeTree.Accessor<Routing, Range> ALL_INCLUSIVE = new RangeTree.Accessor<>()
     {
         @Override
         public Routing start(Range range)
@@ -154,14 +154,14 @@ public class RTreeTest
         SMALL_RANGES // lower selectivity than RANDOM but still matches ~30% of the tree in testing
     }
 
-    // Having different models makes sure that the RTree is flexiable enough and can be used with the semantics the user
+    // Having different models makes sure that the tree is flexiable enough and can be used with the semantics the user
     // needs (with regard to inclusivity).  It also adds more confidence that the search logic is correct as different
     // algorithems help validate this.
     private enum ModelType {List, IntervalTree, SearchableRangeList}
     private final Pattern pattern;
     private final ModelType modelType;
 
-    public RTreeTest(Pattern pattern, ModelType modelType)
+    public RangeTreeTest(Pattern pattern, ModelType modelType)
     {
         this.pattern = pattern;
         this.modelType = modelType;
@@ -235,11 +235,11 @@ public class RTreeTest
         sb.append("\nBy Token:");
         sb.append("\n\tSizes: " + stats(byTokenLength, false));
         sb.append("\n\t" + modelType + ": " + stats(modelByToken, true));
-        sb.append("\n\tRTree: " + stats(byToken, true));
+        sb.append("\n\tTree: " + stats(byToken, true));
         sb.append("\nBy Range:");
         sb.append("\n\tSizes: " + stats(byRangeLength, false));
         sb.append("\n\t" + modelType + ": " + stats(modelByRange, true));
-        sb.append("\n\tRTree: " + stats(byRange, true));
+        sb.append("\n\tTree: " + stats(byRange, true));
         logger.info(sb.toString());
     }
 
@@ -356,14 +356,14 @@ public class RTreeTest
         void done();
     }
 
-    private static RTreeModel create(ModelType modelType)
+    private static RangeTreeModel create(ModelType modelType)
     {
         switch (modelType)
         {
             case List:
             case SearchableRangeList:
-                return new RTreeModel(new RTree<>(COMPARATOR, END_INCLUSIVE));
-            case IntervalTree: return new RTreeModel(new RTree<>(COMPARATOR, ALL_INCLUSIVE));
+                return new RangeTreeModel(new RTree<>(COMPARATOR, END_INCLUSIVE));
+            case IntervalTree: return new RangeTreeModel(new RTree<>(COMPARATOR, ALL_INCLUSIVE));
             default:
                 throw new AssertionError("Unknown type: " + modelType);
         }
@@ -381,37 +381,37 @@ public class RTreeTest
         }
     }
 
-    private static class RTreeModel implements Model
+    private static class RangeTreeModel implements Model
     {
-        private final RTree<Routing, Range, Integer> rtree;
+        private final RangeTree<Routing, Range, Integer> tree;
 
-        private RTreeModel(RTree<Routing, Range, Integer> rtree)
+        private RangeTreeModel(RangeTree<Routing, Range, Integer> tree)
         {
-            this.rtree = rtree;
+            this.tree = tree;
         }
 
         @Override
-        public RTree<Routing, Range, Integer> actual()
+        public RangeTree<Routing, Range, Integer> actual()
         {
-            return rtree;
+            return tree;
         }
 
         @Override
         public void put(Range range, int value)
         {
-            rtree.add(range, value);
+            tree.add(range, value);
         }
 
         @Override
         public List<Map.Entry<Range, Integer>> intersectsToken(Routing key)
         {
-            return rtree.searchToken(key);
+            return tree.searchToken(key);
         }
 
         @Override
         public List<Map.Entry<Range, Integer>> intersects(Range range)
         {
-            return rtree.search(range);
+            return tree.search(range);
         }
 
         @Override

@@ -63,6 +63,7 @@ import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.RTree;
+import org.apache.cassandra.utils.RangeTree;
 
 import static org.apache.cassandra.index.sai.accord.SaiSerializer.deserializeRoutingKey;
 import static org.apache.cassandra.index.sai.accord.SaiSerializer.unwrap;
@@ -70,7 +71,7 @@ import static org.apache.cassandra.index.sai.accord.SaiSerializer.unwrap;
 public class RangeMemoryIndex extends UnseekableMemoryIndex
 {
     @GuardedBy("this")
-    private final Map<Group, RTree<byte[], Range, PrimaryKey>> map = new HashMap<>();
+    private final Map<Group, RangeTree<byte[], Range, PrimaryKey>> map = new HashMap<>();
     @GuardedBy("this")
     private byte[] minTerm, maxTerm;
 
@@ -79,9 +80,9 @@ public class RangeMemoryIndex extends UnseekableMemoryIndex
         super(index);
     }
 
-    private static RTree<byte[], Range, PrimaryKey> createRTree()
+    private static RangeTree<byte[], Range, PrimaryKey> createTree()
     {
-        return new RTree<>((a, b) -> ByteArrayUtil.compareUnsigned(a, 0, b, 0, a.length), new RTree.Accessor<>()
+        return new RTree<>((a, b) -> ByteArrayUtil.compareUnsigned(a, 0, b, 0, a.length), new RangeTree.Accessor<>()
         {
             @Override
             public byte[] start(Range range)
@@ -143,7 +144,7 @@ public class RangeMemoryIndex extends UnseekableMemoryIndex
                 var tableId = ts.table();
                 var group = new Group(storeId, tableId);
                 var range = new Range(unwrap((AccordRoutingKey) ts.start()), unwrap((AccordRoutingKey) ts.end()));
-                map.computeIfAbsent(group, ignore -> createRTree()).add(range, pk);
+                map.computeIfAbsent(group, ignore -> createTree()).add(range, pk);
 
                 var start = ByteBufferUtil.getArray(SaiSerializer.serializeRoutingKey((AccordRoutingKey) ts.start()));
                 var end = ByteBufferUtil.getArray(SaiSerializer.serializeRoutingKey((AccordRoutingKey) ts.end()));
@@ -182,7 +183,7 @@ public class RangeMemoryIndex extends UnseekableMemoryIndex
         return new InMemoryKeyRangeIterator(pks);
     }
 
-    private TreeMap<Range, Set<PrimaryKey>> search(RTree<byte[], Range, PrimaryKey> tokensToPks, byte[] start, byte[] end)
+    private TreeMap<Range, Set<PrimaryKey>> search(RangeTree<byte[], Range, PrimaryKey> tokensToPks, byte[] start, byte[] end)
     {
 
         TreeMap<Range, Set<PrimaryKey>> matches = new TreeMap<>();
