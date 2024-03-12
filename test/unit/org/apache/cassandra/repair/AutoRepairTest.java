@@ -126,10 +126,9 @@ public class AutoRepairTest extends CQLTester
     @Test
     public void testRepair() throws Throwable
     {
-        long prevCount = AutoRepairMetrics.repairMV.getCount();
         AutoRepairService.instance.setRepairMinFrequencyInHours(-1);
         AutoRepair.repair(0);
-        assertEquals(prevCount, AutoRepairMetrics.repairMV.getCount());
+        assertEquals(0, AutoRepairMetrics.totalMVTablesConsideredForRepair.getValue().intValue());
         long lastRepairTime = AutoRepair.instance.getLastRepairTime();
         //if repair was done then lastRepairTime should be non-zero
         Assert.assertTrue(String.format("Expected lastRepairTime > 0, actual value lastRepairTime %d",
@@ -139,7 +138,6 @@ public class AutoRepairTest extends CQLTester
     @Test
     public void testTooFrequentRepairs()
     {
-        long prevCount = AutoRepairMetrics.repairMV.getCount();
         //in the first round let repair run
         AutoRepairService.instance.setRepairMinFrequencyInHours(-1);
         AutoRepair.repair(0);
@@ -156,13 +154,13 @@ public class AutoRepairTest extends CQLTester
         Assert.assertEquals("Expected total repaired tables = 0, actual value: " + AutoRepair.instance
         .getTotalTablesConsideredForRepair(), AutoRepair.instance
                             .getTotalTablesConsideredForRepair(), 0);
-        assertEquals(prevCount, AutoRepairMetrics.repairMV.getCount());
+        assertEquals(0, AutoRepairMetrics.totalMVTablesConsideredForRepair.getValue().intValue());
     }
 
     @Test
     public void testNonFrequentRepairs() throws Throwable
     {
-        long prevCount = AutoRepairMetrics.repairMV.getCount();
+        Integer prevCount = AutoRepairMetrics.totalMVTablesConsideredForRepair.getValue();
         AutoRepairService.instance.setRepairMinFrequencyInHours(-1);
         AutoRepair.repair(0);
         long lastRepairTime1 = AutoRepair.instance.getLastRepairTime();
@@ -175,13 +173,13 @@ public class AutoRepairTest extends CQLTester
         long lastRepairTime2 = AutoRepair.instance.getLastRepairTime();
         Assert.assertNotSame(String.format("Expected repair time to be same, actual value lastRepairTime1 %d, " +
                                            "lastRepairTime2 ", lastRepairTime1, lastRepairTime2), lastRepairTime1, lastRepairTime2);
-        assertEquals(prevCount, AutoRepairMetrics.repairMV.getCount());
+        assertEquals(prevCount, AutoRepairMetrics.totalMVTablesConsideredForRepair.getValue());
     }
 
     @Test
     public void testGetPriorityHosts() throws Throwable
     {
-        long prevCount = AutoRepairMetrics.repairMV.getCount();
+        Integer prevCount = AutoRepairMetrics.totalMVTablesConsideredForRepair.getValue();
         AutoRepairService.instance.setRepairMinFrequencyInHours(-1);
         Assert.assertSame(String.format("Priority host count is not same, actual value %d, expected value %d",
                                         AutoRepairUtils.getPriorityHosts().size(), 0), AutoRepairUtils.getPriorityHosts().size(), 0);
@@ -193,13 +191,13 @@ public class AutoRepairTest extends CQLTester
         AutoRepair.repair(0);
         Assert.assertSame(String.format("Priority host count is not same actual value %d, expected value %d", AutoRepairUtils
         .getPriorityHosts().size(), 0), AutoRepairUtils.getPriorityHosts().size(), 0);
-        assertEquals(prevCount, AutoRepairMetrics.repairMV.getCount());
+        assertEquals(prevCount, AutoRepairMetrics.totalMVTablesConsideredForRepair.getValue());
     }
 
     @Test
     public void testCheckAutoRepairStartStop() throws Throwable
     {
-        long prevCount = AutoRepairMetrics.repairMV.getCount();
+        Integer prevCount = AutoRepairMetrics.totalMVTablesConsideredForRepair.getValue();
         AutoRepairService.instance.setRepairMinFrequencyInHours(-1);
         AutoRepairService.instance.stopAutoRepair();
         long lastRepairTime1 = AutoRepair.instance.getLastRepairTime();
@@ -215,7 +213,7 @@ public class AutoRepairTest extends CQLTester
         long lastRepairTime3 = AutoRepair.instance.getLastRepairTime();
         Assert.assertNotSame(String.format("Expected lastRepairTime1 %d, and lastRepairTime3 %d to be not same",
                                            lastRepairTime1, lastRepairTime2), lastRepairTime1, lastRepairTime3);
-        assertEquals(prevCount, AutoRepairMetrics.repairMV.getCount());
+        assertEquals(prevCount, AutoRepairMetrics.totalMVTablesConsideredForRepair.getValue());
     }
 
     @Test
@@ -277,22 +275,19 @@ public class AutoRepairTest extends CQLTester
     public void testMVRepair()
     {
         AutoRepairService.instance.setMVRepairEnabled(true);
-        long prevCount = AutoRepairMetrics.repairMV.getCount();
         AutoRepair.lastRepairTimeInMs = 0;
         AutoRepair.repair(0);
-        assertEquals(prevCount+1, AutoRepairMetrics.repairMV.getCount());
+        assertEquals(1, AutoRepairMetrics.totalMVTablesConsideredForRepair.getValue().intValue());
 
         AutoRepairService.instance.setMVRepairEnabled(false);
-        assertEquals(prevCount+1, AutoRepairMetrics.repairMV.getCount());
         AutoRepair.lastRepairTimeInMs = 0;
         AutoRepair.repair(0);
-        assertEquals(prevCount+1, AutoRepairMetrics.repairMV.getCount());
+        assertEquals(0, AutoRepairMetrics.totalMVTablesConsideredForRepair.getValue().intValue());
 
         AutoRepairService.instance.setMVRepairEnabled(true);
-        assertEquals(prevCount+1, AutoRepairMetrics.repairMV.getCount());
         AutoRepair.lastRepairTimeInMs = 0;
         AutoRepair.repair(0);
-        assertEquals(prevCount+2, AutoRepairMetrics.repairMV.getCount());
+        assertEquals(1, AutoRepairMetrics.totalMVTablesConsideredForRepair.getValue().intValue());
 
         AutoRepairService.instance.setMVRepairEnabled(false);
     }
@@ -310,6 +305,7 @@ public class AutoRepairTest extends CQLTester
             QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (k, i, v) VALUES('k1', %d, 'v1')", KEYSPACE, TABLE, i));
             cfsBaseTable.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
             cfsMVTable.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+
         }
 
         Set<SSTableReader> postBaseTable = cfsBaseTable.getLiveSSTables();
@@ -325,22 +321,20 @@ public class AutoRepairTest extends CQLTester
         int beforeCount = AutoRepairService.instance.getRepairSSTableCountHigherThreshold();
         AutoRepairService.instance.setMVRepairEnabled(true);
         AutoRepairService.instance.setRepairSSTableCountHigherThreshold(9);
-        long prevCount = AutoRepairMetrics.repairMV.getCount();
-        assertEquals(0, AutoRepairMetrics.skipRepairSSTableCountHigherThreshold.getCount());
+        assertEquals(0, AutoRepairMetrics.skippedTablesCount.getValue().intValue());
         AutoRepair.lastRepairTimeInMs = 0;
         AutoRepair.repair(0);
-        assertEquals(prevCount+1, AutoRepairMetrics.repairMV.getCount());
+        assertEquals(1, AutoRepairMetrics.totalMVTablesConsideredForRepair.getValue().intValue());
         // skipping one time for the base table and another time for MV table
-        assertEquals(2, AutoRepairMetrics.skipRepairSSTableCountHigherThreshold.getCount());
+        assertEquals(2, AutoRepairMetrics.skippedTablesCount.getValue().intValue());
 
         // set it to higher value, and this time, the tables should not be skipped
         AutoRepairService.instance.setRepairSSTableCountHigherThreshold(11);
         AutoRepairService.instance.setRepairSSTableCountHigherThreshold(beforeCount);
         AutoRepair.lastRepairTimeInMs = 0;
         AutoRepair.repair(0);
-        assertEquals(prevCount+2, AutoRepairMetrics.repairMV.getCount());
-        // same as the previous count
-        assertEquals(2, AutoRepairMetrics.skipRepairSSTableCountHigherThreshold.getCount());
+        assertEquals(1, AutoRepairMetrics.totalMVTablesConsideredForRepair.getValue().intValue());
+        assertEquals(0, AutoRepairMetrics.skippedTablesCount.getValue().intValue());
 
         AutoRepairService.instance.setMVRepairEnabled(false);
         AutoRepairService.instance.setRepairSSTableCountHigherThreshold(beforeCount);

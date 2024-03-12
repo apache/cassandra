@@ -39,8 +39,6 @@ import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.view.TableViews;
-import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -49,7 +47,6 @@ import org.apache.cassandra.metrics.AutoRepairMetrics;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
-import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -111,6 +108,7 @@ public class AutoRepair
     static int repairInProgress = 0;
     static int repairTableSkipCount = 0;
     static int repairTableFailureCount = 0;
+    static int totalMVTablesConsideredForRepair = 0;
     static AutoRepairUtils.AutoRepairHistory longestUnrepairedNode;
 
     private static ScheduledExecutorPlus repairExecutor;
@@ -166,6 +164,11 @@ public class AutoRepair
     public static int getRepairFailedTablesCount()
     {
         return repairTableFailureCount;
+    }
+
+    public static int getTotalMVTablesConsideredForRepair()
+    {
+        return totalMVTablesConsideredForRepair;
     }
 
     public void setup()
@@ -289,6 +292,7 @@ public class AutoRepair
                 repairTableFailureCount = 0;
                 repairTableSkipCount = 0;
                 repairInProgress = 1;
+                totalMVTablesConsideredForRepair = 0;
                 for (Keyspace keyspace : Keyspace.all())
                 {
                     Tables tables = keyspace.getMetadata().tables;
@@ -313,7 +317,7 @@ public class AutoRepair
                         if (mvs.size() > 0)
                         {
                             tablesToBeRepaired.addAll(mvs);
-                            AutoRepairMetrics.repairMV.inc();
+                            totalMVTablesConsideredForRepair += mvs.size();
                         }
                     }
 
@@ -329,7 +333,6 @@ public class AutoRepair
                             {
                                 logger.info("Too many SSTables for repair, not doing repair on table {}.{} " +
                                             "totalSSTables {}", keyspaceName, tableName, columnFamilyStore.getLiveSSTables().size());
-                                AutoRepairMetrics.skipRepairSSTableCountHigherThreshold.inc();
                                 repairTableSkipCount++;
                                 continue;
                             }
