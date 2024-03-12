@@ -32,6 +32,7 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaLayout;
+import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -60,6 +61,7 @@ import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.BallotGenerator;
 import org.apache.cassandra.service.paxos.Commit.Proposal;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.FBUtilities;
@@ -273,7 +275,15 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         checkFalse(hasConditions() && attrs.isTimestampSet(), "Cannot provide custom timestamp for conditional updates");
         checkFalse(isCounter() && attrs.isTimestampSet(), "Cannot provide custom timestamp for counter updates");
         checkFalse(isCounter() && attrs.isTimeToLiveSet(), "Cannot provide custom TTL for counter updates");
-        checkFalse(isView(), "Cannot directly modify a materialized view");
+        if (StorageService.instance.getDirectMaterializedViewModificationEnabled() && isView())
+        {
+            ClientRequestsMetricsHolder.viewWriteMetrics.directMVModification.inc();
+        }
+        else
+        {
+            checkFalse(isView(), "Cannot directly modify a materialized view");
+        }
+
         checkFalse(isVirtual() && attrs.isTimestampSet(), "Custom timestamp is not supported by virtual tables");
         checkFalse(isVirtual() && attrs.isTimeToLiveSet(), "Expiring columns are not supported by virtual tables");
         checkFalse(isVirtual() && hasConditions(), "Conditional updates are not supported by virtual tables");

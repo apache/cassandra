@@ -7416,6 +7416,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getAuthEnforcementFlag();
     }
 
+    @Override
+    public boolean getDirectMaterializedViewModificationEnabled()
+    {
+        return DatabaseDescriptor.getDirectMaterializedViewModificationEnabled();
+    }
+
+    @Override
+    public void setDirectMaterializedViewModification(boolean enabled)
+    {
+        DatabaseDescriptor.setDirectMaterializedViewModification(enabled);
+    }
+
     public void setAuthEnforcementFlag(AuthEnforcementFlag authEnforcementFlag)
     {
         DatabaseDescriptor.setAuthEnforcementFlag(authEnforcementFlag);

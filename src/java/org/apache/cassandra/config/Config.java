@@ -577,6 +577,20 @@ public class Config
     @Replaces(oldName = "enable_transient_replication", converter = Converters.IDENTITY, deprecated = true)
     public boolean transient_replication_enabled = false;
 
+    /**
+     * By default, Cassandra does not allow direct modifications to the materialized view.
+     * But as part of the following ERD (https://uplan.uberinternal.com/projects/ERD/b3c1689c-4097-4889-8b9b-ea75e3c811e0), we have
+     * developed a Spark job that will identify the MV inconsistencies by comparing it with the corresponding base table.
+     * Additionally, the Spark job will also be able to repair the inconsistencies in the MV. There are two ways to repair
+     * MV inconsistencies and the details have been given in this design doc (https://docs.google.com/document/d/11jmthKowWWJ1yqhjMSIxR8I0aYJ_mpxALd5gTqHvDac/edit#heading=h.3s1deiqmia6d)
+     * In summary, this is what is expected:
+     * 1. By default, no one is allowed a direct modification because the flag will be 'false'
+     * 2. When an admin determines to run the Spark job, then the admin can enable this flag
+     * 3. The Spark job will be able to do the direct modification to MV
+     * 4. An admin will disable the flag upon the Spark job's completion
+     */
+    public Boolean direct_materialized_view_modification_enabled = false;
+
     @Replaces(oldName = "enable_sasi_indexes", converter = Converters.IDENTITY, deprecated = true)
     public boolean sasi_indexes_enabled = false;
 

@@ -1153,4 +1153,8 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /** Gets the value for auth enforcement flag */
     public AuthEnforcementFlag getAuthEnforcementFlag();
+
+    public boolean getDirectMaterializedViewModificationEnabled();
+
+    public void setDirectMaterializedViewModification(boolean enabled);
 }

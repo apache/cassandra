@@ -2560,6 +2560,16 @@ public class NodeProbe implements AutoCloseable
     {
         gossProxy.setGossipServiceCacheMismatchFixConvictionThreshold(convictionThreshold);
     }
+
+    public boolean getDirectMaterializedViewModificationEnabled()
+    {
+        return ssProxy.getDirectMaterializedViewModificationEnabled();
+    }
+
+    public void setDirectMaterializedViewModification(boolean enabled)
+    {
+        ssProxy.setDirectMaterializedViewModification(enabled);
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>

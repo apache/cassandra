@@ -30,6 +30,7 @@ public class ViewWriteMetrics extends ClientRequestMetrics
     public final Counter viewReplicasSuccess;
     // time between when mutation is applied to local memtable to when CL.ONE is achieved on MV
     public final Timer viewWriteLatency;
+    public final Counter directMVModification;
 
     public ViewWriteMetrics(String scope)
     {
@@ -44,6 +45,7 @@ public class ViewWriteMetrics extends ClientRequestMetrics
                         return viewReplicasAttempted.getCount() - viewReplicasSuccess.getCount();
                     }
                 });
+        directMVModification = Metrics.counter(factory.createMetricName("DirectMVModification"));
     }
 
     public ViewWriteMetrics(MetricNameFactory factory, String scope) {
@@ -58,6 +60,7 @@ public class ViewWriteMetrics extends ClientRequestMetrics
                 return viewReplicasAttempted.getCount() - viewReplicasSuccess.getCount();
             }
         });
+        directMVModification = Metrics.counter(factory.createMetricName("DirectMVModification"));
     }
 
     public void release()
@@ -67,5 +70,6 @@ public class ViewWriteMetrics extends ClientRequestMetrics
         Metrics.remove(factory.createMetricName("ViewReplicasSuccess"));
         Metrics.remove(factory.createMetricName("ViewWriteLatency"));
         Metrics.remove(factory.createMetricName("ViewPendingMutations"));
+        Metrics.remove(factory.createMetricName("DirectMVModification"));
     }
 }

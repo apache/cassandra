@@ -5032,4 +5032,12 @@ public class DatabaseDescriptor
     {
         return conf.ignore_repairedat_enabled;
     }
+
+    public static boolean getDirectMaterializedViewModificationEnabled() {
+        return conf.direct_materialized_view_modification_enabled;
+    }
+
+    public static void setDirectMaterializedViewModification(boolean enabled) {
+        conf.direct_materialized_view_modification_enabled = enabled;
+    }
 }
