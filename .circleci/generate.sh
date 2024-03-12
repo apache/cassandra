@@ -157,6 +157,10 @@ if $has_env_vars && $check_env_vars; then
   done
 fi
 
+if $dev_min && $detect_changed_tests; then
+  die "-d doesn't support repeated tests. Use -s to skip it."
+fi
+
 if $free; then
   ($all || $paid) && die "Cannot use option -f with options -a or -p"
   echo "Generating new config.yml file for free tier from config_template.yml"
@@ -282,8 +286,8 @@ delete_repeated_jobs()
     delete_job "$1" "j17_utests_cdc_repeat"
     delete_job "$1" "j11_utests_compression_repeat"
     delete_job "$1" "j17_utests_compression_repeat"
-    delete_job "$1" "j11_utests_trie_repeat"
-    delete_job "$1" "j17_utests_trie_repeat"
+    delete_job "$1" "j11_utests_latest_repeat"
+    delete_job "$1" "j17_utests_latest_repeat"
     delete_job "$1" "j11_utests_oa_repeat"
     delete_job "$1" "j17_utests_oa_repeat"
     delete_job "$1" "j11_utests_system_keyspace_directory_repeat"
@@ -306,9 +310,9 @@ delete_repeated_jobs()
   fi
   if (! (echo "$env_vars" | grep -q "REPEATED_JVM_DTESTS=")); then
     delete_job "$1" "j11_jvm_dtests_repeat"
-    delete_job "$1" "j11_jvm_dtests_vnode_repeat"
+    delete_job "$1" "j11_jvm_dtests_latest_vnode_repeat"
     delete_job "$1" "j17_jvm_dtests_repeat"
-    delete_job "$1" "j17_jvm_dtests_vnode_repeat"
+    delete_job "$1" "j17_jvm_dtests_latest_vnode_repeat"
   fi
   if (! (echo "$env_vars" | grep -q "REPEATED_JVM_UPGRADE_DTESTS=")); then
     delete_job "$1" "start_jvm_upgrade_dtests_repeat"
@@ -317,10 +321,10 @@ delete_repeated_jobs()
   if (! (echo "$env_vars" | grep -q "REPEATED_DTESTS=")); then
     delete_job "$1" "j11_dtests_repeat"
     delete_job "$1" "j11_dtests_vnode_repeat"
-    delete_job "$1" "j11_dtests_offheap_repeat"
+    delete_job "$1" "j11_dtests_latest_repeat"
     delete_job "$1" "j17_dtests_repeat"
     delete_job "$1" "j17_dtests_vnode_repeat"
-    delete_job "$1" "j17_dtests_offheap_repeat"
+    delete_job "$1" "j17_dtests_latest_repeat"
   fi
   if (! (echo "$env_vars" | grep -q "REPEATED_LARGE_DTESTS=")); then
     delete_job "$1" "j11_dtests_large_repeat"
@@ -351,10 +355,10 @@ rename_workflow()
 # The first and only argument is the file name.
 build_dev_min_jobs()
 {
-  delete_job "$1" "j11_cqlsh_dtests_py311_offheap"
-  delete_job "$1" "j11_cqlsh_dtests_py38_offheap"
-  delete_job "$1" "j17_cqlsh_dtests_py311_offheap"
-  delete_job "$1" "j17_cqlsh_dtests_py38_offheap"
+  delete_job "$1" "j11_cqlsh_dtests_py311_latest"
+  delete_job "$1" "j11_cqlsh_dtests_py38_latest"
+  delete_job "$1" "j17_cqlsh_dtests_py311_latest"
+  delete_job "$1" "j17_cqlsh_dtests_py38_latest"
   delete_job "$1" "j11_cqlsh_dtests_py311_vnode"
   delete_job "$1" "j11_cqlsh_dtests_py38_vnode"
   delete_job "$1" "j11_cqlsh_dtests_py38"
@@ -367,13 +371,15 @@ build_dev_min_jobs()
   delete_job "$1" "j17_cqlshlib_cython_tests"
   delete_job "$1" "j11_dtests_vnode"
   delete_job "$1" "j11_dtests_large_vnode"
-  delete_job "$1" "j11_dtests_offheap"
+  delete_job "$1" "j11_dtests_latest"
   delete_job "$1" "j17_dtests_vnode"
   delete_job "$1" "j17_dtests_large"
   delete_job "$1" "j17_dtests_large_vnode"
-  delete_job "$1" "j17_dtests_offheap"
+  delete_job "$1" "j17_dtests_latest"
   delete_job "$1" "j17_dtests"
-  delete_job "$1" "j11_jvm_dtests_vnode"
+  delete_job "$1" "j11_jvm_dtests_latest_vnode"
+  delete_job "$1" "j17_jvm_dtests_vnode"
+  delete_job "$1" "j17_jvm_dtests_latest_vnode"
   delete_job "$1" "j17_jvm_dtests_vnode"
   delete_job "$1" "j17_jvm_dtests"
   delete_job "$1" "j11_utests_oa"
@@ -382,7 +388,6 @@ build_dev_min_jobs()
   delete_job "$1" "j11_utests_fqltool"
   delete_job "$1" "j11_utests_long"
   delete_job "$1" "j11_utests_stress"
-  delete_job "$1" "j11_utests_trie"
   delete_job "$1" "j11_utests_system_keyspace_directory"
   delete_job "$1" "j17_unit_tests"
   delete_job "$1" "j17_utests_oa"
@@ -391,22 +396,20 @@ build_dev_min_jobs()
   delete_job "$1" "j17_utests_fqltool"
   delete_job "$1" "j17_utests_long"
   delete_job "$1" "j17_utests_stress"
-  delete_job "$1" "j17_utests_trie"
-  delete_job "$1" "j17_utests_trie"
+  delete_job "$1" "j11_utests_latest"
+  delete_job "$1" "j17_utests_latest"
   delete_job "$1" "j17_utests_system_keyspace_directory"
-  delete_job "$1" "start_utests_trie"
   delete_job "$1" "start_utests_system_keyspace_directory"
   delete_job "$1" "start_utests_stress"
   delete_job "$1" "start_utests_long"
   delete_job "$1" "start_utests_fqltool"
   delete_job "$1" "start_utests_compression"
   delete_job "$1" "start_utests_cdc"
-  delete_job "$1" "start_utests_trie"
-  delete_job "$1" "start_j17_cqlsh-dtests-offheap"
-  delete_job "$1" "start_j11_cqlsh_dtests_offheap"
+  delete_job "$1" "start_j17_cqlsh-dtests-latest"
+  delete_job "$1" "start_j11_cqlsh_dtests_latest"
   delete_job "$1" "start_j17_cqlsh_tests"
-  delete_job "$1" "start_j17_cqlsh_tests_offheap"
-  delete_job "$1" "start_j11_cqlsh_tests_offheap"
+  delete_job "$1" "start_j17_cqlsh_tests_latest"
+  delete_job "$1" "start_j11_cqlsh_tests_latest"
 
   rename_workflow "$1" "java11_pre-commit_tests" "java11_dev_tests"
   rename_workflow "$1" "java17_pre-commit_tests" "java17_dev_tests"
