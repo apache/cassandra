@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -63,7 +64,6 @@ import org.apache.cassandra.tcm.ownership.PrimaryRangeComparator;
 import org.apache.cassandra.tcm.ownership.PlacementForRange;
 import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
-import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
@@ -252,45 +252,15 @@ public class ClusterMetadata
 
     public DataPlacement writePlacementAllSettled(KeyspaceMetadata ksm)
     {
-        List<NodeId> joining = new ArrayList<>();
-        List<NodeId> leaving = new ArrayList<>();
-        List<NodeId> moving = new ArrayList<>();
-
-        for (Map.Entry<NodeId, NodeState> entry : directory.states.entrySet())
+        ClusterMetadata metadata = this;
+        Iterator<MultiStepOperation<?>> iter = metadata.inProgressSequences.iterator();
+        while (iter.hasNext())
         {
-            switch (entry.getValue())
-            {
-                case BOOTSTRAPPING:
-                    joining.add(entry.getKey());
-                    break;
-                case LEAVING:
-                    leaving.add(entry.getKey());
-                    break;
-                case MOVING:
-                    moving.add(entry.getKey());
-                    break;
-            }
+            Transformation.Result result = iter.next().applyTo(metadata);
+            assert result.isSuccess();
+            metadata = result.success().metadata;
         }
-
-        Transformer t = transformer();
-        for (NodeId node: joining)
-        {
-            MultiStepOperation<?> joinSequence = inProgressSequences.get(node);
-            assert joinSequence instanceof BootstrapAndJoin;
-            Set<Token> tokens = ((BootstrapAndJoin)joinSequence).finishJoin.tokens;
-            t = t.proposeToken(node, tokens);
-        }
-        for (NodeId node : leaving)
-            t = t.proposeRemoveNode(node);
-        // todo: add tests for move!
-        for (NodeId node : moving)
-            t = t.proposeRemoveNode(node).proposeToken(node, tokenMap.tokens(node));
-
-        ClusterMetadata proposed = t.build().metadata;
-        return ClusterMetadataService.instance()
-                                     .placementProvider()
-                                     .calculatePlacements(epoch, proposed.tokenMap.toRanges(), proposed, Keyspaces.of(ksm))
-                                     .get(ksm.params.replication);
+        return metadata.placements.get(ksm.params.replication);
     }
 
     // TODO Remove this as it isn't really an equivalent to the previous concept of pending ranges
