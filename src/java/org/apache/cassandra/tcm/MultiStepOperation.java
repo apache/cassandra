@@ -18,9 +18,14 @@
 
 package org.apache.cassandra.tcm;
 
+import java.util.List;
+
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.cassandra.tcm.sequences.AddToCMS;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
+import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.sequences.Move;
 import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
 import org.apache.cassandra.tcm.sequences.SequenceState;
@@ -137,6 +142,35 @@ public abstract class MultiStepOperation<CONTEXT>
      * @return sequence state following attempted execution
      */
     public abstract SequenceState executeNext();
+
+    /**
+     * Apply the remaining steps of this MSO - resulting metadata will have epoch = metadata.epoch + 1
+     */
+    public abstract Transformation.Result applyTo(ClusterMetadata metadata);
+
+    /**
+     * Helper method for the standard applyTo implementations where we just execute a list of transformations, starting at `next`
+     * @return
+     */
+    public static Transformation.Result applyMultipleTransformations(ClusterMetadata metadata, Transformation.Kind next, List<Transformation> transformations)
+    {
+        ImmutableSet.Builder<MetadataKey> modifiedKeys = ImmutableSet.builder();
+        Epoch lastModifiedEpoch = metadata.epoch;
+        boolean foundStart = false;
+        for (Transformation nextTransformation : transformations)
+        {
+            if (nextTransformation.kind() == next)
+                foundStart = true;
+            if (foundStart)
+            {
+                Transformation.Result result = nextTransformation.execute(metadata);
+                assert result.isSuccess();
+                metadata = result.success().metadata.forceEpoch(lastModifiedEpoch);
+                modifiedKeys.addAll(result.success().affectedMetadata);
+            }
+        }
+        return new Transformation.Success(metadata.forceEpoch(lastModifiedEpoch.nextEpoch()), LockedRanges.AffectedRanges.EMPTY, modifiedKeys.build());
+    }
 
     /**
      * Advance the state of an in-progress operation after successfully executing a step. Essentially, this "bumps the
