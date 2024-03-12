@@ -235,6 +235,7 @@ cqlStatement returns [CQLStatement.Raw stmt]
     | st41=describeStatement               { $stmt = st41; }
     | st42=addIdentityStatement            { $stmt = st42; }
     | st43=dropIdentityStatement           { $stmt = st43; }
+    | st44=listSuperUsersStatement         { $stmt = st44; }
     ;
 
 /*
@@ -1357,6 +1358,15 @@ listRolesStatement returns [ListRolesStatement stmt]
       { $stmt = new ListRolesStatement(grantee, recursive); }
     ;
 
+/**
+ * LIST SUPERUSERS
+ */
+listSuperUsersStatement returns [ListSuperUsersStatement stmt]
+    @init {
+    }
+    : K_LIST K_SUPERUSERS { $stmt = new ListSuperUsersStatement(); }
+    ;
+
 roleOptions[RoleOptions opts, DCPermissions.Builder dcperms, CIDRPermissions.Builder cidrperms]
     : roleOption[opts, dcperms, cidrperms] (K_AND roleOption[opts, dcperms, cidrperms])*
     ;
@@ -1961,6 +1971,7 @@ basic_unreserved_keyword returns [String str]
         | K_ROLES
         | K_IDENTITY
         | K_SUPERUSER
+        | K_SUPERUSERS
         | K_NOSUPERUSER
         | K_LOGIN
         | K_NOLOGIN
