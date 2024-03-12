@@ -102,7 +102,10 @@ public class InboundSink implements InboundMessageHandlers.MessageConsumer
             fail(message.header, t);
 
             if (t instanceof TombstoneOverwhelmingException || t instanceof IndexNotAvailableException || t instanceof OverloadedException)
-                noSpamLogger.error("Exception in InboundSink verb: {}, error: {}", message.header.verb, t.getMessage());
+            {
+                String errMsg = String.format("Exception in InboundSink verb: %s, error: %s", message.header.verb, t.getMessage());
+                noSpamLogger.error(errMsg);
+            }
             else if (t instanceof RuntimeException)
                 throw (RuntimeException) t;
             else

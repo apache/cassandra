@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-27705] Fix flakkiness of an existing test caused by rate limiter changes
  * [SO-28084] Log availableProcessors every 10 minutes
  * [SO-27660] Let 'nodetool setratelimiterconfig enabled true' fail
  * [SO-27490] Circuit breaker differentiates between range reads and non-range reads
