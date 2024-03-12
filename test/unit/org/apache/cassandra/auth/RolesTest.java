@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.auth;
 
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.Iterables;
 import org.junit.Assert;
@@ -32,6 +35,8 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import static org.apache.cassandra.auth.AuthTestUtils.ALL_ROLES;
 import static org.apache.cassandra.auth.AuthTestUtils.ROLE_A;
 import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B;
+import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B_1;
+import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B_2;
 import static org.apache.cassandra.auth.AuthTestUtils.ROLE_C;
 import static org.apache.cassandra.auth.AuthTestUtils.getRolesReadCount;
 import static org.apache.cassandra.auth.AuthTestUtils.grantRolesTo;
@@ -55,6 +60,13 @@ public class RolesTest
         for (RoleResource role : ALL_ROLES)
             roleManager.createRole(AuthenticatedUser.ANONYMOUS_USER, role, new RoleOptions());
         grantRolesTo(roleManager, ROLE_A, ROLE_B, ROLE_C);
+
+        RoleOptions roleOptions = new RoleOptions();
+        roleOptions.setOption(IRoleManager.Option.SUPERUSER, true);
+        RoleResource testSuperUser = RoleResource.role("testSuperuser");
+        roleManager.createRole(AuthenticatedUser.ANONYMOUS_USER, testSuperUser, roleOptions);
+        grantRolesTo(roleManager, ROLE_B_1, testSuperUser);
+        grantRolesTo(roleManager, ROLE_B_2, ROLE_B_1);
 
         roleManager.setup();
         AuthCacheService.initializeAndRegisterCaches();
@@ -116,5 +128,15 @@ public class RolesTest
 
         ConsistencyLevel nonPrivWriteLevel = CassandraRoleManager.consistencyForRoleWrite("non-privilaged");
         Assert.assertEquals(nonPrivWriteLevel, DatabaseDescriptor.getAuthWriteConsistencyLevel());
+    }
+
+    @Test
+    public void testSuperUsers()
+    {
+        Assert.assertEquals(new HashSet<>(Arrays.asList("testSuperuser", "role_b_1", "role_b_2")),
+                            Roles.getAllRoles(Roles::hasSuperuserStatus)
+                                 .stream()
+                                 .map(RoleResource::getRoleName)
+                                 .collect(Collectors.toSet()));
     }
 }

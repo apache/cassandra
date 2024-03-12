@@ -261,6 +261,18 @@ transitively acquired ones:
 include::cassandra:example$CQL/list_roles_nonrecursive.cql[]
 ----
 
+[[list-superusers-statement]]
+== LIST SUPERUSERS
+
+All the known roles (including transitively acquired) with superuser privilege can be listed using the `LIST SUPERUSERS` statement:
+
+[source, bnf]
+----
+include::cassandra:example$BNF/list_superusers_statement.bnf[]
+----
+
+This command requires `DESCRIBE` permission on all roles of the database.
+
 == Users
 
 Prior to the introduction of roles in Cassandra 2.2, authentication and

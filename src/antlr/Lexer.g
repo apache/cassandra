@@ -147,6 +147,7 @@ K_USER:        U S E R;
 K_USERS:       U S E R S;
 K_ROLE:        R O L E;
 K_ROLES:       R O L E S;
+K_SUPERUSERS:  S U P E R U S E R S;
 K_SUPERUSER:   S U P E R U S E R;
 K_NOSUPERUSER: N O S U P E R U S E R;
 K_PASSWORD:    P A S S W O R D;

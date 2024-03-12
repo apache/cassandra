@@ -302,6 +302,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                             | <alterRoleStatement>
                             | <dropRoleStatement>
                             | <listRolesStatement>
+                            | <listSuperUsersStatement>
                             ;
 
 <authorizationStatement> ::= <grantStatement>
@@ -1528,6 +1529,9 @@ syntax_rules += r'''
 
 <listRolesStatement> ::= "LIST" "ROLES"
                               ( "OF" <rolename> )? "NORECURSIVE"?
+                       ;
+
+<listSuperUsersStatement> ::= "LIST" "SUPERUSERS"
                        ;
 '''
 

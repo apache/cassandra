@@ -70,7 +70,8 @@ public enum AuditLogEntryType
     REQUEST_FAILURE(AuditLogEntryCategory.ERROR),
     LOGIN_ERROR(AuditLogEntryCategory.AUTH),
     UNAUTHORIZED_ATTEMPT(AuditLogEntryCategory.AUTH),
-    LOGIN_SUCCESS(AuditLogEntryCategory.AUTH);
+    LOGIN_SUCCESS(AuditLogEntryCategory.AUTH),
+    LIST_SUPERUSERS(AuditLogEntryCategory.DCL);
 
     private final AuditLogEntryCategory category;
 
