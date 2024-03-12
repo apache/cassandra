@@ -19,15 +19,14 @@
 package org.apache.cassandra.tcm.sequences;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -46,7 +45,7 @@ import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.tcm.MultiStepOperation.Kind.LEAVE;
 import static org.apache.cassandra.tcm.serialization.Version.V2;
 
-public class InProgressSequences implements MetadataValue<InProgressSequences>
+public class InProgressSequences implements MetadataValue<InProgressSequences>, Iterable<MultiStepOperation<?>>
 {
     public static final Serializer serializer = new Serializer();
 
@@ -183,8 +182,6 @@ public class InProgressSequences implements MetadataValue<InProgressSequences>
         return Objects.hash(state, lastModified);
     }
 
-    public static Set<MultiStepOperation.Kind> STARTUP_SEQUENCE_KINDS = ImmutableSet.of(MultiStepOperation.Kind.JOIN, MultiStepOperation.Kind.REPLACE);
-
     @VisibleForTesting
     public static BiFunction<MultiStepOperation<?>, SequenceState, SequenceState> listener = (s, o) -> o;
 
@@ -213,6 +210,12 @@ public class InProgressSequences implements MetadataValue<InProgressSequences>
     public static boolean isLeave(MultiStepOperation<?> sequence)
     {
         return sequence.kind() == LEAVE;
+    }
+
+    @Override
+    public Iterator<MultiStepOperation<?>> iterator()
+    {
+        return state.values().iterator();
     }
 
     public static class Serializer implements MetadataSerializer<InProgressSequences>
