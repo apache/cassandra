@@ -40,6 +40,8 @@ public class AutoRepairMetrics
     public static Counter repairTurnMyTurn;
     public static Counter repairTurnMyTurnDueToPriority;
     public static Counter repairTurnMyTurnForceRepair;
+    public static Counter repairMV;
+    public static Counter skipRepairSSTableCountHigherThreshold;
 
     public static void setup()
     {
@@ -93,6 +95,8 @@ public class AutoRepairMetrics
         repairTurnMyTurn = Metrics.counter(factory.createMetricName("RepairTurnMyTurn"));
         repairTurnMyTurnDueToPriority = Metrics.counter(factory.createMetricName("RepairTurnMyTurnDueToPriority"));
         repairTurnMyTurnForceRepair = Metrics.counter(factory.createMetricName("RepairTurnMyTurnForceRepair"));
+        repairMV = Metrics.counter(factory.createMetricName("RepairMV"));
+        skipRepairSSTableCountHigherThreshold = Metrics.counter(factory.createMetricName("SkipRepairSSTableCountHigherThreshold"));
     }
 
     public static void recordTurn(AutoRepairUtils.RepairTurn turn){

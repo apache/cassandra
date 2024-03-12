@@ -52,6 +52,7 @@ public class AutoRepairService implements AutoRepairServiceMBean
     private boolean primaryTokenRangeOnly;
     private int parallelRepairPercentageInGroup;
     private int parallelRepairCountInGroup;
+    private boolean mvRepairEnabled;
 
     public static final AutoRepairService instance = new AutoRepairService();
 
@@ -290,5 +291,15 @@ public class AutoRepairService implements AutoRepairServiceMBean
 
     public void setParallelRepairCountInGroup(int countInGroup) {
         this.parallelRepairCountInGroup = countInGroup;
+    }
+
+    public boolean getMVRepairEnabled()
+    {
+        return mvRepairEnabled;
+    }
+
+    public void setMVRepairEnabled(boolean enabled)
+    {
+        this.mvRepairEnabled = enabled;
     }
 }

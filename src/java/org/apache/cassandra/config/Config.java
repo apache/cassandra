@@ -735,6 +735,14 @@ public class Config
 
     public boolean block_unqualified_prepared_statement_enabled = true;
 
+    /**
+     * MVs are mutated at LOCAL_ONE consistency level. By default, historically, we have not been running full repair on MV tables.
+     * Due to that, on the server side, MV replicas are out of sync, which leads to inconsistencies when reading from MV itself.
+     *
+     * This flag determines whether we need to run anti-entropy, a.k.a, repair on the MV table or not.
+     */
+    public Boolean auto_repair_mv_repair_enabled = false;
+
     // Set this to be true if compaction should ignore repair status of the SSTables and reset them to be unrepaired
     public volatile boolean ignore_repairedat_enabled = false;
 

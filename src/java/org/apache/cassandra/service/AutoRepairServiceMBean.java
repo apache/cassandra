@@ -218,4 +218,14 @@ public interface AutoRepairServiceMBean
      * Return number of the nodes in one group should run repair parallelly
      */
     public void setParallelRepairCountInGroup(int countInGroup);
+
+    /**
+     * Return if MVs should be included in the AutoRepair
+     */
+    public boolean getMVRepairEnabled();
+
+    /**
+     * Set if MVs should be included in the AutoRepair or not
+     */
+    public void setMVRepairEnabled(boolean enabled);
 }

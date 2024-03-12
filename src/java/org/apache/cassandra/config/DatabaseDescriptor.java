@@ -4971,6 +4971,11 @@ public class DatabaseDescriptor
         conf.auto_repair_parallel_repair_percentage_in_group = percentage;
     }
 
+    public static boolean getMVRepairEnabled()
+    {
+        return conf.auto_repair_mv_repair_enabled;
+    }
+
     public static boolean isOrphanNodeHintFilesCleanupEnabled() {
         return conf.orphan_node_hint_files_cleanup_enabled;
     }

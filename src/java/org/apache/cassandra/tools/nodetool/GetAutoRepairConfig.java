@@ -51,6 +51,7 @@ public class GetAutoRepairConfig extends NodeToolCmd
             sb.append("\nrepair primary token-range: " + probe.getPrimaryTokenRangeOnly());
             sb.append("\nnumber of parallel repairs within group: " + probe.getParallelRepairCountInGroup());
             sb.append("\npercentage of parallel repairs within group: " + probe.getParallelRepairPercentageInGroup());
+            sb.append("\nmv repair enabled: " + probe.getMVRepairEnabled());
 
             System.out.println(sb.toString());
         }

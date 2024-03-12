@@ -2490,6 +2490,16 @@ public class NodeProbe implements AutoCloseable
         autoRepairProxy.setPrimaryTokenRangeOnly(primaryTokenRangeOnly);
     }
 
+    public boolean getMVRepairEnabled()
+    {
+        return autoRepairProxy.getMVRepairEnabled();
+    }
+
+    public void setMVRepairEnabled(boolean enabled)
+    {
+        autoRepairProxy.setMVRepairEnabled(enabled);
+    }
+
     public boolean isDecommissionFailed()
     {
         return ssProxy.isDecommissionFailed();

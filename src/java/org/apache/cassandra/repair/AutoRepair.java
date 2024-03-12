@@ -39,6 +39,8 @@ import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.view.TableViews;
+import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -47,6 +49,7 @@ import org.apache.cassandra.metrics.AutoRepairMetrics;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
+import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -201,6 +204,7 @@ public class AutoRepair
         AutoRepairService.instance.setPrimaryTokenRangeOnly(DatabaseDescriptor.getPrimaryTokenRangeOnly());
         AutoRepairService.instance.setParallelRepairPercentageInGroup(DatabaseDescriptor.getAutoRepairParallelRepairPercentageInGroup());
         AutoRepairService.instance.setParallelRepairCountInGroup(DatabaseDescriptor.getAutoRepairParallelRepairCountInGroup());
+        AutoRepairService.instance.setMVRepairEnabled(DatabaseDescriptor.getMVRepairEnabled());
 
         Set<Set<String>> DCGroups = new HashSet<>();
         if (DatabaseDescriptor.getAutoRepairDCGroups().length() > 0) {
@@ -300,24 +304,36 @@ public class AutoRepair
                     List<String> tablesToBeRepaired = new ArrayList<>();
                     while (iter.hasNext()) {
                         totalTablesConsideredForRepair++;
-                        String tableName = iter.next().name;
-
-                        ColumnFamilyStore columnFamilyStore = keyspace.getColumnFamilyStore(tableName);
-                        // this is done to make autorepair safe as running repair on table with more sstables
-                        // may have its own challenges
-                        if (columnFamilyStore.getLiveSSTables().size() > AutoRepairService.instance.getRepairSSTableCountHigherThreshold())
-                        {
-                            logger.info("Too many SSTables for repair, not doing repair on table {}.{} " +
-                                        "totalSSTables {}", keyspaceName, tableName, columnFamilyStore.getLiveSSTables().size());
-                            repairTableSkipCount++;
-                            continue;
-                        }
+                        TableMetadata tableMetadata = iter.next();
+                        String tableName = tableMetadata.name;
                         tablesToBeRepaired.add(tableName);
+
+                        // See if we should repair MVs as well that are associated with this given table
+                        List<String> mvs = AutoRepairUtils.getAllMVs(keyspace, tableMetadata);
+                        if (mvs.size() > 0)
+                        {
+                            tablesToBeRepaired.addAll(mvs);
+                            AutoRepairMetrics.repairMV.inc();
+                        }
                     }
+
                     for (String tableName : tablesToBeRepaired)
                     {
                         try
                         {
+                            ColumnFamilyStore columnFamilyStore = keyspace.getColumnFamilyStore(tableName);
+                            // this is done to make autorepair safe as running repair on table with more sstables
+                            // may have its own challenges
+                            int size = columnFamilyStore.getLiveSSTables().size();
+                            if (size > AutoRepairService.instance.getRepairSSTableCountHigherThreshold())
+                            {
+                                logger.info("Too many SSTables for repair, not doing repair on table {}.{} " +
+                                            "totalSSTables {}", keyspaceName, tableName, columnFamilyStore.getLiveSSTables().size());
+                                AutoRepairMetrics.skipRepairSSTableCountHigherThreshold.inc();
+                                repairTableSkipCount++;
+                                continue;
+                            }
+
                             if (DatabaseDescriptor.getAutoRepairByKeyspace()) {
                                 logger.info("Repair keyspace {} for tables: {}", keyspaceName, tablesToBeRepaired);
                             } else {

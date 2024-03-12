@@ -43,6 +43,8 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.serializers.SetSerializer;
 import org.apache.cassandra.serializers.UUIDSerializer;
 import org.apache.cassandra.service.AutoRepairService;
@@ -65,6 +67,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -776,5 +779,21 @@ public class AutoRepairUtils
     public static boolean keyspaceMaxRepairTimeExceeded(long startTime, int numOfTablesToBeRepaired) {
         long keyspaceRepairTimeSoFar = TimeUnit.MILLISECONDS.toSeconds( (System.currentTimeMillis() - startTime));
         return AutoRepairService.instance.getAutoRepairTableMaxRepairTimeInSec() * numOfTablesToBeRepaired < keyspaceRepairTimeSoFar;
+    }
+
+    public static List<String> getAllMVs(Keyspace keyspace, TableMetadata tableMetadata)
+    {
+        List<String> allMvs = new ArrayList<>();
+        if (AutoRepairService.instance.getMVRepairEnabled() && keyspace.getMetadata().views != null)
+        {
+            Iterator<ViewMetadata> views = keyspace.getMetadata().views.forTable(tableMetadata.id).iterator();
+            while (views.hasNext())
+            {
+                String viewName = views.next().name();
+                logger.info("Adding MV to the list {}.{}.{}", keyspace.getName(), tableMetadata.name, viewName);
+                allMvs.add(viewName);
+            }
+        }
+        return allMvs;
     }
 }
