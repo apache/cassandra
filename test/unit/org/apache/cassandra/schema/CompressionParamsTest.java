@@ -28,6 +28,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import com.google.common.base.Objects;
 import org.junit.Test;
 
 import org.apache.cassandra.config.ParameterizedClass;
@@ -51,6 +52,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class CompressionParamsTest
@@ -726,6 +728,72 @@ public class CompressionParamsTest
         Map<String, String> map2 = CompressionParams.fromParameterizedClass(parameterizedClass2).asMap();
 
         assertEquals(map.get(CHUNK_LENGTH_IN_KB), map2.get(CHUNK_LENGTH_IN_KB));
+    }
+
+    @Test
+    public void testCompressorType() {
+        assertEquals(CompressionParams.CompressorType.lz4, CompressionParams.CompressorType.fromName("lz4"));
+        assertEquals(CompressionParams.CompressorType.lz4, CompressionParams.CompressorType.fromName(LZ4Compressor.class.getName()));
+        assertEquals(CompressionParams.CompressorType.lz4, CompressionParams.CompressorType.fromName("LZ4Compressor"));
+
+        assertEquals(CompressionParams.CompressorType.noop, CompressionParams.CompressorType.fromName("noop"));
+        assertEquals(CompressionParams.CompressorType.noop, CompressionParams.CompressorType.fromName(NoopCompressor.class.getName()));
+        assertEquals(CompressionParams.CompressorType.noop, CompressionParams.CompressorType.fromName("NoopCompressor"));
+
+        assertEquals(CompressionParams.CompressorType.snappy, CompressionParams.CompressorType.fromName("snappy"));
+        assertEquals(CompressionParams.CompressorType.snappy, CompressionParams.CompressorType.fromName(SnappyCompressor.class.getName()));
+        assertEquals(CompressionParams.CompressorType.snappy, CompressionParams.CompressorType.fromName("SnappyCompressor"));
+
+        assertEquals(CompressionParams.CompressorType.deflate, CompressionParams.CompressorType.fromName("deflate"));
+        assertEquals(CompressionParams.CompressorType.deflate, CompressionParams.CompressorType.fromName(DeflateCompressor.class.getName()));
+        assertEquals(CompressionParams.CompressorType.deflate, CompressionParams.CompressorType.fromName("DeflateCompressor"));
+
+        assertEquals(CompressionParams.CompressorType.zstd, CompressionParams.CompressorType.fromName("zstd"));
+        assertEquals(CompressionParams.CompressorType.zstd, CompressionParams.CompressorType.fromName(ZstdCompressor.class.getName()));
+        assertEquals(CompressionParams.CompressorType.zstd, CompressionParams.CompressorType.fromName("ZstdCompressor"));
+
+        assertEquals(CompressionParams.CompressorType.none, CompressionParams.CompressorType.fromName("none"));
+
+        // show that invalid names return null
+        assertNull(CompressionParams.CompressorType.fromName(null));
+        assertNull(CompressionParams.CompressorType.fromName("null")); // invlaid short name
+        assertNull(CompressionParams.CompressorType.fromName(TestCompressor.class.getName()));
+        assertNull(CompressionParams.CompressorType.fromName("TestCompressor"));
+    }
+
+    @Test
+    public void testIsEnabled() {
+        Map<String, String> map = new HashMap<>();
+        CompressionParams params = CompressionParams.fromMap(map);
+        assertTrue(params.isEnabled());
+
+        map.put("enabled", "false");
+        params = CompressionParams.fromMap(map);
+        assertFalse(params.isEnabled());
+
+        map.clear();
+        map.put("class", "none");
+        params = CompressionParams.fromMap(map);
+        assertFalse(params.isEnabled());
+
+        map.clear();
+        map.put("class", "none");
+        map.put("enabled", "true");
+        params = CompressionParams.fromMap(map);
+        assertFalse(params.isEnabled());
+
+        map.clear();
+        map.put("class", "zstd");
+        params = CompressionParams.fromMap(map);
+        assertTrue(params.isEnabled());
+
+        map.put("enabled", "true");
+        params = CompressionParams.fromMap(map);
+        assertTrue(params.isEnabled());
+
+        map.put("enabled", "false");
+        params = CompressionParams.fromMap(map);
+        assertFalse(params.isEnabled());
     }
 
     public static class TestCompressor implements ICompressor
