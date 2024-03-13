@@ -68,7 +68,7 @@ public class DataComponent
     private static CompressionParams buildCompressionParams(TableMetadata metadata, OperationType operationType, FlushCompression flushCompression)
     {
         CompressionParams compressionParams = metadata.params.compression;
-        final ICompressor compressor = compressionParams.getSstableCompressor();
+        ICompressor compressor = compressionParams.getSstableCompressor();
 
         if (null != compressor && operationType == OperationType.FLUSH)
         {
@@ -90,6 +90,10 @@ public class DataComponent
                     {
                         // The default compressor is generally fast (LZ4 with 16KiB block size)
                         compressionParams = CompressionParams.defaultParams(metadata.keyspace);
+                        compressor = compressionParams.getSstableCompressor();
+                        if (!compressor.recommendedUses().contains(ICompressor.Uses.FAST_COMPRESSION)) {
+                            compressionParams = CompressionParams.FAST;
+                        }
                         break;
                     }
                     // else fall through

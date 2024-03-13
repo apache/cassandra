@@ -32,6 +32,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.index.StubIndex;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
@@ -721,16 +722,8 @@ public class AlterTest extends CQLTester
                                         "ALTER TABLE %s WITH  compression = { 'class' : ''};");
 
         assertAlterTableThrowsException(ConfigurationException.class,
-                                        "If the 'enabled' option is set to false no other options must be specified",
-                                        "ALTER TABLE %s WITH compression = { 'enabled' : 'false', 'class' : 'SnappyCompressor'};");
-
-        assertAlterTableThrowsException(ConfigurationException.class,
-                                        "The 'sstable_compression' option must not be used if the compression algorithm is already specified by the 'class' option",
-                                        "ALTER TABLE %s WITH compression = { 'sstable_compression' : 'SnappyCompressor', 'class' : 'SnappyCompressor'};");
-
-        assertAlterTableThrowsException(ConfigurationException.class,
-                                        "The 'chunk_length_kb' option must not be used if the chunk length is already specified by the 'chunk_length_in_kb' option",
-                                        "ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_kb' : 32 , 'chunk_length_in_kb' : 32 };");
+                                        CompressionParams.TOO_MANY_CHUNK_LENGTH,
+                                        "ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 , 'chunk_length' : '32KiB'};");
 
         assertAlterTableThrowsException(ConfigurationException.class,
                                         "Invalid 'min_compress_ratio' value for the 'compression' option.  Can either be 0 or greater than or equal to 1: -1.0",

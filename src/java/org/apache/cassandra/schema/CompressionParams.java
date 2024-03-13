@@ -71,6 +71,7 @@ public final class CompressionParams
     public static final String ENABLED = "enabled";
     public static final String MIN_COMPRESS_RATIO = "min_compress_ratio";
 
+    /** A compressor that does nothing */
     public static final CompressionParams NOOP = new CompressionParams(NoopCompressor.create(emptyMap()),
                                                                        // 4 KiB is often the underlying disk block size
                                                                        1024 * 4,
@@ -78,17 +79,20 @@ public final class CompressionParams
                                                                        DEFAULT_MIN_COMPRESS_RATIO,
                                                                        emptyMap());
 
-
+    /** Default for when no other compression is specified */
     private static final CompressionParams DEFAULT = new CompressionParams(LZ4Compressor.create(Collections.emptyMap()),
                                                                            DEFAULT_CHUNK_LENGTH,
                                                                            calcMaxCompressedLength(DEFAULT_CHUNK_LENGTH, DEFAULT_MIN_COMPRESS_RATIO),
                                                                            DEFAULT_MIN_COMPRESS_RATIO,
                                                                            emptyMap());
 
+    /** A guaranteed FAST compressor  */
+    public static final CompressionParams FAST = DEFAULT;
+
     private static CompressionParams CALCULATED_DEFAULT;
 
     @VisibleForTesting
-    static final String TOO_MANY_CHUNK_LENGTH = format("Only one of '%s' or '%s' may be specified", CHUNK_LENGTH, CHUNK_LENGTH_IN_KB);
+    public static final String TOO_MANY_CHUNK_LENGTH = format("Only one of '%s' or '%s' may be specified", CHUNK_LENGTH, CHUNK_LENGTH_IN_KB);
 
     private final ICompressor sstableCompressor;
     /**
@@ -131,14 +135,16 @@ public final class CompressionParams
             this.creator = creator;
         }
 
-        static CompressorType forClass(String name)
+        static CompressorType fromName(String name)
         {
             if (name == null)
-                return none;
+                return null;
 
             for (CompressorType type : CompressorType.values())
             {
-                if (Objects.equal(type.className, name))
+                if (type.name().equals(name) || Objects.equal(type.className, name))
+                    return type;
+                if (type.className != null && (type.className.equals(name) || type.className.endsWith("."+name)))
                     return type;
             }
             return null;
@@ -238,15 +244,7 @@ public final class CompressionParams
             max_compressed_length_in_bytes =  CompressionParams.calcMaxCompressedLength(chunk_length_in_bytes, min_compress_ratio);
         }
 
-        CompressorType compressorType = null;
-        try
-        {
-            compressorType = CompressorType.valueOf(sstableCompressionClass);
-        }
-        catch (Exception e)
-        {
-            // intentionally empty
-        }
+        CompressorType compressorType = CompressorType.fromName(sstableCompressionClass);
 
         Function<Map<String,String>, ICompressor> creator = compressorType != null ? compressorType.creator : (opt) -> {
             if (sstableCompressionClass != null)
