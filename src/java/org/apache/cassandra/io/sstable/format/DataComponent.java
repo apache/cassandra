@@ -88,7 +88,7 @@ public class DataComponent
                 case fast:
                     if (!compressor.recommendedUses().contains(ICompressor.Uses.FAST_COMPRESSION))
                     {
-                        // The default compressor is generally fast (LZ4 with 16KiB block size)
+                        // The default compressor is generally Fast, but just in case we verify it.
                         compressionParams = CompressionParams.defaultParams(metadata.keyspace);
                         compressor = compressionParams.getSstableCompressor();
                         if (!compressor.recommendedUses().contains(ICompressor.Uses.FAST_COMPRESSION)) {

@@ -1050,15 +1050,6 @@ public final class SchemaKeyspace
         if (row.has("incremental_backups"))
             builder.incrementalBackups(row.getBoolean("incremental_backups"));
 
-        String tableName = null;
-
-        if (row.has("table_name"))
-            tableName = row.getString("table_name");
-        else if (row.has("view_name"))
-            tableName = row.getString("view_name");
-
-        assert tableName != null;
-
         return builder.build(row.getString("keyspace_name"));
     }
 
