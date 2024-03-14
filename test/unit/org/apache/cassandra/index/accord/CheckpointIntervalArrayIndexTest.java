@@ -16,21 +16,24 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.index.sai.accord.range;
+package org.apache.cassandra.index.accord;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableMap;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -41,26 +44,18 @@ import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
-import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.index.sai.accord.range.CheckpointIntervalArrayIndex.Interval;
-import org.apache.cassandra.index.sai.disk.format.IndexComponent;
-import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
-import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
-import org.apache.cassandra.index.sai.utils.IndexIdentifier;
-import org.apache.cassandra.index.sai.utils.IndexTermType;
+import org.apache.cassandra.index.accord.CheckpointIntervalArrayIndex.Interval;
+import org.apache.cassandra.index.accord.IndexDescriptor.IndexComponent;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.service.accord.AccordKeyspace;
+import org.apache.cassandra.io.util.FileHandle;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
@@ -80,9 +75,6 @@ public class CheckpointIntervalArrayIndexTest
 
     private static final byte[] EMPTY = new byte[0];
     private static final TreeSet<Interval> EMPTY_TREE_SET = new TreeSet<>();
-
-    private static final IndexIdentifier IDENTIFIER = new IndexIdentifier("test", "test", "test");
-    private static final IndexTermType termType = IndexTermType.create(new ColumnMetadata(SchemaConstants.ACCORD_KEYSPACE_NAME, AccordKeyspace.COMMANDS, new ColumnIdentifier("route", true), BytesType.instance, -1, ColumnMetadata.Kind.REGULAR, null), Collections.emptyList(), IndexTarget.Type.VALUES);
 
     private static final Gen.IntGen MAX_TOKEN_GEN = Gens.pickInt(1 << 14,
                                                                  1 << 16,
@@ -393,14 +385,22 @@ public class CheckpointIntervalArrayIndexTest
     {
         IndexDescriptor descriptor = nextDescriptor();
 
-        var writer = new CheckpointIntervalArrayIndex.SegmentWriter(descriptor, IDENTIFIER, bytesPerKey, bytesPerValue);
-        SegmentMetadata.ComponentMetadataMap componentMetadatas = writer.writeCompleteSegment(sortedIntervals.toArray(Interval[]::new));
+        var writer = new CheckpointIntervalArrayIndex.SegmentWriter(descriptor, bytesPerKey, bytesPerValue);
+        var metas = writer.write(sortedIntervals.toArray(Interval[]::new));
 
-        descriptor.fileFor(IndexComponent.ACCORD_TABLES_TO_INDEX, IDENTIFIER).createFileIfNotExists();
+        // going through the RouteIndexFormat isn't required for this test, but it helps improve coverage there...
+        Segment segment = new Segment(ImmutableMap.of(new Group(0, TableId.fromUUID(new UUID(0, 0))), new Segment.Metadata(metas, ByteArrayUtil.EMPTY_BYTE_ARRAY, ByteArrayUtil.EMPTY_BYTE_ARRAY)));
+        RouteIndexFormat.appendSegment(descriptor, segment);
 
-        PerColumnIndexFiles perIndexFiles = new PerColumnIndexFiles(descriptor, termType, IDENTIFIER);
-        var searcher = new CheckpointIntervalArrayIndex.SegmentSearcher(perIndexFiles.cintiaSortedList(), componentMetadatas.get(IndexComponent.CINTIA_SORTED_LIST).root,
-                                                                        perIndexFiles.cintiaCheckpoint(), componentMetadatas.get(IndexComponent.CINTIA_CHECKPOINTS).root);
+        Map<IndexComponent, FileHandle> files = new EnumMap<>(IndexComponent.class);
+        for (IndexComponent c : descriptor.getLiveComponents())
+            files.put(c, new FileHandle.Builder(descriptor.fileFor(c)).mmapped(true).complete());
+        List<Segment> segments = RouteIndexFormat.readSegements(files);
+        files.remove(IndexComponent.SEGMENT).close();
+        files.remove(IndexComponent.METADATA).close();
+
+        var searcher = new CheckpointIntervalArrayIndex.SegmentSearcher(files.get(IndexComponent.CINTIA_SORTED_LIST).sharedCopy(), metas.get(IndexComponent.CINTIA_SORTED_LIST).offset,
+                                                                        files.get(IndexComponent.CINTIA_CHECKPOINTS).sharedCopy(), metas.get(IndexComponent.CINTIA_CHECKPOINTS).offset);
         return new Searcher()
         {
             @Override
@@ -410,10 +410,11 @@ public class CheckpointIntervalArrayIndexTest
             }
 
             @Override
-            public void close() throws IOException
+            public void close()
             {
-                //noinspection EmptyTryBlock
-                try (perIndexFiles; searcher) {}
+                searcher.close();
+                for (var fh : files.values())
+                    fh.close();
             }
         };
     }

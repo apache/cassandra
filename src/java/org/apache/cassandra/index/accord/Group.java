@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.index.sai.accord.range;
+package org.apache.cassandra.index.accord;
 
 import java.util.Objects;
 

@@ -16,38 +16,34 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.index.sai.accord.range;
+package org.apache.cassandra.index.accord;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.Map;
+import java.util.EnumMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
+import java.util.zip.CRC32C;
+import java.util.zip.Checksum;
 
 import accord.utils.AsymmetricComparator;
 import accord.utils.CheckpointIntervalArray;
 import accord.utils.CheckpointIntervalArrayBuilder;
 import accord.utils.CheckpointIntervalArrayBuilder.Accessor;
 import accord.utils.SortedArrays;
-import org.apache.cassandra.index.sai.disk.format.IndexComponent;
-import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.disk.io.IndexFileUtils;
-import org.apache.cassandra.index.sai.disk.io.IndexInputReader;
-import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
-import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
-import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
-import org.apache.cassandra.index.sai.utils.IndexIdentifier;
+import org.apache.cassandra.index.accord.IndexDescriptor.IndexComponent;
+import org.apache.cassandra.io.util.ChecksumedRandomAccessReader;
+import org.apache.cassandra.io.util.ChecksumedSequentialWriter;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Throwables;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 
 import static accord.utils.CheckpointIntervalArrayBuilder.Links.LINKS;
 import static accord.utils.CheckpointIntervalArrayBuilder.Strategy.ACCURATE;
@@ -104,7 +100,19 @@ public class CheckpointIntervalArrayIndex
             return SortedArrays.binarySearch(intervals, from, to, find, comparator, op);
         }
     };
-    
+    public static final Supplier<Checksum> CHECKSUM_SUPPLIER = CRC32C::new;
+
+    //TODO (performance): rather than row structure, would column structure be better?  Sorted tokens tend to have prefix relationships
+    // so could compress the data more.  The negative here is the binary search might cost more and the scan after the random access needs end + value...
+    // Its also possible to do a hybrid structure where either start/end are column and the other one is row based...
+    //TODO (performance): store min/max values so could filter based off metadata without having to walk the tree first?  This means that the metadata
+    // doesn't need to be stored in-memory 100% of the time and only when a file "could" match.  The perf here would trade read costs for less memory.
+    //TODO (fault tolerence): right now there is no checksumming outside of the header, so a corruption in the middle
+    // could lead to weird behavior... since this structure is fixed lenght it "should" only lead to mismatches or binary
+    // search going the wrong direction...
+    //TODO (fault tolerence): maybe replace readStart/End with readRecord and extrat the value from there, this makes it so it would be trivial to add a checksum per-record.
+    // Given the migration from SAI work, we can now remove the TableId from the data (16 bytes) so a 4 byte footer wouldn't be a big cost.  We also compute the checksum on read/write
+    // right now, just ignore the value... the performance is currently better than with SAI (less overhead as we are not generic), so the checksumming costs are effectivally 0.
     public static class SortedListWriter
     {
         private final int bytesPerKey, bytesPerValue;
@@ -115,15 +123,16 @@ public class CheckpointIntervalArrayIndex
             this.bytesPerValue = bytesPerValue;
         }
 
-        public long write(IndexOutput out, Interval[] sortedIntervals, Callback callback) throws IOException
+        public long write(ChecksumedSequentialWriter out, Interval[] sortedIntervals, Callback callback) throws IOException
         {
-            SAICodecUtils.writeHeader(out);
             long treeFilePointer = out.getFilePointer();
             // write header
-            out.writeVInt(bytesPerKey);
-            out.writeVInt(bytesPerValue);
-            out.writeVInt(sortedIntervals.length);
-            
+            out.resetChecksum(); // reset checksum so the header is isolated
+            out.writeUnsignedVInt32(bytesPerKey);
+            out.writeUnsignedVInt32(bytesPerValue);
+            out.writeUnsignedVInt32(sortedIntervals.length);
+            out.writeInt(out.getValue32AndResetChecksum());
+
             // write values
             callback.preWalk(sortedIntervals);
             int count = 0;
@@ -131,13 +140,15 @@ public class CheckpointIntervalArrayIndex
             {
                 validate(count, it);
 
-                out.writeBytes(it.start, it.start.length);
-                out.writeBytes(it.end, it.end.length);
-                out.writeBytes(it.value, it.value.length);
+                out.resetChecksum();
+                out.write(it.start, 0, it.start.length);
+                out.write(it.end, 0, it.end.length);
+                out.write(it.value, 0, it.value.length);
+                out.writeInt(out.getValue32());
                 callback.onWrite(count, it);
                 count++;
             }
-            SAICodecUtils.writeFooter(out);
+            //TODO (now): don't need as this was here only for SAI.  Offset/position are the same now
             return count == 0 ? -1 : treeFilePointer;
         }
 
@@ -153,14 +164,14 @@ public class CheckpointIntervalArrayIndex
 
         public interface Callback
         {
-            default void preWalk(Interval[] sortedIntervals) throws IOException {}
-            default void onWrite(int index, Interval interval) throws IOException {}
-        }
-    }
+            default void preWalk(Interval[] sortedIntervals) throws IOException
+            {
+            }
 
-    public enum NoopCallback implements SortedListWriter.Callback
-    {
-        instance
+            default void onWrite(int index, Interval interval) throws IOException
+            {
+            }
+        }
     }
 
     public static class SortedListReader implements Closeable
@@ -175,24 +186,25 @@ public class CheckpointIntervalArrayIndex
             this.fh = fh;
 
             try (RandomAccessReader reader = fh.createReader();
-                 IndexInput indexInput = IndexInputReader.create(reader))
+                 var in = new ChecksumedRandomAccessReader(reader, CHECKSUM_SUPPLIER))
             {
-                SAICodecUtils.validate(indexInput);
                 if (pos != -1)
-                    indexInput.seek(pos);
+                    in.seek(pos);
 
-                bytesPerKey = indexInput.readVInt();
-                bytesPerValue = indexInput.readVInt();
-                recordSize = bytesPerKey * 2 + bytesPerValue;
-                count = indexInput.readVInt();
-                firstRecordOffset = indexInput.getFilePointer();
+                bytesPerKey = in.readUnsignedVInt32();
+                bytesPerValue = in.readUnsignedVInt32();
+                recordSize = bytesPerKey * 2 + bytesPerValue + Integer.BYTES;
+                count = in.readUnsignedVInt32();
+                int actualChecksum = in.getValue32AndResetChecksum();
+                int expectedChecksum = in.readInt();
+                assert actualChecksum == expectedChecksum;
+                firstRecordOffset = reader.getFilePointer();
             }
             catch (Throwable t)
             {
                 FileUtils.closeQuietly(fh);
                 throw Throwables.unchecked(t);
             }
-            //TODO (now, efficiency): store min/max value to quickly check if the query intersects this data
         }
 
         @Override
@@ -201,9 +213,10 @@ public class CheckpointIntervalArrayIndex
             FileUtils.closeQuietly(fh);
         }
 
-        public enum SeekReason { BINARY_SEARCH, GET, SCAN }
+        public enum SeekReason
+        {BINARY_SEARCH, GET, SCAN}
 
-        private boolean maybeSeek(IndexInput indexInput, Stats stats, SeekReason reason, long target) throws IOException
+        private boolean maybeSeek(ChecksumedRandomAccessReader indexInput, Stats stats, SeekReason reason, long target) throws IOException
         {
             if (indexInput.getFilePointer() != target)
             {
@@ -227,27 +240,29 @@ public class CheckpointIntervalArrayIndex
             return false;
         }
 
-        public byte[] getRecord(IndexInput indexInput, Stats stats, SeekReason reason, byte[] recordBuffer, int pos) throws IOException
+        public byte[] getRecord(ChecksumedRandomAccessReader indexInput, Stats stats, SeekReason reason, byte[] recordBuffer, int pos) throws IOException
         {
             maybeSeek(indexInput, stats, reason, fileOffsetStart(pos));
             stats.bytesRead += recordBuffer.length;
-            indexInput.readBytes(recordBuffer, 0, recordBuffer.length);
+            indexInput.resetChecksum();
+            indexInput.readFully(recordBuffer, 0, recordBuffer.length - Integer.BYTES);
+            int actualChecksum = indexInput.getValue32();
+            int expectedChecksum = indexInput.readInt();
+            assert actualChecksum == expectedChecksum;
             return recordBuffer;
         }
 
-        public byte[] readStart(IndexInput indexInput, Stats stats, byte[] keyBuffer, int pos) throws IOException
+        public byte[] readStart(ChecksumedRandomAccessReader indexInput, Stats stats, byte[] recordBuffer, byte[] keyBuffer, int pos) throws IOException
         {
-            maybeSeek(indexInput, stats, SeekReason.GET, fileOffsetStart(pos));
-            stats.bytesRead += keyBuffer.length;
-            indexInput.readBytes(keyBuffer, 0, keyBuffer.length);
+            getRecord(indexInput, stats, SeekReason.GET, recordBuffer, pos);
+            copyStart(recordBuffer, keyBuffer);
             return keyBuffer;
         }
 
-        public byte[] readEnd(IndexInput indexInput, Stats stats, byte[] keyBuffer, int pos) throws IOException
+        public byte[] readEnd(ChecksumedRandomAccessReader indexInput, Stats stats, byte[] recordBuffer, byte[] keyBuffer, int pos) throws IOException
         {
-            maybeSeek(indexInput, stats, SeekReason.GET, fileOffsetEnd(pos));
-            stats.bytesRead += keyBuffer.length;
-            indexInput.readBytes(keyBuffer, 0, keyBuffer.length);
+            getRecord(indexInput, stats, SeekReason.GET, recordBuffer, pos);
+            copyEnd(recordBuffer, keyBuffer);
             return keyBuffer;
         }
 
@@ -263,7 +278,7 @@ public class CheckpointIntervalArrayIndex
             return keyBuffer;
         }
 
-        public int binarySearch(IndexInput indexInput, Stats stats, byte[] recordBuffer, int from, int to, byte[] find, AsymmetricComparator<byte[], byte[]> comparator, SortedArrays.Search op) throws IOException
+        public int binarySearch(ChecksumedRandomAccessReader indexInput, Stats stats, byte[] recordBuffer, int from, int to, byte[] find, AsymmetricComparator<byte[], byte[]> comparator, SortedArrays.Search op) throws IOException
         {
             int found = -1;
             while (from < to)
@@ -282,7 +297,8 @@ public class CheckpointIntervalArrayIndex
                 {
                     switch (op)
                     {
-                        default: throw new IllegalStateException("Unknown search operation: " + op);
+                        default:
+                            throw new IllegalStateException("Unknown search operation: " + op);
                         case FAST:
                             return i;
 
@@ -303,8 +319,8 @@ public class CheckpointIntervalArrayIndex
         public Interval copyTo(byte[] record, Interval buffer)
         {
             buffer.start = Arrays.copyOfRange(record, 0, bytesPerKey);
-            buffer.end   = Arrays.copyOfRange(record, bytesPerKey, bytesPerKey * 2);
-            buffer.value = Arrays.copyOfRange(record, bytesPerKey * 2, record.length);
+            buffer.end = Arrays.copyOfRange(record, bytesPerKey, bytesPerKey * 2);
+            buffer.value = Arrays.copyOfRange(record, bytesPerKey * 2, record.length - Integer.BYTES);
             return buffer;
         }
 
@@ -332,17 +348,15 @@ public class CheckpointIntervalArrayIndex
 
     public static class CheckpointWriter implements SortedListWriter.Callback, Closeable
     {
-        private final IndexOutputWriter out;
+        private final ChecksumedSequentialWriter out;
         private final long offset;
-        private final long position;
+        private final long position; //TODO (now): don't need as this was here only for SAI.  Offset/position are the same now
         private long length = -1;
 
-        public CheckpointWriter(IndexOutputWriter out) throws IOException
+        public CheckpointWriter(ChecksumedSequentialWriter out)
         {
             this.out = out;
-            this.offset = out.getFilePointer();
-            SAICodecUtils.writeHeader(out);
-            position = out.getFilePointer();
+            this.offset = position = out.getFilePointer();
         }
 
         @Override
@@ -362,28 +376,32 @@ public class CheckpointIntervalArrayIndex
                 }
             }
             var c = new CheckpointIntervalArrayBuilder<>(LIST_INTERVAL_ACCESSOR, sortedIntervals, ACCURATE, LINKS).build((ignore, bounds, headers, lists, max) -> new Checkpoints(bounds, headers, lists, max));
-            out.writeVInt(c.maxScanAndCheckpointMatches);
+            out.resetChecksum(); // reset checksum so it only covers this metadata
+            out.writeUnsignedVInt32(c.maxScanAndCheckpointMatches);
             write(c.bounds);
             write(c.headers);
             write(c.lists);
+            out.writeInt(out.getValue32AndResetChecksum());
         }
 
         private void write(int[] array) throws IOException
         {
-            out.writeVInt(array.length);
+            out.writeUnsignedVInt32(array.length);
             for (int i = 0; i < array.length; i++)
-                out.writeVInt(array[i]);
+                out.writeVInt32(array[i]);
         }
 
         @Override
         public void close() throws IOException
         {
-            SAICodecUtils.writeFooter(out);
             length = out.getFilePointer() - offset;
             out.close();
         }
     }
 
+    //TODO (performance): the current format assumes random list access is cheap, which isn't true for a disk index.
+    // This format was chosen as a place holder for now so we don't drift from the in-memory logic; in the original paper
+    // a new sorted list is used for each checkpoint, which then makes the access a sequential scan rather than random access.
     public static class CheckpointReader implements Closeable
     {
         private final FileHandle fh;
@@ -394,16 +412,19 @@ public class CheckpointIntervalArrayIndex
         {
             this.fh = fh;
             try (RandomAccessReader reader = fh.createReader();
-                 IndexInput input = IndexInputReader.create(reader))
+                 ChecksumedRandomAccessReader input = new ChecksumedRandomAccessReader(reader, CHECKSUM_SUPPLIER))
             {
-                SAICodecUtils.validate(input);
                 if (pos != -1)
                     input.seek(pos);
 
-                maxScanAndCheckpointMatches = input.readVInt();
+                input.resetChecksum(); // reset checksum so it only covers this metadata
+                maxScanAndCheckpointMatches = input.readUnsignedVInt32();
                 bounds = readArray(input);
                 headers = readArray(input);
                 lists = readArray(input);
+                int actualChecksum = input.getValue32AndResetChecksum();
+                int expectedChecksum = input.readInt();
+                assert actualChecksum == expectedChecksum;
             }
             catch (Throwable t)
             {
@@ -412,12 +433,12 @@ public class CheckpointIntervalArrayIndex
             }
         }
 
-        private static int[] readArray(IndexInput input) throws IOException
+        private static int[] readArray(ChecksumedRandomAccessReader input) throws IOException
         {
-            int size = input.readVInt();
+            int size = input.readUnsignedVInt32();
             int[] array = new int[size];
             for (int i = 0; i < size; i++)
-                array[i] = input.readVInt();
+                array[i] = input.readVInt32();
             return array;
         }
 
@@ -430,23 +451,20 @@ public class CheckpointIntervalArrayIndex
 
     public static class SegmentWriter
     {
-        private final IndexDescriptor indexDescriptor;
-        private final IndexIdentifier indexIdentifier;
+        private final IndexDescriptor id;
         private final SortedListWriter writer;
 
-        public SegmentWriter(IndexDescriptor indexDescriptor, IndexIdentifier indexIdentifier,
-                             int bytesPerKey, int bytesPerValue)
+        public SegmentWriter(IndexDescriptor id, int bytesPerKey, int bytesPerValue)
         {
-            this.indexDescriptor = indexDescriptor;
-            this.indexIdentifier = indexIdentifier;
+            this.id = id;
             this.writer = new SortedListWriter(bytesPerKey, bytesPerValue);
         }
 
-        public SegmentMetadata.ComponentMetadataMap writeCompleteSegment(Interval[] sortedIntervals) throws IOException
+        public EnumMap<IndexComponent, Segment.ComponentMetadata> write(Interval[] sortedIntervals) throws IOException
         {
-            SegmentMetadata.ComponentMetadataMap components = new SegmentMetadata.ComponentMetadataMap();
-            try (IndexOutput treeOutput = indexDescriptor.openPerIndexOutput(IndexComponent.CINTIA_SORTED_LIST, indexIdentifier, true);
-                 CheckpointWriter checkpointWriter = new CheckpointWriter(indexDescriptor.openPerIndexOutput(IndexComponent.CINTIA_CHECKPOINTS, indexIdentifier, true)))
+            EnumMap<IndexComponent, Segment.ComponentMetadata> metas = new EnumMap<>(IndexComponent.class);
+            try (ChecksumedSequentialWriter treeOutput = ChecksumedSequentialWriter.open(id.fileFor(IndexComponent.CINTIA_SORTED_LIST), true, CHECKSUM_SUPPLIER);
+                 CheckpointWriter checkpointWriter = new CheckpointWriter(ChecksumedSequentialWriter.open(id.fileFor(IndexComponent.CINTIA_CHECKPOINTS), true, CHECKSUM_SUPPLIER)))
             {
                 // The SSTable component file is opened in append mode, so our offset is the current file pointer.
                 long sortedOffset = treeOutput.getFilePointer();
@@ -454,12 +472,12 @@ public class CheckpointIntervalArrayIndex
 
                 // If the treePosition is less than 0 then we didn't write any values out and the index is empty
                 if (sortedPosition < 0)
-                    return components;
-
-                components.put(IndexComponent.CINTIA_SORTED_LIST, sortedPosition, sortedOffset, treeOutput.getFilePointer() - sortedOffset, Map.of());
-                components.put(IndexComponent.CINTIA_CHECKPOINTS, checkpointWriter.position, checkpointWriter.offset, checkpointWriter.length, Map.of());
+                    return metas;
+                //TODO (now): currently does SAI header so offset isn't correct here and need position
+                metas.put(IndexComponent.CINTIA_SORTED_LIST, new Segment.ComponentMetadata(sortedPosition, treeOutput.getFilePointer()));
+                metas.put(IndexComponent.CINTIA_CHECKPOINTS, new Segment.ComponentMetadata(checkpointWriter.position, checkpointWriter.out.getFilePointer()));
             }
-            return components;
+            return metas;
         }
     }
 
@@ -502,19 +520,19 @@ public class CheckpointIntervalArrayIndex
             var recordBuffer = new byte[reader.recordSize];
             var stats = new Stats();
             long startNanos = Clock.Global.nanoTime();
-            try (IndexInput indexInput = IndexFileUtils.instance.openInput(reader.fh))
+            try (ChecksumedRandomAccessReader indexInput = new ChecksumedRandomAccessReader(reader.fh.createReader(), CHECKSUM_SUPPLIER))
             {
                 var buffer = new Interval();
-                Accessor<IndexInput, byte[], byte[]> accessor = new Accessor<>()
+                Accessor<ChecksumedRandomAccessReader, byte[], byte[]> accessor = new Accessor<>()
                 {
                     @Override
-                    public int size(IndexInput indexInput)
+                    public int size(ChecksumedRandomAccessReader indexInput)
                     {
                         return reader.count;
                     }
 
                     @Override
-                    public byte[] get(IndexInput indexInput, int index)
+                    public byte[] get(ChecksumedRandomAccessReader indexInput, int index)
                     {
                         try
                         {
@@ -527,11 +545,11 @@ public class CheckpointIntervalArrayIndex
                     }
 
                     @Override
-                    public byte[] start(IndexInput indexInput, int index)
+                    public byte[] start(ChecksumedRandomAccessReader indexInput, int index)
                     {
                         try
                         {
-                            return reader.readStart(indexInput, stats, keyBuffer, index);
+                            return reader.readStart(indexInput, stats, recordBuffer, keyBuffer, index);
                         }
                         catch (IOException e)
                         {
@@ -546,11 +564,11 @@ public class CheckpointIntervalArrayIndex
                     }
 
                     @Override
-                    public byte[] end(IndexInput indexInput, int index)
+                    public byte[] end(ChecksumedRandomAccessReader indexInput, int index)
                     {
                         try
                         {
-                            return reader.readEnd(indexInput, stats, keyBuffer, index);
+                            return reader.readEnd(indexInput, stats, recordBuffer, keyBuffer, index);
                         }
                         catch (IOException e)
                         {
@@ -571,7 +589,7 @@ public class CheckpointIntervalArrayIndex
                     }
 
                     @Override
-                    public int binarySearch(IndexInput indexInput, int from, int to, byte[] find, AsymmetricComparator<byte[], byte[]> comparator, SortedArrays.Search op)
+                    public int binarySearch(ChecksumedRandomAccessReader indexInput, int from, int to, byte[] find, AsymmetricComparator<byte[], byte[]> comparator, SortedArrays.Search op)
                     {
                         try
                         {
@@ -596,7 +614,7 @@ public class CheckpointIntervalArrayIndex
                         {
                             stats.matches++;
                             stats.bytesRead += recordBuffer.length;
-                            indexInput.readBytes(recordBuffer, 0, recordBuffer.length);
+                            indexInput.readFully(recordBuffer, 0, recordBuffer.length);
                             callback.accept(reader.copyTo(recordBuffer, buffer));
                         }
                     }

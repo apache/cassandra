@@ -37,7 +37,7 @@ public class QueryContext
 {
     private static final boolean DISABLE_TIMEOUT = SAI_TEST_DISABLE_TIMEOUT.getBoolean();
 
-    public final ReadCommand readCommand;
+    private final ReadCommand readCommand;
     private final long queryStartTimeNanos;
 
     public final long executionQuotaNano;

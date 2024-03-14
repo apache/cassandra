@@ -20,15 +20,11 @@ package org.apache.cassandra.index.sai.disk.v1;
 
 import java.io.IOException;
 
-import javax.annotation.Nullable;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.disk.PerSSTableIndexWriter;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
@@ -47,7 +43,6 @@ public class SSTableComponentsWriter implements PerSSTableIndexWriter
     private final MetadataWriter metadataWriter;
     private final NumericValuesWriter partitionSizeWriter;
     private final NumericValuesWriter partitionRowsWriter;
-    @Nullable
     private final NumericValuesWriter tokenWriter;
     private final KeyStoreWriter partitionKeysWriter;
     private final KeyStoreWriter clusteringKeysWriter;
@@ -60,8 +55,7 @@ public class SSTableComponentsWriter implements PerSSTableIndexWriter
     {
         this.indexDescriptor = indexDescriptor;
         this.metadataWriter = new MetadataWriter(indexDescriptor.openPerSSTableOutput(IndexComponent.GROUP_META));
-        var partitioner = Keyspace.open(indexDescriptor.sstableDescriptor.ksname).getColumnFamilyStore(indexDescriptor.sstableDescriptor.cfname).getPartitioner();
-        this.tokenWriter = partitioner == Murmur3Partitioner.instance ? new NumericValuesWriter(indexDescriptor, IndexComponent.ROW_TO_TOKEN, metadataWriter, false) : null;
+        this.tokenWriter = new NumericValuesWriter(indexDescriptor, IndexComponent.ROW_TO_TOKEN, metadataWriter, false);
         this.partitionRowsWriter = new NumericValuesWriter(indexDescriptor, IndexComponent.ROW_TO_PARTITION, metadataWriter, true);
         this.partitionSizeWriter = new NumericValuesWriter(indexDescriptor, IndexComponent.PARTITION_TO_SIZE, metadataWriter, false);
         IndexOutputWriter partitionKeyBlocksWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.PARTITION_KEY_BLOCKS);
@@ -105,8 +99,7 @@ public class SSTableComponentsWriter implements PerSSTableIndexWriter
     @Override
     public void nextRow(PrimaryKey primaryKey) throws IOException
     {
-        if ( tokenWriter != null)
-            tokenWriter.add(primaryKey.token().getLongValue());
+        tokenWriter.add(primaryKey.token().getLongValue());
         partitionRowsWriter.add(partitionId);
         partitionRowCount++;
         if (indexDescriptor.hasClustering())
@@ -123,10 +116,7 @@ public class SSTableComponentsWriter implements PerSSTableIndexWriter
         }
         finally
         {
-            if (tokenWriter != null)
-                FileUtils.close(tokenWriter, partitionSizeWriter, partitionRowsWriter, partitionKeysWriter, clusteringKeysWriter, metadataWriter);
-            else
-                FileUtils.close(partitionSizeWriter, partitionRowsWriter, partitionKeysWriter, clusteringKeysWriter, metadataWriter);
+            FileUtils.close(tokenWriter, partitionSizeWriter, partitionRowsWriter, partitionKeysWriter, clusteringKeysWriter, metadataWriter);
         }
     }
 

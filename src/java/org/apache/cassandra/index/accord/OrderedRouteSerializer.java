@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.index.sai.accord;
+package org.apache.cassandra.index.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -26,13 +26,18 @@ import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.serializers.AccordRoutingKeyByteSource;
 
-public class SaiSerializer
+public class OrderedRouteSerializer
 {
     private static final AccordRoutingKeyByteSource.FixedLength SERIALIZER = AccordRoutingKeyByteSource.fixedLength(DatabaseDescriptor.getPartitioner());
 
     public static ByteBuffer serializeRoutingKey(AccordRoutingKey key)
     {
         return ByteBuffer.wrap(SERIALIZER.serialize(key));
+    }
+
+    public static byte[] serializeRoutingKeyNoTable(AccordRoutingKey key)
+    {
+        return SERIALIZER.serializeNoTable(key);
     }
 
     public static byte[] unwrap(AccordRoutingKey key)

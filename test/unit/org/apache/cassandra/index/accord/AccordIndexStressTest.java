@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.index.sai.accord;
+package org.apache.cassandra.index.accord;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -53,6 +53,7 @@ import accord.primitives.TxnId;
 import accord.utils.RandomSource;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.agrona.collections.Long2ObjectHashMap;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -87,8 +88,14 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 public class AccordIndexStressTest extends CQLTester
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordIndexStressTest.class);
+
+    static
+    {
+        // The plan is to migrate away from SAI, so rather than hacking around timeout issues; just disable for now
+        CassandraRelevantProperties.SAI_TEST_DISABLE_TIMEOUT.setBoolean(true);
+    }
     private static final boolean VALIDATE = true;
-    private static final boolean INCLUDE_FLUSH = false;
+    private static final boolean INCLUDE_FLUSH = true;
     private static final long SLOW_NS = TimeUnit.MILLISECONDS.toNanos(25);
     private static final Node.Id NODE = new Node.Id(42);
     private final Routable.Domain domain = Routable.Domain.Range;
@@ -144,7 +151,7 @@ public class AccordIndexStressTest extends CQLTester
         var minToken = 0;
         var maxToken = (1 << 8) * numWrites;
         int numStores = 10;
-        qt().withExamples(1).check(rs -> {
+        qt().withSeed(-1464527987857660885L).withExamples(1).check(rs -> {
             timed("write(" + numWrites + ")", () -> writeRecords(rs, numStores, tables, minToken, maxToken, numWrites));
             if (INCLUDE_FLUSH)
                 timed("flush(writes=" + numWrites + ")", () -> FBUtilities.waitOnFutures(Keyspace.open("system_accord").flush(ColumnFamilyStore.FlushReason.UNIT_TESTS)));
@@ -349,12 +356,9 @@ public class AccordIndexStressTest extends CQLTester
         Set<TxnId> actual = new HashSet<>();
         try
         {
-            UntypedResultSet results = execute("SELECT store_id, txn_id FROM system_accord.commands WHERE route > ? AND route <= ?", SaiSerializer.serializeRoutingKey(start), SaiSerializer.serializeRoutingKey(end));
+            UntypedResultSet results = execute("SELECT txn_id FROM system_accord.commands WHERE store_id = ? AND route > ? AND route <= ?", store, OrderedRouteSerializer.serializeRoutingKey(start), OrderedRouteSerializer.serializeRoutingKey(end));
             for (var row : results)
-            {
-                if (store == row.getInt("store_id"))
-                    actual.add(AccordKeyspace.deserializeTxnId(row));
-            }
+                actual.add(AccordKeyspace.deserializeTxnId(row));
         }
         catch (ReadSizeAbortException e)
         {

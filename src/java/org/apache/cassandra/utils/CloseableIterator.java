@@ -26,11 +26,6 @@ public interface CloseableIterator<T> extends Iterator<T>, AutoCloseable
 {
     public void close();
 
-    public default CloseableIterator<T> filter(Predicate<T> fn)
-    {
-        return CloseableIterators.filter(this, fn);
-    }
-
     public static <T> CloseableIterator<T> wrap(Iterator<T> iter)
     {
         return new CloseableIterator<T>()

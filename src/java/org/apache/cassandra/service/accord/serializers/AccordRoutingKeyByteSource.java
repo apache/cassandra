@@ -137,9 +137,14 @@ public class AccordRoutingKeyByteSource
             var uuid = key.table().asUUID();
             ByteSource[] srcs = { LongType.instance.asComparableBytes(LongType.instance.decompose(uuid.getMostSignificantBits()), ByteComparable.Version.OSS50),
                                   LongType.instance.asComparableBytes(LongType.instance.decompose(uuid.getLeastSignificantBits()), ByteComparable.Version.OSS50),
-                                  key.kindOfRoutingKey() == SENTINEL ? key.asSentinelKey().isMin ? minAsComparableBytes() : maxAsComparableBytes()
-                                                                     : asComparableBytes(key.token()) };
+                                  asComparableBytesNoTable(key) };
             return ByteSource.withTerminator(ByteSource.TERMINATOR, srcs);
+        }
+
+        public ByteSource asComparableBytesNoTable(AccordRoutingKey key)
+        {
+            return key.kindOfRoutingKey() == SENTINEL ? key.asSentinelKey().isMin ? minAsComparableBytes() : maxAsComparableBytes()
+                                                      : asComparableBytes(key.token());
         }
 
         public <V> AccordRoutingKey fromComparableBytes(ValueAccessor<V> accessor, V data) throws IOException
@@ -208,6 +213,11 @@ public class AccordRoutingKeyByteSource
         public byte[] serialize(AccordRoutingKey key)
         {
             return ByteSourceInverse.readBytes(asComparableBytes(key));
+        }
+
+        public byte[] serializeNoTable(AccordRoutingKey key)
+        {
+            return ByteSourceInverse.readBytes(asComparableBytesNoTable(key));
         }
     }
 

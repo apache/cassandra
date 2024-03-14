@@ -45,7 +45,7 @@ import accord.primitives.TxnId;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.index.sai.accord.RoutesSearcher;
+import org.apache.cassandra.index.accord.RoutesSearcher;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.utils.Pair;
 

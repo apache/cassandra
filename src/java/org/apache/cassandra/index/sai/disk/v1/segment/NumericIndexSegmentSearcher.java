@@ -50,7 +50,7 @@ public class NumericIndexSegmentSearcher extends IndexSegmentSearcher
     private final BlockBalancedTreeReader treeReader;
     private final QueryEventListener.BalancedTreeEventListener perColumnEventListener;
 
-    public NumericIndexSegmentSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
+    NumericIndexSegmentSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
                                 PerColumnIndexFiles perIndexFiles,
                                 SegmentMetadata segmentMetadata,
                                 StorageAttachedIndex index) throws IOException

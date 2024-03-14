@@ -67,7 +67,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
     private final ThreadLocal<SparseFixedBitSet> cachedBitSets;
     private final OptimizeFor optimizeFor;
 
-    public VectorIndexSegmentSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
+    VectorIndexSegmentSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
                                PerColumnIndexFiles perIndexFiles,
                                SegmentMetadata segmentMetadata,
                                StorageAttachedIndex index) throws IOException

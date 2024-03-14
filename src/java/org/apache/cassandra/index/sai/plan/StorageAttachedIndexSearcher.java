@@ -58,8 +58,8 @@ import org.apache.cassandra.utils.AbstractIterator;
 public class StorageAttachedIndexSearcher implements Index.Searcher
 {
     private final ReadCommand command;
-    protected final QueryController queryController;
-    protected final QueryContext queryContext;
+    private final QueryController queryController;
+    private final QueryContext queryContext;
 
     public StorageAttachedIndexSearcher(ColumnFamilyStore cfs,
                                         TableQueryMetrics tableQueryMetrics,
@@ -115,7 +115,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         }
     }
 
-    public static class ResultRetriever extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
+    private static class ResultRetriever extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
     {
         private final PrimaryKey firstPrimaryKey;
         private final PrimaryKey lastPrimaryKey;
@@ -132,7 +132,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
 
         private PrimaryKey lastKey;
 
-        public ResultRetriever(QueryController queryController,
+        private ResultRetriever(QueryController queryController,
                                 ReadExecutionController executionController,
                                 QueryContext queryContext,
                                 boolean topK)
@@ -333,7 +333,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
          *
          * @param startIter an iterator positioned at the first row in the partition that we want to return
          */
-        protected @Nonnull UnfilteredRowIterator iteratePartition(@Nonnull UnfilteredRowIterator startIter)
+        private @Nonnull UnfilteredRowIterator iteratePartition(@Nonnull UnfilteredRowIterator startIter)
         {
             return new AbstractUnfilteredRowIterator(startIter.metadata(),
                                                      startIter.partitionKey(),
@@ -368,7 +368,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             };
         }
 
-        protected UnfilteredRowIterator queryStorageAndFilter(PrimaryKey key)
+        private UnfilteredRowIterator queryStorageAndFilter(PrimaryKey key)
         {
             // Key reads are lazy, delayed all the way to this point. Skip if we've already seen this one:
             if (key.equals(lastKey))
@@ -380,26 +380,8 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             {
                 queryContext.partitionsRead++;
 
-                return !allowPostFilter() ? unfiltered(partition) : applyIndexFilter(key, partition, filterTree, queryContext);
+                return applyIndexFilter(key, partition, filterTree, queryContext);
             }
-        }
-
-        protected boolean allowPostFilter() { return true; }
-
-        private UnfilteredRowIterator unfiltered(UnfilteredRowIterator partition)
-        {
-            Row staticRow = partition.staticRow();
-
-            List<Unfiltered> clusters = new ArrayList<>();
-            while (partition.hasNext())
-            {
-                Unfiltered row = partition.next();
-
-                queryContext.rowsFiltered++;
-                clusters.add(row);
-            }
-
-            return new PartitionIterator(partition, staticRow, Iterators.filter(clusters.iterator(), u -> !((Row)u).isStatic()));
         }
 
         private UnfilteredRowIterator applyIndexFilter(PrimaryKey key, UnfilteredRowIterator partition, FilterTree tree, QueryContext queryContext)

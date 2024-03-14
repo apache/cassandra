@@ -222,7 +222,7 @@ public class SegmentMetadata
         }
     }
 
-    public long getIndexRoot(IndexComponent indexComponent)
+    long getIndexRoot(IndexComponent indexComponent)
     {
         return componentMetadatas.get(indexComponent).root;
     }
@@ -231,7 +231,7 @@ public class SegmentMetadata
     {
         private final Map<IndexComponent, ComponentMetadata> metas = new EnumMap<>(IndexComponent.class);
 
-        public ComponentMetadataMap(DataInput input) throws IOException
+        ComponentMetadataMap(DataInput input) throws IOException
         {
             int size = input.readInt();
 
@@ -255,7 +255,7 @@ public class SegmentMetadata
             metas.put(indexComponent, new ComponentMetadata(root, offset, length, additionalMap));
         }
 
-        public void write(IndexOutput output) throws IOException
+        private void write(IndexOutput output) throws IOException
         {
             output.writeInt(metas.size());
 
