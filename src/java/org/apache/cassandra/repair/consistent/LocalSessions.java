@@ -324,7 +324,7 @@ public class LocalSessions
      */
     public void cancelSession(TimeUUID sessionID, boolean force)
     {
-        logger.info("Cancelling local repair session {}", sessionID);
+        logger.debug("Cancelling local repair session {}", sessionID);
         LocalSession session = getSession(sessionID);
         Preconditions.checkArgument(session != null, "Session {} does not exist", sessionID);
         Preconditions.checkArgument(force || session.coordinator.equals(getBroadcastAddressAndPort()),
@@ -399,7 +399,7 @@ public class LocalSessions
                     case FINALIZE_PROMISED:
                         continue;
                     default:
-                        logger.info("Found repair session {} with state = {} - failing the repair", session.sessionID, session.getState());
+                        logger.debug("Found repair session {} with state = {} - failing the repair", session.sessionID, session.getState());
                         failSession(session, true);
                 }
             }
@@ -455,12 +455,12 @@ public class LocalSessions
                     {
                         // if we delete a non-superseded session, some ranges will be mis-reported as
                         // not having been repaired in repair_admin after a restart
-                        logger.info("Skipping delete of FINALIZED LocalSession {} because it has " +
+                        logger.debug("Skipping delete of FINALIZED LocalSession {} because it has " +
                                     "not been superseded by a more recent session", session.sessionID);
                     }
                     else if (!sessionHasData(session))
                     {
-                        logger.info("Auto deleting repair session {}", session);
+                        logger.debug("Auto deleting repair session {}", session);
                         deleteSession(session.sessionID);
                     }
                     else
@@ -736,7 +736,7 @@ public class LocalSessions
                 }
                 else if (session.getState() != FAILED)
                 {
-                    logger.info("Failing local repair session {}", session.sessionID);
+                    logger.debug("Failing local repair session {}", session.sessionID);
                     setStateAndSave(session, FAILED);
                 }
             }
@@ -749,7 +749,7 @@ public class LocalSessions
 
     public synchronized void deleteSession(TimeUUID sessionID)
     {
-        logger.info("Deleting local repair session {}", sessionID);
+        logger.debug("Deleting local repair session {}", sessionID);
         LocalSession session = getSession(sessionID);
         Preconditions.checkArgument(session.isCompleted(), "Cannot delete incomplete sessions");
 
@@ -819,7 +819,7 @@ public class LocalSessions
 
         LocalSession session = createSessionUnsafe(sessionID, parentSession, peers);
         putSessionUnsafe(session);
-        logger.info("Beginning local incremental repair session {}", session);
+        logger.debug("Beginning local incremental repair session {}", session);
 
         ExecutorService executor = executorFactory().pooled("Repair-" + sessionID, parentSession.getColumnFamilyStores().size());
 
@@ -834,9 +834,9 @@ public class LocalSessions
             {
                 try
                 {
-                    logger.info("Prepare phase for incremental repair session {} completed", sessionID);
+                    logger.debug("Prepare phase for incremental repair session {} completed", sessionID);
                     if (!prepareSessionExceptFailed(session))
-                        logger.info("Session {} failed before anticompaction completed", sessionID);
+                        logger.debug("Session {} failed before anticompaction completed", sessionID);
                     Message<PrepareConsistentResponse> message =
                         Message.out(PREPARE_CONSISTENT_RSP,
                                     new PrepareConsistentResponse(sessionID, getBroadcastAddressAndPort(), session.getState() != FAILED));
@@ -853,7 +853,7 @@ public class LocalSessions
                 try
                 {
                     if (Throwables.anyCauseMatches(t, (throwable) -> throwable instanceof CompactionInterruptedException))
-                        logger.info("Anticompaction interrupted for session {}: {}", sessionID, t.getMessage());
+                        logger.debug("Anticompaction interrupted for session {}: {}", sessionID, t.getMessage());
                     else if (Throwables.anyCauseMatches(t, (throwable) -> throwable instanceof NoSuchRepairSessionException))
                         logger.warn("No such repair session: {}", sessionID);
                     else
@@ -895,7 +895,7 @@ public class LocalSessions
         LocalSession session = getSession(sessionID);
         if (session != null && session.getState() != REPAIRING)
         {
-            logger.info("Setting local incremental repair session {} to REPAIRING", session);
+            logger.debug("Setting local incremental repair session {} to REPAIRING", session);
             setStateAndSave(session, REPAIRING);
         }
     }
@@ -907,7 +907,7 @@ public class LocalSessions
         LocalSession session = getSession(sessionID);
         if (session == null)
         {
-            logger.info("Received FinalizePropose message for unknown repair session {}, responding with failure", sessionID);
+            logger.debug("Received FinalizePropose message for unknown repair session {}, responding with failure", sessionID);
             sendMessage(from, Message.out(FAILED_SESSION_MSG, new FailSession(sessionID)));
             return;
         }
@@ -926,7 +926,7 @@ public class LocalSessions
             syncTable();
 
             sendMessage(from, Message.out(FINALIZE_PROMISE_MSG, new FinalizePromise(sessionID, getBroadcastAddressAndPort(), true)));
-            logger.info("Received FinalizePropose message for incremental repair session {}, responded with FinalizePromise", sessionID);
+            logger.debug("Received FinalizePropose message for incremental repair session {}, responded with FinalizePromise", sessionID);
         }
         catch (IllegalArgumentException e)
         {
@@ -967,7 +967,7 @@ public class LocalSessions
         }
 
         setStateAndSave(session, FINALIZED);
-        logger.info("Finalized local repair session {}", sessionID);
+        logger.debug("Finalized local repair session {}", sessionID);
     }
 
     public void handleFailSessionMessage(InetAddressAndPort from, FailSession msg)
@@ -978,7 +978,7 @@ public class LocalSessions
 
     public void sendStatusRequest(LocalSession session)
     {
-        logger.info("Attempting to learn the outcome of unfinished local incremental repair session {}", session.sessionID);
+        logger.debug("Attempting to learn the outcome of unfinished local incremental repair session {}", session.sessionID);
         Message<StatusRequest> request = Message.out(STATUS_REQ, new StatusRequest(session.sessionID));
 
         for (InetAddressAndPort participant : session.participants)
@@ -1003,7 +1003,7 @@ public class LocalSessions
         else
         {
             sendMessage(from, Message.out(STATUS_RSP, new StatusResponse(sessionID, session.getState())));
-            logger.info("Responding to status response message for incremental repair session {} with local state {}", sessionID, session.getState());
+            logger.debug("Responding to status response message for incremental repair session {} with local state {}", sessionID, session.getState());
        }
     }
 
@@ -1023,11 +1023,11 @@ public class LocalSessions
         if (response.state == FINALIZED || response.state == FAILED)
         {
             setStateAndSave(session, response.state);
-            logger.info("Unfinished local incremental repair session {} set to state {}", sessionID, response.state);
+            logger.debug("Unfinished local incremental repair session {} set to state {}", sessionID, response.state);
         }
         else
         {
-            logger.info("Received StatusResponse for repair session {} with state {}, which is not actionable. Doing nothing.", sessionID, response.state);
+            logger.debug("Received StatusResponse for repair session {} with state {}, which is not actionable. Doing nothing.", sessionID, response.state);
         }
     }
 

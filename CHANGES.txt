@@ -1,5 +1,6 @@
 4.1.5
 Merged from 4.0:
+ * Push LocalSessions info logs to debug (CASSANDRA-18335)
  * Filter remote DC replicas out when constructing the initial replica plan for the local read repair (CASSANDRA-19120)
  * Remove redundant code in StorageProxy#sendToHintedReplicas (CASSANDRA-19412)
  * Remove bashisms for mx4j tool in cassandra-env.sh (CASSANDRA-19416)
