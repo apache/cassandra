@@ -64,7 +64,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
             ('class', 'max_threshold', 'tombstone_compaction_interval', 'tombstone_threshold', 'enabled',
              'unchecked_tombstone_compaction', 'only_purge_repaired_tombstones', 'provide_overlapping_tombstones')),
         ('compression', 'compression_parameters',
-            ('class', 'chunk_length', 'chunk_length_in_kb', 'crc_check_chance', 'enabled', 'min_compress_ratio', 'max_compressed_length')),
+            ('class', 'chunk_length', 'chunk_length_in_kb', 'enabled', 'min_compress_ratio', 'max_compressed_length')),
         ('caching', None,
             ('rows_per_partition', 'keys')),
     )
@@ -317,7 +317,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 
 <userType> ::= utname=<cfOrKsName> ;
 
-<storageType> ::= ( <simpleStorageType> | <collectionType> | <frozenCollectionType> | <userType> ) ( <column_mask> )? ;
+<storageType> ::= ( <simpleStorageType> | <collectionType> | <frozenCollectionType> | <vectorType> | <userType> ) ( <column_mask> )? ;
 
 <column_mask> ::= "MASKED" "WITH" ( "DEFAULT" | <functionName> <selectionFunctionArguments> );
 
@@ -332,6 +332,8 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                          | "frozen" "<" "list" "<" <storageType> ">" ">"
                          | "frozen" "<" "set"  "<" <storageType> ">" ">"
                          ;
+
+<vectorType> ::= "vector" "<" <storageType> "," <wholenumber> ">" ;
 
 <columnFamilyName> ::= ( ksname=<cfOrKsName> dot="." )? cfname=<cfOrKsName> ;
 
@@ -562,6 +564,8 @@ def cf_prop_val_mapkey_completer(ctxt, cass):
             opts = opts.union(set(CqlRuleSet.leveled_compaction_strategy_options))
         elif csc == 'TimeWindowCompactionStrategy':
             opts = opts.union(set(CqlRuleSet.time_window_compaction_strategy_options))
+        elif csc == 'UnifiedCompactionStrategy':
+            opts = opts.union(set(CqlRuleSet.unified_compaction_strategy_options))
 
         return list(map(escape_value, opts))
     return ()
@@ -934,9 +938,9 @@ def insert_newval_completer(ctxt, cass):
         return []
     curcol = insertcols[len(valuesdone)]
     coltype = layout.columns[curcol].cql_type
-    if coltype in ('map', 'set'):
+    if coltype.startswith('map<') or coltype.startswith('set<'):
         return ['{']
-    if coltype == 'list':
+    if coltype.startswith('list<') or coltype.startswith('vector<'):
         return ['[']
     if coltype == 'boolean':
         return ['true', 'false']
@@ -1011,10 +1015,10 @@ def update_countername_completer(ctxt, cass):
     coltype = layout.columns[curcol].cql_type
     if coltype == 'counter':
         return [maybe_escape_name(curcol)]
-    if coltype in ('map', 'set'):
-        return ["{"]
-    if coltype == 'list':
-        return ["["]
+    if coltype.startswith('map<') or coltype.startswith('set<'):
+        return ['{']
+    if coltype.startswith('list<') or coltype.startswith('vector<'):
+        return ['[']
     return [Hint('<term (%s)>' % coltype)]
 
 
@@ -1077,7 +1081,7 @@ def assignment_udt_field_completer(ctxt, cass):
 
 def _is_usertype(layout, curcol):
     coltype = layout.columns[curcol].cql_type
-    return coltype not in simple_cql_types and coltype not in ('map', 'set', 'list')
+    return coltype not in simple_cql_types and coltype not in ('map', 'set', 'list', 'vector')
 
 
 def _usertype_fields(ctxt, cass, layout, curcol):
