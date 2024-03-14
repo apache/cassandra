@@ -394,26 +394,14 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             for (JobState job : session.getJobs())
             {
                 EnumSet<JobState.State> expected = EnumSet.allOf(JobState.State.class);
-                if (repair.state.options.accordRepair())
+                if (!shouldSnapshot)
                 {
-                    // accord doesn't do snapshot, validation, or streaming
                     expected.remove(JobState.State.SNAPSHOT_START);
                     expected.remove(JobState.State.SNAPSHOT_COMPLETE);
-                    expected.remove(JobState.State.VALIDATION_START);
-                    expected.remove(JobState.State.VALIDATION_COMPLETE);
-                    expected.remove(JobState.State.STREAM_START);
                 }
-                else
+                if (!shouldSync)
                 {
-                    if (!shouldSnapshot)
-                    {
-                        expected.remove(JobState.State.SNAPSHOT_START);
-                        expected.remove(JobState.State.SNAPSHOT_COMPLETE);
-                    }
-                    if (!shouldSync)
-                    {
-                        expected.remove(JobState.State.STREAM_START);
-                    }
+                    expected.remove(JobState.State.STREAM_START);
                 }
                 Set<JobState.State> actual = job.getStateTimesMillis().keySet();
                 Assertions.assertThat(actual).isEqualTo(expected);
@@ -604,8 +592,6 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         }
         if (rs.nextBoolean()) args.add("--optimise-streams");
         RepairOption options = RepairOption.parse(Repair.parseOptionMap(() -> "test", args), DatabaseDescriptor.getPartitioner());
-        if (accordRepair)
-            options = options.withAccordRepair(true);
         if (options.getRanges().isEmpty())
         {
             if (options.isPrimaryRange())

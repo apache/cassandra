@@ -66,6 +66,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.serialization.UDTAndFunctionsAwareMetadataSerializer;
@@ -338,6 +339,12 @@ public class TableMetadata implements SchemaElement
     public boolean requiresAccordSupport()
     {
         return isAccordEnabled() || migratingFromAccord();
+    }
+
+    public boolean supportsPaxosOperations()
+    {
+        return params.transactionalMode == TransactionalMode.off
+               || params.transactionalMigrationFrom.from == TransactionalMode.off;
     }
 
     public ImmutableCollection<ColumnMetadata> columns()

@@ -265,7 +265,7 @@ public class AccordService implements IAccordService, Shutdownable
     {
         Invariants.checkState(localId != null, "static localId must be set before instantiating AccordService");
         logger.info("Starting accord with nodeId {}", localId);
-        AccordAgent agent = new AccordAgent();
+        AccordAgent agent = FBUtilities.construct(System.getProperty("cassandra.accord.agent", AccordAgent.class.getName()), "AccordAgent");
         this.configService = new AccordConfigurationService(localId);
         this.fastPathCoordinator = AccordFastPathCoordinator.create(localId, configService);
         this.messageSink = new AccordMessageSink(agent, configService);

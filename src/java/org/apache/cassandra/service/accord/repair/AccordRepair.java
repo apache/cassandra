@@ -16,12 +16,13 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.repair;
+package org.apache.cassandra.service.accord.repair;
 
 import java.math.BigInteger;
+import java.util.Collection;
+import java.util.concurrent.Executor;
 import javax.annotation.Nullable;
 
-import org.apache.cassandra.service.accord.AccordTopology;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,25 +32,46 @@ import accord.primitives.Ranges;
 import accord.primitives.Seekables;
 import org.apache.cassandra.dht.AccordSplitter;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.AccordTopology;
 import org.apache.cassandra.service.accord.TokenRange;
-import org.apache.cassandra.service.consensus.migration.ConsensusMigrationRepairResult;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Future;
 
 import static com.google.common.base.Preconditions.checkState;
-import static java.util.Collections.emptyList;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ACCORD_REPAIR_RANGE_STEP_UPDATE_INTERVAL;
 
 /*
  * Accord repair consists of creating a barrier transaction for all the ranges which ensure that all Accord transactions
  * before the Epoch and point in time at which the repair started have their side effects visible to Paxos and regular quorum reads.
  */
-public class AccordRepairJob extends AbstractRepairJob
+public class AccordRepair
 {
-    private static final Logger logger = LoggerFactory.getLogger(AccordRepairJob.class);
+    private static final Logger logger = LoggerFactory.getLogger(AccordRepair.class);
 
     public static final BigInteger TWO = BigInteger.valueOf(2);
+
+    interface Listener
+    {
+        void onBarrierStart();
+        void onBarrierException(Throwable throwable);
+        void onBarrierComplete();
+
+        Listener NOOP = new Listener()
+        {
+            @Override public void onBarrierStart() {}
+
+            @Override public void onBarrierException(Throwable throwable) {}
+
+            @Override public void onBarrierComplete() {}
+        };
+    }
+
+    private final Listener listener;
 
     private final Ranges ranges;
 
@@ -57,39 +79,46 @@ public class AccordRepairJob extends AbstractRepairJob
 
     private BigInteger rangeStep;
 
-    private Epoch minEpoch = ClusterMetadata.current().epoch;
+    private final Epoch minEpoch = ClusterMetadata.current().epoch;
 
     private volatile Throwable shouldAbort = null;
 
-    public AccordRepairJob(RepairSession repairSession, String cfname)
+    public AccordRepair(Listener listener, IPartitioner partitioner, String keyspace, Collection<Range<Token>> ranges)
     {
-        super(repairSession, cfname);
-        IPartitioner partitioner = desc.ranges.iterator().next().left.getPartitioner();
-        this.ranges = AccordTopology.toAccordRanges(desc.keyspace, desc.ranges);
-        this.splitter = partitioner.accordSplitter().apply(ranges);
+        this.listener = listener != null ? listener : Listener.NOOP;
+        this.ranges = AccordTopology.toAccordRanges(keyspace, ranges);
+        this.splitter = partitioner.accordSplitter().apply(this.ranges);
     }
 
-    @Override
-    protected void runRepair()
+    public Epoch minEpoch()
     {
-        try
-        {
-            for (accord.primitives.Range range : ranges)
-                repairRange((TokenRange)range);
-            state.phase.success();
-            cfs.metric.repairsCompleted.inc();
-            trySuccess(new RepairResult(desc, emptyList(), ConsensusMigrationRepairResult.fromAccordRepair(minEpoch)));
-        }
-        catch (Throwable t)
-        {
-            state.phase.fail(t);
-            cfs.metric.repairsCompleted.inc();
-            tryFailure(t);
-        }
+        return minEpoch;
     }
 
-    @Override
-    void abort(@Nullable Throwable reason)
+    public void repair() throws Throwable
+    {
+        for (accord.primitives.Range range : ranges)
+            repairRange((TokenRange)range);
+    }
+
+    public Future<Void> repair(Executor executor)
+    {
+        AsyncPromise<Void> future = new AsyncPromise<>();
+        executor.execute(() -> {
+            try
+            {
+                repair();
+                future.trySuccess(null);
+            }
+            catch (Throwable e)
+            {
+                future.tryFailure(e);
+            }
+        });
+        return future;
+    }
+
+    protected void abort(@Nullable Throwable reason)
     {
         shouldAbort = reason == null ? new RuntimeException("Abort") : reason;
     }
@@ -120,7 +149,7 @@ public class AccordRepairJob extends AbstractRepairJob
             BigInteger remaining = rangeSize.subtract(offset);
             BigInteger length = remaining.min(rangeStep);
 
-            long start = ctx.clock().nanoTime();
+            listener.onBarrierStart();
             boolean dependencyOverflow = false;
             try
             {
@@ -150,20 +179,17 @@ public class AccordRepairJob extends AbstractRepairJob
             }
             catch (RuntimeException e)
             {
-                // TODO Placeholder for dependency limit overflow
-//                dependencyOverflow = true;
-                cfs.metric.rangeMigrationDependencyLimitFailures.mark();
+                listener.onBarrierException(e);
                 throw e;
             }
             catch (Throwable t)
             {
-                // unexpected error
-                cfs.metric.rangeMigrationUnexpectedFailures.mark();
+                listener.onBarrierException(t);
                 throw new RuntimeException(t);
             }
             finally
             {
-                cfs.metric.rangeMigration.addNano(start);
+                listener.onBarrierComplete();
             }
 
             // TODO when dependency limits are added to Accord need to test repair overflow

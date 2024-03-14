@@ -46,7 +46,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.AsymmetricRemoteSyncTask;
-import org.apache.cassandra.repair.CassandraRepairJob;
+import org.apache.cassandra.repair.RepairJob;
 import org.apache.cassandra.repair.LocalSyncTask;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.SharedContext;
@@ -111,7 +111,7 @@ public class OptimiseStreamsRepairTest extends TestBaseImpl
     {
         public static void install(ClassLoader cl, int id)
         {
-            new ByteBuddy().rebase(CassandraRepairJob.class)
+            new ByteBuddy().rebase(RepairJob.class)
                            .method(named("createOptimisedSyncingSyncTasks"))
                            .intercept(MethodDelegation.to(BBHelper.class))
                            .make()
