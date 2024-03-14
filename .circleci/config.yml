@@ -26,7 +26,7 @@ jobs:
     shell: /bin/bash -eo pipefail -l
     parallelism: 4
     steps:
-    - attach_workspace:NF
+    - attach_workspace:
         at: /home/cassandra
     - run:
         name: Log Environment Information
