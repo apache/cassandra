@@ -48,6 +48,7 @@ import org.apache.cassandra.utils.Throwables;
 import static accord.utils.CheckpointIntervalArrayBuilder.Links.LINKS;
 import static accord.utils.CheckpointIntervalArrayBuilder.Strategy.ACCURATE;
 
+//TODO (now): Add support for variable length tokens; this is needed for Ordered partitioner (which we plan to support)
 public class CheckpointIntervalArrayIndex
 {
     private static final Accessor<Interval[], Interval, byte[]> LIST_INTERVAL_ACCESSOR = new Accessor<>()
