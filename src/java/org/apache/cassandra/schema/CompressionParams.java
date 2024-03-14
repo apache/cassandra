@@ -256,20 +256,26 @@ public final class CompressionParams
                 return FBUtilities.newCompressor(parseCompressorClass(defaultParams(null).klass().getName()), opt);
             }
         };
-
-        CompressionParams cp = new CompressionParams(enabled ? creator.apply(options) : null, chunk_length_in_bytes, max_compressed_length_in_bytes, min_compress_ratio, options);
-        if (enabled && compressorType != CompressorType.none)
+        try
         {
-            ICompressor compressor = cp.sstableCompressor;
-            if (compressor == null)
-                throw new ConfigurationException(format("'%s' is not a valid compressor class name for the 'class' option.", sstableCompressionClass));
-            else
-                checkCompressorOptions(compressor, options.keySet());
+            CompressionParams cp = new CompressionParams(enabled ? creator.apply(options) : null, chunk_length_in_bytes, max_compressed_length_in_bytes, min_compress_ratio, options);
+            if (enabled && compressorType != CompressorType.none)
+            {
+                ICompressor compressor = cp.sstableCompressor;
+                if (compressor == null)
+                    throw new ConfigurationException(format("'%s' is not a valid compressor class name for the 'class' option.", sstableCompressionClass));
+                else
+                    checkCompressorOptions(compressor, options.keySet());
+            }
+
+            cp.validate();
+
+            return cp;
+        } catch (ConfigurationException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ConfigurationException(e.getMessage(), e);
         }
-
-        cp.validate();
-
-        return cp;
     }
 
     private static String invalidValue(String param, Object value)
