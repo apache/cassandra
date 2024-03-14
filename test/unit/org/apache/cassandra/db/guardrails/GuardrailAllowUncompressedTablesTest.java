@@ -52,7 +52,7 @@ public class GuardrailAllowUncompressedTablesTest extends GuardrailTester
     {
         setGuardrail(false);
         String table = createTableName();
-        assertFails(String.format("CREATE TABLE %s.%s (k int primary key, v int) WITH compression={'enabled':true}", KEYSPACE, table), "Uncompressed table is not allowed");
+        assertFails(String.format("CREATE TABLE %s.%s (k int primary key, v int) WITH compression={'enabled':false}", KEYSPACE, table), "Uncompressed table is not allowed");
     }
 
     @Test
