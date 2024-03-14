@@ -47,7 +47,6 @@ import static org.apache.cassandra.db.TypeSizes.sizeof;
 
 public final class TableParams
 {
-
     public enum Option
     {
         ALLOW_AUTO_SNAPSHOT,
@@ -491,7 +490,7 @@ public final class TableParams
 
     public static class Serializer implements MetadataSerializer<TableParams>
     {
-        String keyspace;
+        private final String keyspace;
         Serializer(String keyspace) {
             this.keyspace = keyspace;
         }
