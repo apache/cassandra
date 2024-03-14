@@ -36,10 +36,8 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.impl.CommandTimeseries;
 import accord.impl.CommandsForKey;
 import accord.impl.SimpleProgressLog;
-import accord.local.KeyHistory;
 import accord.local.Node;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
@@ -204,22 +202,17 @@ public class AccordIncrementalRepairTest extends AccordTestBase
         return getUninterruptibly(future, 1, TimeUnit.MINUTES);
     }
 
-    private static <D> TxnId txnId(Timestamp key, CommandTimeseries<D> timeseries)
-    {
-        return timeseries.loader().txnId(timeseries.commands.get(key));
-    }
-
     private static void awaitLocalApplyOnKey(PartitionKey key)
     {
         Node node = accordService().node();
         AtomicReference<TxnId> waitFor = new AtomicReference<>(null);
-        AsyncChains.awaitUninterruptibly(node.commandStores().ifLocal(PreLoadContext.contextFor(key, KeyHistory.DEPS), key.toUnseekable(), 0, Long.MAX_VALUE, safeStore -> {
+        AsyncChains.awaitUninterruptibly(node.commandStores().ifLocal(PreLoadContext.contextFor(key), key.toUnseekable(), 0, Long.MAX_VALUE, safeStore -> {
             AccordSafeCommandStore store = (AccordSafeCommandStore) safeStore;
-            CommandsForKey commands = store.depsCommandsForKey(key).current();
-            if (commands.commands().isEmpty())
+            CommandsForKey commands = store.commandsForKey(key).current();
+            int size = commands.size();
+            if (size < 1)
                 return;
-            Timestamp executeAt = commands.commands().commands.lastKey();
-            waitFor.set(txnId(executeAt, commands.commands()));
+            waitFor.set(commands.txnId(size - 1));
         }));
         Assert.assertNotNull(waitFor.get());
         TxnId txnId = waitFor.get();
