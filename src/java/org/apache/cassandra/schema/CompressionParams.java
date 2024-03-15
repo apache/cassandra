@@ -60,13 +60,9 @@ public final class CompressionParams
 
     public static final String CLASS = "class";
     public static final String CHUNK_LENGTH_IN_KB = "chunk_length_in_kb";
-    /**
-     * Requires a DataStorageSpec suffix
-     */
+    /** Requires a DataStorageSpec suffix */
     public static final String CHUNK_LENGTH = "chunk_length";
-    /**
-     * Requires a DataStorageSpec suffix
-     */
+    /** Requires a DataStorageSpec suffix */
     public static final String MAX_COMPRESSED_LENGTH = "max_compressed_length";
     public static final String ENABLED = "enabled";
     public static final String MIN_COMPRESS_RATIO = "min_compress_ratio";
@@ -79,7 +75,7 @@ public final class CompressionParams
                                                                        DEFAULT_MIN_COMPRESS_RATIO,
                                                                        emptyMap());
 
-    /** Default for when no other compression is specified */
+    /** (legacy) Default for when no other compression is specified */
     private static final CompressionParams DEFAULT = new CompressionParams(LZ4Compressor.create(Collections.emptyMap()),
                                                                            DEFAULT_CHUNK_LENGTH,
                                                                            calcMaxCompressedLength(DEFAULT_CHUNK_LENGTH, DEFAULT_MIN_COMPRESS_RATIO),
@@ -89,15 +85,15 @@ public final class CompressionParams
     /** A guaranteed FAST compressor  */
     public static final CompressionParams FAST = DEFAULT;
 
+    /** The default calculated fromthe config.yaml */
     private static CompressionParams CALCULATED_DEFAULT;
 
+    /** error message format for when 'chunk_length' and 'chunklenth_in_kb" are both specified */
     @VisibleForTesting
     public static final String TOO_MANY_CHUNK_LENGTH = format("Only one of '%s' or '%s' may be specified", CHUNK_LENGTH, CHUNK_LENGTH_IN_KB);
 
     private final ICompressor sstableCompressor;
-    /**
-     * The chunk length in KB
-     */
+    /** The chunk length in KB */
     private final int chunkLength;
     /**
      * The compressed length in KB.
@@ -111,7 +107,8 @@ public final class CompressionParams
      * # chunk_length / max_compressed_length = min_compress_ratio
      */
     private final double minCompressRatio;
-    private final ImmutableMap<String, String> otherOptions; // Unrecognized options, can be used by the compressor
+    /** unrecognized options, may contain comressor specific options */
+    private final ImmutableMap<String, String> otherOptions;
 
     // TODO: deprecated, should now be carefully removed. Doesn't affect schema code as it isn't included in equals() and hashCode()
     private volatile double crcCheckChance = 1.0;
