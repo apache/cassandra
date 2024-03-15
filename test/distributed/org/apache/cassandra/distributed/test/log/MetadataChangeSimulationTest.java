@@ -716,6 +716,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
             EndpointsForRange endpointsForRange = actualGroups.get(predictedRange).get();
             assertNotNull(() -> String.format("Could not find %s in ranges %s", predictedRange, actualGroups.keySet()),
                           endpointsForRange);
+
             assertEquals(() -> String.format("Predicted to have different endpoints for range %s" +
                                              "\nExpected: %s" +
                                              "\nActual:   %s",
@@ -723,16 +724,18 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                                              predictedReplicas.stream().sorted().collect(Collectors.toList()),
                                              endpointsForRange.endpoints().stream().sorted().collect(Collectors.toList())),
                          predictedReplicas.size(), endpointsForRange.size());
-            for (TokenPlacementModel.Replica replica : predictedReplicas)
+            for (TokenPlacementModel.Replica fromModel : predictedReplicas)
             {
+                Replica replica = endpointsForRange.byEndpoint().
+                                                   get(InetAddressAndPort.getByAddress(InetAddress.getByName(fromModel.node().id())));
                 assertTrue(() -> String.format("Endpoints for range %s should have contained %s, but they have not." +
                                                "\nExpected: %s" +
                                                "\nActual:   %s.",
                                                endpointsForRange.range(),
-                                               replica.node().id(),
+                                               fromModel,
                                                predictedReplicas,
-                                               endpointsForRange.endpoints()),
-                           endpointsForRange.endpoints().contains(InetAddressAndPort.getByAddress(InetAddress.getByName(replica.node().id()))));
+                                               endpointsForRange),
+                           replica != null && replica.isFull() == fromModel.isFull());
             }
         }
     }
