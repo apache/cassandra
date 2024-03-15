@@ -27,10 +27,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
 
-import org.apache.cassandra.cql3.restrictions.ValueList;
+import org.apache.cassandra.cql3.restrictions.ClusteringElements;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.ListSerializer;
@@ -62,12 +61,12 @@ public enum Operator
         }
 
         @Override
-        public RangeSet<ValueList> restrict(RangeSet<ValueList> rangeSet, List<ValueList> args)
+        public RangeSet<ClusteringElements> restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
         {
             assert args.size() == 1;
-            ValueList arg = args.get(0);
-            rangeSet.remove(Range.lessThan(arg));
-            rangeSet.remove(Range.greaterThan(arg));
+            ClusteringElements arg = args.get(0);
+            rangeSet.removeAll(ClusteringElements.lessThan(arg));
+            rangeSet.removeAll(ClusteringElements.greaterThan(arg));
             return rangeSet;
         }
 
@@ -104,10 +103,10 @@ public enum Operator
         }
 
         @Override
-        public RangeSet<ValueList> restrict(RangeSet<ValueList> rangeSet, List<ValueList> args)
+        public RangeSet<ClusteringElements> restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
         {
             assert args.size() == 1;
-            rangeSet.remove(Range.atLeast(args.get(0)));
+            rangeSet.removeAll(ClusteringElements.atLeast(args.get(0)));
             return rangeSet;
         }
 
@@ -138,11 +137,10 @@ public enum Operator
         }
 
         @Override
-        public RangeSet<ValueList> restrict(RangeSet<ValueList> rangeSet, List<ValueList> args)
+        public RangeSet<ClusteringElements> restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
         {
             assert args.size() == 1;
-            ValueList arg = args.get(0);
-            rangeSet.remove(Range.greaterThan(arg));
+            rangeSet.removeAll(ClusteringElements.greaterThan(args.get(0)));
             return rangeSet;
         }
 
@@ -173,11 +171,10 @@ public enum Operator
         }
 
         @Override
-        public RangeSet<ValueList> restrict(RangeSet<ValueList> rangeSet, List<ValueList> args)
+        public RangeSet<ClusteringElements> restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
         {
             assert args.size() == 1;
-            ValueList arg = args.get(0);
-            rangeSet.remove(Range.lessThan(arg));
+            rangeSet.removeAll(ClusteringElements.lessThan(args.get(0)));
             return rangeSet;
         }
 
@@ -208,11 +205,10 @@ public enum Operator
         }
 
         @Override
-        public RangeSet<ValueList> restrict(RangeSet<ValueList> rangeSet, List<ValueList> args)
+        public RangeSet<ClusteringElements> restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
         {
             assert args.size() == 1;
-            ValueList arg = args.get(0);
-            rangeSet.remove(Range.atMost(arg));
+            rangeSet.removeAll(ClusteringElements.atMost(args.get(0)));
             return rangeSet;
         }
 
@@ -580,7 +576,7 @@ public enum Operator
      * @param args the operator arguments
      * @return the restricted range set
      */
-    public RangeSet<ValueList> restrict(RangeSet<ValueList> rangeSet, List<ValueList> args)
+    public RangeSet<ClusteringElements> restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
     {
         throw new UnsupportedOperationException();
     }

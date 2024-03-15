@@ -24,7 +24,6 @@ import com.google.common.collect.BoundType;
 import com.google.common.collect.ImmutableRangeSet;
 import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
-import com.google.common.collect.TreeRangeSet;
 
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.PartitionPosition;
@@ -189,10 +188,10 @@ final class PartitionKeyRestrictions extends RestrictionSetWrapper
      */
     private List<ByteBuffer> nonTokenRestrictionValues(QueryOptions options, ClientState state)
     {
-        MultiCBuilder builder = MultiCBuilder.create(comparator, hasIN());
+        MultiCBuilder builder = new MultiCBuilder(comparator);
         for (SingleRestriction r : restrictions)
         {
-            builder.addAllElementsToAll(r.values(options));
+            builder.extend(r.values(options));
 
             if (Guardrails.inSelectCartesianProduct.enabled(state))
                 Guardrails.inSelectCartesianProduct.guard(builder.buildSize(), "partition key", false, state);
@@ -270,7 +269,7 @@ final class PartitionKeyRestrictions extends RestrictionSetWrapper
      * @param values the token restriction values
      * @return the range set corresponding to the specified list
      */
-    private RangeSet<Token> toRangeSet(IPartitioner partitioner, List<ValueList> values)
+    private RangeSet<Token> toRangeSet(IPartitioner partitioner, List<ClusteringElements> values)
     {
         TokenFactory tokenFactory = partitioner.getTokenFactory();
 
@@ -293,15 +292,13 @@ final class PartitionKeyRestrictions extends RestrictionSetWrapper
      */
     private RangeSet<Token> toRangeSet(IPartitioner partitioner, SingleRestriction slice, QueryOptions options)
     {
-        RangeSet<ValueList> rangeSet = TreeRangeSet.create();
-        rangeSet.add(Range.all());
-        rangeSet = slice.restrict(rangeSet, options);
+        RangeSet<ClusteringElements>  rangeSet = slice.restrict(ClusteringElements.all(), options);
 
         ImmutableRangeSet.Builder<Token> builder = ImmutableRangeSet.builder();
 
         TokenFactory tokenFactory = partitioner.getTokenFactory();
 
-        for (Range<ValueList> range : rangeSet.asRanges())
+        for (Range<ClusteringElements> range : rangeSet.asRanges())
         {
             Range<Token> tokenRange = toTokenRange(tokenFactory, range);
 
@@ -311,15 +308,18 @@ final class PartitionKeyRestrictions extends RestrictionSetWrapper
         return builder.build();
     }
 
-    private static Range<Token> toTokenRange(TokenFactory tokenFactory, Range<ValueList> range)
+    private static Range<Token> toTokenRange(TokenFactory tokenFactory, Range<ClusteringElements> range)
     {
-        if (!range.hasLowerBound())
+        // ValueList ranges always have lower and upper bound but those can be empty (meaning top or bottom) which are
+        // the equivalent to no endpoints.
+        if (range.lowerEndpoint().isEmpty())
         {
-            return !range.hasUpperBound() ? Range.all()
-                                          : Range.upTo(tokenFactory.fromByteArray(range.upperEndpoint().get(0)), range.upperBoundType());
+            return range.upperEndpoint().isEmpty() ? Range.all()
+                                                   : Range.upTo(tokenFactory.fromByteArray(range.upperEndpoint().get(0)),
+                                                                                            range.upperBoundType());
         }
 
-        if (!range.hasUpperBound())
+        if (range.upperEndpoint().isEmpty())
             return Range.downTo(tokenFactory.fromByteArray(range.lowerEndpoint().get(0)), range.lowerBoundType());
 
         return Range.range(tokenFactory.fromByteArray(range.lowerEndpoint().get(0)),

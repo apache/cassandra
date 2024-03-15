@@ -92,7 +92,7 @@ public interface SingleRestriction extends Restriction
      * @return the values selected by this restriction if the operator is an {@code EQ} or an {@code IN}.
      * @throws UnsupportedOperationException if the operator is not an {@code EQ} or an {@code IN}.
      */
-    List<ValueList> values(QueryOptions options);
+    List<ClusteringElements> values(QueryOptions options);
 
     /**
      * Adds the ranges of values selected by this restriction to the specified {@code RangeSet} if the operator is an operator selecting ranges of data.
@@ -101,5 +101,5 @@ public interface SingleRestriction extends Restriction
      * @param options the query options
      * @throws UnsupportedOperationException if the operator is not an operator selecting ranges of data.
      */
-    RangeSet<ValueList> restrict(RangeSet<ValueList> rangeSet, QueryOptions options);
+    RangeSet<ClusteringElements> restrict(RangeSet<ClusteringElements> rangeSet, QueryOptions options);
 }

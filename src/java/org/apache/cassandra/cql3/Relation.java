@@ -118,7 +118,7 @@ public final class Relation
 
         operator.validateFor(expression);
 
-        ColumnSpecification receiver = expression.columnSpecification(table);
+        ColumnSpecification receiver = expression.columnSpecification();
         if (!operator.appliesToColumnValues())
             receiver = ((CollectionType<?>) receiver.type).makeCollectionReceiver(receiver, operator.appliesToMapKeys());
 
