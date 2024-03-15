@@ -24,7 +24,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -109,10 +108,6 @@ public final class CompressionParams
     private final double minCompressRatio;
     /** unrecognized options, may contain comressor specific options */
     private final ImmutableMap<String, String> otherOptions;
-
-    // TODO: deprecated, should now be carefully removed. Doesn't affect schema code as it isn't included in equals() and hashCode()
-    private volatile double crcCheckChance = 1.0;
-
 
     public enum CompressorType
     {
@@ -554,23 +549,6 @@ public final class CompressionParams
     public String chunkLengthInKB()
     {
         return String.valueOf(chunkLength() / 1024);
-    }
-
-    public void setCrcCheckChance(double crcCheckChance)
-    {
-        this.crcCheckChance = crcCheckChance;
-    }
-
-    public double getCrcCheckChance()
-    {
-        return crcCheckChance;
-    }
-
-    public boolean shouldCheckCrc()
-    {
-        double checkChance = getCrcCheckChance();
-        return checkChance >= 1d ||
-               (checkChance > 0d && checkChance > ThreadLocalRandom.current().nextDouble());
     }
 
     @Override
