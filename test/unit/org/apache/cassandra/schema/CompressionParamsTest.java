@@ -28,7 +28,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import com.google.common.base.Objects;
 import org.junit.Test;
 
 import org.apache.cassandra.config.ParameterizedClass;
@@ -388,7 +387,6 @@ public class CompressionParamsTest
             assertThat(other.maxCompressedLength()).isEqualTo(params.maxCompressedLength());
             assertThat(other.minCompressRatio()).isEqualTo(params.minCompressRatio());
             assertThat(other.chunkLength()).isEqualTo(params.chunkLength());
-            assertThat(other.getCrcCheckChance()).isEqualTo(params.getCrcCheckChance());
             assertThat(other.klass()).isEqualTo(params.klass());
         }
         else
@@ -400,7 +398,6 @@ public class CompressionParamsTest
             assertThat(other.maxCompressedLength()).isEqualTo(Integer.MAX_VALUE);
             assertThat(other.minCompressRatio()).isEqualTo(CompressionParams.DEFAULT_MIN_COMPRESS_RATIO);
             assertThat(other.chunkLength()).isEqualTo(DEFAULT_CHUNK_LENGTH);
-            assertThat(other.getCrcCheckChance()).isEqualTo(1.0);
             assertThat(other.getSstableCompressor()).isNull();
         }
     }
