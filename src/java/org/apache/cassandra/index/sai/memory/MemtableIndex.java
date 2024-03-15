@@ -28,6 +28,7 @@ import java.util.function.Function;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
@@ -46,10 +47,12 @@ public class MemtableIndex implements MemtableOrdering
     private final MemoryIndex memoryIndex;
     private final LongAdder writeCount = new LongAdder();
     private final LongAdder estimatedMemoryUsed = new LongAdder();
+    private final AbstractType<?> type;
 
     public MemtableIndex(StorageAttachedIndex index)
     {
         this.memoryIndex = index.termType().isVector() ? new VectorMemoryIndex(index) : new TrieMemoryIndex(index);
+        this.type = index.termType().indexType();
     }
 
     public long writeCount()
@@ -79,7 +82,7 @@ public class MemtableIndex implements MemtableOrdering
 
     public long index(DecoratedKey key, Clustering<?> clustering, ByteBuffer value)
     {
-        if (value == null || value.remaining() == 0)
+        if (value == null || (value.remaining() == 0 && !type.allowsEmpty()))
             return 0;
 
         long ram = memoryIndex.add(key, clustering, value);

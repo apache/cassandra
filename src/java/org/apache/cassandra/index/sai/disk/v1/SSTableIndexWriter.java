@@ -200,7 +200,8 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
             currentBuilder = newSegmentBuilder();
         }
 
-        if (term.remaining() == 0) return;
+        // Some types support empty byte buffers:
+        if (term.remaining() == 0 && !index.termType().indexType().allowsEmpty()) return;
 
         if (analyzer == null || !index.termType().isLiteral())
         {
