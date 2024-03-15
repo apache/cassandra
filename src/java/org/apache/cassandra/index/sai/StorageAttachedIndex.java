@@ -54,7 +54,7 @@ import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.restrictions.Restriction;
 import org.apache.cassandra.cql3.restrictions.SimpleRestriction;
-import org.apache.cassandra.cql3.restrictions.ValueList;
+import org.apache.cassandra.cql3.restrictions.ClusteringElements;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.CassandraWriteContext;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -462,7 +462,7 @@ public class StorageAttachedIndex implements Index
         SimpleRestriction annRestriction = (SimpleRestriction) restriction;
         VectorSimilarityFunction function = indexWriterConfig.getSimilarityFunction();
 
-        List<ValueList> elementsList = annRestriction.values(options);
+        List<ClusteringElements> elementsList = annRestriction.values(options);
         ByteBuffer serializedVector = elementsList.get(0).get(0).duplicate();
         float[] target = indexTermType.decomposeVector(serializedVector);
 

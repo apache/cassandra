@@ -70,7 +70,7 @@ public final class ColumnsExpression
             @Override
             AbstractType<?> type(TableMetadata table, List<ColumnMetadata> columns)
             {
-                return columns.get(0).type.unwrap();
+                return columns.get(0).type;
             }
 
             @Override
@@ -106,7 +106,7 @@ public final class ColumnsExpression
             AbstractType<?> type(TableMetadata table, List<ColumnMetadata> columns)
             {
                 return new TupleType(columns.stream()
-                                            .map(c -> c.type.unwrap())
+                                            .map(c -> c.type)
                                             .collect(Collectors.toList()));
             }
 
@@ -263,7 +263,7 @@ public final class ColumnsExpression
      */
     public static ColumnsExpression singleColumn(ColumnMetadata column)
     {
-        return new ColumnsExpression(Kind.SINGLE_COLUMN, column.type.unwrap(), ImmutableList.of(column), null);
+        return new ColumnsExpression(Kind.SINGLE_COLUMN, column.type, ImmutableList.of(column), null);
     }
 
     /**
@@ -274,7 +274,7 @@ public final class ColumnsExpression
     public static ColumnsExpression multiColumns(List<ColumnMetadata> columns)
     {
         AbstractType<?> type = new TupleType(columns.stream()
-                                                    .map(c -> c.type.unwrap())
+                                                    .map(c -> c.type)
                                                     .collect(Collectors.toList()));
         return new ColumnsExpression(Kind.MULTI_COLUMN, type, ImmutableList.copyOf(columns), null);
     }
@@ -324,15 +324,6 @@ public final class ColumnsExpression
     public Kind kind()
     {
         return kind;
-    }
-
-    /**
-     * Returns the expression type
-     * @return the expression type
-     */
-    public AbstractType<?> type()
-    {
-        return type;
     }
 
     public ByteBuffer mapKey(QueryOptions options)
@@ -398,12 +389,13 @@ public final class ColumnsExpression
 
     /**
      * Returns the column specification corresponding to this expression.
-     * @param table the table metadata
      * @return the column specification corresponding to this expression.
      */
-    public ColumnSpecification columnSpecification(TableMetadata table)
+    public ColumnSpecification columnSpecification()
     {
-        return new ColumnSpecification(table.keyspace, table.name, new ColumnIdentifier(toCQLString(), true), type) ;
+        ColumnMetadata column = firstColumn();
+        return kind == Kind.SINGLE_COLUMN ? column
+                                          : new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier(toCQLString(), true), type) ;
     }
 
     public static final class Raw

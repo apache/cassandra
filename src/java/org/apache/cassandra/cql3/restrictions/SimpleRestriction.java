@@ -31,7 +31,6 @@ import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.terms.Terms;
 import org.apache.cassandra.db.filter.RowFilter;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexRegistry;
@@ -211,32 +210,31 @@ public final class SimpleRestriction implements SingleRestriction
     }
 
     @Override
-    public List<ValueList> values(QueryOptions options)
+    public List<ClusteringElements> values(QueryOptions options)
     {
         assert operator == Operator.EQ || operator == Operator.IN || operator == Operator.ANN;
         return bindAndGetClusteringElements(options);
     }
 
     @Override
-    public RangeSet<ValueList> restrict(RangeSet<ValueList> rangeSet, QueryOptions options)
+    public RangeSet<ClusteringElements> restrict(RangeSet<ClusteringElements> rangeSet, QueryOptions options)
     {
         assert operator.isSlice() || operator == Operator.EQ;
         return operator.restrict(rangeSet, bindAndGetClusteringElements(options));
     }
 
-    private List<ValueList> bindAndGetClusteringElements(QueryOptions options)
+    private List<ClusteringElements> bindAndGetClusteringElements(QueryOptions options)
     {
         switch (columnsExpression.kind())
         {
             case SINGLE_COLUMN:
             case TOKEN:
                 return bindAndGet(options).stream()
-                                          .map(b ->  ValueList.of(columnsExpression.type(), b))
+                                          .map(b ->  ClusteringElements.of(columnsExpression.columnSpecification(), b))
                                           .collect(Collectors.toList());
             case MULTI_COLUMN:
-                List<AbstractType<?>> types = columnsExpression.type().subTypes();
                 return bindAndGetElements(options).stream()
-                                                  .map(buffers -> ValueList.of(types, buffers))
+                                                  .map(buffers -> ClusteringElements.of(columnsExpression.columns(), buffers))
                                                   .collect(Collectors.toList());
             default:
                 throw new UnsupportedOperationException();

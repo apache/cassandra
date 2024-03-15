@@ -17,27 +17,21 @@
  */
 package org.apache.cassandra.cql3.restrictions;
 
-import java.nio.ByteBuffer;
 import java.util.*;
 
 import javax.annotation.Nullable;
 
-import com.google.common.collect.BoundType;
-import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
-import com.google.common.collect.TreeRangeSet;
 
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.utils.btree.BTreeSet;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
@@ -100,11 +94,11 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
 
     public NavigableSet<Clustering<?>> valuesAsClustering(QueryOptions options, ClientState state) throws InvalidRequestException
     {
-        MultiCBuilder builder = MultiCBuilder.create(comparator, hasIN());
+        MultiCBuilder builder = new MultiCBuilder(comparator);
         for (SingleRestriction r : restrictions)
         {
-            List<ValueList> values = r.values(options);
-            builder.addAllElementsToAll(values);
+            List<ClusteringElements> values = r.values(options);
+            builder.extend(values);
 
             // If values is greater than 1 we know that the restriction is an IN
             if (values.size() > 1 && Guardrails.inSelectCartesianProduct.enabled(state))
@@ -116,9 +110,9 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
         return builder.build();
     }
 
-    public NavigableSet<ClusteringBound<?>> boundsAsClustering(Bound bound, QueryOptions options) throws InvalidRequestException
+    public Slices slices(QueryOptions options) throws InvalidRequestException
     {
-        MultiCBuilder builder = MultiCBuilder.create(comparator, hasIN() || hasMultiColumnSlice());
+        MultiCBuilder builder = new MultiCBuilder(comparator);
         int keyPosition = 0;
 
         for (SingleRestriction r : restrictions)
@@ -128,115 +122,20 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
 
             if (r.isSlice())
             {
-                RangeSet<ValueList> rangeSet = TreeRangeSet.create();
-                rangeSet.add(Range.all());
-                rangeSet = r.restrict(rangeSet, options);
-                
-                if (rangeSet.isEmpty())
-                    return BTreeSet.empty(comparator);
-
-                Set<Range<ValueList>> ranges = rangeSet.asRanges();
-
-                if (ranges.size() > 1)
-                    throw new IllegalStateException("Not implemented!");
-
-                appendBoundTo(builder, bound, r.columns(), ranges);
-
-                Range<ValueList> range = ranges.iterator().next();
-                boolean isStartInclusive = range.hasLowerBound() && range.lowerBoundType() == BoundType.CLOSED;
-                boolean isEndInclusive = range.hasUpperBound() && range.upperBoundType() == BoundType.CLOSED;
-                return builder.buildBoundForSlice(bound.isStart(),
-                                                  bound.isStart() ? isStartInclusive : isEndInclusive,
-                                                  bound.reverse().isStart() ? isStartInclusive : isEndInclusive,
-                                                  r.columns());
+                RangeSet<ClusteringElements> rangeSet = r.restrict(ClusteringElements.all(), options);
+                return builder.extend(rangeSet).buildSlices();
             }
 
-            builder.addAllElementsToAll(r.values(options));
+            builder.extend(r.values(options));
 
             if (builder.hasMissingElements())
-                return BTreeSet.empty(comparator);
+                break;
 
             keyPosition = r.lastColumn().position() + 1;
         }
 
         // Everything was an equal (or there was nothing)
-        return builder.buildBound(bound.isStart(), true);
-    }
-
-    private boolean hasMultiColumnSlice()
-    {
-        for (SingleRestriction restriction : restrictions)
-        {
-            if (restriction.isMultiColumn() && restriction.isSlice())
-                return true;
-        }
-        return false;
-    }
-
-
-    private void appendBoundTo(MultiCBuilder builder, Bound bound, List<ColumnMetadata> columns, Set<Range<ValueList>> ranges)
-    {
-        List<List<ByteBuffer>> toAdd = new ArrayList<>();
-
-        for (Range<ValueList> range : ranges)
-        {
-            boolean reversed = columns.get(0).isReversedType();
-
-            EnumMap<Bound, ValueList> componentBounds = new EnumMap<>(Bound.class);
-            componentBounds.put(Bound.START, range.hasLowerBound() ? range.lowerEndpoint() : ValueList.of());
-            componentBounds.put(Bound.END, range.hasUpperBound() ? range.upperEndpoint() : ValueList.of());
-
-            List<ByteBuffer> values = new ArrayList<>();
-
-            for (int i = 0, m = columns.size(); i < m; i++)
-            {
-                ColumnMetadata column = columns.get(i);
-                Bound b = bound.reverseIfNeeded(column);
-
-                // For mixed order columns, we need to create additional slices when 2 columns are in reverse order
-                if (reversed != column.isReversedType())
-                {
-                    reversed = column.isReversedType();
-                    // As we are switching direction we need to add the current composite
-                    toAdd.add(values);
-
-                    // The new bound side has no value for this component.  just stop
-                    if (!hasComponent(b, i, componentBounds))
-                        continue;
-
-                    // The other side has still some components. We need to end the slice that we have just open.
-                    if (hasComponent(b.reverse(), i, componentBounds))
-                        toAdd.add(values);
-
-                    // We need to rebuild where we are in this bound side
-                    values = new ArrayList<>();
-
-                    ValueList vals = componentBounds.get(b);
-
-                    int n = Math.min(i, vals.size());
-                    for (int j = 0; j < n; j++)
-                    {
-                        values.add(vals.get(j));
-                    }
-                }
-
-                if (!hasComponent(b, i, componentBounds))
-                    continue;
-
-                values.add(componentBounds.get(b).get(i));
-            }
-            toAdd.add(values);
-        }
-
-        if (bound.isEnd())
-            Collections.reverse(toAdd);
-
-        builder.addAllElementsToAll(toAdd);
-    }
-
-    private boolean hasComponent(Bound b, int index, EnumMap<Bound, ValueList> componentBounds)
-    {
-        return componentBounds.get(b).size() > index;
+        return builder.buildSlices();
     }
 
     /**

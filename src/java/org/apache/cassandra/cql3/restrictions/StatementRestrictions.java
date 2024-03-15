@@ -27,7 +27,6 @@ import com.google.common.collect.Streams;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
-import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.cql3.statements.StatementType;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.RowFilter;
@@ -809,15 +808,14 @@ public final class StatementRestrictions
     }
 
     /**
-     * Returns the bounds (start or end) of the clustering columns.
+     * Returns the clustering columns slices.
      *
-     * @param b the bound type
      * @param options the query options
-     * @return the bounds (start or end) of the clustering columns
+     * @return the clustering columns slices
      */
-    public NavigableSet<ClusteringBound<?>> getClusteringColumnsBounds(Bound b, QueryOptions options)
+    public Slices getSlices(QueryOptions options)
     {
-        return clusteringColumnsRestrictions.boundsAsClustering(b, options);
+        return clusteringColumnsRestrictions.slices(options);
     }
 
     /**

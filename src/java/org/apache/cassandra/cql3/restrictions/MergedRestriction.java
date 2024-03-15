@@ -303,9 +303,9 @@ public final class MergedRestriction implements SingleRestriction
     }
 
     @Override
-    public List<ValueList> values(QueryOptions options)
+    public List<ClusteringElements> values(QueryOptions options)
     {
-        List<ValueList> values = restrictions.get(0).values(options);
+        List<ClusteringElements> values = restrictions.get(0).values(options);
         for (int i = 1, m = restrictions.size(); i < m; i++)
         {
             values.retainAll(restrictions.get(i).values(options));
@@ -314,7 +314,7 @@ public final class MergedRestriction implements SingleRestriction
     }
 
     @Override
-    public RangeSet<ValueList> restrict(RangeSet<ValueList> rangeSet, QueryOptions options)
+    public RangeSet<ClusteringElements> restrict(RangeSet<ClusteringElements> rangeSet, QueryOptions options)
     {
         for (int i = 0, m = restrictions.size(); i < m; i++)
         {
