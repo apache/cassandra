@@ -244,9 +244,14 @@ public class CheckpointIntervalArrayIndex
         public byte[] getRecord(ChecksumedRandomAccessReader indexInput, Stats stats, SeekReason reason, byte[] recordBuffer, int pos) throws IOException
         {
             maybeSeek(indexInput, stats, reason, fileOffsetStart(pos));
-            stats.bytesRead += recordBuffer.length;
+            return getCurrentRecord(indexInput, stats, recordBuffer);
+        }
+
+        public byte[] getCurrentRecord(ChecksumedRandomAccessReader indexInput, Stats stats, byte[] recordBuffer) throws IOException
+        {
+            stats.bytesRead += recordBuffer.length + Integer.BYTES;
             indexInput.resetChecksum();
-            indexInput.readFully(recordBuffer, 0, recordBuffer.length - Integer.BYTES);
+            indexInput.readFully(recordBuffer, 0, recordBuffer.length);
             int actualChecksum = indexInput.getValue32();
             int expectedChecksum = indexInput.readInt();
             assert actualChecksum == expectedChecksum;
@@ -321,7 +326,7 @@ public class CheckpointIntervalArrayIndex
         {
             buffer.start = Arrays.copyOfRange(record, 0, bytesPerKey);
             buffer.end = Arrays.copyOfRange(record, bytesPerKey, bytesPerKey * 2);
-            buffer.value = Arrays.copyOfRange(record, bytesPerKey * 2, record.length - Integer.BYTES);
+            buffer.value = Arrays.copyOfRange(record, bytesPerKey * 2, record.length);
             return buffer;
         }
 
@@ -518,7 +523,7 @@ public class CheckpointIntervalArrayIndex
         public Stats intersects(byte[] start, byte[] end, Consumer<Interval> callback) throws IOException
         {
             var keyBuffer = new byte[reader.bytesPerKey];
-            var recordBuffer = new byte[reader.recordSize];
+            var recordBuffer = new byte[reader.recordSize - Integer.BYTES];
             var stats = new Stats();
             long startNanos = Clock.Global.nanoTime();
             try (ChecksumedRandomAccessReader indexInput = new ChecksumedRandomAccessReader(reader.fh.createReader(), CHECKSUM_SUPPLIER))
@@ -614,8 +619,7 @@ public class CheckpointIntervalArrayIndex
                         for (int i = startIdx; i < endIdx; i++)
                         {
                             stats.matches++;
-                            stats.bytesRead += recordBuffer.length;
-                            indexInput.readFully(recordBuffer, 0, recordBuffer.length);
+                            reader.getCurrentRecord(indexInput, stats, recordBuffer);
                             callback.accept(reader.copyTo(recordBuffer, buffer));
                         }
                     }
