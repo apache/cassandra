@@ -205,8 +205,6 @@ public enum CassandraRelevantProperties
     DTEST_API_LOG_TOPOLOGY("cassandra.dtest.api.log.topology"),
     /** This property indicates if the code is running under the in-jvm dtest framework */
     DTEST_IS_IN_JVM_DTEST("org.apache.cassandra.dtest.is_in_jvm_dtest"),
-    /** In_JVM dtest property indicating that the test should use "latest" configuration */
-    DTEST_JVM_DTESTS_USE_LATEST("jvm_dtests.latest"),
     ENABLE_DC_LOCAL_COMMIT("cassandra.enable_dc_local_commit", "true"),
     /**
      * Whether {@link org.apache.cassandra.db.ConsistencyLevel#NODE_LOCAL} should be allowed.
@@ -790,10 +788,10 @@ public enum CassandraRelevantProperties
      */
     public int getInt()
     {
-        String value = System.getProperty(key);
-        if (value == null && defaultVal == null)
+        String value = System.getProperty(key, defaultVal);
+        if (value == null)
             throw new ConfigurationException("Missing property value or default value is not set: " + key);
-        return INTEGER_CONVERTER.convert(value == null ? defaultVal : value);
+        return INTEGER_CONVERTER.convert(value);
     }
 
     /**
@@ -802,10 +800,10 @@ public enum CassandraRelevantProperties
      */
     public long getLong()
     {
-        String value = System.getProperty(key);
-        if (value == null && defaultVal == null)
+        String value = System.getProperty(key, defaultVal);
+        if (value == null)
             throw new ConfigurationException("Missing property value or default value is not set: " + key);
-        return LONG_CONVERTER.convert(value == null ? defaultVal : value);
+        return LONG_CONVERTER.convert(value);
     }
 
     /**
@@ -827,10 +825,10 @@ public enum CassandraRelevantProperties
      */
     public double getDouble()
     {
-        String value = System.getProperty(key);
-        if (value == null && defaultVal == null)
+        String value = System.getProperty(key, defaultVal);
+        if (value == null)
             throw new ConfigurationException("Missing property value or default value is not set: " + key);
-        return DOUBLE_CONVERTER.convert(value == null ? defaultVal : value);
+        return DOUBLE_CONVERTER.convert(value);
     }
 
     /**
@@ -852,10 +850,10 @@ public enum CassandraRelevantProperties
      */
     public long getSizeInBytes()
     {
-        String value = System.getProperty(key);
-        if (value == null && defaultVal == null)
+        String value = System.getProperty(key, defaultVal);
+        if (value == null)
             throw new ConfigurationException("Missing property value or default value is not set: " + key);
-        return SIZE_IN_BYTES_CONVERTER.convert(value == null ? defaultVal : value);
+        return SIZE_IN_BYTES_CONVERTER.convert(value);
     }
 
     /**
