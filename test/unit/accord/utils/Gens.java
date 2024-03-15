@@ -372,7 +372,12 @@ public class Gens {
         @Override
         public ListDSL<T> unique()
         {
-            return new ListDSL<>(new GenReset<>(fn));
+            return new ListDSL<>(new GenReset<>(fn, false));
+        }
+
+        public ListDSL<T> uniqueBestEffort()
+        {
+            return new ListDSL<>(new GenReset<>(fn, true));
         }
 
         @Override
@@ -384,7 +389,16 @@ public class Gens {
                 int size = sizeGen.nextInt(r);
                 List<T> list = new ArrayList<>(size);
                 for (int i = 0; i < size; i++)
-                    list.add(fn.next(r));
+                {
+                    try
+                    {
+                        list.add(fn.next(r));
+                    }
+                    catch (IgnoreGenResult e)
+                    {
+                        // ignore
+                    }
+                }
                 return list;
             };
         }
@@ -402,7 +416,12 @@ public class Gens {
         @Override
         public ArrayDSL<T> unique()
         {
-            return new ArrayDSL<>(type, new GenReset<>(fn));
+            return new ArrayDSL<>(type, new GenReset<>(fn, false));
+        }
+
+        public ArrayDSL<T> uniqueBestEffort()
+        {
+            return new ArrayDSL<>(type, new GenReset<>(fn, true));
         }
 
         @Override
@@ -414,7 +433,16 @@ public class Gens {
                 int size = sizeGen.nextInt(r);
                 T[] list = (T[]) Array.newInstance(type, size);
                 for (int i = 0; i < size; i++)
-                    list[i] = fn.next(r);
+                {
+                    try
+                    {
+                        list[i] = fn.next(r);
+                    }
+                    catch (IgnoreGenResult e)
+                    {
+                        return Arrays.copyOf(list, i);
+                    }
+                }
                 return list;
             };
         }
@@ -495,22 +523,44 @@ public class Gens {
         void reset();
     }
 
+    private static final class IgnoreGenResult extends RuntimeException
+    {
+        private static final IgnoreGenResult INSTANCE = new IgnoreGenResult();
+        private IgnoreGenResult()
+        {
+            super(null, null, false, false);
+        }
+    }
+
     private static class GenReset<T> implements Gen<T>, Reset
     {
         private final Set<T> seen = new HashSet<>();
         private final Gen<T> fn;
+        private final boolean bestEffort;
 
-        private GenReset(Gen<T> fn)
+        private GenReset(Gen<T> fn, boolean bestEffort)
         {
             this.fn = fn;
+            this.bestEffort = bestEffort;
         }
 
         @Override
         public T next(RandomSource random)
         {
-            T value;
-            while (!seen.add((value = fn.next(random)))) {}
-            return value;
+            if (!bestEffort)
+            {
+                T value;
+                while (!seen.add((value = fn.next(random)))) {}
+                return value;
+            }
+            else
+            {
+                T value = null;
+                int i;
+                for (i = 0; i < 42 && !seen.add((value = fn.next(random))); i++) {}
+                if (i == 42) throw IgnoreGenResult.INSTANCE;
+                return value;
+            }
         }
 
         @Override
@@ -526,7 +576,7 @@ public class Gens {
 
         private IntGenReset(Gen.IntGen fn)
         {
-            this.base = new GenReset<>(fn);
+            this.base = new GenReset<>(fn, false);
         }
         @Override
         public int nextInt(RandomSource random) {
@@ -545,7 +595,7 @@ public class Gens {
 
         private LongGenReset(Gen.LongGen fn)
         {
-            this.base = new GenReset<>(fn);
+            this.base = new GenReset<>(fn, false);
         }
         @Override
         public long nextLong(RandomSource random) {
