@@ -819,8 +819,34 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         assertRanges(expectedRanges, actualPlacements.writes.ranges());
         assertRanges(expectedRanges, actualPlacements.reads.ranges());
 
+        validateTransientStatus(actualPlacements.reads, actualPlacements.writes);
+
         validatePlacementsInternal(rf, modelState.inFlightOperations, expectedRanges, actualPlacements.reads, false);
         validatePlacementsInternal(rf, modelState.inFlightOperations, expectedRanges, actualPlacements.writes, true);
+    }
+
+    public static void validateTransientStatus(PlacementForRange reads, PlacementForRange writes)
+    {
+        // No node should ever be a FULL read replica but a TRANSIENT write replica for the same range
+        Map<Range<Token>, List<Replica>> invalid = new HashMap<>();
+        reads.replicaGroups().forEach((range, readGroup) -> {
+            Map<InetAddressAndPort, Replica> writeGroup = writes.forRange(range).get().byEndpoint();
+            readGroup.forEach(r -> {
+                if (r.isFull())
+                {
+                    Replica w = writeGroup.get(r.endpoint());
+                    if (w != null && w.isTransient())
+                    {
+                        List<Replica> i = invalid.computeIfAbsent(range, ignore -> new ArrayList<>());
+                        i.add(w);
+                    }
+                }
+            });
+        });
+        assertTrue(() -> String.format("Found replicas with invalid transient/full status within a given range. " +
+                         "The following were found with the same instance having TRANSIENT status for writes, but " +
+                         "FULL status for reads, which can cause consistency violations. %n%s", invalid),
+                   invalid.isEmpty());
     }
 
     public static void assertRanges(List<Range<Token>> l, List<Range<Token>> r)
