@@ -276,15 +276,15 @@ public class TokenPlacementModel
             for (Map.Entry<String, DCReplicas> entry : rfs.entrySet())
             {
                 String dc = entry.getKey();
-                int rf = entry.getValue().totalCount;
+                DCReplicas dcRf = entry.getValue();
                 List<Node> nodesInThisDC = nodesByDC.get(dc);
                 Set<String> racksInThisDC = racksByDC.get(dc);
                 int nodeCount = nodesInThisDC == null ? 0 : nodesInThisDC.size();
                 int rackCount = racksInThisDC == null ? 0 : racksInThisDC.size();
-                if (rf <= 0 || nodeCount == 0)
+                if (dcRf.totalCount <= 0 || nodeCount == 0)
                     continue;
 
-                template.put(dc, new DatacenterNodes(rf, rackCount, nodeCount));
+                template.put(dc, new DatacenterNodes(dcRf, rackCount, nodeCount));
             }
 
             NavigableMap<Range, Map<String, List<Replica>>> replication = new TreeMap<>();
@@ -311,7 +311,7 @@ public class TokenPlacementModel
                         cnt++;
                     }
 
-                    replication.put(range, mapValues(nodesInDCs, v -> v.nodes.stream().map(n -> new Replica(n, true)).collect(Collectors.toList())));
+                    replication.put(range, mapValues(nodesInDCs, DatacenterNodes::asReplicas));
                 }
                 else
                 {
@@ -412,25 +412,26 @@ public class TokenPlacementModel
         /** Number of replicas left to fill from this DC. */
         int rfLeft;
         int acceptableRackRepeats;
+        DCReplicas rf;
 
         public DatacenterNodes copy()
         {
-            return new DatacenterNodes(rfLeft, acceptableRackRepeats);
+            return new DatacenterNodes(this);
         }
 
-        DatacenterNodes(int rf,
-                        int rackCount,
-                        int nodeCount)
+        DatacenterNodes(DCReplicas rf, int rackCount, int nodeCount)
         {
-            this.rfLeft = Math.min(rf, nodeCount);
-            acceptableRackRepeats = rf - rackCount;
+            this.rf = rf;
+            this.rfLeft = Math.min(rf.totalCount, nodeCount);
+            this.acceptableRackRepeats = rf.totalCount - rackCount;
         }
 
         // for copying
-        DatacenterNodes(int rfLeft, int acceptableRackRepeats)
+        DatacenterNodes(DatacenterNodes source)
         {
-            this.rfLeft = rfLeft;
-            this.acceptableRackRepeats = acceptableRackRepeats;
+            this.rf = source.rf;
+            this.rfLeft = source.rfLeft;
+            this.acceptableRackRepeats = source.acceptableRackRepeats;
         }
 
         boolean addAndCheckIfDone(Node node, Location location)
@@ -465,6 +466,17 @@ public class TokenPlacementModel
         {
             assert rfLeft >= 0;
             return rfLeft == 0;
+        }
+
+        public List<Replica> asReplicas()
+        {
+            List<Replica> replicas = new ArrayList<>(nodes.size());
+            for (Node node : nodes)
+            {
+                boolean full = replicas.size() < rf.totalCount - rf.transientCount;
+                replicas.add(new Replica(node, full));
+            }
+            return replicas;
         }
 
         @Override

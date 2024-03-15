@@ -873,7 +873,6 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                 int expectedRf = e.getValue().totalCount;
                 String dc = e.getKey();
                 int actualRf = endpointsByDc.get(dc).size();
-
                 if (allowPending)
                 {
                     int diff = actualRf - expectedRf;
