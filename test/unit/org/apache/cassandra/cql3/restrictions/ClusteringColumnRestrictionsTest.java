@@ -20,7 +20,6 @@ package org.apache.cassandra.cql3.restrictions;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import com.google.common.collect.Iterables;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
