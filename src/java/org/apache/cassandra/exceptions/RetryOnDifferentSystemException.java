@@ -16,19 +16,15 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.cql3.statements;
+package org.apache.cassandra.exceptions;
 
-import java.util.List;
-
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.IMutation;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.ClientState;
-
-public interface UpdatesCollector
+/**
+ * Thrown when a non-transactional operation is attempted when the operation needs to be done transactionally (or vice versa)
+ * and it could interfere with operations performed transactionally or can't be applied by the chosen transaction system.
+ *
+ * The correct way to handle this is to forward the error the originator of the operation who can then retry it on
+ * the correct system.
+ */
+public class RetryOnDifferentSystemException extends RuntimeException
 {
-    PartitionUpdate.Builder getPartitionUpdateBuilder(TableMetadata metadata, DecoratedKey dk, ConsistencyLevel consistency);
-    List<IMutation> toMutations(ClientState state, boolean allowPotentialTxnConflicts);
 }

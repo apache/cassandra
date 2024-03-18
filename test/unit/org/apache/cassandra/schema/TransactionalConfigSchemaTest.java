@@ -92,4 +92,15 @@ public class TransactionalConfigSchemaTest
                 table, TransactionalMode.off, TransactionalMigrationFromMode.none);
         assertTransactionalMode(table, TransactionalMode.off, TransactionalMigrationFromMode.none);
     }
+
+    @Test
+    public void alterCanSkipMigration()
+    {
+        String table = "alter_skips_migration_table";
+        process("CREATE TABLE ks.%s (k int primary key, v int)", table);
+        assertTransactionalMode(table, TransactionalMode.off, TransactionalMigrationFromMode.none);
+
+        process("ALTER TABLE ks.%s WITH transactional_mode='%s' AND transactional_migration_from='%s'", table, TransactionalMode.full, TransactionalMigrationFromMode.none);
+        assertTransactionalMode(table, TransactionalMode.full, TransactionalMigrationFromMode.none);
+    }
 }

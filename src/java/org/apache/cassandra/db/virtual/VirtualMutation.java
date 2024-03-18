@@ -19,7 +19,9 @@ package org.apache.cassandra.db.virtual;
 
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableMap;
@@ -108,6 +110,12 @@ public final class VirtualMutation implements IMutation
     }
 
     @Override
+    public boolean hasUpdateForTable(TableId tableId)
+    {
+        return modifications.containsKey(tableId);
+    }
+
+    @Override
     public Supplier<Mutation> hintOnFailure()
     {
         return null;
@@ -122,5 +130,20 @@ public final class VirtualMutation implements IMutation
     public void validateSize(int version, int overhead)
     {
         // no-op
+    }
+
+    @Override
+    public @Nullable VirtualMutation filter(Predicate<TableId> test)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    /*
+     * Accord doesn't support reading/writing virtual tables yet so updating them non-transactionally is always safe
+     */
+    @Override
+    public boolean allowsPotentialTransactionConflicts()
+    {
+        return true;
     }
 }

@@ -353,7 +353,9 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
             ClientWarn.instance.warn(MessageFormatter.arrayFormat(LOGGED_BATCH_LOW_GCGS_WARNING, new Object[] { suffix, tablesWithZeroGcGs })
                                                      .getMessage());
         }
-        return collector.toMutations(state);
+        // local is either executeWithoutConditions modifying a virtual table (doesn't support txns) or executeLocal
+        // which is called by test or internal things that are bypassing distributed system modification/checks
+        return collector.toMutations(state, local);
     }
 
     /**

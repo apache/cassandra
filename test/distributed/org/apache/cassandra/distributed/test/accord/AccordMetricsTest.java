@@ -73,16 +73,16 @@ public class AccordMetricsTest extends AccordTestBase
     String writeCql()
     {
         return "BEGIN TRANSACTION\n" +
-               "  LET val = (SELECT v FROM " + qualifiedTableName + " WHERE k=? AND c=?);\n" +
+               "  LET val = (SELECT v FROM " + qualifiedAccordTableName + " WHERE k=? AND c=?);\n" +
                "  SELECT val.v;\n" +
-               "  UPDATE " + qualifiedTableName + " SET v = v + 1 WHERE k=? AND c=?;\n" +
+               "  UPDATE " + qualifiedAccordTableName + " SET v = v + 1 WHERE k=? AND c=?;\n" +
                "COMMIT TRANSACTION";
     }
 
     String readCql()
     {
         return "BEGIN TRANSACTION\n" +
-               "  LET val = (SELECT v FROM " + qualifiedTableName + " WHERE k=? AND c=?);\n" +
+               "  LET val = (SELECT v FROM " + qualifiedAccordTableName + " WHERE k=? AND c=?);\n" +
                "  SELECT val.v;\n" +
                "COMMIT TRANSACTION";
     }
@@ -93,7 +93,7 @@ public class AccordMetricsTest extends AccordTestBase
     public void beforeTest()
     {
         SHARED_CLUSTER.filters().reset();
-        SHARED_CLUSTER.schemaChange("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, PRIMARY KEY (k, c)) WITH " + TransactionalMode.full.asCqlParam());
+        SHARED_CLUSTER.schemaChange("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, PRIMARY KEY (k, c)) WITH " + TransactionalMode.full.asCqlParam());
     }
 
     @Test

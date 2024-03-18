@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.reads.repair;
 
-import java.util.Collection;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -34,13 +33,11 @@ import accord.primitives.Keys;
 import accord.primitives.Txn;
 import com.codahale.metrics.Meter;
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.locator.Endpoints;
@@ -54,6 +51,7 @@ import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.UnrecoverableRepairUpdate;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper;
 import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.Tracing;
@@ -195,70 +193,83 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
     @Override
     public void repairPartition(DecoratedKey dk, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan)
     {
-        TransactionalMode transactionalMode = command.metadata().params.transactionalMode;
-        if (coordinator.isEventuallyConsistent() && transactionalMode.blockingReadRepairThroughAccord)
+        // non-Accord reads only ever touch one table and key so all mutations need to be applied either transactionally
+        // or non-transactionally (not a mix). There is no retry loop here because read repair is relatively rare so it racing
+        // with changes to migrating ranges should also be pretty rare so it isn't worth the added complexity. If you were
+        // to add a retry loop you would need to be careful to correctly set/unset allowPotentialTransactionConflicts in the mutations
+        // since that is set if it is routed to Accord
+        //
+        // If this is an Accord transaction that is in interoperability mode and executing a read repair
+        // then we take the non-transactional path and the mutations are intercepted in ReadCoordinator.sendRepairMutation
+        // which will ensure the repair mutation runs in the command store thread after preceding transactions are done
+        ClusterMetadata cm = ClusterMetadata.current();
+        if (coordinator.isEventuallyConsistent() && ConsensusMigrationMutationHelper.tokenShouldBeWrittenThroughAccord(cm, command.metadata().id, dk.getToken()))
+            repairTransactionally(dk, mutations, writePlan);
+        else
+            repairNonTransactionally(dk, mutations, writePlan);
+    }
+
+    private void repairTransactionally(DecoratedKey dk, Map<Replica, Mutation> accordMutations, ForWrite writePlan)
+    {
+        checkState(coordinator.isEventuallyConsistent(), "Should only repair transactionally for an eventually consistent read coordinator");
+        PartitionKey partitionKey = new PartitionKey(command.metadata().id, dk);
+        Keys key = Keys.of(partitionKey);
+        // This is going create a new BlockingReadRepair inside an Accord transaction which will go down
+        // the !isEventuallyConsistent path and apply the repairs through Accord command stores using AccordInteropExecution
+        UnrecoverableRepairUpdate<E, P> repairUpdate = UnrecoverableRepairUpdate.create(AccordService.instance().nodeId(), this, key, dk, accordMutations, writePlan);
+        Future<TxnResult> repairFuture;
+        try
         {
-            Collection<PartitionUpdate> partitionUpdates = Mutation.merge(mutations.values()).getPartitionUpdates();
-            checkState(partitionUpdates.size() == 1, "Expect only one PartitionUpdate");
-            PartitionUpdate update = partitionUpdates.iterator().next();
-            PartitionKey partitionKey = PartitionKey.of(update);
-            Keys key = Keys.of(partitionKey);
-            // This is going create a new BlockingReadRepair inside an Accord transaction which will go down
-            // the !isEventuallyConsistent path and apply the repairs through Accord command stores using AccordInteropExecution
-            UnrecoverableRepairUpdate<E, P> repairUpdate = UnrecoverableRepairUpdate.create(AccordService.instance().nodeId(), this, key, dk, mutations, writePlan);
-            Future<TxnResult> repairFuture;
-            try
-            {
-                Txn txn = new Txn.InMemory(Txn.Kind.Read, key, TxnRead.createNoOpRead(key), TxnQuery.NONE, repairUpdate);
-                repairFuture = Stage.ACCORD_MIGRATION.submit(() -> {
-                    try
-                    {
-                        return AccordService.instance().coordinate(txn, ConsistencyLevel.ANY, requestTime);
-                    }
-                    finally
-                    {
-                        // If we successfully ran the repair txn then the update should definitely
-                        // be there for us to clear which means we are sure it was there to be sent
-                        checkNotNull(UnrecoverableRepairUpdate.removeInflightUpdate(repairUpdate.updateKey));
-                    }
-                });
-            }
-            catch (Throwable t)
-            {
-                UnrecoverableRepairUpdate.removeInflightUpdate(repairUpdate.updateKey);
-                throw t;
-            }
-
-            repairs.add(new PendingPartitionRepair()
-            {
-                @Override
-                public boolean awaitRepairs(long remaining, TimeUnit timeUnit) throws InterruptedException, ExecutionException
+            Txn txn = new Txn.InMemory(Txn.Kind.Read, key, TxnRead.createNoOpRead(key), TxnQuery.NONE, repairUpdate);
+            repairFuture = Stage.ACCORD_MIGRATION.submit(() -> {
+                try
                 {
-                    try
-                    {
-                        repairFuture.get(remaining, timeUnit);
-                        return true;
-                    }
-                    catch (TimeoutException e)
-                    {
-
-                        return false;
-                    }
+                    return AccordService.instance().coordinate(txn, ConsistencyLevel.ANY, requestTime);
                 }
-
-                @Override
-                public ForWrite repairPlan()
+                finally
                 {
-                    return writePlan;
+                    // If we successfully ran the repair txn then the update should definitely
+                    // be there for us to clear which means we are sure it was there to be sent
+                    checkNotNull(UnrecoverableRepairUpdate.removeInflightUpdate(repairUpdate.updateKey));
                 }
             });
         }
-        else
+        catch (Throwable t)
         {
-            BlockingPartitionRepair blockingRepair = new BlockingPartitionRepair(coordinator, dk, mutations, writePlan);
-            blockingRepair.sendInitialRepairs();
-            repairs.add(blockingRepair);
+            UnrecoverableRepairUpdate.removeInflightUpdate(repairUpdate.updateKey);
+            throw t;
         }
+
+        repairs.add(new PendingPartitionRepair()
+        {
+            @Override
+            public boolean awaitRepairs(long remaining, TimeUnit timeUnit) throws InterruptedException, ExecutionException
+            {
+                try
+                {
+                    repairFuture.get(remaining, timeUnit);
+                    return true;
+                }
+                catch (TimeoutException e)
+                {
+
+                    return false;
+                }
+            }
+
+            @Override
+            public ForWrite repairPlan()
+            {
+                return writePlan;
+            }
+        });
+    }
+
+    private void repairNonTransactionally(DecoratedKey dk, Map<Replica, Mutation> mutations, ForWrite writePlan)
+    {
+        BlockingPartitionRepair blockingRepair = new BlockingPartitionRepair(coordinator, dk, mutations, writePlan);
+        blockingRepair.sendInitialRepairs();
+        repairs.add(blockingRepair);
     }
 
     public void repairPartitionDirectly(ReadCoordinator readCoordinator, DecoratedKey dk, Map<Replica, Mutation> mutations, ForWrite writePlan)
@@ -267,5 +278,11 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
         delegateRR.repairPartition(dk, mutations, writePlan);
         delegateRR.maybeSendAdditionalWrites();
         delegateRR.awaitWrites();
+    }
+
+    @Override
+    public boolean coordinatorAllowsPotentialTransactionConflicts()
+    {
+        return coordinator.allowsPotentialTransactionConflicts();
     }
 }

@@ -465,11 +465,14 @@ public class ClusterUtils
             return () -> {
                 try
                 {
+                    logger.info("EpochPause Waiting before enacting epoch {}", epoch);
                     promise.get(wait, waitUnit);
+                    logger.info("EpochPause stopped waiting before enacting epoch {}", epoch);
                     return null;
                 }
                 catch (Throwable e)
                 {
+                    logger.info("EpochPause Timed out waiting for before enacting epoch {}", epoch);
                     throw new RuntimeException(e);
                 }
             };
@@ -493,11 +496,14 @@ public class ClusterUtils
             return () -> {
                 try
                 {
+                    logger.info("EpochPause Waiting after enacting epoch {}", epoch);
                     promise.get(wait, waitUnit);
+                    logger.info("EpochPause done waiting after enacting epoch {}", epoch);
                     return null;
                 }
                 catch (Throwable e)
                 {
+                    logger.info("EpochPause Timed out waiting for after enacting epoch {}", epoch);
                     throw new RuntimeException(e);
                 }
             };
@@ -513,6 +519,7 @@ public class ClusterUtils
             return () -> {
                 try
                 {
+                    logger.info("EpochPause Waiting before commit");
                     return promise.get(30, TimeUnit.SECONDS).getEpoch();
                 }
                 catch (Throwable e)
@@ -569,6 +576,11 @@ public class ClusterUtils
     public static void unpauseEnactment(IInvokableInstance instance)
     {
         instance.runOnInstance(() -> TestChangeListener.instance.unpause());
+    }
+
+    public static void clearAndUnpause(IInvokableInstance instance)
+    {
+        instance.runOnInstance(() -> TestChangeListener.instance.clearAndUnpause());
     }
 
     public static boolean isMigrating(IInvokableInstance instance)

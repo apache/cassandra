@@ -36,6 +36,7 @@ import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.coordinate.Timeout;
 import accord.local.Command;
 import accord.local.Node;
 import accord.messages.AbstractEpochRequest;
@@ -660,7 +661,26 @@ public class AccordJournal implements IJournal, Shutdownable
                         if (l.isEmpty())
                             waitForEpochs.pushLong(waitForEpoch);
                         l.add(context);
-                        node.withEpoch(waitForEpoch, this::runOnce);
+                        BiConsumer<Void, Throwable> withEpochCallback = new BiConsumer<>()
+                        {
+                            @Override
+                            public void accept(Void unused, Throwable withEpochFailure)
+                            {
+                                if (withEpochFailure != null)
+                                {
+                                    // Nothing to do but keep waiting
+                                    if (withEpochFailure instanceof Timeout)
+                                    {
+                                        node.withEpoch(waitForEpoch, this);
+                                        return;
+                                    }
+                                    else
+                                        throw new RuntimeException(withEpochFailure);
+                                }
+                                runOnce();
+                            }
+                        };
+                        node.withEpoch(waitForEpoch, withEpochCallback);
                     }
 
                     // Next, process all delayed epochs

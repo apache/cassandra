@@ -43,10 +43,9 @@ import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.Ordering;
-import org.apache.cassandra.cql3.terms.Constants;
 import org.apache.cassandra.cql3.Operation;
 import org.apache.cassandra.cql3.Operations;
+import org.apache.cassandra.cql3.Ordering;
 import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -64,6 +63,7 @@ import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.cql3.selection.ResultSetBuilder;
 import org.apache.cassandra.cql3.selection.Selection;
 import org.apache.cassandra.cql3.selection.Selection.Selectors;
+import org.apache.cassandra.cql3.terms.Constants;
 import org.apache.cassandra.cql3.transactions.ReferenceOperation;
 import org.apache.cassandra.db.CBuilder;
 import org.apache.cassandra.db.Clustering;
@@ -833,7 +833,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         HashMultiset<ByteBuffer> perPartitionKeyCounts = HashMultiset.create(keys);
         SingleTableUpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, perPartitionKeyCounts);
         addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime, constructingAccordBaseUpdate);
-        return collector.toMutations(state);
+        // local means this is test or internal things that are bypassing distributed system modification/checks
+        return collector.toMutations(state, local);
     }
 
     @VisibleForTesting

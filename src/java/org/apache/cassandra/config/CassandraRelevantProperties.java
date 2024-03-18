@@ -59,6 +59,7 @@ public enum CassandraRelevantProperties
     AUTOCOMPACTION_ON_STARTUP_ENABLED("cassandra.autocompaction_on_startup_enabled", "true"),
     AUTO_BOOTSTRAP("cassandra.auto_bootstrap"),
     AUTO_REPAIR_FREQUENCY_SECONDS("cassandra.auto_repair_frequency_seconds", convertToString(TimeUnit.MINUTES.toSeconds(5))),
+    BATCHLOG_REPLAY_INTERVAL_MS("cassandra.batchlog.replay_interval_ms", "10000"),
     BATCHLOG_REPLAY_TIMEOUT_IN_MS("cassandra.batchlog.replay_timeout_in_ms"),
     BATCH_COMMIT_LOG_SYNC_INTERVAL("cassandra.batch_commitlog_sync_interval_millis", "1000"),
     /**
@@ -264,6 +265,8 @@ public enum CassandraRelevantProperties
      * Number of polls without gossip state change to consider gossip as settled.
      */
     GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED("cassandra.gossip_settle_poll_success_required", "3"),
+
+    HINT_DISPATCH_INTERVAL_MS("cassandra.hint_dispatch_interval_ms", "10000"),
 
     IGNORED_SCHEMA_CHECK_ENDPOINTS("cassandra.skip_schema_check_for_endpoints"),
     IGNORED_SCHEMA_CHECK_VERSIONS("cassandra.skip_schema_check_for_versions"),

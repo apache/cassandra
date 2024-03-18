@@ -71,9 +71,9 @@ public interface ReadCoordinator
     void sendReadCommand(Message<ReadCommand> message, InetAddressAndPort to, RequestCallback<ReadResponse> callback);
     default void notifyOfInitialContacts(EndpointsForToken fullDataRequests, EndpointsForToken transientRequests, EndpointsForToken digestRequests) {}
     void sendReadRepairMutation(Message<Mutation> message, InetAddressAndPort to, RequestCallback<Object> callback);
-    default Mutation maybeAllowOutOfRangeMutations(Mutation m)
+    default boolean allowsPotentialTransactionConflicts()
     {
-        return m;
+        return !isEventuallyConsistent();
     }
     boolean isEventuallyConsistent();
 }

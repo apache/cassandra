@@ -29,17 +29,18 @@ import static org.apache.cassandra.net.MessagingService.VERSION_40;
 
 public enum RequestFailureReason
 {
-    UNKNOWN                  (0),
-    READ_TOO_MANY_TOMBSTONES (1),
-    TIMEOUT                  (2),
-    INCOMPATIBLE_SCHEMA      (3),
-    READ_SIZE                (4),
-    NODE_DOWN                (5),
-    INDEX_NOT_AVAILABLE      (6),
-    NOT_CMS                  (7),
-    INVALID_ROUTING          (8),
-    COORDINATOR_BEHIND       (9),
+    UNKNOWN                               (0),
+    READ_TOO_MANY_TOMBSTONES              (1),
+    TIMEOUT                               (2),
+    INCOMPATIBLE_SCHEMA                   (3),
+    READ_SIZE                             (4),
+    NODE_DOWN                             (5),
+    INDEX_NOT_AVAILABLE                   (6),
+    NOT_CMS                               (7),
+    INVALID_ROUTING                       (8),
+    COORDINATOR_BEHIND                    (9),
     READ_TOO_MANY_INDEXES    (10),
+    RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM (11),
     ;
 
     static

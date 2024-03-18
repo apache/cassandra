@@ -112,6 +112,10 @@ public enum TransactionalMode
         return consistencyLevel;
     }
 
+    // TODO (required): This won't work for migration directly from none to full because there is no safe system to read from
+    // during the first phase (repair). Accord won't read correctly beacuse it won't honor the CL and miss non-transactional writes that haven't been repaired and non-transactional
+    // reads will miss all the writes being routed through Accord since they occur asynchronously. Something has to give here where either writes routed through are Accord are synchronous at CL
+    // or reads are routed through Accord and read at quorum as long as the range has not completed the first phase (repair).
     public ConsistencyLevel readCLForStrategy(ConsistencyLevel consistencyLevel)
     {
         if (ignoresSuppliedConsistencyLevel)

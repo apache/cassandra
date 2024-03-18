@@ -18,10 +18,8 @@
 
 package org.apache.cassandra.distributed.impl;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.function.Predicate;
+import java.util.NavigableMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,7 +28,9 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.listeners.ChangeListener;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
+import org.apache.cassandra.utils.concurrent.WaitQueue.Signal;
 
 public class TestChangeListener implements ChangeListener
 {
@@ -43,77 +43,68 @@ public class TestChangeListener implements ChangeListener
         ClusterMetadataService.instance().log().addListener(instance);
     }
 
-    private final List<Predicate<Epoch>> preCommitPredicates = new ArrayList<>();
-    private final List<Predicate<Epoch>> postCommitPredicates = new ArrayList<>();
+    NavigableMap<Epoch, CommitBarrier> preCommitBarriers = new ConcurrentSkipListMap<>();
+    NavigableMap<Epoch, CommitBarrier> postCommitBarriers = new ConcurrentSkipListMap<>();
     private final WaitQueue waiters = WaitQueue.newWaitQueue();
 
+    private class CommitBarrier
+    {
+        private final CountDownLatch waiting = CountDownLatch.newCountDownLatch(1);
+        private final Runnable onPaused;
+        private final String desc;
+
+        private CommitBarrier(Runnable onPaused, String desc)
+        {
+            this.onPaused = onPaused;
+            this.desc = desc;
+        }
+
+        private void await()
+        {
+            logger.debug("Notifying paused: {}", desc);
+            Signal s = waiters.register();
+            waiting.decrement();
+            onPaused.run();
+            s.awaitUninterruptibly();
+            logger.debug("Unpaused: {}", desc);
+        }
+    }
     @Override
     public void notifyPreCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
     {
-        Iterator<Predicate<Epoch>> iter = preCommitPredicates.iterator();
-        while (iter.hasNext())
-        {
-            if (iter.next().test(next.epoch))
-            {
-                logger.debug("Epoch matches pre-commit predicate, pausing");
-                pause();
-                iter.remove();
-            }
-        }
+        CommitBarrier commitBarrier = preCommitBarriers.remove(next.epoch);
+        if (commitBarrier != null)
+            commitBarrier.await();
     }
 
     @Override
     public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
     {
-        Iterator<Predicate<Epoch>> iter = postCommitPredicates.iterator();
-        while (iter.hasNext())
-        {
-            if (iter.next().test(next.epoch))
-            {
-                logger.debug("Epoch matches post-commit predicate, pausing");
-                pause();
-                iter.remove();
-            }
-        }
+        CommitBarrier commitBarrier = postCommitBarriers.remove(next.epoch);
+        if (commitBarrier != null)
+            commitBarrier.await();
     }
 
-    public void pauseBefore(Epoch epoch, Runnable onMatch)
+    public void pauseBefore(Epoch epoch, Runnable onPaused)
     {
-        logger.debug("Requesting pause before enacting {}", epoch);
-        preCommitPredicates.add((e) -> {
-            if (e.is(epoch))
-            {
-                onMatch.run();
-                return true;
-            }
-            return false;
-        });
+        preCommitBarriers.put(epoch, new CommitBarrier(onPaused, "pre-commit " + epoch));
     }
 
-    public void pauseAfter(Epoch epoch, Runnable onMatch)
+    public void pauseAfter(Epoch epoch, Runnable onPaused)
     {
-        logger.debug("Requesting pause after enacting {}", epoch);
-        postCommitPredicates.add((e) -> {
-            if (e.is(epoch))
-            {
-                onMatch.run();
-                return true;
-            }
-            return false;
-        });
-    }
-
-    public void pause()
-    {
-        WaitQueue.Signal signal = waiters.register();
-        logger.debug("Log follower is paused, waiting...");
-        signal.awaitUninterruptibly();
-        logger.debug("Resumed log follower...");
+        postCommitBarriers.put(epoch, new CommitBarrier(onPaused, "post-commit " + epoch));
     }
 
     public void unpause()
     {
-        logger.debug("Unpausing log follower");
+        logger.info("Unpausing all precommit and post commit barriers");
+        waiters.signalAll();
+    }
+
+    public void clearAndUnpause()
+    {
+        preCommitBarriers.clear();
+        postCommitBarriers.clear();
         waiters.signalAll();
     }
 }

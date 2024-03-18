@@ -309,7 +309,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
     AccordUpdate createUpdate(ClientState state, QueryOptions options, Map<TxnDataName, NamedSelect> autoReads, Consumer<Key> keyConsumer)
     {
-        return new TxnUpdate(createWriteFragments(state, options, autoReads, keyConsumer), createCondition(options), null);
+        return new TxnUpdate(createWriteFragments(state, options, autoReads, keyConsumer), createCondition(options), null, false);
     }
 
     Keys toKeys(SortedSet<Key> keySet)

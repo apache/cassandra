@@ -82,6 +82,7 @@ import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.Config.PaxosOnLinearizabilityViolation;
 import org.apache.cassandra.config.Config.PaxosStatePurging;
+import org.apache.cassandra.config.DurationSpec.IntMillisecondsBound;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.commitlog.AbstractCommitLogSegmentManager;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -3831,6 +3832,11 @@ public class DatabaseDescriptor
     public static int getHintsFlushPeriodInMS()
     {
         return conf.hints_flush_period.toMilliseconds();
+    }
+
+    public static void setHintsFlushPeriodInMS(int milliseconds)
+    {
+        conf.hints_flush_period = new IntMillisecondsBound(milliseconds);
     }
 
     public static long getMaxHintsFileSize()

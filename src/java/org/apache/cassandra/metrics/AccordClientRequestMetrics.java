@@ -39,6 +39,8 @@ public class AccordClientRequestMetrics extends ClientRequestMetrics
 
     // Number of times a query was rejected by Accord in TxnQuery due to a migration back to Paxos
     public final Meter accordMigrationRejects;
+    public final Meter preempted;
+    public final Meter topologyMismatches;
 
     public AccordClientRequestMetrics(String scope)
     {
@@ -48,6 +50,8 @@ public class AccordClientRequestMetrics extends ClientRequestMetrics
         migrationSkippedReads = Metrics.meter(factory.createMetricName("MigrationSkippedReads"));
         paxosKeyMigrations = Metrics.meter(factory.createMetricName("PaxosKeyMigrations"));
         accordMigrationRejects = Metrics.meter(factory.createMetricName("AccordMigrationRejects"));
+        preempted = Metrics.meter(factory.createMetricName("Preempted"));
+        topologyMismatches = Metrics.meter(factory.createMetricName("TopologyMismatches"));
     }
 
     @Override
@@ -58,5 +62,8 @@ public class AccordClientRequestMetrics extends ClientRequestMetrics
         Metrics.remove(factory.createMetricName("MigrationSkippedReads"));
         Metrics.remove(factory.createMetricName("PaxosKeyMigrations"));
         Metrics.remove(factory.createMetricName("AccordMigrationRejects"));
+        Metrics.remove(factory.createMetricName("Preempted"));
+        Metrics.remove(factory.createMetricName("TopologyMismatches"));
+
     }
 }

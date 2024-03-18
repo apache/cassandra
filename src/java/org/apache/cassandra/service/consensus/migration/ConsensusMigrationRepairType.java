@@ -22,16 +22,22 @@ import com.google.common.primitives.SignedBytes;
 
 public enum ConsensusMigrationRepairType
 {
-    ineligible(0),
-    paxos(1),
-    accord(2),
-    either(3);
+    ineligible(0, false, false),
+    paxos(1, false, true),
+    accord(2, true, false),
+    either(3, true, true);
 
     public final byte value;
 
-    ConsensusMigrationRepairType(int value)
+    public final boolean accordMigrationEligible;
+
+    public final boolean paxosMigrationEligible;
+
+    ConsensusMigrationRepairType(int value, boolean accordMigrationEligible, boolean paxosMigrationEligible)
     {
         this.value = SignedBytes.checkedCast(value);
+        this.accordMigrationEligible = accordMigrationEligible;
+        this.paxosMigrationEligible = paxosMigrationEligible;
     }
 
     public static ConsensusMigrationRepairType fromString(String repairType)

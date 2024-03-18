@@ -39,6 +39,7 @@ import com.google.common.util.concurrent.FutureCallback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.primitives.Ranges;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -68,6 +69,7 @@ import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
+import static com.google.common.util.concurrent.Futures.getUnchecked;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosRepairEnabled;
 import static org.apache.cassandra.schema.SchemaConstants.METADATA_KEYSPACE_NAME;
 import static org.apache.cassandra.service.paxos.Paxos.useV2;
@@ -193,7 +195,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
             return;
         }
 
-        Future<Void> accordRepair;
+        Future<Ranges> accordRepair;
         if (doAccordRepair)
         {
             accordRepair = paxosRepair.flatMap(unused -> {
@@ -213,12 +215,12 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
 
         if (session.accordOnly)
         {
-            accordRepair.addCallback(new FutureCallback<Void>()
+            accordRepair.addCallback(new FutureCallback<>()
             {
-                public void onSuccess(Void ignored)
+                public void onSuccess(Ranges barrieredRanges)
                 {
                     logger.info("{} {}.{} accord repair completed", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
-                    trySuccess(new RepairResult(desc, Collections.emptyList(), ConsensusMigrationRepairResult.fromAccordOnlyRepair(repairStartingEpoch, session.excludedDeadNodes)));
+                    trySuccess(new RepairResult(desc, Collections.emptyList(), ConsensusMigrationRepairResult.fromAccordOnlyRepair(repairStartingEpoch, barrieredRanges, session.excludedDeadNodes)));
                 }
 
                 public void onFailure(Throwable t)
@@ -282,7 +284,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                 }
                 cfs.metric.repairsCompleted.inc();
                 logger.info("Completing repair with excludedDeadNodes {}", session.excludedDeadNodes);
-                trySuccess(new RepairResult(desc, stats, ConsensusMigrationRepairResult.fromRepair(repairStartingEpoch, doPaxosRepair, doAccordRepair, session.excludedDeadNodes)));
+                trySuccess(new RepairResult(desc, stats, ConsensusMigrationRepairResult.fromRepair(repairStartingEpoch, getUnchecked(accordRepair), doPaxosRepair, doAccordRepair, session.excludedDeadNodes)));
             }
 
             /**
@@ -307,7 +309,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         }, taskExecutor);
     }
 
-    private Future<List<SyncTask>> createSyncTasks(Future<Void> accordRepair, Future<?> allSnapshotTasks, List<InetAddressAndPort> allEndpoints)
+    private Future<List<SyncTask>> createSyncTasks(Future<Ranges> accordRepair, Future<?> allSnapshotTasks, List<InetAddressAndPort> allEndpoints)
     {
         Future<List<TreeResponse>> treeResponses;
         if (allSnapshotTasks != null)

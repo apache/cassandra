@@ -72,13 +72,13 @@ public class CASAddTest extends TestBaseImpl
             assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1", ConsistencyLevel.SERIAL), row(1, null, null));
 
             // this section is testing current limitations... if they start to fail due to the limitations going away... update this test to include those cases
-            Assertions.assertThatThrownBy(() -> cluster.coordinator(1).execute(batch(
+            Assertions.assertThatThrownBy(() -> cluster.coordinator(1).execute(unloggedBatch(
                       "INSERT INTO " + KEYSPACE + ".tbl (pk, a, b) VALUES (1, 0, '') IF NOT EXISTS",
                       "UPDATE " + KEYSPACE + ".tbl SET a = a + 1, b = b + 'success' WHERE pk = 1 IF EXISTS"
                       ), ConsistencyLevel.QUORUM))
                       .is(AssertionUtils.is(InvalidRequestException.class))
                       .hasMessage("Cannot mix IF EXISTS and IF NOT EXISTS conditions for the same row");
-            Assertions.assertThatThrownBy(() -> cluster.coordinator(1).execute(batch(
+            Assertions.assertThatThrownBy(() -> cluster.coordinator(1).execute(unloggedBatch(
                       "INSERT INTO " + KEYSPACE + ".tbl (pk, a, b) VALUES (1, 0, '') IF NOT EXISTS",
 
                       "UPDATE " + KEYSPACE + ".tbl SET a = a + 1, b = b + 'success' WHERE pk = 1"

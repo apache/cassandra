@@ -18,12 +18,12 @@
 
 package org.apache.cassandra.distributed.api;
 
+import org.apache.cassandra.distributed.shared.FutureUtils;
+
 import java.util.Iterator;
 import java.util.UUID;
 import java.util.concurrent.Future;
 import java.util.function.BiConsumer;
-
-import org.apache.cassandra.distributed.shared.FutureUtils;
 
 // The cross-version API requires that a Coordinator can be constructed without any constructor arguments
 public interface ICoordinator
@@ -82,6 +82,7 @@ public interface ICoordinator
     }
 
     Future<SimpleQueryResult> asyncExecuteWithTracingWithResult(UUID sessionId, String query, ConsistencyLevel consistencyLevel, Object... boundValues);
+    Future<SimpleQueryResult> asyncExecuteWithResult(String query, ConsistencyLevel consistencyLevel, Object... boundValues);
 
     default Object[][] executeWithTracing(UUID sessionId, String query, ConsistencyLevel consistencyLevel, Object... boundValues)
     {

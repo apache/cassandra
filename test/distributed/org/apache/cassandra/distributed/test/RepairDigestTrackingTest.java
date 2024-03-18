@@ -30,41 +30,43 @@ import java.util.stream.Stream;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assert;
-import org.apache.cassandra.concurrent.SEPExecutor;
-import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.distributed.shared.WithProperties;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.EndpointsForToken;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.ReplicaLayout;
-import org.apache.cassandra.locator.ReplicaUtils;
-import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.utils.Throwables;
 import org.junit.Test;
 
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+import org.apache.cassandra.concurrent.SEPExecutor;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.StatsComponent;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.ReplicaLayout;
+import org.apache.cassandra.locator.ReplicaUtils;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
+import org.apache.cassandra.service.reads.ReadCoordinator;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.DiagnosticSnapshotService;
+import org.apache.cassandra.utils.Throwables;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
@@ -437,7 +439,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
                                .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
 
                 new ByteBuddy().rebase(ReplicaLayout.class)
-                               .method(named("forTokenReadLiveSorted").and(takesArguments(ClusterMetadata.class, Keyspace.class, AbstractReplicationStrategy.class, Token.class)))
+                               .method(named("forTokenReadLiveSorted").and(takesArguments(ClusterMetadata.class, Keyspace.class, AbstractReplicationStrategy.class, TableId.class, Token.class, ReadCoordinator.class)))
                                .intercept(MethodDelegation.to(BBHelper.class))
                                .make()
                                .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
@@ -472,7 +474,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
         }
 
         @SuppressWarnings({ "unused" })
-        public static ReplicaLayout.ForTokenRead forTokenReadLiveSorted(ClusterMetadata metadata, Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, Token token)
+        public static ReplicaLayout.ForTokenRead forTokenReadLiveSorted(ClusterMetadata metadata, Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, TableId tableId, Token token, org.apache.cassandra.service.reads.ReadCoordinator coordinator)
         {
             try
             {

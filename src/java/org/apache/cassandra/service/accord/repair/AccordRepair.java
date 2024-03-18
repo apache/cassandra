@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord.repair;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -89,20 +90,21 @@ public class AccordRepair
         return minEpoch;
     }
 
-    public void repair() throws Throwable
+    public Ranges repair() throws Throwable
     {
+        List<accord.primitives.Range> repairedRanges = new ArrayList<>();
         for (accord.primitives.Range range : ranges)
-            repairRange((TokenRange)range);
+            repairedRanges.addAll(repairRange((TokenRange)range));
+        return Ranges.of(repairedRanges.toArray(new accord.primitives.Range[0]));
     }
 
-    public Future<Void> repair(Executor executor)
+    public Future<Ranges> repair(Executor executor)
     {
-        AsyncPromise<Void> future = new AsyncPromise<>();
+        AsyncPromise<Ranges> future = new AsyncPromise<>();
         executor.execute(() -> {
             try
             {
-                repair();
-                future.trySuccess(null);
+                future.trySuccess(repair());
             }
             catch (Throwable e)
             {
@@ -117,8 +119,9 @@ public class AccordRepair
         shouldAbort = reason == null ? new RuntimeException("Abort") : reason;
     }
 
-    private void repairRange(TokenRange range) throws Throwable
+    private List<accord.primitives.Range> repairRange(TokenRange range) throws Throwable
     {
+        List<accord.primitives.Range> repairedRanges = new ArrayList<>();
         int rangeStepUpdateInterval = ACCORD_REPAIR_RANGE_STEP_UPDATE_INTERVAL.getInt();
         RoutingKey remainingStart = range.start();
         BigInteger rangeSize = splitter.sizeOf(range);
@@ -154,7 +157,7 @@ public class AccordRepair
                     if (remainingStart.equals(range.end()))
                     {
                         logger.info("Completed barriers for {} in {} iterations", range, iteration - 1);
-                        return;
+                        return repairedRanges;
                     }
 
                     // Final repair is whatever remains
@@ -169,14 +172,13 @@ public class AccordRepair
                 checkState(lastRepaired == null || toRepair.start().equals(lastRepaired.end()), "Next range should directly follow previous range");
                 lastRepaired = toRepair;
 
+                Ranges barrieredRanges;
                 if (requireAllEndpoints)
-                {
-                    AccordService.instance().repairWithRetries(Seekables.of(toRepair), minEpoch.getEpoch(), BarrierType.global_sync, false, endpoints);
-                }
+                    barrieredRanges = (Ranges)AccordService.instance().repairWithRetries(Seekables.of(toRepair), minEpoch.getEpoch(), BarrierType.global_sync, false, endpoints);
                 else
-                {
-                    AccordService.instance().barrierWithRetries(Seekables.of(toRepair), minEpoch.getEpoch(), BarrierType.global_sync, false);
-                }
+                    barrieredRanges = (Ranges)AccordService.instance().barrierWithRetries(Seekables.of(toRepair), minEpoch.getEpoch(), BarrierType.global_sync, false);
+                for (accord.primitives.Range barrieredRange : barrieredRanges)
+                    repairedRanges.add(barrieredRange);
 
                 remainingStart = toRepair.end();
             }

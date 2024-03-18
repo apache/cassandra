@@ -27,7 +27,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-
 import javax.annotation.Nullable;
 
 import com.google.common.base.Splitter;
@@ -62,6 +61,7 @@ import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
+import org.apache.cassandra.schema.TableParams.Option;
 import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.schema.Views;
@@ -582,7 +582,10 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
             boolean modeChange = prev.transactionalMode != next.transactionalMode;
             boolean wasMigrating = prev.transactionalMigrationFrom.isMigrating();
-            boolean forceMigrationChange = prev.transactionalMigrationFrom != next.transactionalMigrationFrom;
+            boolean explicitlySetMigrationFrom = attrs.hasOption(Option.TRANSACTIONAL_MIGRATION_FROM);
+            // set table to migrating
+            TransactionalMigrationFromMode newMigrateFrom = TransactionalMigrationFromMode.fromMode(prev.transactionalMode, next.transactionalMode);
+            boolean forceMigrationChange = modeChange && explicitlySetMigrationFrom && next.transactionalMigrationFrom != newMigrateFrom;
 
             if (modeChange && next.transactionalMode.accordIsEnabled && !DatabaseDescriptor.getAccordTransactionsEnabled())
                 throw ire(format("Cannot change transactional mode to %s for %s.%s with accord_transactions_enabled set to false",
@@ -605,9 +608,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                                  prev.transactionalMode, next.transactionalMode,
                                  keyspaceName, tableName));
 
-            // set table to migrating
-            TransactionalMigrationFromMode migrateFrom = TransactionalMigrationFromMode.fromMode(prev.transactionalMode, next.transactionalMode);
-            return next.unbuild().transactionalMigrationFrom(migrateFrom).build();
+            return next.unbuild().transactionalMigrationFrom(newMigrateFrom).build();
         }
 
 
