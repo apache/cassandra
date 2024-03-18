@@ -18,6 +18,8 @@
 package org.apache.cassandra.schema;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -43,7 +45,6 @@ import org.apache.cassandra.io.compress.*;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
@@ -238,14 +239,15 @@ public final class CompressionParams
 
         CompressorType compressorType = CompressorType.fromName(sstableCompressionClass);
 
+        // if the compressor is not one of the regular ones (e.g. enumerated in ComnpressorType) create a function to build it.
         Function<Map<String,String>, ICompressor> creator = compressorType != null ? compressorType.creator : (opt) -> {
             if (sstableCompressionClass != null)
             {
-                return FBUtilities.newCompressor(parseCompressorClass(sstableCompressionClass), opt);
+                return newCompressor(parseCompressorClass(sstableCompressionClass), opt);
             }
             else
             {
-                return FBUtilities.newCompressor(parseCompressorClass(defaultParams(null).klass().getName()), opt);
+                return newCompressor(parseCompressorClass(defaultParams(null).klass().getName()), opt);
             }
         };
         try
@@ -270,6 +272,56 @@ public final class CompressionParams
         }
     }
 
+    private static ICompressor newCompressor(Class<?> className, Map<String, String> parameters) throws ConfigurationException
+    {
+        if (className == null)
+        {
+            if (!parameters.isEmpty())
+                throw new ConfigurationException("Unknown compression options (" + parameters.keySet() + ") since no compression class found");
+            return null;
+        }
+
+        try
+        {
+            Method method = className.getMethod("create", Map.class);
+            ICompressor compressor = (ICompressor) method.invoke(null, parameters);
+            // Check for unknown options
+            CompressionParams.checkCompressorOptions(compressor, parameters.keySet());
+            return compressor;
+        }
+        catch (NoSuchMethodException e)
+        {
+            throw new ConfigurationException("create method not found", e);
+        }
+        catch (SecurityException e)
+        {
+            throw new ConfigurationException("Access forbiden", e);
+        }
+        catch (IllegalAccessException e)
+        {
+            throw new ConfigurationException("Cannot access method create in " + className.getName(), e);
+        }
+        catch (InvocationTargetException e)
+        {
+            if (e.getTargetException() instanceof ConfigurationException)
+                throw (ConfigurationException) e.getTargetException();
+
+            Throwable cause = e.getCause() == null
+                              ? e
+                              : e.getCause();
+
+            throw new ConfigurationException(format("%s.create() threw an error: %s %s",
+                                                    className.getSimpleName(),
+                                                    cause.getClass().getName(),
+                                                    cause.getMessage()),
+                                             e);
+        }
+        catch (ExceptionInInitializerError e)
+        {
+            throw new ConfigurationException("Cannot initialize class " + className.getName());
+        }
+    }
+
     private static String invalidValue(String param, Object value)
     {
         return format("Invalid '%s' value for the 'compression' option: %s", param, value);
@@ -280,14 +332,30 @@ public final class CompressionParams
         return format("Invalid '%s' value for the 'compression' option.  %s: %s", param, extraText, value);
     }
 
+    /**
+     * Creates CompressionParams without checking the validity of the arguments.
+     * @param sstableCompressorClass the compressor class to create.
+     * @param otherOptions the Options for the compressor class.
+     * @param chunkLength the ckunk length to use for compression
+     * @param minCompressRatio the minimum compression ratio.
+     * @throws ConfigurationException
+     */
     public CompressionParams(String sstableCompressorClass, Map<String, String> otherOptions, int chunkLength, double minCompressRatio) throws ConfigurationException
     {
-        this(FBUtilities.newCompressor(parseCompressorClass(sstableCompressorClass), otherOptions), chunkLength, calcMaxCompressedLength(chunkLength, minCompressRatio), minCompressRatio, otherOptions);
+        this(newCompressor(parseCompressorClass(sstableCompressorClass), otherOptions), chunkLength, calcMaxCompressedLength(chunkLength, minCompressRatio), minCompressRatio, otherOptions);
     }
 
+    /**
+     * Creates CompressionParams without checking the validity of the arguments.
+     * @param sstableCompressorClass the compressor class to create.
+     * @param chunkLength the ckunk length to use for compression
+     * @param maxCompressedLength  the maximum compresson length of the buffer.
+     * @param otherOptions the Options for the compressor class.
+     * @throws ConfigurationException
+     */
     public CompressionParams(String sstableCompressorClass, int chunkLength, int maxCompressedLength, Map<String, String> otherOptions) throws ConfigurationException
     {
-        this(FBUtilities.newCompressor(parseCompressorClass(sstableCompressorClass), otherOptions), chunkLength, maxCompressedLength, calcMinCompressRatio(chunkLength, maxCompressedLength), otherOptions);
+        this(newCompressor(parseCompressorClass(sstableCompressorClass), otherOptions), chunkLength, maxCompressedLength, calcMinCompressRatio(chunkLength, maxCompressedLength), otherOptions);;
     }
 
     private CompressionParams(ICompressor sstableCompressor, int chunkLength, int maxCompressedLength, double minCompressRatio, Map<String, String> otherOptions) throws ConfigurationException
@@ -375,7 +443,7 @@ public final class CompressionParams
 
     public static ICompressor createCompressor(ParameterizedClass compression) throws ConfigurationException
     {
-        return FBUtilities.newCompressor(parseCompressorClass(compression.class_name), copyOptions(compression.parameters));
+        return newCompressor(parseCompressorClass(compression.class_name), copyOptions(compression.parameters));
     }
 
     private static Map<String, String> copyOptions(Map<? extends CharSequence, ? extends CharSequence> co)
