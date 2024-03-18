@@ -35,7 +35,10 @@ import static org.apache.cassandra.exceptions.ExceptionSerializer.nullableRemote
 /**
  * Allow inclusion of a serialized exception in failure response messages
  * This continues to use the same verb as the old failure response (whether a message payload or parameter)
- * and has a nullable failure field that may contain a serialized in later versions.
+ * and has a nullable failure field that may contain a serialized exception in later versions.
+ *
+ * It's important to note RequestFailure is not a singleton for each type, unlike RequestFailureReason,
+ * since it might include a stack trace so don't compare using identity.
  */
 public class RequestFailure
 {
@@ -50,6 +53,7 @@ public class RequestFailure
     public static final RequestFailure INDEX_NOT_AVAILABLE = new RequestFailure(RequestFailureReason.INDEX_NOT_AVAILABLE);
     public static final RequestFailure COORDINATOR_BEHIND = new RequestFailure(RequestFailureReason.COORDINATOR_BEHIND);
     public static final RequestFailure READ_TOO_MANY_INDEXES = new RequestFailure(RequestFailureReason.READ_TOO_MANY_INDEXES);
+    public static final RequestFailure RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM = new RequestFailure(RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM);
 
     static
     {
@@ -114,6 +118,12 @@ public class RequestFailure
         if (t instanceof InvalidRoutingException)
             return INVALID_ROUTING;
 
+        if (t instanceof RetryOnDifferentSystemException)
+            return RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM;
+
+        if (t instanceof CoordinatorBehindException)
+            return COORDINATOR_BEHIND;
+
         return UNKNOWN;
     }
 
@@ -133,6 +143,7 @@ public class RequestFailure
             case INDEX_NOT_AVAILABLE: return INDEX_NOT_AVAILABLE;
             case COORDINATOR_BEHIND: return COORDINATOR_BEHIND;
             case READ_TOO_MANY_INDEXES: return READ_TOO_MANY_INDEXES;
+            case RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM: return RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM;
         }
     }
 

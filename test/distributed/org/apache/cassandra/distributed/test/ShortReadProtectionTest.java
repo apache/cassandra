@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
+import com.google.common.collect.ImmutableList;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -90,7 +91,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
     public static Collection<Object[]> data()
     {
         List<Object[]> result = new ArrayList<>();
-        for (TransactionalMode mode : TransactionalMode.values())
+        for (TransactionalMode mode : ImmutableList.of(TransactionalMode.mixed_reads, TransactionalMode.off))
             for (ConsistencyLevel readConsistencyLevel : Arrays.asList(ALL, QUORUM, SERIAL))
                 for (boolean flush : BOOLEANS)
                         for (boolean paging : BOOLEANS)

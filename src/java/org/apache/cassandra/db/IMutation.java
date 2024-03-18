@@ -19,7 +19,9 @@ package org.apache.cassandra.db;
 
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -37,6 +39,7 @@ public interface IMutation
     long getTimeout(TimeUnit unit);
     String toString(boolean shallow);
     Collection<PartitionUpdate> getPartitionUpdates();
+    boolean hasUpdateForTable(TableId tableId);
     Supplier<Mutation> hintOnFailure();
 
     default void validateIndexedColumns(ClientState state)
@@ -71,8 +74,23 @@ public interface IMutation
         return size;
     }
 
-    default boolean allowsOutOfRangeMutations()
+    /**
+     * True if this mutation is being applied by a transaction system or doesn't need to be
+     * and conflicts between this mutation and transactions systems that are managing all or part of this table
+     * should be assumed to be handled already (by either Paxos or Accord) and the mutation should be applied.
+     *
+     * This causes mutations against tables to fail if they are from a non-transaction sub-system such as mutations,
+     * logged and unlogged batches, hints, and read repair against tables that are being managed by a transaction system
+     * like Accord that can't safely read data that is written non-transactionally.
+     *
+     */
+    default boolean allowsPotentialTransactionConflicts()
     {
         return false;
     }
+
+    // Construct replacement mutation that is identical except it only includes updates for the specified tables
+    @Nullable IMutation filter(Predicate<TableId> predicate);
+
+    default void clearCachedSerializationsForRetry() {}
 }

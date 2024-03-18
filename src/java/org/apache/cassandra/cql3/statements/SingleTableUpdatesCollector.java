@@ -95,24 +95,24 @@ final class SingleTableUpdatesCollector implements UpdatesCollector
      * @return a collection containing all the mutations.
      */
     @Override
-    public List<IMutation> toMutations(ClientState state)
+    public List<IMutation> toMutations(ClientState state, boolean allowPotentialTxnConflicts)
     {
         if (puBuilders.size() == 1)
         {
             PartitionUpdate.Builder builder = puBuilders.values().iterator().next();
-            return Collections.singletonList(createMutation(state, builder));
+            return Collections.singletonList(createMutation(state, builder, allowPotentialTxnConflicts));
         }
         List<IMutation> ms = new ArrayList<>(puBuilders.size());
         for (PartitionUpdate.Builder builder : puBuilders.values())
         {
-            IMutation mutation = createMutation(state, builder);
+            IMutation mutation = createMutation(state, builder, allowPotentialTxnConflicts);
             ms.add(mutation);
         }
 
         return ms;
     }
 
-    private IMutation createMutation(ClientState state, PartitionUpdate.Builder builder)
+    private IMutation createMutation(ClientState state, PartitionUpdate.Builder builder, boolean allowPotentialTxnConflicts)
     {
         IMutation mutation;
 
@@ -121,7 +121,7 @@ final class SingleTableUpdatesCollector implements UpdatesCollector
         else if (metadata.isCounter())
             mutation = new CounterMutation(new Mutation(builder.build()), counterConsistencyLevel);
         else
-            mutation = new Mutation(builder.build());
+            mutation = new Mutation(builder.build(), allowPotentialTxnConflicts);
 
         mutation.validateIndexedColumns(state);
         mutation.validateSize(MessagingService.current_version, CommitLogSegment.ENTRY_OVERHEAD_SIZE);

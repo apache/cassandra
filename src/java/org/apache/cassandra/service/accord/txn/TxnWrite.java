@@ -38,8 +38,8 @@ import accord.api.DataStore;
 import accord.api.Key;
 import accord.api.Write;
 import accord.impl.AbstractSafeCommandStore;
-import accord.impl.TimestampsForKeys;
 import accord.impl.TimestampsForKey;
+import accord.impl.TimestampsForKeys;
 import accord.local.SafeCommandStore;
 import accord.primitives.PartialTxn;
 import accord.primitives.RoutableKey;
@@ -138,10 +138,12 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
                    '}';
         }
 
-        public AsyncChain<Void> write(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long timestamp, int nowInSeconds)
+        public AsyncChain<Void> write(boolean preserveTimestamps, @Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long timestamp, int nowInSeconds)
         {
-            PartitionUpdate update = new PartitionUpdate.Builder(get(), 0).updateTimesAndPathsForAccord(cellToMaybeNewListPath, timestamp, nowInSeconds).build();
-            Mutation mutation = new Mutation(update);
+            PartitionUpdate update = get();
+            if (!preserveTimestamps)
+                update = new PartitionUpdate.Builder(get(), 0).updateTimesAndPathsForAccord(cellToMaybeNewListPath, timestamp, nowInSeconds).build();
+            Mutation mutation = new Mutation(update, true);
             return AsyncChains.ofRunnable(Stage.MUTATION.executor(), mutation::apply);
         }
 
@@ -383,10 +385,11 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
 
         List<AsyncChain<Void>> results = new ArrayList<>();
 
+        boolean preserveTimestamps = ((TxnUpdate)txn.update()).preserveTimestamps();
         // Apply updates not specified fully by the client but built from fragments completed by data from reads.
         // This occurs, for example, when an UPDATE statement uses a value assigned by a LET statement.
         Function<Cell, CellPath> accordListPathSuppler = accordListPathSupplier(timestamp);
-        forEachWithKey((PartitionKey) key, write -> results.add(write.write(accordListPathSuppler, timestamp, nowInSeconds)));
+        forEachWithKey((PartitionKey) key, write -> results.add(write.write(preserveTimestamps, accordListPathSuppler, timestamp, nowInSeconds)));
 
         if (isConditionMet)
         {
@@ -396,7 +399,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
             TxnUpdate txnUpdate = (TxnUpdate) txn.update();
             assert txnUpdate != null : "PartialTxn should contain an update if we're applying a write!";
             List<Update> updates = txnUpdate.completeUpdatesForKey((RoutableKey) key);
-            updates.forEach(update -> results.add(update.write(accordListPathSuppler, timestamp, nowInSeconds)));
+            updates.forEach(update -> results.add(update.write(preserveTimestamps, accordListPathSuppler, timestamp, nowInSeconds)));
         }
 
         if (results.isEmpty())

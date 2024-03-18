@@ -600,6 +600,11 @@ public class ClusterUtils
         instance.runOnInstance(() -> TestChangeListener.instance.unpause());
     }
 
+    public static void clearAndUnpause(IInvokableInstance instance)
+    {
+        instance.runOnInstance(() -> TestChangeListener.instance.clearAndUnpause());
+    }
+
     public static boolean isMigrating(IInvokableInstance instance)
     {
         return instance.callOnInstance(() -> ClusterMetadataService.instance().isMigrating());

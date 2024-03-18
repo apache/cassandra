@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.metrics;
 
+import java.net.UnknownHostException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,6 +37,22 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 public final class HintsServiceMetrics
 {
     public static final String TYPE_NAME = "HintsService";
+
+    // Hint metrics are by address and hints that are for Accord need an address
+    public static final InetAddressAndPort ACCORD_HINT_ENDPOINT;
+
+    static
+    {
+        try
+        {
+            ACCORD_HINT_ENDPOINT = InetAddressAndPort.getByNameOverrideDefaults("0.0.0.0", 0);
+        }
+        catch (UnknownHostException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(HintsServiceMetrics.class);
 
     private static final MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME);
@@ -42,6 +60,8 @@ public final class HintsServiceMetrics
     public static final Meter hintsSucceeded = Metrics.meter(factory.createMetricName("HintsSucceeded"));
     public static final Meter hintsFailed    = Metrics.meter(factory.createMetricName("HintsFailed"));
     public static final Meter hintsTimedOut  = Metrics.meter(factory.createMetricName("HintsTimedOut"));
+    public static final Meter hintsRetryDifferentSystem  = Metrics.meter(factory.createMetricName("HintsRetryDifferentSystem"));
+
 
     /** Histogram of all hint delivery delays */
     private static final Histogram globalDelayHistogram = Metrics.histogram(factory.createMetricName("Hint_delays"), false);
@@ -61,5 +81,10 @@ public final class HintsServiceMetrics
 
         globalDelayHistogram.update(delay);
         delayByEndpoint.get(endpoint).update(delay);
+    }
+
+    public static long getDelayCount(InetAddressAndPort endpoint)
+    {
+        return delayByEndpoint.get(endpoint).getCount();
     }
 }

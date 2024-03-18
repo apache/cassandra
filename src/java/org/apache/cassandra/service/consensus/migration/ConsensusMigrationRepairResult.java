@@ -18,40 +18,46 @@
 
 package org.apache.cassandra.service.consensus.migration;
 
+import javax.annotation.Nullable;
+
+import accord.primitives.Ranges;
 import org.apache.cassandra.tcm.Epoch;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
 public class ConsensusMigrationRepairResult
 {
-    private static final ConsensusMigrationRepairResult INELIGIBLE = new ConsensusMigrationRepairResult(ConsensusMigrationRepairType.ineligible, Epoch.EMPTY);
+    private static final ConsensusMigrationRepairResult INELIGIBLE = new ConsensusMigrationRepairResult(ConsensusMigrationRepairType.ineligible, Epoch.EMPTY, null);
     public final ConsensusMigrationRepairType type;
     public final Epoch minEpoch;
+    @Nullable
+    public final Ranges barrieredRanges;
 
-    private ConsensusMigrationRepairResult(ConsensusMigrationRepairType type, Epoch minEpoch)
+    private ConsensusMigrationRepairResult(ConsensusMigrationRepairType type, Epoch minEpoch, @Nullable Ranges barrieredRanges)
     {
         this.type = type;
         this.minEpoch = minEpoch;
+        this.barrieredRanges = barrieredRanges;
     }
 
-    public static ConsensusMigrationRepairResult fromRepair(Epoch minEpoch, boolean paxosAndDataRepaired, boolean accordRepaired, boolean deadNodesExcluded)
+    public static ConsensusMigrationRepairResult fromRepair(Epoch minEpoch, Ranges barrieredRanges, boolean paxosAndDataRepaired, boolean accordRepaired, boolean deadNodesExcluded)
     {
         checkArgument((!paxosAndDataRepaired && !accordRepaired) || minEpoch.isAfter(Epoch.EMPTY), "Epoch should not be empty if Paxos and regular repairs were performed");
 
         if (deadNodesExcluded) return INELIGIBLE;
-        if (paxosAndDataRepaired && accordRepaired) return new ConsensusMigrationRepairResult(ConsensusMigrationRepairType.either, minEpoch);
-        if (paxosAndDataRepaired) return new ConsensusMigrationRepairResult(ConsensusMigrationRepairType.paxos, minEpoch);
-        if (accordRepaired) return new ConsensusMigrationRepairResult(ConsensusMigrationRepairType.accord, minEpoch);
+        if (paxosAndDataRepaired && accordRepaired) return new ConsensusMigrationRepairResult(ConsensusMigrationRepairType.either, minEpoch, barrieredRanges);
+        if (paxosAndDataRepaired) return new ConsensusMigrationRepairResult(ConsensusMigrationRepairType.paxos, minEpoch, barrieredRanges);
+        if (accordRepaired) return new ConsensusMigrationRepairResult(ConsensusMigrationRepairType.accord, minEpoch, barrieredRanges);
         return INELIGIBLE;
     }
 
     public static ConsensusMigrationRepairResult fromPaxosOnlyRepair(Epoch minEpoch, boolean deadNodesExcluded)
     {
-        return fromRepair(minEpoch, false, false, deadNodesExcluded);
+        return fromRepair(minEpoch, null, false, false, deadNodesExcluded);
     }
 
-    public static ConsensusMigrationRepairResult fromAccordOnlyRepair(Epoch minEpoch, boolean deadNodesExcluded)
+    public static ConsensusMigrationRepairResult fromAccordOnlyRepair(Epoch minEpoch, Ranges barrieredRanges, boolean deadNodesExcluded)
     {
-        return fromRepair(minEpoch, false, true, deadNodesExcluded);
+        return fromRepair(minEpoch, barrieredRanges, false, true, deadNodesExcluded);
     }
 }

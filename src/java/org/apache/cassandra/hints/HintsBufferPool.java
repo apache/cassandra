@@ -21,6 +21,8 @@ import java.io.Closeable;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
@@ -131,6 +133,13 @@ final class HintsBufferPool implements Closeable
     {
         allocatedBuffers++;
         return HintsBuffer.create(bufferSize);
+    }
+
+    @VisibleForTesting
+    public void clearUnsafe()
+    {
+        if (currentBuffer != null)
+            currentBuffer = currentBuffer.recycle();
     }
 
     public void close()

@@ -29,9 +29,10 @@ import org.apache.cassandra.transport.Dispatcher;
 
 public class BatchlogResponseHandler<T> extends AbstractWriteResponseHandler<T>
 {
-    AbstractWriteResponseHandler<T> wrapped;
-    BatchlogCleanup cleanup;
+    final AbstractWriteResponseHandler<T> wrapped;
+    final BatchlogCleanup cleanup;
     protected volatile int requiredBeforeFinish;
+
     private static final AtomicIntegerFieldUpdater<BatchlogResponseHandler> requiredBeforeFinishUpdater
             = AtomicIntegerFieldUpdater.newUpdater(BatchlogResponseHandler.class, "requiredBeforeFinish");
 
@@ -104,6 +105,11 @@ public class BatchlogResponseHandler<T> extends AbstractWriteResponseHandler<T>
             this.callback = callback;
         }
 
+        public BatchlogCleanup(BatchlogCleanupCallback callback)
+        {
+            this.callback = callback;
+        }
+
         public int decrement()
         {
             return mutationsWaitingForUpdater.decrementAndGet(this);
@@ -113,6 +119,11 @@ public class BatchlogResponseHandler<T> extends AbstractWriteResponseHandler<T>
         {
             if (decrement() == 0)
                 callback.invoke();
+        }
+
+        public void setMutationsWaitingFor(int mutationsWaitingFor)
+        {
+            mutationsWaitingForUpdater.lazySet(this, mutationsWaitingFor);
         }
     }
 

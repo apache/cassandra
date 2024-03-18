@@ -32,12 +32,12 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Clock;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.apache.cassandra.Util.dk;
 import static org.apache.cassandra.net.MockMessagingService.verb;
 import static org.apache.cassandra.net.Verb.HINT_REQ;
 import static org.apache.cassandra.net.Verb.HINT_RSP;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 final class HintsTestUtil
 {
@@ -87,5 +87,21 @@ final class HintsTestUtil
             HintsService.instance.write(hostId, hint);
         }
         return spy;
+    }
+
+    static void sendHintsWithRetryDifferentSystemUUID(TableMetadata metadata)
+    {
+        // create and write three hints, two that should be routed to Accord, and one should need rehinting since
+        // it doesn't end up routed to Accord
+        UUID hostId = HintsService.RETRY_ON_DIFFERENT_SYSTEM_UUID;
+        for (int i = 0; i < 3; i++)
+        {
+            long now = Clock.Global.currentTimeMillis();
+            DecoratedKey dkey = dk(String.valueOf(i));
+            PartitionUpdate.SimpleBuilder builder = PartitionUpdate.simpleBuilder(metadata, dkey).timestamp(now);
+            builder.row("column0").add("val", "value0");
+            Hint hint = Hint.create(builder.buildAsMutation(), now);
+            HintsService.instance.write(hostId, hint);
+        }
     }
 }

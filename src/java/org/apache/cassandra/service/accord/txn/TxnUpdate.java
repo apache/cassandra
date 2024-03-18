@@ -69,7 +69,8 @@ import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSi
 
 public class TxnUpdate extends AccordUpdate
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnUpdate(null, new ByteBuffer[0], null, null));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnUpdate(null, new ByteBuffer[0], null, null, false));
+    private static final int FLAG_PRESERVE_TIMESTAMPS = 0x1;
 
     private final Keys keys;
     private final ByteBuffer[] fragments;
@@ -78,10 +79,15 @@ public class TxnUpdate extends AccordUpdate
     @Nullable
     private final ConsistencyLevel cassandraCommitCL;
 
+    // Hints and batchlog want to write with the lower timestamp they generated when applying their writes via Accord
+    // so they don't resurrect data if they are applied at a later time. Accord should be fine with this because
+    // the writes are still deterministic from the perspective of coordinators/recovery coordinators.
+    private final boolean preserveTimestamps;
+
     // Memoize computation of condition
     private Boolean conditionResult;
 
-    public TxnUpdate(List<TxnWrite.Fragment> fragments, TxnCondition condition, @Nullable ConsistencyLevel cassandraCommitCL)
+    public TxnUpdate(List<TxnWrite.Fragment> fragments, TxnCondition condition, @Nullable ConsistencyLevel cassandraCommitCL, boolean preserveTimestamps)
     {
         checkArgument(cassandraCommitCL == null || IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(cassandraCommitCL));
         // TODO: Figure out a way to shove keys into TxnCondition, and have it implement slice/merge.
@@ -90,14 +96,16 @@ public class TxnUpdate extends AccordUpdate
         this.fragments = toSerializedValuesArray(keys, fragments, fragment -> fragment.key, TxnWrite.Fragment.serializer);
         this.condition = serialize(condition, TxnCondition.serializer);
         this.cassandraCommitCL = cassandraCommitCL;
+        this.preserveTimestamps = preserveTimestamps;
     }
 
-    private TxnUpdate(Keys keys, ByteBuffer[] fragments, ByteBuffer condition, ConsistencyLevel cassandraCommitCL)
+    private TxnUpdate(Keys keys, ByteBuffer[] fragments, ByteBuffer condition, ConsistencyLevel cassandraCommitCL, boolean preserveTimestamps)
     {
         this.keys = keys;
         this.fragments = fragments;
         this.condition = condition;
         this.cassandraCommitCL = cassandraCommitCL;
+        this.preserveTimestamps = preserveTimestamps;
     }
 
     @Override
@@ -141,12 +149,19 @@ public class TxnUpdate extends AccordUpdate
         return keys;
     }
 
+    // Batch log and hints want to keep their lower timestamp for the applied writes to avoid resurrecting old data
+    // when they are applied later, possibly after further updates have already been acknowledged.
+    public boolean preserveTimestamps()
+    {
+        return preserveTimestamps;
+    }
+
     @Override
     public Update slice(Ranges ranges)
     {
         Keys keys = this.keys.slice(ranges);
         // TODO: Slice the condition.
-        return new TxnUpdate(keys, select(this.keys, keys, fragments), condition, cassandraCommitCL);
+        return new TxnUpdate(keys, select(this.keys, keys, fragments), condition, cassandraCommitCL, preserveTimestamps);
     }
 
     @Override
@@ -154,7 +169,7 @@ public class TxnUpdate extends AccordUpdate
     {
         Keys keys = this.keys.intersecting(participants);
         // TODO: Slice the condition.
-        return new TxnUpdate(keys, select(this.keys, keys, fragments), condition, cassandraCommitCL);
+        return new TxnUpdate(keys, select(this.keys, keys, fragments), condition, cassandraCommitCL, preserveTimestamps);
     }
 
     private static ByteBuffer[] select(Keys in, Keys out, ByteBuffer[] from)
@@ -176,7 +191,7 @@ public class TxnUpdate extends AccordUpdate
         TxnUpdate that = (TxnUpdate) update;
         Keys mergedKeys = this.keys.with(that.keys);
         ByteBuffer[] mergedFragments = merge(this.keys, that.keys, this.fragments, that.fragments, mergedKeys.size());
-        return new TxnUpdate(mergedKeys, mergedFragments, condition, cassandraCommitCL);
+        return new TxnUpdate(mergedKeys, mergedFragments, condition, cassandraCommitCL, preserveTimestamps);
     }
 
     private static ByteBuffer[] merge(Keys leftKeys, Keys rightKeys, ByteBuffer[] left, ByteBuffer[] right, int outputSize)
@@ -207,7 +222,6 @@ public class TxnUpdate extends AccordUpdate
         QueryOptions options = QueryOptions.forProtocolVersion(ProtocolVersion.CURRENT);
         AccordUpdateParameters parameters = new AccordUpdateParameters((TxnData) data, options);
 
-        // First completes all fragments and join them with the repairs pending for those partitions
         for (TxnWrite.Fragment fragment : fragments)
             // Filter out fragments that already constitute complete updates to avoid persisting them via TxnWrite:
             if (!fragment.isComplete())
@@ -233,6 +247,7 @@ public class TxnUpdate extends AccordUpdate
         @Override
         public void serialize(TxnUpdate update, DataOutputPlus out, int version) throws IOException
         {
+            out.writeByte(update.preserveTimestamps ? FLAG_PRESERVE_TIMESTAMPS : 0);
             KeySerializers.keys.serialize(update.keys, out, version);
             writeWithVIntLength(update.condition, out);
             serializeArray(update.fragments, out, version, ByteBufferUtil.byteBufferSerializer);
@@ -242,17 +257,20 @@ public class TxnUpdate extends AccordUpdate
         @Override
         public TxnUpdate deserialize(DataInputPlus in, int version) throws IOException
         {
+            int flags = in.readByte();
+            boolean preserveTimestamps = (FLAG_PRESERVE_TIMESTAMPS & flags) == 1;
             Keys keys = KeySerializers.keys.deserialize(in, version);
             ByteBuffer condition = readWithVIntLength(in);
             ByteBuffer[] fragments = deserializeArray(in, version, ByteBufferUtil.byteBufferSerializer, ByteBuffer[]::new);
             ConsistencyLevel consistencyLevel = deserializeNullable(in, version, consistencyLevelSerializer);
-            return new TxnUpdate(keys, fragments, condition, consistencyLevel);
+            return new TxnUpdate(keys, fragments, condition, consistencyLevel, preserveTimestamps);
         }
 
         @Override
         public long serializedSize(TxnUpdate update, int version)
         {
-            long size = KeySerializers.keys.serializedSize(update.keys, version);
+            long size = 1; // flags
+            size += KeySerializers.keys.serializedSize(update.keys, version);
             size += serializedSizeWithVIntLength(update.condition);
             size += serializedArraySize(update.fragments, version, ByteBufferUtil.byteBufferSerializer);
             size += serializedNullableSize(update.cassandraCommitCL, version, consistencyLevelSerializer);

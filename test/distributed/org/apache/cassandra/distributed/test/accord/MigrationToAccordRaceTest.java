@@ -16,19 +16,12 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.cql3.statements;
+package org.apache.cassandra.distributed.test.accord;
 
-import java.util.List;
-
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.IMutation;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.ClientState;
-
-public interface UpdatesCollector
+public class MigrationToAccordRaceTest extends AccordMigrationRaceTestBase
 {
-    PartitionUpdate.Builder getPartitionUpdateBuilder(TableMetadata metadata, DecoratedKey dk, ConsistencyLevel consistency);
-    List<IMutation> toMutations(ClientState state, boolean allowPotentialTxnConflicts);
+    protected boolean migratingAwayFromAccord()
+    {
+        return false;
+    }
 }

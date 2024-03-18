@@ -33,30 +33,32 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.locator.ReplicaLayout;
-import org.apache.cassandra.utils.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.IFailureDetector;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.metrics.HintedHandoffMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static com.google.common.collect.Iterables.filter;
 import static com.google.common.collect.Iterables.transform;
+import static org.apache.cassandra.config.CassandraRelevantProperties.HINT_DISPATCH_INTERVAL_MS;
 
 /**
  * A singleton-ish wrapper over various hints components:
@@ -70,11 +72,34 @@ import static com.google.common.collect.Iterables.transform;
  */
 public final class HintsService implements HintsServiceMBean
 {
-    private static final Logger logger = LoggerFactory.getLogger(HintsService.class);
+    // Dummy address to use for storing metrics for hints that will be retried on a different transaction system
+    // and aren't being sent to a specific node
+    public static final InetAddressAndPort RETRY_ON_DIFFERENT_SYSTEM_ADDRESS;
+
+    static
+    {
+        try
+        {
+            RETRY_ON_DIFFERENT_SYSTEM_ADDRESS = InetAddressAndPort.getByNameOverrideDefaults("0.0.0.0", 65535);
+        }
+        catch (UnknownHostException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    // Batch log replay may need to route some mutations to Accord which may fail and Hints are used for retry by the batch log.
+    // Write them to this endpoint which indicates that on replay hints will need to calculate the endpoints
+    // to deliver to since it's not really a per node hint, but part of a batch that needs replaying.
+    // This can also occur with regular mutations as well when some replicas return a retry error but quorum
+    // is reached so hinting is used to bring the other replicas up to date
+    public static final UUID RETRY_ON_DIFFERENT_SYSTEM_UUID = TimeUUID.atUnixMicrosWithLsbAsUUID(-1, -1);
 
     public static HintsService instance = new HintsService();
 
     public static final String MBEAN_NAME = "org.apache.cassandra.hints:type=HintsService";
+
+    private static final Logger logger = LoggerFactory.getLogger(HintsService.class);
 
     private static final int MIN_BUFFER_SIZE = 32 << 20;
     static final ImmutableMap<String, Object> EMPTY_PARAMS = ImmutableMap.of();
@@ -226,7 +251,8 @@ public final class HintsService implements HintsServiceMBean
         HintsDispatchTrigger trigger = new HintsDispatchTrigger(catalog, writeExecutor, dispatchExecutor, isDispatchPaused);
         // triggering hint dispatch is now very cheap, so we can do it more often - every 10 seconds vs. every 10 minutes,
         // previously; this reduces mean time to delivery, and positively affects batchlog delivery latencies, too
-        triggerDispatchFuture = ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(trigger, 10, 10, TimeUnit.SECONDS);
+        long hintDispatchIntervalMs = HINT_DISPATCH_INTERVAL_MS.getLong();
+        triggerDispatchFuture = ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(trigger, hintDispatchIntervalMs, hintDispatchIntervalMs, TimeUnit.MILLISECONDS);
     }
 
     public void pauseDispatch()
@@ -320,6 +346,13 @@ public final class HintsService implements HintsServiceMBean
     public void deleteAllHints()
     {
         catalog.deleteAllHints();
+    }
+
+    @VisibleForTesting
+    public void deleteAllHintsUnsafe()
+    {
+        catalog.deleteAllHintsUnsafe();
+        bufferPool.clearUnsafe();
     }
 
     /**

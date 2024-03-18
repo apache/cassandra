@@ -46,6 +46,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -56,6 +57,7 @@ import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.transformations.BeginConsensusMigrationForTableAndRange;
 import org.apache.cassandra.tcm.transformations.MaybeFinishConsensusMigrationForTableAndRange;
 
+import static java.lang.String.format;
 import static java.util.Collections.emptyList;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -97,9 +99,24 @@ public abstract class ConsensusTableMigration
             if (!tms.targetProtocol.isMigratedBy(repairResult.consensusMigrationRepairResult.type))
                 return;
 
+            List<Range<Token>> paxosRepairedRanges = ImmutableList.of();
+            if (migrationResult.type.paxosMigrationEligible)
+                // Paxos always repairs all ranges requested by the repair although there should be nothing
+                // repaired in the migrated and Accord managed ranges
+                paxosRepairedRanges = ImmutableList.copyOf(desc.ranges);
+
+            List<Range<Token>> accordBarrieredRanges = ImmutableList.of();
+            if (migrationResult.type.accordMigrationEligible)
+                // Accord only barriers ranges it thinks it manages and repair collects which it barriered
+                // precisely which doesn't have to match what the entire repair covers
+                accordBarrieredRanges = migrationResult.barrieredRanges.stream()
+                                                                       .map(range -> ((TokenRange)range).toKeyspaceRange())
+                                                                       .collect(toImmutableList());
+            accordBarrieredRanges = Range.normalize(accordBarrieredRanges);
+
             ClusterMetadataService.instance().commit(
                 new MaybeFinishConsensusMigrationForTableAndRange(
-                    desc.keyspace, desc.columnFamily, ImmutableList.copyOf(desc.ranges),
+                    desc.keyspace, desc.columnFamily, paxosRepairedRanges, accordBarrieredRanges,
                     migrationResult.minEpoch, migrationResult.type));
         }
 
@@ -283,7 +300,7 @@ public abstract class ConsensusTableMigration
                             .map(tableName -> {
                                 TableMetadata tm = Schema.instance.getTableMetadata(keyspaceName, tableName);
                                 if (tm == null)
-                                    throw new IllegalArgumentException("Unknown table %s.%s".format(keyspaceName, tableName));
+                                    throw new IllegalArgumentException(format("Unknown table %s.%s", keyspaceName, tableName));
                                 return tm.id;
                             })
                             .collect(toImmutableList()));

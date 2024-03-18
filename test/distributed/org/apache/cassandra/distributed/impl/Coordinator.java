@@ -102,6 +102,12 @@ public class Coordinator implements ICoordinator
         }).call();
     }
 
+    @Override
+    public Future<SimpleQueryResult> asyncExecuteWithResult(String query, ConsistencyLevel consistencyLevelOrigin, Object... boundValues)
+    {
+        return instance.async(() -> unsafeExecuteInternal(query, consistencyLevelOrigin, boundValues)).call();
+    }
+
     public static org.apache.cassandra.db.ConsistencyLevel toCassandraCL(ConsistencyLevel cl)
     {
         try

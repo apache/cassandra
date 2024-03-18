@@ -108,7 +108,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         this.nodeId = AccordTopology.tcmIdToAccord(ClusterMetadata.currentNullable().myNodeId());
         this.timeService = new NodeTimeService()
         {
-            private final ToLongFunction<TimeUnit> unixWrapper = NodeTimeService.unixWrapper(TimeUnit.NANOSECONDS, this::now);
+            private final ToLongFunction<TimeUnit> elapsed = NodeTimeService.elapsedWrapperFromNonMonotonicSource(TimeUnit.NANOSECONDS, this::now);
 
             @Override
             public Node.Id id()
@@ -129,9 +129,9 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             }
 
             @Override
-            public long unix(TimeUnit unit)
+            public long elapsed(TimeUnit unit)
             {
-                return unixWrapper.applyAsLong(unit);
+                return elapsed.applyAsLong(unit);
             }
 
             @Override
