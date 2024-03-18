@@ -20,12 +20,14 @@ package org.apache.cassandra.service.accord.interop;
 
 import javax.annotation.Nonnull;
 
+import accord.coordinate.Timeout;
 import accord.local.Node;
 import accord.messages.Callback;
 import accord.messages.ReadData.ReadOk;
 import accord.messages.ReadData.ReadReply;
 import accord.utils.Invariants;
 import org.apache.cassandra.exceptions.RequestFailure;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.RequestCallback;
@@ -78,7 +80,14 @@ public abstract class AccordInteropReadCallback<T> implements Callback<ReadReply
 
     public void onFailure(Node.Id from, Throwable failure)
     {
-        wrapped.onFailure(endpoint, RequestFailure.UNKNOWN);
+        RequestFailure requestFailure;
+        // Convert from Accord's timeout exception to our failure reason because timeout is something
+        // that is useful for metrics and can be handled differently
+        if (failure instanceof Timeout)
+            requestFailure = new RequestFailure(RequestFailureReason.TIMEOUT, failure);
+        else
+            requestFailure = new RequestFailure(RequestFailureReason.UNKNOWN, failure);
+        wrapped.onFailure(endpoint, requestFailure);
     }
 
     public void onCallbackFailure(Node.Id from, Throwable failure)

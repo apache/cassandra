@@ -20,6 +20,7 @@ package org.apache.cassandra.hints;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.Nullable;
 
 import com.google.common.util.concurrent.Futures;
@@ -32,6 +33,12 @@ import org.junit.Test;
 
 import com.datastax.driver.core.utils.MoreFutures;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.IMutation;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.metrics.HintsServiceMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MockMessagingService;
@@ -40,11 +47,23 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
-
+import org.apache.cassandra.service.accord.AccordTestUtils;
+import org.apache.cassandra.service.accord.IAccordService.AsyncTxnResult;
+import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.MockFailureDetector;
+
+import static org.apache.cassandra.Util.spinAssertEquals;
+import static org.apache.cassandra.config.CassandraRelevantProperties.HINT_DISPATCH_INTERVAL_MS;
 import static org.apache.cassandra.hints.HintsTestUtil.sendHintsAndResponses;
+import static org.apache.cassandra.hints.HintsTestUtil.sendHintsWithRetryDifferentSystemUUID;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.notNull;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class HintsServiceTest
 {
@@ -63,12 +82,15 @@ public class HintsServiceTest
                 KeyspaceParams.simple(1),
                 SchemaLoader.standardCFMD(KEYSPACE, TABLE));
         metadata = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
+        HINT_DISPATCH_INTERVAL_MS.setLong(100);
+        DatabaseDescriptor.setHintsFlushPeriodInMS(100);
     }
 
     @After
     public void cleanup()
     {
         MockMessagingService.cleanup();
+        ConsensusMigrationMutationHelper.resetInstanceForTest();
     }
 
     @Before
@@ -172,5 +194,58 @@ public class HintsServiceTest
         InputPosition dispatchOffset = store.getDispatchOffset(descriptor);
         assertTrue(dispatchOffset != null);
         assertTrue(((ChecksummedDataInput.Position) dispatchOffset).sourcePosition > 0);
+    }
+
+    /*
+     * Make sure that if hints from the batchlog end up needing to be executed without Accord
+     * that they are turned into
+     */
+    @Test
+    public void testHintsNeedingRehinting() throws Throwable
+    {
+        ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(metadata.id);
+        long startWrites =  cfs.metric.writeLatency.latency.getCount();
+        HintsService.instance = spy(HintsService.instance);
+        AtomicInteger accordTxnCount = new AtomicInteger();
+        ConsensusMigrationMutationHelper.replaceInstanceForTest(
+            new ConsensusMigrationMutationHelper()
+                {
+                    int count = 0;
+
+                    @Override
+                    public <T extends IMutation> SplitMutation<T> splitMutationIntoAccordAndNormal(T mutation, ClusterMetadata cm)
+                    {
+                        if (count > 2)
+                            return super.splitMutationIntoAccordAndNormal(mutation, cm);
+
+                        SplitMutation split;
+                        if (count % 2 == 0)
+                            split = new SplitMutation(mutation, null);
+                        else
+                            split = new SplitMutation<>(null, mutation);
+                        count++;
+                        return split;
+                    }
+
+                    @Override
+                    public AsyncTxnResult mutateWithAccordAsync(ClusterMetadata cm, Mutation mutation, @Nullable ConsistencyLevel consistencyLevel, long queryStartNanoTime)
+                    {
+                        accordTxnCount.incrementAndGet();
+                        AsyncTxnResult asyncTxnResult = new AsyncTxnResult(AccordTestUtils.txnId(42, 43, 44));
+                        asyncTxnResult.setSuccess(new TxnData());
+                        return asyncTxnResult;
+                    }
+                });
+        sendHintsWithRetryDifferentSystemUUID(metadata);
+        // Two should be Accord transactions
+        spinAssertEquals(2, accordTxnCount::get, 10);
+        Thread.sleep(1000);
+        // An attempt should be made to write to all replicas
+        verify(HintsService.instance, times(1)).writeForAllReplicas(notNull());
+        // And it should be written locally
+        spinAssertEquals(startWrites + 1L, cfs.metric.writeLatency.latency::getCount, 10);
+
+        // Hints that are rehinted are treated as succeeding immediately for the ACCORD_HINT_ENDPOINT
+        assertEquals(3, HintsServiceMetrics.getDelayCount(HintsServiceMetrics.ACCORD_HINT_ENDPOINT));
     }
 }

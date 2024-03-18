@@ -105,6 +105,7 @@ public class KeyspaceMetrics
     public final LatencyMetrics rangeMigration;
     public final Meter rangeMigrationUnexpectedFailures;
     public final Meter rangeMigrationDependencyLimitFailures;
+    public final Meter mutationsRejectedOnWrongSystem;
     /** Writes failed ideal consistency **/
     public final Counter writeFailedIdealCL;
     /** Ideal CL write latency metrics */
@@ -252,6 +253,7 @@ public class KeyspaceMetrics
         rangeMigration = createLatencyMetrics("RangeMigration");
         rangeMigrationUnexpectedFailures = createKeyspaceMeter("RangeMigrationUnexpectedFailures");
         rangeMigrationDependencyLimitFailures = createKeyspaceMeter("RangeMigratingDependencyLimitFailures");
+        mutationsRejectedOnWrongSystem = createKeyspaceMeter("MutationsRejectedOnWrongSystem");
         writeFailedIdealCL = createKeyspaceCounter("WriteFailedIdealCL");
         idealCLWriteLatency = createLatencyMetrics("IdealCLWrite");
 

@@ -46,6 +46,7 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
+import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -172,7 +173,7 @@ public abstract class ConsensusKeyMigrationState
 
             // TODO (desired): Better query start time
             TableMigrationState tms = tableMigrationState;
-            repairKeyAccord(key, tms.keyspaceName, tms.tableId, tms.minMigrationEpoch(key.getToken()).getEpoch(), nanoTime(), false, isForWrite);
+            repairKeyAccord(key, tms.tableId, tms.minMigrationEpoch(key.getToken()).getEpoch(), nanoTime(), false, isForWrite);
         }
 
         private boolean paxosReadSatisfiedByKeyMigration()
@@ -263,7 +264,6 @@ public abstract class ConsensusKeyMigrationState
      * Trigger a distributed repair of Accord state for this key.
      */
     static void repairKeyAccord(DecoratedKey key,
-                                String keyspace,
                                 TableId tableId,
                                 long minEpoch,
                                 long queryStartNanos,
@@ -282,7 +282,9 @@ public abstract class ConsensusKeyMigrationState
             // will soon be ready to execute, but only waits for the local replica to be ready
             // Local will only create a transaction if it can't find an existing one to wait on
             BarrierType barrierType = global ? BarrierType.global_async : BarrierType.local;
-            AccordService.instance().barrier(Seekables.of(new PartitionKey(tableId, key)), minEpoch, queryStartNanos, DatabaseDescriptor.getTransactionTimeout(TimeUnit.NANOSECONDS), barrierType, isForWrite);
+            Seekables keysOrRanges = AccordService.instance().barrier(Seekables.of(new PartitionKey(tableId, key)), minEpoch, queryStartNanos, DatabaseDescriptor.getTransactionTimeout(TimeUnit.NANOSECONDS), barrierType, isForWrite);
+            if (keysOrRanges.isEmpty())
+                throw new RetryOnDifferentSystemException();
             // We don't save the state to the cache here. Accord will notify the agent every time a barrier happens.
         }
         finally

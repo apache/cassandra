@@ -24,17 +24,17 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import accord.coordinate.Invalidated;
 import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableMetadata;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -42,15 +42,25 @@ import org.junit.Before;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.RoutingKey;
+import accord.coordinate.Invalidated;
 import accord.impl.SimpleProgressLog;
+import accord.messages.PreAccept;
+import accord.primitives.PartialKeyRoute;
+import accord.primitives.PartialRoute;
+import accord.primitives.Routable.Domain;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import net.bytebuddy.implementation.bind.annotation.This;
+import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
 import org.apache.cassandra.cql3.transactions.ReferenceValue;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.Cluster.Builder;
@@ -60,24 +70,37 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnable;
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.shared.Metrics;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
+import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
 import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.FailingConsumer;
 
+import static java.lang.String.format;
 import static net.bytebuddy.matcher.ElementMatchers.named;
+import static org.apache.cassandra.db.SystemKeyspace.CONSENSUS_MIGRATION_STATE;
+import static org.apache.cassandra.db.SystemKeyspace.PAXOS;
+import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
+import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 import static org.junit.Assert.assertArrayEquals;
 
 public abstract class AccordTestBase extends TestBaseImpl
@@ -89,8 +112,10 @@ public abstract class AccordTestBase extends TestBaseImpl
 
     protected static Cluster SHARED_CLUSTER;
 
-    protected String tableName;
-    protected String qualifiedTableName;
+    protected String accordTableName;
+    protected String qualifiedAccordTableName;
+    protected String regularTableName;
+    protected String qualifiedRegularTableName;
 
     public static void setupCluster(Function<Builder, Builder> options, int nodes) throws IOException
     {
@@ -107,8 +132,10 @@ public abstract class AccordTestBase extends TestBaseImpl
     @Before
     public void setup()
     {
-        tableName = "tbl" + COUNTER.getAndIncrement();
-        qualifiedTableName = KEYSPACE + '.' + tableName;
+        accordTableName = "accordtbl" + COUNTER.getAndIncrement();
+        qualifiedAccordTableName = KEYSPACE + '.' + accordTableName;
+        regularTableName = "regulartbl" + COUNTER.getAndIncrement();
+        qualifiedRegularTableName = KEYSPACE + '.' + regularTableName;
     }
 
     @After
@@ -133,6 +160,14 @@ public abstract class AccordTestBase extends TestBaseImpl
     protected void test(String tableDDL, FailingConsumer<Cluster> fn) throws Exception
     {
         test(Collections.singletonList(tableDDL), fn);
+    }
+
+    protected List<String> createTables(String tableFormat, String... qualifiedTables)
+    {
+        ImmutableList.Builder<String> builder = ImmutableList.builder();
+        for (String qualifiedTable : qualifiedTables)
+            builder.add(format(tableFormat, qualifiedTable));
+        return builder.build();
     }
 
     public static void ensureTableIsAccordManaged(Cluster cluster, String ksname, String tableName)
@@ -165,7 +200,7 @@ public abstract class AccordTestBase extends TestBaseImpl
 
     protected void test(FailingConsumer<Cluster> fn) throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, primary key (k, c)) WITH transactional_mode='full'", fn);
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, primary key (k, c)) WITH transactional_mode='full'", fn);
     }
 
     protected static ConsensusMigrationState getMigrationStateSnapshot(IInvokableInstance instance) throws IOException
@@ -196,6 +231,19 @@ public abstract class AccordTestBase extends TestBaseImpl
     protected static int getCasWriteCount(int coordinatorIndex)
     {
         return Ints.checkedCast(getMetrics(coordinatorIndex).getCounter("org.apache.cassandra.metrics.ClientRequest.Latency.CASWrite"));
+    }
+
+    protected static int getRetryOnDifferentSystemCount(int coordinatorIndex)
+    {
+        return Ints.checkedCast(getMetrics(coordinatorIndex).getCounter("org.apache.cassandra.metrics.ClientRequest.RetryDifferentSystem.Write"));
+    }
+
+    protected int getMutationsRejectedOnWrongSystemCount()
+    {
+        long sum = 0;
+        for (IInvokableInstance instance : SHARED_CLUSTER)
+            sum += instance.metrics().getCounter("org.apache.cassandra.metrics.Table.MutationsRejectedOnWrongSystem." + qualifiedAccordTableName);
+        return Ints.checkedCast(sum);
     }
 
     protected static int getCasPrepareCount(int coordinatorIndex)
@@ -279,7 +327,7 @@ public abstract class AccordTestBase extends TestBaseImpl
         // disable vnode for now, but should enable before trunk
         Cluster.Builder builder = Cluster.build(nodes)
                            .withoutVNodes()
-                           .withConfig(c -> c.with(Feature.NETWORK, Feature.GOSSIP).set("write_request_timeout", "10s")
+                           .withConfig(c -> c.with(Feature.GOSSIP).set("write_request_timeout", "10s")
                                                                    .set("transaction_timeout", "15s")
                                              .set("transaction_timeout", "15s"))
                            .withInstanceInitializer(EnforceUpdateDoesNotPerformRead::install);
@@ -464,4 +512,86 @@ public abstract class AccordTestBase extends TestBaseImpl
     }
 
     protected abstract Logger logger();
+
+    protected void alterTableTransactionalMode(TransactionalMode mode)
+    {
+        SHARED_CLUSTER.schemaChange(format("ALTER TABLE %s WITH %s", qualifiedAccordTableName, mode.asCqlParam()));
+    }
+
+    protected static void pauseHints()
+    {
+        forEach(() -> HintsService.instance.pauseDispatch());
+    }
+
+    protected static void deleteAllHints()
+    {
+        forEach(() -> HintsService.instance.deleteAllHintsUnsafe());
+    }
+
+    protected static void pauseBatchlog()
+    {
+        forEach(() -> BatchlogManager.instance.pauseReplay());
+    }
+
+    protected static void unpauseHints()
+    {
+        forEach(() -> HintsService.instance.resumeDispatch());
+    }
+
+    protected static void unpauseBatchlog()
+    {
+        forEach(() -> BatchlogManager.instance.resumeReplay());
+    }
+
+    protected static void blockMutationAndPreAccept(Cluster cluster)
+    {
+        cluster.filters().outbound().messagesMatching((from, to, message) -> {
+            if (message.verb() == Verb.MUTATION_REQ.id)
+            {
+                String keyspace = cluster.get(to).callsOnInstance(() -> ((Message<Mutation>) Instance.deserializeMessage(message)).payload.getKeyspaceName()).call();
+                if (keyspace.equals(KEYSPACE))
+                    return true;
+            }
+            if (message.verb() == Verb.ACCORD_PRE_ACCEPT_REQ.id)
+            {
+                boolean drop = cluster.get(to).callsOnInstance(() -> {
+                    PreAccept preAccept = (PreAccept)Instance.deserializeMessage(message).payload;
+                    PartialRoute<?> route = preAccept.scope;
+                    if (route.domain() == Domain.Key)
+                        for (RoutingKey key : (PartialKeyRoute)route)
+                        {
+                            AccordRoutingKey routingKey = (AccordRoutingKey)key;
+                            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(routingKey.table());
+                            if (cfs.getKeyspaceName().equals(KEYSPACE))
+                                return true;
+                        }
+                    return false;
+                }).call();
+                if (drop)
+                    return true;
+            }
+            return false;
+        }).drop();
+    }
+
+    protected static void truncateSystemTables()
+    {
+        SHARED_CLUSTER.coordinator(1).execute("TRUNCATE " + SYSTEM_KEYSPACE_NAME + "." + SystemKeyspace.BATCHES, ALL);
+        SHARED_CLUSTER.coordinator(1).execute(format("TRUNCATE TABLE %s.%s", SYSTEM_KEYSPACE_NAME, CONSENSUS_MIGRATION_STATE), ALL);
+        SHARED_CLUSTER.coordinator(1).execute(format("TRUNCATE TABLE %s.%s", SYSTEM_KEYSPACE_NAME, PAXOS), ALL);
+    }
+
+    protected static Stream<UUID> hostIds()
+    {
+        return Stream.concat(ClusterMetadata.current().directory.peerIds()
+                                                                .stream()
+                                                                .map(ClusterMetadata.current().directory::hostId),
+                             Stream.of(HintsService.RETRY_ON_DIFFERENT_SYSTEM_UUID));
+    }
+
+    protected static boolean hasPendingHints()
+    {
+        return hostIds().map(HintsService.instance::getTotalHintsSize)
+                        .anyMatch(size -> size > 0);
+    }
 }

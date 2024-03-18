@@ -52,11 +52,14 @@ import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.Mutation.SimpleBuilder;
 import org.apache.cassandra.db.SimpleBuilders.PartitionUpdateBuilder;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
@@ -96,8 +99,8 @@ import org.yaml.snakeyaml.Yaml;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.lang.String.format;
 import static java.util.Collections.emptyList;
+import static org.apache.cassandra.Util.dk;
 import static org.apache.cassandra.Util.spinUntilSuccess;
-import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.db.SystemKeyspace.CONSENSUS_MIGRATION_STATE;
 import static org.apache.cassandra.db.SystemKeyspace.PAXOS;
 import static org.apache.cassandra.dht.Range.normalize;
@@ -159,7 +162,7 @@ public class AccordMigrationTest extends AccordTestBase
         ServerTestUtils.daemonInitialization();
         // Otherwise repair complains if you don't specify a keyspace
         CassandraRelevantProperties.SYSTEM_TRACES_DEFAULT_RF.setInt(3);
-        AccordTestBase.setupCluster(builder -> builder.appendConfig(config -> config.set("paxos_variant", PaxosVariant.v2.name())
+        AccordTestBase.setupCluster(builder -> builder.appendConfig(config -> config.with(Feature.NETWORK).set("paxos_variant", PaxosVariant.v2.name())
                                                                                     .set("accord.range_migration", "explicit")), 3);
         partitioner = FBUtilities.newPartitioner(SHARED_CLUSTER.get(1).callsOnInstance(() -> DatabaseDescriptor.getPartitioner().getClass().getSimpleName()).call());
         StorageService.instance.setPartitionerUnsafe(partitioner);
@@ -189,19 +192,6 @@ public class AccordMigrationTest extends AccordTestBase
         });
         SHARED_CLUSTER.coordinators().forEach(coordinator -> coordinator.execute(format("TRUNCATE TABLE %s.%s", SYSTEM_KEYSPACE_NAME, CONSENSUS_MIGRATION_STATE), ALL));
         SHARED_CLUSTER.coordinators().forEach(coordinator -> coordinator.execute(format("TRUNCATE TABLE %s.%s", SYSTEM_KEYSPACE_NAME, PAXOS), ALL));
-    }
-
-    private static String nodetool(ICoordinator coordinator, String... commandAndArgs)
-    {
-        NodeToolResult nodetoolResult = coordinator.instance().nodetoolResult(commandAndArgs);
-        if (!nodetoolResult.getStdout().isEmpty())
-            System.out.println(nodetoolResult.getStdout());
-        if (!nodetoolResult.getStderr().isEmpty())
-            System.err.println(nodetoolResult.getStderr());
-        if (nodetoolResult.getError() != null)
-            fail("Failed nodetool " + Arrays.asList(commandAndArgs), nodetoolResult.getError());
-        // TODO why does standard out end up in stderr in nodetool?
-        return nodetoolResult.getStdout();
     }
 
     private static int getKeyBetweenTokens(Token left, Token right)
@@ -397,10 +387,10 @@ public class AccordMigrationTest extends AccordTestBase
     @Test
     public void testPaxosToAccordCAS() throws Exception
     {
-        test(format(TABLE_FMT, qualifiedTableName),
+        test(format(TABLE_FMT, qualifiedAccordTableName),
           cluster -> {
               List<Pair<ByteBuffer, UUID>> expectedKeyMigrations = new ArrayList<>();
-              String table = tableName;
+              String table = accordTableName;
               UUID tableUUID = cluster.get(1).callOnInstance(() -> ColumnFamilyStore.getIfExists(KEYSPACE, table).getTableId().asUUID());
               cluster.forEach(node -> node.runOnInstance(() -> {
                   TableMetadata tbl = Schema.instance.getTableMetadata(KEYSPACE, table);
@@ -408,7 +398,7 @@ public class AccordMigrationTest extends AccordTestBase
                   Assert.assertEquals(TransactionalMigrationFromMode.none, tbl.params.transactionalMigrationFrom);
               }));
 
-              cluster.schemaChange(format("ALTER TABLE %s.%s WITH transactional_mode='%s'", KEYSPACE, tableName, TransactionalMode.full));
+              cluster.schemaChange(format("ALTER TABLE %s.%s WITH transactional_mode='%s'", KEYSPACE, accordTableName, TransactionalMode.full));
 
               cluster.forEach(node -> node.runOnInstance(() -> {
                   TableMetadata tbl = Schema.instance.getTableMetadata(KEYSPACE, table);
@@ -416,11 +406,11 @@ public class AccordMigrationTest extends AccordTestBase
                   Assert.assertEquals(TransactionalMigrationFromMode.off, tbl.params.transactionalMigrationFrom);
               }));
 
-              String casCQL = format(CAS_FMT, qualifiedTableName, CLUSTERING_VALUE);
+              String casCQL = format(CAS_FMT, qualifiedAccordTableName, CLUSTERING_VALUE);
               Consumer<Integer> runCasNoApply = key -> assertRowEquals(cluster, new Object[]{false}, casCQL, key);
               Consumer<Integer> runCasApplies = key -> assertRowEquals(cluster, new Object[]{true}, casCQL, key);
               Consumer<Integer> runCasOnSecondNode = key -> assertEquals( "[applied]", cluster.coordinator(2).executeWithResult(casCQL, ANY, key).names().get(0));
-              String tableName = qualifiedTableName.split("\\.")[1];
+              String tableName = qualifiedAccordTableName.split("\\.")[1];
               int migratingKey = getKeyBetweenTokens(midToken, maxToken);
               int notMigratingKey = getKeyBetweenTokens(minToken, midToken);
               Range<Token> migratingRange = new Range(midToken, maxToken);
@@ -492,8 +482,15 @@ public class AccordMigrationTest extends AccordTestBase
               // Update inserted row so the condition can apply, if the condition check doesn't apply
               // then it won't get to propose/accept
               migratingKey = testingKeys.next();
-              String query = "UPDATE " + qualifiedTableName + " SET v = 42 WHERE id = ? AND c = ?";
-              Consumer<Integer> makeCASApply = key -> cluster.forEach(instance -> instance.runOnInstance(() -> executeInternal(query, key, CLUSTERING_VALUE)));
+              String keyspace = KEYSPACE;
+              Integer clusteringValue = CLUSTERING_VALUE;
+              String mutationTableName = accordTableName;
+              Consumer<Integer> makeCASApply = key -> cluster.forEach(instance -> instance.runOnInstance(() -> {
+                  SimpleBuilder mutationBuilder = Mutation.simpleBuilder(keyspace, dk(key)).allowPotentialTransactionConflicts();
+                  mutationBuilder.update(mutationTableName).row(clusteringValue).add("v", 42);
+                  Mutation m = mutationBuilder.build();
+                  m.applyUnsafe();
+              }));
               makeCASApply.accept(migratingKey);
 
               // This will force the request to run on Paxos up to Accept
@@ -551,13 +548,13 @@ public class AccordMigrationTest extends AccordTestBase
     @Test
     public void testPaxosToAccordSerialRead() throws Exception
     {
-        test(format(TABLE_FMT, qualifiedTableName),
+        test(format(TABLE_FMT, qualifiedAccordTableName),
           cluster -> {
-              String table = tableName;
+              String table = accordTableName;
               UUID tableUUID = cluster.get(1).callOnInstance(() -> ColumnFamilyStore.getIfExists(KEYSPACE, table).getTableId().asUUID());
               List<Pair<ByteBuffer, UUID>> expectedKeyMigrations = new ArrayList<>();
-              cluster.schemaChange(format("ALTER TABLE %s.%s WITH transactional_mode='%s'", KEYSPACE, tableName, TransactionalMode.full));
-              String readCQL = format("SELECT * FROM %s WHERE id = ? and c = %s", qualifiedTableName, CLUSTERING_VALUE);
+              cluster.schemaChange(format("ALTER TABLE %s.%s WITH transactional_mode='%s'", KEYSPACE, accordTableName, TransactionalMode.full));
+              String readCQL = format("SELECT * FROM %s WHERE id = ? and c = %s", qualifiedAccordTableName, CLUSTERING_VALUE);
               Function<Integer, Object[][]> runRead = key -> cluster.coordinator(1).execute(readCQL, SERIAL, key);
               Range<Token> migratingRange = new Range<>(new LongToken(Long.MIN_VALUE + 1), new LongToken(Long.MIN_VALUE));
               List<Range<Token>> migratingRanges = ImmutableList.of(migratingRange);
@@ -565,25 +562,20 @@ public class AccordMigrationTest extends AccordTestBase
 
               assertTargetAccordRead(runRead, 1, key, expectedKeyMigrations, 0, 1, 0, 0, 0);
               // Mark wrap around range as migrating
-              nodetool(coordinator, "consensus_admin", "begin-migration", "-st", String.valueOf(Long.MIN_VALUE + 1), "-et", String.valueOf(Long.MIN_VALUE), "-tp", "accord", KEYSPACE, tableName);
-              assertMigrationState(tableName, ConsensusMigrationTarget.accord, emptyList(), migratingRanges, 1);
+              nodetool(coordinator, "consensus_admin", "begin-migration", "-st", String.valueOf(Long.MIN_VALUE + 1), "-et", String.valueOf(Long.MIN_VALUE), "-tp", "accord", KEYSPACE, accordTableName);
+              assertMigrationState(accordTableName, ConsensusMigrationTarget.accord, emptyList(), migratingRanges, 1);
               // Should run directly on accord, migrate the key, and perform a quorum read from Accord, Paxos repair will run prepare once
               addExpectedMigratedKey(expectedKeyMigrations, key, tableUUID);
               assertTargetAccordRead(runRead, 1, key, expectedKeyMigrations, 1, 1, 1, 0, 0);
               key++;
 
               // Should run up to accept with both nodes refusing to accept
-              savePromisedAndCommittedPaxosProposal(tableName, key);
+              savePromisedAndCommittedPaxosProposal(accordTableName, key);
               cluster.get(1).runOnInstance(() -> ConsensusRequestRouter.setInstance(new PaxosToAccordMigrationNotHappeningUpToBegin()));
               addExpectedMigratedKey(expectedKeyMigrations, key, tableUUID);
               assertTargetAccordRead(runRead, 1, key, expectedKeyMigrations, 1, 2, 1, 0, 1);
               key++;
           });
-    }
-
-    private void alterTableTransactionalMode(TransactionalMode mode)
-    {
-        SHARED_CLUSTER.schemaChange(format("ALTER TABLE %s WITH %s", qualifiedTableName, mode.asCqlParam()));
     }
 
     private void assertTransactionalModes(String keyspace, String table, TransactionalMode mode, TransactionalMigrationFromMode migration)
@@ -597,17 +589,17 @@ public class AccordMigrationTest extends AccordTestBase
 
     private void assertTransactionalModes(TransactionalMode mode, TransactionalMigrationFromMode migration)
     {
-        assertTransactionalModes(KEYSPACE, tableName, mode, migration);
+        assertTransactionalModes(KEYSPACE, accordTableName, mode, migration);
     }
 
     @Test
     public void testAccordToPaxos() throws Exception
     {
-        test(format(TABLE_FMT, qualifiedTableName),
+        test(format(TABLE_FMT, qualifiedAccordTableName),
              cluster -> {
-                 String casCQL = format(CAS_FMT, qualifiedTableName, CLUSTERING_VALUE);
+                 String casCQL = format(CAS_FMT, qualifiedAccordTableName, CLUSTERING_VALUE);
                  Consumer<Integer> runCasNoApply = key -> assertRowEquals(cluster, new Object[]{false}, casCQL, key);
-                 String tableName = qualifiedTableName.split("\\.")[1];
+                 String tableName = qualifiedAccordTableName.split("\\.")[1];
                  UUID tableUUID = cluster.get(1).callOnInstance(() -> ColumnFamilyStore.getIfExists(KEYSPACE, tableName).getTableId().asUUID());
 
                  alterTableTransactionalMode(TransactionalMode.mixed_reads);

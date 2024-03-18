@@ -30,7 +30,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -41,14 +40,13 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.base.Preconditions;
 import com.google.common.cache.CacheLoader;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.primitives.Keys;
 import accord.primitives.Txn;
 import accord.utils.Invariants;
 import org.apache.cassandra.batchlog.Batch;
@@ -57,7 +55,6 @@ import org.apache.cassandra.concurrent.DebuggableTask.RunnableDebuggableTask;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -87,6 +84,7 @@ import org.apache.cassandra.db.view.ViewUtils;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 import org.apache.cassandra.exceptions.CasWriteUnknownResultException;
+import org.apache.cassandra.exceptions.CoordinatorBehindException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.IsBootstrappingException;
 import org.apache.cassandra.exceptions.OverloadedException;
@@ -97,6 +95,7 @@ import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureException;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
+import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
@@ -114,6 +113,7 @@ import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.metrics.CASClientRequestMetrics;
 import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
+import org.apache.cassandra.metrics.ClientWriteRequestMetrics;
 import org.apache.cassandra.metrics.DenylistMetrics;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
@@ -130,15 +130,14 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
-import org.apache.cassandra.service.accord.api.PartitionKey;
-import org.apache.cassandra.service.accord.txn.TxnCondition;
+import org.apache.cassandra.service.accord.IAccordService.AsyncTxnResult;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
-import org.apache.cassandra.service.accord.txn.TxnReferenceOperations;
 import org.apache.cassandra.service.accord.txn.TxnResult;
-import org.apache.cassandra.service.accord.txn.TxnUpdate;
-import org.apache.cassandra.service.accord.txn.TxnWrite;
+import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.SplitConsumer;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.SplitMutations;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
@@ -163,8 +162,10 @@ import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
+import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static accord.primitives.Txn.Kind.EphemeralRead;
@@ -195,6 +196,8 @@ import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.R
 import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.casResult;
 import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.serialReadResult;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
+import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.mutateWithAccordAsync;
+import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.splitMutationsIntoAccordAndNormal;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingDecision;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.GLOBAL;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.LOCAL;
@@ -203,6 +206,8 @@ import static org.apache.cassandra.service.paxos.v1.PrepareVerbHandler.doPrepare
 import static org.apache.cassandra.service.paxos.v1.ProposeVerbHandler.doPropose;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.Throwables.getStackTraceAsToString;
+import static org.apache.cassandra.utils.Throwables.unchecked;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 import static org.apache.commons.lang3.StringUtils.join;
@@ -1189,54 +1194,6 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    private static ConsistencyLevel consistencyLevelForCommit(Collection<? extends IMutation> mutations, ConsistencyLevel consistencyLevel)
-    {
-        ConsistencyLevel result = null;
-        for (IMutation mutation : mutations)
-        {
-            for (TableId tableId : mutation.getTableIds())
-            {
-                TransactionalMode mode = Schema.instance.getTableMetadata(tableId).params.transactionalMode;
-                ConsistencyLevel commitCL = mode.commitCLForStrategy(consistencyLevel);
-                if (result == null || commitCL.compareTo(result) > 0)
-                    result = commitCL;
-            }
-        }
-        return result;
-    }
-
-    private static boolean writesThroughAccord(List<? extends IMutation> mutations, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
-    {
-        boolean accordWrite = false;
-        boolean normalWrite = false;
-        for (int i=0,mi=mutations.size(); i<mi; i++)
-        {
-            IMutation mutation = mutations.get(i);
-            for (TableId tableId : mutation.getTableIds())
-            {
-                if (ConsensusRequestRouter.instance.shouldWriteThroughAccordAndMaybeMigrate(mutation.key(),
-                        tableId,
-                        consistencyLevel,
-                        queryStartNanoTime,
-                        DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS),
-                        true))
-                {
-                    accordWrite = true;
-                }
-                else
-                {
-                    normalWrite = true;
-                }
-            }
-        }
-
-        if (!accordWrite && !normalWrite)
-            throw new IllegalStateException("Mutation is neither a normal write nor an accord write");
-        if (accordWrite && normalWrite)
-            throw new InvalidRequestException("Cannot mix writes to accord and normal tables");
-        return accordWrite;
-    }
-
     @SuppressWarnings("unchecked")
     public static void mutateWithTriggers(List<? extends IMutation> mutations,
                                           ConsistencyLevel consistencyLevel,
@@ -1263,53 +1220,141 @@ public class StorageProxy implements StorageProxyMBean
             }
         }
 
-        Collection<Mutation> augmented = TriggerExecutor.instance.execute(mutations);
+        List<Mutation> augmented = TriggerExecutor.instance.execute(mutations);
 
         String keyspaceName = mutations.iterator().next().getKeyspaceName();
-        boolean updatesView = Keyspace.open(mutations.iterator().next().getKeyspaceName())
+        boolean updatesView = Keyspace.open(keyspaceName)
                               .viewManager
                               .updatesAffectView(mutations, true);
 
-
-        long size = IMutation.dataSize(mutations);
+        long size = IMutation.dataSize(augmented != null ? augmented : mutations);
         writeMetrics.mutationSize.update(size);
-        writeMetricsForLevel(consistencyLevel).mutationSize.update(size);
-        if (writesThroughAccord(mutations, consistencyLevel, queryStartNanoTime))
-        {
-            Preconditions.checkState(!SchemaConstants.getSystemKeyspaces().contains(keyspaceName));
-            mutateWithAccord(augmented != null ? augmented : mutations, consistencyLevel, queryStartNanoTime);
-        }
-        else if (augmented != null)
-            mutateAtomically(augmented, consistencyLevel, updatesView, queryStartNanoTime);
+        ClientWriteRequestMetrics metricsForLevel = writeMetricsForLevel(consistencyLevel);
+        metricsForLevel.mutationSize.update(size);
+        if (augmented != null || mutateAtomically || updatesView)
+            mutateAtomically(augmented != null ? augmented : (List<Mutation>)mutations, consistencyLevel, updatesView, queryStartNanoTime);
         else
+            dispatchMutationsWithRetryOnDifferentSystem(mutations, consistencyLevel, queryStartNanoTime);
+    }
+
+    public static void dispatchMutationsWithRetryOnDifferentSystem(List<? extends IMutation> mutations, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
+    {
+        while (true)
         {
-            if (mutateAtomically || updatesView)
-                mutateAtomically((Collection<Mutation>) mutations, consistencyLevel, updatesView, queryStartNanoTime);
-            else
-                mutate(mutations, consistencyLevel, queryStartNanoTime);
+            ClusterMetadata cm = ClusterMetadata.current();
+            try
+            {
+                SplitMutations splitMutations = splitMutationsIntoAccordAndNormal(cm, (List<IMutation>)mutations);
+                List<? extends IMutation> accordMutations = splitMutations.accordMutations();
+                AsyncTxnResult accordResult = accordMutations != null ? mutateWithAccordAsync(cm, accordMutations, consistencyLevel, queryStartNanoTime) : null;
+                List<? extends IMutation> normalMutations = splitMutations.normalMutations();
+                Tracing.trace("Split mutations into Accord {} and normal {}", accordMutations, normalMutations);
+
+                Throwable failure = null;
+                try
+                {
+                    if (normalMutations != null)
+                    {
+                        mutate(normalMutations, consistencyLevel, queryStartNanoTime);
+                        Tracing.trace("Successfully wrote normal mutations");
+                    }
+                }
+                catch (RetryOnDifferentSystemException e)
+                {
+                    writeMetrics.retryDifferentSystem.mark();
+                    writeMetricsForLevel(consistencyLevel).retryDifferentSystem.mark();
+                    logger.debug("Retrying mutations on different system because some mutations were misrouted");
+                    Tracing.trace("Got {} from normal mutations, will retry", e);
+                    continue;
+                }
+                catch (CoordinatorBehindException e)
+                {
+                    writeMetrics.retryCoordinatorBehind.mark();
+                    writeMetricsForLevel(consistencyLevel).retryCoordinatorBehind.mark();
+                    mutations.forEach(IMutation::clearCachedSerializationsForRetry);
+                    logger.debug("Retrying mutations now that coordinator has caught up to cluster metadata");
+                    Tracing.trace("Got {} from normal mutations, will retry", e);
+                    continue;
+                }
+                catch (Exception e)
+                {
+                    failure = Throwables.merge(failure, e);
+                }
+
+                // Check if the Accord mutations succeeded asynchronously
+                try
+                {
+                    if (accordResult != null)
+                    {
+                        IAccordService accord = AccordService.instance();
+                        TxnResult.Kind kind = accord.getTxnResult(accordResult, true, consistencyLevel, queryStartNanoTime).kind();
+                        if (kind == retry_new_protocol)
+                            continue;
+                        Tracing.trace("Successfully wrote Accord mutations");
+                    }
+                }
+                catch (Exception e)
+                {
+                    failure = Throwables.merge(failure, e);
+                }
+
+                if (failure != null)
+                    throw unchecked(failure);
+            }
+            catch (Exception t)
+            {
+                // Unexpected error so it would be helpful to have details
+                Tracing.trace("{}", getStackTraceAsToString(t));
+                throw t;
+            }
+            break;
         }
     }
 
-    private static void mutateWithAccord(Collection<? extends IMutation> mutations, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
+    private static ConsistencyLevel consistencyLevelForBatchLog(ConsistencyLevel consistencyLevel, boolean requireQuorumForRemove)
     {
-        int fragmentIndex = 0;
-        List<TxnWrite.Fragment> fragments = new ArrayList<>(mutations.size());
-        List<PartitionKey> partitionKeys = new ArrayList<>(mutations.size());
-        for (IMutation mutation : mutations)
+        // If we are requiring quorum nodes for removal, we upgrade consistency level to QUORUM unless we already
+        // require ALL, or EACH_QUORUM. This is so that *at least* QUORUM nodes see the update.
+        ConsistencyLevel batchConsistencyLevel = requireQuorumForRemove
+                                                 ? ConsistencyLevel.QUORUM
+                                                 : consistencyLevel;
+
+        switch (consistencyLevel)
         {
-            for (PartitionUpdate update : mutation.getPartitionUpdates())
-            {
-                PartitionKey pk = PartitionKey.of(update);
-                partitionKeys.add(pk);
-                fragments.add(new TxnWrite.Fragment(PartitionKey.of(update), fragmentIndex++, update, TxnReferenceOperations.empty()));
-            }
+            case ALL:
+            case EACH_QUORUM:
+                batchConsistencyLevel = consistencyLevel;
         }
-        // Potentially ignore commit consistency level if the strategy specifies accord and not migration
-        ConsistencyLevel clForCommit = consistencyLevelForCommit(mutations, consistencyLevel);
-        TxnUpdate update = new TxnUpdate(fragments, TxnCondition.none(), clForCommit);
-        Txn.InMemory txn = new Txn.InMemory(Keys.of(partitionKeys), TxnRead.EMPTY, TxnQuery.EMPTY, update);
-        IAccordService accordService = AccordService.instance();
-        accordService.coordinate(txn, consistencyLevel, queryStartNanoTime);
+        return batchConsistencyLevel;
+    }
+
+    private static void doFallibleWriteWithMetricTracking(Runnable r, ConsistencyLevel consistencyLevel)
+    {
+        try
+        {
+            r.run();
+        }
+        catch (UnavailableException e)
+        {
+            writeMetrics.unavailables.mark();
+            writeMetricsForLevel(consistencyLevel).unavailables.mark();
+            Tracing.trace("Unavailable");
+            throw e;
+        }
+        catch (WriteTimeoutException e)
+        {
+            writeMetrics.timeouts.mark();
+            writeMetricsForLevel(consistencyLevel).timeouts.mark();
+            Tracing.trace("Write timeout; received {} of {} required replies", e.received, e.blockFor);
+            throw e;
+        }
+        catch (WriteFailureException e)
+        {
+            writeMetrics.failures.mark();
+            writeMetricsForLevel(consistencyLevel).failures.mark();
+            Tracing.trace("Write failure; received {} of {} required replies", e.received, e.blockFor);
+            throw e;
+        }
     }
 
     /**
@@ -1319,92 +1364,171 @@ public class StorageProxy implements StorageProxyMBean
      * After: remove the batchlog entry (after writing hints for the batch rows, if necessary).
      *
      * @param mutations the Mutations to be applied across the replicas
-     * @param consistency_level the consistency level for the operation
+     * @param consistencyLevel the consistency level for the operation
      * @param requireQuorumForRemove at least a quorum of nodes will see update before deleting batchlog
      * @param queryStartNanoTime the value of nanoTime() when the query started to be processed
      */
-    public static void mutateAtomically(Collection<Mutation> mutations,
-                                        ConsistencyLevel consistency_level,
+    public static void mutateAtomically(List<Mutation> mutations,
+                                        ConsistencyLevel consistencyLevel,
                                         boolean requireQuorumForRemove,
                                         long queryStartNanoTime)
     throws UnavailableException, OverloadedException, WriteTimeoutException
     {
         Tracing.trace("Determining replicas for atomic batch");
         long startTime = nanoTime();
-
-        List<WriteResponseHandlerWrapper> wrappers = new ArrayList<>(mutations.size());
+        boolean attributeNonAccordLatency = true;
+        long nonAccordEndTime = -1;
 
         if (mutations.stream().anyMatch(mutation -> Keyspace.open(mutation.getKeyspaceName()).getReplicationStrategy().hasTransientReplicas()))
             throw new AssertionError("Logged batches are unsupported with transient replication");
 
         try
         {
-
-            // If we are requiring quorum nodes for removal, we upgrade consistency level to QUORUM unless we already
-            // require ALL, or EACH_QUORUM. This is so that *at least* QUORUM nodes see the update.
-            ConsistencyLevel batchConsistencyLevel = requireQuorumForRemove
-                                                     ? ConsistencyLevel.QUORUM
-                                                     : consistency_level;
-
-            switch (consistency_level)
-            {
-                case ALL:
-                case EACH_QUORUM:
-                    batchConsistencyLevel = consistency_level;
-            }
-
-            ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forBatchlogWrite(batchConsistencyLevel == ConsistencyLevel.ANY);
-
+            ConsistencyLevel batchConsistencyLevel = consistencyLevelForBatchLog(consistencyLevel, requireQuorumForRemove);
+            // This can't be updated for each iteration because cleanup has to go to the correct replicas which is where the batchlog is originally written
+            ReplicaPlan.ForWrite batchlogReplicaPlan = ReplicaPlans.forBatchlogWrite(ClusterMetadata.current(), batchConsistencyLevel == ConsistencyLevel.ANY);
             final TimeUUID batchUUID = nextTimeUUID();
-            BatchlogCleanup cleanup = new BatchlogCleanup(mutations.size(),
-                                                          () -> asyncRemoveFromBatchlog(replicaPlan, batchUUID));
-
-            // add a handler for each mutation - includes checking availability, but doesn't initiate any writes, yet
-            for (Mutation mutation : mutations)
+            boolean wroteToBatchLog = false;
+            while (true)
             {
-                WriteResponseHandlerWrapper wrapper = wrapBatchResponseHandler(mutation,
-                                                                               consistency_level,
-                                                                               batchConsistencyLevel,
-                                                                               WriteType.BATCH,
-                                                                               cleanup,
-                                                                               queryStartNanoTime);
-                // exit early if we can't fulfill the CL at this time.
-                wrappers.add(wrapper);
+                // In case we hit an error in before/during splitting
+                attributeNonAccordLatency = true;
+                ClusterMetadata cm = ClusterMetadata.current();
+                List<WriteResponseHandlerWrapper> wrappers = new ArrayList<>(mutations.size());
+                List<Mutation> accordMutations = new ArrayList<>(mutations.size());
+                BatchlogCleanup cleanup = new BatchlogCleanup(() -> asyncRemoveFromBatchlog(batchlogReplicaPlan, batchUUID));
+
+                // add a handler for each mutation that will not be written on Accord - includes checking availability, but doesn't initiate any writes, yet
+                SplitConsumer<Mutation> splitConsumer = (accordMutation, normalMutation, originalMutations, mutationIndex) -> {
+                    Mutation eitherMutation = normalMutation != null ? normalMutation : accordMutation;
+                    Keyspace keyspace = Keyspace.open(eitherMutation.getKeyspaceName());
+                    Token tk = eitherMutation.key().getToken();
+
+                    if (accordMutation != null)
+                        accordMutations.add(accordMutation);
+
+                    if (normalMutation == null)
+                        return;
+
+                    // Always construct the replica plan to check availability
+                    ReplicaPlan.ForWrite dataReplicaPlan = ReplicaPlans.forWrite(cm, keyspace, consistencyLevel, tk, ReplicaPlans.writeNormal);
+
+                    if (dataReplicaPlan.lookup(FBUtilities.getBroadcastAddressAndPort()) != null)
+                        writeMetrics.localRequests.mark();
+                    else
+                        writeMetrics.remoteRequests.mark();
+
+                    WriteResponseHandlerWrapper wrapper = wrapBatchResponseHandler(normalMutation,
+                                                                                   dataReplicaPlan,
+                                                                                   batchConsistencyLevel,
+                                                                                   WriteType.BATCH,
+                                                                                   cleanup,
+                                                                                   queryStartNanoTime);
+                    wrappers.add(wrapper);
+                };
+                splitMutationsIntoAccordAndNormal(cm, mutations,  splitConsumer);
+                attributeNonAccordLatency = !wrappers.isEmpty();
+                cleanup.setMutationsWaitingFor(wrappers.size() + (accordMutations.isEmpty() ? 0 : 1));
+                Tracing.trace("Split batch into Accord {} and normal {}", accordMutations, wrappers);
+
+                // If the entire batch can execute on Accord then we can skip the batch log entirely
+                // Write to the batch log first in case it fails so we don't end up with Accord applying
+                // part of the batch independently
+                if (!wrappers.isEmpty() && !wroteToBatchLog)
+                {
+                    // write to the batchlog, including writes that will be routed to Accord to preserve the behavior
+                    // of the batch log where if part of a batch is visible then eventually the entire batch is visible.
+                    // If the Accord routed mutations depend on the Accord txn succeeding then it is no longer consistent
+                    // with the mutations delivered by the batch log since an unacknowledged Accord txn won't be retried
+                    // unless those mutations are also written to the batch log
+                    // Only write to the log once and reuse the batchUUID for every attempt to route the mutations correctly
+                    doFallibleWriteWithMetricTracking(() -> syncWriteToBatchlog(mutations, batchlogReplicaPlan, batchUUID, queryStartNanoTime), consistencyLevel);
+                    Tracing.trace("Successfully wrote to batchlog");
+                    wroteToBatchLog = true;
+                }
+
+                // Start Accord executing so it executes while the mutations are synchronously applied
+                AsyncTxnResult accordResult = !accordMutations.isEmpty() ? mutateWithAccordAsync(cm, accordMutations, consistencyLevel, queryStartNanoTime) : null;
+
+                Throwable failure = null;
+                try
+                {
+                    // now actually perform the writes and wait for them to complete
+                    if (!wrappers.isEmpty())
+                    {
+                        doFallibleWriteWithMetricTracking(() -> syncWriteBatchedMutations(wrappers, Stage.MUTATION), consistencyLevel);
+                        Tracing.trace("Successfully wrote normal mutations");
+                    }
+                }
+                catch (RetryOnDifferentSystemException e)
+                {
+                    writeMetrics.retryDifferentSystem.mark();
+                    writeMetricsForLevel(consistencyLevel).retryDifferentSystem.mark();
+                    logger.debug("Retrying batch txn on different system because some mutations were misrouted");
+                    Tracing.trace("Got {} from normal mutations, will retry", e);
+                    continue;
+                }
+                catch (CoordinatorBehindException e)
+                {
+                    writeMetrics.retryCoordinatorBehind.mark();
+                    writeMetricsForLevel(consistencyLevel).retryCoordinatorBehind.mark();
+                    mutations.forEach(IMutation::clearCachedSerializationsForRetry);
+                    logger.debug("Retrying batch now that coordinator has caught up to cluster metadata");
+                    Tracing.trace("Got {} from normal mutations, will retry", e);
+                    continue;
+                }
+                catch (Exception e)
+                {
+                    failure = Throwables.merge(failure, e);
+                }
+                finally
+                {
+                    // Try to exclude most of the Accord time
+                    nonAccordEndTime = nanoTime();
+                }
+
+                // Check if the Accord mutations succeeded asynchronously
+                try
+                {
+                    // It's notable here that the Accord portion of the batch will not be hinted
+                    // while the regular mutations are hinted on failure and also going to be replayed later from
+                    // the batch log. It wouldn't be difficult to add hinting here, but it does seem redundant with
+                    // the batch log.
+                    if (accordResult != null)
+                    {
+                        IAccordService accord = AccordService.instance();
+                        TxnResult.Kind kind = accord.getTxnResult(accordResult, true, consistencyLevel, queryStartNanoTime).kind();
+                        if (kind == retry_new_protocol && failure == null)
+                            continue;
+                        Tracing.trace("Successfully wrote Accord mutations");
+                        cleanup.ackMutation();
+                    }
+                }
+                catch (Exception e)
+                {
+                    failure = Throwables.merge(failure, e);
+                }
+                if (failure != null)
+                    throw unchecked(failure);
+                break;
             }
-
-            // write to the batchlog
-            syncWriteToBatchlog(mutations, replicaPlan, batchUUID, queryStartNanoTime);
-
-            // now actually perform the writes and wait for them to complete
-            syncWriteBatchedMutations(wrappers, Stage.MUTATION);
         }
-        catch (UnavailableException e)
+        catch (Exception t)
         {
-            writeMetrics.unavailables.mark();
-            writeMetricsForLevel(consistency_level).unavailables.mark();
-            Tracing.trace("Unavailable");
-            throw e;
-        }
-        catch (WriteTimeoutException e)
-        {
-            writeMetrics.timeouts.mark();
-            writeMetricsForLevel(consistency_level).timeouts.mark();
-            Tracing.trace("Write timeout; received {} of {} required replies", e.received, e.blockFor);
-            throw e;
-        }
-        catch (WriteFailureException e)
-        {
-            writeMetrics.failures.mark();
-            writeMetricsForLevel(consistency_level).failures.mark();
-            Tracing.trace("Write failure; received {} of {} required replies", e.received, e.blockFor);
-            throw e;
+            // Unexpected error so it would be helpful to have details
+            Tracing.trace("{}", getStackTraceAsToString(t));
+            throw t;
         }
         finally
         {
-            long latency = nanoTime() - startTime;
-            writeMetrics.addNano(latency);
-            writeMetricsForLevel(consistency_level).addNano(latency);
-            updateCoordinatorWriteLatencyTableMetric(mutations, latency);
+            if (attributeNonAccordLatency)
+            {
+                // On the exception path nonAccordEndTime will be -1
+                long latency = nonAccordEndTime != -1 ? nonAccordEndTime : nanoTime() - startTime;
+                writeMetrics.addNano(latency);
+                writeMetricsForLevel(consistencyLevel).addNano(latency);
+                updateCoordinatorWriteLatencyTableMetric(mutations, latency);
+            }
         }
     }
 
@@ -1485,7 +1609,7 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    private static void syncWriteBatchedMutations(List<WriteResponseHandlerWrapper> wrappers, Stage stage)
+    private static void syncWriteBatchedMutations(Iterable<WriteResponseHandlerWrapper> wrappers, Stage stage)
     throws WriteTimeoutException, OverloadedException
     {
         String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
@@ -1543,22 +1667,12 @@ public class StorageProxy implements StorageProxyMBean
 
     // same as performWrites except does not initiate writes (but does perform availability checks).
     private static WriteResponseHandlerWrapper wrapBatchResponseHandler(Mutation mutation,
-                                                                        ConsistencyLevel consistencyLevel,
+                                                                        ReplicaPlan.ForWrite replicaPlan,
                                                                         ConsistencyLevel batchConsistencyLevel,
                                                                         WriteType writeType,
                                                                         BatchlogResponseHandler.BatchlogCleanup cleanup,
                                                                         long queryStartNanoTime)
     {
-        Keyspace keyspace = Keyspace.open(mutation.getKeyspaceName());
-        Token tk = mutation.key().getToken();
-
-        ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, tk, ReplicaPlans.writeNormal);
-
-        if (replicaPlan.lookup(FBUtilities.getBroadcastAddressAndPort()) != null)
-            writeMetrics.localRequests.mark();
-        else
-            writeMetrics.remoteRequests.mark();
-
         AbstractReplicationStrategy rs = replicaPlan.replicationStrategy();
         AbstractWriteResponseHandler<IMutation> writeHandler = rs.getWriteResponseHandler(replicaPlan, null, writeType, mutation, queryStartNanoTime);
         BatchlogResponseHandler<IMutation> batchHandler = new BatchlogResponseHandler<>(writeHandler, batchConsistencyLevel.blockFor(rs), cleanup, queryStartNanoTime);
@@ -1587,13 +1701,17 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     // used by atomic_batch_mutate to decouple availability check from the write itself, caches consistency level and endpoints.
-    private static class WriteResponseHandlerWrapper
+    public static class WriteResponseHandlerWrapper
     {
-        final BatchlogResponseHandler<IMutation> handler;
-        final Mutation mutation;
+        @Nonnull
+        public final BatchlogResponseHandler<IMutation> handler;
+        @Nonnull
+        public final Mutation mutation;
 
-        WriteResponseHandlerWrapper(BatchlogResponseHandler<IMutation> handler, Mutation mutation)
+        public WriteResponseHandlerWrapper(@Nonnull BatchlogResponseHandler<IMutation> handler, @Nonnull Mutation mutation)
         {
+            checkNotNull(handler);
+            checkNotNull(mutation);
             this.handler = handler;
             this.mutation = mutation;
         }
@@ -1822,7 +1940,7 @@ public class StorageProxy implements StorageProxyMBean
                 }
                 catch (Exception ex)
                 {
-                    if (!(ex instanceof WriteTimeoutException))
+                    if (!(ex instanceof WriteTimeoutException) && !(ex instanceof RetryOnDifferentSystemException))
                         logger.error("Failed to apply mutation locally : ", ex);
                     handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailure.forException(ex));
                 }
@@ -2771,7 +2889,11 @@ public class StorageProxy implements StorageProxyMBean
                 long timeTakenNanos = approxStartTimeNanos - approxCreationTimeNanos;
                 MessagingService.instance().metrics.recordSelfDroppedMessage(Verb.MUTATION_REQ, timeTakenNanos, NANOSECONDS);
 
-                HintRunnable runnable = new HintRunnable(EndpointsForToken.of(localReplica.range().right, localReplica))
+                // Don't submit a hint if this replica is transient
+                if (localReplica.isTransient())
+                    return;
+
+                HintRunnable runnable = new HintRunnable(ImmutableSet.of(localReplica.endpoint()))
                 {
                     protected void runMayThrow() throws Exception
                     {
@@ -2833,9 +2955,9 @@ public class StorageProxy implements StorageProxyMBean
      */
     private abstract static class HintRunnable implements Runnable
     {
-        public final EndpointsForToken targets;
+        public final Set<InetAddressAndPort> targets;
 
-        protected HintRunnable(EndpointsForToken targets)
+        protected HintRunnable(Set<InetAddressAndPort> targets)
         {
             this.targets = targets;
         }
@@ -2853,7 +2975,7 @@ public class StorageProxy implements StorageProxyMBean
             finally
             {
                 StorageMetrics.totalHintsInProgress.dec(targets.size());
-                for (InetAddressAndPort target : targets.endpoints())
+                for (InetAddressAndPort target : targets)
                     getHintsInProgressFor(target).decrementAndGet();
             }
         }
@@ -2899,6 +3021,11 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
+    public static void submitHintForRetryOnDifferentSystem(Mutation mutation)
+    {
+        submitHint(mutation, ImmutableSet.of(HintsService.RETRY_ON_DIFFERENT_SYSTEM_ADDRESS), null);
+    }
+
     public static Future<Void> submitHint(Mutation mutation, Replica target, AbstractWriteResponseHandler<IMutation> responseHandler)
     {
         return submitHint(mutation, EndpointsForToken.of(target.range().right, target), responseHandler);
@@ -2908,16 +3035,29 @@ public class StorageProxy implements StorageProxyMBean
                                           EndpointsForToken targets,
                                           AbstractWriteResponseHandler<IMutation> responseHandler)
     {
-        Replicas.assertFull(targets); // hints should not be written for transient replicas
+        // hints should not be written for transient replicas because there is no point if they didn't contribute
+        // to quorum, they would eventually be removed anyways after running incremental repair.
+        // This logic assumes we don't always write to transient replicas to minimize incremental repair mismatches
+        // so we may want to walk this back when revisiting transient replication
+        Replicas.assertFull(targets);
+        return submitHint(mutation, targets.endpoints(), responseHandler);
+    }
+
+    private static Future<Void> submitHint(Mutation mutation,
+                                          Set<InetAddressAndPort> targets,
+                                          AbstractWriteResponseHandler<IMutation> responseHandler)
+    {
         HintRunnable runnable = new HintRunnable(targets)
         {
             public void runMayThrow()
             {
                 Set<InetAddressAndPort> validTargets = new HashSet<>(targets.size());
                 Set<UUID> hostIds = new HashSet<>(targets.size());
-                for (InetAddressAndPort target : targets.endpoints())
+                for (InetAddressAndPort target : targets)
                 {
-                    UUID hostId = StorageService.instance.getHostIdForEndpoint(target);
+                    UUID hostId = target == HintsService.RETRY_ON_DIFFERENT_SYSTEM_ADDRESS ?
+                                  HintsService.RETRY_ON_DIFFERENT_SYSTEM_UUID :
+                                  StorageService.instance.getHostIdForEndpoint(target);
                     if (hostId != null)
                     {
                         hostIds.add(hostId);
@@ -2941,8 +3081,8 @@ public class StorageProxy implements StorageProxyMBean
     private static Future<Void> submitHint(HintRunnable runnable)
     {
         StorageMetrics.totalHintsInProgress.inc(runnable.targets.size());
-        for (Replica target : runnable.targets)
-            getHintsInProgressFor(target.endpoint()).incrementAndGet();
+        for (InetAddressAndPort target : runnable.targets)
+            getHintsInProgressFor(target).incrementAndGet();
         return (Future<Void>) Stage.MUTATION.submit(runnable);
     }
 
@@ -3135,9 +3275,9 @@ public class StorageProxy implements StorageProxyMBean
         RowIterator casResult;
 
         @Nonnull
-        PartitionIterator serialReadResult;
+        public final PartitionIterator serialReadResult;
 
-        boolean shouldRetryOnNewConsensusProtocol;
+        public final boolean shouldRetryOnNewConsensusProtocol;
 
         private ConsensusAttemptResult(@Nullable RowIterator casResult, @Nullable PartitionIterator serialReadResult, boolean shouldRetryOnNewConsensusProtocol)
         {

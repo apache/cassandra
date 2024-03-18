@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.consensus.migration;
 
+import java.util.Optional;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -26,9 +27,12 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.Keyspaces;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.consensus.TransactionalMode;
@@ -40,11 +44,10 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.getConsensusMigratedAt;
+import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget.paxos;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingDecision.accord;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingDecision.paxosV1;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingDecision.paxosV2;
-
-import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget.paxos;
 
 /**
  * Helper class to decide where to route a request that requires consensus, migrating a key if necessary
@@ -83,13 +86,30 @@ public class ConsensusRequestRouter
         return pickPaxos();
     }
 
+    /*
+     * Accord never handles local tables, but if the table doesn't exist then we need to generate the correct
+     * InvalidRequestException.
+     */
     private static TableMetadata metadata(ClusterMetadata cm, String keyspace, String table)
     {
-        KeyspaceMetadata ksm = cm.schema.getKeyspaceMetadata(keyspace);
-        TableMetadata tbm = ksm != null ? ksm.getTableOrViewNullable(table) : null;
-
+        Optional<KeyspaceMetadata> ksm = cm.schema.maybeGetKeyspaceMetadata(keyspace);
+        if (ksm.isEmpty())
+        {
+            // It's a non-distributed table which is fine, but we want to error if it doesn't exist
+            // We should never actually reach here unless there is a race with dropping the table
+            Keyspaces localKeyspaces = Schema.instance.localKeyspaces();
+            KeyspaceMetadata ksm2 = localKeyspaces.getNullable(keyspace);
+            if (ksm2 == null)
+                throw new InvalidRequestException("Keyspace " + keyspace + " does not exist");
+            // Explicitly including views in case they get used in non-distributed tables
+            TableMetadata tbm2 = ksm2.getTableOrViewNullable(table);
+            if (tbm2 == null)
+                throw new InvalidRequestException("Table " + keyspace + "." + table + " does not exist");
+            return null;
+        }
+        TableMetadata tbm = ksm.get().getTableNullable(table);
         if (tbm == null)
-            throw new IllegalStateException("Can't route consensus request to nonexistent CFS %s.%s".format(keyspace, table));
+            throw new InvalidRequestException("Table " + keyspace + "." + table + " does not exist");
 
         return tbm;
     }
@@ -98,16 +118,36 @@ public class ConsensusRequestRouter
     {
         ClusterMetadata cm = ClusterMetadata.current();
         TableMetadata metadata = metadata(cm, keyspace, table);
+        // Non-distributed tables always take the Paxos path
+        if (metadata == null)
+            return pickPaxos();
         return routeAndMaybeMigrate(cm, metadata, key, consistencyLevel, queryStartNanoTime, timeoutNanos, isForWrite);
     }
 
     public ConsensusRoutingDecision routeAndMaybeMigrate(@Nonnull DecoratedKey key, @Nonnull TableId tableId, ConsistencyLevel consistencyLevel,  long queryStartNanotime, long timeoutNanos, boolean isForWrite)
     {
         ClusterMetadata cm = ClusterMetadata.current();
-        TableMetadata metadata = cm.schema.getTableMetadata(tableId);
+        TableMetadata metadata = getTableMetadata(cm, tableId);
+        // Non-distributed tables always take the Paxos path
         if (metadata == null)
-            throw new IllegalStateException("Can't route consensus request for nonexistent table %s".format(tableId.toString()));
+            pickPaxos();
         return routeAndMaybeMigrate(cm, metadata, key, consistencyLevel, queryStartNanotime, timeoutNanos, isForWrite);
+    }
+
+    public static TableMetadata getTableMetadata(ClusterMetadata cm, TableId tableId)
+    {
+        TableMetadata tm = cm.schema.getTableMetadata(tableId);
+        if (tm == null)
+        {
+            // It's a non-distributed table which is fine, but we want to error if it doesn't exist
+            // We should never actually reach here unless there is a race with dropping the table
+            Keyspaces localKeyspaces = Schema.instance.localKeyspaces();
+            TableMetadata tm2 = localKeyspaces.getTableOrViewNullable(tableId);
+            if (tm2 == null)
+                throw new InvalidRequestException("Table with id " + tableId + " does not exist");
+            return null;
+        }
+        return tm;
     }
 
     protected static boolean mayWriteThroughAccord(TableMetadata metadata)
@@ -169,7 +209,7 @@ public class ConsensusRequestRouter
 
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tmd.id);
         if (cfs == null)
-            throw new IllegalStateException("Can't route consensus request to nonexistent CFS %s.%s".format(tmd.keyspace, tmd.name));
+            throw new InvalidRequestException("Can't route consensus request to nonexistent CFS %s.%s".format(tmd.keyspace, tmd.name));
         // If it is locally replicated we can check our local migration state to see if it was already migrated
         EndpointsForToken naturalReplicas = ReplicaLayout.forNonLocalStrategyTokenRead(cm, cfs.keyspace.getMetadata(), key.getToken());
         boolean isLocallyReplicated = naturalReplicas.lookup(FBUtilities.getBroadcastAddressAndPort()) != null;
@@ -190,7 +230,7 @@ public class ConsensusRequestRouter
                 // barrier transactions to accomplish the migration
                 // They still might need to go through the fast local path for barrier txns
                 // at each replica, but they won't create their own txn since we created it here
-                ConsensusKeyMigrationState.repairKeyAccord(key, tms.keyspaceName, tms.tableId, tms.minMigrationEpoch(key.getToken()).getEpoch(), queryStartNanos, true, isForWrite);
+                ConsensusKeyMigrationState.repairKeyAccord(key, tms.tableId, tms.minMigrationEpoch(key.getToken()).getEpoch(), queryStartNanos, true, isForWrite);
                 return paxosV2;
             }
             // Fall through for repairKeyPaxos

@@ -24,7 +24,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
@@ -35,8 +34,10 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.exceptions.CoordinatorBehindException;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.EndpointsForToken;
@@ -49,6 +50,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static com.google.common.collect.ImmutableMap.toImmutableMap;
 import static java.lang.Long.MAX_VALUE;
 import static java.lang.Math.min;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
@@ -57,6 +59,8 @@ import static java.util.stream.Collectors.toList;
 import static org.apache.cassandra.config.DatabaseDescriptor.getCounterWriteRpcTimeout;
 import static org.apache.cassandra.config.DatabaseDescriptor.getWriteRpcTimeout;
 import static org.apache.cassandra.db.WriteType.COUNTER;
+import static org.apache.cassandra.exceptions.RequestFailureReason.COORDINATOR_BEHIND;
+import static org.apache.cassandra.exceptions.RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM;
 import static org.apache.cassandra.locator.Replicas.countInOurDc;
 import static org.apache.cassandra.schema.Schema.instance;
 import static org.apache.cassandra.service.StorageProxy.WritePerformer;
@@ -78,6 +82,10 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     private static final AtomicIntegerFieldUpdater<AbstractWriteResponseHandler> failuresUpdater =
         AtomicIntegerFieldUpdater.newUpdater(AbstractWriteResponseHandler.class, "failures");
     private volatile int failures = 0;
+    private static final AtomicIntegerFieldUpdater<AbstractWriteResponseHandler> alreadyHintedForRetryOnDifferentSystemUpdater =
+        AtomicIntegerFieldUpdater.newUpdater(AbstractWriteResponseHandler.class, "alreadyHintedForRetryOnDifferentSystem");
+    // Only write a hint to be applied as a transaction once
+    private volatile int alreadyHintedForRetryOnDifferentSystem = 0;
     private final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
     private final long queryStartNanoTime;
     private @Nullable final Supplier<Mutation> hintOnFailure;
@@ -111,7 +119,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
         this.queryStartNanoTime = queryStartNanoTime;
     }
 
-    public void get() throws WriteTimeoutException, WriteFailureException
+    public void get() throws WriteTimeoutException, WriteFailureException, RetryOnDifferentSystemException
     {
         long timeoutNanos = currentTimeoutNanos();
 
@@ -128,12 +136,39 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
         if (!signaled)
             throwTimeout();
 
-        if (blockFor() + failures > candidateReplicaCount())
+        int candidateReplicaCount = candidateReplicaCount();
+        if (blockFor() + failures > candidateReplicaCount)
         {
-            if (RequestCallback.isTimeout(this.failureReasonByEndpoint.keySet().stream()
-                                                                      .filter(this::waitingFor) // DatacenterWriteResponseHandler filters errors from remote DCs
-                                                                      .collect(Collectors.toMap(Function.identity(), this.failureReasonByEndpoint::get))))
+            // failures keeps incrementing, and this.failureReasonByEndpoint keeps getting new entries after signaling.
+            // Simpler to reason about what happened by copying this.failureReasonByEndpoint and then inferring
+            // failures from it
+            final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint = this.failureReasonByEndpoint.keySet().stream()
+                                        .filter(this::waitingFor) // DatacenterWriteResponseHandler filters errors from remote DCs
+                                        .collect(toImmutableMap(Function.identity(), this.failureReasonByEndpoint::get));
+            final int failures = failureReasonByEndpoint.size();
+            if (RequestCallback.isTimeout(failureReasonByEndpoint))
                 throwTimeout();
+
+            int transactionRetryErrors = 0;
+            int coordinatorBehindErrors = 0;
+            for (RequestFailureReason reason : failureReasonByEndpoint.values())
+            {
+                if (reason == RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM)
+                    transactionRetryErrors++;
+                if (reason == COORDINATOR_BEHIND)
+                    coordinatorBehindErrors++;
+            }
+            int totalRetriableFailures = transactionRetryErrors + coordinatorBehindErrors;
+
+            // Retrying might fix this
+            if (candidateReplicaCount - failures + totalRetriableFailures  >= blockFor())
+            {
+                // Doesn't matter which we throw really but for clarity/metrics be specific
+                // Retrying on the correct system might make this write succeed
+                if (transactionRetryErrors > 0)
+                    throw new RetryOnDifferentSystemException();
+                throw new CoordinatorBehindException("Write request failed due to coordinator behind");
+            }
 
             throw new WriteFailureException(replicaPlan.consistencyLevel(), ackCount(), blockFor(), writeType, this.failureReasonByEndpoint);
         }
@@ -283,7 +318,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     @Override
     public void onFailure(InetAddressAndPort from, RequestFailure failure)
     {
-        logger.trace("Got failure from {}", from);
+        logger.trace("Got failure {} from {}", failure, from);
 
         int n = waitingFor(from)
                 ? failuresUpdater.incrementAndGet(this)
@@ -294,8 +329,20 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
         if (blockFor() + n > candidateReplicaCount())
             signal();
 
-        if (hintOnFailure != null && StorageProxy.shouldHint(replicaPlan.lookup(from)))
-            StorageProxy.submitHint(hintOnFailure.get(), replicaPlan.lookup(from), null);
+        // If the failure was RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM then we only want to hint once
+        // and not for each instance since odds are it will be applied as a transaction at all replicas
+        if (hintOnFailure != null && StorageProxy.shouldHint(replicaPlan.lookup(from)) )
+        {
+            if (failure.reason == RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM)
+            {
+                if (alreadyHintedForRetryOnDifferentSystemUpdater.compareAndSet(this, 0, 1))
+                    StorageProxy.submitHintForRetryOnDifferentSystem(hintOnFailure.get());
+            }
+            else
+            {
+                StorageProxy.submitHint(hintOnFailure.get(), replicaPlan.lookup(from), null);
+            }
+        }
     }
 
     @Override

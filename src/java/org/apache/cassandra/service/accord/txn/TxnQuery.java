@@ -50,6 +50,11 @@ import static org.apache.cassandra.service.accord.txn.TxnRead.CAS_READ;
 
 public abstract class TxnQuery implements Query
 {
+    /**
+     * Used by transaction statements which will have Accord pass back to the C* coordinator code all the data that is
+     * read even if it is not returned as part of the result to the client. TxnDataName.returning() will fetch the data
+     * that is returned from TxnData.
+     */
     public static final TxnQuery ALL = new TxnQuery()
     {
         @Override
@@ -65,6 +70,10 @@ public abstract class TxnQuery implements Query
         }
     };
 
+    /**
+     * For transactions that return no results but do still care that they don't apply if the tokens/ranges
+     * are not owned/managed by Accord
+     */
     public static final TxnQuery NONE = new TxnQuery()
     {
         @Override
@@ -80,6 +89,9 @@ public abstract class TxnQuery implements Query
         }
     };
 
+    /**
+     * For supporting CQL CAS compatible transactions
+     */
     public static final TxnQuery CONDITION = new TxnQuery()
     {
         @Override
@@ -114,7 +126,13 @@ public abstract class TxnQuery implements Query
         }
     };
 
-    public static final TxnQuery EMPTY = new TxnQuery()
+    /**
+     * UNSAFE_EMPTY doesn't validate that the range is owned by Accord so you want to be careful and use NONE
+     * if your transaction simply doesn't have results because that will validate that Accord owns the range
+     * for things like blind writes. Empty is used by Accord for things like sync points which may need to exeucte
+     * for ranges Accord used to manage, but no longer does.
+     */
+    public static final TxnQuery UNSAFE_EMPTY = new TxnQuery()
     {
 
         @Override
@@ -171,7 +189,7 @@ public abstract class TxnQuery implements Query
         @Override
         public void serialize(TxnQuery query, DataOutputPlus out, int version) throws IOException
         {
-            Preconditions.checkArgument(query == null | query == ALL | query == NONE | query == CONDITION | query == EMPTY);
+            Preconditions.checkArgument(query == null | query == ALL | query == NONE | query == CONDITION | query == UNSAFE_EMPTY);
             out.writeByte(query == null ? 0 : query.type());
         }
 
@@ -185,14 +203,14 @@ public abstract class TxnQuery implements Query
                 case 1: return ALL;
                 case 2: return NONE;
                 case 3: return CONDITION;
-                case 4: return EMPTY;
+                case 4: return UNSAFE_EMPTY;
             }
         }
 
         @Override
         public long serializedSize(TxnQuery query, int version)
         {
-            Preconditions.checkArgument(query == null | query == ALL | query == NONE | query == CONDITION | query == EMPTY);
+            Preconditions.checkArgument(query == null | query == ALL | query == NONE | query == CONDITION | query == UNSAFE_EMPTY);
             return TypeSizes.sizeof((byte)2);
         }
     };

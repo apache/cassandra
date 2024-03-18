@@ -275,7 +275,8 @@ public class MessageFiltersTest extends TestBaseImpl
         try (Cluster cluster = init(builder().withNodes(3)
                                              .withConfig(config -> config.with(GOSSIP)
                                                                          .with(NETWORK)
-                                                                         .set("hinted_handoff_enabled", true))
+                                                                         .set("hinted_handoff_enabled", true)
+                                                                         .set("accord.enabled", false))
                                              .start()))
         {
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (k int PRIMARY KEY, v int)"));

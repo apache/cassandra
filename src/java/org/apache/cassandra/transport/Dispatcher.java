@@ -202,7 +202,7 @@ public class Dispatcher
         connection.applyStateTransition(request.type, response.type);
         return response;
     }
-    
+
     /**
      * Note: this method may be executed on the netty event loop.
      */

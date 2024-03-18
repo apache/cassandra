@@ -45,14 +45,17 @@ import java.util.stream.LongStream;
 
 import com.google.common.collect.Sets;
 import org.junit.Test;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.ConfigurationService;
 import accord.api.ConfigurationService.EpochReady;
+import accord.api.Scheduler;
+import accord.config.LocalConfig;
 import accord.impl.SizeOfIntersectionSorter;
+import accord.impl.TestAgent;
 import accord.local.Node;
+import accord.local.NodeTimeService;
 import accord.primitives.Ranges;
 import accord.topology.Topology;
 import accord.topology.TopologyManager;
@@ -595,7 +598,8 @@ public class EpochSyncTest
                 this.id = node;
                 this.token = token;
                 this.epoch = epoch;
-                this.topology = new TopologyManager(SizeOfIntersectionSorter.SUPPLIER, id);
+                // TODO (review): Should there be a real scheduler here? Is it possible to adapt the Scheduler interface to scheduler used in this test?
+                this.topology = new TopologyManager(SizeOfIntersectionSorter.SUPPLIER, new TestAgent.RethrowAgent(), id, Scheduler.NEVER_RUN_SCHEDULED, NodeTimeService.elapsedWrapperFromNonMonotonicSource(TimeUnit.MILLISECONDS, globalExecutor::currentTimeMillis), LocalConfig.DEFAULT);
                 AccordConfigurationService.DiskStateManager instance = MockDiskStateManager.instance;
                 config = new AccordConfigurationService(node, messagingService, failureDetector, instance, scheduler);
                 config.registerListener(new ConfigurationService.Listener()

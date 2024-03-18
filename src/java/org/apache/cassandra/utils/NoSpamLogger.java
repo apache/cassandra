@@ -21,10 +21,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
-
-import com.google.common.annotations.VisibleForTesting;
 
 import static org.apache.cassandra.utils.Clock.Global;
 
@@ -78,7 +77,7 @@ public class NoSpamLogger
             this.minIntervalNanos = minIntervalNanos;
         }
 
-        private boolean shouldLog(long nowNanos)
+        public boolean shouldLog(long nowNanos)
         {
             long expected = get();
             return nowNanos >= expected && compareAndSet(expected, nowNanos + minIntervalNanos);

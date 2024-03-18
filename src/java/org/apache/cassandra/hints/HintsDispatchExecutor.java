@@ -26,9 +26,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 
 import com.google.common.util.concurrent.RateLimiter;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,10 +39,11 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.hints.HintsService.RETRY_ON_DIFFERENT_SYSTEM_UUID;
 
 /**
  * A multi-threaded (by default) executor for dispatching hints.
@@ -273,7 +274,7 @@ final class HintsDispatchExecutor
             logger.trace("Dispatching hints file {}", descriptor.fileName());
 
             InetAddressAndPort address = StorageService.instance.getEndpointForHostId(hostId);
-            if (address != null)
+            if (address != null || hostId == RETRY_ON_DIFFERENT_SYSTEM_UUID)
                 return deliver(descriptor, address);
 
             // address == null means the target no longer exist; find new home for each hint entry.
@@ -281,12 +282,12 @@ final class HintsDispatchExecutor
             return true;
         }
 
-        private boolean deliver(HintsDescriptor descriptor, InetAddressAndPort address)
+        private boolean deliver(HintsDescriptor descriptor, @Nullable InetAddressAndPort address)
         {
             File file = descriptor.file(hintsDirectory);
             InputPosition offset = store.getDispatchOffset(descriptor);
 
-            BooleanSupplier shouldAbort = () -> !isAlive.test(address) || isPaused.get();
+            BooleanSupplier shouldAbort = () -> (!hostId.equals(RETRY_ON_DIFFERENT_SYSTEM_UUID) && (address == null || !isAlive.test(address)) || isPaused.get());
             try (HintsDispatcher dispatcher = HintsDispatcher.create(file, rateLimiter, address, descriptor.hostId, shouldAbort))
             {
                 if (offset != null)
@@ -298,7 +299,7 @@ final class HintsDispatchExecutor
                     {
                         store.delete(descriptor);
                         store.cleanUp(descriptor);
-                        logger.info("Finished hinted handoff of file {} to endpoint {}: {}", descriptor.fileName(), address, hostId);
+                        logger.info("Finished hinted handoff of file {} to destination {}: {}", descriptor.fileName(), dispatcher.destination(), hostId);
                         return true;
                     }
                     else
@@ -322,7 +323,7 @@ final class HintsDispatchExecutor
         {
             store.markDispatchOffset(descriptor, dispatcher.dispatchPosition());
             store.offerFirst(descriptor);
-            logger.info("Finished hinted handoff of file {} to endpoint {}: {}, partially", descriptor.fileName(), address, hostId);
+            logger.info("Finished hinted handoff of file {} to destination {}: {}, partially", descriptor.fileName(), dispatcher.destination(), hostId);
         }
 
         // for each hint in the hints file for a node that isn't part of the ring anymore, write RF hints for each replica

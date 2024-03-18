@@ -44,8 +44,8 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.reads.thresholds.CoordinatorWarnings;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -104,6 +104,12 @@ public class Coordinator implements ICoordinator
                 Tracing.instance.stopSession();
             }
         }).call();
+    }
+
+    @Override
+    public Future<SimpleQueryResult> asyncExecuteWithResult(String query, ConsistencyLevel consistencyLevelOrigin, Object... boundValues)
+    {
+        return instance.async(() -> unsafeExecuteInternal(query, consistencyLevelOrigin, boundValues)).call();
     }
 
     public static org.apache.cassandra.db.ConsistencyLevel toCassandraCL(ConsistencyLevel cl)

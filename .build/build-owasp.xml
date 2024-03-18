@@ -19,7 +19,7 @@
 <project basedir="." name="apache-cassandra-owasp-tasks"
          xmlns:unless="ant:unless"
          xmlns:if="ant:if">
-    <property name="dependency-check.version" value="9.0.5"/>
+    <property name="dependency-check.version" value="10.0.0"/>
     <property name="dependency-check.home" value="${tmp.dir}/dependency-check-ant-${dependency-check.version}"/>
     <property name="dependency-check.archive.dir" value="${local.repository}/org/owasp/dependency-check-ant/${dependency-check.version}"/>
     <property name="dependency-check.archive.name" value="dependency-check-ant-${dependency-check.version}-release.zip"/>

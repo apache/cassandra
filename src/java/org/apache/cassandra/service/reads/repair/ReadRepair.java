@@ -99,4 +99,9 @@ public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
      * Repairs a partition using the provided read coordinator
      */
     void repairPartitionDirectly(ReadCoordinator coordinator, DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan);
+
+    default boolean coordinatorAllowsPotentialTransactionConflicts()
+    {
+        return false;
+    }
 }

@@ -52,6 +52,7 @@ import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.cassandra.net.Verb.READ_REPAIR_REQ;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
@@ -154,6 +155,7 @@ public class BlockingPartitionRepair
     @VisibleForTesting
     protected void sendRR(Message<Mutation> message, InetAddressAndPort endpoint)
     {
+        checkArgument(message.payload.allowsPotentialTransactionConflicts() == coordinator.allowsPotentialTransactionConflicts(), "Mutation allowing transaction conflicts should match coordinator");
         coordinator.sendReadRepairMutation(message, endpoint, this);
     }
 
@@ -165,8 +167,8 @@ public class BlockingPartitionRepair
         for (Map.Entry<Replica, Mutation> entry: pendingRepairs.entrySet())
         {
             Replica destination = entry.getKey();
-            Preconditions.checkArgument(destination.isFull(), "Can't send repairs to transient replicas: %s", destination);
-            Mutation mutation = coordinator.maybeAllowOutOfRangeMutations(entry.getValue());
+            checkArgument(destination.isFull(), "Can't send repairs to transient replicas: %s", destination);
+            Mutation mutation = entry.getValue();
             TableId tableId = extractUpdate(mutation).metadata().id;
 
             Tracing.trace("Sending read-repair-mutation to {}", destination);
@@ -239,7 +241,7 @@ public class BlockingPartitionRepair
 
             if (mutation == null)
             {
-                mutation = BlockingReadRepairs.createRepairMutation(update, repairPlan.consistencyLevel(), replica.endpoint(), true);
+                mutation = BlockingReadRepairs.createRepairMutation(update, repairPlan.consistencyLevel(), replica.endpoint(), true, coordinator.allowsPotentialTransactionConflicts());
                 versionedMutations[versionIdx] = mutation;
             }
 
@@ -250,7 +252,6 @@ public class BlockingPartitionRepair
                 continue;
             }
 
-            mutation = coordinator.maybeAllowOutOfRangeMutations(mutation);
             Tracing.trace("Sending speculative read-repair-mutation to {}", replica);
             sendRR(Message.out(READ_REPAIR_REQ, mutation), replica.endpoint());
             ReadRepairDiagnostics.speculatedWrite(this, replica.endpoint(), mutation);

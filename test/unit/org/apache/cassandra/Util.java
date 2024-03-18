@@ -108,11 +108,11 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.SSTableLoader;
@@ -149,9 +149,9 @@ import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Throwables;
 import org.awaitility.Awaitility;
+import org.awaitility.core.ThrowingRunnable;
 import org.mockito.Mockito;
 import org.mockito.internal.stubbing.defaultanswers.ForwardsInvocations;
-import org.awaitility.core.ThrowingRunnable;
 
 import static com.google.common.base.Preconditions.checkState;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -173,6 +173,11 @@ public class Util
     public static DecoratedKey dk(String key)
     {
         return testPartitioner().decorateKey(ByteBufferUtil.bytes(key));
+    }
+
+    public static DecoratedKey dk(int key)
+    {
+        return dk(String.valueOf(key), Int32Type.instance);
     }
 
     public static DecoratedKey dk(String key, AbstractType<?> type)
@@ -371,7 +376,8 @@ public class Util
         }
         catch (Throwable e)
         {
-            assert e.getClass().equals(exception) : e.getClass().getName() + " is not " + exception.getName();
+            // Use name because in-jvm dtests will have different instances of the class
+            assert e.getClass().getName().equals(exception.getName()) : e.getClass().getName() + " is not " + exception.getName();
             thrown = true;
         }
 
@@ -741,6 +747,21 @@ public class Util
                   .pollDelay(0, TimeUnit.MILLISECONDS)
                   .atMost(timeout, timeUnit)
                   .untilAsserted(() -> assertThat(message, call.call(), equalTo(expected)));
+    }
+
+    public static void spinUntilTrue(Callable<Boolean> test, long timeoutInSeconds)
+    {
+        spinUntilTrue(test, timeoutInSeconds, TimeUnit.SECONDS);
+    }
+
+    public static void spinUntilTrue(Callable<Boolean> test, long timeout, TimeUnit unit)
+    {
+        Awaitility.await()
+                  .pollInterval(Duration.ofMillis(100))
+                  .pollDelay(0, TimeUnit.MILLISECONDS)
+                  .atMost(timeout, unit)
+                  .ignoreExceptions()
+                  .untilAsserted(() -> assertThat(test.call(), equalTo(true)));
     }
 
     public static void spinUntilSuccess(ThrowingRunnable runnable)

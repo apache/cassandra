@@ -137,14 +137,14 @@ final class BatchUpdatesCollector implements UpdatesCollector
      * @return a collection containing all the mutations.
      */
     @Override
-    public List<IMutation> toMutations(ClientState state)
+    public List<IMutation> toMutations(ClientState state, boolean allowPotentialTxnConflicts)
     {
         List<IMutation> ms = new ArrayList<>();
         for (Map<ByteBuffer, IMutationBuilder> ksMap : mutationBuilders.values())
         {
             for (IMutationBuilder builder : ksMap.values())
             {
-                IMutation mutation = builder.build();
+                IMutation mutation = builder.build(allowPotentialTxnConflicts);
                 mutation.validateIndexedColumns(state);
                 mutation.validateSize(MessagingService.current_version, CommitLogSegment.ENTRY_OVERHEAD_SIZE);
                 ms.add(mutation);
@@ -182,7 +182,7 @@ final class BatchUpdatesCollector implements UpdatesCollector
         /**
          * Build the immutable mutation
          */
-        IMutation build();
+        IMutation build(boolean allowPotentialTxnConflicts);
 
         /**
          * Get the builder for the given tableId
@@ -215,7 +215,7 @@ final class BatchUpdatesCollector implements UpdatesCollector
             return this;
         }
 
-        public Mutation build()
+        public Mutation build(boolean allowPotentialTxnConflicts)
         {
             ImmutableMap.Builder<TableId, PartitionUpdate> updates = new ImmutableMap.Builder<>();
             for (Map.Entry<TableId, PartitionUpdate.Builder> updateEntry : modifications.entrySet())
@@ -223,7 +223,7 @@ final class BatchUpdatesCollector implements UpdatesCollector
                 PartitionUpdate update = updateEntry.getValue().build();
                 updates.put(updateEntry.getKey(), update);
             }
-            return new Mutation(keyspaceName, key, updates.build(), createdAt, false);
+            return new Mutation(keyspaceName, key, updates.build(), createdAt, allowPotentialTxnConflicts);
         }
 
         public PartitionUpdate.Builder get(TableId tableId)
@@ -263,9 +263,9 @@ final class BatchUpdatesCollector implements UpdatesCollector
             return mutationBuilder.add(builder);
         }
 
-        public IMutation build()
+        public IMutation build(boolean allowPotentialTxnConflicts)
         {
-            return new CounterMutation(mutationBuilder.build(), cl);
+            return new CounterMutation(mutationBuilder.build(allowPotentialTxnConflicts), cl);
         }
 
         public PartitionUpdate.Builder get(TableId id)
@@ -297,7 +297,7 @@ final class BatchUpdatesCollector implements UpdatesCollector
         }
 
         @Override
-        public VirtualMutation build()
+        public VirtualMutation build(boolean allowPotentialTxnConflicts)
         {
             ImmutableMap.Builder<TableId, PartitionUpdate> updates = new ImmutableMap.Builder<>();
             modifications.forEach((tableId, updateBuilder) -> updates.put(tableId, updateBuilder.build()));

@@ -24,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -33,6 +34,8 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
+
+import static org.apache.cassandra.exceptions.RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM;
 
 /**
  * Verb handler used both for hint dispatch and streaming.
@@ -99,8 +102,15 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
         }
         else
         {
-            // the common path - the node is both the destination and a valid replica for the hint.
-            hint.applyFuture().addCallback(o -> respond(message), e -> logger.debug("Failed to apply hint", e));
+            try
+            {
+                // the common path - the node is both the destination and a valid replica for the hint.
+                hint.applyFuture().addCallback(o -> respond(message), e -> logger.debug("Failed to apply hint", e));
+            }
+            catch (RetryOnDifferentSystemException e)
+            {
+                MessagingService.instance().respondWithFailure(RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM, message);
+            }
         }
     }
 
