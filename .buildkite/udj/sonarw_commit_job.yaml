@@ -28,4 +28,7 @@ vault_secrets:
   - path: /buildkite/migrated-from-jenkins/artifactory-credentials-ARTIFACTORY_AUTH
     alias: ARTIFACTORY_AUTH
 
+agent:
+  queue: "odin-generic-ci-gcp"
+
 timeout_in_minutes: 180 # 3 hours, unit tests take ~2 hours to run
