@@ -17,9 +17,12 @@
  */
 package org.apache.cassandra.db.virtual;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.config.Config;
@@ -83,10 +86,17 @@ final class SettingsTable extends AbstractVirtualTable
         return result;
     }
 
-    private String getValue(Property prop)
+    @VisibleForTesting
+    String getValue(Property prop)
     {
         Object value = prop.get(config);
-        return value == null ? null : value.toString();
+        if (value == null)
+            return null;
+
+        if (value.getClass().isArray())
+            return Arrays.asList((Object[]) value).toString();
+
+        return value.toString();
     }
 
     private static Map<String, Property> getProperties()
