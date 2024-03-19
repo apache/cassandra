@@ -263,6 +263,7 @@ public class NodeTool
             .withDescription("List and mark ranges as migrating between consensus protocols")
             .withDefaultCommand(CassHelp.class)
             .withCommand(ConsensusMigrationAdmin.BeginMigration.class)
+            .withCommands(ConsensusMigrationAdmin.SetTargetProtocol.class)
             .withCommands(ConsensusMigrationAdmin.ListCmd.class)
             .withCommands(ConsensusMigrationAdmin.FinishMigration.class);
 

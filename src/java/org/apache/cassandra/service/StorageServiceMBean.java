@@ -1078,6 +1078,10 @@ public interface StorageServiceMBean extends NotificationEmitter
                                            @Nullable List<String> maybeTableNames,
                                            @Nullable String maybeRangesStr);
 
+    void setConsensusMigrationTargetProtocol(@Nonnull String targetProtocol,
+                                             @Nullable List<String> keyspaceNames,
+                                             @Nullable List<String> maybeTableNames);
+
     String listConsensusMigrations(@Nullable Set<String> keyspaceNames, @Nullable Set<String> tableNames, @Nonnull String format);
 
     List<String> getAccordManagedKeyspaces();

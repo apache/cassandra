@@ -27,9 +27,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.google.common.util.concurrent.FutureCallback;
-import org.apache.cassandra.distributed.api.*;
 import org.apache.cassandra.distributed.test.accord.AccordTestBase;
-import org.junit.*;
+import org.junit.Assert;
+import org.junit.Ignore;
+import org.junit.Test;
 
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
@@ -45,11 +46,15 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.ICoordinator;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IMessageFilters.Filter;
+import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.reads.repair.BlockingReadRepair;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.utils.concurrent.Condition;
@@ -75,34 +80,6 @@ import static org.junit.Assert.fail;
 
 public class ReadRepairTest extends TestBaseImpl
 {
-    private static Cluster cluster;
-    private static int tableNum = 0;
-    private String tableName;
-
-    @BeforeClass
-    public static void beforeClass() throws Throwable
-    {
-        cluster = init(Cluster.create(3, c -> c.with(Feature.GOSSIP, Feature.NETWORK)));
-    }
-
-    @AfterClass
-    public static void afterClass() throws Throwable
-    {
-        if (cluster != null)
-            cluster.close();
-    }
-
-    private void incrementTableName()
-    {
-        tableName = "tbl" + tableNum++;
-    }
-
-    @Before
-    public void setup()
-    {
-        incrementTableName();
-    }
-
     /**
      * Tests basic behaviour of read repair with {@code BLOCKING} read repair strategy.
      */
@@ -110,7 +87,6 @@ public class ReadRepairTest extends TestBaseImpl
     public void testBlockingReadRepair() throws Throwable
     {
         testReadRepair(ReadRepairStrategy.BLOCKING, false);
-        incrementTableName();
         testReadRepair(ReadRepairStrategy.BLOCKING, true);
     }
     /**
@@ -130,63 +106,68 @@ public class ReadRepairTest extends TestBaseImpl
 
     private void testReadRepair(ReadRepairStrategy strategy, boolean brrThroughAccord) throws Throwable
     {
-        TransactionalMode transactionalMode = brrThroughAccord ? TransactionalMode.unsafe_writes : TransactionalMode.off;
-        cluster.schemaChange(withKeyspace("CREATE TABLE %s." + tableName + " (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode='" + transactionalMode.toString().toLowerCase() + '\'' +
-                String.format(" AND read_repair='%s'", strategy)));
-        AccordTestBase.ensureTableIsAccordManaged(cluster, KEYSPACE, "t");
+        try (Cluster cluster = init(Cluster.create(3, config -> config.set("non_serial_write_strategy", brrThroughAccord ? "migration" : "normal"))))
+        {
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.t (k int, c int, v int, PRIMARY KEY (k, c)) " +
+                                              String.format("WITH read_repair='%s'", strategy)));
+            AccordTestBase.ensureTableIsAccordManaged(cluster, KEYSPACE, "t");
 
-        Object[] row = row(1, 1, 1);
-        String insertQuery = withKeyspace("INSERT INTO %s." + tableName + " (k, c, v) VALUES (?, ?, ?)");
-        String selectQuery = withKeyspace("SELECT * FROM %s." + tableName + " WHERE k=1");
+            Object[] row = row(1, 1, 1);
+            String insertQuery = withKeyspace("INSERT INTO %s.t (k, c, v) VALUES (?, ?, ?)");
+            String selectQuery = withKeyspace("SELECT * FROM %s.t WHERE k=1");
 
-        // insert data in two nodes, simulating a quorum write that has missed one node
-        cluster.get(1).executeInternal(insertQuery, row);
-        cluster.get(2).executeInternal(insertQuery, row);
+            // insert data in two nodes, simulating a quorum write that has missed one node
+            cluster.get(1).executeInternal(insertQuery, row);
+            cluster.get(2).executeInternal(insertQuery, row);
 
-        // verify that the third node doesn't have the row
-        assertRows(cluster.get(3).executeInternal(selectQuery));
-
-        // read with CL=QUORUM to trigger read repair, force 3 to be involved in the read so that read repair
-        // will occur
-        Filter blockReadFromOne = cluster.filters().inbound().from(3).to(1).verbs(READ_REQ.id).drop();
-        assertRows(cluster.coordinator(3).execute(selectQuery, QUORUM), row);
-        blockReadFromOne.off();
-
-        // verify whether the coordinator has the repaired row depending on the read repair strategy
-        if (strategy == ReadRepairStrategy.NONE)
+            // verify that the third node doesn't have the row
             assertRows(cluster.get(3).executeInternal(selectQuery));
-        else
-            assertRows(cluster.get(3).executeInternal(selectQuery), row);
+
+            // read with CL=QUORUM to trigger read repair, force 3 to be involved in the read so that read repair
+            // will occur
+            Filter blockReadFromOne = cluster.filters().inbound().from(3).to(1).verbs(READ_REQ.id).drop();
+            assertRows(cluster.coordinator(3).execute(selectQuery, QUORUM), row);
+            blockReadFromOne.off();
+
+            // verify whether the coordinator has the repaired row depending on the read repair strategy
+            if (strategy == ReadRepairStrategy.NONE)
+                assertRows(cluster.get(3).executeInternal(selectQuery));
+            else
+                assertRows(cluster.get(3).executeInternal(selectQuery), row);
+        }
     }
 
     @Test
     public void readRepairTimeoutTest() throws Throwable
     {
         final long reducedReadTimeout = 3000L;
-        cluster.forEach(i -> i.runOnInstance(() -> DatabaseDescriptor.setReadRpcTimeout(reducedReadTimeout)));
-        cluster.schemaChange("CREATE TABLE " + KEYSPACE + "." + tableName + " (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH read_repair='blocking'");
-        cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + "." + tableName + " (pk, ck, v) VALUES (1, 1, 1)");
-        cluster.get(2).executeInternal("INSERT INTO " + KEYSPACE + "." + tableName + " (pk, ck, v) VALUES (1, 1, 1)");
-        assertRows(cluster.get(3).executeInternal("SELECT * FROM " + KEYSPACE + "." + tableName + " WHERE pk = 1"));
-        cluster.verbs(READ_REPAIR_RSP).to(1).drop();
-        final long start = currentTimeMillis();
-        try
+        try (Cluster cluster = init(builder().withNodes(3).start()))
         {
-            cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + "." + tableName + " WHERE pk = 1", ConsistencyLevel.ALL);
-            fail("Read timeout expected but it did not occur");
-        }
-        catch (Exception ex)
-        {
-            // the containing exception class was loaded by another class loader. Comparing the message as a workaround to assert the exception
-            assertTrue(ex.getClass().toString().contains("ReadTimeoutException"));
-            long actualTimeTaken = currentTimeMillis() - start;
-            long magicDelayAmount = 100L; // it might not be the best way to check if the time taken is around the timeout value.
-            // Due to the delays, the actual time taken from client perspective is slighly more than the timeout value
-            assertTrue(actualTimeTaken > reducedReadTimeout);
-            // But it should not exceed too much
-            assertTrue(actualTimeTaken < reducedReadTimeout + magicDelayAmount);
-            assertRows(cluster.get(3).executeInternal("SELECT * FROM " + KEYSPACE + "." + tableName + " WHERE pk = 1"),
-                    row(1, 1, 1)); // the partition happened when the repaired node sending back ack. The mutation should be in fact applied.
+            cluster.forEach(i -> i.runOnInstance(() -> DatabaseDescriptor.setReadRpcTimeout(reducedReadTimeout)));
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH read_repair='blocking'");
+            cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)");
+            cluster.get(2).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)");
+            assertRows(cluster.get(3).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1"));
+            cluster.verbs(READ_REPAIR_RSP).to(1).drop();
+            final long start = currentTimeMillis();
+            try
+            {
+                cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1", ConsistencyLevel.ALL);
+                fail("Read timeout expected but it did not occur");
+            }
+            catch (Exception ex)
+            {
+                // the containing exception class was loaded by another class loader. Comparing the message as a workaround to assert the exception
+                assertTrue(ex.getClass().toString().contains("ReadTimeoutException"));
+                long actualTimeTaken = currentTimeMillis() - start;
+                long magicDelayAmount = 100L; // it might not be the best way to check if the time taken is around the timeout value.
+                // Due to the delays, the actual time taken from client perspective is slighly more than the timeout value
+                assertTrue(actualTimeTaken > reducedReadTimeout);
+                // But it should not exceed too much
+                assertTrue(actualTimeTaken < reducedReadTimeout + magicDelayAmount);
+                assertRows(cluster.get(3).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1"),
+                           row(1, 1, 1)); // the partition happened when the repaired node sending back ack. The mutation should be in fact applied.
+            }
         }
     }
 
@@ -195,20 +176,20 @@ public class ReadRepairTest extends TestBaseImpl
     {
         try (Cluster cluster = init(builder().withNodes(3).start()))
         {
-            cluster.schemaChange("CREATE TABLE " + KEYSPACE + "." + tableName + " (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH read_repair='blocking'");
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH read_repair='blocking'");
 
             for (int i = 1 ; i <= 2 ; ++i)
-                cluster.get(i).executeInternal("INSERT INTO " + KEYSPACE + "." + tableName + " (pk, ck, v) VALUES (1, 1, 1)");
+                cluster.get(i).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)");
 
-            assertRows(cluster.get(3).executeInternal("SELECT * FROM " + KEYSPACE + "." + tableName + " WHERE pk = 1"));
+            assertRows(cluster.get(3).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1"));
 
             cluster.filters().verbs(READ_REPAIR_REQ.id).to(3).drop();
-            assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + "." + tableName + " WHERE pk = 1",
+            assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1",
                                                       ConsistencyLevel.QUORUM),
                        row(1, 1, 1));
 
             // Data was not repaired
-            assertRows(cluster.get(3).executeInternal("SELECT * FROM " + KEYSPACE + "." + tableName + " WHERE pk = 1"));
+            assertRows(cluster.get(3).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1"));
         }
     }
 

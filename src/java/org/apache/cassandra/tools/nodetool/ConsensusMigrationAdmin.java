@@ -31,7 +31,9 @@ import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
+import static java.util.Collections.singletonList;
 
 /**
  * For managing migration from one consensus protocol to another.
@@ -118,6 +120,27 @@ public abstract class ConsensusMigrationAdmin extends NodeTool.NodeToolCmd
                 }
             }
             probe.output().out.printf("Finished consensus migration range (%s) of keyspaces %s and tables %s%n", maybeRangesStr, keyspaceNames, maybeTableNames);
+        }
+    }
+
+    @Command(name = "set-target-protocol", description = "Set or change the target consensus protocol of the specified tables. If a migration is in progress then the migration will be reversed with migrating ranges still migrating, unmigrated ranges marked as migrated, and migrating ranges will need migration. Be aware that if no migration was in progress for a table it will immediately cause the table to run on the target protocol because the ranges requiring migration are derived from the migrated ranges that don't exist.")
+    public static class SetTargetProtocol extends ConsensusMigrationAdmin
+    {
+        @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
+        private List<String> schemaArgs = new ArrayList<>();
+
+        @Option(title = "target_protocol", name = {"-tp", "--target-protocol"}, description = "Use -tp to specify what consensus protocol should be migrated to", required=true)
+        private String targetProtocol = null;
+
+        @Option(title = "force_completion", name = {"-f", "--force-completion"}, description = "Forces migration state for all ranges of the specified table regardless of whether migration completed successfully or not. Should only be used if table is empty or has had no writes since last repair.")
+        private boolean forceCompletion = false;
+
+        protected void execute(NodeProbe probe)
+        {
+            checkArgument(schemaArgs.size() >= 2, "Must specify a keyspace and at least one table");
+            List<String> keyspaceNames = schemaArgs.size() > 0 ? singletonList(schemaArgs.get(0)) : emptyList();
+            List<String> maybeTableNames = schemaArgs.size() > 1 ? schemaArgs.subList(1, schemaArgs.size()) : null;
+            probe.getStorageService().setConsensusMigrationTargetProtocol(targetProtocol, keyspaceNames, maybeTableNames);
         }
     }
 }

@@ -23,7 +23,6 @@ import java.util.Set;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.PropertyDefinitions;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
@@ -35,8 +34,6 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.schema.TableParams.Option;
 import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
-import org.apache.cassandra.service.consensus.TransactionalMode;
-import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
@@ -67,10 +64,7 @@ public final class TableAttributes extends PropertyDefinitions
 
     TableParams asNewTableParams()
     {
-        TableParams.Builder builder = TableParams.builder();
-        if (!hasOption(TRANSACTIONAL_MODE))
-            builder.transactionalMode(DatabaseDescriptor.defaultTransactionalMode());
-        return build(builder);
+        return build(TableParams.builder());
     }
 
     TableParams asAlteredTableParams(TableParams previous)
@@ -170,12 +164,6 @@ public final class TableAttributes extends PropertyDefinitions
                 builder.fastPath(FastPathStrategy.tableStrategyFromString(getString(Option.FAST_PATH)));
             }
         }
-
-        if (hasOption(Option.TRANSACTIONAL_MODE))
-            builder.transactionalMode(TransactionalMode.fromString(getString(Option.TRANSACTIONAL_MODE)));
-
-        if (hasOption(Option.TRANSACTIONAL_MIGRATION_FROM))
-            builder.transactionalMigrationFrom(TransactionalMigrationFromMode.fromString(getString(Option.TRANSACTIONAL_MIGRATION_FROM)));
 
         return builder.build();
     }

@@ -45,8 +45,8 @@ public class AccordKeyTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace("ks", KeyspaceParams.simple(1),
-                                    parse("CREATE TABLE tbl1 (k int, c int, v int, primary key (k, c)) WITH transactional_mode='full'", "ks").id(TABLE1),
-                                    parse("CREATE TABLE tbl2 (k int, c int, v int, primary key (k, c)) WITH transactional_mode='full'", "ks").id(TABLE2));
+                                    parse("CREATE TABLE tbl1 (k int, c int, v int, primary key (k, c))", "ks").id(TABLE1),
+                                    parse("CREATE TABLE tbl2 (k int, c int, v int, primary key (k, c))", "ks").id(TABLE2));
 
     }
 

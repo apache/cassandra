@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.function.Function;
 
 import com.google.common.base.Throwables;
-import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -90,14 +89,14 @@ public class AccordMetricsTest extends AccordTestBase
     public void beforeTest()
     {
         SHARED_CLUSTER.filters().reset();
-        SHARED_CLUSTER.schemaChange("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, PRIMARY KEY (k, c)) WITH " + TransactionalMode.full.asCqlParam());
+        SHARED_CLUSTER.schemaChange("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, PRIMARY KEY (k, c))");
+        SHARED_CLUSTER.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (0, 0, 0)", ConsistencyLevel.ALL);
     }
 
     @Test
     public void testRegularMetrics() throws Exception
     {
         countingMetrics0 = getMetrics();
-        assertCoordinatorMetrics(0, "rw", 0, 0, 0, 0, 0);
         SHARED_CLUSTER.coordinator(1).executeWithResult(writeCql(), ConsistencyLevel.ALL, 0, 0, 0, 0);
         assertCoordinatorMetrics(0, "rw", 1, 0, 0, 0, 0);
         assertCoordinatorMetrics(1, "rw", 0, 0, 0, 0, 0);

@@ -305,6 +305,8 @@ public class ClusterMetadataTransformationTest
             return metadata.lockedRanges;
         else if (key == IN_PROGRESS_SEQUENCES)
             return metadata.inProgressSequences;
+        else if (key == ACCORD_TABLES)
+            return metadata.accordTables;
         else if (key == ACCORD_FAST_PATH)
             return metadata.accordFastPath;
         else if (key == CONSENSUS_MIGRATION_STATE)

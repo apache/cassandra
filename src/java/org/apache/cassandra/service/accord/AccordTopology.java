@@ -19,20 +19,17 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.*;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import accord.primitives.Ranges;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
 import accord.local.Node;
 import accord.topology.Shard;
 import accord.topology.Topology;
 import accord.utils.Invariants;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -48,9 +45,6 @@ import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
-import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
-
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
  * Deterministically computes accord topology from a ClusterMetadata instance
@@ -218,7 +212,7 @@ public class AccordTopology
         return builder.build();
     }
 
-    public static Topology createAccordTopology(Epoch epoch, DistributedSchema schema, DataPlacements placements, Directory directory, AccordFastPath accordFastPath, ShardLookup lookup)
+    public static Topology createAccordTopology(Epoch epoch, DistributedSchema schema, DataPlacements placements, Directory directory, AccordFastPath accordFastPath, Predicate<TableId> tablePredicate, ShardLookup lookup)
     {
         List<Shard> shards = new ArrayList<>();
         Set<Node.Id> unavailable = accordFastPath.unavailableIds();
@@ -226,7 +220,7 @@ public class AccordTopology
 
         for (KeyspaceMetadata keyspace : schema.getKeyspaces())
         {
-            List<TableMetadata> tables = keyspace.tables.stream().filter(TableMetadata::requiresAccordSupport).collect(Collectors.toList());
+            List<TableMetadata> tables = keyspace.tables.stream().filter(tbl -> tablePredicate.test(tbl.id)).collect(Collectors.toList());
             if (tables.isEmpty())
                 continue;
             List<KeyspaceShard> ksShards = KeyspaceShard.forKeyspace(keyspace, placements, directory, lookup);
@@ -237,14 +231,19 @@ public class AccordTopology
         return new Topology(epoch.getEpoch(), shards.toArray(new Shard[0]));
     }
 
-    public static Topology createAccordTopology(ClusterMetadata metadata, ShardLookup lookup)
+    public static Topology createAccordTopology(ClusterMetadata metadata, Predicate<TableId> tablePredicate, ShardLookup lookup)
     {
-        return createAccordTopology(metadata.epoch, metadata.schema, metadata.placements, metadata.directory, metadata.accordFastPath, lookup);
+        return createAccordTopology(metadata.epoch, metadata.schema, metadata.placements, metadata.directory, metadata.accordFastPath, tablePredicate, lookup);
+    }
+
+    public static Topology createAccordTopology(ClusterMetadata metadata, Predicate<TableId> tablePredicate)
+    {
+        return createAccordTopology(metadata, tablePredicate, new ShardLookup());
     }
 
     public static Topology createAccordTopology(ClusterMetadata metadata, Topology current)
     {
-        return createAccordTopology(metadata, createShardLookup(current));
+        return createAccordTopology(metadata, metadata.accordTables::contains, createShardLookup(current));
     }
 
     public static Topology createAccordTopology(ClusterMetadata metadata)
@@ -275,59 +274,4 @@ public class AccordTopology
         topology.forEach(shard -> map.put(shard.range, shard));
         return map;
     }
-    private static boolean hasAccordSchemaChange(TableMetadata before, TableMetadata after)
-    {
-        return after.requiresAccordSupport() && (before == null || !before.requiresAccordSupport());
-    }
-
-    private static boolean hasAccordSchemaChange(TableMetadata created)
-    {
-        return hasAccordSchemaChange(null, created);
-    }
-
-    private static boolean hasAccordSchemaChange(Diff.Altered<TableMetadata> diff)
-    {
-        return hasAccordSchemaChange(diff.before, diff.after);
-    }
-
-    private static boolean hasAccordSchemaChange(Keyspaces.KeyspacesDiff keyspacesDiff)
-    {
-        for (KeyspaceMetadata.KeyspaceDiff keyspaceDiff : keyspacesDiff.altered)
-        {
-            if (Iterables.any(keyspaceDiff.tables.created, AccordTopology::hasAccordSchemaChange))
-                return true;
-
-            if (Iterables.any(keyspaceDiff.tables.altered, AccordTopology::hasAccordSchemaChange))
-                return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * If an accord related schema change occurs, we need to wait until accord has processed them
-     * before unblocking the change
-     */
-    public static void awaitTopologyReadiness(Keyspaces.KeyspacesDiff keyspacesDiff, Epoch epoch)
-    {
-        if (!AccordService.isSetup())
-            return;
-
-        if (!hasAccordSchemaChange(keyspacesDiff))
-            return;
-
-        try
-        {
-            AccordService.instance().epochReady(epoch).get(DatabaseDescriptor.getTransactionTimeout(MILLISECONDS), MILLISECONDS);
-        }
-        catch (InterruptedException e)
-        {
-            throw new UncheckedInterruptedException(e);
-        }
-        catch (ExecutionException | TimeoutException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
 }

@@ -206,7 +206,7 @@ public class AccordBootstrapTest extends TestBaseImpl
             }
 
             cluster.schemaChange("CREATE KEYSPACE ks WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor':2}");
-            cluster.schemaChange("CREATE TABLE ks.tbl (k int, c int, v int, primary key(k, c)) WITH transactional_mode='full'");
+            cluster.schemaChange("CREATE TABLE ks.tbl (k int, c int, v int, primary key(k, c))");
 
             long schemaChangeMax = maxEpoch(cluster);
             for (IInvokableInstance node : cluster)
@@ -384,7 +384,7 @@ public class AccordBootstrapTest extends TestBaseImpl
             }
 
             cluster.schemaChange("CREATE KEYSPACE ks WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor':2}");
-            cluster.schemaChange("CREATE TABLE ks.tbl (k int, c int, v int, primary key(k, c)) WITH transactional_mode='full'");
+            cluster.schemaChange("CREATE TABLE ks.tbl (k int, c int, v int, primary key(k, c))");
 
             long schemaChangeMax = maxEpoch(cluster);
             for (IInvokableInstance node : cluster)

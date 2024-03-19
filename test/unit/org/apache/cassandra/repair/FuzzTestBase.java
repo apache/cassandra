@@ -540,9 +540,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
     {
         RepairType type = repairTypeGen.next(rs);
         PreviewType previewType = previewTypeGen.next(rs);
-        // TODO (required - IR) add this back and expand as part of IR integration
-//        boolean accordRepair = type == RepairType.FULL && previewType == PreviewType.NONE ? rs.nextBoolean() : false;
-        boolean accordRepair = false;
+        boolean accordRepair = type == RepairType.FULL && previewType == PreviewType.NONE ? rs.nextBoolean() : false;
         List<String> args = new ArrayList<>();
         args.add(ks);
         List<String> tables = tablesGen.next(rs);
@@ -1261,6 +1259,8 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                             failures.add(new AssertionError(event.getMessage()));
                     });
                 }
+                if (repair.state.options.accordRepair())
+                    AccordService.instance().ensureKeyspaceIsAccordManaged(repair.state.keyspace);
                 return repair;
             }
 

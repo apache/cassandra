@@ -37,19 +37,6 @@ import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.*;
-import org.apache.cassandra.tcm.transformations.AlterSchema;
-import org.apache.cassandra.tcm.transformations.Assassinate;
-import org.apache.cassandra.tcm.transformations.BeginConsensusMigrationForTableAndRange;
-import org.apache.cassandra.tcm.transformations.CancelInProgressSequence;
-import org.apache.cassandra.tcm.transformations.CustomTransformation;
-import org.apache.cassandra.tcm.transformations.ForceSnapshot;
-import org.apache.cassandra.tcm.transformations.MaybeFinishConsensusMigrationForTableAndRange;
-import org.apache.cassandra.tcm.transformations.PrepareJoin;
-import org.apache.cassandra.tcm.transformations.PrepareLeave;
-import org.apache.cassandra.tcm.transformations.PrepareMove;
-import org.apache.cassandra.tcm.transformations.PrepareReplace;
-import org.apache.cassandra.tcm.transformations.Register;
-import org.apache.cassandra.tcm.transformations.SealPeriod;
 import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.tcm.transformations.cms.AdvanceCMSReconfiguration;
 import org.apache.cassandra.tcm.transformations.cms.FinishAddToCMS;
@@ -219,10 +206,12 @@ public interface Transformation
 
         STARTUP(() -> Startup.serializer),
 
+        ADD_ACCORD_TABLE(() -> AddAccordTable.serializer),
         UPDATE_AVAILABILITY(() -> ReconfigureAccordFastPath.serializer),
 
         BEGIN_CONSENSUS_MIGRATION_FOR_TABLE_AND_RANGE(() -> BeginConsensusMigrationForTableAndRange.serializer),
         MAYBE_FINISH_CONSENSUS_MIGRATION_FOR_TABLE_AND_RANGE(() -> MaybeFinishConsensusMigrationForTableAndRange.serializer),
+        SET_CONSENSUS_MIGRATION_TARGET_PROTOCOL(() -> SetConsensusMigrationTargetProtocol.serializer),
 
         CUSTOM(() -> CustomTransformation.serializer),
 

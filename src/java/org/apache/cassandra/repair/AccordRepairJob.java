@@ -33,7 +33,7 @@ import org.apache.cassandra.dht.AccordSplitter;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.TokenRange;
-import org.apache.cassandra.service.consensus.migration.ConsensusMigrationRepairResult;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationRepairResult;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 

@@ -325,21 +325,6 @@ public class TableMetadata implements SchemaElement
         return false;
     }
 
-    public boolean isAccordEnabled()
-    {
-        return params.transactionalMode.accordIsEnabled;
-    }
-
-    public boolean migratingFromAccord()
-    {
-        return params.transactionalMigrationFrom.migratingFromAccord();
-    }
-
-    public boolean requiresAccordSupport()
-    {
-        return isAccordEnabled() || migratingFromAccord();
-    }
-
     public ImmutableCollection<ColumnMetadata> columns()
     {
         return columns.values();

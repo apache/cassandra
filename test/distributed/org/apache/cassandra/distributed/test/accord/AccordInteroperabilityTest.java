@@ -42,13 +42,14 @@ public class AccordInteroperabilityTest extends AccordTestBase
     @BeforeClass
     public static void setupClass() throws IOException
     {
-        AccordTestBase.setupCluster(builder -> builder, 3);
+        AccordTestBase.setupCluster(builder -> builder.appendConfig(config -> config.set("lwt_strategy", "accord")
+                                                                                    .set("non_serial_write_strategy", "accord")), 3);
     }
 
     @Test
     public void testSerialReadDescending() throws Throwable
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, PRIMARY KEY(k, c)) WITH transactional_mode='full'",
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, PRIMARY KEY(k, c))",
              cluster -> {
                  ICoordinator coordinator = cluster.coordinator(1);
                  for (int i = 1; i <= 10; i++)

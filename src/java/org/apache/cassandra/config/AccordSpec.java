@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.config;
 
-import org.apache.cassandra.service.consensus.TransactionalMode;
-
 public class AccordSpec
 {
     public volatile boolean enabled = false;
@@ -51,22 +49,4 @@ public class AccordSpec
     public volatile DurationSpec durability_txnid_lag = new DurationSpec.IntSecondsBound(5);
     public volatile DurationSpec shard_durability_cycle = new DurationSpec.IntMinutesBound(2);
     public volatile DurationSpec global_durability_cycle = new DurationSpec.IntMinutesBound(10);
-
-    public enum TransactionalRangeMigration
-    {
-        auto, explicit
-    }
-
-    /**
-     * Defines the behavior of range migration opt-in when changing transactional settings on a table. In auto,
-     * all ranges are marked as migrating and no additional user action is needed aside from running repairs. In
-     * explicit, no ranges are marked as migrating, and the user needs to explicitly mark ranges as migrating to
-     * the target transactional mode via nodetool.
-     */
-    public volatile TransactionalRangeMigration range_migration = TransactionalRangeMigration.auto;
-
-    /**
-     * default transactional mode for tables created by this node when no transactional mode has been specified in the DDL
-     */
-    public TransactionalMode default_transactional_mode = TransactionalMode.off;
 }

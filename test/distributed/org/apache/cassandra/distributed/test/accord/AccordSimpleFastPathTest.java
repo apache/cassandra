@@ -27,7 +27,6 @@ import org.apache.cassandra.service.accord.AccordFastPath;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -91,7 +90,7 @@ public class AccordSimpleFastPathTest extends TestBaseImpl
                                            .start()))
         {
             cluster.schemaChange("CREATE KEYSPACE ks WITH replication={'class':'SimpleStrategy', 'replication_factor': 3}");
-            cluster.schemaChange("CREATE TABLE ks.tbl (k int, c int, v int, primary key (k, c)) WITH " + TransactionalMode.full.asCqlParam());
+            cluster.schemaChange("CREATE TABLE ks.tbl (k int, c int, v int, primary key (k, c))");
             String query = "BEGIN TRANSACTION\n" +
                            "  SELECT * FROM ks.tbl WHERE k=0 AND c=0;\n" +
                            "COMMIT TRANSACTION";

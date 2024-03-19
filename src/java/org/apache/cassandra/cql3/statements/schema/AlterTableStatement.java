@@ -58,13 +58,11 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.schema.MemtableParams;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -83,8 +81,6 @@ import static org.apache.cassandra.schema.TableMetadata.Flag;
 
 public abstract class AlterTableStatement extends AlterSchemaStatement
 {
-    private static final Logger logger = LoggerFactory.getLogger(AlterTableStatement.class);
-
     protected final String tableName;
     private final boolean ifExists;
     protected ClientState state;
@@ -557,41 +553,6 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             validateDefaultTimeToLive(attrs.asNewTableParams());
         }
 
-        private TableParams validateAndUpdateTransactionalMigration(TableParams prev, TableParams next)
-        {
-            if (next.transactionalMode.accordIsEnabled && SchemaConstants.isSystemKeyspace(keyspaceName))
-                throw ire("Cannot enable accord on system tables (%s.%s)", keyspaceName, tableName);
-
-            boolean modeChange = prev.transactionalMode != next.transactionalMode;
-            boolean wasMigrating = prev.transactionalMigrationFrom.isMigrating();
-            boolean forceMigrationChange = prev.transactionalMigrationFrom != next.transactionalMigrationFrom;
-
-            if (modeChange && next.transactionalMode.accordIsEnabled && !DatabaseDescriptor.getAccordTransactionsEnabled())
-                throw ire(format("Cannot change transactional mode to %s for %s.%s with accord_transactions_enabled set to false",
-                                 next.transactionalMode, keyspaceName, tableName));
-
-            // user is manually updating migration mode, don't interfere
-            if (forceMigrationChange)
-            {
-                logger.warn("Forcing unsafe migration change from {} to {} with transaction mode {}", prev.transactionalMigrationFrom, next.transactionalMigrationFrom, next.transactionalMode);
-                return next;
-            }
-
-            if (!modeChange)
-                return next;
-
-            // if the user is trying to revert to the mode being migrated from, allow it. The migration states will be inverted when
-            // the transformation is applied. Otherwise throw
-            if (wasMigrating && next.transactionalMode != prev.transactionalMigrationFrom.from)
-                throw ire(format("Cannot change transactional mode from %s to %s for %s.%s before transactional migration has completed",
-                                 prev.transactionalMode, next.transactionalMode,
-                                 keyspaceName, tableName));
-
-            // set table to migrating
-            TransactionalMigrationFromMode migrateFrom = TransactionalMigrationFromMode.fromMode(prev.transactionalMode, next.transactionalMode);
-            return next.unbuild().transactionalMigrationFrom(migrateFrom).build();
-        }
-
         public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
         {
             attrs.validate();
@@ -618,8 +579,6 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
             if (!params.compression.isEnabled())
                 Guardrails.uncompressedTablesEnabled.ensureEnabled(state);
-
-            params = validateAndUpdateTransactionalMigration(table.params, params);
 
             return keyspace.withSwapped(keyspace.tables.withSwapped(table.withSwapped(params)));
         }

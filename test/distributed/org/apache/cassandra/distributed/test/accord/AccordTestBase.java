@@ -37,7 +37,6 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.Assert;
 import org.junit.Before;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,7 +70,7 @@ import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
 import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
-import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.AssertionUtils;
@@ -138,10 +137,11 @@ public abstract class AccordTestBase extends TestBaseImpl
     public static void ensureTableIsAccordManaged(Cluster cluster, String ksname, String tableName)
     {
         cluster.get(1).runOnInstance(() -> {
+            // TODO: remove when accord enabled is handled via schema
             TableMetadata metadata = Schema.instance.getTableMetadata(ksname, tableName);
             if (metadata == null)
                 return; // bad plumbing from shared utils....
-            Assert.assertTrue(metadata.params.transactionalMode.accordIsEnabled);
+            AccordService.instance().ensureTableIsAccordManaged(metadata.id);
         });
     }
 
@@ -150,6 +150,7 @@ public abstract class AccordTestBase extends TestBaseImpl
         for (String ddl : ddls)
             SHARED_CLUSTER.schemaChange(ddl);
 
+        ensureTableIsAccordManaged(SHARED_CLUSTER, KEYSPACE, tableName);
         // Evict commands from the cache immediately to expose problems loading from disk.
         SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
 
@@ -165,7 +166,7 @@ public abstract class AccordTestBase extends TestBaseImpl
 
     protected void test(FailingConsumer<Cluster> fn) throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, primary key (k, c)) WITH transactional_mode='full'", fn);
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, primary key (k, c))", fn);
     }
 
     protected static ConsensusMigrationState getMigrationStateSnapshot(IInvokableInstance instance) throws IOException

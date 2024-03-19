@@ -32,6 +32,8 @@ import accord.api.Update;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+import org.apache.cassandra.config.Config.LWTStrategy;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TypeSizes;
@@ -152,6 +154,10 @@ public abstract class TxnQuery implements Query
         Epoch epoch = Epoch.create(executeAt.epoch());
         if (transactionIsInMigratingOrMigratedRange(epoch, keys))
         {
+            // Fail fast because we can't be sure where this request should really run or what was intended
+            if (DatabaseDescriptor.getLWTStrategy() == LWTStrategy.accord)
+                throw new IllegalStateException("Mixing a hard coded strategy with migration is unsupported");
+
             if (txnId.isWrite())
                 ClientRequestsMetricsHolder.accordWriteMetrics.accordMigrationRejects.mark();
             else

@@ -32,6 +32,9 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
 import org.apache.cassandra.service.accord.fastpath.ParameterizedFastPathStrategy;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.transformations.AddAccordTable;
 
 import static java.lang.String.format;
 
@@ -67,9 +70,14 @@ public class FastPathSchemaTest
         KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(KEYSPACE);
         Assert.assertSame(FastPathStrategy.simple(), ksm.params.fastPath);
 
-        process("CREATE TABLE %s.tbl (k int primary key, v int) WITH transactional_mode='full'", KEYSPACE);
+        process("CREATE TABLE %s.tbl (k int primary key, v int)", KEYSPACE);
         TableMetadata tbm = Schema.instance.getTableMetadata(KEYSPACE, "tbl");
         Assert.assertSame(FastPathStrategy.inheritKeyspace(), tbm.params.fastPath);
+
+        Epoch epoch = ClusterMetadata.current().epoch;
+        AddAccordTable.addTable(tbm.id);
+
+        Assert.assertEquals(epoch.getEpoch() + 1, ClusterMetadata.current().epoch.getEpoch());
     }
 
     @Test
@@ -100,9 +108,11 @@ public class FastPathSchemaTest
         KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(KEYSPACE);
         Assert.assertSame(FastPathStrategy.simple(), ksm.params.fastPath);
 
-        process("CREATE TABLE %s.tbl (k int primary key, v int) WITH transactional_mode='full'", KEYSPACE);
+        process("CREATE TABLE %s.tbl (k int primary key, v int)", KEYSPACE);
         TableMetadata tbm = Schema.instance.getTableMetadata(KEYSPACE, "tbl");
         Assert.assertSame(FastPathStrategy.inheritKeyspace(), tbm.params.fastPath);
+
+        AddAccordTable.addTable(tbm.id);
 
         process("ALTER TABLE %s.tbl WITH fast_path='simple'", KEYSPACE);
         tbm = Schema.instance.getTableMetadata(KEYSPACE, "tbl");

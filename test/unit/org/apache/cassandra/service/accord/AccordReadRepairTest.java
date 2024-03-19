@@ -49,7 +49,7 @@ public class AccordReadRepairTest extends AccordTestBase
     @BeforeClass
     public static void setupClass() throws IOException
     {
-        AccordTestBase.setupCluster(builder -> builder, 2);
+        AccordTestBase.setupCluster(builder -> builder.appendConfig(config -> config.set("lwt_strategy", "accord").set("non_serial_write_strategy", "mixed")), 2);
         SHARED_CLUSTER.schemaChange("CREATE TYPE " + KEYSPACE + ".person (height int, age int)");
     }
 
@@ -94,9 +94,9 @@ public class AccordReadRepairTest extends AccordTestBase
 
     void testReadRepair(Function<Cluster, Object[][]> accordTxn, Object[][] expected) throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, v1 int, v2 int, PRIMARY KEY ((k), c)) WITH transactional_mode='unsafe_writes';",
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, v1 int, v2 int, PRIMARY KEY ((k), c));",
              cluster -> {
-                 Filter mutationFilter = cluster.filters().verbs(Verb.MUTATION_REQ.id).to(2).drop().on();
+                 Filter mutationFilter = cluster.filters().verbs(Verb.MUTATION_REQ.id).drop().on();
                  cluster.filters().verbs(Verb.HINT_REQ.id, Verb.HINT_RSP.id).drop().on();
                  cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, v1, v2) VALUES (1, 1, 1, 1) USING TIMESTAMP 42;", ConsistencyLevel.ONE);
                  mutationFilter.off();

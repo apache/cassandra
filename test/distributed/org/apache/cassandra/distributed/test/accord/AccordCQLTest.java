@@ -46,6 +46,8 @@ import org.slf4j.LoggerFactory;
 
 import accord.primitives.Unseekables;
 import accord.topology.Topologies;
+import org.apache.cassandra.config.Config.NonSerialWriteStrategy;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.functions.types.utils.Bytes;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -61,7 +63,6 @@ import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
-import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.assertj.core.api.Assertions;
 
@@ -84,28 +85,35 @@ public class AccordCQLTest extends AccordTestBase
     }
 
     @Parameterized.Parameter
-    public String transactionalModeName;
+    public String nonSerialWriteStrategyName;
 
-    TransactionalMode transactionalMode;
+    NonSerialWriteStrategy nonSerialWriteStrategy;
 
-    @Parameterized.Parameters(name = "transactionalMode={0}")
+    @Parameterized.Parameters(name = "nonSerialWriteStrategy={0}")
     public static Collection<Object[]> data()
     {
-        return ImmutableList.of(new Object[] {TransactionalMode.full.toString()},
-                                new Object[] {TransactionalMode.mixed_reads.toString()});
+        return ImmutableList.of(new Object[] {NonSerialWriteStrategy.accord.toString()}, new Object[] {NonSerialWriteStrategy.migration.toString()});
     }
 
     @Before
     public void setNonSerialWriteStrategy()
     {
-        transactionalMode = TransactionalMode.valueOf(transactionalModeName);
+        nonSerialWriteStrategy = NonSerialWriteStrategy.valueOf(nonSerialWriteStrategyName);
+        String nonSerialWriteStrategyName = this.nonSerialWriteStrategyName;
+        SHARED_CLUSTER.forEach(node -> {
+            node.runOnInstance(() -> {
+                DatabaseDescriptor.setNonSerialWriteStrategy(NonSerialWriteStrategy.valueOf(nonSerialWriteStrategyName));
+            });
+        });
     }
 
     @BeforeClass
     public static void setupClass() throws IOException
     {
-        AccordTestBase.setupCluster(builder -> builder, 2);
+        AccordTestBase.setupCluster(builder -> builder.appendConfig(config -> config.set("lwt_strategy", "accord")
+                                                                                    .set("non_serial_write_strategy", "migration")), 2);
         SHARED_CLUSTER.schemaChange("CREATE TYPE " + KEYSPACE + ".person (height int, age int)");
+        SHARED_CLUSTER.get(1).runOnInstance(() -> AccordService.instance().ensureKeyspaceIsAccordManaged(KEYSPACE));
     }
 
     @Test
@@ -169,7 +177,7 @@ public class AccordCQLTest extends AccordTestBase
         String currentTable = keyspace + ".tbl";
         List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + keyspace + ";",
                                           "CREATE KEYSPACE " + keyspace + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}",
-                                          "CREATE TABLE " + currentTable + " (k blob, c int, v int, primary key (k, c)) WITH transactional_mode='" + transactionalMode + "'");
+                                          "CREATE TABLE " + currentTable + " (k blob, c int, v int, primary key (k, c))");
         List<String> tokens = tokens();
         List<ByteBuffer> keys = tokensToKeys(tokens);
         List<String> keyStrings = keys.stream().map(bb -> "0x" + ByteBufferUtil.bytesToHex(bb)).collect(Collectors.toList());
@@ -254,13 +262,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testRegularScalarIsNull() throws Throwable
     {
-        testScalarIsNull("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, primary key (k, c)) WITH transactional_mode='" + transactionalMode + "'");
+        testScalarIsNull("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, primary key (k, c))");
     }
 
     @Test
     public void testStaticScalarIsNull() throws Throwable
     {
-        testScalarIsNull("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int static, primary key (k, c)) WITH transactional_mode='" + transactionalMode + "'");
+        testScalarIsNull("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int static, primary key (k, c))");
     }
 
     private void testScalarIsNull(String tableDDL) throws Exception {
@@ -295,7 +303,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testQueryStaticColumn() throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, s int static, v int, primary key (k, c)) WITH transactional_mode='" + transactionalMode + "'",
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, s int static, v int, primary key (k, c))",
              cluster ->
              {
                  // select partition key, clustering key and static column, restrict on partition and clustering
@@ -349,7 +357,7 @@ public class AccordCQLTest extends AccordTestBase
 
     @Test
     public void testUpdateStaticColumn() throws Exception {
-        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, s int static, v int, primary key (k, c)) WITH transactional_mode='" + transactionalMode + '\'',
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, s int static, v int, primary key (k, c))",
              cluster ->
              {
                  checkUpdateStatic(cluster, "SET s=1 WHERE k=?", 101, "[[101, null, 1, null]]", "[]");
@@ -385,7 +393,7 @@ public class AccordCQLTest extends AccordTestBase
     private void assertResultsFromAccordMatches(Cluster cluster, String accordRead, String simpleRead, int key)
     {
         Object[][] simpleReadResult;
-        if (transactionalMode.ignoresSuppliedConsistencyLevel)
+        if (nonSerialWriteStrategy.ignoresSuppliedConsistencyLevel)
             // With accord non-SERIAL write strategy the commit CL is effectively ANY so we need to read at SERIAL
             simpleReadResult = cluster.coordinator(1).execute(simpleRead, ConsistencyLevel.SERIAL, key);
         else
@@ -445,12 +453,12 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testStaticScalarEQ() throws Throwable
     {
-        testScalarCondition("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int static, primary key (k, c)) WITH transactional_mode='" + transactionalMode + "'", 3, "=", 3, "=");
+        testScalarCondition("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int static, primary key (k, c))", 3, "=", 3, "=");
     }
 
     private void testScalarCondition(int lhs, String operator, int rhs, String reversedOperator) throws Exception
     {
-        testScalarCondition("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, primary key (k, c)) WITH transactional_mode='" + transactionalMode + "'", lhs, operator, rhs, reversedOperator);
+        testScalarCondition("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, primary key (k, c))", lhs, operator, rhs, reversedOperator);
     }
 
     private void testScalarCondition(String tableDDL, int lhs, String operator, int rhs, String reversedOperator) throws Exception
@@ -572,7 +580,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testReversedClusteringReference() throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, PRIMARY KEY (k, c)) WITH CLUSTERING ORDER BY (c DESC) AND transactional_mode='" + transactionalMode + "'",
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, PRIMARY KEY (k, c)) WITH CLUSTERING ORDER BY (c DESC)",
              cluster ->
              {
                  cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (1, 1, 1)", ConsistencyLevel.ALL);
@@ -607,7 +615,7 @@ public class AccordCQLTest extends AccordTestBase
 
     private void testScalarShorthandOperation(int startingValue, String operation, int endingvalue) throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int) WITH transactional_mode='" + transactionalMode + "'",
+        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int)",
              cluster ->
              {
                  cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, v) VALUES (1, ?)", ConsistencyLevel.ALL, startingValue);
@@ -629,7 +637,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testConstantNonStaticRowReadBeforeUpdate() throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode='" + transactionalMode + "'",
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, PRIMARY KEY (k, c))",
              cluster ->
              {
                  cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (1, 2, ?)", ConsistencyLevel.ALL, 3);
@@ -651,7 +659,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testRangeDeletion() throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode='" + transactionalMode + "'",
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, PRIMARY KEY (k, c))",
              cluster ->
              {
                  cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (1, 2, ?)", ConsistencyLevel.ALL, 3);
@@ -675,7 +683,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testPartitionKeyReferenceCondition() throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k INT, c INT, v INT, PRIMARY KEY (k, c)) WITH CLUSTERING ORDER BY (c DESC) AND transactional_mode='" + transactionalMode + "'",
+        test("CREATE TABLE " + qualifiedTableName + " (k INT, c INT, v INT, PRIMARY KEY (k, c)) WITH CLUSTERING ORDER BY (c DESC)",
              cluster ->
              {
                  cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, v) VALUES (1, 1, 1)", ConsistencyLevel.ALL);
@@ -699,13 +707,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellListEqCondition() throws Exception
     {
-        testListEqCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>) WITH transactional_mode='" + transactionalMode + "'");
+        testListEqCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>)");
     }
 
     @Test
     public void testFrozenListEqCondition() throws Exception
     {
-        testListEqCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list frozen<list<int>>) WITH transactional_mode='" + transactionalMode + "'");
+        testListEqCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list frozen<list<int>>)");
     }
 
     private void testListEqCondition(String ddl) throws Exception
@@ -746,13 +754,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellSetEqCondition() throws Exception
     {
-        testSetEqCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set set<int>) WITH transactional_mode='" + transactionalMode + "'");
+        testSetEqCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set set<int>)");
     }
 
     @Test
     public void testFrozenSetEqCondition() throws Exception
     {
-        testSetEqCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set frozen<set<int>>) WITH transactional_mode='" + transactionalMode + "'");
+        testSetEqCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set frozen<set<int>>)");
     }
 
     private void testSetEqCondition(String ddl) throws Exception
@@ -793,13 +801,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellMapEqCondition() throws Exception
     {
-        testMapEqCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>) WITH transactional_mode='" + transactionalMode + "'", true);
+        testMapEqCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>)", true);
     }
 
     @Test
     public void testFrozenMapEqCondition() throws Exception
     {
-        testMapEqCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map frozen<map<text, int>>) WITH transactional_mode='" + transactionalMode + "'", false);
+        testMapEqCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map frozen<map<text, int>>)", false);
     }
 
     private void testMapEqCondition(String ddl, boolean isMultiCell) throws Exception
@@ -840,13 +848,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellUDTEqCondition() throws Exception
     {
-        testUDTEqCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer person) WITH transactional_mode='" + transactionalMode + "'");
+        testUDTEqCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer person)");
     }
 
     @Test
     public void testFrozenUDTEqCondition() throws Exception
     {
-        testUDTEqCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer frozen<person>) WITH transactional_mode='" + transactionalMode + "'");
+        testUDTEqCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer frozen<person>)");
     }
 
     private void testUDTEqCondition(String tableDDL) throws Exception
@@ -886,7 +894,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testTupleEqCondition() throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, pair tuple<text, int>) WITH transactional_mode='" + transactionalMode + "'",
+        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, pair tuple<text, int>)",
              cluster ->
              {
                  Object initialTupleValue = CQLTester.tuple("age", 37);
@@ -921,7 +929,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testIsNullWithComplexDeletion() throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, int_list list<int>, PRIMARY KEY (k, c)) WITH transactional_mode='" + transactionalMode + "'",
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, int_list list<int>, PRIMARY KEY (k, c))",
              cluster ->
              {
                  ListType<Integer> listType = ListType.getInstance(Int32Type.instance, true);
@@ -955,13 +963,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testNullMultiCellListConditions() throws Exception
     {
-        testNullListConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>) WITH transactional_mode='" + transactionalMode + "'");
+        testNullListConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>)");
     }
 
     @Test
     public void testNullFrozenListConditions() throws Exception
     {
-        testNullListConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list frozen<list<int>>) WITH transactional_mode='" + transactionalMode + "'");
+        testNullListConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list frozen<list<int>>)");
     }
 
     private void testNullListConditions(String ddl) throws Exception
@@ -1007,13 +1015,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testNullMultiCellSetConditions() throws Exception
     {
-        testNullSetConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set set<int>) WITH transactional_mode='" + transactionalMode + "'");
+        testNullSetConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set set<int>)");
     }
 
     @Test
     public void testNullFrozenSetConditions() throws Exception
     {
-        testNullSetConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set frozen<set<int>>) WITH transactional_mode='" + transactionalMode + "'");
+        testNullSetConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set frozen<set<int>>)");
     }
 
     private void testNullSetConditions(String ddl) throws Exception
@@ -1059,13 +1067,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testNullMultiCellMapConditions() throws Exception
     {
-        testNullMapConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>) WITH transactional_mode='" + transactionalMode + "'", true);
+        testNullMapConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>)", true);
     }
 
     @Test
     public void testNullFrozenMapConditions() throws Exception
     {
-        testNullMapConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map frozen<map<text, int>>) WITH transactional_mode='" + transactionalMode + "'", false);
+        testNullMapConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map frozen<map<text, int>>)", false);
     }
 
     private void testNullMapConditions(String ddl, boolean isMultiCell) throws Exception
@@ -1116,13 +1124,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testNullMultiCellUDTCondition() throws Exception
     {
-        testNullUDTCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer person) WITH transactional_mode='" + transactionalMode + "'");
+        testNullUDTCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer person)");
     }
 
     @Test
     public void testNullFrozenUDTCondition() throws Exception
     {
-        testNullUDTCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer frozen<person>) WITH transactional_mode='" + transactionalMode + "'");
+        testNullUDTCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer frozen<person>)");
     }
 
     private void testNullUDTCondition(String tableDDL) throws Exception
@@ -1170,13 +1178,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testNullMultiCellSetElementConditions() throws Exception
     {
-        testNullSetElementConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set set<int>) WITH transactional_mode='" + transactionalMode + "'");
+        testNullSetElementConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set set<int>)");
     }
 
     @Test
     public void testNullFrozenSetElementConditions() throws Exception
     {
-        testNullSetElementConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set frozen<set<int>>) WITH transactional_mode='" + transactionalMode + "'");
+        testNullSetElementConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set frozen<set<int>>)");
     }
 
     private void testNullSetElementConditions(String ddl) throws Exception
@@ -1222,13 +1230,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testNullMultiCellMapElementConditions() throws Exception
     {
-        testNullMapElementConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>) WITH transactional_mode='" + transactionalMode + "'", true);
+        testNullMapElementConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>)", true);
     }
 
     @Test
     public void testNullFrozenMapElementConditions() throws Exception
     {
-        testNullMapElementConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map frozen<map<text, int>>) WITH transactional_mode='" + transactionalMode + "'", false);
+        testNullMapElementConditions("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map frozen<map<text, int>>)", false);
     }
 
     private void testNullMapElementConditions(String ddl, boolean isMultiCell) throws Exception
@@ -1279,13 +1287,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testNullMultiCellUDTFieldCondition() throws Exception
     {
-        testNullUDTFieldCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer person) WITH transactional_mode='" + transactionalMode + "'");
+        testNullUDTFieldCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer person)");
     }
 
     @Test
     public void testNullFrozenUDTFieldCondition() throws Exception
     {
-        testNullUDTFieldCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer frozen<person>) WITH transactional_mode='" + transactionalMode + "'");
+        testNullUDTFieldCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer frozen<person>)");
     }
 
     private void testNullUDTFieldCondition(String tableDDL) throws Exception
@@ -1333,13 +1341,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellListSubstitution() throws Exception
     {
-        testListSubstitution("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>) WITH transactional_mode='" + transactionalMode + "'", true);
+        testListSubstitution("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>)", true);
     }
 
     @Test
     public void testFrozenListSubstitution() throws Exception
     {
-        testListSubstitution("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list frozen<list<int>>) WITH transactional_mode='" + transactionalMode + "'", false);
+        testListSubstitution("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list frozen<list<int>>)", false);
     }
 
     private void testListSubstitution(String ddl, boolean isMultiCell) throws Exception
@@ -1373,13 +1381,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellSetSubstitution() throws Exception
     {
-        testSetSubstitution("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set set<int>) WITH transactional_mode='" + transactionalMode + "'", true);
+        testSetSubstitution("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set set<int>)", true);
     }
 
     @Test
     public void testFrozenSetSubstitution() throws Exception
     {
-        testSetSubstitution("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set frozen<set<int>>) WITH transactional_mode='" + transactionalMode + "'", false);
+        testSetSubstitution("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set frozen<set<int>>)", false);
     }
 
     private void testSetSubstitution(String ddl, boolean isMultiCell) throws Exception
@@ -1413,13 +1421,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellMapSubstitution() throws Exception
     {
-        testMapSubstitution("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>) WITH transactional_mode='" + transactionalMode + "'", true);
+        testMapSubstitution("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>)", true);
     }
 
     @Test
     public void testFrozenMapSubstitution() throws Exception
     {
-        testMapSubstitution("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map frozen<map<text, int>>) WITH transactional_mode='" + transactionalMode + "'", false);
+        testMapSubstitution("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map frozen<map<text, int>>)", false);
     }
 
     private void testMapSubstitution(String ddl, boolean isMultiCell) throws Exception
@@ -1453,13 +1461,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellUDTSubstitution() throws Exception
     {
-        testUDTSubstitution("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer person) WITH transactional_mode='" + transactionalMode + "'");
+        testUDTSubstitution("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer person)");
     }
 
     @Test
     public void testFrozenUDTSubstitution() throws Exception
     {
-        testUDTSubstitution("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer frozen<person>) WITH transactional_mode='" + transactionalMode + "'");
+        testUDTSubstitution("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer frozen<person>)");
     }
 
     private void testUDTSubstitution(String tableDDL) throws Exception
@@ -1491,7 +1499,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testTupleSubstitution() throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, pair tuple<text, int>) WITH transactional_mode='" + transactionalMode + "'",
+        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, pair tuple<text, int>)",
              cluster ->
              {
                  Object initialTupleValue = CQLTester.tuple("age", 37);
@@ -1518,13 +1526,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellListReplacement() throws Exception
     {
-        testListReplacement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>) WITH transactional_mode='" + transactionalMode + "'");
+        testListReplacement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>)");
     }
 
     @Test
     public void testFrozenListReplacement() throws Exception
     {
-        testListReplacement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list frozen<list<int>>) WITH transactional_mode='" + transactionalMode + "'");
+        testListReplacement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list frozen<list<int>>)");
     }
 
     private void testListReplacement(String ddl) throws Exception
@@ -1555,13 +1563,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellSetReplacement() throws Exception
     {
-        testSetReplacement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set set<int>) WITH transactional_mode='" + transactionalMode + "'");
+        testSetReplacement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set set<int>)");
     }
 
     @Test
     public void testFrozenSetReplacement() throws Exception
     {
-        testSetReplacement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set frozen<set<int>>) WITH transactional_mode='" + transactionalMode + "'");
+        testSetReplacement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set frozen<set<int>>)");
     }
 
     private void testSetReplacement(String ddl) throws Exception
@@ -1592,7 +1600,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testListAppendFromReference() throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>) WITH transactional_mode='" + transactionalMode + "'",
+        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>)",
              cluster ->
              {
                  cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_list) VALUES (0, [1, 2]);", ConsistencyLevel.ALL);
@@ -1618,13 +1626,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testSetByIndexFromMultiCellListElement() throws Exception
     {
-        testListSetByIndexFromListElement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, src_int_list list<int>, dest_int_list list<int>) WITH transactional_mode='" + transactionalMode + "'");
+        testListSetByIndexFromListElement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, src_int_list list<int>, dest_int_list list<int>)");
     }
 
     @Test
     public void testSetByIndexFromFrozenListElement() throws Exception
     {
-        testListSetByIndexFromListElement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, src_int_list frozen<list<int>>, dest_int_list list<int>) WITH transactional_mode='" + transactionalMode + "'");
+        testListSetByIndexFromListElement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, src_int_list frozen<list<int>>, dest_int_list list<int>)");
     }
 
     private void testListSetByIndexFromListElement(String ddl) throws Exception
@@ -1653,7 +1661,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testListSetByIndexFromScalar() throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>) WITH transactional_mode='" + transactionalMode + "'",
+        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>)",
              cluster ->
              {
                  cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_list) VALUES (0, [1, 2]);", ConsistencyLevel.ALL);
@@ -1676,7 +1684,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testAutoReadSelectionConstruction() throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, counter int, other_counter int, PRIMARY KEY (k, c)) WITH transactional_mode='" + transactionalMode + "'",
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, counter int, other_counter int, PRIMARY KEY (k, c))",
              cluster ->
              {
                  cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, counter, other_counter) VALUES (0, 0, 1, 1);", ConsistencyLevel.ALL);
@@ -1700,7 +1708,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiMutationsSameKey() throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, counter int, int_list list<int>, PRIMARY KEY (k, c)) WITH transactional_mode='" + transactionalMode + "'",
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, counter int, int_list list<int>, PRIMARY KEY (k, c))",
              cluster ->
              {
                  cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, counter, int_list) VALUES (0, 0, 0, [1, 2]);", ConsistencyLevel.ALL);
@@ -1752,7 +1760,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testListSetByIndexMultiRow() throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, int_list list<int>, PRIMARY KEY (k, c)) WITH transactional_mode='" + transactionalMode + "'",
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, int_list list<int>, PRIMARY KEY (k, c))",
              cluster ->
              {
                  cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, c, int_list) VALUES (0, 0, [1, 2]);", ConsistencyLevel.ALL);
@@ -1780,7 +1788,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testSetAppend() throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set set<int>) WITH transactional_mode='" + transactionalMode + "'",
+        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set set<int>)",
              cluster ->
              {
                  cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_set) VALUES (0, {1, 2});", ConsistencyLevel.ALL);
@@ -1804,13 +1812,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testAssignmentFromMultiCellSetElement() throws Exception
     {
-        testAssignmentFromSetElement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int, int_set set<int>) WITH transactional_mode='" + transactionalMode + "'");
+        testAssignmentFromSetElement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int, int_set set<int>)");
     }
 
     @Test
     public void testAssignmentFromFrozenSetElement() throws Exception
     {
-        testAssignmentFromSetElement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int, int_set frozen<set<int>>) WITH transactional_mode='" + transactionalMode + "'");
+        testAssignmentFromSetElement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int, int_set frozen<set<int>>)");
     }
 
     private void testAssignmentFromSetElement(String ddl) throws Exception
@@ -1839,7 +1847,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMapAppend() throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>) WITH transactional_mode='" + transactionalMode + "'",
+        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>)",
              cluster ->
              {
                  cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_map) VALUES (0, {'one': 2});", ConsistencyLevel.ALL);
@@ -1863,13 +1871,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testAssignmentFromMultiCellMapElement() throws Exception
     {
-        testAssignmentFromMapElement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int, int_map map<text, int>) WITH transactional_mode='" + transactionalMode + "'");
+        testAssignmentFromMapElement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int, int_map map<text, int>)");
     }
 
     @Test
     public void testAssignmentFromFrozenMapElement() throws Exception
     {
-        testAssignmentFromMapElement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int, int_map frozen<map<text, int>>) WITH transactional_mode='" + transactionalMode + "'");
+        testAssignmentFromMapElement("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int, int_map frozen<map<text, int>>)");
     }
 
     private void testAssignmentFromMapElement(String ddl) throws Exception
@@ -1898,13 +1906,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testAssignmentFromMultiCellUDTField() throws Exception
     {
-        testAssignmentFromUDTField("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int, customer person) WITH transactional_mode='" + transactionalMode + "'");
+        testAssignmentFromUDTField("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int, customer person)");
     }
 
     @Test
     public void testAssignmentFromFrozenUDTField() throws Exception
     {
-        testAssignmentFromUDTField("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int, customer frozen<person>) WITH transactional_mode='" + transactionalMode + "'");
+        testAssignmentFromUDTField("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int, customer frozen<person>)");
     }
 
     private void testAssignmentFromUDTField(String tableDDL) throws Exception
@@ -1935,7 +1943,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testSetMapElementFromMapElementReference() throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>) WITH transactional_mode='" + transactionalMode + "'",
+        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>)",
              cluster ->
              {
                  cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_map) VALUES (0, {'one': 2});", ConsistencyLevel.ALL);
@@ -1959,7 +1967,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testSetUDTFieldFromUDTFieldReference() throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer person) WITH transactional_mode='" + transactionalMode + "'",
+        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer person)",
              cluster ->
              {
                  Object youngPerson = CQLTester.userType("height", 58, "age", 9);
@@ -1988,13 +1996,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellListElementCondition() throws Exception
     {
-        testListElementCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>) WITH transactional_mode='" + transactionalMode + "'");
+        testListElementCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>)");
     }
 
     @Test
     public void testFrozenListElementCondition() throws Exception
     {
-        testListElementCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list frozen<list<int>>) WITH transactional_mode='" + transactionalMode + "'");
+        testListElementCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list frozen<list<int>>)");
     }
 
     private void testListElementCondition(String ddl) throws Exception
@@ -2025,13 +2033,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellMapElementCondition() throws Exception
     {
-        testMapElementCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>) WITH transactional_mode='" + transactionalMode + "'");
+        testMapElementCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>)");
     }
 
     @Test
     public void testFrozenMapElementCondition() throws Exception
     {
-        testMapElementCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map frozen<map<text, int>>) WITH transactional_mode='" + transactionalMode + "'");
+        testMapElementCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map frozen<map<text, int>>)");
     }
 
     private void testMapElementCondition(String ddl) throws Exception
@@ -2062,13 +2070,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellUDTFieldCondition() throws Exception
     {
-        testUDTFieldCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer person) WITH transactional_mode='" + transactionalMode + "'");
+        testUDTFieldCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer person)");
     }
 
     @Test
     public void testFrozenUDTFieldCondition() throws Exception
     {
-        testUDTFieldCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer frozen<person>) WITH transactional_mode='" + transactionalMode + "'");
+        testUDTFieldCondition("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer frozen<person>)");
     }
 
     private void testUDTFieldCondition(String tableDDL) throws Exception
@@ -2113,7 +2121,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testListSubtraction() throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>) WITH transactional_mode='" + transactionalMode + "'",
+        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>)",
              cluster ->
              {
                  cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_list) VALUES (0, [1, 2, 3, 4]);", ConsistencyLevel.ALL);
@@ -2139,7 +2147,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testSetSubtraction() throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set set<int>) WITH transactional_mode='" + transactionalMode + "'",
+        test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set set<int>)",
              cluster ->
              {
                  cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, int_set) VALUES (0, {1, 2, 3, 4});", ConsistencyLevel.ALL);
@@ -2165,13 +2173,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellMapSubtraction() throws Exception
     {
-        testMapSubtraction("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>, int_set set<text>) WITH transactional_mode='" + transactionalMode + "'");
+        testMapSubtraction("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>, int_set set<text>)");
     }
 
     @Test
     public void testFrozenMapSubtraction() throws Exception
     {
-        testMapSubtraction("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>, int_set frozen<set<text>>) WITH transactional_mode='" + transactionalMode + "'");
+        testMapSubtraction("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>, int_set frozen<set<text>>)");
     }
 
     private void testMapSubtraction(String ddl) throws Exception
@@ -2202,13 +2210,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellListSelection() throws Exception
     {
-        testListSelection("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>) WITH transactional_mode='" + transactionalMode + "'");
+        testListSelection("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list list<int>)");
     }
 
     @Test
     public void testFrozenListSelection() throws Exception
     {
-        testListSelection("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list frozen<list<int>>) WITH transactional_mode='" + transactionalMode + "'");
+        testListSelection("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_list frozen<list<int>>)");
     }
 
     private void testListSelection(String ddl) throws Exception
@@ -2240,13 +2248,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellSetSelection() throws Exception
     {
-        testSetSelection("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set set<int>) WITH transactional_mode='" + transactionalMode + "'");
+        testSetSelection("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set set<int>)");
     }
 
     @Test
     public void testFrozenSetSelection() throws Exception
     {
-        testSetSelection("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set frozen<set<int>>) WITH transactional_mode='" + transactionalMode + "'");
+        testSetSelection("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_set frozen<set<int>>)");
     }
 
     private void testSetSelection(String ddl) throws Exception
@@ -2284,7 +2292,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testFrozenMapSelection() throws Exception
     {
-        testMapSelection("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map frozen<map<text, int>>) WITH transactional_mode='" + transactionalMode + "'");
+        testMapSelection("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map frozen<map<text, int>>)");
     }
 
     private void testMapSelection(String ddl) throws Exception
@@ -2317,8 +2325,8 @@ public class AccordCQLTest extends AccordTestBase
     {
         String KEYSPACE = "ks" + System.currentTimeMillis();
         SHARED_CLUSTER.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 2}");
-        SHARED_CLUSTER.schemaChange("CREATE TABLE " + qualifiedTableName + "1 (k int, c int, v int, primary key (k, c)) WITH transactional_mode='" + transactionalMode + "'");
-        SHARED_CLUSTER.schemaChange("CREATE TABLE " + qualifiedTableName + "2 (k int, c int, v int, primary key (k, c)) WITH transactional_mode='" + transactionalMode + "'");
+        SHARED_CLUSTER.schemaChange("CREATE TABLE " + qualifiedTableName + "1 (k int, c int, v int, primary key (k, c))");
+        SHARED_CLUSTER.schemaChange("CREATE TABLE " + qualifiedTableName + "2 (k int, c int, v int, primary key (k, c))");
         SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
         SHARED_CLUSTER.coordinator(1).execute("INSERT INTO " + qualifiedTableName + "1 (k, c, v) VALUES (1, 2, 3);", ConsistencyLevel.ALL);
         SHARED_CLUSTER.coordinator(1).execute("INSERT INTO " + qualifiedTableName + "2 (k, c, v) VALUES (2, 2, 4);", ConsistencyLevel.ALL);
@@ -2343,13 +2351,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testRegularScalarInsertSubstitution() throws Exception
     {
-        testScalarInsertSubstitution("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, PRIMARY KEY (k, c)) WITH transactional_mode='" + transactionalMode + "'");
+        testScalarInsertSubstitution("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, PRIMARY KEY (k, c))");
     }
 
     @Test
     public void testStaticScalarInsertSubstitution() throws Exception
     {
-        testScalarInsertSubstitution("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int static, PRIMARY KEY (k, c)) WITH transactional_mode='" + transactionalMode + "'");
+        testScalarInsertSubstitution("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int static, PRIMARY KEY (k, c))");
     }
 
     private void testScalarInsertSubstitution(String tableDDL) throws Exception
@@ -2379,13 +2387,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testSelectMultiCellUDTReference() throws Exception
     {
-        testSelectUDTReference("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer person) WITH transactional_mode='" + transactionalMode + "'");
+        testSelectUDTReference("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer person)");
     }
 
     @Test
     public void testSelectFrozenUDTReference() throws Exception
     {
-        testSelectUDTReference("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer frozen<person>) WITH transactional_mode='" + transactionalMode + "'");
+        testSelectUDTReference("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer frozen<person>)");
     }
 
     private void testSelectUDTReference(String tableDDL) throws Exception
@@ -2414,13 +2422,13 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testSelectMultiCellUDTFieldReference() throws Exception
     {
-        testSelectUDTFieldReference("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer person) WITH transactional_mode='" + transactionalMode + "'");
+        testSelectUDTFieldReference("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer person)");
     }
 
     @Test
     public void testSelectFrozenUDTFieldReference() throws Exception
     {
-        testSelectUDTFieldReference("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer frozen<person>) WITH transactional_mode='" + transactionalMode + "'");
+        testSelectUDTFieldReference("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, customer frozen<person>)");
     }
 
     private void testSelectUDTFieldReference(String tableDDL) throws Exception
@@ -2451,7 +2459,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiKeyQueryAndInsert() throws Throwable
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, primary key (k, c)) WITH transactional_mode='" + transactionalMode + "'",
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, primary key (k, c))",
              cluster ->
              {
                  String query1 = "BEGIN TRANSACTION\n" +
@@ -2493,9 +2501,11 @@ public class AccordCQLTest extends AccordTestBase
     {
         SHARED_CLUSTER.schemaChange("DROP KEYSPACE IF EXISTS demo_ks;");
         SHARED_CLUSTER.schemaChange("CREATE KEYSPACE demo_ks WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor':2};");
-        SHARED_CLUSTER.schemaChange("CREATE TABLE demo_ks.org_docs ( org_name text, doc_id int, contents_version int static, title text, permissions int, PRIMARY KEY (org_name, doc_id) ) WITH transactional_mode='" + transactionalMode + "';");
-        SHARED_CLUSTER.schemaChange("CREATE TABLE demo_ks.org_users ( org_name text, user text, members_version int static, permissions int, PRIMARY KEY (org_name, user) ) WITH transactional_mode='" + transactionalMode + "';");
-        SHARED_CLUSTER.schemaChange("CREATE TABLE demo_ks.user_docs ( user text, doc_id int, title text, org_name text, permissions int, PRIMARY KEY (user, doc_id) ) WITH transactional_mode='" + transactionalMode + "';");
+        SHARED_CLUSTER.schemaChange("CREATE TABLE demo_ks.org_docs ( org_name text, doc_id int, contents_version int static, title text, permissions int, PRIMARY KEY (org_name, doc_id) );");
+        SHARED_CLUSTER.schemaChange("CREATE TABLE demo_ks.org_users ( org_name text, user text, members_version int static, permissions int, PRIMARY KEY (org_name, user) );");
+        SHARED_CLUSTER.schemaChange("CREATE TABLE demo_ks.user_docs ( user text, doc_id int, title text, org_name text, permissions int, PRIMARY KEY (user, doc_id) );");
+
+        SHARED_CLUSTER.get(1).runOnInstance(() -> AccordService.instance().ensureKeyspaceIsAccordManaged("demo_ks"));
 
         SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
 
@@ -2573,7 +2583,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testCASAndSerialRead() throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (id int, c int, v int, s int static, PRIMARY KEY ((id), c)) WITH transactional_mode='" + transactionalMode + "';",
+        test("CREATE TABLE " + qualifiedTableName + " (id int, c int, v int, s int static, PRIMARY KEY ((id), c));",
             cluster -> {
                 ICoordinator coordinator = cluster.coordinator(1);
                 int startingAccordCoordinateCount = getAccordCoordinateCount();
@@ -2610,7 +2620,7 @@ public class AccordCQLTest extends AccordTestBase
                 assertEquals(1, rangeDeletionCheck.length);
 
                 // Make sure all the consensus using queries actually were run on Accord
-                if (transactionalMode.writesThroughAccord)
+                if (nonSerialWriteStrategy.writesThroughAccord)
                     assertEquals( 20, getAccordCoordinateCount() - startingAccordCoordinateCount);
                 else
                     // Non-serial writes don't go through Accord in these modes
@@ -2622,7 +2632,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testCASSimulatorLite() throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (pk int, count int, seq1 text, seq2 list<int>, PRIMARY KEY (pk)) WITH transactional_mode='" + transactionalMode + "'",
+        test("CREATE TABLE " + qualifiedTableName + " (pk int, count int, seq1 text, seq2 list<int>, PRIMARY KEY (pk))",
              cluster -> {
                  ICoordinator coordinator = cluster.coordinator(1);
                  coordinator.execute("INSERT INTO " + qualifiedTableName + " (pk, count, seq1, seq2) VALUES (1, 0, '', []) USING TIMESTAMP 0", ConsistencyLevel.ALL);
@@ -2654,7 +2664,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testTransactionCasSimulatorLite() throws Exception
     {
-        test("CREATE TABLE " + qualifiedTableName + " (pk int, count int, seq1 text, seq2 list<int>, PRIMARY KEY (pk)) WITH transactional_mode='" + transactionalMode + "'",
+        test("CREATE TABLE " + qualifiedTableName + " (pk int, count int, seq1 text, seq2 list<int>, PRIMARY KEY (pk))",
              cluster ->
              {
                  ICoordinator coordinator = cluster.coordinator(1);
@@ -2695,7 +2705,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testSerialReadDescending() throws Throwable
     {
-        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, PRIMARY KEY(k, c)) WITH transactional_mode='" + transactionalMode + "'",
+        test("CREATE TABLE " + qualifiedTableName + " (k int, c int, v int, PRIMARY KEY(k, c))",
              cluster -> {
                  ICoordinator coordinator = cluster.coordinator(1);
                  for (int i = 1; i <= 10; i++)

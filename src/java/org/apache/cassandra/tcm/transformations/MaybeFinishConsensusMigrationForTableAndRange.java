@@ -22,29 +22,19 @@ import java.io.IOException;
 import java.util.List;
 import javax.annotation.Nonnull;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.schema.DistributedSchema;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.TableParams;
-import org.apache.cassandra.service.consensus.migration.ConsensusMigrationRepairType;
-import org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget;
-import org.apache.cassandra.service.consensus.migration.ConsensusTableMigration;
-import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
-import org.apache.cassandra.service.consensus.migration.TableMigrationState;
-import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationRepairType;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationTarget;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.ClusterMetadata.Transformer;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
@@ -57,12 +47,12 @@ import static java.lang.String.format;
 import static org.apache.cassandra.dht.Range.intersects;
 import static org.apache.cassandra.dht.Range.normalize;
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
+import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationState;
+import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.TableMigrationState;
 
 
 public class MaybeFinishConsensusMigrationForTableAndRange implements Transformation
 {
-    private static final Logger logger = LoggerFactory.getLogger(MaybeFinishConsensusMigrationForTableAndRange.class);
-
     public static Serializer serializer = new Serializer();
 
     @Nonnull
@@ -106,27 +96,9 @@ public class MaybeFinishConsensusMigrationForTableAndRange implements Transforma
         return Kind.MAYBE_FINISH_CONSENSUS_MIGRATION_FOR_TABLE_AND_RANGE;
     }
 
-    private static Transformer resetMigrationOnSchema(ClusterMetadata prev, Transformer transformer, String ksName, String tblName, TableId id)
-    {
-        Keyspaces schema = prev.schema.getKeyspaces();
-        KeyspaceMetadata keyspace = schema.getNullable(ksName);
-
-        TableMetadata table = null == keyspace
-                              ? null
-                              : keyspace.getTableOrViewNullable(tblName);
-
-        if (table == null || !table.id.equals(id))
-            return transformer;
-
-        TableParams params = table.params.unbuild().transactionalMigrationFrom(TransactionalMigrationFromMode.none).build();
-        keyspace = keyspace.withSwapped(keyspace.tables.withSwapped(table.withSwapped(params)));
-        schema = schema.withAddedOrUpdated(keyspace);
-        return transformer.with(new DistributedSchema(schema));
-    }
-
     public Result execute(@Nonnull ClusterMetadata metadata)
     {
-        logger.info("Completed repair {} ranges {}", repairType, repairedRanges);
+        System.out.println("Completed repair " + repairType + " ranges " + repairedRanges);
         checkNotNull(metadata, "clusterMetadata should not be null");
         String ksAndCF = keyspace + "." + cf;
         TableMetadata tbm = Schema.instance.getTableMetadata(keyspace, cf);
@@ -134,7 +106,7 @@ public class MaybeFinishConsensusMigrationForTableAndRange implements Transforma
             return new Rejected(INVALID, format("Table %s is not currently performing consensus migration", ksAndCF));
 
         ConsensusMigrationState consensusMigrationState = metadata.consensusMigrationState;
-        TableMigrationState tms = consensusMigrationState.tableStates.get(tbm.id);
+        ConsensusTableMigrationState.TableMigrationState tms = consensusMigrationState.tableStates.get(tbm.id);
         if (tms == null)
             return new Rejected(INVALID, format("Table %s is not currently performing consensus migration", ksAndCF));
 
@@ -150,16 +122,9 @@ public class MaybeFinishConsensusMigrationForTableAndRange implements Transforma
         if (!intersects(tms.migratingRanges, normalizedRepairedRanges))
             return new Rejected(INVALID, format("Table %s is migrating ranges %s, which doesn't include repaired ranges %s", ksAndCF, tms.migratingRanges, normalizedRepairedRanges));
 
-        Transformer next = metadata.transformer();
-        ConsensusMigrationState migrationState = metadata.consensusMigrationState.withRangesRepairedAtEpoch(tbm, normalizedRepairedRanges, minEpoch);
-        next = next.with(migrationState);
+        TableMigrationState newTableMigrationState = tms.withRangesRepairedAtEpoch(normalizedRepairedRanges, minEpoch);
 
-        // reset the migration value on the table if the migration has completed
-        TableMigrationState tableState = migrationState.tableStates.get(tbm.id);
-        if (tableState == null || tableState.hasMigratedFullTokenRange(metadata.partitioner))
-            next = resetMigrationOnSchema(metadata, next, keyspace, cf, tbm.id);
-
-        return Transformation.success(next, LockedRanges.AffectedRanges.EMPTY);
+        return Transformation.success(metadata.transformer().with(ImmutableMap.of(newTableMigrationState.tableId, newTableMigrationState)), LockedRanges.AffectedRanges.EMPTY);
     }
 
     static class Serializer implements AsymmetricMetadataSerializer<Transformation, MaybeFinishConsensusMigrationForTableAndRange>
@@ -169,7 +134,7 @@ public class MaybeFinishConsensusMigrationForTableAndRange implements Transforma
             MaybeFinishConsensusMigrationForTableAndRange v = (MaybeFinishConsensusMigrationForTableAndRange)t;
             out.writeUTF(v.keyspace);
             out.writeUTF(v.cf);
-            ConsensusTableMigration.rangesSerializer.serialize(v.repairedRanges, out, version);
+            ConsensusTableMigrationState.rangesSerializer.serialize(v.repairedRanges, out, version);
             Epoch.serializer.serialize(v.minEpoch, out, version);
             out.write(v.repairType.value);
         }
@@ -178,7 +143,7 @@ public class MaybeFinishConsensusMigrationForTableAndRange implements Transforma
         {
             String keyspace = in.readUTF();
             String cf = in.readUTF();
-            List<Range<Token>> repairedRanges = ConsensusTableMigration.rangesSerializer.deserialize(in, version);
+            List<Range<Token>> repairedRanges = ConsensusTableMigrationState.rangesSerializer.deserialize(in, version);
             Epoch minEpoch = Epoch.serializer.deserialize(in, version);
             ConsensusMigrationRepairType repairType = ConsensusMigrationRepairType.fromValue(in.readByte());
             return new MaybeFinishConsensusMigrationForTableAndRange(keyspace, cf, repairedRanges, minEpoch, repairType);
@@ -188,10 +153,10 @@ public class MaybeFinishConsensusMigrationForTableAndRange implements Transforma
         {
             MaybeFinishConsensusMigrationForTableAndRange v = (MaybeFinishConsensusMigrationForTableAndRange)t;
             return TypeSizes.sizeof(v.keyspace)
-                   + TypeSizes.sizeof(v.cf)
-                   + ConsensusTableMigration.rangesSerializer.serializedSize(v.repairedRanges, version)
-                   + Epoch.serializer.serializedSize(v.minEpoch)
-                   + TypeSizes.sizeof(v.repairType.value);
+                 + TypeSizes.sizeof(v.cf)
+                 + ConsensusTableMigrationState.rangesSerializer.serializedSize(v.repairedRanges, version)
+                 + Epoch.serializer.serializedSize(v.minEpoch)
+                 + TypeSizes.sizeof(v.repairType.value);
         }
     }
 }

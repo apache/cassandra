@@ -93,7 +93,7 @@ public class NodeLocalConsistencyTest extends CQLTester
     @Test
     public void testTransaction()
     {
-        createTable("CREATE TABLE %s (key text, val int, PRIMARY KEY(key)) WITH transactional_mode='full'");
+        createTable("CREATE TABLE %s (key text, val int, PRIMARY KEY(key))");
         QueryProcessor.process(formatQuery("INSERT INTO %s (key, val) VALUES ('foo', 0)"), NODE_LOCAL);
 
         String query = "BEGIN TRANSACTION\n" +

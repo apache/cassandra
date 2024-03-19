@@ -19,7 +19,7 @@ package org.apache.cassandra.repair;
 
 import java.util.List;
 
-import org.apache.cassandra.service.consensus.migration.ConsensusMigrationRepairResult;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationRepairResult;
 
 /**
  * RepairJob's result

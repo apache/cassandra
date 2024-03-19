@@ -41,7 +41,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.base.Preconditions;
 import com.google.common.cache.CacheLoader;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -57,7 +56,7 @@ import org.apache.cassandra.concurrent.DebuggableTask.RunnableDebuggableTask;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.config.Config.NonSerialWriteStrategy;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -131,6 +130,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
@@ -173,6 +173,8 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.collect.Iterables.concat;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.config.Config.NonSerialWriteStrategy.accord;
+import static org.apache.cassandra.config.DatabaseDescriptor.getNonSerialWriteStrategy;
 import static org.apache.cassandra.db.ConsistencyLevel.SERIAL;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casWriteMetrics;
@@ -387,6 +389,7 @@ public class StorageProxy implements StorageProxyMBean
                                                         clientState,
                                                         nowInSeconds);
                     IAccordService accordService = AccordService.instance();
+                    accordService.maybeConvertTablesToAccord(txn);
                     TxnResult txnResult = accordService.coordinate(txn,
                                                                    consistencyForPaxos,
                                                                    queryStartNanoTime);
@@ -1189,54 +1192,6 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    private static ConsistencyLevel consistencyLevelForCommit(Collection<? extends IMutation> mutations, ConsistencyLevel consistencyLevel)
-    {
-        ConsistencyLevel result = null;
-        for (IMutation mutation : mutations)
-        {
-            for (TableId tableId : mutation.getTableIds())
-            {
-                TransactionalMode mode = Schema.instance.getTableMetadata(tableId).params.transactionalMode;
-                ConsistencyLevel commitCL = mode.commitCLForStrategy(consistencyLevel);
-                if (result == null || commitCL.compareTo(result) > 0)
-                    result = commitCL;
-            }
-        }
-        return result;
-    }
-
-    private static boolean writesThroughAccord(List<? extends IMutation> mutations, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
-    {
-        boolean accordWrite = false;
-        boolean normalWrite = false;
-        for (int i=0,mi=mutations.size(); i<mi; i++)
-        {
-            IMutation mutation = mutations.get(i);
-            for (TableId tableId : mutation.getTableIds())
-            {
-                if (ConsensusRequestRouter.instance.shouldWriteThroughAccordAndMaybeMigrate(mutation.key(),
-                        tableId,
-                        consistencyLevel,
-                        queryStartNanoTime,
-                        DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS),
-                        true))
-                {
-                    accordWrite = true;
-                }
-                else
-                {
-                    normalWrite = true;
-                }
-            }
-        }
-
-        if (!accordWrite && !normalWrite)
-            throw new IllegalStateException("Mutation is neither a normal write nor an accord write");
-        if (accordWrite && normalWrite)
-            throw new InvalidRequestException("Cannot mix writes to accord and normal tables");
-        return accordWrite;
-    }
-
     @SuppressWarnings("unchecked")
     public static void mutateWithTriggers(List<? extends IMutation> mutations,
                                           ConsistencyLevel consistencyLevel,
@@ -1270,15 +1225,12 @@ public class StorageProxy implements StorageProxyMBean
                               .viewManager
                               .updatesAffectView(mutations, true);
 
-
         long size = IMutation.dataSize(mutations);
         writeMetrics.mutationSize.update(size);
         writeMetricsForLevel(consistencyLevel).mutationSize.update(size);
-        if (writesThroughAccord(mutations, consistencyLevel, queryStartNanoTime))
-        {
-            Preconditions.checkState(!SchemaConstants.getSystemKeyspaces().contains(keyspaceName));
-            mutateWithAccord(augmented != null ? augmented : mutations, consistencyLevel, queryStartNanoTime);
-        }
+        NonSerialWriteStrategy nonSerialWriteStrategy = getNonSerialWriteStrategy();
+        if (nonSerialWriteStrategy.writesThroughAccord && !SchemaConstants.getSystemKeyspaces().contains(keyspaceName))
+            mutateWithAccord(augmented != null ? augmented : mutations, consistencyLevel, queryStartNanoTime, nonSerialWriteStrategy);
         else if (augmented != null)
             mutateAtomically(augmented, consistencyLevel, updatesView, queryStartNanoTime);
         else
@@ -1290,12 +1242,12 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    private static void mutateWithAccord(Collection<? extends IMutation> mutations, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
+    private static void mutateWithAccord(Collection<? extends IMutation> iMutations, ConsistencyLevel consistencyLevel, long queryStartNanoTime, Config.NonSerialWriteStrategy nonSerialWriteStrategy)
     {
         int fragmentIndex = 0;
-        List<TxnWrite.Fragment> fragments = new ArrayList<>(mutations.size());
-        List<PartitionKey> partitionKeys = new ArrayList<>(mutations.size());
-        for (IMutation mutation : mutations)
+        List<TxnWrite.Fragment> fragments = new ArrayList<>(iMutations.size());
+        List<PartitionKey> partitionKeys = new ArrayList<>(iMutations.size());
+        for (IMutation mutation : iMutations)
         {
             for (PartitionUpdate update : mutation.getPartitionUpdates())
             {
@@ -1305,10 +1257,11 @@ public class StorageProxy implements StorageProxyMBean
             }
         }
         // Potentially ignore commit consistency level if the strategy specifies accord and not migration
-        ConsistencyLevel clForCommit = consistencyLevelForCommit(mutations, consistencyLevel);
-        TxnUpdate update = new TxnUpdate(fragments, TxnCondition.none(), clForCommit);
+        ConsistencyLevel clForCommit = nonSerialWriteStrategy.commitCLForStrategy(consistencyLevel);
+        AccordUpdate update = new TxnUpdate(fragments, TxnCondition.none(), clForCommit);
         Txn.InMemory txn = new Txn.InMemory(Keys.of(partitionKeys), TxnRead.EMPTY, TxnQuery.EMPTY, update);
         IAccordService accordService = AccordService.instance();
+        accordService.maybeConvertTablesToAccord(txn);
         accordService.coordinate(txn, consistencyLevel, queryStartNanoTime);
     }
 
@@ -2031,12 +1984,13 @@ public class StorageProxy implements StorageProxyMBean
         SinglePartitionReadCommand readCommand = group.queries.get(0);
         // If the non-SERIAL write strategy is sending all writes through Accord there is no need to use the supplied consistency
         // level since Accord will manage reading safely
-        TransactionalMode transactionalMode = group.metadata().params.transactionalMode;
-        consistencyLevel = transactionalMode.readCLForStrategy(consistencyLevel);
+        NonSerialWriteStrategy nonSerialWriteStrategy = getNonSerialWriteStrategy();
+        consistencyLevel = nonSerialWriteStrategy.readCLForStrategy(consistencyLevel);
         TxnRead read = TxnRead.createSerialRead(readCommand, consistencyLevel);
         Invariants.checkState(read.keys().size() == 1, "Ephemeral reads are only strict-serializable for single partition reads");
-        Txn txn = new Txn.InMemory(transactionalMode == TransactionalMode.full ? EphemeralRead : Read, read.keys(), read, TxnQuery.ALL, null);
+        Txn txn = new Txn.InMemory(nonSerialWriteStrategy == accord ? EphemeralRead : Read, read.keys(), read, TxnQuery.ALL, null);
         IAccordService accordService = AccordService.instance();
+        accordService.maybeConvertTablesToAccord(txn);
         TxnResult txnResult = accordService.coordinate(txn, consistencyLevel, queryStartNanoTime);
         if (txnResult.kind() == retry_new_protocol)
             return RETRY_NEW_PROTOCOL;

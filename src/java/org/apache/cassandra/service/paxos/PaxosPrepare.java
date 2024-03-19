@@ -72,8 +72,7 @@ import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAdd
 import static org.apache.cassandra.net.Verb.PAXOS2_PREPARE_REQ;
 import static org.apache.cassandra.net.Verb.PAXOS2_PREPARE_RSP;
 import static org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.getKeyMigrationState;
-
-import org.apache.cassandra.service.consensus.migration.ConsensusMigratedAt;
+import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigratedAt;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.NONE;
 import static org.apache.cassandra.service.paxos.Commit.Accepted;
 import static org.apache.cassandra.service.paxos.Commit.Committed;
