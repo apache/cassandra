@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 
 import org.junit.Test;
@@ -28,9 +29,16 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.transformations.PrepareMove;
 import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.collect.Lists.newArrayList;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.pauseBeforeCommit;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.pauseBeforeEnacting;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseCommits;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseEnactment;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.waitForCMSToQuiesce;
 import static org.apache.cassandra.distributed.test.TransientRangeMovementTest.OPPTokens;
 import static org.apache.cassandra.distributed.test.TransientRangeMovementTest.assertAllContained;
 import static org.apache.cassandra.distributed.test.TransientRangeMovementTest.localStrs;
@@ -40,7 +48,7 @@ import static org.apache.cassandra.distributed.test.TransientRangeMovementTest.p
 public class TransientRangeMovement2Test extends TestBaseImpl
 {
     @Test
-    public void testMoveBackward() throws IOException, ExecutionException, InterruptedException
+    public void testMoveBackward() throws Exception
     {
         try (Cluster cluster = init(Cluster.build(4)
                                            .withTokenSupplier(new OPPTokens())
@@ -51,9 +59,23 @@ public class TransientRangeMovement2Test extends TestBaseImpl
                                            .start()))
         {
             populate(cluster);
-            cluster.get(3).nodetoolResult("move", "25").asserts().success();
+            // Have the CMS node pause before the step MidMove is committed, node1 gains (25, 30] as a full write replica
+            // in StartMove, before the fix (25, 30] was added as a transient replica.
+            Callable<Epoch> pending = pauseBeforeCommit(cluster.get(1), (e) -> e instanceof PrepareMove.MidMove);
+
+            new Thread(() -> cluster.get(3).nodetoolResult("move", "25").asserts().success()).start();
+            Epoch pauseBeforeEnacting = pending.call().nextEpoch();
+
+            Callable<?> beforeEnacted = pauseBeforeEnacting(cluster.get(3), pauseBeforeEnacting);
+            unpauseCommits(cluster.get(1));
+            beforeEnacted.call();
+
+            // before node3 completes the move, run cleanup (but its actually node1 where the corruption occurs).
             cluster.forEach(i -> i.nodetoolResult("cleanup").asserts().success());
 
+            unpauseEnactment(cluster.get(3));
+            waitForCMSToQuiesce(cluster, cluster.get(1));
+            cluster.forEach(i -> i.nodetoolResult("cleanup").asserts().success());
             assertAllContained(localStrs(cluster.get(1)),
                                newArrayList("22", "24"),
                                Pair.create("00", "10"),
@@ -72,7 +94,7 @@ public class TransientRangeMovement2Test extends TestBaseImpl
     }
 
     @Test
-    public void testMoveForward() throws IOException, ExecutionException, InterruptedException
+    public void testMoveForward() throws Exception
     {
 
         try (Cluster cluster = init(Cluster.build(4)
@@ -85,8 +107,24 @@ public class TransientRangeMovement2Test extends TestBaseImpl
                                            .start()))
         {
             populate(cluster);
-            cluster.get(1).nodetoolResult("move", "15").asserts().success();
-            cluster.forEach((i) -> i.nodetoolResult("cleanup").asserts().success());
+            // Have the CMS node pause before the step MidMove is committed - this doesn't break without the CASSANDRA-19344 fix, but leaving
+            // pausing + cleanup in.
+            Callable<Epoch> pending = pauseBeforeCommit(cluster.get(1), (e) -> e instanceof PrepareMove.MidMove);
+
+            new Thread(() -> cluster.get(1).nodetoolResult("move", "15").asserts().success()).start();
+            Epoch pauseBeforeEnacting = pending.call().nextEpoch();
+
+            Callable<?> beforeEnacted = pauseBeforeEnacting(cluster.get(3), pauseBeforeEnacting);
+            unpauseCommits(cluster.get(1));
+            beforeEnacted.call();
+
+            // before node3 completes the move, run cleanup (but its actually node1 where the corruption occurs).
+            cluster.forEach(i -> i.nodetoolResult("cleanup").asserts().success());
+
+            unpauseEnactment(cluster.get(3));
+            waitForCMSToQuiesce(cluster, cluster.get(1));
+
+            cluster.forEach(i -> i.nodetoolResult("cleanup").asserts().success());
             assertAllContained(localStrs(cluster.get(1)),
                                newArrayList("22", "24", "26", "28", "30"),
                                Pair.create("00", "15"),
