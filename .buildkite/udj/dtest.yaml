@@ -23,3 +23,6 @@ uown: 99295401-c534-41b4-949d-26efbebc4ad4 # cassandra-service
 command: ".jenkins/dtest.sh"
 
 timeout_in_minutes: 300
+
+agent:
+  queue: "odin-generic-ci-gcp"

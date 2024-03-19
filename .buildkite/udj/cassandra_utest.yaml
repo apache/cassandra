@@ -29,3 +29,6 @@ artifact_paths:
   - build/jacoco/*.html
   - build/coverage/*
   - build/comment/phabricator-comment*
+
+agent:
+  queue: "odin-generic-ci-gcp"
