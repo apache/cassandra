@@ -25,7 +25,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static com.google.common.collect.Iterables.all;
@@ -238,7 +238,7 @@ public class StreamPlan
     public static String[] nonAccordTablesForKeyspace(KeyspaceMetadata ksm)
     {
         String[] result = ksm.tables.stream()
-                                    .filter(tbl -> !AccordService.instance().isAccordManagedTable(tbl.id))
+                                    .filter(tbl -> !tbl.isAccordEnabled())
                                     .map(tbl -> tbl.name)
                                     .toArray(String[]::new);
 
@@ -247,11 +247,11 @@ public class StreamPlan
 
     public static boolean hasNonAccordTables(KeyspaceMetadata ksm)
     {
-        return ksm.tables.stream().anyMatch(tbl -> !AccordService.instance().isAccordManagedTable(tbl.id));
+        return ksm.tables.stream().anyMatch(tbl -> !tbl.isAccordEnabled());
     }
 
     public static boolean hasAccordTables(KeyspaceMetadata ksm)
     {
-        return ksm.tables.stream().anyMatch(tbl -> AccordService.instance().isAccordManagedTable(tbl.id));
+        return ksm.tables.stream().anyMatch(TableMetadata::isAccordEnabled);
     }
 }

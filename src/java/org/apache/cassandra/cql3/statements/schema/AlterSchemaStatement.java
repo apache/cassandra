@@ -34,6 +34,7 @@ import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.accord.AccordTopology;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -175,6 +176,9 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
         AuthenticatedUser user = state.getClientState().getUser();
         if (null != user && !user.isAnonymous())
             createdResources(diff).forEach(r -> grantPermissionsOnResource(r, user));
+
+        // if the changes affected accord, wait for accord to apply them
+        AccordTopology.awaitTopologyReadiness(diff, result.epoch);
 
         return new ResultMessage.SchemaChange(schemaChangeEvent(diff));
     }

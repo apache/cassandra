@@ -37,7 +37,8 @@ import accord.impl.CoordinateDurabilityScheduling;
 import org.apache.cassandra.cql3.statements.RequestValidations;
 import org.apache.cassandra.service.accord.interop.AccordInteropAdapter.AccordInteropFactory;
 import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.transformations.AddAccordTable;
+import org.apache.cassandra.service.accord.api.*;
+import org.apache.cassandra.utils.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -74,7 +75,6 @@ import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
-import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
@@ -83,24 +83,13 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;
-import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.KeyspaceSplitter;
-import org.apache.cassandra.service.accord.api.AccordScheduler;
-import org.apache.cassandra.service.accord.api.AccordTopologySorter;
-import org.apache.cassandra.service.accord.api.CompositeTopologySorter;
 import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
 import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
 import org.apache.cassandra.service.accord.txn.TxnResult;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.utils.Clock;
-import org.apache.cassandra.utils.ExecutorUtils;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
@@ -206,19 +195,10 @@ public class AccordService implements IAccordService, Shutdownable
         public void receive(Message<List<AccordSyncPropagator.Notification>> message) {}
 
         @Override
-        public boolean isAccordManagedTable(TableId keyspace)
-        {
-            return false;
-        }
-
-        @Override
         public Pair<Int2ObjectHashMap<RedundantBefore>, DurableBefore> getRedundantBeforesAndDurableBefore()
         {
             return Pair.create(new Int2ObjectHashMap<>(), DurableBefore.EMPTY);
         }
-
-        @Override
-        public void ensureTableIsAccordManaged(TableId tableId) {}
     };
 
     private static volatile IAccordService instance = null;
@@ -673,28 +653,6 @@ public class AccordService implements IAccordService, Shutdownable
     public AccordConfigurationService configurationService()
     {
         return configService;
-    }
-
-    @Override
-    public boolean isAccordManagedTable(TableId tableId)
-    {
-        return ClusterMetadata.current().accordTables.contains(tableId);
-    }
-
-    @Override
-    public void ensureTableIsAccordManaged(TableId tableId)
-    {
-        if (isAccordManagedTable(tableId))
-            return;
-        ClusterMetadataService.instance().commit(new AddAccordTable(tableId),
-                                                 metadata -> null,
-                                                 (code, message) -> {
-                                                     Invariants.checkState(code == ExceptionCode.ALREADY_EXISTS,
-                                                                           "Expected %s, got %s", ExceptionCode.ALREADY_EXISTS, code);
-                                                     return null;
-                                                 });
-        // we need to avoid creating a txnId in an epoch when no one has any ranges
-        FBUtilities.waitOnFuture(AccordService.instance().epochReady(ClusterMetadata.current().epoch));
     }
 
     @Override

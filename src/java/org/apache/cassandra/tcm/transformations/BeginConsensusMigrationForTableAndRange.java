@@ -19,15 +19,11 @@
 package org.apache.cassandra.tcm.transformations;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
+import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -35,9 +31,11 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigration;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
@@ -45,14 +43,10 @@ import org.apache.cassandra.tcm.serialization.Version;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.collect.ImmutableList.toImmutableList;
-import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationTarget;
-import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.TableMigrationState;
 import static org.apache.cassandra.tcm.ClusterMetadata.Transformer;
 import static org.apache.cassandra.utils.CollectionSerializers.deserializeList;
 import static org.apache.cassandra.utils.CollectionSerializers.serializeCollection;
 import static org.apache.cassandra.utils.CollectionSerializers.serializedCollectionSize;
-import static org.apache.cassandra.utils.Collectors3.toImmutableMap;
 
 public class BeginConsensusMigrationForTableAndRange implements Transformation
 {
@@ -88,20 +82,10 @@ public class BeginConsensusMigrationForTableAndRange implements Transformation
 
     public Result execute(ClusterMetadata prev)
     {
-        Map<TableId, TableMigrationState> tableStates = prev.consensusMigrationState.tableStates;
-        List<ColumnFamilyStore> columnFamilyStores = tables.stream().map(Schema.instance::getColumnFamilyStoreInstance).collect(toImmutableList());
-
         Transformer transformer = prev.transformer();
-
-        Map<TableId, TableMigrationState> newStates = columnFamilyStores
-                .stream()
-                .map(cfs ->
-                        tableStates.containsKey(cfs.getTableId()) ?
-                                tableStates.get(cfs.getTableId()).withRangesMigrating(ranges, targetProtocol) :
-                                new TableMigrationState(cfs.keyspace.getName(), cfs.name, cfs.getTableId(), targetProtocol, ImmutableSet.of(), ImmutableMap.of(Epoch.EMPTY, ranges)))
-                .collect(toImmutableMap(TableMigrationState::getTableId, Function.identity()));
-
-        return Transformation.success(transformer.with(newStates), LockedRanges.AffectedRanges.EMPTY);
+        Collection<TableMetadata> metadata = tables.stream().map(Schema.instance::getTableMetadata).collect(Collectors.toList());
+        ConsensusMigrationState consensusMigrationState = prev.consensusMigrationState.withRangesMigrating(metadata, ranges, false);
+        return Transformation.success(transformer.with(consensusMigrationState), LockedRanges.AffectedRanges.EMPTY);
     }
 
     static class Serializer implements AsymmetricMetadataSerializer<Transformation, BeginConsensusMigrationForTableAndRange>
@@ -111,14 +95,14 @@ public class BeginConsensusMigrationForTableAndRange implements Transformation
         {
             BeginConsensusMigrationForTableAndRange v = (BeginConsensusMigrationForTableAndRange)t;
             out.writeUTF(v.targetProtocol.toString());
-            ConsensusTableMigrationState.rangesSerializer.serialize(v.ranges, out, version);
+            ConsensusTableMigration.rangesSerializer.serialize(v.ranges, out, version);
             serializeCollection(v.tables, out, version, TableId.metadataSerializer);
         }
 
         public BeginConsensusMigrationForTableAndRange deserialize(DataInputPlus in, Version version) throws IOException
         {
             ConsensusMigrationTarget targetProtocol = ConsensusMigrationTarget.fromString(in.readUTF());
-            List<Range<Token>> ranges = ConsensusTableMigrationState.rangesSerializer.deserialize(in, version);
+            List<Range<Token>> ranges = ConsensusTableMigration.rangesSerializer.deserialize(in, version);
             List<TableId> tables = deserializeList(in, version, TableId.metadataSerializer);
            return new BeginConsensusMigrationForTableAndRange(targetProtocol, ranges, tables);
         }
@@ -127,8 +111,8 @@ public class BeginConsensusMigrationForTableAndRange implements Transformation
         {
             BeginConsensusMigrationForTableAndRange v = (BeginConsensusMigrationForTableAndRange) t;
             return TypeSizes.sizeof(v.targetProtocol.toString())
-                 + ConsensusTableMigrationState.rangesSerializer.serializedSize(v.ranges, version)
-                 + serializedCollectionSize(v.tables, version, TableId.metadataSerializer);
+                   + ConsensusTableMigration.rangesSerializer.serializedSize(v.ranges, version)
+                   + serializedCollectionSize(v.tables, version, TableId.metadataSerializer);
         }
     }
 }

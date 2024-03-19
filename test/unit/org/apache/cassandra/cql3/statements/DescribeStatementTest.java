@@ -1066,6 +1066,8 @@ public class DescribeStatementTest extends CQLTester
                "    AND memtable_flush_period_in_ms = 0\n" +
                "    AND min_index_interval = 128\n" +
                "    AND read_repair = 'BLOCKING'\n" +
+               "    AND transactional_mode = 'off'\n" +
+               "    AND transactional_migration_from = 'none'\n" +
                "    AND speculative_retry = '99p';";
     }
 
