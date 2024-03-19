@@ -134,7 +134,7 @@ public class TransientRangeMovementTest extends TestBaseImpl
     }
 
     @Test
-    public void testLeave() throws IOException, ExecutionException, InterruptedException
+    public void testLeave() throws Exception
     {
 
         try (Cluster cluster = init(Cluster.build(4)
@@ -146,7 +146,27 @@ public class TransientRangeMovementTest extends TestBaseImpl
                                            .start()))
         {
             populate(cluster);
-            cluster.get(4).nodetoolResult("decommission", "--force").asserts().success();
+            // Have the CMS node pause before the FINISH_LEAVE step is committed, so we can make a note of the _next_
+            // epoch (i.e. when the FINISH_LEAVE will be enacted). Then we can pause one replica before enacting it
+            Callable<Epoch> pending = pauseBeforeCommit(cluster.get(1), (e) -> e instanceof PrepareLeave.FinishLeave);
+
+            new Thread(() -> cluster.get(4).nodetoolResult("decommission", "--force").asserts().success()).start();
+            Epoch pauseBeforeEnacting = pending.call().nextEpoch();
+            // Unpause the CMS. It will commit the FINISH_LEAVE, but instance 2 will wait before enacting it
+            Callable<?> beforeEnacted = pauseBeforeEnacting(cluster.get(2), pauseBeforeEnacting);
+            unpauseCommits(cluster.get(1));
+            beforeEnacted.call();
+
+            // before node2 completes the removal of node4 run cleanup. Node 2 is not yet a full
+            cluster.forEach(i -> {
+                if (i.config().num() != 4)
+                    i.nodetoolResult("cleanup").asserts().success();
+            });
+
+            // Unpause node2 so it completes the removal of node4
+            unpauseEnactment(cluster.get(2));
+            waitForCMSToQuiesce(cluster, cluster.get(1));
+
             cluster.forEach(i -> i.nodetoolResult("cleanup"));
             assertAllContained(localStrs(cluster.get(1)),
                                newArrayList("12", "14", "16", "18", "20"),
