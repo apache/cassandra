@@ -142,8 +142,6 @@ public class TransientRangeMovement2Test extends TestBaseImpl
         }
     }
 
-
-
     @Test
     public void testRebuild() throws ExecutionException, InterruptedException, IOException
     {
