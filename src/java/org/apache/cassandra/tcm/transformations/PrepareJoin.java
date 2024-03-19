@@ -23,8 +23,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
@@ -37,6 +35,7 @@ import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
+import org.apache.cassandra.tcm.ownership.MovementMap;
 import org.apache.cassandra.tcm.ownership.PlacementDeltas;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.PlacementTransitionPlan;
@@ -87,8 +86,6 @@ import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
  */
 public class PrepareJoin implements Transformation
 {
-    private static final Logger logger = LoggerFactory.getLogger(PrepareJoin.class);
-
     public static final Serializer<PrepareJoin> serializer = new Serializer<PrepareJoin>()
     {
         public PrepareJoin construct(NodeId nodeId, Set<Token> tokens, PlacementProvider placementProvider, boolean joinTokenRing, boolean streamData)
@@ -156,6 +153,12 @@ public class PrepareJoin implements Transformation
                                                              transitionPlan.toSplit,
                                                              startJoin, midJoin, finishJoin,
                                                              joinTokenRing, streamData);
+        if (!(this instanceof UnsafeJoin) && !prev.tokenMap.isEmpty())
+        {
+            Result res = PlacementTransitionPlan.assertPreExistingWriteReplica(prev.placements, transitionPlan);
+            if (res != null)
+                return res;
+        }
 
         LockedRanges newLockedRanges = prev.lockedRanges.lock(lockKey, rangesToLock);
         DataPlacements startingPlacements = transitionPlan.toSplit.apply(prev.nextEpoch(), prev.placements);
