@@ -9499,12 +9499,6 @@ workflows:
         requires:
         - start_j11_jvm_dtests_latest_vnode
         - j11_build
-    - start_j11_jvm_dtests_latest_vnode_repeat:
-        type: approval
-    - j11_jvm_dtests_latest_vnode_repeat:
-        requires:
-        - start_j11_jvm_dtests_latest_vnode_repeat
-        - j11_build
     - start_j17_jvm_dtests:
         type: approval
     - j17_jvm_dtests:
@@ -9516,12 +9510,6 @@ workflows:
     - j17_jvm_dtests_latest_vnode:
         requires:
         - start_j17_jvm_dtests_latest_vnode
-        - j11_build
-    - start_j17_jvm_dtests_latest_vnode_repeat:
-        type: approval
-    - j17_jvm_dtests_latest_vnode_repeat:
-        requires:
-        - start_j17_jvm_dtests_latest_vnode_repeat
         - j11_build
     - start_j11_simulator_dtests:
         type: approval
@@ -9619,18 +9607,6 @@ workflows:
         requires:
         - start_j17_utests_latest
         - j11_build
-    - start_j11_utests_latest_repeat:
-        type: approval
-    - j11_utests_latest_repeat:
-        requires:
-        - start_j11_utests_latest_repeat
-        - j11_build
-    - start_j17_utests_latest_repeat:
-        type: approval
-    - j17_utests_latest_repeat:
-        requires:
-        - start_j17_utests_latest_repeat
-        - j11_build
     - start_j11_utests_stress:
         type: approval
     - j11_utests_stress:
@@ -9697,12 +9673,6 @@ workflows:
         requires:
         - start_j11_dtests_latest
         - j11_build
-    - start_j11_dtests_latest_repeat:
-        type: approval
-    - j11_dtests_latest_repeat:
-        requires:
-        - start_j11_dtests_latest_repeat
-        - j11_build
     - start_j17_dtests:
         type: approval
     - j17_dtests:
@@ -9720,12 +9690,6 @@ workflows:
     - j17_dtests_latest:
         requires:
         - start_j17_dtests_latest
-        - j11_build
-    - start_j17_dtests_latest_repeat:
-        type: approval
-    - j17_dtests_latest_repeat:
-        requires:
-        - start_j17_dtests_latest_repeat
         - j11_build
     - start_j11_dtests_large:
         type: approval
@@ -9829,9 +9793,6 @@ workflows:
     - j11_utests_latest:
         requires:
         - j11_build
-    - j11_utests_latest_repeat:
-        requires:
-        - j11_build
     - j11_simulator_dtests:
         requires:
         - j11_build
@@ -9841,16 +9802,10 @@ workflows:
     - j11_jvm_dtests_latest_vnode:
         requires:
         - j11_build
-    - j11_jvm_dtests_latest_vnode_repeat:
-        requires:
-        - j11_build
     - j17_jvm_dtests:
         requires:
         - j11_build
     - j17_jvm_dtests_latest_vnode:
-        requires:
-        - j11_build
-    - j17_jvm_dtests_latest_vnode_repeat:
         requires:
         - j11_build
     - j11_cqlshlib_tests:
@@ -9872,9 +9827,6 @@ workflows:
         requires:
         - j11_build
     - j17_utests_latest:
-        requires:
-        - j11_build
-    - j17_utests_latest_repeat:
         requires:
         - j11_build
     - start_utests_long:
@@ -9954,9 +9906,6 @@ workflows:
     - j11_dtests_latest:
         requires:
         - j11_build
-    - j11_dtests_latest_repeat:
-        requires:
-        - j11_build
     - j17_dtests:
         requires:
         - j11_build
@@ -9964,9 +9913,6 @@ workflows:
         requires:
         - j11_build
     - j17_dtests_latest:
-        requires:
-        - j11_build
-    - j17_dtests_latest_repeat:
         requires:
         - j11_build
     - start_j11_dtests_large:
@@ -10064,12 +10010,6 @@ workflows:
         requires:
         - start_j17_jvm_dtests_latest_vnode
         - j17_build
-    - start_j17_jvm_dtests_latest_vnode_repeat:
-        type: approval
-    - j17_jvm_dtests_latest_vnode_repeat:
-        requires:
-        - start_j17_jvm_dtests_latest_vnode_repeat
-        - j17_build
     - start_j17_cqlshlib_tests:
         type: approval
     - j17_cqlshlib_tests:
@@ -10099,12 +10039,6 @@ workflows:
     - j17_dtests_latest:
         requires:
         - start_j17_dtests_latest
-        - j17_build
-    - start_j17_dtests_latest_repeat:
-        type: approval
-    - j17_dtests_latest_repeat:
-        requires:
-        - start_j17_dtests_latest_repeat
         - j17_build
     - start_j17_dtests_large:
         type: approval
@@ -10176,12 +10110,6 @@ workflows:
         requires:
         - start_j17_utests_latest
         - j17_build
-    - start_j17_utests_latest_repeat:
-        type: approval
-    - j17_utests_latest_repeat:
-        requires:
-        - start_j17_utests_latest_repeat
-        - j17_build
     - start_j17_utests_stress:
         type: approval
     - j17_utests_stress:
@@ -10216,16 +10144,10 @@ workflows:
     - j17_utests_latest:
         requires:
         - j17_build
-    - j17_utests_latest_repeat:
-        requires:
-        - j17_build
     - j17_jvm_dtests:
         requires:
         - j17_build
     - j17_jvm_dtests_latest_vnode:
-        requires:
-        - j17_build
-    - j17_jvm_dtests_latest_vnode_repeat:
         requires:
         - j17_build
     - j17_cqlshlib_tests:
@@ -10241,9 +10163,6 @@ workflows:
         requires:
         - j17_build
     - j17_dtests_latest:
-        requires:
-        - j17_build
-    - j17_dtests_latest_repeat:
         requires:
         - j17_build
     - start_j17_dtests_large:
