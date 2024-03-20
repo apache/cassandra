@@ -39,7 +39,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.MovementMap;
 import org.apache.cassandra.tcm.ownership.PlacementDeltas;
-import org.apache.cassandra.tcm.ownership.PlacementForRange;
+import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 
 import static org.apache.cassandra.streaming.StreamOperation.RESTORE_REPLICA_COUNT;
 
@@ -121,7 +121,7 @@ public class RemoveNodeStreams implements LeaveStreams
             RangesByEndpoint startWriteAdditions = startDelta.get(params).writes.additions;
             RangesByEndpoint startWriteRemovals = startDelta.get(params).writes.removals;
             // find current placements from the metadata, we need to stream from replicas that are not changed and are therefore not in the deltas
-            PlacementForRange currentPlacements = metadata.placements.get(params).reads;
+            ReplicaGroups currentPlacements = metadata.placements.get(params).reads;
             startWriteAdditions.flattenValues()
                                .forEach(newReplica -> {
                                    EndpointsForRange.Builder candidateBuilder = new EndpointsForRange.Builder(newReplica.range());

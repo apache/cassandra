@@ -65,7 +65,7 @@ import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
-import org.apache.cassandra.tcm.ownership.PlacementForRange;
+import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.TriggerSnapshot;
@@ -558,7 +558,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                 Set<NodeId> bouncing = new HashSet<>();
                 Set<NodeId> replicasFromBouncedReplicaSets = new HashSet<>();
                 outer:
-                for (VersionedEndpoints.ForRange placements : sut.service.metadata().placements.get(rf.asKeyspaceParams().replication).writes.replicaGroups().values())
+                for (VersionedEndpoints.ForRange placements : sut.service.metadata().placements.get(rf.asKeyspaceParams().replication).writes.endpoints)
                 {
                     List<NodeId> replicas = new ArrayList<>(metadata.directory.toNodeIds(placements.get().endpoints()));
                     List<NodeId> bounceCandidates = new ArrayList<>();
@@ -700,12 +700,12 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         return sb.toString();
     }
 
-    public static void match(PlacementForRange actual, Map<TokenPlacementModel.Range, List<TokenPlacementModel.Replica>> predicted) throws Throwable
+    public static void match(ReplicaGroups actual, Map<TokenPlacementModel.Range, List<TokenPlacementModel.Replica>> predicted) throws Throwable
     {
-        Map<Range<Token>, VersionedEndpoints.ForRange> actualGroups = actual.replicaGroups();
+        Map<Range<Token>, VersionedEndpoints.ForRange> actualGroups = actual.asMap();
         assert predicted.size() == actualGroups.size() :
         String.format("\nPredicted:\n%s(%d)" +
-                      "\nActual:\n%s(%d)", toString(predicted), predicted.size(), toString(actual.replicaGroups()), actualGroups.size());
+                      "\nActual:\n%s(%d)", toString(predicted), predicted.size(), toString(actualGroups), actualGroups.size());
 
         for (Map.Entry<TokenPlacementModel.Range, List<TokenPlacementModel.Replica>> entry : predicted.entrySet())
         {
@@ -825,24 +825,28 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         validatePlacementsInternal(rf, modelState.inFlightOperations, expectedRanges, actualPlacements.writes, true);
     }
 
-    public static void validateTransientStatus(PlacementForRange reads, PlacementForRange writes)
+    public static void validateTransientStatus(ReplicaGroups reads, ReplicaGroups writes)
     {
         // No node should ever be a FULL read replica but a TRANSIENT write replica for the same range
         Map<Range<Token>, List<Replica>> invalid = new HashMap<>();
-        reads.replicaGroups().forEach((range, readGroup) -> {
+        for (int i = 0; i < reads.ranges.size(); i++)
+        {
+            Range<Token> range = reads.ranges.get(i);
+            VersionedEndpoints.ForRange readGroup = reads.endpoints.get(i);
             Map<InetAddressAndPort, Replica> writeGroup = writes.forRange(range).get().byEndpoint();
+
             readGroup.forEach(r -> {
                 if (r.isFull())
                 {
                     Replica w = writeGroup.get(r.endpoint());
                     if (w != null && w.isTransient())
                     {
-                        List<Replica> i = invalid.computeIfAbsent(range, ignore -> new ArrayList<>());
-                        i.add(w);
+                        List<Replica> replicas = invalid.computeIfAbsent(range, ignore -> new ArrayList<>());
+                        replicas.add(w);
                     }
                 }
             });
-        });
+        }
         assertTrue(() -> String.format("Found replicas with invalid transient/full status within a given range. " +
                          "The following were found with the same instance having TRANSIENT status for writes, but " +
                          "FULL status for reads, which can cause consistency violations. %n%s", invalid),
@@ -854,7 +858,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         Assert.assertEquals(new TreeSet<>(l), new TreeSet<>(r));
     }
 
-    public static void validatePlacementsInternal(ReplicationFactor rf, List<SimulatedOperation> opStates, List<Range<Token>> expectedRanges, PlacementForRange placements, boolean allowPending)
+    public static void validatePlacementsInternal(ReplicationFactor rf, List<SimulatedOperation> opStates, List<Range<Token>> expectedRanges, ReplicaGroups placements, boolean allowPending)
     {
         int overreplicated = 0;
         for (Range<Token> range : expectedRanges)

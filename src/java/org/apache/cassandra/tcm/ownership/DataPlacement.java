@@ -21,7 +21,6 @@ package org.apache.cassandra.tcm.ownership;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -47,16 +46,16 @@ public class DataPlacement
         return replication.isMeta() ? metaKeyspaceSerializer : globalSerializer;
     }
 
-    private static final DataPlacement EMPTY = new DataPlacement(PlacementForRange.EMPTY, PlacementForRange.EMPTY);
+    private static final DataPlacement EMPTY = new DataPlacement(ReplicaGroups.EMPTY, ReplicaGroups.EMPTY);
 
     // TODO make tree of just EndpointsForRange, navigable by EFR.range()
     // TODO combine peers into a single entity with one vote in any quorum
     //      (e.g. old & new peer must both respond to count one replica)
-    public final PlacementForRange reads;
-    public final PlacementForRange writes;
+    public final ReplicaGroups reads;
+    public final ReplicaGroups writes;
 
-    public DataPlacement(PlacementForRange reads,
-                         PlacementForRange writes)
+    public DataPlacement(ReplicaGroups reads,
+                         ReplicaGroups writes)
     {
         this.reads = reads;
         this.writes = writes;
@@ -77,14 +76,14 @@ public class DataPlacement
 
     public DataPlacement combineReplicaGroups(DataPlacement other)
     {
-        return new DataPlacement(PlacementForRange.builder()
-                                                  .withReplicaGroups(reads.replicaGroups().values())
-                                                  .withReplicaGroups(other.reads.replicaGroups.values())
-                                                  .build(),
-                                 PlacementForRange.builder()
-                                                  .withReplicaGroups(writes.replicaGroups().values())
-                                                  .withReplicaGroups(other.writes.replicaGroups.values())
-                                                  .build());
+        return new DataPlacement(ReplicaGroups.builder()
+                                              .withReplicaGroups(reads.endpoints)
+                                              .withReplicaGroups(other.reads.endpoints)
+                                              .build(),
+                                 ReplicaGroups.builder()
+                                              .withReplicaGroups(writes.endpoints)
+                                              .withReplicaGroups(other.writes.endpoints)
+                                              .build());
     }
 
     public PlacementDeltas.PlacementDelta difference(DataPlacement next)
@@ -95,8 +94,8 @@ public class DataPlacement
 
     public DataPlacement splitRangesForPlacement(List<Token> tokens)
     {
-        return new DataPlacement(PlacementForRange.splitRangesForPlacement(tokens, reads),
-                                 PlacementForRange.splitRangesForPlacement(tokens, writes));
+        return new DataPlacement(ReplicaGroups.splitRangesForPlacement(tokens, reads),
+                                 ReplicaGroups.splitRangesForPlacement(tokens, writes));
     }
 
     public static DataPlacement empty()
@@ -106,8 +105,8 @@ public class DataPlacement
 
     public static Builder builder()
     {
-        return new Builder(PlacementForRange.builder(),
-                           PlacementForRange.builder());
+        return new Builder(ReplicaGroups.builder(),
+                           ReplicaGroups.builder());
     }
 
     public Builder unbuild()
@@ -116,10 +115,10 @@ public class DataPlacement
     }
     public static class Builder
     {
-        public final PlacementForRange.Builder reads;
-        public final PlacementForRange.Builder writes;
+        public final ReplicaGroups.Builder reads;
+        public final ReplicaGroups.Builder writes;
 
-        public Builder(PlacementForRange.Builder reads, PlacementForRange.Builder writes)
+        public Builder(ReplicaGroups.Builder reads, ReplicaGroups.Builder writes)
         {
             this.reads = reads;
             this.writes = writes;
@@ -165,20 +164,9 @@ public class DataPlacement
     public String toString()
     {
         return "DataPlacement{" +
-               "reads=" + toString(reads.replicaGroups) +
-               ", writes=" + toString(writes.replicaGroups) +
+               "reads=" + reads +
+               ", writes=" + writes +
                '}';
-    }
-
-    public static String toString(Map<?, ?> predicted)
-    {
-        StringBuilder sb = new StringBuilder();
-        for (Map.Entry<?, ?> e : predicted.entrySet())
-        {
-            sb.append(e.getKey()).append("=").append(e.getValue()).append(",\n");
-        }
-
-        return sb.toString();
     }
 
     @Override
@@ -206,21 +194,21 @@ public class DataPlacement
 
         public void serialize(DataPlacement t, DataOutputPlus out, Version version) throws IOException
         {
-            PlacementForRange.serializer.serialize(t.reads, out, partitioner, version);
-            PlacementForRange.serializer.serialize(t.writes, out, partitioner, version);
+            ReplicaGroups.serializer.serialize(t.reads, out, partitioner, version);
+            ReplicaGroups.serializer.serialize(t.writes, out, partitioner, version);
         }
 
         public DataPlacement deserialize(DataInputPlus in, Version version) throws IOException
         {
-            PlacementForRange reads = PlacementForRange.serializer.deserialize(in, partitioner, version);
-            PlacementForRange writes = PlacementForRange.serializer.deserialize(in, partitioner, version);
+            ReplicaGroups reads = ReplicaGroups.serializer.deserialize(in, partitioner, version);
+            ReplicaGroups writes = ReplicaGroups.serializer.deserialize(in, partitioner, version);
             return new DataPlacement(reads, writes);
         }
 
         public long serializedSize(DataPlacement t, Version version)
         {
-            return PlacementForRange.serializer.serializedSize(t.reads, partitioner,  version) +
-                   PlacementForRange.serializer.serializedSize(t.writes, partitioner, version);
+            return ReplicaGroups.serializer.serializedSize(t.reads, partitioner, version) +
+                   ReplicaGroups.serializer.serializedSize(t.writes, partitioner, version);
         }
     }
 }
