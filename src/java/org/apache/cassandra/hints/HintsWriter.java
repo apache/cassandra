@@ -81,6 +81,7 @@ class HintsWriter implements AutoCloseable
             ByteBuffer descriptorBytes = dob.buffer();
             updateChecksum(crc, descriptorBytes);
             channel.write(descriptorBytes);
+            descriptor.hintsFileSize(channel.position());
 
             if (descriptor.isEncrypted())
                 return new EncryptedHintsWriter(directory, descriptor, file, channel, fd, crc);
@@ -113,6 +114,7 @@ class HintsWriter implements AutoCloseable
         }
     }
 
+    @Override
     public void close()
     {
         perform(file, Throwables.FileOpType.WRITE, this::doFsync, channel::close);
@@ -194,7 +196,6 @@ class HintsWriter implements AutoCloseable
          * writes to the underlying channel when the buffer is overflown.
          *
          * @param hint the serialized hint (with CRC included)
-         * @throws IOException
          */
         void append(ByteBuffer hint) throws IOException
         {
@@ -223,11 +224,10 @@ class HintsWriter implements AutoCloseable
         /**
          * Serializes and appends the hint (with CRC included) to this session's aggregation buffer,
          * writes to the underlying channel when the buffer is overflown.
-         *
-         * Used mainly by tests and {@link LegacyHintsMigrator}
+         * <p>
+         * Used mainly by tests
          *
          * @param hint the unserialized hint
-         * @throws IOException
          */
         void append(Hint hint) throws IOException
         {
@@ -261,13 +261,14 @@ class HintsWriter implements AutoCloseable
 
         /**
          * Closes the session - flushes the aggregation buffer (if not empty), does page aligning, and potentially fsyncs.
-         * @throws IOException
          */
+        @Override
         public void close() throws IOException
         {
             flushBuffer();
             maybeFsync();
             maybeSkipCache();
+            descriptor.hintsFileSize(position());
         }
 
         private void flushBuffer() throws IOException
