@@ -1,4 +1,5 @@
 5.0-beta2
+ * Align buffer with commitlog segment size (CASSANDRA-19471)
  * Ensure SAI indexes empty byte buffers for types that allow them as a valid input (CASSANDRA-19461)
  * Deprecate Python 3.7 and earlier, but allow cqlsh to run with Python 3.6-3.11 (CASSANDRA-19467)
  * Set uuid_sstable_identifiers_enabled to true in cassandra-latest.yaml (CASSANDRA-19460)
