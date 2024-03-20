@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
 
 import com.google.common.collect.Sets;
 import org.junit.Test;
@@ -55,6 +56,7 @@ import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseEnactm
 import static org.apache.cassandra.distributed.shared.ClusterUtils.waitForCMSToQuiesce;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 @SuppressWarnings("unchecked")
 public class TransientRangeMovementTest extends TestBaseImpl
@@ -136,55 +138,30 @@ public class TransientRangeMovementTest extends TestBaseImpl
     @Test
     public void testLeave() throws Exception
     {
-
-        try (Cluster cluster = init(Cluster.build(4)
-                                           .withTokenSupplier(new OPPTokens())
-                                           .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
-                                           .withConfig(conf -> conf.set("transient_replication_enabled","true")
-                                                                   .set("partitioner", "OrderPreservingPartitioner") // just makes it easier to read the tokens in the log
-                                                                   .with(Feature.NETWORK, Feature.GOSSIP))
-                                           .start()))
-        {
-            populate(cluster);
-            // Have the CMS node pause before the FINISH_LEAVE step is committed, so we can make a note of the _next_
-            // epoch (i.e. when the FINISH_LEAVE will be enacted). Then we can pause one replica before enacting it
-            Callable<Epoch> pending = pauseBeforeCommit(cluster.get(1), (e) -> e instanceof PrepareLeave.FinishLeave);
-
+        testDecommissionOrRemove(cluster -> () -> {
             new Thread(() -> cluster.get(4).nodetoolResult("decommission", "--force").asserts().success()).start();
-            Epoch pauseBeforeEnacting = pending.call().nextEpoch();
-            // Unpause the CMS. It will commit the FINISH_LEAVE, but instance 2 will wait before enacting it
-            Callable<?> beforeEnacted = pauseBeforeEnacting(cluster.get(2), pauseBeforeEnacting);
-            unpauseCommits(cluster.get(1));
-            beforeEnacted.call();
-
-            // before node2 completes the removal of node4 run cleanup. Node 2 is not yet a full
-            cluster.forEach(i -> {
-                if (i.config().num() != 4)
-                    i.nodetoolResult("cleanup").asserts().success();
-            });
-
-            // Unpause node2 so it completes the removal of node4
-            unpauseEnactment(cluster.get(2));
-            waitForCMSToQuiesce(cluster, cluster.get(1));
-
-            cluster.forEach(i -> i.nodetoolResult("cleanup"));
-            assertAllContained(localStrs(cluster.get(1)),
-                               newArrayList("12", "14", "16", "18", "20"),
-                               Pair.create("00", "10"),
-                               Pair.create("21", "50"));
-            assertAllContained(localStrs(cluster.get(2)),
-                               newArrayList("22", "24", "26", "28", "30"),
-                               Pair.create("00", "20"),
-                               Pair.create("31", "50"));
-            assertAllContained(localStrs(cluster.get(3)),
-                               newArrayList("00", "02", "04", "06", "08", "10",
-                                                  "32", "34", "36", "38", "40", "42", "44", "46", "48"),
-                               Pair.create("11", "30"));
-        }
+        });
     }
 
     @Test
     public void testRemoveNode() throws Exception
+    {
+        testDecommissionOrRemove(cluster -> () -> {
+            String nodeId = cluster.get(4).callOnInstance(() -> ClusterMetadata.current().myNodeId().toUUID().toString());
+            try
+            {
+                cluster.get(4).shutdown().get();
+            }
+            catch (Exception e)
+            {
+                e.printStackTrace();
+                fail("Unexpected exception during shutdown of node4");
+            }
+            new Thread(() -> cluster.get(1).nodetoolResult("removenode", nodeId, "--force").asserts().success()).start();
+        });
+    }
+
+    private void testDecommissionOrRemove(Function<Cluster, Runnable> decommissionOrLeave) throws Exception
     {
         try (Cluster cluster = init(Cluster.build(4)
                                            .withTokenSupplier(new OPPTokens())
@@ -201,10 +178,8 @@ public class TransientRangeMovementTest extends TestBaseImpl
             // epoch (i.e. when the FINISH_LEAVE will be enacted). Then we can pause one replica before enacting it
             Callable<Epoch> pending = pauseBeforeCommit(cluster.get(1), (e) -> e instanceof PrepareLeave.FinishLeave);
 
-            // Execute the remove
-            String nodeId = cluster.get(4).callOnInstance(() -> ClusterMetadata.current().myNodeId().toUUID().toString());
-            cluster.get(4).shutdown().get();
-            new Thread(() -> cluster.get(1).nodetoolResult("removenode", nodeId, "--force").asserts().success()).start();
+            // Trigger the removal of node4
+            decommissionOrLeave.apply(cluster).run();
             Epoch pauseBeforeEnacting = pending.call().nextEpoch();
 
             // Unpause the CMS. It will commit the FINISH_LEAVE, but instance 2 will wait before enacting it
@@ -212,7 +187,9 @@ public class TransientRangeMovementTest extends TestBaseImpl
             unpauseCommits(cluster.get(1));
             beforeEnacted.call();
 
-            // before node2 completes the removal of node4 run cleanup. Node 2 is not yet a full
+            // Before node2 completes the removal of node4, run cleanup. Prior to CASSANDRA-19XXX node2 would not yet
+            // have become a FULL write replica of all the ranges it should be, so some keys would be remove prematurely
+            // causing the subsequent assertions to fail
             cluster.forEach(i -> {
                 if (i.config().num() != 4)
                     i.nodetoolResult("cleanup").asserts().success();
