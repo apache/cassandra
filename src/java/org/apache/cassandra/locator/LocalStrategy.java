@@ -26,7 +26,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
-import org.apache.cassandra.tcm.ownership.PlacementForRange;
+import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -65,7 +65,7 @@ public class LocalStrategy extends SystemStrategy
     {
         public static final Range<Token> entireRange = new Range<>(DatabaseDescriptor.getPartitioner().getMinimumToken(), DatabaseDescriptor.getPartitioner().getMinimumToken());
         public static final EndpointsForRange localReplicas = EndpointsForRange.of(new Replica(FBUtilities.getBroadcastAddressAndPort(), entireRange, true));
-        public static final DataPlacement placement = new DataPlacement(PlacementForRange.builder().withReplicaGroup(VersionedEndpoints.forRange(Epoch.FIRST, localReplicas)).build(),
-                                                                        PlacementForRange.builder().withReplicaGroup(VersionedEndpoints.forRange(Epoch.FIRST, localReplicas)).build());
+        public static final DataPlacement placement = new DataPlacement(ReplicaGroups.builder().withReplicaGroup(VersionedEndpoints.forRange(Epoch.FIRST, localReplicas)).build(),
+                                                                        ReplicaGroups.builder().withReplicaGroup(VersionedEndpoints.forRange(Epoch.FIRST, localReplicas)).build());
     }
 }
