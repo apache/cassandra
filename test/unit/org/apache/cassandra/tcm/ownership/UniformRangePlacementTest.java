@@ -235,9 +235,7 @@ public class UniformRangePlacementTest
 
         DataPlacement initialPlacement = builder.build();
         DataPlacement split = initialPlacement.splitRangesForPlacement(tokens);
-        assertPlacement(split.writes, rg(-3, -9223372036854775808L, 1),
-                        rg(-9223372036854775808L,-4611686018427387905L, 1),
-                        rg(-4611686018427387905L, -3, 1));
+        assertPlacement(split.writes, rg(-9223372036854775808L,-4611686018427387905L, 1), rg(-4611686018427387905L, -3, 1), rg(-3, -9223372036854775808L, 1));
     }
 
     @Test
@@ -254,7 +252,7 @@ public class UniformRangePlacementTest
 
         DataPlacement initialPlacement = builder.build();
         DataPlacement split = initialPlacement.splitRangesForPlacement(tokens);
-        assertPlacement(split.writes, rg(3074457345618258602L,-9223372036854775808L, 1), rg(-9223372036854775808L, 3074457345618258602L, 1));
+        assertPlacement(split.writes, rg(-9223372036854775808L, 3074457345618258602L, 1), rg(3074457345618258602L,-9223372036854775808L, 1));
     }
 
     @Test
@@ -268,7 +266,7 @@ public class UniformRangePlacementTest
         DataPlacement initialPlacement = builder.build();
         List<Token> tokens = ImmutableList.of(token(Long.MIN_VALUE), token(0));
         DataPlacement newPlacement = initialPlacement.splitRangesForPlacement(tokens);
-        assertEquals(2, newPlacement.writes.replicaGroups.values().size());
+        assertEquals(2, newPlacement.writes.replicaGroups().size());
     }
 
     private PlacementForRange initialPlacement()
@@ -286,7 +284,7 @@ public class UniformRangePlacementTest
 
     private void assertPlacement(PlacementForRange placement, EndpointsForRange...expected)
     {
-        Collection<EndpointsForRange> replicaGroups = placement.replicaGroups.values().stream().map(v -> v.get()).collect(Collectors.toList());
+        Collection<EndpointsForRange> replicaGroups = placement.replicaGroups().endpoints.stream().map(v -> v.get()).collect(Collectors.toList());
         assertEquals(replicaGroups.size(), expected.length);
         int i = 0;
         boolean allMatch = true;
