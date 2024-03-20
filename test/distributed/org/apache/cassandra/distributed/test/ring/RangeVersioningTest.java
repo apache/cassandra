@@ -56,7 +56,7 @@ public class RangeVersioningTest extends FuzzTestBase
                     Epoch smallestSeen = null;
                     for (VersionedEndpoints.ForRange fr : metadata.placements
                                                           .get(ReplicationParams.simple(i))
-                                                          .writes.replicaGroups().values())
+                                                          .writes.replicaGroups().endpoints)
                     {
                         if (smallestSeen == null || fr.lastModified().isBefore(smallestSeen))
                             smallestSeen = fr.lastModified();

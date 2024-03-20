@@ -150,12 +150,12 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
             else
             {
                 PlacementForRange.Builder reads = PlacementForRange.builder(placement.reads.replicaGroups().size());
-                placement.reads.replicaGroups().forEach((range, endpoints) -> {
+                placement.reads.replicaGroups().endpoints.forEach((endpoints) -> {
                     reads.withReplicaGroup(VersionedEndpoints.forRange(endpoints.lastModified(),
                                                                        endpoints.get().sorted(comparator)));
                 });
                 PlacementForRange.Builder writes = PlacementForRange.builder(placement.writes.replicaGroups().size());
-                placement.writes.replicaGroups().forEach((range, endpoints) -> {
+                placement.writes.replicaGroups().endpoints.forEach((endpoints) -> {
                     writes.withReplicaGroup(VersionedEndpoints.forRange(endpoints.lastModified(),
                                                                         endpoints.get().sorted(comparator)));
                 });

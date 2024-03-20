@@ -21,7 +21,6 @@ package org.apache.cassandra.tcm.ownership;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -78,12 +77,12 @@ public class DataPlacement
     public DataPlacement combineReplicaGroups(DataPlacement other)
     {
         return new DataPlacement(PlacementForRange.builder()
-                                                  .withReplicaGroups(reads.replicaGroups().values())
-                                                  .withReplicaGroups(other.reads.replicaGroups.values())
+                                                  .withReplicaGroups(reads.replicaGroups().endpoints)
+                                                  .withReplicaGroups(other.reads.replicaGroups().endpoints)
                                                   .build(),
                                  PlacementForRange.builder()
-                                                  .withReplicaGroups(writes.replicaGroups().values())
-                                                  .withReplicaGroups(other.writes.replicaGroups.values())
+                                                  .withReplicaGroups(writes.replicaGroups().endpoints)
+                                                  .withReplicaGroups(other.writes.replicaGroups().endpoints)
                                                   .build());
     }
 
@@ -165,20 +164,9 @@ public class DataPlacement
     public String toString()
     {
         return "DataPlacement{" +
-               "reads=" + toString(reads.replicaGroups) +
-               ", writes=" + toString(writes.replicaGroups) +
+               "reads=" + reads +
+               ", writes=" + writes +
                '}';
-    }
-
-    public static String toString(Map<?, ?> predicted)
-    {
-        StringBuilder sb = new StringBuilder();
-        for (Map.Entry<?, ?> e : predicted.entrySet())
-        {
-            sb.append(e.getKey()).append("=").append(e.getValue()).append(",\n");
-        }
-
-        return sb.toString();
     }
 
     @Override
