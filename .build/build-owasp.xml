@@ -46,6 +46,7 @@
 
     <target name="-run-owasp-scan" description="Dependency-Check Analysis"
             depends="-dependency-check-init,resolver-dist-lib">
+        <property name="nvd.api.key" value="dummy" if:set="env.NVD_DATAFEED_URL" />
         <fail unless:set="nvd.api.key">
             Please set the nvd.api.key property to your NVD API key. It is recommended to put that property into your
             ~/.ant/build.properties file. You can get your API key from https://nvd.nist.gov/developers/request-an-api-key
@@ -84,6 +85,9 @@
 
             (1) https://nvd.nist.gov/vuln-metrics/cvss
         -->
+        <condition property="nvdDatafeedUrl" value="${env.NVD_DATAFEED_URL}" else="">
+            <isset property="env.NVD_DATAFEED_URL" />
+        </condition>
         <dependency-check projectname="Apache Cassandra"
                           nvdApiKey="${nvd.api.key}"
                           reportoutputdirectory="${dependency-check.report.dir}"
@@ -95,7 +99,8 @@
                           failBuildOnCVSS="1"
                           assemblyAnalyzerEnabled="false"
                           dataDirectory="${nvd.data.dir}"
-                          suppressionFile="${build.helpers.dir}/owasp/dependency-check-suppressions.xml">
+                          suppressionFile="${build.helpers.dir}/owasp/dependency-check-suppressions.xml"
+                          nvdDatafeedUrl="${nvdDatafeedUrl}">
             <fileset refid="dependencies_to_check"/>
         </dependency-check>
     </target>
