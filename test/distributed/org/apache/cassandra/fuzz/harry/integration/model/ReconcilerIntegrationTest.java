@@ -32,7 +32,7 @@ import org.apache.cassandra.harry.tracker.DefaultDataTracker;
 
 public class ReconcilerIntegrationTest extends IntegrationTestBase
 {
-    private final long seed = 1; // 88
+    private static final long SEED = 1; // 88
 
     @Test
     public void testTrackingWithStatics() throws Throwable
@@ -50,7 +50,7 @@ public class ReconcilerIntegrationTest extends IntegrationTestBase
         sut.schemaChange(schema.compile().cql());
 
         TokenPlacementModel.ReplicationFactor rf = new TokenPlacementModel.SimpleReplicationFactor(1);
-        ReplayingHistoryBuilder historyBuilder = new ReplayingHistoryBuilder(seed, 100, 1, new DefaultDataTracker(), sut, schema, rf, SystemUnderTest.ConsistencyLevel.QUORUM);
+        ReplayingHistoryBuilder historyBuilder = new ReplayingHistoryBuilder(SEED, 100, 1, new DefaultDataTracker(), sut, schema, rf, SystemUnderTest.ConsistencyLevel.QUORUM);
         historyBuilder.visitPartition(1).insert(1,
                                                 new long[]{ ValueDescriptorIndexGenerator.UNSET, ValueDescriptorIndexGenerator.UNSET },
                                                 new long[]{ 1, 1 });
@@ -78,13 +78,13 @@ public class ReconcilerIntegrationTest extends IntegrationTestBase
         sut.schemaChange(schema.compile().cql());
 
         TokenPlacementModel.ReplicationFactor rf = new TokenPlacementModel.SimpleReplicationFactor(1);
-        ReplayingHistoryBuilder historyBuilder = new ReplayingHistoryBuilder(seed, 100, 1, new DefaultDataTracker(), sut, schema, rf, SystemUnderTest.ConsistencyLevel.QUORUM);
+        ReplayingHistoryBuilder historyBuilder = new ReplayingHistoryBuilder(SEED, 100, 1, new DefaultDataTracker(), sut, schema, rf, SystemUnderTest.ConsistencyLevel.QUORUM);
                                                                              historyBuilder.visitPartition(2).insert(2,
                                                 new long[]{ 1, 1 });
         historyBuilder.visitPartition(2).deleteRowRange(1, 3, true, true);
         historyBuilder.validate(2);
 
-        historyBuilder = new ReplayingHistoryBuilder(seed, 100, 1, new DefaultDataTracker(), sut, schema, rf, SystemUnderTest.ConsistencyLevel.QUORUM);
+        historyBuilder = new ReplayingHistoryBuilder(SEED, 100, 1, new DefaultDataTracker(), sut, schema, rf, SystemUnderTest.ConsistencyLevel.QUORUM);
         historyBuilder.visitPartition(2).insert(2,
                                                 new long[]{ 1, 1 });
         historyBuilder.visitPartition(2).deleteRowRange(1, 3, true, true);

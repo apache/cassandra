@@ -98,6 +98,24 @@ import org.apache.cassandra.harry.visitors.VisitExecutor;
  * streams for the values for corresponding columns.
  *
  * Other possible operations are deleteRow, deleteColumns, deleteRowRange, deleteRowSlide, and deletePartition.
+ *
+ * HistoryBuilder also allows hardcoding/overriding clustering keys, regular, and static values, but _not_ for
+ * partition keys as of now.
+ *
+ * Since clusterings are ordered according to their value, it is only possible to instruct generator to ensure
+ * such value is going to be present. This is done by:
+ *
+ *     history.forPartition(1).ensureClustering(new Object[]{ "", "b", -1L, "c", "d" });
+ *
+ * For regular and static columns, overrides are done on the top level, not per-partition, so you can simply do:
+ *
+ *     history.valueOverrides().override(column.name, 1245, "overriden value");
+ *
+ *     history.visitPartition(1)
+ *            .insert(1, new long[]{ 12345, 12345 });
+ *
+ *  This will insert "overriden value" for the 1st row of 1st partition, for two columns. In other words, the index
+ *  12345 will now be associated with this overriden value. But all other / random values will still be, random.
  */
 public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleOperationBuilder, BatchOperationBuilder
 {
@@ -223,15 +241,15 @@ public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleO
     }
 
     @Override
-    public HistoryBuilder insert(int rowId, long[] vds)
+    public HistoryBuilder insert(int rowId, long[] valueIdxs)
     {
-        singleOpVisitBuilder().insert(rowId, vds);
+        singleOpVisitBuilder().insert(rowId, valueIdxs);
         return this;
     }
 
-    public SingleOperationBuilder insert(int rowIdx, long[] vds, long[] sds)
+    public SingleOperationBuilder insert(int rowIdx, long[] valueIdxs, long[] sValueIdxs)
     {
-        singleOpVisitBuilder().insert(rowIdx, vds, sds);
+        singleOpVisitBuilder().insert(rowIdx, valueIdxs, sValueIdxs);
         return this;
     }
 

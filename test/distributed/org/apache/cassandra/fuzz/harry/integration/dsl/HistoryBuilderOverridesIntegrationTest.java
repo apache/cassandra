@@ -22,9 +22,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
-import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import org.junit.Assert;
@@ -35,7 +33,6 @@ import org.apache.cassandra.harry.ddl.ColumnSpec;
 import org.apache.cassandra.harry.ddl.SchemaGenerators;
 import org.apache.cassandra.harry.ddl.SchemaSpec;
 import org.apache.cassandra.harry.dsl.HistoryBuilder;
-import org.apache.cassandra.harry.dsl.ValueDescriptorIndexGenerator;
 import org.apache.cassandra.harry.gen.Bijections;
 import org.apache.cassandra.harry.gen.EntropySource;
 import org.apache.cassandra.harry.gen.rng.JdkRandomEntropySource;
@@ -46,55 +43,43 @@ import org.apache.cassandra.harry.tracker.DataTracker;
 import org.apache.cassandra.harry.tracker.DefaultDataTracker;
 import org.apache.cassandra.harry.visitors.ReplayingVisitor;
 
-public class HistoryBuilderOverridesTest extends IntegrationTestBase
+public class HistoryBuilderOverridesIntegrationTest extends IntegrationTestBase
 {
-    private final long seed = 1L;
+    private static final long SEED = 1L;
 
+    public static SchemaSpec SIMPLE_SCHEMA = new SchemaSpec("harry",
+                                                            "test_overrides",
+                                                            Arrays.asList(ColumnSpec.pk("pk1", ColumnSpec.asciiType(4, 10)),
+                                                                          ColumnSpec.pk("pk2", ColumnSpec.int64Type),
+                                                                          ColumnSpec.pk("pk3", ColumnSpec.int64Type),
+                                                                          ColumnSpec.pk("pk4", ColumnSpec.asciiType(2, 10))
+                                                            ),
+                                                            Arrays.asList(ColumnSpec.ck("ck1", ColumnSpec.asciiType(2, 0)),
+                                                                          ColumnSpec.ck("ck2", ColumnSpec.asciiType(2, 0)),
+                                                                          ColumnSpec.ck("ck3", ColumnSpec.int64Type),
+                                                                          ColumnSpec.ck("ck4", ColumnSpec.asciiType(4, 100)),
+                                                                          ColumnSpec.ck("ck5", ColumnSpec.asciiType(8, 100))
+                                                            ),
+                                                            Arrays.asList(ColumnSpec.regularColumn("regular1", ColumnSpec.asciiType(8, 100)),
+                                                                          ColumnSpec.regularColumn("regular2", ColumnSpec.asciiType(8, 100)),
+                                                                          ColumnSpec.regularColumn("regular3", ColumnSpec.asciiType(8, 100))
+                                                            ),
+                                                            Arrays.asList(ColumnSpec.staticColumn("static1", ColumnSpec.asciiType(8, 100)),
+                                                                          ColumnSpec.staticColumn("static2", ColumnSpec.asciiType(8, 100)),
+                                                                          ColumnSpec.staticColumn("static3", ColumnSpec.asciiType(8, 100))
+                                                            ));
     @Test
-    public void simpleCkOverrideTest() throws Throwable
+    public void simpleCkOverrideTest()
     {
-        SchemaSpec schema = new SchemaSpec("harry",
-                                           "test_overrides",
-                                           Arrays.asList(
-                                           ColumnSpec.pk("pk1", ColumnSpec.asciiType(4, 10)),
-                                           ColumnSpec.pk("pk2", ColumnSpec.int64Type),
-                                           ColumnSpec.pk("pk3", ColumnSpec.int64Type),
-                                           ColumnSpec.pk("pk4", ColumnSpec.asciiType(2, 10))
-                                           ),
-                                           Arrays.asList(
-                                           ColumnSpec.ck("ck1", ColumnSpec.asciiType(2, 0)),
-                                           ColumnSpec.ck("ck2", ColumnSpec.asciiType(2, 0)),
-                                           ColumnSpec.ck("ck3", ColumnSpec.int64Type),
-                                           ColumnSpec.ck("ck4", ColumnSpec.asciiType(4, 100)),
-                                           ColumnSpec.ck("ck5", ColumnSpec.asciiType(8, 100))
-                                           ),
-                                           Arrays.asList(
-                                           ColumnSpec.regularColumn("regular1", ColumnSpec.asciiType(8, 100)),
-                                           ColumnSpec.regularColumn("regular2", ColumnSpec.asciiType(8, 100)),
-                                           ColumnSpec.regularColumn("regular3", ColumnSpec.asciiType(8, 100))
-                                           ),
-                                           Arrays.asList(
-                                           ColumnSpec.staticColumn("static1", ColumnSpec.asciiType(8, 100)),
-                                           ColumnSpec.staticColumn("static2", ColumnSpec.asciiType(8, 100)),
-                                           ColumnSpec.staticColumn("static3", ColumnSpec.asciiType(8, 100))
-                                           ));
+        SchemaSpec schema = SIMPLE_SCHEMA;
 
         DataTracker tracker = new DefaultDataTracker();
         beforeEach();
         sut.schemaChange(schema.compile().cql());
 
-        JdkRandomEntropySource entropySource = new JdkRandomEntropySource(new Random(seed));
-
-        LongSupplier[] valueGenerators = new LongSupplier[schema.regularColumns.size()];
-        for (int j = 0; j < valueGenerators.length; j++)
-        {
-            valueGenerators[j] = new ValueDescriptorIndexGenerator(schema.regularColumns.get(j), seed)
-                                 .toSupplier(entropySource.derive(), 20, 0.2f);
-        }
-
         TokenPlacementModel.ReplicationFactor rf = new TokenPlacementModel.SimpleReplicationFactor(1);
 
-        HistoryBuilder history = new HistoryBuilder(seed, 5, 10, schema, rf);
+        HistoryBuilder history = new HistoryBuilder(SEED, 5, 10, schema, rf);
         Object[] override = new Object[]{ "", "b", -1L, "c", "d" };
         history.forPartition(1).ensureClustering(override);
         for (int i = 0; i < 5; i++)
@@ -116,7 +101,7 @@ public class HistoryBuilderOverridesTest extends IntegrationTestBase
     }
 
     @Test
-    public void ckOverrideSortingTest() throws Throwable
+    public void ckOverrideSortingTest()
     {
         for (boolean reverse : new boolean[]{ true, false })
         {
@@ -134,7 +119,7 @@ public class HistoryBuilderOverridesTest extends IntegrationTestBase
             TokenPlacementModel.ReplicationFactor rf = new TokenPlacementModel.SimpleReplicationFactor(1);
 
             int partitionSize = 10;
-            HistoryBuilder history = new HistoryBuilder(seed, partitionSize, 10, schema, rf);
+            HistoryBuilder history = new HistoryBuilder(SEED, partitionSize, 10, schema, rf);
             ReplayingVisitor visitor = history.visitor(tracker, sut, SystemUnderTest.ConsistencyLevel.ALL);
             Set<Integer> foundAt = new HashSet<>();
             for (int pdIdx = 0; pdIdx < 128; pdIdx++)
@@ -169,7 +154,7 @@ public class HistoryBuilderOverridesTest extends IntegrationTestBase
     }
 
     @Test
-    public void ckOverrideManySortingTest() throws Throwable
+    public void ckOverrideManySortingTest()
     {
         int counter = 0;
         for (boolean reverse : new boolean[]{ true, false })
@@ -190,9 +175,9 @@ public class HistoryBuilderOverridesTest extends IntegrationTestBase
                 TokenPlacementModel.ReplicationFactor rf = new TokenPlacementModel.SimpleReplicationFactor(1);
 
                 int partitionSize = 10;
-                HistoryBuilder history = new HistoryBuilder(seed, partitionSize, 10, schema, rf);
+                HistoryBuilder history = new HistoryBuilder(SEED, partitionSize, 10, schema, rf);
                 ReplayingVisitor visitor = history.visitor(tracker, sut, SystemUnderTest.ConsistencyLevel.ALL);
-                EntropySource rng = new JdkRandomEntropySource(seed);
+                EntropySource rng = new JdkRandomEntropySource(SEED);
                 for (int pdIdx = 0; pdIdx < 100; pdIdx++)
                 {
                     Set<Object> overrides = new HashSet<>();
@@ -252,10 +237,10 @@ public class HistoryBuilderOverridesTest extends IntegrationTestBase
 
             TokenPlacementModel.ReplicationFactor rf = new TokenPlacementModel.SimpleReplicationFactor(1);
 
-            HistoryBuilder history = new HistoryBuilder(seed, partitionSize, 1, schema, rf);
+            HistoryBuilder history = new HistoryBuilder(SEED, partitionSize, 1, schema, rf);
             ReplayingVisitor visitor = history.visitor(tracker, sut, SystemUnderTest.ConsistencyLevel.ALL);
 
-            EntropySource rng = new JdkRandomEntropySource(seed);
+            EntropySource rng = new JdkRandomEntropySource(SEED);
             for (int i = 0; i < partitionSize; i++)
             {
                 history.visitPartition(1,
@@ -274,12 +259,10 @@ public class HistoryBuilderOverridesTest extends IntegrationTestBase
         }
     }
 
-
     @Test
-    @SuppressWarnings("rawtypes")
-    public void regularAndStaticOverrideTest() throws Throwable
+    public void regularAndStaticOverrideTest()
     {
-        for (ColumnSpec.DataType type : new ColumnSpec.DataType[]{ ColumnSpec.asciiType(2, 0), ColumnSpec.int64Type })
+        for (ColumnSpec.DataType<?> type : new ColumnSpec.DataType[]{ ColumnSpec.asciiType(2, 0), ColumnSpec.int64Type })
         {
             SchemaSpec schema = new SchemaSpec("harry",
                                                "test_overrides",
@@ -304,12 +287,12 @@ public class HistoryBuilderOverridesTest extends IntegrationTestBase
             TokenPlacementModel.ReplicationFactor rf = new TokenPlacementModel.SimpleReplicationFactor(1);
 
             int partitionSize = 100;
-            HistoryBuilder history = new HistoryBuilder(seed, partitionSize, 10, schema, rf);
+            HistoryBuilder history = new HistoryBuilder(SEED, partitionSize, 10, schema, rf);
             ReplayingVisitor visitor = history.visitor(tracker, sut, SystemUnderTest.ConsistencyLevel.ALL);
-            EntropySource rng = new JdkRandomEntropySource(seed);
+            EntropySource rng = new JdkRandomEntropySource(SEED);
 
             Map<String, Set<Object>> perColumnOverrides = new HashMap<>();
-            for (ColumnSpec column : schema.regularColumns)
+            for (ColumnSpec<?> column : schema.regularColumns)
             {
                 perColumnOverrides.put(column.name, new HashSet<>());
                 for (int i = 0; i < partitionSize; i++)
@@ -320,7 +303,7 @@ public class HistoryBuilderOverridesTest extends IntegrationTestBase
                 }
             }
 
-            for (ColumnSpec column : schema.staticColumns)
+            for (ColumnSpec<?> column : schema.staticColumns)
             {
                 perColumnOverrides.put(column.name, new HashSet<>());
                 for (int i = 0; i < partitionSize; i++)
@@ -333,17 +316,17 @@ public class HistoryBuilderOverridesTest extends IntegrationTestBase
             for (int pdIdx = 0; pdIdx < 10; pdIdx++)
             {
                 Map<String, Set<Object>> results = new HashMap<>();
-                for (ColumnSpec column : schema.regularColumns)
+                for (ColumnSpec<?> column : schema.regularColumns)
                     results.put(column.name, new HashSet<>());
-                for (ColumnSpec column : schema.staticColumns)
+                for (ColumnSpec<?> column : schema.staticColumns)
                     results.put(column.name, new HashSet<>());
 
                 for (int i = 0; i < partitionSize; i++)
                 {
                     history.visitPartition(pdIdx)
                            .insert(i,
-                                   new int[]{ rng.nextInt(100), rng.nextInt(100) },
-                                   new int[]{ rng.nextInt(100), rng.nextInt(100) });
+                                   new long[]{ rng.nextInt(100), rng.nextInt(100) },
+                                   new long[]{ rng.nextInt(100), rng.nextInt(100) });
                 }
 
                 visitor.replayAll();

@@ -41,9 +41,9 @@ import org.apache.cassandra.harry.visitors.ReplayingVisitor;
 
 public class HistoryBuilderIntegrationTest extends IntegrationTestBase
 {
-    private final long seed = 1L;
-    private final int STEPS_PER_ITERATION = 1_000;
-    private final int MAX_PARTITIONS = 50;
+    private static final long SEED = 1L;
+    private static final int STEPS_PER_ITERATION = 1_000;
+    private static final int MAX_PARTITIONS = 50;
 
     @Test
     public void simpleDSLTest() throws Throwable
@@ -57,12 +57,12 @@ public class HistoryBuilderIntegrationTest extends IntegrationTestBase
             sut.schemaChange(schema.compile().cql());
 
             ModelChecker<SingleOperationBuilder> modelChecker = new ModelChecker<>();
-            JdkRandomEntropySource rng = new JdkRandomEntropySource(new Random(seed));
+            JdkRandomEntropySource rng = new JdkRandomEntropySource(new Random(SEED));
 
             TokenPlacementModel.ReplicationFactor rf = new TokenPlacementModel.SimpleReplicationFactor(1);
 
             int maxPartitionSize = 100;
-            modelChecker.init(new HistoryBuilder(seed, maxPartitionSize, 10, schema, rf))
+            modelChecker.init(new HistoryBuilder(SEED, maxPartitionSize, 10, schema, rf))
                         .step((history) -> {
                             return history.insert();
                         })
@@ -117,7 +117,7 @@ public class HistoryBuilderIntegrationTest extends IntegrationTestBase
 
                             return true;
                         })
-                        .run(STEPS_PER_ITERATION, seed);
+                        .run(STEPS_PER_ITERATION, SEED);
         }
     }
 
@@ -133,12 +133,12 @@ public class HistoryBuilderIntegrationTest extends IntegrationTestBase
             sut.schemaChange(schema.compile().cql());
 
             ModelChecker<HistoryBuilder> modelChecker = new ModelChecker<>();
-            JdkRandomEntropySource rng = new JdkRandomEntropySource(new Random(seed));
+            JdkRandomEntropySource rng = new JdkRandomEntropySource(new Random(SEED));
 
             TokenPlacementModel.ReplicationFactor rf = new TokenPlacementModel.SimpleReplicationFactor(1);
 
             int maxPartitionSize = 10;
-            modelChecker.init(new HistoryBuilder(seed, maxPartitionSize, 10, schema, rf))
+            modelChecker.init(new HistoryBuilder(SEED, maxPartitionSize, 10, schema, rf))
                         .beforeAll((history) -> {
                             for (int i = 0; i < MAX_PARTITIONS; i++)
                                 history.forPartition(i).ensureClustering(schema.ckGenerator.inflate(rng.nextLong()));
@@ -189,7 +189,7 @@ public class HistoryBuilderIntegrationTest extends IntegrationTestBase
 
                             return true;
                         })
-                        .run(STEPS_PER_ITERATION, seed);
+                        .run(STEPS_PER_ITERATION, SEED);
         }
     }
 }

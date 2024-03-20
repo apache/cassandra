@@ -25,9 +25,9 @@ import org.apache.cassandra.harry.gen.Bijections;
 
 class OverridingBijection<T> implements Bijections.Bijection<T>
 {
-    private final Bijections.Bijection<T> delegate;
-    private final Map<Long, T> descriptorToValue;
-    private final Map<T, Long> valueToDescriptor;
+    protected final Bijections.Bijection<T> delegate;
+    protected final Map<Long, T> descriptorToValue;
+    protected final Map<T, Long> valueToDescriptor;
 
     public OverridingBijection(Bijections.Bijection<T> delegate)
     {

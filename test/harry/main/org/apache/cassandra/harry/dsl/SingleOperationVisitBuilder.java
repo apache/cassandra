@@ -101,9 +101,9 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     }
 
     @Override
-    public SingleOperationVisitBuilder insert(int rowIdx, long[] vIdxs)
+    public SingleOperationVisitBuilder insert(int rowIdx, long[] valueIdxs)
     {
-        assert vIdxs.length == valueHelper.regularColumns.size();
+        assert valueIdxs.length == valueHelper.regularColumns.size();
         int opId = opIdCounter++;
         long cd = partitionState.possibleCds[rowIdx];
         operations.add(new GeneratingVisitor.GeneratedWriteOp(lts, pd, cd, opId,
@@ -111,12 +111,12 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
         {
             public long[] vds()
             {
-                long[] vds = new long[vIdxs.length];
+                long[] vds = new long[valueIdxs.length];
                 for (int i = 0; i < valueHelper.regularColumns.size(); i++)
                 {
                     vds[i] = valueHelper.descriptorGenerators
                              .get(valueHelper.regularColumns.get(i).name)
-                             .inflate(vIdxs[i]);
+                             .inflate(valueIdxs[i]);
                 }
                 return vds;
             }
@@ -126,10 +126,10 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
     }
 
     @Override
-    public SingleOperationBuilder insert(int rowIdx, long[] vIdxs, long[] sIdxs)
+    public SingleOperationBuilder insert(int rowIdx, long[] valueIdxs, long[] sValueIdxs)
     {
-        assert vIdxs.length == valueHelper.regularColumns.size();
-        assert sIdxs.length == valueHelper.staticColumns.size();
+        assert valueIdxs.length == valueHelper.regularColumns.size();
+        assert sValueIdxs.length == valueHelper.staticColumns.size();
         int opId = opIdCounter++;
         long cd = partitionState.possibleCds[rowIdx];
         operations.add(new GeneratingVisitor.GeneratedWriteWithStaticOp(lts, pd, cd, opId,
@@ -138,12 +138,12 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
             @Override
             public long[] vds()
             {
-                long[] vds = new long[vIdxs.length];
+                long[] vds = new long[valueIdxs.length];
                 for (int i = 0; i < valueHelper.regularColumns.size(); i++)
                 {
                     vds[i] = valueHelper.descriptorGenerators
                              .get(valueHelper.regularColumns.get(i).name)
-                             .inflate(vIdxs[i]);
+                             .inflate(valueIdxs[i]);
                 }
                 return vds;
             }
@@ -151,12 +151,12 @@ class SingleOperationVisitBuilder implements SingleOperationBuilder
             @Override
             public long[] sds()
             {
-                long[] sds = new long[sIdxs.length];
+                long[] sds = new long[sValueIdxs.length];
                 for (int i = 0; i < valueHelper.staticColumns.size(); i++)
                 {
                     sds[i] = valueHelper.descriptorGenerators
                              .get(valueHelper.staticColumns.get(i).name)
-                             .inflate(sIdxs[i]);
+                             .inflate(sValueIdxs[i]);
                 }
                 return sds;
             }

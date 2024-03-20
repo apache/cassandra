@@ -97,7 +97,7 @@ public class DataGenerators
                         this.maxSize = maxSize;
                     }
                 }
-                int[] bytes = new int[Math.min(4, columns.size())];
+                int[] bytes = new int[Math.min(KeyGenerator.MAX_UNIQUE_PREFIX_COLUMNS, columns.size())];
                 Pair[] sorted = new Pair[bytes.length];
                 for (int i = 0; i < sorted.length; i++)
                     sorted[i] = new Pair(i, columns.get(i).type.maxSize());
@@ -165,7 +165,7 @@ public class DataGenerators
         assert columns.size() == values.length : String.format("%s != %s", columns.size(), values.length);
         assert columns.size() > 0 : "Can't deflate from empty columnset";
 
-        int fixedPart = Math.min(4, columns.size());
+        int fixedPart = Math.min(KeyGenerator.MAX_UNIQUE_PREFIX_COLUMNS, columns.size());
 
         long[] slices = new long[fixedPart];
         boolean allNulls = true;
@@ -253,6 +253,9 @@ public class DataGenerators
 
     public static abstract class KeyGenerator implements Bijections.Bijection<Object[]>
     {
+        // Maximum number of columns that uniquely identify the value (i.e. use entropy bits).
+        // Subsequent columns will have random data in them.
+        public static final int MAX_UNIQUE_PREFIX_COLUMNS = 4;
         @VisibleForTesting
         public final List<ColumnSpec<?>> columns;
 

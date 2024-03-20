@@ -35,8 +35,8 @@ public interface SingleOperationBuilder
      * Insert _specific values_ into _specific_ row. Rows are ordered by clustering key and
      * numbered from 0 to maxRows
      */
-    SingleOperationBuilder insert(int rowIdx, long[] vds);
-    SingleOperationBuilder insert(int rowIdx, long[] vds, long[] sds);
+    SingleOperationBuilder insert(int rowIdx, long[] valueIdxs);
+    SingleOperationBuilder insert(int rowIdx, long[] valueIdxs, long[] sValueIdxs);
 
     SingleOperationBuilder deletePartition();
 

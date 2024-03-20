@@ -39,6 +39,8 @@ import org.apache.cassandra.harry.gen.DataGenerators;
  * To summarise: overrides for inflating are done for individual clustering key columns. Overrides for deflating a clustering
  * operate on an entire key. Main reason for this is to allow having same string in several rows for the same column.
  */
+
+@SuppressWarnings({"rawtypes", "unchecked"})
 public class OverridingCkGenerator extends DataGenerators.KeyGenerator
 {
     private final DataGenerators.KeyGenerator delegate;
@@ -133,54 +135,18 @@ public class OverridingCkGenerator extends DataGenerators.KeyGenerator
         return delegate.maxValue(idx);
     }
 
-    public static class KeyPartOverride<T> implements Bijections.Bijection<T>
+    public static class KeyPartOverride<T> extends OverridingBijection<T>
     {
-        private final Bijections.Bijection<T> delegate;
-        private final Map<Long, T> descriptorToValue;
-
         public KeyPartOverride(Bijections.Bijection<T> delegate)
         {
-            this.delegate = delegate;
-            descriptorToValue = new HashMap<>();
+            super(delegate);
         }
 
-        public void override(long descriptor, T value)
-        {
-            T old = descriptorToValue.get(descriptor);
-            if (old != null)
-                throw new IllegalStateException(String.format("Can't override %d twice. Was already overriden to %s", descriptor, old));
-
-            T orig = delegate.inflate(descriptor);
-            if (!orig.equals(value))
-                descriptorToValue.put(descriptor, value);
-        }
-
-        @Override
-        public T inflate(long descriptor)
-        {
-            Object v = descriptorToValue.get(descriptor);
-            if (v != null)
-                return (T) v;
-
-            return delegate.inflate(descriptor);
-        }
-
+        // We do not use deflate for key part overrides
         @Override
         public long deflate(T value)
         {
             throw new IllegalStateException();
-        }
-
-        @Override
-        public int byteSize()
-        {
-            return delegate.byteSize();
-        }
-
-        @Override
-        public int compare(long l, long r)
-        {
-            return delegate.compare(l, r);
         }
     }
 

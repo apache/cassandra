@@ -47,7 +47,7 @@ public class PartitionVisitStateImpl implements PartitionVisitState
     @Override
     public void ensureClustering(Object[] overrides)
     {
-        long cd = getCdForOverride(overrides);
+        long cd = findCdForOverride(overrides);
         ckGenerator.override(cd, overrides);
     }
 
@@ -66,7 +66,7 @@ public class PartitionVisitStateImpl implements PartitionVisitState
         return pd;
     }
 
-    long getCdForOverride(Object[] ck)
+    long findCdForOverride(Object[] ck)
     {
         int low = 0;
         int high = possibleCds.length - 1;
@@ -88,21 +88,22 @@ public class PartitionVisitStateImpl implements PartitionVisitState
         return possibleCds[Math.min(possibleCds.length - 1, low)];
     }
 
-    private int compareCds(Object[] v1, long cd2) {
+    private int compareCds(Object[] v1, long cd2)
+    {
         Object[] v2 = schema.ckGenerator.inflate(cd2);
         return compareCds(v1, v2);
     }
 
-    private int compareCds(Object[] v1, Object[] v2) {
-        assert v1.length == v2.length : String.format("Values should be of same length: %d != %d\n" +
-                                                      "%s\n" +
-                                                      "%s",
+    private int compareCds(Object[] v1, Object[] v2)
+    {
+        assert v1.length == v2.length : String.format("Values should be of same length: %d != %d\n%s\n%s",
                                                       v1.length, v2.length, Arrays.toString(v1), Arrays.toString(v2));
 
         for (int i = 0; i < v1.length; i++)
         {
             int res = ((Comparable) v2[i]).compareTo(v1[i]);
-            if (res != 0) {
+            if (res != 0)
+            {
                 if (schema.clusteringKeys.get(i).type.isReversed())
                     res = res * -1;
 

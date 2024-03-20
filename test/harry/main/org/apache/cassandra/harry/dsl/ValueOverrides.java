@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.harry.dsl;
 
-import org.apache.cassandra.harry.ddl.ColumnSpec;
-
 public interface ValueOverrides
 {
     void override(String column, int idx, Object override);

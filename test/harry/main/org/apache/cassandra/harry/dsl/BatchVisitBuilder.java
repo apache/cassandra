@@ -71,9 +71,9 @@ public class BatchVisitBuilder extends SingleOperationVisitBuilder implements Cl
     }
 
     @Override
-    public BatchVisitBuilder insert(int rowIdx, long[] vds)
+    public BatchVisitBuilder insert(int rowIdx, long[] valueIdxs)
     {
-        super.insert(rowIdx, vds);
+        super.insert(rowIdx, valueIdxs);
         return this;
     }
 

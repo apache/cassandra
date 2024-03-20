@@ -27,9 +27,6 @@ import org.apache.cassandra.harry.ddl.ColumnSpec;
 import org.apache.cassandra.harry.ddl.SchemaSpec;
 import org.apache.cassandra.harry.model.OpSelectors;
 
-/**
- * A class responsible for value
- */
 class ValueHelper implements ValueOverrides
 {
     protected Map<String, OverridingBijection<?>> overrides = new HashMap<>();

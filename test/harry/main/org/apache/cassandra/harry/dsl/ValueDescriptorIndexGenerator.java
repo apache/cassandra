@@ -43,14 +43,12 @@ public class ValueDescriptorIndexGenerator implements Surjections.Surjection<Lon
     private final long columnHash;
     private final long mask;
 
-    public ValueDescriptorIndexGenerator(ColumnSpec<?> columnSpec,
-                                         long seed)
+    public ValueDescriptorIndexGenerator(ColumnSpec<?> columnSpec, long seed)
     {
         this(columnSpec, new OpSelectors.PCGFast(seed));
     }
 
-    public ValueDescriptorIndexGenerator(ColumnSpec<?> columnSpec,
-                                         OpSelectors.PureRng rng)
+    public ValueDescriptorIndexGenerator(ColumnSpec<?> columnSpec, OpSelectors.PureRng rng)
     {
         this.rng = rng;
         this.columnHash = columnSpec.hashCode();
