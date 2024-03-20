@@ -59,22 +59,29 @@ public class TransientRangeMovement2Test extends TestBaseImpl
                                            .start()))
         {
             populate(cluster);
-            // Have the CMS node pause before the step MidMove is committed, node1 gains (25, 30] as a full write replica
-            // in StartMove, before the fix (25, 30] was added as a transient replica.
+            // At the start, node1 is a TRANSIENT replica for (20,30] and FULL for (30, 40], (40,] & (,10]. When moving
+            // node3 to token 25, node1 becomes a FULL replica for (25, 40], effectively going from TRANSIENT to FULL
+            // for (25,30]. A T->F transition will always cause data for that range to be streamed to the transitioning
+            // node, which happens after StartMove and before MidMove. Running cleanup before node1 considers itself a
+            // FULL replica would remove any of the newly streamed data which is marked repaired. To avoid this, we
+            // ensure that any T->F transition is applied for writes as part of the StartMove. Have the CMS node (node1)
+            // pause before the MidMove step is committed, at which point we know that streaming has completed.
             Callable<Epoch> pending = pauseBeforeCommit(cluster.get(1), (e) -> e instanceof PrepareMove.MidMove);
-
             new Thread(() -> cluster.get(3).nodetoolResult("move", "25").asserts().success()).start();
-            Epoch pauseBeforeEnacting = pending.call().nextEpoch();
 
-            Callable<?> beforeEnacted = pauseBeforeEnacting(cluster.get(3), pauseBeforeEnacting);
+            // Before allowing node1 to proceed with committing the MidMove, instruct it to pause node1 before it
+            // actually enacts it. This will allow us to run cleanup before the effects of the MidMove are visible on
+            // node1.
+            Epoch pauseBeforeEnacting = pending.call().nextEpoch();
+            Callable<?> beforeEnacted = pauseBeforeEnacting(cluster.get(1), pauseBeforeEnacting);
             unpauseCommits(cluster.get(1));
             beforeEnacted.call();
 
-            // before node3 completes the move, run cleanup (but its actually node1 where the corruption occurs).
             cluster.forEach(i -> i.nodetoolResult("cleanup").asserts().success());
-
-            unpauseEnactment(cluster.get(3));
+            unpauseEnactment(cluster.get(1));
             waitForCMSToQuiesce(cluster, cluster.get(1));
+
+            // run cleanup again now that every instance has completed the move operation
             cluster.forEach(i -> i.nodetoolResult("cleanup").asserts().success());
             assertAllContained(localStrs(cluster.get(1)),
                                newArrayList("22", "24"),
