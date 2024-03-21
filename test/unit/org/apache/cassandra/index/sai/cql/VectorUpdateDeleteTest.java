@@ -28,7 +28,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class VectorUpdateDeleteTest extends VectorTester
 {
-
     // partition delete won't trigger UpdateTransaction#onUpdated
     @Test
     public void partitionDeleteVectorInMemoryTest()
