@@ -32,14 +32,14 @@ import java.util.stream.StreamSupport;
 import javax.net.ssl.SSLException;
 
 import com.google.common.collect.ImmutableMap;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Histogram;
 import com.datastax.driver.core.PlainTextAuthProvider;
 import com.datastax.driver.core.RemoteEndpointAwareJdkSSLOptions;
 import com.datastax.driver.core.ResultSet;
@@ -58,6 +58,8 @@ import org.apache.cassandra.distributed.test.JavaDriverUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.distributed.util.Auth;
 import org.apache.cassandra.distributed.util.SingleHostLoadBalancingPolicy;
+import org.apache.cassandra.metrics.ClearableHistogram;
+import org.apache.cassandra.metrics.MutualTlsMetrics;
 import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.transport.SimpleClientSslContextFactory;
 import org.apache.cassandra.utils.tls.CertificateBuilder;
@@ -78,7 +80,6 @@ import static org.assertj.core.api.Assertions.fail;
  */
 public class MutualTlsCertificateValidityPeriodTest extends TestBaseImpl
 {
-    private static final Logger LOGGER = LoggerFactory.getLogger(MutualTlsCertificateValidityPeriodTest.class);
     private static final String IDENTITY = "spiffe://test.cassandra.apache.org/dTest/mtls";
     private static ICluster<IInvokableInstance> CLUSTER;
     private static final char[] KEYSTORE_PASSWORD = "cassandra".toCharArray();
@@ -92,7 +93,6 @@ public class MutualTlsCertificateValidityPeriodTest extends TestBaseImpl
     @BeforeClass
     public static void setupClass() throws Exception
     {
-        LOGGER.info("[test step : @BeforeClass] setupClass");
         Cluster.Builder builder = Cluster.build(1);
 
         CA = new CertificateBuilder().subject("CN=Apache Cassandra Root CA, OU=Certification Authority, O=Unknown, C=Unknown")
@@ -136,15 +136,33 @@ public class MutualTlsCertificateValidityPeriodTest extends TestBaseImpl
     @AfterClass
     public static void teardown() throws Exception
     {
-        LOGGER.info("[test step : @AfterClass] teardown");
         if (CLUSTER != null)
             CLUSTER.close();
+    }
+
+    @After
+    public void afterEach()
+    {
+        // reset metrics
+        CLUSTER.get(1).runOnInstance(() -> {
+            Histogram client = MutualTlsMetrics.instance.clientCertificateExpirationDays;
+            Histogram internode = MutualTlsMetrics.instance.internodeCertificateExpirationDays;
+
+            if (client instanceof ClearableHistogram)
+            {
+                ((ClearableHistogram) client).clear();
+            }
+
+            if (internode instanceof ClearableHistogram)
+            {
+                ((ClearableHistogram) internode).clear();
+            }
+        });
     }
 
     @Test
     public void testExpiringCertificate() throws Exception
     {
-        LOGGER.info("[test step : @Test] testExpiringCertificate");
         Path clientKeystorePath = generateClientCertificate(null);
 
         com.datastax.driver.core.Cluster driver = JavaDriverUtils.create(CLUSTER, null, b -> b.withSSL(getSSLOptions(clientKeystorePath)));
@@ -165,15 +183,17 @@ public class MutualTlsCertificateValidityPeriodTest extends TestBaseImpl
                       .containsKey("identity")
                       .extractingByKey("identity", as(InstanceOfAssertFactories.STRING)).isEqualTo(IDENTITY);
             Assertions.assertThat(row.getString("authentication_mode")).isEqualTo("MutualTls");
+            Assertions.assertThat(CLUSTER.get(1).logs().grep("Certificate with identity '" + IDENTITY + "' will expire").getResult())
+                      .isNotEmpty();
+            CLUSTER.get(1).runOnInstance(() -> Assertions.assertThat(MutualTlsMetrics.instance.clientCertificateExpirationDays.getCount()).isEqualTo(2));
         });
     }
 
     @Test
     public void testCertificateReachingMaxValidityPeriod() throws Exception
     {
-        LOGGER.info("[test step : @Test] testCertificateReachingMaxValidityPeriod");
-        Path clientKeystorePath = generateClientCertificate(b -> b.notBefore(Instant.now().minus(3, ChronoUnit.DAYS))
-                                                                  .notAfter(Instant.now().plus(4, ChronoUnit.DAYS)));
+        Path clientKeystorePath = generateClientCertificate(b -> b.notBefore(Instant.now().minus(26, ChronoUnit.DAYS))
+                                                                  .notAfter(Instant.now().plus(4, ChronoUnit.DAYS).minus(1, ChronoUnit.MINUTES)));
 
         com.datastax.driver.core.Cluster driver = JavaDriverUtils.create(CLUSTER, null, b -> b.withSSL(getSSLOptions(clientKeystorePath)));
 
@@ -193,13 +213,15 @@ public class MutualTlsCertificateValidityPeriodTest extends TestBaseImpl
                       .containsKey("identity")
                       .extractingByKey("identity", as(InstanceOfAssertFactories.STRING)).isEqualTo(IDENTITY);
             Assertions.assertThat(row.getString("authentication_mode")).isEqualTo("MutualTls");
+            Assertions.assertThat(CLUSTER.get(1).logs().grep("Certificate with identity '" + IDENTITY + "' will expire").getResult())
+                      .isNotEmpty();
+            CLUSTER.get(1).runOnInstance(() -> Assertions.assertThat(MutualTlsMetrics.instance.clientCertificateExpirationDays.getCount()).isGreaterThanOrEqualTo(2));
         });
     }
 
     @Test
     public void testFailsWhenCertificateExceedsMaxAllowedValidityPeriod() throws Exception
     {
-        LOGGER.info("[test step : @Test] testFailsWhenCertificateExceedsMaxAllowedValidityPeriod");
         Path clientKeystorePath = generateClientCertificate(b -> b.notAfter(Instant.now().plus(365, ChronoUnit.DAYS)));
 
         com.datastax.driver.core.Cluster driver = JavaDriverUtils.create(CLUSTER, null, b -> b.withSSL(getSSLOptions(clientKeystorePath)));
@@ -212,14 +234,13 @@ public class MutualTlsCertificateValidityPeriodTest extends TestBaseImpl
         catch (com.datastax.driver.core.exceptions.NoHostAvailableException exception)
         {
             Assertions.assertThat(exception)
-                      .hasMessageContaining("The validity period of the provided certificate (527040 minutes) exceeds the maximum allowed validity period of 43200 minutes");
+                      .hasMessageContaining("The validity period of the provided certificate (366 days) exceeds the maximum allowed validity period of 30 days");
         }
     }
 
     @Test
     public void testFailsWhenCertificateIsExpired() throws Exception
     {
-        LOGGER.info("[test step : @Test] testFailsWhenCertificateIsExpired");
         Path clientKeystorePath = generateClientCertificate(b -> b.notBefore(Instant.now().minus(30, ChronoUnit.DAYS))
                                                                   .notAfter(Instant.now().minus(10, ChronoUnit.DAYS)));
 
@@ -227,7 +248,8 @@ public class MutualTlsCertificateValidityPeriodTest extends TestBaseImpl
 
         try
         {
-            testWithDriver(driver, null);
+            testWithDriver(driver,
+                           session -> CLUSTER.get(1).runOnInstance(() -> Assertions.assertThat(MutualTlsMetrics.instance.clientCertificateExpirationDays.getCount()).isZero()));
             fail("Should not be able to connect when the certificate is expired");
         }
         catch (com.datastax.driver.core.exceptions.NoHostAvailableException exception)

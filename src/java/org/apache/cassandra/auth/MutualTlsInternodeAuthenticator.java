@@ -197,10 +197,11 @@ public class MutualTlsInternodeAuthenticator implements IInternodeAuthenticator
             if (certificateValidityWarnThreshold != null
                 && minutesToCertificateExpiration < certificateValidityWarnThreshold.toMinutes())
             {
-                noSpamLogger.warn("Certificate from {}:{} with identity '{}' will expire in {} minutes",
-                                  remoteAddress, remotePort, identity, minutesToCertificateExpiration);
+                noSpamLogger.warn("Certificate from {}:{} with identity '{}' will expire in {}",
+                                  remoteAddress, remotePort, identity,
+                                  MutualTlsUtil.toHumanReadableCertificateExpiration(minutesToCertificateExpiration));
             }
-            MutualTlsMetrics.instance.internodeCertificateExpirationDays.update(toDays(minutesToCertificateExpiration));
+            MutualTlsMetrics.instance.internodeCertificateExpirationDays.update(MutualTlsUtil.minutesToDays(minutesToCertificateExpiration));
 
             return true;
         }
@@ -208,11 +209,6 @@ public class MutualTlsInternodeAuthenticator implements IInternodeAuthenticator
         // makes sure that we are talking to valid server by checking root certificates of the server in the
         // truststore of the client.
         return true;
-    }
-
-    private int toDays(int minutes)
-    {
-        return (int) TimeUnit.MINUTES.toDays(minutes);
     }
 
     @VisibleForTesting

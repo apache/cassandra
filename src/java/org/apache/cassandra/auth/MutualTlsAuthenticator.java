@@ -227,24 +227,19 @@ public class MutualTlsAuthenticator implements IAuthenticator
 
             // Validates that the certificate validity period does not exceed the maximum certificate configured validity period
             int minutesToCertificateExpiration = certificateValidityPeriodValidator.validate(clientCertificateChain);
-            int daysToCertificateExpiration = toDays(minutesToCertificateExpiration);
+            int daysToCertificateExpiration = MutualTlsUtil.minutesToDays(minutesToCertificateExpiration);
 
             if (certificateValidityWarnThreshold != null
                 && minutesToCertificateExpiration < certificateValidityWarnThreshold.toMinutes())
             {
-                nospamLogger.warn("Certificate with identity '{}' will expire in {} minutes",
-                                  identity, minutesToCertificateExpiration);
+                nospamLogger.warn("Certificate with identity '{}' will expire in {}",
+                                  identity, MutualTlsUtil.toHumanReadableCertificateExpiration(minutesToCertificateExpiration));
             }
 
             // Report metrics on client certificate expiration
             MutualTlsMetrics.instance.clientCertificateExpirationDays.update(daysToCertificateExpiration);
 
             return new AuthenticatedUser(role, MTLS, Collections.singletonMap(METADATA_IDENTITY_KEY, identity));
-        }
-
-        private int toDays(int minutes)
-        {
-            return (int) TimeUnit.MINUTES.toDays(minutes);
         }
 
         @Override

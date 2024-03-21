@@ -61,21 +61,16 @@ public class MutualTlsCertificateValidityPeriodValidator
             return -1;
         }
 
-        Date notBefore = x509Certificates[0].getNotBefore();
         Date notAfter = x509Certificates[0].getNotAfter();
-
-        if (notBefore == null || notAfter == null)
-        {
-            throw new AuthenticationException("The provided certificate does not have a notBefore / notAfter field");
-        }
 
         int minutesToCertificateExpiration = (int) ChronoUnit.MINUTES.between(FBUtilities.now(), notAfter.toInstant());
         int certificateValidityPeriodMinutes = certificateValidityPeriodInMinutes(x509Certificates[0]);
         if (certificateValidityPeriodMinutes > maxCertificateValidityPeriodMinutes)
         {
-            String errorMessage = String.format("The validity period of the provided certificate (%d minutes) exceeds " +
-                                                "the maximum allowed validity period of %d minutes",
-                                                certificateValidityPeriodMinutes, maxCertificateValidityPeriodMinutes);
+            String errorMessage = String.format("The validity period of the provided certificate (%s) exceeds " +
+                                                "the maximum allowed validity period of %s",
+                                                MutualTlsUtil.toHumanReadableCertificateExpiration(certificateValidityPeriodMinutes),
+                                                MutualTlsUtil.toHumanReadableCertificateExpiration(maxCertificateValidityPeriodMinutes));
             throw new AuthenticationException(errorMessage);
         }
 

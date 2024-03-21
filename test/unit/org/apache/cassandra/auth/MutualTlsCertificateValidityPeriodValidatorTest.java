@@ -81,6 +81,6 @@ public class MutualTlsCertificateValidityPeriodValidatorTest
         MutualTlsCertificateValidityPeriodValidator validator = new MutualTlsCertificateValidityPeriodValidator(new DurationSpec.IntMinutesBound("30d"));
         Certificate[] chain = loadCertificateChain(CERTIFICATE_PATH);
         Assertions.assertThatThrownBy(() -> validator.validate(chain))
-                  .hasMessageContaining("The validity period of the provided certificate (5256000 minutes) exceeds the maximum allowed validity period of 43200 minutes");
+                  .hasMessageContaining("The validity period of the provided certificate (3650 days) exceeds the maximum allowed validity period of 30 days");
     }
 }
