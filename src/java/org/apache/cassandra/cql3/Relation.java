@@ -188,9 +188,6 @@ public final class Relation
      */
     public SingleRestriction toRestriction(TableMetadata table, VariableSpecifications boundNames)
     {
-        if (operator == Operator.NEQ)
-            throw invalidRequest("Unsupported '!=' relation: %s", this);
-
         ColumnsExpression columnsExpression = rawExpressions.prepare(table);
 
         // TODO support restrictions on list elements as we do in conditions, then we can probably move below validations

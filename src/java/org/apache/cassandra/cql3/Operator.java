@@ -408,6 +408,12 @@ public enum Operator
         {
             return true;
         }
+
+        @Override
+        public Operator negate()
+        {
+            return NOT_CONTAINS;
+        }
     },
     CONTAINS_KEY(6)
     {
@@ -443,6 +449,12 @@ public enum Operator
         {
             return true;
         }
+
+        @Override
+        public Operator negate()
+        {
+            return NOT_CONTAINS_KEY;
+        }
     },
     NEQ(8)
     {
@@ -465,8 +477,7 @@ public enum Operator
         }
 
         @Override
-        public boolean isSatisfiedBy(MultiElementType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand)
-        {
+        public boolean isSatisfiedBy(MultiElementType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand) {
             // Legacy behavior of LWT conditions
             if (rightOperand == null)
                 return leftOperand != null;
@@ -477,6 +488,12 @@ public enum Operator
                 return leftOperand != null;
 
             return leftOperand == null || type.compareCQL(leftOperand, elements) != 0;
+        }
+
+        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
+        {
+            assert args.size() == 1;
+            rangeSet.remove(ClusteringElements.notEqualTo(args.get(0)));
         }
 
         @Override
@@ -492,9 +509,21 @@ public enum Operator
         }
 
         @Override
+        public boolean isSupportedByRestrictionsOn(ColumnsExpression expression)
+        {
+            return true;
+        }
+
+        @Override
         protected boolean isSupportedByReadPath()
         {
             return false;
+        }
+
+        @Override
+        public boolean isSlice()
+        {
+            return true;
         }
     },
     IS_NOT(9)
@@ -604,6 +633,121 @@ public enum Operator
         public boolean requiresIndexing()
         {
             return true;
+        }
+    },
+    NOT_IN(16)
+    {
+        @Override
+        public String toString()
+        {
+            return "NOT IN";
+        }
+        @Override
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            return !IN.isSatisfiedBy(type, leftOperand, rightOperand);
+        }
+
+        @Override
+        public boolean requiresFilteringOrIndexingFor(ColumnMetadata.Kind columnKind)
+        {
+            return !columnKind.isPrimaryKeyKind();
+        }
+
+        @Override
+        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
+        {
+            for (ClusteringElements clustering : args)
+                rangeSet.remove(ClusteringElements.notEqualTo(clustering));
+        }
+
+        @Override
+        public Operator negate()
+        {
+            return IN;
+        }
+
+        @Override
+        public boolean isSlice()
+        {
+            return true;
+        }
+
+        @Override
+        public boolean isSupportedByRestrictionsOn(ColumnsExpression expression)
+        {
+            return expression.kind() == ColumnsExpression.Kind.SINGLE_COLUMN || expression.kind() == ColumnsExpression.Kind.MULTI_COLUMN;
+        }
+    },
+    NOT_CONTAINS(17)
+    {
+        @Override
+        public String toString()
+        {
+            return "NOT CONTAINS";
+        }
+
+        @Override
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            return !CONTAINS.isSatisfiedBy(type, leftOperand, rightOperand);
+        }
+
+        @Override
+        public boolean isSatisfiedBy(MultiElementType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand)
+        {
+            return !CONTAINS.isSatisfiedBy(type, leftOperand, rightOperand);
+        }
+
+        @Override
+        public boolean appliesToColumnValues()
+        {
+            return false;
+        }
+
+        @Override
+        public boolean appliesToCollectionElements()
+        {
+            return true;
+        }
+
+        @Override
+        public Operator negate()
+        {
+            return CONTAINS;
+        }
+    },
+    NOT_CONTAINS_KEY(18) {
+        @Override
+        public String toString() {
+            return "NOT CONTAINS KEY";
+        }
+
+        @Override
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            return !CONTAINS_KEY.isSatisfiedBy(type, leftOperand, rightOperand);
+        }
+
+        @Override
+        public boolean isSatisfiedBy(MultiElementType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand)
+        {
+            return !CONTAINS_KEY.isSatisfiedBy(type, leftOperand, rightOperand);
+        }
+
+        @Override
+        public boolean appliesToColumnValues() {
+            return false;
+        }
+
+        @Override
+        public boolean appliesToMapKeys() {
+            return true;
+        }
+
+        @Override
+        public Operator negate() {
+            return CONTAINS_KEY;
         }
     },
     BETWEEN(19)

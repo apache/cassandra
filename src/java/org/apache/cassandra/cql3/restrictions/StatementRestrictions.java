@@ -191,6 +191,7 @@ public final class StatementRestrictions
         {
 
             Operator operator = relation.operator();
+            System.out.println("Adding " + relation);
             if (operator.requiresFilteringOrIndexingFor(ColumnMetadata.Kind.CLUSTERING) && (type.isUpdate() || type.isDelete()))
             {
                 throw invalidRequest("Cannot use %s with %s", type, operator);
