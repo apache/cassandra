@@ -1686,7 +1686,7 @@ FROM  +
 | `(' (`,' )* `)' IN `(' ( ( `,' )* )? `)' +
 | TOKEN `(' ( `,' )* `)'
 
-::= `=' | `<' | `>' | `<=' | `>=' | CONTAINS | CONTAINS KEY +
+::= `=' | `<' | `>' | `<=' | `>=' | CONTAINS | CONTAINS KEY | NOT CONTAINS | NOT CONTAINS KEY +
 ::= (`,' )* +
 ::= ( `,' )* +
 ::= ( ASC | DESC )? +

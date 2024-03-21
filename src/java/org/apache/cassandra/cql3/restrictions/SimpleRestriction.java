@@ -135,15 +135,17 @@ public final class SimpleRestriction implements SingleRestriction
     }
 
     /**
-     * Checks if this restriction operator is a CONTAINS, CONTAINS_KEY or is an equality on a map element.
+     * Checks if this restriction operator is a CONTAINS, CONTAINS_KEY, NOT_CONTAINS, NOT_CONTAINS_KEY or is an equality on a map element.
      * @return {@code true} if the restriction operator is one of the contains operations, {@code false} otherwise.
      */
     public boolean isContains()
     {
         return operator == Operator.CONTAINS
-               || operator == Operator.CONTAINS_KEY
+                || operator == Operator.CONTAINS_KEY
+                || operator == Operator.NOT_CONTAINS
+                || operator == Operator.NOT_CONTAINS_KEY
                 // TODO only map elements supported for now in restrictions
-               || columnsExpression.isMapElementExpression();
+                || columnsExpression.isMapElementExpression();
     }
 
     @Override
@@ -217,7 +219,9 @@ public final class SimpleRestriction implements SingleRestriction
     @Override
     public List<ClusteringElements> values(QueryOptions options)
     {
-        assert operator == Operator.EQ || operator == Operator.IN || operator == Operator.ANN;
+        assert operator == Operator.EQ ||
+               operator == Operator.IN ||
+               operator == Operator.ANN;
         return bindAndGetClusteringElements(options);
     }
 
@@ -327,7 +331,7 @@ public final class SimpleRestriction implements SingleRestriction
         {
             case SINGLE_COLUMN:
                 List<ByteBuffer> buffers = bindAndGet(options);
-                if (operator == Operator.IN || operator == Operator.BETWEEN)
+                if (operator.kind() != Operator.Kind.BINARY)
                 {
                     filter.add(column, operator, multiInputOperatorValues(column, buffers));
                 }

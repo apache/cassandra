@@ -940,6 +940,10 @@ bc(syntax)..
              | <identifier> IN <variable>
              | '(' <identifier> (',' <identifier>)* ')' IN '(' ( <term-tuple> ( ',' <term-tuple>)* )? ')'
              | '(' <identifier> (',' <identifier>)* ')' IN <variable>
+             | <identifier> NOT IN '(' ( <term> ( ',' <term>)* )? ')'
+             | <identifier> NOT IN <variable>
+             | '(' <identifier> (',' <identifier>)* ')' NOT IN '(' ( <term-tuple> ( ',' <term-tuple>)* )? ')'
+             | '(' <identifier> (',' <identifier>)* ')' NOT IN <variable>
 
 <option> ::= TIMESTAMP <integer>
            | TTL <integer>
@@ -993,12 +997,16 @@ bc(syntax)..
 
 <where-clause> ::= <relation> ( AND <relation> )*
 
-<relation> ::= <identifier> <op> <term>
+<relation> ::= <identifier> (<op> | NOT CONTAINS ( KEY )?) <term>
              | '(' <identifier> (',' <identifier>)* ')' <op> <term-tuple>
              | <identifier> IN '(' ( <term> ( ',' <term>)* )? ')'
              | <identifier> IN <variable>
              | '(' <identifier> (',' <identifier>)* ')' IN '(' ( <term-tuple> ( ',' <term-tuple>)* )? ')'
              | '(' <identifier> (',' <identifier>)* ')' IN <variable>
+             | <identifier> NOT IN '(' ( <term> ( ',' <term>)* )? ')'
+             | <identifier> NOT IN <variable>
+             | '(' <identifier> (',' <identifier>)* ')' NOT IN '(' ( <term-tuple> ( ',' <term-tuple>)* )? ')'
+             | '(' <identifier> (',' <identifier>)* ')' NOT IN <variable>
 
 <op> ::= '=' | '<' | '>' | '<=' | '>=' | CONTAINS ( KEY )?
 <in-values> ::= (<variable> | '(' ( <term> ( ',' <term> )* )? ')')
@@ -1118,9 +1126,11 @@ bc(syntax)..
              | '(' <identifier> (',' <identifier>)* ')' <op> <term-tuple>
              | <identifier> IN '(' ( <term> ( ',' <term>)* )? ')'
              | '(' <identifier> (',' <identifier>)* ')' IN '(' ( <term-tuple> ( ',' <term-tuple>)* )? ')'
+             | <identifier> NOT IN '(' ( <term> ( ',' <term>)* )? ')'
+             | '(' <identifier> (',' <identifier>)* ')' NOT IN '(' ( <term-tuple> ( ',' <term-tuple>)* )? ')'
              | TOKEN '(' <identifier> ( ',' <identifer>)* ')' <op> <term>
 
-<op> ::= '=' | '<' | '>' | '<=' | '>=' | CONTAINS | CONTAINS KEY
+<op> ::= '=' | '<' | '>' | '<=' | '>=' | CONTAINS | CONTAINS KEY | NOT CONTAINS | NOT CONTAINS KEY
 <group-by> ::= (<identifier>,)* (<identifier> | <function>)
 <order-by> ::= <ordering> ( ',' <odering> )*
 <ordering> ::= <identifer> ( ASC | DESC )?
