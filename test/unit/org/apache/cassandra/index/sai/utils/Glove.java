@@ -97,6 +97,11 @@ public class Glove
             return words.get(index);
         }
 
+        public float[] vector(int index)
+        {
+            return wordVectorMap.get(words.get(index)).vector;
+        }
+
         public float[] vector(String word)
         {
             return wordVectorMap.get(word).vector;
