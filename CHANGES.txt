@@ -177,6 +177,7 @@ Merged from 3.0:
 Unreleased
  * [SO-28512] Do a full repair through AutoRepair on MVs
  * [SO-28465] Allow direct MV modification based on configuration
+ * [SO-28299] Implement nodetool sstablerepairedset command
  * [SO-28111] Add metrics for each CQL-coded exception
  * [SO-27484] Disable DDL/DCL under guardrail framework
  * [SO-28187] Add ability to force shutdown a node from a remote node

@@ -54,6 +54,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.BreaksJMX;
 import org.assertj.core.api.Assertions;
@@ -103,6 +104,7 @@ public class JMXStandardsTest
                                                        .add(IllegalStateException.class)
                                                        .add(ClassNotFoundException.class)
                                                        .add(OpenDataException.class)
+                                                       .add(InvalidRequestException.class)
                                                        // used in AutoRepairService
                                                        .add(Pattern.class)
                                                        .add(TreeSet.class)

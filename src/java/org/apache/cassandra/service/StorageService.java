@@ -92,6 +92,7 @@ import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
 import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.db.monitoring.BadQuery;
 import org.apache.cassandra.repair.AutoRepair;
@@ -7431,5 +7432,37 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setAuthEnforcementFlag(AuthEnforcementFlag authEnforcementFlag)
     {
         DatabaseDescriptor.setAuthEnforcementFlag(authEnforcementFlag);
+    }
+
+    public List<String> getTablesForKeyspace(String keyspace) {
+        return Keyspace.open(keyspace).getColumnFamilyStores().stream().map(cfs -> cfs.name).collect(Collectors.toList());
+    }
+
+    public List<String> mutateSSTableRepairedState(boolean repaired, boolean preview, String keyspace, List<String> tableNames) throws InvalidRequestException
+    {
+        Map<String, ColumnFamilyStore> tables =  Keyspace.open(keyspace).getColumnFamilyStores()
+                                                         .stream().collect(Collectors.toMap(c -> c.name, c -> c));
+        for (String tableName : tableNames) {
+            if (!tables.containsKey(tableName))
+                throw new InvalidRequestException("Table " + tableName + " does not exist in keyspace " + keyspace);
+        }
+
+        // only select SSTables that are unrepaired when repaired is true and vice versa
+        Predicate<SSTableReader> predicate = sst -> repaired != sst.isRepaired();
+
+        // mutate SSTables
+        long repairedAt = !repaired ? 0 : System.currentTimeMillis();
+        List<String> sstablesTouched = new ArrayList<>();
+        for (String tableName : tableNames) {
+            ColumnFamilyStore table = tables.get(tableName);
+            Set<SSTableReader> result = table.runWithCompactionsDisabled(() -> {
+                    Set<SSTableReader> sstables = table.getLiveSSTables().stream().filter(predicate).collect(Collectors.toSet());
+                    if (!preview)
+                        table.getCompactionStrategyManager().mutateRepaired(sstables, repairedAt, null, false);
+                    return sstables;
+                }, predicate, true, false, true);
+            sstablesTouched.addAll(result.stream().map(sst -> sst.descriptor.baseFilename()).collect(Collectors.toList()));
+        }
+        return sstablesTouched;
     }
 }
