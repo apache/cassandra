@@ -355,7 +355,7 @@ public final class SimpleRestriction implements SingleRestriction
             case MAP_ELEMENT:
                 ByteBuffer key = columnsExpression.mapKey(options);
                 List<ByteBuffer> values = bindAndGet(options);
-                filter.addMapEquality(firstColumn(), key, Operator.EQ, values.get(0));
+                filter.addMapEquality(firstColumn(), key, operator, values.get(0));
                 break;
             default: throw new UnsupportedOperationException();
         }
@@ -364,5 +364,11 @@ public final class SimpleRestriction implements SingleRestriction
     private static ByteBuffer inValues(ColumnMetadata column, List<ByteBuffer> values)
     {
         return ListType.getInstance(column.type, false).pack(values);
+    }
+
+    @Override
+    public String toString()
+    {
+        return String.format("%s %s %s", columnsExpression.toCQLString(), operator, values);
     }
 }

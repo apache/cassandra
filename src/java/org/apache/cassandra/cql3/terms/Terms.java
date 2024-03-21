@@ -464,6 +464,12 @@ public interface Terms
                 {
                     return true;
                 }
+
+                @Override
+                public String toString()
+                {
+                    return term.toString();
+                }
             };
         }
 

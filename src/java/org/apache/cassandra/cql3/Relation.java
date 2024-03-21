@@ -26,7 +26,6 @@ import org.apache.cassandra.cql3.terms.Terms;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 public final class Relation
@@ -87,8 +86,6 @@ public final class Relation
     {
         return new Relation(ColumnsExpression.Raw.token(identifiers), operator, Terms.Raw.of(rawTerm));
     }
-
-
 
     /**
      * Checks if this relation is a token relation (e.g. <pre>token(a) = token(1)</pre>).

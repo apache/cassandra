@@ -78,6 +78,12 @@ public final class ColumnsExpression
             {
                 return columns.findFirst().orElseThrow();
             }
+
+            @Override
+            public String toString()
+            {
+                return "single column";
+            }
         },
         /**
          * Multi-column expression (e.g. {@code (columnA, columnB)})
@@ -115,6 +121,12 @@ public final class ColumnsExpression
             {
                 return columns.collect(Collectors.joining(", ", "(", ")"));
             }
+
+            @Override
+            public String toString()
+            {
+                return "multi-column";
+            }
         },
         /**
          * Token expression (e.g. {@code token(columnA, columnB)})
@@ -150,6 +162,12 @@ public final class ColumnsExpression
             {
                 return columns.collect(Collectors.joining(", ", "token(", ")"));
             }
+
+            @Override
+            public String toString()
+            {
+                return "token";
+            }
         },
         /**
          * Map element expression (e.g. {@code columnA[?]})
@@ -179,6 +197,12 @@ public final class ColumnsExpression
                                           .append(mapKey)
                                           .append(']')
                                           .toString();
+            }
+
+            @Override
+            public String toString()
+            {
+                return "Map element";
             }
         };
 
