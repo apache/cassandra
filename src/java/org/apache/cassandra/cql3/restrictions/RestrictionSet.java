@@ -17,16 +17,25 @@
  */
 package org.apache.cassandra.cql3.restrictions;
 
-import java.util.*;
-import java.util.stream.Stream;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.NavigableMap;
+import java.util.Set;
+import java.util.TreeMap;
 
-import org.apache.cassandra.index.Index;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexRegistry;
+import org.apache.cassandra.schema.ColumnMetadata;
 
 /**
  * Sets of column restrictions.
@@ -181,7 +190,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
                                   newNeedsFilteringOrIndexing);
     }
 
-    private NavigableMap<ColumnMetadata, SingleRestriction> mergeRestrictions(NavigableMap<ColumnMetadata, SingleRestriction> restrictions,
+    private NavigableMap<ColumnMetadata, SingleRestriction> mergeRestrictions(NavigableMap<ColumnMetadata,SingleRestriction> restrictions,
                                                                               SingleRestriction restriction)
     {
         Collection<ColumnMetadata> columns = restriction.columns();
@@ -189,8 +198,8 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
 
         if (existings.isEmpty())
         {
-            for (ColumnMetadata columnDef : columns)
-                restrictions.put(columnDef, restriction);
+            for (ColumnMetadata column : columns)
+                restrictions.put(column, restriction);
         }
         else
         {
@@ -198,8 +207,8 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
             {
                 SingleRestriction newRestriction = mergeRestrictions(existing, restriction);
 
-                for (ColumnMetadata columnDef : columns)
-                    restrictions.put(columnDef, newRestriction);
+                for (ColumnMetadata column : newRestriction.columns())
+                    restrictions.put(column, newRestriction);
             }
         }
 
@@ -269,12 +278,6 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     {
         // We need to eliminate duplicates in the case where we have multi-column restrictions.
         return new LinkedHashSet<>(restrictions.values()).iterator();
-    }
-
-    public Stream<SingleRestriction> stream()
-    {
-        // We need to eliminate duplicates in the case where we have multi-column restrictions.
-        return new LinkedHashSet<>(restrictions.values()).stream();
     }
 
     @Override

@@ -23,14 +23,19 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.RangeSet;
 
 import org.apache.cassandra.cql3.restrictions.ClusteringElements;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.ListSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -77,7 +82,7 @@ public enum Operator
         }
 
         @Override
-        public boolean appliesToMapKeys()
+        public boolean canBeUsedWith(ColumnsExpression.Kind kind)
         {
             return true;
         }
@@ -115,6 +120,18 @@ public enum Operator
         {
             return GTE;
         }
+
+        @Override
+        public boolean isSlice()
+        {
+            return true;
+        }
+
+        @Override
+        public boolean canBeUsedWith(ColumnsExpression.Kind kind)
+        {
+            return kind != ColumnsExpression.Kind.MAP_ELEMENT;
+        }
     },
     LTE(3)
     {
@@ -148,6 +165,18 @@ public enum Operator
         public Operator negate()
         {
             return GT;
+        }
+
+        @Override
+        public boolean isSlice()
+        {
+            return true;
+        }
+
+        @Override
+        public boolean canBeUsedWith(ColumnsExpression.Kind kind)
+        {
+            return kind != ColumnsExpression.Kind.MAP_ELEMENT;
         }
     },
     GTE(1)
@@ -183,6 +212,18 @@ public enum Operator
         {
             return LT;
         }
+
+        @Override
+        public boolean isSlice()
+        {
+            return true;
+        }
+
+        @Override
+        public boolean canBeUsedWith(ColumnsExpression.Kind kind)
+        {
+            return kind != ColumnsExpression.Kind.MAP_ELEMENT;
+        }
     },
     GT(2)
     {
@@ -217,6 +258,18 @@ public enum Operator
         {
             return LTE;
         }
+
+        @Override
+        public boolean isSlice()
+        {
+            return true;
+        }
+
+        @Override
+        public boolean canBeUsedWith(ColumnsExpression.Kind kind)
+        {
+            return kind != ColumnsExpression.Kind.MAP_ELEMENT;
+        }
     },
     IN(7)
     {
@@ -231,6 +284,12 @@ public enum Operator
         {
             return !columnKind.isPrimaryKeyKind();
         }
+
+        @Override
+        public boolean canBeUsedWith(ColumnsExpression.Kind kind)
+        {
+            return kind == ColumnsExpression.Kind.SINGLE_COLUMN || kind == ColumnsExpression.Kind.MULTI_COLUMN;
+        }
     },
     CONTAINS(5)
     {
@@ -239,21 +298,36 @@ public enum Operator
         {
             switch(((CollectionType<?>) type).kind)
             {
-                case LIST :
+                case LIST:
                     ListType<?> listType = (ListType<?>) type;
-                    List<?> list = listType.getSerializer().deserialize(leftOperand);
-                    return list.contains(listType.getElementsType().getSerializer().deserialize(rightOperand));
+                    return listType.compose(leftOperand).contains(listType.getElementsType().compose(rightOperand));
                 case SET:
                     SetType<?> setType = (SetType<?>) type;
-                    Set<?> set = setType.getSerializer().deserialize(leftOperand);
-                    return set.contains(setType.getElementsType().getSerializer().deserialize(rightOperand));
+                    return setType.compose(leftOperand).contains(setType.getElementsType().compose(rightOperand));
                 case MAP:
                     MapType<?, ?> mapType = (MapType<?, ?>) type;
-                    Map<?, ?> map = mapType.getSerializer().deserialize(leftOperand);
-                    return map.containsValue(mapType.getValuesType().getSerializer().deserialize(rightOperand));
-                default:
-                    throw new AssertionError();
+                    return mapType.compose(leftOperand).containsValue(mapType.getValuesType().compose(rightOperand));
             }
+            throw new AssertionError();
+        }
+
+        @Override
+        public boolean isSatisfiedBy(CollectionType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand)
+        {
+            for (Cell<?> cell : leftOperand)
+            {
+                if (type.kind == CollectionType.Kind.SET)
+                {
+                    if (type.nameComparator().compare(cell.path().get(0), rightOperand) == 0)
+                        return true;
+                }
+                else
+                {
+                    if (type.valueComparator().compare(cell.buffer(), rightOperand) == 0)
+                        return true;
+                }
+            }
+            return false;
         }
 
         @Override
@@ -280,8 +354,13 @@ public enum Operator
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
             MapType<?, ?> mapType = (MapType<?, ?>) type;
-            Map<?, ?> map = mapType.getSerializer().deserialize(leftOperand);
-            return map.containsKey(mapType.getKeysType().getSerializer().deserialize(rightOperand));
+            return mapType.compose(leftOperand).containsKey(mapType.getKeysType().compose(rightOperand));
+        }
+
+        @Override
+        public boolean isSatisfiedBy(CollectionType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand)
+        {
+            return leftOperand.getCell(CellPath.create(rightOperand)) != null;
         }
 
         @Override
@@ -311,6 +390,12 @@ public enum Operator
         }
 
         @Override
+        public boolean requiresFilteringOrIndexingFor(ColumnMetadata.Kind columnKind)
+        {
+            return !columnKind.isPrimaryKeyKind();
+        }
+
+        @Override
         public Operator negate()
         {
             return EQ;
@@ -320,6 +405,12 @@ public enum Operator
         protected boolean isSupportedByReadPath()
         {
             return false;
+        }
+
+        @Override
+        public boolean isSlice()
+        {
+            return true;
         }
     },
     IS_NOT(9)
@@ -482,6 +573,12 @@ public enum Operator
      */
     public abstract boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand);
 
+
+    public boolean isSatisfiedBy(CollectionType<?> type, ComplexColumnData leftOperand, ByteBuffer rightOperand)
+    {
+        throw new UnsupportedOperationException();
+    }
+
     public static int serializedSize()
     {
         return 4;
@@ -489,6 +586,9 @@ public enum Operator
 
     public void validateFor(ColumnsExpression expression)
     {
+        if (!this.canBeUsedWith(expression.kind()))
+            throw invalidRequest("%s cannot be used with %s relations", this, expression);
+
         switch (expression.kind())
         {
             case SINGLE_COLUMN:
@@ -506,8 +606,8 @@ public enum Operator
                 }
                 else
                 {
-                    checkFalse(this == CONTAINS_KEY && !(columnType instanceof MapType), "Cannot use CONTAINS KEY on non-map column %s", firstColumn.name);
-                    checkFalse(this == CONTAINS && !columnType.isCollection(), "Cannot use CONTAINS on non-collection column %s", firstColumn.name);
+                    checkFalse(appliesToMapKeys() && !(columnType instanceof MapType), "Cannot use %s on non-map column %s", this, firstColumn.name);
+                    checkFalse(appliesToCollectionElements() && !columnType.isCollection(), "Cannot use %s on non-collection column %s", this, firstColumn.name);
                 }
 
             case MAP_ELEMENT:
@@ -523,8 +623,8 @@ public enum Operator
 
                     // We don't support relations against entire collections (unless they're frozen), like "numbers = {1, 2, 3}"
                     checkFalse(type.isCollection()
-                                    && this != CONTAINS
-                                    && this != CONTAINS_KEY
+                                    && !this.appliesToMapKeys()
+                                    && !this.appliesToCollectionElements()
                                     && expression.kind() != ColumnsExpression.Kind.MAP_ELEMENT,
                                "Collection column '%s' (%s) cannot be restricted by a '%s' relation",
                                column.name,
@@ -532,15 +632,18 @@ public enum Operator
                                this);
                 }
                 break;
-            case MULTI_COLUMN:
-                if (this != EQ && this != IN && !this.isSlice())
-                    throw invalidRequest("%s cannot be used for multi-column relations", this);
-                break;
-            case TOKEN:
-                if (this != EQ && !this.isSlice())
-                    throw invalidRequest("%s cannot be used with the token function", this);
-                break;
         }
+    }
+
+    /**
+     * Checks if the specified expression kind can be used with this operator.
+     * @param kind the expression kind
+     * @return {@code true} if the specified expression kind can be used with this operator, {@code false} otherwise.
+     */
+    public boolean canBeUsedWith(ColumnsExpression.Kind kind)
+    {
+        // All operators support single columns
+        return kind == ColumnsExpression.Kind.SINGLE_COLUMN;
     }
 
     /**
@@ -602,12 +705,12 @@ public enum Operator
     }
 
     /**
-     * Checks if this operator is a slice operator.
+     * Checks if this operator returning a slice of the data.
      * @return {@code true} if this operator is a slice operator, {@code false} otherwise.
      */
     public boolean isSlice()
     {
-        return this == LT || this == LTE || this == GT || this == GTE;
+        return false;
     }
 
     @Override

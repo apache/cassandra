@@ -49,7 +49,6 @@ import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.MapType;
-import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -125,7 +124,7 @@ public class RowFilter implements Iterable<RowFilter.Expression>
 
     public void addMapEquality(ColumnMetadata def, ByteBuffer key, Operator op, ByteBuffer value)
     {
-        add(new MapEqualityExpression(def, key, op, value));
+        add(new MapELementExpression(def, key, op, value));
     }
 
     public void addCustomIndexExpression(TableMetadata metadata, IndexMetadata targetIndex, ByteBuffer value)
@@ -440,7 +439,7 @@ public class RowFilter implements Iterable<RowFilter.Expression>
         // and this is why we have some UNUSEDX for values we don't use anymore
         // (we could clean those on a major protocol update, but it's not worth
         // the trouble for now)
-        protected enum Kind { SIMPLE, MAP_EQUALITY, UNUSED1, CUSTOM, USER }
+        protected enum Kind { SIMPLE, MAP_ELEMENT, UNUSED1, CUSTOM, USER }
 
         protected abstract Kind kind();
         protected final ColumnMetadata column;
@@ -472,28 +471,6 @@ public class RowFilter implements Iterable<RowFilter.Expression>
         public Operator operator()
         {
             return operator;
-        }
-
-        /**
-         * Checks if the operator of this <code>IndexExpression</code> is a <code>CONTAINS</code> operator.
-         *
-         * @return <code>true</code> if the operator of this <code>IndexExpression</code> is a <code>CONTAINS</code>
-         * operator, <code>false</code> otherwise.
-         */
-        public boolean isContains()
-        {
-            return Operator.CONTAINS == operator;
-        }
-
-        /**
-         * Checks if the operator of this <code>IndexExpression</code> is a <code>CONTAINS_KEY</code> operator.
-         *
-         * @return <code>true</code> if the operator of this <code>IndexExpression</code> is a <code>CONTAINS_KEY</code>
-         * operator, <code>false</code> otherwise.
-         */
-        public boolean isContainsKey()
-        {
-            return Operator.CONTAINS_KEY == operator;
         }
 
         /**
@@ -617,8 +594,8 @@ public class RowFilter implements Iterable<RowFilter.Expression>
                     case SIMPLE:
                         ByteBufferUtil.writeWithShortLength(expression.value, out);
                         break;
-                    case MAP_EQUALITY:
-                        MapEqualityExpression mexpr = (MapEqualityExpression)expression;
+                    case MAP_ELEMENT:
+                        MapELementExpression mexpr = (MapELementExpression)expression;
                         ByteBufferUtil.writeWithShortLength(mexpr.key, out);
                         ByteBufferUtil.writeWithShortLength(mexpr.value, out);
                         break;
@@ -653,10 +630,10 @@ public class RowFilter implements Iterable<RowFilter.Expression>
                 {
                     case SIMPLE:
                         return new SimpleExpression(column, operator, ByteBufferUtil.readWithShortLength(in));
-                    case MAP_EQUALITY:
+                    case MAP_ELEMENT:
                         ByteBuffer key = ByteBufferUtil.readWithShortLength(in);
                         ByteBuffer value = ByteBufferUtil.readWithShortLength(in);
-                        return new MapEqualityExpression(column, key, operator, value);
+                        return new MapELementExpression(column, key, operator, value);
                 }
                 throw new AssertionError();
             }
@@ -676,8 +653,8 @@ public class RowFilter implements Iterable<RowFilter.Expression>
                     case SIMPLE:
                         size += ByteBufferUtil.serializedSizeWithShortLength(((SimpleExpression)expression).value);
                         break;
-                    case MAP_EQUALITY:
-                        MapEqualityExpression mexpr = (MapEqualityExpression)expression;
+                    case MAP_ELEMENT:
+                        MapELementExpression mexpr = (MapELementExpression)expression;
                         size += ByteBufferUtil.serializedSizeWithShortLength(mexpr.key)
                               + ByteBufferUtil.serializedSizeWithShortLength(mexpr.value);
                         break;
@@ -732,63 +709,19 @@ public class RowFilter implements Iterable<RowFilter.Expression>
                     return foundValue != null && operator.isSatisfiedBy(column.type, foundValue, value);
                 }
             }
-            else if (operator.appliesToCollectionElements())
+            else if (operator.appliesToCollectionElements() || operator.appliesToMapKeys())
             {
                 assert column.type.isCollection();
                 CollectionType<?> type = (CollectionType<?>) column.type;
                 if (column.isComplex())
                 {
                     ComplexColumnData complexData = row.getComplexColumnData(column);
-                    if (complexData != null)
-                    {
-                        for (Cell<?> cell : complexData)
-                        {
-                            if (type.kind == CollectionType.Kind.SET)
-                            {
-                                if (type.nameComparator().compare(cell.path().get(0), value) == 0)
-                                    return true;
-                            }
-                            else
-                            {
-                                if (type.valueComparator().compare(cell.buffer(), value) == 0)
-                                    return true;
-                            }
-                        }
-                    }
-                    return false;
+                    return complexData != null && operator.isSatisfiedBy(type, complexData, value);
                 }
                 else
                 {
                     ByteBuffer foundValue = getValue(metadata, partitionKey, row);
-                    if (foundValue == null)
-                        return false;
-
-                    switch (type.kind)
-                    {
-                        case LIST:
-                            ListType<?> listType = (ListType<?>) type;
-                            return listType.compose(foundValue).contains(listType.getElementsType().compose(value));
-                        case SET:
-                            SetType<?> setType = (SetType<?>) type;
-                            return setType.compose(foundValue).contains(setType.getElementsType().compose(value));
-                        case MAP:
-                            MapType<?, ?> mapType = (MapType<?, ?>) type;
-                            return mapType.compose(foundValue).containsValue(mapType.getValuesType().compose(value));
-                    }
-                    throw new AssertionError();
-                }
-            }
-            else if (operator.appliesToMapKeys())
-            {
-                MapType<?, ?> mapType = (MapType<?, ?>) column.type;
-                if (column.isComplex())
-                {
-                     return row.getCell(column, CellPath.create(value)) != null;
-                }
-                else
-                {
-                    ByteBuffer foundValue = getValue(metadata, partitionKey, row);
-                    return foundValue != null && mapType.getSerializer().getSerializedValue(foundValue, value, mapType.getKeysType()) != null;
+                    return foundValue != null && operator.isSatisfiedBy(column.type, foundValue, value);
                 }
             }
             throw new AssertionError();
@@ -831,14 +764,14 @@ public class RowFilter implements Iterable<RowFilter.Expression>
      * An expression of the form 'column' ['key'] = 'value' (which is only
      * supported when 'column' is a map).
      */
-    private static class MapEqualityExpression extends Expression
+    private static class MapELementExpression extends Expression
     {
         private final ByteBuffer key;
 
-        public MapEqualityExpression(ColumnMetadata column, ByteBuffer key, Operator operator, ByteBuffer value)
+        public MapELementExpression(ColumnMetadata column, ByteBuffer key, Operator operator, ByteBuffer value)
         {
             super(column, operator, value);
-            assert column.type instanceof MapType && operator == Operator.EQ;
+            assert column.type instanceof MapType;
             this.key = key;
         }
 
@@ -867,11 +800,11 @@ public class RowFilter implements Iterable<RowFilter.Expression>
             if (row.isStatic() != column.isStatic())
                 return true;
 
-            MapType<?, ?> mt = (MapType<?, ?>)column.type;
+            MapType<?, ?> mt = (MapType<?, ?>) column.type;
             if (column.isComplex())
             {
                 Cell<?> cell = row.getCell(column, CellPath.create(key));
-                return cell != null && mt.valueComparator().compare(cell.buffer(), value) == 0;
+                return cell != null && operator.isSatisfiedBy(mt.getValuesType(), cell.buffer(), value);
             }
             else
             {
@@ -880,7 +813,7 @@ public class RowFilter implements Iterable<RowFilter.Expression>
                     return false;
 
                 ByteBuffer foundValue = mt.getSerializer().getSerializedValue(serializedMap, key, mt.getKeysType());
-                return foundValue != null && mt.valueComparator().compare(foundValue, value) == 0;
+                return foundValue != null && operator.isSatisfiedBy(mt.getValuesType(), foundValue, value);
             }
         }
 
@@ -901,10 +834,10 @@ public class RowFilter implements Iterable<RowFilter.Expression>
             if (this == o)
                 return true;
 
-            if (!(o instanceof MapEqualityExpression))
+            if (!(o instanceof MapELementExpression))
                 return false;
 
-            MapEqualityExpression that = (MapEqualityExpression)o;
+            MapELementExpression that = (MapELementExpression)o;
 
             return Objects.equal(this.column.name, that.column.name)
                 && Objects.equal(this.operator, that.operator)
@@ -921,7 +854,7 @@ public class RowFilter implements Iterable<RowFilter.Expression>
         @Override
         protected Kind kind()
         {
-            return Kind.MAP_EQUALITY;
+            return Kind.MAP_ELEMENT;
         }
     }
 
