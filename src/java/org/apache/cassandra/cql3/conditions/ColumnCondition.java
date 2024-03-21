@@ -353,7 +353,7 @@ public final class ColumnCondition
 
         private void validateOperationOnDurations(AbstractType<?> type)
         {
-            if (type.referencesDuration() && operator.isSlice())
+            if (type.referencesDuration() && operator.isSlice() && operator != Operator.NEQ)
             {
                 checkFalse(type.isCollection(), "Slice conditions are not supported on collections containing durations");
                 checkFalse(type.isTuple(), "Slice conditions are not supported on tuples containing durations");

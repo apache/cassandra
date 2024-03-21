@@ -381,7 +381,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE lonel",
                             immediate='ykey ')
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE lonelykey ",
-                            choices=['=', '<=', '>=', '>', '<', 'BETWEEN', 'CONTAINS', 'IN', '['])
+                            choices=['=', '<=', '>=', '>', '<', '!=', 'BETWEEN', 'CONTAINS', 'IN', 'NOT', '['])
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE lonelykey = 0.0 ",
                             choices=['AND', 'IF', ';'])
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE lonelykey = 0.0 AND ",
@@ -397,7 +397,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             choices=['EXISTS', '<quotedName>', '<identifier>'])
 
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE TOKEN(lonelykey) <= TOKEN(13) IF EXISTS ",
-                            choices=['>=', '!=', '<=', 'IN', '[', ';', '=', '<', '>', '.', 'CONTAINS'])
+                            choices=['>=', '!=', '<=', 'IN','[', ';', '=', '<', '>', '.', 'CONTAINS'])
 
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE TOKEN(lonelykey) <= TOKEN(13) IF lonelykey ",
                             choices=['>=', '!=', '<=', 'IN', '=', '<', '>', 'CONTAINS'])
@@ -464,7 +464,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             choices=['a', 'b', 'TOKEN('])
 
         self.trycompletions('DELETE FROM twenty_rows_composite_table USING TIMESTAMP 0 WHERE a ',
-                            choices=['<=', '>=', 'BETWEEN', 'CONTAINS', 'IN', '[', '=', '<', '>'])
+                            choices=['<=', '>=', 'BETWEEN', 'CONTAINS', 'IN', 'NOT' , '[', '=', '<', '>', '!='])
 
         self.trycompletions('DELETE FROM twenty_rows_composite_table USING TIMESTAMP 0 WHERE TOKEN(',
                             immediate='a ')

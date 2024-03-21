@@ -60,7 +60,7 @@ public final class MergedRestriction implements SingleRestriction
     private final boolean isMultiColumn;
 
     /**
-     * The number of restrictions that require {@code CONTAINS}, {@code CONTAINS_KEY} and Map equality restrictions.
+     * The number of restrictions that require {@code CONTAINS}, {@code CONTAINS_KEY}, {@code NOT_CONTAINS}, {@code NOT_CONTAINS_KEY} and Map equality restrictions.
      */
     private final int containsCount;
 
@@ -124,7 +124,7 @@ public final class MergedRestriction implements SingleRestriction
         checkOperator(other);
 
         if (restriction.isContains() != other.isContains())
-            throw invalidRequest("Collection column %s can only be restricted by CONTAINS, CONTAINS KEY," +
+            throw invalidRequest("Collection column %s can only be restricted by CONTAINS, CONTAINS KEY, NOT_CONTAINS, NOT_CONTAINS_KEY" +
                                  " or map-entry equality if it already restricted by one of those",
                                  restriction.firstColumn().name);
 
@@ -201,7 +201,7 @@ public final class MergedRestriction implements SingleRestriction
     }
 
     /**
-     * Checks if the restriction operator is a CONTAINS, CONTAINS_KEY or is an equality on a map element.
+     * Checks if the restriction operator is a CONTAINS, CONTAINS_KEY, NOT_CONTAINS, NOT_CONTAINS_KEY or is an equality on a map element.
      * @param restriction the restriction to check
      * @return {@code true} if the restriction operator is one of the contains operations, {@code false} otherwise.
      */
