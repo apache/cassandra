@@ -43,6 +43,7 @@ import org.quicktheories.core.Gen;
 import org.quicktheories.core.RandomnessSource;
 import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.Constraint;
+import org.quicktheories.impl.JavaRandom;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_BLOB_SHARED_SEED;
 
@@ -532,5 +533,13 @@ public final class Generators
         return SourceDSL.integers().between(min, max)
                         .flatMap(start -> SourceDSL.integers().between(start, max)
                                                    .map(end -> Range.closed(start, end)));
+    }
+
+    public static <T> accord.utils.Gen<T> toGen(org.quicktheories.core.Gen<T> qt)
+    {
+        return rs -> {
+            JavaRandom r = new JavaRandom(rs.asJdkRandom());
+            return qt.generate(r);
+        };
     }
 }
