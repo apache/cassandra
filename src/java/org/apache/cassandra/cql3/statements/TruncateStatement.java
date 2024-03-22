@@ -17,29 +17,41 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.util.concurrent.TimeoutException;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.QualifiedName;
+import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.db.virtual.VirtualTable;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.TruncateException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.transformations.TruncateTable;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.commons.lang3.builder.ToStringBuilder;
-import org.apache.commons.lang3.builder.ToStringStyle;
+import org.apache.cassandra.utils.Clock;
+
+import static java.lang.String.format;
 
 public class TruncateStatement extends QualifiedStatement implements CQLStatement
 {
+    private static final Logger logger = LoggerFactory.getLogger(TruncateStatement.class);
+
     public TruncateStatement(QualifiedName name)
     {
         super(name);
@@ -57,31 +69,25 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
 
     public void validate(ClientState state) throws InvalidRequestException
     {
-        Schema.instance.validateTable(keyspace(), name());
+        TableMetadata tableMetadata = Schema.instance.validateTable(keyspace(), name());
+        if (tableMetadata.isView())
+            throw new InvalidRequestException(format("Cannot TRUNCATE materialized view %s.%s directly; must truncate base table instead", keyspace(), name()));
+
         Guardrails.dropTruncateTableEnabled.ensureEnabled(state);
     }
 
     public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime) throws InvalidRequestException, TruncateException
     {
-        try
-        {
-            TableMetadata metaData = Schema.instance.getTableMetadata(keyspace(), name());
-            if (metaData.isView())
-                throw new InvalidRequestException("Cannot TRUNCATE materialized view directly; must truncate base table instead");
+        TableMetadata tableMetadata = Schema.instance.validateTable(keyspace(), name());
 
-            if (metaData.isVirtual())
-            {
-                executeForVirtualTable(metaData.id);
-            }
-            else
-            {
-                StorageProxy.truncateBlocking(keyspace(), name());
-            }
-        }
-        catch (UnavailableException | TimeoutException e)
-        {
-            throw new TruncateException(e);
-        }
+        if (tableMetadata.isVirtual())
+            return executeLocally(state, options);
+
+        ClusterMetadataService.instance().commit(new TruncateTable(keyspace(), name(), Clock.Global.currentTimeMillis()),
+                                                 (metadata) -> metadata,
+                                                 (code, reason) -> {
+                                                     throw new InvalidRequestException(reason);
+                                                 });
         return null;
     }
 
@@ -90,6 +96,7 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
         try
         {
             TableMetadata metaData = Schema.instance.getTableMetadata(keyspace(), name());
+            assert metaData != null;
             if (metaData.isView())
                 throw new InvalidRequestException("Cannot TRUNCATE materialized view directly; must truncate base table instead");
 
@@ -112,7 +119,9 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
 
     private void executeForVirtualTable(TableId id)
     {
-        VirtualKeyspaceRegistry.instance.getTableNullable(id).truncate();
+        VirtualTable tableNullable = VirtualKeyspaceRegistry.instance.getTableNullable(id);
+        assert tableNullable != null;
+        tableNullable.truncate();
     }
 
     @Override
