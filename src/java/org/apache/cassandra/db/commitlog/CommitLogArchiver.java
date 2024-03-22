@@ -23,7 +23,10 @@ package org.apache.cassandra.db.commitlog;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.ParseException;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Map;
 import java.util.Properties;
 import java.util.TimeZone;
@@ -49,16 +52,13 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
 public class CommitLogArchiver
 {
     private static final Logger logger = LoggerFactory.getLogger(CommitLogArchiver.class);
-    public static final SimpleDateFormat format = new SimpleDateFormat("yyyy:MM:dd HH:mm:ss");
+    public static final DateTimeFormatter format = DateTimeFormatter
+            .ofPattern("yyyy:MM:dd HH:mm:ss[.[SSS]]").withZone(ZoneId.of("GMT"));
     private static final String DELIMITER = ",";
     private static final Pattern NAME = Pattern.compile("%name");
     private static final Pattern PATH = Pattern.compile("%path");
     private static final Pattern FROM = Pattern.compile("%from");
     private static final Pattern TO = Pattern.compile("%to");
-    static
-    {
-        format.setTimeZone(TimeZone.getTimeZone("GMT"));
-    }
 
     public final Map<String, Future<?>> archivePending = new ConcurrentHashMap<String, Future<?>>();
     private final ExecutorService executor;
@@ -125,9 +125,11 @@ public class CommitLogArchiver
                 long restorePointInTime;
                 try
                 {
-                    restorePointInTime = Strings.isNullOrEmpty(targetTime) ? Long.MAX_VALUE : format.parse(targetTime).getTime();
+                    restorePointInTime = Strings.isNullOrEmpty(targetTime)
+                                         ? Long.MAX_VALUE
+                                         : format.parse(targetTime, Instant::from).toEpochMilli();
                 }
-                catch (ParseException e)
+                catch (DateTimeParseException e)
                 {
                     throw new RuntimeException("Unable to parse restore target time", e);
                 }

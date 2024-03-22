@@ -19,10 +19,10 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -251,8 +251,8 @@ public class RecoveryManagerTest
     {
         CommitLog.instance.resetUnsafe(true);
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
-        Date date = CommitLogArchiver.format.parse("2112:12:12 12:12:12");
-        long timeMS = date.getTime() - 5000;
+        Instant time = CommitLogArchiver.format.parse("2112:12:12 12:12:12", Instant::from);
+        long timeMS = time.toEpochMilli() - 5000;
 
         Keyspace keyspace1 = Keyspace.open(KEYSPACE1);
         for (int i = 0; i < 10; ++i)
@@ -280,9 +280,8 @@ public class RecoveryManagerTest
         CommitLog.instance.resetUnsafe(true);
         Keyspace keyspace1 = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace1.getColumnFamilyStore(CF_STATIC1);
-        Date date = CommitLogArchiver.format.parse("2112:12:12 12:12:12");
-        long timeMS = date.getTime() - 5000;
-
+        Instant time = CommitLogArchiver.format.parse("2112:12:12 12:12:12", Instant::from);
+        long timeMS = time.toEpochMilli() - 5000;
 
         for (int i = 0; i < 10; ++i)
         {
@@ -303,12 +302,40 @@ public class RecoveryManagerTest
     }
 
     @Test
+    public void testRecoverPIT_Millisecond() throws Exception
+    {
+        CommitLog.instance.resetUnsafe(true);
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
+        Instant time = CommitLogArchiver.format.parse("2112:12:12 12:12:12.000", Instant::from);
+        long timeMS = time.toEpochMilli() - 5;
+
+        Keyspace keyspace1 = Keyspace.open(KEYSPACE1);
+        for (int i = 0; i < 10; ++i)
+        {
+            long ts = TimeUnit.MILLISECONDS.toMicros(timeMS + i);
+            new RowUpdateBuilder(cfs.metadata(), ts, "name-" + i)
+                .clustering("cc")
+                .add("val", Integer.toString(i))
+                .build()
+                .apply();
+        }
+
+        // Sanity check row count prior to clear and replay
+        assertEquals(10, Util.getAll(Util.cmd(cfs).build()).size());
+
+        keyspace1.getColumnFamilyStore("Standard1").clearUnsafe();
+        CommitLog.instance.resetUnsafe(false);
+
+        assertEquals(6, Util.getAll(Util.cmd(cfs).build()).size());
+    }
+
+    @Test
     public void testRecoverPITUnordered() throws Exception
     {
         CommitLog.instance.resetUnsafe(true);
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
-        Date date = CommitLogArchiver.format.parse("2112:12:12 12:12:12");
-        long timeMS = date.getTime();
+        Instant time = CommitLogArchiver.format.parse("2112:12:12 12:12:12", Instant::from);
+        long timeMS = time.toEpochMilli() - 5;
 
         Keyspace keyspace1 = Keyspace.open(KEYSPACE1);
 
