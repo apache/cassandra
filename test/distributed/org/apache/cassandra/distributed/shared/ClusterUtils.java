@@ -545,6 +545,8 @@ public class ClusterUtils
 
     public static void unpauseCommits(IInvokableInstance instance)
     {
+        if (instance.isShutdown())
+            return;
         instance.runOnInstance(() -> {
             TestProcessor processor = (TestProcessor) ((ClusterMetadataService.SwitchableProcessor) ClusterMetadataService.instance().processor()).delegate();
             processor.unpause();
