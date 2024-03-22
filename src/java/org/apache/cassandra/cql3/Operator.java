@@ -406,12 +406,6 @@ public enum Operator
         {
             return false;
         }
-
-        @Override
-        public boolean isSlice()
-        {
-            return true;
-        }
     },
     IS_NOT(9)
     {
