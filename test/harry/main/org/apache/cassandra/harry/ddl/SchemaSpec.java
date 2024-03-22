@@ -113,7 +113,8 @@ public class SchemaSpec
                       String compactionStrategy,
                       boolean trackLts)
     {
-        assert !isCompactStorage || clusteringKeys.size() == 0 || regularColumns.size() <= 1;
+        assert !isCompactStorage || clusteringKeys.isEmpty() || regularColumns.size() <= 1 :
+        String.format("Compact storage %s. Clustering keys: %d. Regular columns: %d", isCompactStorage, clusteringKeys.size(), regularColumns.size());
 
         this.keyspace = keyspace;
         this.table = table;
