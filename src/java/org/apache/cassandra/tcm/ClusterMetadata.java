@@ -51,6 +51,7 @@ import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tcm.extensions.ExtensionKey;
 import org.apache.cassandra.tcm.extensions.ExtensionValue;
 import org.apache.cassandra.tcm.membership.Directory;
@@ -64,6 +65,8 @@ import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PrimaryRangeComparator;
 import org.apache.cassandra.tcm.ownership.PlacementForRange;
 import org.apache.cassandra.tcm.ownership.TokenMap;
+import org.apache.cassandra.tcm.ownership.Truncations;
+import org.apache.cassandra.tcm.ownership.Truncations.TruncationRecord;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
@@ -94,6 +97,7 @@ public class ClusterMetadata
     public final DataPlacements placements;
     public final LockedRanges lockedRanges;
     public final InProgressSequences inProgressSequences;
+    public final Truncations truncations;
     public final ImmutableMap<ExtensionKey<?,?>, ExtensionValue<?>> extensions;
 
     // These two fields are lazy but only for the test purposes, since their computation requires initialization of the log ks
@@ -125,6 +129,7 @@ public class ClusterMetadata
              DataPlacements.EMPTY,
              LockedRanges.EMPTY,
              InProgressSequences.EMPTY,
+             Truncations.EMPTY,
              ImmutableMap.of());
     }
 
@@ -138,6 +143,7 @@ public class ClusterMetadata
                            DataPlacements placements,
                            LockedRanges lockedRanges,
                            InProgressSequences inProgressSequences,
+                           Truncations truncations,
                            Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions)
     {
         this(EMPTY_METADATA_IDENTIFIER,
@@ -151,6 +157,7 @@ public class ClusterMetadata
              placements,
              lockedRanges,
              inProgressSequences,
+             truncations,
              extensions);
     }
 
@@ -165,6 +172,7 @@ public class ClusterMetadata
                            DataPlacements placements,
                            LockedRanges lockedRanges,
                            InProgressSequences inProgressSequences,
+                           Truncations truncations,
                            Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions)
     {
         // TODO: token map is a feature of the specific placement strategy, and so may not be a relevant component of
@@ -182,6 +190,7 @@ public class ClusterMetadata
         this.placements = placements;
         this.lockedRanges = lockedRanges;
         this.inProgressSequences = inProgressSequences;
+        this.truncations = truncations;
         this.extensions = ImmutableMap.copyOf(extensions);
     }
 
@@ -236,6 +245,7 @@ public class ClusterMetadata
                                    capLastModified(placements, epoch),
                                    capLastModified(lockedRanges, epoch),
                                    capLastModified(inProgressSequences, epoch),
+                                   capLastModified(truncations, epoch),
                                    capLastModified(extensions, epoch));
     }
 
@@ -258,6 +268,7 @@ public class ClusterMetadata
                                    placements,
                                    lockedRanges,
                                    inProgressSequences,
+                                   truncations,
                                    extensions);
     }
 
@@ -274,6 +285,7 @@ public class ClusterMetadata
                                    placements,
                                    lockedRanges,
                                    inProgressSequences,
+                                   truncations,
                                    extensions);
     }
 
@@ -400,6 +412,7 @@ public class ClusterMetadata
         private DataPlacements placements;
         private LockedRanges lockedRanges;
         private InProgressSequences inProgressSequences;
+        private Truncations truncations;
         private final Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions;
         private final Set<MetadataKey> modifiedKeys;
 
@@ -416,6 +429,7 @@ public class ClusterMetadata
             this.placements = metadata.placements;
             this.lockedRanges = metadata.lockedRanges;
             this.inProgressSequences = metadata.inProgressSequences;
+            this.truncations = metadata.truncations;
             extensions = new HashMap<>(metadata.extensions);
             modifiedKeys = new HashSet<>();
         }
@@ -460,6 +474,17 @@ public class ClusterMetadata
         {
             directory = directory.withNodeState(id, state);
             return this;
+        }
+
+        public Transformer truncateTable(TableId tableId, TruncationRecord truncationRecord)
+        {
+            truncations = truncations.withTruncation(tableId, truncationRecord);
+            return this;
+        }
+
+        public Transformer truncateTable(TableId tableId, long timestamp)
+        {
+            return truncateTable(tableId, new TruncationRecord(timestamp));
         }
 
         public Transformer proposeToken(NodeId nodeId, Collection<Token> tokens)
@@ -534,6 +559,12 @@ public class ClusterMetadata
         public Transformer with(InProgressSequences sequences)
         {
             this.inProgressSequences = sequences;
+            return this;
+        }
+
+        public Transformer with(Truncations truncations)
+        {
+            this.truncations = truncations;
             return this;
         }
 
@@ -623,6 +654,12 @@ public class ClusterMetadata
                 inProgressSequences = inProgressSequences.withLastModified(epoch);
             }
 
+            if (truncations != base.truncations)
+            {
+                modifiedKeys.add(MetadataKeys.TRUNCATIONS);
+                truncations = truncations.withLastModified(epoch);
+            }
+
             return new Transformed(new ClusterMetadata(base.metadataIdentifier,
                                                        epoch,
                                                        period,
@@ -634,6 +671,7 @@ public class ClusterMetadata
                                                        placements,
                                                        lockedRanges,
                                                        inProgressSequences,
+                                                       truncations,
                                                        extensions),
                                    ImmutableSet.copyOf(modifiedKeys));
         }
@@ -651,6 +689,7 @@ public class ClusterMetadata
                                        placements,
                                        lockedRanges,
                                        inProgressSequences,
+                                       truncations,
                                        extensions);
         }
 
@@ -668,6 +707,7 @@ public class ClusterMetadata
                    ", placement=" + placements +
                    ", lockedRanges=" + lockedRanges +
                    ", inProgressSequences=" + inProgressSequences +
+                   ", truncations=" + truncations +
                    ", extensions=" + extensions +
                    ", modifiedKeys=" + modifiedKeys +
                    '}';
@@ -762,6 +802,7 @@ public class ClusterMetadata
                ", tokenMap=" + tokenMap +
                ", placements=" + placements +
                ", lockedRanges=" + lockedRanges +
+               ", truncations=" + truncations +
                '}';
     }
 
@@ -779,6 +820,7 @@ public class ClusterMetadata
                placements.equals(that.placements) &&
                lockedRanges.equals(that.lockedRanges) &&
                inProgressSequences.equals(that.inProgressSequences) &&
+               truncations.equals(that.truncations) &&
                extensions.equals(that.extensions);
     }
 
@@ -821,6 +863,10 @@ public class ClusterMetadata
         if (!inProgressSequences.equals(other.inProgressSequences))
         {
             logger.warn("In progress sequences differ: {} != {}", inProgressSequences, other.inProgressSequences);
+        }
+        if (!truncations.equals(other.truncations))
+        {
+            logger.warn("Truncations differ: {} != {}", truncations, other.truncations);
         }
         if (!extensions.equals(other.extensions))
         {
@@ -912,6 +958,7 @@ public class ClusterMetadata
             DataPlacements.serializer.serialize(metadata.placements, out, version);
             LockedRanges.serializer.serialize(metadata.lockedRanges, out, version);
             InProgressSequences.serializer.serialize(metadata.inProgressSequences, out, version);
+            Truncations.serializer.serialize(metadata.truncations, out, version);
             out.writeInt(metadata.extensions.size());
             for (Map.Entry<ExtensionKey<?, ?>, ExtensionValue<?>> entry : metadata.extensions.entrySet())
             {
@@ -950,6 +997,7 @@ public class ClusterMetadata
             DataPlacements placements = DataPlacements.serializer.deserialize(in, version);
             LockedRanges lockedRanges = LockedRanges.serializer.deserialize(in, version);
             InProgressSequences ips = InProgressSequences.serializer.deserialize(in, version);
+            Truncations truncations = Truncations.serializer.deserialize(in, version);
             int items = in.readInt();
             Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions = new HashMap<>(items);
             for (int i = 0; i < items; i++)
@@ -970,6 +1018,7 @@ public class ClusterMetadata
                                        placements,
                                        lockedRanges,
                                        ips,
+                                       truncations,
                                        extensions);
         }
 
@@ -993,7 +1042,8 @@ public class ClusterMetadata
                     TokenMap.serializer.serializedSize(metadata.tokenMap, version) +
                     DataPlacements.serializer.serializedSize(metadata.placements, version) +
                     LockedRanges.serializer.serializedSize(metadata.lockedRanges, version) +
-                    InProgressSequences.serializer.serializedSize(metadata.inProgressSequences, version);
+                    InProgressSequences.serializer.serializedSize(metadata.inProgressSequences, version) +
+                    Truncations.serializer.serializedSize(metadata.truncations, version);
 
             return size;
         }

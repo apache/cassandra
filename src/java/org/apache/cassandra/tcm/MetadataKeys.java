@@ -29,6 +29,7 @@ public class MetadataKeys
     public static final MetadataKey SCHEMA                  = make(CORE_NS, "schema", "dist_schema");
     public static final MetadataKey NODE_DIRECTORY          = make(CORE_NS, "membership", "node_directory");
     public static final MetadataKey TOKEN_MAP               = make(CORE_NS, "ownership", "token_map");
+    public static final MetadataKey TRUNCATIONS             = make(CORE_NS, "truncation", "truncations");
     public static final MetadataKey DATA_PLACEMENTS         = make(CORE_NS, "ownership", "data_placements");
     public static final MetadataKey LOCKED_RANGES           = make(CORE_NS, "sequences", "locked_ranges");
     public static final MetadataKey IN_PROGRESS_SEQUENCES   = make(CORE_NS, "sequences", "in_progress");
@@ -36,6 +37,7 @@ public class MetadataKeys
     public static final ImmutableSet<MetadataKey> CORE_METADATA = ImmutableSet.of(SCHEMA,
                                                                                   NODE_DIRECTORY,
                                                                                   TOKEN_MAP,
+                                                                                  TRUNCATIONS,
                                                                                   DATA_PLACEMENTS,
                                                                                   LOCKED_RANGES,
                                                                                   IN_PROGRESS_SEQUENCES);

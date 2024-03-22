@@ -213,7 +213,9 @@ public interface Transformation
         PREPARE_SIMPLE_CMS_RECONFIGURATION(31, () -> PrepareCMSReconfiguration.Simple.serializer),
         PREPARE_COMPLEX_CMS_RECONFIGURATION(32, () -> PrepareCMSReconfiguration.Complex.serializer),
         ADVANCE_CMS_RECONFIGURATION(33, () -> AdvanceCMSReconfiguration.serializer),
-        CANCEL_CMS_RECONFIGURATION(34, () -> CancelCMSReconfiguration.serializer)
+        CANCEL_CMS_RECONFIGURATION(34, () -> CancelCMSReconfiguration.serializer),
+
+        TRUNCATE_TABLE(35, () -> TableTruncation.serializer)
         ;
 
         private final Supplier<AsymmetricMetadataSerializer<Transformation, ? extends Transformation>> serializer;
