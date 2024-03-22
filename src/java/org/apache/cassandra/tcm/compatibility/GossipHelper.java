@@ -56,7 +56,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
-import org.apache.cassandra.tcm.Period;
 import org.apache.cassandra.tcm.extensions.ExtensionKey;
 import org.apache.cassandra.tcm.extensions.ExtensionValue;
 import org.apache.cassandra.tcm.membership.Directory;
@@ -277,8 +276,6 @@ public class GossipHelper
     public static ClusterMetadata emptyWithSchemaFromSystemTables(Set<String> allKnownDatacenters)
     {
         return new ClusterMetadata(Epoch.UPGRADE_STARTUP,
-                                   Period.EMPTY,
-                                   true,
                                    DatabaseDescriptor.getPartitioner(),
                                    DistributedSchema.fromSystemTables(SchemaKeyspace.fetchNonSystemKeyspaces(), allKnownDatacenters),
                                    Directory.EMPTY,
@@ -349,8 +346,6 @@ public class GossipHelper
         }
 
         ClusterMetadata forPlacementCalculation = new ClusterMetadata(Epoch.UPGRADE_GOSSIP,
-                                                                      Period.EMPTY,
-                                                                      true,
                                                                       partitioner,
                                                                       schema,
                                                                       directory,
@@ -360,8 +355,6 @@ public class GossipHelper
                                                                       InProgressSequences.EMPTY,
                                                                       extensions);
         return new ClusterMetadata(Epoch.UPGRADE_GOSSIP,
-                                   Period.EMPTY,
-                                   true,
                                    partitioner,
                                    schema,
                                    directory,

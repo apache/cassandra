@@ -31,9 +31,11 @@ public interface PartitionerAwareMetadataSerializer<T>
      *
      * @param t type that needs to be serialized
      * @param out DataOutput into which serialization needs to happen.
+     * @param partitioner The partitioner to use
+     * @param version protocol version
      * @throws IOException if serialization fails
      */
-    void serialize(T t, DataOutputPlus out, Version version) throws IOException;
+    void serialize(T t, DataOutputPlus out, IPartitioner partitioner, Version version) throws IOException;
 
     /**
      * Deserialize into the specified DataInputStream instance.
@@ -49,8 +51,9 @@ public interface PartitionerAwareMetadataSerializer<T>
     /**
      * Calculate serialized size of object without actually serializing.
      * @param t object to calculate serialized size
+     * @param partitioner The partitioner to use
      * @param version protocol version
      * @return serialized size of object t
      */
-    long serializedSize(T t, Version version);
+    long serializedSize(T t, IPartitioner partitioner, Version version);
 }

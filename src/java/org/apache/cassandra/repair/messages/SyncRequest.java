@@ -100,10 +100,7 @@ public class SyncRequest extends RepairMessage
             inetAddressAndPortSerializer.serialize(message.dst, out, version);
             out.writeInt(message.ranges.size());
             for (Range<Token> range : message.ranges)
-            {
-                IPartitioner.validate(range);
                 AbstractBounds.tokenSerializer.serialize(range, out, version);
-            }
             out.writeInt(message.previewKind.getSerializationVal());
             out.writeBoolean(message.asymmetric);
         }

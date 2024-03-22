@@ -39,7 +39,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tcm.serialization.MetadataSerializer;
+import org.apache.cassandra.tcm.serialization.PartitionerAwareMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
@@ -330,9 +330,9 @@ public class PlacementForRange
         }
     }
 
-    public static class Serializer implements MetadataSerializer<PlacementForRange>
+    public static class Serializer implements PartitionerAwareMetadataSerializer<PlacementForRange>
     {
-        public void serialize(PlacementForRange t, DataOutputPlus out, Version version) throws IOException
+        public void serialize(PlacementForRange t, DataOutputPlus out, IPartitioner partitioner, Version version) throws IOException
         {
             out.writeInt(t.replicaGroups.size());
 
@@ -342,25 +342,24 @@ public class PlacementForRange
                 VersionedEndpoints.ForRange efr = entry.getValue();
                 if (version.isAtLeast(Version.V2))
                     Epoch.serializer.serialize(efr.lastModified(), out, version);
-                Token.metadataSerializer.serialize(range.left, out, version);
-                Token.metadataSerializer.serialize(range.right, out, version);
+                Token.metadataSerializer.serialize(range.left, out, partitioner, version);
+                Token.metadataSerializer.serialize(range.right, out, partitioner, version);
                 out.writeInt(efr.size());
                 for (int i = 0; i < efr.size(); i++)
                 {
                     Replica r = efr.get().get(i);
-                    Token.metadataSerializer.serialize(r.range().left, out, version);
-                    Token.metadataSerializer.serialize(r.range().right, out, version);
+                    Token.metadataSerializer.serialize(r.range().left, out, partitioner, version);
+                    Token.metadataSerializer.serialize(r.range().right, out, partitioner, version);
                     InetAddressAndPort.MetadataSerializer.serializer.serialize(r.endpoint(), out, version);
                     out.writeBoolean(r.isFull());
                 }
             }
         }
 
-        public PlacementForRange deserialize(DataInputPlus in, Version version) throws IOException
+        public PlacementForRange deserialize(DataInputPlus in, IPartitioner partitioner, Version version) throws IOException
         {
             int groupCount = in.readInt();
             Map<Range<Token>, VersionedEndpoints.ForRange> result = Maps.newHashMapWithExpectedSize(groupCount);
-            IPartitioner partitioner = ClusterMetadata.current().partitioner;
             for (int i = 0; i < groupCount; i++)
             {
                 Epoch lastModified;
@@ -394,9 +393,9 @@ public class PlacementForRange
             return new PlacementForRange(result);
         }
 
-        public long serializedSize(PlacementForRange t, Version version)
+        public long serializedSize(PlacementForRange t, IPartitioner partitioner, Version version)
         {
-            int size = sizeof(t.replicaGroups.size());
+            long size = sizeof(t.replicaGroups.size());
             for (Map.Entry<Range<Token>, VersionedEndpoints.ForRange> entry : t.replicaGroups.entrySet())
             {
                 Range<Token> range = entry.getKey();
@@ -404,14 +403,14 @@ public class PlacementForRange
 
                 if (version.isAtLeast(Version.V2))
                     size += Epoch.serializer.serializedSize(efr.lastModified(), version);
-                size += Token.metadataSerializer.serializedSize(range.left, version);
-                size += Token.metadataSerializer.serializedSize(range.right, version);
+                size += Token.metadataSerializer.serializedSize(range.left, partitioner, version);
+                size += Token.metadataSerializer.serializedSize(range.right, partitioner, version);
                 size += sizeof(efr.size());
                 for (int i = 0; i < efr.size(); i++)
                 {
                     Replica r = efr.get().get(i);
-                    size += Token.metadataSerializer.serializedSize(r.range().left, version);
-                    size += Token.metadataSerializer.serializedSize(r.range().right, version);
+                    size += Token.metadataSerializer.serializedSize(r.range().left, partitioner, version);
+                    size += Token.metadataSerializer.serializedSize(r.range().right, partitioner, version);
                     size += InetAddressAndPort.MetadataSerializer.serializer.serializedSize(r.endpoint(), version);
                     size += sizeof(r.isFull());
                 }

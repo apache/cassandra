@@ -139,11 +139,11 @@ public class CMSOperations implements CMSOperationsMBean
     }
 
     @Override
-    public void sealPeriod()
+    public void snapshotClusterMetadata()
     {
-        logger.info("Sealing current period in metadata log");
-        long period = cms.sealPeriod().period;
-        logger.info("Current period {} is sealed", period);
+        logger.info("Triggering cluster metadata snapshot");
+        Epoch epoch = cms.triggerSnapshot().epoch;
+        logger.info("Cluster metadata snapshot triggered at {}", epoch);
     }
 
     @Override
