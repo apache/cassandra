@@ -46,6 +46,11 @@ import org.apache.cassandra.db.ConsistencyLevel;
 public interface GuardrailsConfig
 {
     /**
+     * @return Whether guardrails should be enabled on superuser.
+     */
+    boolean getGuardrailsOnSuperuserEnabled();
+
+    /**
      * @return The threshold to warn when creating more user keyspaces than threshold.
      */
     int getKeyspacesWarnThreshold();

@@ -36,6 +36,16 @@ import javax.annotation.Nullable;
 public interface GuardrailsMBean
 {
     /**
+     * @return Whether guardrails should be enabled on superuser.
+     */
+    boolean getGuardrailsOnSuperuserEnabled();
+
+    /**
+     * @param isEnabled Set whether guardrails should be enabled on superuser.
+     */
+    void setGuardrailsOnSuperuserEnabled(boolean isEnabled);
+
+    /**
      * @return The threshold to warn when creating more user keyspaces than threshold.
      * -1 means disabled.
      */

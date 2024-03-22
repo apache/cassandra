@@ -364,6 +364,18 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
+    public boolean getGuardrailsOnSuperuserEnabled()
+    {
+        return DEFAULT_CONFIG.getGuardrailsOnSuperuserEnabled();
+    }
+
+    @Override
+    public void setGuardrailsOnSuperuserEnabled(boolean isEnabled)
+    {
+        DEFAULT_CONFIG.setGuardrailsOnSuperuserEnabled(isEnabled);
+    }
+
+    @Override
     public int getKeyspacesWarnThreshold()
     {
         return DEFAULT_CONFIG.getKeyspacesWarnThreshold();

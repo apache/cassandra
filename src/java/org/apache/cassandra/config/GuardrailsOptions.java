@@ -85,6 +85,20 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
+    public boolean getGuardrailsOnSuperuserEnabled()
+    {
+        return config.guardrails_on_superuser_enabled;
+    }
+
+    public void setGuardrailsOnSuperuserEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("guardrails_on_superuser_enabled",
+                                  enabled,
+                                  () -> config.guardrails_on_superuser_enabled,
+                                  x -> config.guardrails_on_superuser_enabled = x);
+    }
+
+    @Override
     public int getKeyspacesWarnThreshold()
     {
         return config.keyspaces_warn_threshold;

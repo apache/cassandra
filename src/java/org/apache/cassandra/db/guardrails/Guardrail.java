@@ -89,7 +89,24 @@ public abstract class Guardrail
      */
     public boolean enabled(@Nullable ClientState state)
     {
-        return DatabaseDescriptor.isDaemonInitialized() && (state == null || state.isOrdinaryUser());
+        // return false if daemon is not initialized yet, because guardrails are not initailzed
+        if (!DatabaseDescriptor.isDaemonInitialized())
+        {
+            return false;
+        }
+
+        boolean shouldEnableOnClientState;
+        if (Guardrails.instance.getGuardrailsOnSuperuserEnabled())
+        {
+            // should enable guardrails on anonymous state or non-system state
+            shouldEnableOnClientState = state == null || !state.isSystem();
+        }
+        else
+        {
+            // should enable guardrails on anonymous state or ordinary user state (non-system, non-superuser)
+            shouldEnableOnClientState = state == null || state.isOrdinaryUser();
+        }
+        return shouldEnableOnClientState;
     }
 
     protected void warn(String message)
