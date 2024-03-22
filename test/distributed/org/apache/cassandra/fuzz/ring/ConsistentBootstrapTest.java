@@ -127,11 +127,11 @@ public class ConsistentBootstrapTest extends FuzzTestBase
 
             ReplayingHistoryBuilder harry = HarryHelper.dataGen(new InJvmSut(cluster, () -> 2, (t) -> false)
                                                                 {
-                                                                    public Object[][] execute(String statement, ConsistencyLevel cl, int coordinator, Object... bindings)
+                                                                    public Object[][] execute(String statement, ConsistencyLevel cl, int coordinator, int pagesize, Object... bindings)
                                                                     {
                                                                         try
                                                                         {
-                                                                            return super.execute(statement, cl, coordinator, bindings);
+                                                                            return super.execute(statement, cl, coordinator, pagesize, bindings);
                                                                         }
                                                                         catch (Throwable t)
                                                                         {
