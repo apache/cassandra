@@ -88,7 +88,7 @@ public class SchemaSpec
 
     public SchemaSpec withCompactionStrategy(String compactionStrategy)
     {
-        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, true, disableReadRepair, compactionStrategy, trackLts);
+        return new SchemaSpec(keyspace, table, partitionKeys, clusteringKeys, regularColumns, staticColumns, ckGenerator, false, disableReadRepair, compactionStrategy, trackLts);
     }
 
     public SchemaSpec withCkGenerator(DataGenerators.KeyGenerator ckGeneratorOverride, List<ColumnSpec<?>> clusteringKeys)
