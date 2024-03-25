@@ -651,8 +651,7 @@ commitlog_disk_access_mode: legacy
 #
 # The class_name is the compressor class name. It may be one of the aliases,
 # the class name of a system ICompressor implementation, or fully qualified
-# name of a class that implements ICompressor and has a public static 'create' method that accepts
-# a Map<String, String> argument and returns an instance of the class.
+# name of a ICompressor class.
 #
 # class aliases are:
 #  Alias    System compressor impl.
