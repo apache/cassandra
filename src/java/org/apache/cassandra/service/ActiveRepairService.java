@@ -1136,7 +1136,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                                              range, table.keyspace, table.name, pending, PAXOS_REPAIR_ALLOW_MULTIPLE_PENDING_UNSAFE.getKey()));
 
                 }
-                Future<Void> future = PaxosCleanup.cleanup(endpoints, table, Collections.singleton(range), false, repairCommandExecutor());
+                Future<Void> future = PaxosCleanup.cleanup(ctx, endpoints, table, Collections.singleton(range), false, repairCommandExecutor());
                 futures.add(future);
             }
         }

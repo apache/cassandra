@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.net;
 
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -28,4 +29,8 @@ public interface MessageDelivery
     public <REQ, RSP> void sendWithCallback(Message<REQ> message, InetAddressAndPort to, RequestCallback<RSP> cb, ConnectionType specifyConnection);
     public <REQ, RSP> Future<Message<RSP>> sendWithResult(Message<REQ> message, InetAddressAndPort to);
     public <V> void respond(V response, Message<?> message);
+    public default void respondWithFailure(RequestFailureReason reason, Message<?> message)
+    {
+        send(Message.failureResponse(message.id(), message.expiresAtNanos(), reason), message.respondTo());
+    }
 }

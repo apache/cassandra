@@ -31,7 +31,10 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.*;
+import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.RequestCallbackWithFailure;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.paxos.Ballot;
@@ -48,9 +51,11 @@ public class PaxosCleanupComplete extends AsyncFuture<Void> implements RequestCa
     final Collection<Range<Token>> ranges;
     final Ballot lowBound;
     final boolean skippedReplicas;
+    private final SharedContext ctx;
 
-    PaxosCleanupComplete(Collection<InetAddressAndPort> endpoints, TableId tableId, Collection<Range<Token>> ranges, Ballot lowBound, boolean skippedReplicas)
+    PaxosCleanupComplete(SharedContext ctx, Collection<InetAddressAndPort> endpoints, TableId tableId, Collection<Range<Token>> ranges, Ballot lowBound, boolean skippedReplicas)
     {
+        this.ctx = ctx;
         this.waitingResponse = new HashSet<>(endpoints);
         this.tableId = tableId;
         this.ranges = ranges;
@@ -64,7 +69,7 @@ public class PaxosCleanupComplete extends AsyncFuture<Void> implements RequestCa
                                            : new Request(tableId, Ballot.none(), Collections.emptyList());
         Message<Request> message = Message.out(PAXOS2_CLEANUP_COMPLETE_REQ, request);
         for (InetAddressAndPort endpoint : waitingResponse)
-            MessagingService.instance().sendWithCallback(message, endpoint, this);
+            ctx.messaging().sendWithCallback(message, endpoint, this);
     }
 
     @Override
@@ -86,7 +91,7 @@ public class PaxosCleanupComplete extends AsyncFuture<Void> implements RequestCa
             trySuccess(null);
     }
 
-    static class Request
+    public static class Request
     {
         final TableId tableId;
         final Ballot lowBound;
@@ -136,9 +141,14 @@ public class PaxosCleanupComplete extends AsyncFuture<Void> implements RequestCa
         }
     };
 
-    public static final IVerbHandler<Request> verbHandler = (in) -> {
-        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(in.payload.tableId);
-        cfs.onPaxosRepairComplete(in.payload.ranges, in.payload.lowBound);
-        MessagingService.instance().respond(noPayload, in);
-    };
+    public static IVerbHandler<Request> createVerbHandler(SharedContext ctx)
+    {
+        return (in) -> {
+            ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(in.payload.tableId);
+            cfs.onPaxosRepairComplete(in.payload.ranges, in.payload.lowBound);
+            ctx.messaging().respond(noPayload, in);
+        };
+    }
+
+    public static final IVerbHandler<Request> verbHandler = createVerbHandler(SharedContext.Global.instance);
 }
