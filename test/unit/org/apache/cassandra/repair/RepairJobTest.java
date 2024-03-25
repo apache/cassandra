@@ -40,6 +40,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 
 import org.apache.cassandra.repair.messages.SyncResponse;
 import org.apache.cassandra.repair.messages.ValidationResponse;
+import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Before;
@@ -67,7 +68,6 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupRequest;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupResponse;
-import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupSession;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -875,7 +875,7 @@ public class RepairJobTest
                 if (message.verb() == PAXOS2_CLEANUP_REQ)
                 {
                     PaxosCleanupRequest request = (PaxosCleanupRequest) message.payload;
-                    PaxosCleanupSession.finishSession(to, new PaxosCleanupResponse(request.session, true, null));
+                    PaxosRepairState.instance().finishSession(to, new PaxosCleanupResponse(request.session, true, null));
                     return false;
                 }
 

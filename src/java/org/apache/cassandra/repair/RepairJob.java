@@ -129,7 +129,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         {
             logger.info("{} {}.{} starting paxos repair", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
             TableMetadata metadata = Schema.instance.getTableMetadata(desc.keyspace, desc.columnFamily);
-            paxosRepair = PaxosCleanup.cleanup(allEndpoints, metadata, desc.ranges, session.state.commonRange.hasSkippedReplicas, taskExecutor);
+            paxosRepair = PaxosCleanup.cleanup(ctx, allEndpoints, metadata, desc.ranges, session.state.commonRange.hasSkippedReplicas, taskExecutor);
         }
         else
         {
