@@ -77,6 +77,28 @@ public class PlacementDeltas extends ReplicationMap<PlacementDeltas.PlacementDel
         return builder.build();
     }
 
+    @Override
+    public boolean isEmpty()
+    {
+        if (super.isEmpty())
+            return true;
+
+        for (Map.Entry<ReplicationParams, PlacementDelta> e : map.entrySet())
+        {
+            if (!e.getValue().reads.removals.isEmpty())
+                return false;
+            if (!e.getValue().reads.additions.isEmpty())
+                return false;
+
+            if (!e.getValue().writes.removals.isEmpty())
+                return false;
+            if (!e.getValue().writes.additions.isEmpty())
+                return false;
+        }
+
+        return true;
+    }
+
     public static PlacementDeltas empty()
     {
         return EMPTY;

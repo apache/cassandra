@@ -18,9 +18,16 @@
 
 package org.apache.cassandra.tcm;
 
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 import com.google.common.collect.ImmutableSet;
+
+import org.apache.cassandra.tcm.extensions.ExtensionKey;
+import org.apache.cassandra.tcm.extensions.ExtensionValue;
 
 public class MetadataKeys
 {
@@ -52,4 +59,44 @@ public class MetadataKeys
         return new MetadataKey(b.toString());
     }
 
+    public static ImmutableSet<MetadataKey> diffKeys(ClusterMetadata before, ClusterMetadata after)
+    {
+        ImmutableSet.Builder<MetadataKey> builder = new ImmutableSet.Builder<>();
+        diffKeys(before, after, builder);
+        return builder.build();
+    }
+
+    private static void diffKeys(ClusterMetadata before, ClusterMetadata after, ImmutableSet.Builder<MetadataKey> builder)
+    {
+        checkKey(before, after, builder, cm -> cm.schema, MetadataKeys.SCHEMA);
+        checkKey(before, after, builder, cm -> cm.directory, MetadataKeys.NODE_DIRECTORY);
+        checkKey(before, after, builder, cm -> cm.tokenMap, MetadataKeys.TOKEN_MAP);
+        checkKey(before, after, builder, cm -> cm.placements, MetadataKeys.DATA_PLACEMENTS);
+        checkKey(before, after, builder, cm -> cm.lockedRanges, MetadataKeys.LOCKED_RANGES);
+        checkKey(before, after, builder, cm -> cm.inProgressSequences, MetadataKeys.IN_PROGRESS_SEQUENCES);
+
+        Set<ExtensionKey<?,?>> added = new HashSet<>(after.extensions.keySet());
+        for (Map.Entry<ExtensionKey<?, ?>, ExtensionValue<?>> entry : before.extensions.entrySet())
+        {
+            ExtensionKey<?, ?> key = entry.getKey();
+            added.remove(key);
+
+            if (after.extensions.containsKey(key))
+                checkKey(before, after, builder, cm -> cm.extensions.get(key), key);
+            else
+                builder.add(key);
+        }
+
+        for (ExtensionKey<?, ?> key : added)
+            builder.add(key);
+    }
+
+    private static void checkKey(ClusterMetadata before, ClusterMetadata after, ImmutableSet.Builder<MetadataKey> builder, Function<ClusterMetadata, MetadataValue<?>> extract, MetadataKey key)
+    {
+        MetadataValue<?> vBefore = extract.apply(before);
+        MetadataValue<?> vAfter = extract.apply(after);
+
+        if (!vBefore.equals(vAfter))
+            builder.add(key);
+    }
 }

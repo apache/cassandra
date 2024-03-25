@@ -49,9 +49,9 @@ public class ForceSnapshot implements Transformation
         return Kind.FORCE_SNAPSHOT;
     }
 
-    public Result execute(ClusterMetadata metadata)
+    public Result execute(ClusterMetadata prev)
     {
-        return new Success(baseState, LockedRanges.AffectedRanges.EMPTY, MetadataKeys.CORE_METADATA);
+        return new Success(baseState, LockedRanges.AffectedRanges.EMPTY, MetadataKeys.diffKeys(prev, baseState));
     }
 
     public String toString()
