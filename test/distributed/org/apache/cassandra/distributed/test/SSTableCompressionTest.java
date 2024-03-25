@@ -124,7 +124,7 @@ public class SSTableCompressionTest
     @Test
     public void testCreation() throws IOException
     {
-        // create clauster with lz4 compression
+        // create cluster with lz4 compression
         try
         {
             setupCluster(DEFAULT_CONFIG, null);

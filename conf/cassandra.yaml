@@ -667,7 +667,6 @@ commitlog_disk_access_mode: legacy
 # Parameter             Usage
 # enabled               Disables compression if set to false. Defaults to true.
 # chunk_length          The length of the compresson chunks, must include KiB, MiB or GiB suffix, defaults to 16KiB.
-# chunk_length_in_kb    Same as above but expects an integer.
 # min_compress_ratio    The minimal acceptable compression, must greater than or equal to 1.0.
 # max_compressed_length The maximum size for a compressed block. Must be less than or equal to chunk_length.
 #                       Must include KiB, MiB or GiB suffix. Defaults to Integer.MAX_VALUE
@@ -676,8 +675,6 @@ commitlog_disk_access_mode: legacy
 # They are mathematically related in that 'chunk_length / max_compressed_length = min_compress_ratio'.
 # If neither option is specified a min_compress_ratio of 0.0 and a max_compressed_length of
 # Integer.MAX_VALUE KB is the default.
-#
-# Only one of chunk_length or chunk_length_in_kb may be specified.
 #
 # Additional class specific parameters may be added to the parameters section. The value of the class specific
 # parameter must be a string.
