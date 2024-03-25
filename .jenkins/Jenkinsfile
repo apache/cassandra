@@ -169,7 +169,7 @@ def tasks() {
         python: pythonsSupported(),
         cython: ['yes', 'no'],
         step: stepsMap.keySet(),
-        split: (1..64).toList() // needs to be bigger than any max splits
+        split: (1..testSteps.values().splits.max()).toList()
     ]
 
     def List _axes = getMatrixAxes(matrix_axes).findAll { axis ->
@@ -269,30 +269,33 @@ def isJdkEnabled(jdk) {
  **/
 def build(command, cell) {
   def build_script = ".build/docker/${command.script}"
+  def retryCount = 0
   retry(2) {
+    retryCount++
     node(getNodeLabel(command, cell)) {
       withEnv(cell.collect { k, v -> "${k}=${v}" }) {
         ws("workspace/${JOB_NAME}/${BUILD_NUMBER}/${cell.step}/${cell.arch}/jdk-${cell.jdk}") {
             cleanAgent(cell.step)
             cleanWs()
             fetchSource(cell.step, cell.arch, cell.jdk)
-            def logfile = "stage-logs/${JOB_NAME}_${BUILD_NUMBER}_${cell.step}_jdk${cell.jdk}_${cell.arch}.log"
-
-            catchError(buildResult: null, message: 'Build task failed', stageResult: 'FAILURE') {
-                // pipe to tee needs pipefail
-                def script_vars = "#!/bin/bash \n set -o pipefail ; "
-                sh label: "RUNNING ${cell.step}...", script: "${script_vars} ${build_script} ${cell.jdk} 2>&1 | tee build/${logfile}"
-                if ("jar" == cell.step) { // TODO only stash the project built files. all dependency libraries are restored from the local maven repo using `ant resolver-dist-lib`
-                    stash name: "${cell.arch}_${cell.jdk}", useDefaultExcludes: false //, includes: '**/*.jar' //, includes: "*.jar,classes/**,test/classes/**,tools/**"
-                }
-                dir("build") {
-                  copyToNightlies("${command.toCopy}", "${STAGE_NAME}/jdk${cell.jdk}/${cell.arch}/")
-                }
+            def logfile = "stage-logs/${JOB_NAME}_${BUILD_NUMBER}_${cell.step}_jdk${cell.jdk}_${cell.arch}_attempt${retryCount}.log"
+            def script_vars = "#!/bin/bash \n set -o pipefail ; " // pipe to tee needs pipefail
+            status = sh label: "RUNNING ${cell.step}...", script: "${script_vars} ${build_script} ${cell.jdk} 2>&1 | tee build/${logfile}", returnStatus: true
+            if (0 != status) {
+              echo "${cell.step} returned error ${status}"
+              dir("build") {
+                sh "xz -f *${logfile}"
+                archiveArtifacts artifacts: "${logfile}.xz", fingerprint: true
+              }
+              error("Stage ${cell.step}${cell_suffix} failed")
+            }
+            if ("jar" == cell.step) { // TODO only stash the project built files. all dependency libraries are restored from the local maven repo using `ant resolver-dist-lib`
+              stash name: "${cell.arch}_${cell.jdk}", useDefaultExcludes: false //, includes: '**/*.jar' //, includes: "*.jar,classes/**,test/classes/**,tools/**"
             }
             dir("build") {
               sh "xz -f ${logfile}"
               archiveArtifacts artifacts: "*${logfile}.xz", fingerprint: true
-              copyToNightlies("${logfile}.xz", "${cell.step}/jdk${cell.jdk}/${cell.arch}/")
+              copyToNightlies("${logfile}.xz,${command.toCopy}", "${cell.step}/jdk${cell.jdk}/${cell.arch}/")
             }
             cleanAgent(cell.step)
         }
@@ -305,7 +308,9 @@ def test(command, cell) {
   def splits = command.splits ? command.splits : 1
   def python = cell.python
   def cython = cell.cython
+  def retryCount = 0
   retry(2) {
+    retryCount++
     node(getNodeLabel(command, cell)) {
       withEnv(cell.collect { k, v -> "${k}=${v}" }) {
         ws("workspace/${JOB_NAME}/${BUILD_NUMBER}/${cell.step}/${cell.arch}/jdk-${cell.jdk}/python-${cell.python}") {
@@ -313,7 +318,7 @@ def test(command, cell) {
           cleanWs()
           fetchSource(cell.step, cell.arch, cell.jdk)
           def cell_suffix = "_jdk${cell.jdk}_python_${cell.python}_${cell.cython}_${cell.arch}_${cell.split}_${splits}"
-          def logfile = "stage-logs/${JOB_NAME}_${BUILD_NUMBER}_${cell.step}${cell_suffix}.log"
+          def logfile = "stage-logs/${JOB_NAME}_${BUILD_NUMBER}_${cell.step}${cell_suffix}_attempt${retryCount}.log"
 
           // pipe to tee needs pipefail
           def script_vars = "#!/bin/bash \n set -o pipefail ; "
@@ -325,34 +330,38 @@ def test(command, cell) {
             checkout changelog: false, poll: false, scm: scmGit(branches: [[name: params.dtest_branch]], extensions: [cloneOption(depth: 1, noTags: true, reference: '', shallow: true), [$class: 'RelativeTargetDirectory', relativeTargetDir: "${WORKSPACE}/build/cassandra-dtest"]], userRemoteConfigs: [[url: params.dtest_repository]])
             script_vars = "${script_vars} cassandra_dtest_dir='${WORKSPACE}/build/cassandra-dtest'"
           }
-          catchError(buildResult: null, message: 'Tests failed', stageResult: 'FAILURE') {
-            if (cell.step.startsWith("jvm-dtest-upgrade")) {
-                try {
-                    unstash name: "jvm_dtests_${arch}_${jdk}"
-                } catch (error) {
-                    sh label: "RUNNING build_dtest_jars...", script: "${script_vars} .build/docker/run-tests.sh build_dtest_jars ${cell.jdk} 2>&1 | tee build/${logfile}"
-                    stash name: "jvm_dtests_${cell.arch}_${cell.jdk}", includes: '**/dtest*.jar'
-                }
+          if (cell.step.startsWith("jvm-dtest-upgrade")) {
+              try {
+                  unstash name: "jvm_dtests_${arch}_${jdk}"
+              } catch (error) {
+                  sh label: "RUNNING build_dtest_jars...", script: "${script_vars} .build/docker/run-tests.sh build_dtest_jars ${cell.jdk} 2>&1 | tee build/${logfile}"
+                  stash name: "jvm_dtests_${cell.arch}_${cell.jdk}", includes: '**/dtest*.jar'
+              }
+          }
+          status = sh label: "RUNNING TESTS ${cell.step}...", script: "${script_vars} .build/docker/run-tests.sh ${cell.step} '${cell.split}/${splits}' ${cell.jdk} 2>&1 | tee -a build/${logfile}", returnStatus: true
+          if (0 != status) {
+            echo "${cell.step} returned error ${status}"
+            dir("build") {  
+              sh "xz -f ${logfile}"
+              archiveArtifacts artifacts: "${logfile}.xz", fingerprint: true
             }
-            sh label: "RUNNING TESTS ${cell.step}...", script: "${script_vars} .build/docker/run-tests.sh ${cell.step} '${cell.split}/${splits}' ${cell.jdk} 2>&1 | tee -a build/${logfile}"
-            dir("build") {
-              // unique files names
-              sh """
-                    mkdir -p test/output/${cell.step}
-                    find test/output -type f -name TEST*.xml -execdir mkdir -p jdk_${cell.jdk}/${cell.arch} ';' -execdir mv {} jdk_${cell.jdk}/${cell.arch}/{} ';'
-                    find test/output -name cqlshlib.xml -execdir mv cqlshlib.xml ${cell.step}/cqlshlib${cell_suffix}.xml ';'
-                    find test/output -name nosetests.xml -execdir mv nosetests.xml ${cell.step}/nosetests${cell_suffix}.xml ';'
-                """
-              junit testResults: "test/**/TEST-*.xml,test/**/cqlshlib*.xml,test/**/nosetests*.xml", testDataPublishers: [[$class: 'StabilityTestDataPublisher']]
-
-              // compress
-              sh "find test/output -type f -name *.xml -exec sh -c 'xz -f {} &' ';' ; wait "
-            }
+            error("Stage ${cell.step}${cell_suffix} failed")
           }
           dir("build") {
-              sh "xz -f ${logfile}"
-              archiveArtifacts artifacts: "${logfile}.xz,test/logs/**,test/**/TEST-*.xml.xz,test/**/cqlshlib*.xml.xz,test/**/nosetests*.xml.xz", fingerprint: true
-              copyToNightlies("${logfile}.xz,test/logs/**", "${cell.step}/${cell.arch}/jdk${cell.jdk}/python${cell.python}/cython_${cell.cython}/" + "split_${cell.split}_${splits}".replace("/", "_"))
+            // unique test files names
+            sh """
+                  mkdir -p test/output/${cell.step}
+                  find test/output -type f -name TEST*.xml -execdir mkdir -p jdk_${cell.jdk}/${cell.arch} ';' -execdir mv {} jdk_${cell.jdk}/${cell.arch}/{} ';'
+                  find test/output -name cqlshlib.xml -execdir mv cqlshlib.xml ${cell.step}/cqlshlib${cell_suffix}.xml ';'
+                  find test/output -name nosetests.xml -execdir mv nosetests.xml ${cell.step}/nosetests${cell_suffix}.xml ';'
+              """
+            junit testResults: "test/**/TEST-*.xml,test/**/cqlshlib*.xml,test/**/nosetests*.xml", testDataPublishers: [[$class: 'StabilityTestDataPublisher']]
+            // compress files
+            sh "find test/output -type f -name *.xml -exec sh -c 'xz -f {} &' ';' ; wait "
+            sh "xz -f ${logfile}"
+            // archive and nightly
+            archiveArtifacts artifacts: "${logfile}.xz,test/logs/**,test/**/TEST-*.xml.xz,test/**/cqlshlib*.xml.xz,test/**/nosetests*.xml.xz", fingerprint: true
+            copyToNightlies("${logfile}.xz,test/logs/**", "${cell.step}/${cell.arch}/jdk${cell.jdk}/python${cell.python}/cython_${cell.cython}/" + "split_${cell.split}_${splits}".replace("/", "_"))
           }
           cleanAgent(cell.step)
         }
