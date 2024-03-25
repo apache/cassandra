@@ -47,6 +47,7 @@ import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
+import static com.google.common.collect.ImmutableList.of;
 import static org.apache.cassandra.tcm.Transformation.Kind.FINISH_LEAVE;
 import static org.apache.cassandra.tcm.Transformation.Kind.MID_LEAVE;
 import static org.apache.cassandra.tcm.Transformation.Kind.START_LEAVE;
@@ -146,6 +147,12 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
     public Transformation.Kind nextStep()
     {
         return indexToNext(idx);
+    }
+
+    @Override
+    public Transformation.Result applyTo(ClusterMetadata metadata)
+    {
+        return applyMultipleTransformations(metadata, next, of(startLeave, midLeave, finishLeave));
     }
 
     @Override

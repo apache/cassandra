@@ -54,7 +54,7 @@ public class ClusterMetadataTest
     }
 
     @Test
-    public void testWritePlacementAllSettledLeaving() throws ExecutionException, InterruptedException
+    public void testWritePlacementAllSettledLeaving()
     {
         for (int i = 1; i <= 4; i++)
         {

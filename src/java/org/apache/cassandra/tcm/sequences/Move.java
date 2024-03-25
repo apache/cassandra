@@ -71,6 +71,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
+import static com.google.common.collect.ImmutableList.of;
 import static org.apache.cassandra.tcm.Transformation.Kind.FINISH_MOVE;
 import static org.apache.cassandra.tcm.Transformation.Kind.MID_MOVE;
 import static org.apache.cassandra.tcm.Transformation.Kind.START_MOVE;
@@ -169,9 +170,16 @@ public class Move extends MultiStepOperation<Epoch>
         return NodeId.serializer;
     }
 
-    @Override public Transformation.Kind nextStep()
+    @Override
+    public Transformation.Kind nextStep()
     {
         return indexToNext(idx);
+    }
+
+    @Override
+    public Transformation.Result applyTo(ClusterMetadata metadata)
+    {
+        return applyMultipleTransformations(metadata, next, of(startMove, midMove, finishMove));
     }
 
     @Override
