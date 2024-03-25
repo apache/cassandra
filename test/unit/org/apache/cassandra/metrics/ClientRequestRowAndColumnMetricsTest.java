@@ -38,9 +38,9 @@ import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.transport.messages.BatchMessage;
 import org.apache.cassandra.transport.messages.QueryMessage;
 
-import static org.junit.Assert.assertEquals;
-
+import static org.apache.cassandra.metrics.CassandraMetricsRegistry.METRIC_SCOPE_UNDEFINED;
 import static org.apache.cassandra.transport.ProtocolVersion.CURRENT;
+import static org.junit.Assert.assertEquals;
 
 public class ClientRequestRowAndColumnMetricsTest extends CQLTester
 {
@@ -48,6 +48,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     public static void setup()
     {
         requireNetwork();
+        addMetricsKeyspace();
     }
 
     @Before
@@ -73,6 +74,9 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
         assertEquals(2, ClientRequestSizeMetrics.totalRowsRead.getCount());
         // The partition key is provided by the client in the request, so we don't consider those columns as read.
         assertEquals(4, ClientRequestSizeMetrics.totalColumnsRead.getCount());
+        assertRowsContains(executeNet("SELECT * FROM system_metrics.client_request_size_group"),
+                row("org.apache.cassandra.metrics.ClientRequestSize.RowsRead", METRIC_SCOPE_UNDEFINED, "counter", "2"),
+                row("org.apache.cassandra.metrics.ClientRequestSize.ColumnsRead", METRIC_SCOPE_UNDEFINED, "counter", "4"));
     }
 
     @Test

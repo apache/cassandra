@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.Session;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.OverrideConfigurationLoader;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -47,7 +48,9 @@ import org.jboss.byteman.contrib.bmunit.BMRules;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.MEMTABLE_SHARD_COUNT;
-import static org.hamcrest.Matchers.*;
+import static org.apache.cassandra.cql3.CQLTester.assertRowsContains;
+import static org.apache.cassandra.cql3.CQLTester.row;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -59,6 +62,8 @@ public class TrieMemtableMetricsTest extends SchemaLoader
 
     private static final Logger logger = LoggerFactory.getLogger(TrieMemtableMetricsTest.class);
     private static Session session;
+    private static Cluster cluster;
+    private static EmbeddedCassandraService cassandra;
 
     private static final String KEYSPACE = "triememtable";
     private static final String TABLE = "metricstest";
@@ -78,10 +83,9 @@ public class TrieMemtableMetricsTest extends SchemaLoader
         });
         MEMTABLE_SHARD_COUNT.setInt(NUM_SHARDS);
 
-        EmbeddedCassandraService cassandra = new EmbeddedCassandraService();
-        cassandra.start();
+        cassandra = ServerTestUtils.startEmbeddedCassandraService();
 
-        Cluster cluster = Cluster.builder().addContactPoint("127.0.0.1").withPort(DatabaseDescriptor.getNativeTransportPort()).build();
+        cluster = Cluster.builder().addContactPoint("127.0.0.1").withPort(DatabaseDescriptor.getNativeTransportPort()).build();
         session = cluster.connect();
 
         session.execute(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };", KEYSPACE));
@@ -114,6 +118,11 @@ public class TrieMemtableMetricsTest extends SchemaLoader
 
         long allPuts = metrics.contendedPuts.getCount() + metrics.uncontendedPuts.getCount();
         assertEquals(10, allPuts);
+        assertRowsContains(cluster, session.execute("SELECT * FROM system_metrics.trie_memtable_group"),
+                row("org.apache.cassandra.metrics.TrieMemtable.Contended memtable puts.triememtable.metricstest",
+                        "triememtable.metricstest", "counter", String.valueOf(metrics.contendedPuts.getCount())),
+                row("org.apache.cassandra.metrics.TrieMemtable.Uncontended memtable puts.triememtable.metricstest",
+                        "triememtable.metricstest", "counter", String.valueOf(metrics.uncontendedPuts.getCount())));
     }
 
     @Test
@@ -155,6 +164,9 @@ public class TrieMemtableMetricsTest extends SchemaLoader
         assertEquals(100, metrics.contendedPuts.getCount() + metrics.uncontendedPuts.getCount());
         assertThat(metrics.contendedPuts.getCount(), greaterThan(0L));
         assertThat(metrics.contentionTime.totalLatency.getCount(), greaterThan(0L));
+        assertRowsContains(cluster, session.execute("SELECT * FROM system_metrics.trie_memtable_group"),
+                row("org.apache.cassandra.metrics.TrieMemtable.Contention timeTotalLatency.triememtable.metricstest",
+                        "triememtable.metricstest", "counter", String.valueOf(metrics.contentionTime.totalLatency.getCount())));
     }
 
     @Test
@@ -203,6 +215,9 @@ public class TrieMemtableMetricsTest extends SchemaLoader
     @AfterClass
     public static void teardown()
     {
-        session.close();
+        if (cluster != null)
+            cluster.close();
+        if (cassandra != null)
+            cassandra.stop();
     }
 }

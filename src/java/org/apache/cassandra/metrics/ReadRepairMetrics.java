@@ -26,7 +26,8 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  */
 public class ReadRepairMetrics
 {
-    private static final MetricNameFactory factory = new DefaultNameFactory("ReadRepair");
+    public static final String TYPE_NAME = "ReadRepair";
+    private static final MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME);
 
     public static final Meter repairedBlocking = Metrics.meter(factory.createMetricName("RepairedBlocking"));
     public static final Meter reconcileRead = Metrics.meter(factory.createMetricName("ReconcileRead"));

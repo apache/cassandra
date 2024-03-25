@@ -31,6 +31,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 public class ClientRequestMetrics extends LatencyMetrics
 {
+    public static final String TYPE_NAME = "ClientRequest";
     public final Meter timeouts;
     public final Meter unavailables;
     public final Meter failures;
@@ -42,7 +43,7 @@ public class ClientRequestMetrics extends LatencyMetrics
 
     public ClientRequestMetrics(String scope)
     {
-        super("ClientRequest", scope);
+        super(TYPE_NAME, scope);
 
         timeouts = Metrics.meter(factory.createMetricName("Timeouts"));
         unavailables = Metrics.meter(factory.createMetricName("Unavailables"));
