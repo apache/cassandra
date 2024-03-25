@@ -80,6 +80,8 @@ final class HintsDescriptor
     final UUID hostId;
     final int version;
     final long timestamp;
+    final String hintsFileName;
+    final String crc32FileName;
 
     final ImmutableMap<String, Object> parameters;
     final ParameterizedClass compressionConfig;
@@ -92,6 +94,8 @@ final class HintsDescriptor
         this.hostId = hostId;
         this.version = version;
         this.timestamp = timestamp;
+        hintsFileName = hostId + "-" + timestamp + '-' + version + ".hints";
+        crc32FileName = hostId + "-" + timestamp + '-' + version + ".crc32";
         compressionConfig = createCompressionConfig(parameters);
 
         EncryptionData encryption = createEncryption(parameters);
@@ -204,12 +208,12 @@ final class HintsDescriptor
 
     String fileName()
     {
-        return String.format("%s-%s-%s.hints", hostId, timestamp, version);
+        return hintsFileName;
     }
 
     String checksumFileName()
     {
-        return String.format("%s-%s-%s.crc32", hostId, timestamp, version);
+        return crc32FileName;
     }
 
     File file(File hintsDirectory)
@@ -220,6 +224,22 @@ final class HintsDescriptor
     File checksumFile(File hintsDirectory)
     {
         return new File(hintsDirectory, checksumFileName());
+    }
+
+    /** cached size of the represented hints file */
+    private transient volatile long hintsFileSize = -1L;
+
+    long hintsFileSize(File hintsDirectory)
+    {
+        long size = hintsFileSize;
+        if (size == -1L) // we may race and duplicate lookup the first time the size is being queried, but that is fine
+            hintsFileSize = size = file(hintsDirectory).length();
+        return size;
+    }
+
+    void hintsFileSize(long value)
+    {
+        hintsFileSize = value;
     }
 
     int messagingVersion()

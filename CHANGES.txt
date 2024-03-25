@@ -28,6 +28,7 @@
  * Fix resource cleanup after SAI query timeouts (CASSANDRA-19177)
  * Suppress CVE-2023-6481 (CASSANDRA-19184)
 Merged from 4.1:
+ * Do not go to disk for reading hints file sizes (CASSANDRA-19477)
  * Fix system_views.settings to handle array types (CASSANDRA-19475)
  * Memoize Cassandra verion and add a backoff interval for failed schema pulls (CASSANDRA-18902)
  * Fix StackOverflowError on ALTER after many previous schema changes (CASSANDRA-19166)
