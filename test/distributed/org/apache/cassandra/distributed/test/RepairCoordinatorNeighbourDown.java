@@ -43,6 +43,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static java.lang.String.format;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_JVM_SHUTDOWN_MESSAGING_GRACEFULLY;
 import static org.apache.cassandra.distributed.api.IMessageFilters.Matcher.of;
+import static org.apache.cassandra.distributed.test.DistributedRepairUtils.assertNoSSTableLeak;
 import static org.apache.cassandra.distributed.test.DistributedRepairUtils.assertParentRepairFailedWithMessageContains;
 import static org.apache.cassandra.distributed.test.DistributedRepairUtils.assertParentRepairNotExist;
 import static org.apache.cassandra.distributed.test.DistributedRepairUtils.getRepairExceptions;
@@ -134,6 +135,7 @@ public abstract class RepairCoordinatorNeighbourDown extends RepairCoordinatorBa
             {
                 assertParentRepairNotExist(CLUSTER, KEYSPACE, table);
             }
+            assertNoSSTableLeak(CLUSTER, KEYSPACE, table);
         });
     }
 
@@ -198,6 +200,7 @@ public abstract class RepairCoordinatorNeighbourDown extends RepairCoordinatorBa
             {
                 assertParentRepairNotExist(CLUSTER, KEYSPACE, table);
             }
+            assertNoSSTableLeak(CLUSTER, KEYSPACE, table);
         });
     }
 }

@@ -41,6 +41,10 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.locator.RangesAtEndpoint;
+import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.repair.messages.FailSession;
+import org.apache.cassandra.repair.messages.RepairMessage;
+import org.apache.cassandra.repair.state.ParticipateState;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.commons.lang3.time.DurationFormatUtils;
@@ -211,6 +215,17 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
             reason = error != null ? error.toString() : "Some repair failed";
         }
         state.phase.fail(reason);
+        ParticipateState p = ctx.repair().participate(state.id);
+        if (p != null)
+            p.phase.fail(reason);
+        NeighborsAndRanges neighborsAndRanges = state.getNeighborsAndRanges();
+        // this is possible if the failure happened during input processing, in which case no particpates have been notified
+        if (neighborsAndRanges != null)
+        {
+            FailSession msg = new FailSession(state.id);
+            for (InetAddressAndPort participate : neighborsAndRanges.participants)
+                RepairMessage.sendMessageWithRetries(ctx, msg, Verb.FAILED_SESSION_MSG, participate);
+        }
         String completionMessage = String.format("Repair command #%d finished with error", state.cmd);
 
         // Note we rely on the first message being the reason for the failure
