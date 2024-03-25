@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.harry.gen;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -25,13 +27,47 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import org.apache.cassandra.locator.InetAddressAndPort;
+
 public class Generators
 {
+    public static class InetAddrAndPortGenerator implements Generator<InetAddressAndPort>
+    {
+        private final int port;
+        public InetAddrAndPortGenerator()
+        {
+            this(9042);
+        }
+
+        public InetAddrAndPortGenerator(int port)
+        {
+            this.port = port;
+        }
+
+        @Override
+        public InetAddressAndPort generate(EntropySource rng)
+        {
+            int orig = rng.nextInt();
+            byte[] bytes = new byte[]{ (byte) (orig & 0xff),
+                                       (byte) (orig << 8 & 0xff),
+                                       (byte) (orig << 16 & 0xff),
+                                       (byte) (orig << 24 & 0xff) };
+            try
+            {
+                return InetAddressAndPort.getByAddressOverrideDefaults(InetAddress.getByAddress(bytes), bytes, port);
+            }
+            catch (UnknownHostException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
     public static <T> Generator<T> pick(List<T> ts)
     {
-        return (rng) -> {
-            return ts.get(rng.nextInt(0, ts.size() - 1));
-        };
+        if (ts.isEmpty())
+            throw new IllegalStateException("Can't pick from an empty list");
+        return (rng) -> ts.get(rng.nextInt(0, ts.size()));
     }
 
     public static <T> Generator<T> pick(T... ts)

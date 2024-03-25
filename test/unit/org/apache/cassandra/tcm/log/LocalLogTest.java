@@ -37,8 +37,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.marshal.IntegerType;
-import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -105,7 +103,7 @@ public class LocalLogTest
 
         entries.add(new Entry(Entry.Id.NONE,
                               Epoch.create(11),
-                              new ForceSnapshot(new ClusterMetadata(new LocalPartitioner(IntegerType.instance)).forceEpoch(Epoch.create(11)))));
+                              new ForceSnapshot(new ClusterMetadata(Murmur3Partitioner.instance).forceEpoch(Epoch.create(11)))));
         Collections.shuffle(entries);
         log.append(entries);
 
@@ -133,13 +131,13 @@ public class LocalLogTest
 
         entries.add(new Entry(Entry.Id.NONE,
                               Epoch.create(11),
-                              new ForceSnapshot(new ClusterMetadata(new LocalPartitioner(IntegerType.instance)).forceEpoch(Epoch.create(11)))));
+                              new ForceSnapshot(new ClusterMetadata(Murmur3Partitioner.instance).forceEpoch(Epoch.create(11)))));
         entries.add(new Entry(Entry.Id.NONE,
                               Epoch.create(21),
-                              new ForceSnapshot(new ClusterMetadata(new LocalPartitioner(IntegerType.instance)).forceEpoch(Epoch.create(21)))));
+                              new ForceSnapshot(new ClusterMetadata(Murmur3Partitioner.instance).forceEpoch(Epoch.create(21)))));
         entries.add(new Entry(Entry.Id.NONE,
                               Epoch.create(31),
-                              new ForceSnapshot(new ClusterMetadata(new LocalPartitioner(IntegerType.instance)).forceEpoch(Epoch.create(31)))));
+                              new ForceSnapshot(new ClusterMetadata(Murmur3Partitioner.instance).forceEpoch(Epoch.create(31)))));
 
         Collections.shuffle(entries);
         log.append(entries);

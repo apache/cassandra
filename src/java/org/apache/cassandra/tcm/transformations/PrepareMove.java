@@ -67,6 +67,12 @@ public class PrepareMove implements Transformation
         this.streamData = streamData;
     }
 
+    @VisibleForTesting
+    public NodeId nodeId()
+    {
+        return nodeId;
+    }
+
     @Override
     public String toString()
     {

@@ -87,7 +87,6 @@ import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.cms.AdvanceCMSReconfiguration;
 import org.apache.cassandra.tcm.transformations.cms.PrepareCMSReconfiguration;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.tcm.transformations.cms.Initialize;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 
@@ -125,6 +124,7 @@ public class ClusterMetadataTestHelper
     {
         ClusterMetadata current = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
         LocalLog log = LocalLog.logSpec()
+                               .withInitialState(current)
                                .createLog();
         ResettableClusterMetadataService service = new ResettableClusterMetadataService(new UniformRangePlacement(),
                                                                                         MetadataSnapshots.NO_OP,
@@ -134,7 +134,6 @@ public class ClusterMetadataTestHelper
                                                                                         true);
         log.readyUnchecked();
         log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
-        service.commit(new Initialize(current));
         QueryProcessor.registerStatementInvalidatingListener();
         service.mark();
         return service;
