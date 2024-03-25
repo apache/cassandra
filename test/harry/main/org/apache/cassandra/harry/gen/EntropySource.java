@@ -19,7 +19,8 @@
 package org.apache.cassandra.harry.gen;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.cassandra.harry.gen.rng.PcgRSUFast;
+
+import org.apache.cassandra.harry.gen.rng.JdkRandomEntropySource;
 
 /**
  * Random generator interface that offers:
@@ -89,7 +90,7 @@ public interface EntropySource
     static EntropySource forTests(long seed)
     {
         System.out.println("Seed: " + seed);
-        return new PcgRSUFast(seed, 1);
+        return new JdkRandomEntropySource(seed);
     }
 }
 
