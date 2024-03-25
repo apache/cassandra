@@ -43,8 +43,10 @@ import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 
+import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 public class HintsUpgradeTest
@@ -141,6 +143,7 @@ public class HintsUpgradeTest
 
         HintsStore store = catalog.getNullable(hintProperties.hostId);
         assertNotNull(store);
+        assertThat(store.getTotalFileSize(), greaterThan(0L));
         assertEquals(hintProperties.hostId, store.hostId);
 
         HintsDescriptor descriptor = store.poll();

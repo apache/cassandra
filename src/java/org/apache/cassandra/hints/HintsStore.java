@@ -194,8 +194,8 @@ final class HintsStore
                 if (predicate.test(descriptor))
                 {
                     cleanUp(descriptor);
-                    delete(descriptor);
                     removeSet.add(descriptor);
+                    delete(descriptor);
                 }
             }
         }
@@ -235,7 +235,6 @@ final class HintsStore
         dispatchPositions.put(descriptor, inputPosition);
     }
 
-
     /**
      * @return the total size of all files belonging to the hints store, in bytes.
      */
@@ -243,9 +242,12 @@ final class HintsStore
     {
         long total = 0;
         for (HintsDescriptor descriptor : Iterables.concat(dispatchDequeue, corruptedFiles))
-        {
-            total += descriptor.file(hintsDirectory).length();
-        }
+            total += descriptor.hintsFileSize(hintsDirectory);
+
+        HintsWriter currentWriter = getWriter();
+        if (null != currentWriter)
+            total += currentWriter.descriptor().hintsFileSize(hintsDirectory);
+
         return total;
     }
 
