@@ -46,6 +46,7 @@ import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
 
+import static java.lang.String.format;
 import static java.util.Comparator.comparing;
 
 import static com.google.common.collect.Iterables.concat;
@@ -126,6 +127,16 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
         if (!table.params.compression.isEnabled())
             Guardrails.uncompressedTablesEnabled.ensureEnabled(state);
+
+        if (table.params.transactionalMode.accordIsEnabled && SchemaConstants.isSystemKeyspace(keyspaceName))
+            throw ire("Cannot enable accord on system tables (%s.%s)", keyspaceName, tableName);
+
+        if (table.params.transactionalMode.accordIsEnabled && !DatabaseDescriptor.getAccordTransactionsEnabled())
+            throw ire(format("Cannot create table %s.%s with transactional mode %s with accord.enabled set to false",
+                             keyspaceName, tableName, table.params.transactionalMode));
+
+        if (table.params.transactionalMigrationFrom.isMigrating())
+            throw ire("Cannot set transactional migration on new tables (%s.%s), %s", keyspaceName, tableName, table.params.transactionalMigrationFrom);
 
         return schema.withAddedOrUpdated(keyspace.withSwapped(keyspace.tables.with(table)));
     }

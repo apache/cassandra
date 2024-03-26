@@ -169,9 +169,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ViewMetadata;
-import org.apache.cassandra.service.accord.AccordService;
-import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState;
-import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationState;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.service.paxos.PaxosCommit;
@@ -256,8 +254,8 @@ import static org.apache.cassandra.service.StorageService.Mode.DECOMMISSIONED;
 import static org.apache.cassandra.service.StorageService.Mode.DECOMMISSION_FAILED;
 import static org.apache.cassandra.service.StorageService.Mode.JOINING_FAILED;
 import static org.apache.cassandra.service.StorageService.Mode.NORMAL;
-import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.finishMigrationToConsensusProtocol;
-import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.startMigrationToConsensusProtocol;
+import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigration.finishMigrationToConsensusProtocol;
+import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigration.startMigrationToConsensusProtocol;
 import static org.apache.cassandra.tcm.membership.NodeState.BOOTSTRAPPING;
 import static org.apache.cassandra.tcm.membership.NodeState.BOOT_REPLACING;
 import static org.apache.cassandra.tcm.membership.NodeState.JOINED;
@@ -1656,18 +1654,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         checkArgument(!keyspace.equals(SchemaConstants.METADATA_KEYSPACE_NAME));
         return finishMigrationToConsensusProtocol(keyspace, Optional.ofNullable(maybeTableNames), Optional.ofNullable(maybeRangesStr));
-    }
-
-    @Override
-    public void setConsensusMigrationTargetProtocol(@Nonnull String targetProtocol,
-                                                    @Nullable List<String> keyspaceNames,
-                                                    @Nullable List<String> maybeTableNames)
-    {
-        checkNotNull(targetProtocol, "targetProtocol is null");
-        checkNotNull(keyspaceNames, "keyspaceNames is null");
-        checkArgument(!keyspaceNames.contains(SchemaConstants.METADATA_KEYSPACE_NAME));
-
-        ConsensusTableMigrationState.setConsensusMigrationTargetProtocol(targetProtocol, keyspaceNames, Optional.ofNullable(maybeTableNames));
     }
 
     @Override
@@ -4355,7 +4341,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         Keyspaces keyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
         return keyspaces.stream().flatMap(ks -> ks.tables.stream())
-                .filter(tbm -> AccordService.instance().isAccordManagedTable(tbm.id))
+                .filter(TableMetadata::requiresAccordSupport)
                 .map(tbm -> tbm.keyspace)
                 .distinct()
                 .sorted()
@@ -4365,10 +4351,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public List<String> getAccordManagedTables()
     {
-        // TODO (review) These are really just the ones Accord is aware of not necessarily managed
         Keyspaces keyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
         return keyspaces.stream().flatMap(ks -> ks.tables.stream())
-                        .filter(tbm -> AccordService.instance().isAccordManagedTable(tbm.id))
+                        .filter(TableMetadata::requiresAccordSupport)
                         .map(tbm -> tbm.keyspace + '.' + tbm.name)
                         .collect(toList());
     }
