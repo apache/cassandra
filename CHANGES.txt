@@ -1,4 +1,5 @@
 5.1
+ * Add option for MutualTlsAuthenticator to restrict the certificate validity period (CASSANDRA-18951)
  * Fix StorageService::constructRangeToEndpointMap for non-distributed keyspaces (CASSANDRA-19255)
  * Group nodetool cms commands into single command group (CASSANDRA-19393)
  * Register the measurements of the bootstrap process as Dropwizard metrics (CASSANDRA-19447)
