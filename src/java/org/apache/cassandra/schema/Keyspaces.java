@@ -121,6 +121,15 @@ public final class Keyspaces implements Iterable<KeyspaceMetadata>
         return tables.get(id);
     }
 
+    public KeyspaceMetadata getContainingKeyspaceMetadata(TableId tableId)
+    {
+        TableMetadata tableMetadata = getTableOrViewNullable(tableId);
+        if (tableMetadata == null)
+            throw new IllegalStateException("Can't find table " + tableId);
+
+        return keyspaces.get(tableMetadata.keyspace);
+    }
+
     public boolean isEmpty()
     {
         return keyspaces.isEmpty();

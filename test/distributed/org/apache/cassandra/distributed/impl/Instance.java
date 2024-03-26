@@ -486,6 +486,19 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }
     }
 
+    @VisibleForTesting
+    public static Message.Header deserializeHeader(IMessage message)
+    {
+        try (DataInputBuffer in = new DataInputBuffer(message.bytes()))
+        {
+            return Message.serializer.deserializeHeader(in, toCassandraInetAddressAndPort(message.from()), message.version());
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException("Can not deserialize heaader " + message, t);
+        }
+    }
+
     @Override
     public void receiveMessage(IMessage message)
     {

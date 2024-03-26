@@ -33,6 +33,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.SharedContext;
+import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -55,6 +56,7 @@ public class PaxosCleanup extends AsyncFuture<Void> implements Runnable
     private final Collection<Range<Token>> ranges;
     private final boolean skippedReplicas;
     private final Executor executor;
+    private final boolean isUrgent;
 
     // references kept for debugging
     private PaxosStartPrepareCleanup startPrepare;
@@ -70,6 +72,7 @@ public class PaxosCleanup extends AsyncFuture<Void> implements Runnable
         this.ranges = ranges;
         this.skippedReplicas = skippedReplicas;
         this.executor = executor;
+        this.isUrgent = Keyspace.open(table.keyspace).getMetadata().params.replication.isMeta();
     }
 
     private <T> void addCallback(Future<T> future, Consumer<T> onComplete)
@@ -87,28 +90,28 @@ public class PaxosCleanup extends AsyncFuture<Void> implements Runnable
     public void run()
     {
         EndpointState localEpState = ctx.gossiper().getEndpointStateForEndpoint(ctx.broadcastAddressAndPort());
-        startPrepare = PaxosStartPrepareCleanup.prepare(ctx, table.id, endpoints, localEpState, ranges);
+        startPrepare = PaxosStartPrepareCleanup.prepare(ctx, table.id, endpoints, localEpState, ranges, isUrgent);
         addCallback(startPrepare, this::finishPrepare);
     }
 
     private void finishPrepare(PaxosCleanupHistory result)
     {
         ctx.nonPeriodicTasks().schedule(() -> {
-            finishPrepare = PaxosFinishPrepareCleanup.finish(ctx, endpoints, result);
+            finishPrepare = PaxosFinishPrepareCleanup.finish(ctx, endpoints, isUrgent, result);
             addCallback(finishPrepare, (v) -> startSession(result.highBound));
         }, Math.min(getCasContentionTimeout(MILLISECONDS), getWriteRpcTimeout(MILLISECONDS)), MILLISECONDS);
     }
 
     private void startSession(Ballot lowBound)
     {
-        session = new PaxosCleanupSession(ctx, endpoints, table.id, ranges);
+        session = new PaxosCleanupSession(ctx, endpoints, table.id, ranges, isUrgent);
         addCallback(session, (v) -> finish(lowBound));
         executor.execute(session);
     }
 
     private void finish(Ballot lowBound)
     {
-        complete = new PaxosCleanupComplete(ctx, endpoints, table.id, ranges, lowBound, skippedReplicas);
+        complete = new PaxosCleanupComplete(ctx, endpoints, table.id, ranges, lowBound, skippedReplicas, isUrgent);
         addCallback(complete, this::trySuccess);
         executor.execute(complete);
     }

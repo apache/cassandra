@@ -38,6 +38,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -75,6 +76,7 @@ public class PaxosCleanupRequest
         return in -> {
             PaxosCleanupRequest request = in.payload;
 
+            boolean isUrgent = in.header.hasFlag(MessageFlag.URGENT);
             if (!PaxosCleanup.isInRangeAndShouldProcess(ctx, request.ranges, request.tableId))
             {
                 // Try catching up, in case it's us
@@ -82,24 +84,24 @@ public class PaxosCleanupRequest
 
                 String msg = String.format("Rejecting cleanup request %s from %s. Some ranges are not replicated (%s)",
                                            request.session, in.from(), request.ranges);
-                Message<PaxosCleanupResponse> response = Message.out(PAXOS2_CLEANUP_RSP2, PaxosCleanupResponse.failed(request.session, msg));
+                Message<PaxosCleanupResponse> response = Message.out(PAXOS2_CLEANUP_RSP2, PaxosCleanupResponse.failed(request.session, msg), isUrgent);
                 ctx.messaging().send(response, in.respondTo());
                 return;
             }
 
             PaxosCleanupLocalCoordinator coordinator = PaxosCleanupLocalCoordinator.create(ctx, request);
 
-            coordinator.addCallback(new FutureCallback<PaxosCleanupResponse>()
+            coordinator.addCallback(new FutureCallback<>()
             {
                 public void onSuccess(@Nullable PaxosCleanupResponse finished)
                 {
-                    Message<PaxosCleanupResponse> response = Message.out(PAXOS2_CLEANUP_RSP2, coordinator.getNow());
+                    Message<PaxosCleanupResponse> response = Message.out(PAXOS2_CLEANUP_RSP2, coordinator.getNow(), isUrgent);
                     ctx.messaging().send(response, in.respondTo());
                 }
 
                 public void onFailure(Throwable throwable)
                 {
-                    Message<PaxosCleanupResponse> response = Message.out(PAXOS2_CLEANUP_RSP2, PaxosCleanupResponse.failed(request.session, throwable.getMessage()));
+                    Message<PaxosCleanupResponse> response = Message.out(PAXOS2_CLEANUP_RSP2, PaxosCleanupResponse.failed(request.session, throwable.getMessage()), isUrgent);
                     ctx.messaging().send(response, in.respondTo());
                 }
             });
@@ -112,7 +114,7 @@ public class PaxosCleanupRequest
     }
     public static final IVerbHandler<PaxosCleanupRequest> verbHandler = createVerbHandler(SharedContext.Global.instance);
 
-    public static final IVersionedSerializer<PaxosCleanupRequest> serializer = new IVersionedSerializer<PaxosCleanupRequest>()
+    public static final IVersionedSerializer<PaxosCleanupRequest> serializer = new IVersionedSerializer<>()
     {
         public void serialize(PaxosCleanupRequest completer, DataOutputPlus out, int version) throws IOException
         {

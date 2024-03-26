@@ -535,6 +535,11 @@ public class Paxos
         {
             throw new UnsupportedOperationException();
         }
+
+        public boolean isUrgent()
+        {
+            return keyspace.getMetadata().params.replication.isMeta();
+        }
     }
 
     /**

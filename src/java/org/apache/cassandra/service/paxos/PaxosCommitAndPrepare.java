@@ -49,8 +49,8 @@ public class PaxosCommitAndPrepare
         PaxosPrepare prepare = new PaxosPrepare(participants, request, acceptEarlyReadSuccess, null);
 
         Tracing.trace("Committing {}; Preparing {}", commit.ballot, ballot);
-        Message<Request> message = Message.out(PAXOS2_COMMIT_AND_PREPARE_REQ, request);
-//                .permitsArtificialDelay(participants.consistencyForConsensus);
+        Message<Request> message = Message.out(PAXOS2_COMMIT_AND_PREPARE_REQ, request, participants.isUrgent());
+
         start(prepare, participants, message, RequestHandler::execute);
         return prepare;
     }

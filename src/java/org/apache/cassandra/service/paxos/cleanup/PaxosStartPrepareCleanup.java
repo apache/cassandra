@@ -77,12 +77,12 @@ public class PaxosStartPrepareCleanup extends AsyncFuture<PaxosCleanupHistory> i
      * prepare message to prevent racing with gossip dissemination and guarantee that every repair participant is aware
      * of the pending ring change during repair.
      */
-    public static PaxosStartPrepareCleanup prepare(SharedContext ctx, TableId tableId, Collection<InetAddressAndPort> endpoints, EndpointState localEpState, Collection<Range<Token>> ranges)
+    public static PaxosStartPrepareCleanup prepare(SharedContext ctx, TableId tableId, Collection<InetAddressAndPort> endpoints, EndpointState localEpState, Collection<Range<Token>> ranges, boolean isUrgent)
     {
         PaxosStartPrepareCleanup callback = new PaxosStartPrepareCleanup(tableId, endpoints);
         synchronized (callback)
         {
-            Message<Request> message = Message.out(PAXOS2_CLEANUP_START_PREPARE_REQ, new Request(tableId, localEpState, ranges));
+            Message<Request> message = Message.out(PAXOS2_CLEANUP_START_PREPARE_REQ, new Request(tableId, localEpState, ranges), isUrgent);
             for (InetAddressAndPort endpoint : endpoints)
                 ctx.messaging().sendWithCallback(message, endpoint, callback);
         }

@@ -52,8 +52,9 @@ public class PaxosCleanupComplete extends AsyncFuture<Void> implements RequestCa
     final Ballot lowBound;
     final boolean skippedReplicas;
     private final SharedContext ctx;
+    private final boolean isUrgent;
 
-    PaxosCleanupComplete(SharedContext ctx, Collection<InetAddressAndPort> endpoints, TableId tableId, Collection<Range<Token>> ranges, Ballot lowBound, boolean skippedReplicas)
+    PaxosCleanupComplete(SharedContext ctx, Collection<InetAddressAndPort> endpoints, TableId tableId, Collection<Range<Token>> ranges, Ballot lowBound, boolean skippedReplicas, boolean isUrgent)
     {
         this.ctx = ctx;
         this.waitingResponse = new HashSet<>(endpoints);
@@ -61,13 +62,16 @@ public class PaxosCleanupComplete extends AsyncFuture<Void> implements RequestCa
         this.ranges = ranges;
         this.lowBound = lowBound;
         this.skippedReplicas = skippedReplicas;
+        this.isUrgent = isUrgent;
     }
 
     public synchronized void run()
     {
         Request request = !skippedReplicas ? new Request(tableId, lowBound, ranges)
                                            : new Request(tableId, Ballot.none(), Collections.emptyList());
-        Message<Request> message = Message.out(PAXOS2_CLEANUP_COMPLETE_REQ, request);
+
+        Message<Request> message = Message.out(PAXOS2_CLEANUP_COMPLETE_REQ, request, isUrgent);
+
         for (InetAddressAndPort endpoint : waitingResponse)
             ctx.messaging().sendWithCallback(message, endpoint, this);
     }
