@@ -358,7 +358,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
     private static PaxosPrepare prepareWithBallotInternal(Participants participants, Request request, boolean acceptEarlyReadPermission, Consumer<Status> onDone)
     {
         PaxosPrepare prepare = new PaxosPrepare(participants, request, acceptEarlyReadPermission, onDone);
-        Message<Request> message = Message.out(PAXOS2_PREPARE_REQ, request);
+        Message<Request> message = Message.out(PAXOS2_PREPARE_REQ, request, participants.isUrgent());
         start(prepare, participants, message, RequestHandler::execute);
         return prepare;
     }

@@ -229,9 +229,10 @@ public class OutboundConnections
             return LARGE_MESSAGES;
         }
 
-        return msg.verb().priority == Verb.Priority.P0
-               ? URGENT_MESSAGES
-               : SMALL_MESSAGES;
+        if (msg.verb().priority == Verb.Priority.P0 || msg.header.hasFlag(MessageFlag.URGENT))
+            return URGENT_MESSAGES;
+        else
+            return SMALL_MESSAGES;
     }
 
     @VisibleForTesting
