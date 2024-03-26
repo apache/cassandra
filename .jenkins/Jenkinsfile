@@ -278,7 +278,12 @@ def build(command, cell) {
             cleanAgent(cell.step)
             cleanWs()
             fetchSource(cell.step, cell.arch, cell.jdk)
-            def logfile = "stage-logs/${JOB_NAME}_${BUILD_NUMBER}_${cell.step}_jdk${cell.jdk}_${cell.arch}_attempt${retryCount}.log"
+            sh """
+                test -f .jenkins/Jenkinsfile || { echo "Invalid git fork/branch"; exit 1; }
+                grep -q "Jenkins CI declaration" .jenkins/Jenkinsfile || { echo "Only Cassandra 5.0+ supported"; exit 1; }
+               """
+            def cell_suffix = "_jdk${cell.jdk}_${cell.arch}"
+            def logfile = "stage-logs/${JOB_NAME}_${BUILD_NUMBER}_${cell.step}${cell_suffix}_attempt${retryCount}.log"
             def script_vars = "#!/bin/bash \n set -o pipefail ; " // pipe to tee needs pipefail
             status = sh label: "RUNNING ${cell.step}...", script: "${script_vars} ${build_script} ${cell.jdk} 2>&1 | tee build/${logfile}", returnStatus: true
             if (0 != status) {
@@ -328,6 +333,7 @@ def test(command, cell) {
           }
           if (command.containsKey('python-dtest')) {
             checkout changelog: false, poll: false, scm: scmGit(branches: [[name: params.dtest_branch]], extensions: [cloneOption(depth: 1, noTags: true, reference: '', shallow: true), [$class: 'RelativeTargetDirectory', relativeTargetDir: "${WORKSPACE}/build/cassandra-dtest"]], userRemoteConfigs: [[url: params.dtest_repository]])
+            sh "test -f build/cassandra-dtest/requirements.txt || { echo 'Invalid cassandra-dtest fork/branch'; exit 1; }"
             script_vars = "${script_vars} cassandra_dtest_dir='${WORKSPACE}/build/cassandra-dtest'"
           }
           if (cell.step.startsWith("jvm-dtest-upgrade")) {
