@@ -66,7 +66,7 @@ public class TxnAuthTest extends CQLTester
     @Before
     public void setUpTest()
     {
-        createTable("CREATE TABLE %s (k int, v int, PRIMARY KEY(k))");
+        createTable("CREATE TABLE %s (k int, v int, PRIMARY KEY(k)) WITH transactional_mode='full'");
     }
 
     @Test

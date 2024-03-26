@@ -50,7 +50,7 @@ import org.apache.cassandra.repair.asymmetric.ReduceHelper;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationRepairResult;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationRepairResult;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanup;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tcm.ClusterMetadata;

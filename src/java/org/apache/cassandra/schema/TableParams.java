@@ -33,6 +33,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
+import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.service.reads.PercentileSpeculativeRetryPolicy;
@@ -71,7 +73,9 @@ public final class TableParams
         CRC_CHECK_CHANCE,
         CDC,
         READ_REPAIR,
-        FAST_PATH;
+        FAST_PATH,
+        TRANSACTIONAL_MODE,
+        TRANSACTIONAL_MIGRATION_FROM;
 
         @Override
         public String toString()
@@ -100,6 +104,8 @@ public final class TableParams
     public final boolean cdc;
     public final ReadRepairStrategy readRepair;
     public final FastPathStrategy fastPath;
+    public final TransactionalMode transactionalMode;
+    public final TransactionalMigrationFromMode transactionalMigrationFrom;
 
     private TableParams(Builder builder)
     {
@@ -125,6 +131,8 @@ public final class TableParams
         cdc = builder.cdc;
         readRepair = builder.readRepair;
         fastPath = builder.fastPath;
+        transactionalMode = builder.transactionalMode != null ? builder.transactionalMode : TransactionalMode.off;
+        transactionalMigrationFrom = builder.transactionalMigrationFrom;
     }
 
     public static Builder builder()
@@ -153,7 +161,9 @@ public final class TableParams
                             .extensions(params.extensions)
                             .cdc(params.cdc)
                             .readRepair(params.readRepair)
-                            .fastPath(params.fastPath);
+                            .fastPath(params.fastPath)
+                            .transactionalMode(params.transactionalMode)
+                            .transactionalMigrationFrom(params.transactionalMigrationFrom);
     }
 
     public Builder unbuild()
@@ -245,7 +255,9 @@ public final class TableParams
             && extensions.equals(p.extensions)
             && cdc == p.cdc
             && readRepair == p.readRepair
-            && fastPath.equals(fastPath);
+            && fastPath.equals(fastPath)
+            && transactionalMode == p.transactionalMode
+            && transactionalMigrationFrom == p.transactionalMigrationFrom;
     }
 
     @Override
@@ -270,7 +282,9 @@ public final class TableParams
                                 extensions,
                                 cdc,
                                 readRepair,
-                                fastPath);
+                                fastPath,
+                                transactionalMode,
+                                transactionalMigrationFrom);
     }
 
     @Override
@@ -298,6 +312,8 @@ public final class TableParams
                           .add(CDC.toString(), cdc)
                           .add(READ_REPAIR.toString(), readRepair)
                           .add(Option.FAST_PATH.toString(), fastPath)
+                          .add(Option.TRANSACTIONAL_MODE.toString(), transactionalMode)
+                          .add(Option.TRANSACTIONAL_MIGRATION_FROM.toString(), transactionalMigrationFrom)
                           .toString();
     }
 
@@ -348,8 +364,17 @@ public final class TableParams
                .append("AND min_index_interval = ").append(minIndexInterval)
                .newLine()
                .append("AND read_repair = ").appendWithSingleQuotes(readRepair.toString())
-               .newLine()
-               .append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString());
+               .newLine();
+
+        if (!isView)
+        {
+               builder.append("AND transactional_mode = ").appendWithSingleQuotes(transactionalMode.toString())
+                      .newLine()
+                      .append("AND transactional_migration_from = ").appendWithSingleQuotes(transactionalMigrationFrom.toString())
+                      .newLine();
+        }
+
+        builder.append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString());
     }
 
     public static final class Builder
@@ -374,6 +399,8 @@ public final class TableParams
         private boolean cdc;
         private ReadRepairStrategy readRepair = ReadRepairStrategy.BLOCKING;
         private FastPathStrategy fastPath = FastPathStrategy.inheritKeyspace();
+        private TransactionalMode transactionalMode = TransactionalMode.off;
+        public TransactionalMigrationFromMode transactionalMigrationFrom = TransactionalMigrationFromMode.none;
 
         public Builder()
         {
@@ -498,6 +525,18 @@ public final class TableParams
             return this;
         }
 
+        public Builder transactionalMode(TransactionalMode val)
+        {
+            transactionalMode = val;
+            return this;
+        }
+
+        public Builder transactionalMigrationFrom(TransactionalMigrationFromMode val)
+        {
+            transactionalMigrationFrom = val;
+            return this;
+        }
+
         public Builder extensions(Map<String, ByteBuffer> val)
         {
             extensions = ImmutableMap.copyOf(val);
@@ -534,6 +573,8 @@ public final class TableParams
             {
                 out.writeBoolean(t.allowAutoSnapshot);
                 out.writeBoolean(t.incrementalBackups);
+                out.writeInt(t.transactionalMode.ordinal());
+                out.writeInt(t.transactionalMigrationFrom.ordinal());
             }
         }
 
@@ -559,7 +600,9 @@ public final class TableParams
                    .cdc(in.readBoolean())
                    .readRepair(ReadRepairStrategy.fromString(in.readUTF()))
                    .allowAutoSnapshot(!version.isAtLeast(Version.V4) || in.readBoolean())
-                   .incrementalBackups(!version.isAtLeast(Version.V4) || in.readBoolean());
+                   .incrementalBackups(!version.isAtLeast(Version.V4) || in.readBoolean())
+                   .transactionalMode(version.isAtLeast(Version.V4) ? TransactionalMode.fromOrdinal(in.readInt()) : TransactionalMode.off)
+                   .transactionalMigrationFrom(version.isAtLeast(Version.V4) ? TransactionalMigrationFromMode.fromOrdinal(in.readInt()) : TransactionalMigrationFromMode.off);
             return builder.build();
         }
 
@@ -584,7 +627,9 @@ public final class TableParams
                    sizeof(t.cdc) +
                    sizeof(t.readRepair.name()) +
                    (version.isAtLeast(Version.V4) ? sizeof(t.allowAutoSnapshot) : 0) +
-                   (version.isAtLeast(Version.V4) ? sizeof(t.incrementalBackups) : 0);
+                   (version.isAtLeast(Version.V4) ? sizeof(t.incrementalBackups) : 0) +
+                   (version.isAtLeast(Version.V4) ? sizeof(t.transactionalMode.ordinal()) : 0) +
+                   (version.isAtLeast(Version.V4) ? sizeof(t.transactionalMigrationFrom.ordinal()) : 0);
         }
 
         private void serializeMap(Map<String, String> map, DataOutputPlus out) throws IOException

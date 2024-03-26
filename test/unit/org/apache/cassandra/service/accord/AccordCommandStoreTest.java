@@ -57,9 +57,11 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.Pair;
 
 import static accord.local.Status.Durability.Majority;
@@ -82,7 +84,9 @@ public class AccordCommandStoreTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace("ks", KeyspaceParams.simple(1),
-                                    parse("CREATE TABLE tbl (k int, c int, v int, primary key (k, c))", "ks"));
+                                    parse("CREATE TABLE tbl (k int, c int, v int, primary key (k, c)) WITH transactional_mode='full'", "ks"));
+        TableMetadata tbl = Schema.instance.getTableMetadata("ks", "tbl");
+        Assert.assertEquals(TransactionalMode.full, tbl.params.transactionalMode);
         StorageService.instance.initServer();
     }
 
