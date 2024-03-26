@@ -1058,6 +1058,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         return reqdEndpointState;
     }
 
+    @Override
     public void notifyFailureDetector(Map<InetAddressAndPort, EndpointState> remoteEpStateMap)
     {
         for (Entry<InetAddressAndPort, EndpointState> entry : remoteEpStateMap.entrySet())
@@ -1343,6 +1344,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
     }
 
     @VisibleForTesting
+    @Override
     public void applyStateLocally(Map<InetAddressAndPort, EndpointState> epStateMap)
     {
         checkProperThreadForStateMutation();

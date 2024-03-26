@@ -37,6 +37,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
@@ -57,6 +58,8 @@ public interface SharedContext
     ExecutorFactory executorFactory();
     MBeanWrapper mbean();
     ScheduledExecutorPlus optionalTasks();
+    ScheduledExecutorPlus nonPeriodicTasks();
+    ScheduledExecutorPlus scheduledTasks();
 
     MessageDelivery messaging();
     default SharedContext withMessaging(MessageDelivery messaging)
@@ -77,6 +80,7 @@ public interface SharedContext
     IValidationManager validationManager();
     TableRepairManager repairManager(ColumnFamilyStore store);
     StreamExecutor streamExecutor();
+    PaxosRepairState paxosRepairState();
 
     class Global implements SharedContext
     {
@@ -116,6 +120,18 @@ public interface SharedContext
         public ScheduledExecutorPlus optionalTasks()
         {
             return ScheduledExecutors.optionalTasks;
+        }
+
+        @Override
+        public ScheduledExecutorPlus nonPeriodicTasks()
+        {
+            return ScheduledExecutors.nonPeriodicTasks;
+        }
+
+        @Override
+        public ScheduledExecutorPlus scheduledTasks()
+        {
+            return ScheduledExecutors.scheduledTasks;
         }
 
         @Override
@@ -171,6 +187,12 @@ public interface SharedContext
         {
             return StreamPlan::execute;
         }
+
+        @Override
+        public PaxosRepairState paxosRepairState()
+        {
+            return PaxosRepairState.instance();
+        }
     }
 
     class ForwardingSharedContext implements SharedContext
@@ -221,6 +243,18 @@ public interface SharedContext
         public ScheduledExecutorPlus optionalTasks()
         {
             return delegate().optionalTasks();
+        }
+
+        @Override
+        public ScheduledExecutorPlus nonPeriodicTasks()
+        {
+            return delegate().nonPeriodicTasks();
+        }
+
+        @Override
+        public ScheduledExecutorPlus scheduledTasks()
+        {
+            return delegate().scheduledTasks();
         }
 
         @Override
@@ -275,6 +309,12 @@ public interface SharedContext
         public StreamExecutor streamExecutor()
         {
             return delegate().streamExecutor();
+        }
+
+        @Override
+        public PaxosRepairState paxosRepairState()
+        {
+            return delegate().paxosRepairState();
         }
     }
 }

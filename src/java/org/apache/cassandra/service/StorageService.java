@@ -156,6 +156,7 @@ import org.apache.cassandra.metrics.SamplingManager;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairCoordinator;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -174,7 +175,7 @@ import org.apache.cassandra.service.paxos.PaxosCommit;
 import org.apache.cassandra.service.paxos.PaxosRepair;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupLocalCoordinator;
-import org.apache.cassandra.service.paxos.cleanup.PaxosTableRepairs;
+import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.streaming.StreamManager;
@@ -3333,7 +3334,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             return ImmediateFuture.success(null);
 
         Collection<Range<Token>> ranges = getLocalAndPendingRanges(table.keyspace);
-        PaxosCleanupLocalCoordinator coordinator = PaxosCleanupLocalCoordinator.createForAutoRepair(tableId, ranges);
+        PaxosCleanupLocalCoordinator coordinator = PaxosCleanupLocalCoordinator.createForAutoRepair(SharedContext.Global.instance, tableId, ranges);
         ScheduledExecutors.optionalTasks.submit(coordinator::start);
         return coordinator;
     }
@@ -5416,7 +5417,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void clearPaxosRepairs()
     {
         logger.info("StorageService#clearPaxosRepairs called via jmx");
-        PaxosTableRepairs.clearRepairs();
+        PaxosRepairState.instance().clearRepairs();
     }
 
     public void setSkipPaxosRepairCompatibilityCheck(boolean v)

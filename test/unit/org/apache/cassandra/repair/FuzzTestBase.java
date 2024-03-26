@@ -56,7 +56,6 @@ import accord.utils.DefaultRandom;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
-import org.agrona.collections.Long2ObjectHashMap;
 import org.agrona.collections.LongHashSet;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.concurrent.ExecutorBuilder;
@@ -120,6 +119,13 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupComplete;
+import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupHistory;
+import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupRequest;
+import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupResponse;
+import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
+import org.apache.cassandra.service.paxos.cleanup.PaxosFinishPrepareCleanup;
+import org.apache.cassandra.service.paxos.cleanup.PaxosStartPrepareCleanup;
 import org.apache.cassandra.streaming.StreamEventHandler;
 import org.apache.cassandra.streaming.StreamReceiveException;
 import org.apache.cassandra.streaming.StreamSession;
@@ -337,6 +343,12 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                     // these messages are not resilent to ephemeral issues
                     case STATUS_REQ:
                     case STATUS_RSP:
+                    // paxos repair does not support faults and will cause a TIMEOUT error, failing the repair
+                    case PAXOS2_CLEANUP_COMPLETE_REQ:
+                    case PAXOS2_CLEANUP_REQ:
+                    case PAXOS2_CLEANUP_RSP2:
+                    case PAXOS2_CLEANUP_START_PREPARE_REQ:
+                    case PAXOS2_CLEANUP_FINISH_PREPARE_REQ:
                         noFaults.add(message.id());
                         return Faults.NONE;
                     default:
@@ -652,6 +664,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
 
             // We run tests in an isolated JVM per class, so not cleaing up is safe... but if that assumption ever changes, will need to cleanup
             Stage.ANTI_ENTROPY.unsafeSetExecutor(orderedExecutor);
+            Stage.MISC.unsafeSetExecutor(orderedExecutor);
             Stage.INTERNAL_RESPONSE.unsafeSetExecutor(unorderedScheduled);
             Mockito.when(failureDetector.isAlive(Mockito.any())).thenReturn(true);
             Thread expectedThread = Thread.currentThread();
@@ -773,10 +786,46 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             }
         }
 
+        private static class CallbackKey
+        {
+            private final long id;
+            private final InetAddressAndPort peer;
+
+            private CallbackKey(long id, InetAddressAndPort peer)
+            {
+                this.id = id;
+                this.peer = peer;
+            }
+
+            @Override
+            public boolean equals(Object o)
+            {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                CallbackKey that = (CallbackKey) o;
+                return id == that.id && peer.equals(that.peer);
+            }
+
+            @Override
+            public int hashCode()
+            {
+                return Objects.hash(id, peer);
+            }
+
+            @Override
+            public String toString()
+            {
+                return "CallbackKey{" +
+                       "id=" + id +
+                       ", peer=" + peer +
+                       '}';
+            }
+        }
+
         private class Messaging implements MessageDelivery
         {
             final InetAddressAndPort broadcastAddressAndPort;
-            final Long2ObjectHashMap<CallbackContext> callbacks = new Long2ObjectHashMap<>();
+            final Map<CallbackKey, CallbackContext> callbacks = new HashMap<>();
 
             private Messaging(InetAddressAndPort broadcastAddressAndPort)
             {
@@ -809,10 +858,11 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                 CallbackContext cb;
                 if (callback != null)
                 {
-                    if (callbacks.containsKey(message.id()))
-                        throw new AssertionError("Message id " + message.id() + " already has a callback");
+                    CallbackKey key = new CallbackKey(message.id(), to);
+                    if (callbacks.containsKey(key))
+                        throw new AssertionError("Message id " + message.id() + " to " + to + " already has a callback");
                     cb = new CallbackContext(callback);
-                    callbacks.put(message.id(), cb);
+                    callbacks.put(key, cb);
                 }
                 else
                 {
@@ -858,7 +908,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                     if (cb != null)
                     {
                         unorderedScheduled.schedule(() -> {
-                            CallbackContext ctx = callbacks.remove(message.id());
+                            CallbackContext ctx = callbacks.remove(new CallbackKey(message.id(), to));
                             if (ctx != null)
                             {
                                 assert ctx == cb;
@@ -949,6 +999,21 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             {
                 return endpoints.get(ep);
             }
+
+            @Override
+            public void notifyFailureDetector(Map<InetAddressAndPort, EndpointState> remoteEpStateMap)
+            {
+
+            }
+
+            @Override
+            public void applyStateLocally(Map<InetAddressAndPort, EndpointState> epStateMap)
+            {
+                // If we were testing paxos this would be wrong...
+                // CASSANDRA-18917 added support for simulating Gossip, but gossip issues were found so couldn't merge that patch...
+                // For the paxos repair, since we don't care about paxos messages, this is ok to no-op for now, but if paxos cleanup
+                // ever was to be tested this logic would need to be implemented
+            }
         }
 
         class Node implements SharedContext
@@ -962,6 +1027,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             final Messaging messaging;
             final IValidationManager validationManager;
             private FailingBiConsumer<ColumnFamilyStore, Validator> doValidation = DEFAULT_VALIDATION;
+            final PaxosRepairState paxosRepairState;
             private final StreamExecutor defaultStreamExecutor = plan -> {
                 long delayNanos = rs.nextLong(TimeUnit.SECONDS.toNanos(5), TimeUnit.MINUTES.toNanos(10));
                 unorderedScheduled.schedule(() -> {
@@ -980,6 +1046,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                 this.tokens = tokens;
                 this.messaging = messaging;
                 this.activeRepairService = new ActiveRepairService(this);
+                this.paxosRepairState = new PaxosRepairState(this);
                 this.validationManager = (cfs, validator) -> unorderedScheduled.submit(() -> {
                     try
                     {
@@ -990,7 +1057,39 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                         validator.fail(e);
                     }
                 });
-                this.verbHandler = new RepairMessageVerbHandler(this);
+                this.verbHandler = new IVerbHandler<>()
+                {
+                    private final RepairMessageVerbHandler repairVerbHandler = new RepairMessageVerbHandler(Node.this);
+                    private final IVerbHandler<PaxosStartPrepareCleanup.Request> paxosStartPrepareCleanup = PaxosStartPrepareCleanup.createVerbHandler(Node.this);
+                    private final IVerbHandler<PaxosCleanupRequest> paxosCleanupRequestIVerbHandler = PaxosCleanupRequest.createVerbHandler(Node.this);
+                    private final IVerbHandler<PaxosCleanupHistory> paxosFinishPrepareCleanup = PaxosFinishPrepareCleanup.createVerbHandler(Node.this);
+                    private final IVerbHandler<PaxosCleanupResponse> paxosCleanupResponse = PaxosCleanupResponse.createVerbHandler(Node.this);
+                    private final IVerbHandler<PaxosCleanupComplete.Request> paxosCleanupComplete = PaxosCleanupComplete.createVerbHandler(Node.this);
+                    @Override
+                    public void doVerb(Message message) throws IOException
+                    {
+                        switch (message.verb())
+                        {
+                            case PAXOS2_CLEANUP_START_PREPARE_REQ:
+                                paxosStartPrepareCleanup.doVerb(message);
+                                break;
+                            case PAXOS2_CLEANUP_REQ:
+                                paxosCleanupRequestIVerbHandler.doVerb(message);
+                                break;
+                            case PAXOS2_CLEANUP_FINISH_PREPARE_REQ:
+                                paxosFinishPrepareCleanup.doVerb(message);
+                                break;
+                            case PAXOS2_CLEANUP_RSP2:
+                                paxosCleanupResponse.doVerb(message);
+                                break;
+                            case PAXOS2_CLEANUP_COMPLETE_REQ:
+                                paxosCleanupComplete.doVerb(message);
+                                break;
+                            default:
+                                repairVerbHandler.doVerb(message);
+                        }
+                    }
+                };
 
                 activeRepairService.start();
             }
@@ -1033,10 +1132,12 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                 if (msg.verb().isResponse())
                 {
                     // handle callbacks
-                    if (messaging.callbacks.containsKey(msg.id()))
+                    CallbackKey key = new CallbackKey(msg.id(), msg.from());
+                    if (messaging.callbacks.containsKey(key))
                     {
-                        CallbackContext callback = messaging.callbacks.remove(msg.id());
-                        if (callback == null) return;
+                        CallbackContext callback = messaging.callbacks.remove(key);
+                        if (callback == null)
+                            return;
                         try
                         {
                             if (msg.isFailureResponse())
@@ -1107,6 +1208,18 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             }
 
             public ScheduledExecutorPlus optionalTasks()
+            {
+                return unorderedScheduled;
+            }
+
+            @Override
+            public ScheduledExecutorPlus nonPeriodicTasks()
+            {
+                return unorderedScheduled;
+            }
+
+            @Override
+            public ScheduledExecutorPlus scheduledTasks()
             {
                 return unorderedScheduled;
             }
@@ -1195,6 +1308,12 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             {
                 return streamExecutor;
             }
+
+            @Override
+            public PaxosRepairState paxosRepairState()
+            {
+                return paxosRepairState;
+            }
         }
 
         private Message serde(Message msg)
@@ -1282,15 +1401,20 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                         next = it.next();
                     }
                     if (FuzzTestBase.class.getName().equals(next.getClassName())) return Access.MAIN_THREAD_ONLY;
-                    if (next.getClassName().startsWith("org.apache.cassandra.db.") ||
-                        next.getClassName().startsWith("org.apache.cassandra.gms.") ||
-                        next.getClassName().startsWith("org.apache.cassandra.cql3.") ||
-                        next.getClassName().startsWith("org.apache.cassandra.metrics.") ||
-                        next.getClassName().startsWith("org.apache.cassandra.utils.concurrent.") ||
-                        next.getClassName().startsWith("org.apache.cassandra.tcm") ||
-                        next.getClassName().startsWith("org.apache.cassandra.utils.TimeUUID") ||
-                        next.getClassName().startsWith("org.apache.cassandra.schema") ||
-                        next.getClassName().startsWith(PendingAntiCompaction.class.getName()))
+
+                    // this is non-deterministic... but since the scope of the work is testing repair and not paxos... this is unblocked for now...
+                    if (("org.apache.cassandra.service.paxos.Paxos".equals(next.getClassName()) && "newBallot".equals(next.getMethodName()))
+                        || ("org.apache.cassandra.service.paxos.uncommitted.PaxosBallotTracker".equals(next.getClassName()) && "updateLowBound".equals(next.getMethodName())))
+                        return Access.MAIN_THREAD_ONLY;
+                    if (next.getClassName().startsWith("org.apache.cassandra.db.")
+                        || next.getClassName().startsWith("org.apache.cassandra.gms.")
+                        || next.getClassName().startsWith("org.apache.cassandra.cql3.")
+                        || next.getClassName().startsWith("org.apache.cassandra.metrics.")
+                        || next.getClassName().startsWith("org.apache.cassandra.utils.concurrent.")
+                        || next.getClassName().startsWith("org.apache.cassandra.tcm")
+                        || next.getClassName().startsWith("org.apache.cassandra.utils.TimeUUID") // this would be good to solve
+                        || next.getClassName().startsWith("org.apache.cassandra.schema")
+                        || next.getClassName().startsWith(PendingAntiCompaction.class.getName()))
                         return Access.IGNORE;
                     if (next.getClassName().startsWith("org.apache.cassandra.repair") || ActiveRepairService.class.getName().startsWith(next.getClassName()))
                         return Access.REJECT;

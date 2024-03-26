@@ -338,7 +338,12 @@ public class ClusterMetadata
 
     public Collection<Range<Token>> localWriteRanges(KeyspaceMetadata metadata)
     {
-        return placements.get(metadata.params.replication).writes.byEndpoint().get(FBUtilities.getBroadcastAddressAndPort()).ranges();
+        return writeRanges(metadata, FBUtilities.getBroadcastAddressAndPort());
+    }
+
+    public Collection<Range<Token>> writeRanges(KeyspaceMetadata metadata, InetAddressAndPort peer)
+    {
+        return placements.get(metadata.params.replication).writes.byEndpoint().get(peer).ranges();
     }
 
     // TODO Remove this as it isn't really an equivalent to the previous concept of pending ranges
