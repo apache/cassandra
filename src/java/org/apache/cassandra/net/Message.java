@@ -217,6 +217,15 @@ public class Message<T>
         return outWithParam(nextId(), verb, expiresAtNanos, payload, 0, null, null);
     }
 
+    public static <T> Message<T> out(Verb verb, T payload, boolean isUrgent)
+    {
+        assert !verb.isResponse();
+        if (isUrgent)
+            return outWithFlag(verb, payload,  MessageFlag.URGENT);
+        else
+            return out(verb, payload);
+    }
+
     public static <T> Message<T> outWithFlag(Verb verb, T payload, MessageFlag flag)
     {
         assert !verb.isResponse();
@@ -305,7 +314,10 @@ public class Message<T>
     /** Builds a response Message with provided payload, and all the right fields inferred from request Message */
     public <T> Message<T> responseWith(T payload)
     {
-        return outWithParam(id(), verb().responseVerb, expiresAtNanos(), payload, null, null);
+        Message<T> msg = outWithParam(id(), verb().responseVerb, expiresAtNanos(), payload, null, null);
+        if (header.hasFlag(MessageFlag.URGENT))
+            msg = msg.withFlag(MessageFlag.URGENT);
+        return msg;
     }
 
     /** Builds a response Message with no payload, and all the right fields inferred from request Message */
@@ -483,6 +495,11 @@ public class Message<T>
             this.createdAtNanos = createdAtNanos;
             this.flags = flags;
             this.params = params;
+        }
+
+        public boolean hasFlag(MessageFlag messageFlag)
+        {
+            return messageFlag.isIn(flags);
         }
 
         Header withFrom(InetAddressAndPort from)
@@ -936,7 +953,7 @@ public class Message<T>
             serializeParams(header.params, out, version);
         }
 
-        private Header deserializeHeader(DataInputPlus in, InetAddressAndPort peer, int version) throws IOException
+        public Header deserializeHeader(DataInputPlus in, InetAddressAndPort peer, int version) throws IOException
         {
             long id = in.readUnsignedVInt();
             Epoch epoch = Epoch.EMPTY;

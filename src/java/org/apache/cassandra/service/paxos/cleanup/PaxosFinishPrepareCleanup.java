@@ -38,12 +38,12 @@ public class PaxosFinishPrepareCleanup extends AsyncFuture<Void> implements Requ
         this.waitingResponse = new HashSet<>(endpoints);
     }
 
-    public static PaxosFinishPrepareCleanup finish(SharedContext ctx, Collection<InetAddressAndPort> endpoints, PaxosCleanupHistory result)
+    public static PaxosFinishPrepareCleanup finish(SharedContext ctx, Collection<InetAddressAndPort> endpoints, boolean isUrgent, PaxosCleanupHistory result)
     {
         PaxosFinishPrepareCleanup callback = new PaxosFinishPrepareCleanup(endpoints);
         synchronized (callback)
         {
-            Message<PaxosCleanupHistory> message = Message.out(Verb.PAXOS2_CLEANUP_FINISH_PREPARE_REQ, result);
+            Message<PaxosCleanupHistory> message = Message.out(Verb.PAXOS2_CLEANUP_FINISH_PREPARE_REQ, result, isUrgent);
             for (InetAddressAndPort endpoint : endpoints)
                 ctx.messaging().sendWithCallback(message, endpoint, callback);
         }
