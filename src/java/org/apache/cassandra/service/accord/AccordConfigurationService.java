@@ -42,7 +42,6 @@ import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.accord.AccordKeyspace.EpochDiskState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.listeners.ChangeListener;
@@ -189,7 +188,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
             synchronized (AccordConfigurationService.this)
             {
                 updateMapping(metadata);
-                reportTopology(AccordTopologyUtils.createAccordTopology(metadata, this::isAccordManagedKeyspace));
+                reportTopology(AccordTopologyUtils.createAccordTopology(metadata));
             }
         });
     }
@@ -418,11 +417,5 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
             else promise.trySuccess(result);
         });
         return promise;
-    }
-
-    public boolean isAccordManagedKeyspace(String keyspace)
-    {
-        // TODO (required, interop) : replace with schema flag or other mechanism for classifying accord keyspaces
-        return !SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES.contains(keyspace);
     }
 }

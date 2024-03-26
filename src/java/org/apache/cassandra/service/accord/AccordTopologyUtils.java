@@ -148,4 +148,9 @@ public class AccordTopologyUtils
     {
         return createAccordTopology(metadata.epoch, metadata.schema, metadata.placements, metadata.directory, keyspacePredicate);
     }
+
+    public static Topology createAccordTopology(ClusterMetadata metadata)
+    {
+        return createAccordTopology(metadata, metadata.accordKeyspaces::contains);
+    }
 }
