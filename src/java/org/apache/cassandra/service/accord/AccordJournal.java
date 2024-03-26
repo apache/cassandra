@@ -20,12 +20,14 @@ package org.apache.cassandra.service.accord;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.zip.Checksum;
@@ -98,6 +100,7 @@ import org.apache.cassandra.service.accord.serializers.PreacceptSerializers;
 import org.apache.cassandra.service.accord.serializers.RecoverySerializers;
 import org.apache.cassandra.service.accord.serializers.SetDurableSerializers;
 import org.apache.cassandra.utils.ByteArrayUtil;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.concurrent.Semaphore;
 import org.jctools.queues.SpscLinkedQueue;
 
@@ -142,7 +145,7 @@ import static org.apache.cassandra.utils.CollectionSerializers.serializedListSiz
 import static org.apache.cassandra.utils.concurrent.Semaphore.newSemaphore;
 import static org.apache.cassandra.utils.vint.VIntCoding.computeUnsignedVIntSize;
 
-public class AccordJournal implements Shutdownable
+public class AccordJournal implements IJournal, Shutdownable
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordJournal.class);
 
@@ -261,8 +264,15 @@ public class AccordJournal implements Shutdownable
     @Override
     public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException
     {
-        // TODO (expected, other)
-        return true;
+        try
+        {
+            ExecutorUtils.awaitTermination(timeout, units, Arrays.asList(journal, frameAggregator, frameApplicator));
+            return true;
+        }
+        catch (TimeoutException e)
+        {
+            return false;
+        }
     }
 
     /**
@@ -295,6 +305,7 @@ public class AccordJournal implements Shutdownable
     }
 
     @VisibleForTesting
+    @Override
     public void appendMessageBlocking(Message message)
     {
         Type type = Type.fromMessageType(message.type());
@@ -1332,8 +1343,8 @@ public class AccordJournal implements Shutdownable
     /*
      * Message provider implementation
      */
-
-    SerializerSupport.MessageProvider makeMessageProvider(TxnId txnId)
+    @Override
+    public SerializerSupport.MessageProvider makeMessageProvider(TxnId txnId)
     {
         return LOG_MESSAGE_PROVIDER ? new LoggingMessageProvider(txnId, new MessageProvider(txnId)) : new MessageProvider(txnId);
     }

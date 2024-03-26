@@ -38,6 +38,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.schema.CreateKeyspaceStatement;
 import org.apache.cassandra.cql3.statements.schema.KeyspaceAttributes;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -50,7 +52,9 @@ import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Keyspaces;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaTransformation;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
@@ -254,6 +258,29 @@ public class ClusterMetadataTestHelper
         }
     }
 
+    public static void setMemtable(String ks, String table, String memtable)
+    {
+        setMemtable(ks, table, MemtableParams.get(memtable));
+    }
+
+    public static void setMemtable(String ks, String table, MemtableParams memtable)
+    {
+        if (SchemaConstants.isLocalSystemKeyspace(ks))
+        {
+            ColumnFamilyStore store = Keyspace.open(ks).getColumnFamilyStore(table);
+            store.reload(store.metadata().unbuild().memtable(memtable).build());
+        }
+        else
+        {
+            Schema.instance.submit(cms -> {
+                var km = cms.schema.getKeyspaceMetadata(ks);
+                var update = km.withSwapped(km.tables.withSwapped(km.tables.getNullable(table).unbuild()
+                                                                     .memtable(memtable)
+                                                                     .build()));
+                return cms.schema.getKeyspaces().withAddedOrUpdated(update);
+            });
+        }
+    }
 
     private static Set<InetAddressAndPort> leaving(ClusterMetadata metadata)
     {

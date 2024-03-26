@@ -90,9 +90,9 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
     {
         private static final long EMPTY_SIZE = ObjectSizes.measure(new SentinelKey(null, true));
 
-        private final boolean isMin;
+        public final boolean isMin;
 
-        private SentinelKey(TableId table, boolean isMin)
+        public SentinelKey(TableId table, boolean isMin)
         {
             super(table);
             this.isMin = isMin;

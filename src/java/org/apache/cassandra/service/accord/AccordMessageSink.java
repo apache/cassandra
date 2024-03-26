@@ -222,7 +222,7 @@ public class AccordMessageSink implements MessageSink
         Preconditions.checkNotNull(verb, "Verb is null for type %s", request.type());
         Message<Request> message = Message.out(verb, request);
         InetAddressAndPort endpoint = endpointMapper.mappedEndpoint(to);
-        logger.debug("Sending {} {} to {}", verb, message.payload, endpoint);
+        logger.trace("Sending {} {} to {}", verb, message.payload, endpoint);
         messaging.send(message, endpoint);
     }
 
@@ -233,7 +233,7 @@ public class AccordMessageSink implements MessageSink
         Preconditions.checkNotNull(verb, "Verb is null for type %s", request.type());
         Message<Request> message = Message.out(verb, request);
         InetAddressAndPort endpoint = endpointMapper.mappedEndpoint(to);
-        logger.debug("Sending {} {} to {}", verb, message.payload, endpoint);
+        logger.trace("Sending {} {} to {}", verb, message.payload, endpoint);
         messaging.sendWithCallback(message, endpoint, new AccordCallback<>(executor, (Callback<Reply>) callback, endpointMapper));
     }
 
@@ -246,7 +246,7 @@ public class AccordMessageSink implements MessageSink
             responseMsg = responseMsg.withFlag(MessageFlag.NOT_FINAL);
         checkReplyType(reply, respondTo);
         InetAddressAndPort endpoint = endpointMapper.mappedEndpoint(replyingToNode);
-        logger.debug("Replying {} {} to {}", responseMsg.verb(), responseMsg.payload, endpoint);
+        logger.trace("Replying {} {} to {}", responseMsg.verb(), responseMsg.payload, endpoint);
         messaging.send(responseMsg, endpoint);
     }
 
@@ -256,7 +256,7 @@ public class AccordMessageSink implements MessageSink
         ResponseContext respondTo = (ResponseContext) replyContext;
         Message<?> responseMsg = Message.failureResponse(RequestFailureReason.UNKNOWN, failure, respondTo);
         InetAddressAndPort endpoint = endpointMapper.mappedEndpoint(replyingToNode);
-        logger.debug("Replying with failure {} {} to {}", responseMsg.verb(), responseMsg.payload, endpoint);
+        logger.trace("Replying with failure {} {} to {}", responseMsg.verb(), responseMsg.payload, endpoint);
         messaging.send(responseMsg, endpoint);
     }
 

@@ -36,6 +36,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -50,7 +51,8 @@ import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 public class TableId implements Comparable<TableId>
 {
     public static final long MAGIC = 1956074401491665062L;
-    // TODO: should this be a TimeUUID?
+    public static final long EMPTY_SIZE = ObjectSizes.measureDeep(new UUID(0, 0));
+
     private final UUID id;
 
     private TableId(UUID id)
