@@ -20,7 +20,6 @@ package org.apache.cassandra.triggers;
 import java.util.Collection;
 import java.util.Collections;
 
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -34,6 +33,7 @@ import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.toInt;
@@ -53,11 +53,8 @@ public class TriggersTest
     public static void beforeTest() throws ConfigurationException
     {
         SchemaLoader.loadSchema();
-    }
+        StorageService.instance.initServer();
 
-    @Before
-    public void setup() throws Exception
-    {
         String cql = String.format("CREATE KEYSPACE IF NOT EXISTS %s " +
                                    "WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 1}",
                                    ksName);
