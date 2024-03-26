@@ -69,6 +69,7 @@ import org.apache.cassandra.service.accord.api.AccordScheduler;
 import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
 import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
 import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -185,6 +186,13 @@ public class AccordService implements IAccordService, Shutdownable
     {
         localId = AccordTopologyUtils.tcmIdToAccord(tcmId);
         instance().startup();
+    }
+
+    public static void shutdownServiceAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
+    {
+        if (localId == null)
+            return;
+        instance().shutdownAndWait(timeout, unit);
     }
 
     public static IAccordService instance()
@@ -457,7 +465,7 @@ public class AccordService implements IAccordService, Shutdownable
 
     public boolean isAccordManagedKeyspace(String keyspace)
     {
-        return configService.isAccordManagedKeyspace(keyspace);
+        return ClusterMetadata.current().accordKeyspaces.contains(keyspace);
     }
 
     @Override
