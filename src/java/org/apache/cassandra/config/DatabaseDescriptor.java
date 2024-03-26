@@ -76,8 +76,6 @@ import org.apache.cassandra.auth.INetworkAuthorizer;
 import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.Config.DiskAccessMode;
-import org.apache.cassandra.config.Config.LWTStrategy;
-import org.apache.cassandra.config.Config.NonSerialWriteStrategy;
 import org.apache.cassandra.config.Config.PaxosOnLinearizabilityViolation;
 import org.apache.cassandra.config.Config.PaxosStatePurging;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -111,6 +109,7 @@ import org.apache.cassandra.security.JREProvider;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
@@ -155,8 +154,8 @@ import static org.apache.cassandra.utils.Clock.Global.logInitializationOutcome;
 
 public class DatabaseDescriptor
 {
-    public static final String NO_ACCORD_PAXOS_STRATEGY_WITH_ACCORD_DISABLED_MESSAGE = 
-            "Cannot use lwt_strategy \"accord\" while Accord transactions are disabled.";
+    public static final String NO_ACCORD_PAXOS_STRATEGY_WITH_ACCORD_DISABLED_MESSAGE =
+    "Cannot use lwt_strategy \"accord\" while Accord transactions are disabled.";
 
     static
     {
@@ -899,8 +898,8 @@ public class DatabaseDescriptor
         {
             // if consensusMigrationCacheSizeInMiB option was set to "auto" then size of the cache should be "min(1% of Heap (in MB), 50MB)
             consensusMigrationCacheSizeInMiB = (conf.consensus_migration_cache_size == null)
-                                  ? Math.min(Math.max(1, (int) (Runtime.getRuntime().totalMemory() * 0.01 / 1024 / 1024)), 50)
-                                  : conf.consensus_migration_cache_size.toMebibytes();
+                                               ? Math.min(Math.max(1, (int) (Runtime.getRuntime().totalMemory() * 0.01 / 1024 / 1024)), 50)
+                                               : conf.consensus_migration_cache_size.toMebibytes();
 
             if (consensusMigrationCacheSizeInMiB < 0)
                 throw new NumberFormatException(); // to escape duplicating error message
@@ -1047,14 +1046,6 @@ public class DatabaseDescriptor
         {
             throw new ConfigurationException(String.format("Invalid value for.progress_barrier_default_consistency_level %s. Allowed values: %s",
                                                            conf.progress_barrier_default_consistency_level, progressBarrierCLsArr));
-        }
-
-        if (conf.lwt_strategy == LWTStrategy.accord)
-        {
-            if (!conf.accord.enabled)
-                throw new ConfigurationException(NO_ACCORD_PAXOS_STRATEGY_WITH_ACCORD_DISABLED_MESSAGE);
-            if (conf.non_serial_write_strategy == Config.NonSerialWriteStrategy.normal)
-                throw new ConfigurationException("If Accord is used for LWTs then regular writes needs to be routed through Accord for interoperability by setting non_serial_write_strategy to \"accord\" or \"migration\"");
         }
     }
 
@@ -3294,25 +3285,14 @@ public class DatabaseDescriptor
         return conf.paxos_topology_repair_strict_each_quorum;
     }
 
-    // TODO (desired): This configuration should come out of TrM to force the cluster to agree on it
-    public static LWTStrategy getLWTStrategy()
+    public static AccordSpec.TransactionalRangeMigration getTransactionalRangeMigration()
     {
-        return conf.lwt_strategy;
+        return conf.accord.range_migration;
     }
 
-    public static void setLWTStrategy(LWTStrategy lwtStrategy)
+    public static void setTransactionalRangeMigration(AccordSpec.TransactionalRangeMigration val)
     {
-        conf.lwt_strategy = lwtStrategy;
-    }
-
-    public static Config.NonSerialWriteStrategy getNonSerialWriteStrategy()
-    {
-        return conf.non_serial_write_strategy;
-    }
-
-    public static void setNonSerialWriteStrategy(NonSerialWriteStrategy nonSerialWriteStrategy)
-    {
-        conf.non_serial_write_strategy = nonSerialWriteStrategy;
+        conf.accord.range_migration = Preconditions.checkNotNull(val);
     }
 
     public static int getAccordBarrierRetryAttempts()
@@ -3333,6 +3313,11 @@ public class DatabaseDescriptor
     public static long getAccordRangeBarrierTimeoutNanos()
     {
         return conf.accord.range_barrier_timeout.to(TimeUnit.NANOSECONDS);
+    }
+
+    public static TransactionalMode defaultTransactionalMode()
+    {
+        return conf.accord.default_transactional_mode;
     }
 
     public static void setNativeTransportMaxRequestDataInFlightPerIpInBytes(long maxRequestDataInFlightInBytes)

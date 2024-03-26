@@ -23,6 +23,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -70,36 +73,57 @@ public class PreparedStatementsTest extends CQLTester
     public void setup()
     {
         requireNetwork();
+        for (int i=0; i<10; i++)
+            ClusterMetadataService.instance().log().waitForHighestConsecutive();
+    }
+
+    private static void runAndAwaitNextEpoch(Runnable runnable)
+    {
+        try
+        {
+            Epoch current = ClusterMetadata.current().epoch;
+            runnable.run();
+            ClusterMetadataService.instance().awaitAtLeast(Epoch.create(current.getEpoch() + 1));
+        }
+        catch (Throwable e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void sessionSchemaUpdate(Session session, String update)
+    {
+        runAndAwaitNextEpoch(() -> session.execute(update));
     }
 
     @Test
     public void testInvalidatePreparedStatementsOnDrop()
     {
         Session session = sessionNet(ProtocolVersion.V5);
-        session.execute(dropKsStatement);
-        session.execute(createKsStatement);
+        sessionSchemaUpdate(session, dropKsStatement);
+        sessionSchemaUpdate(session, createKsStatement);
 
-        String createTableStatement = "CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".qp_cleanup (id int PRIMARY KEY, cid int, val text);";
+        String createTableStatement = "CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".qp_cleanup (id int PRIMARY KEY, cid int, val text) WITH transactional_mode='unsafe';";
         String dropTableStatement = "DROP TABLE IF EXISTS " + KEYSPACE + ".qp_cleanup;";
 
-        session.execute(createTableStatement);
+        sessionSchemaUpdate(session, createTableStatement);
 
         String insert = "INSERT INTO " + KEYSPACE + ".qp_cleanup (id, cid, val) VALUES (?, ?, ?)";
         PreparedStatement prepared = session.prepare(insert);
         PreparedStatement preparedBatch = session.prepare(batch(insert));
         PreparedStatement preparedTxn = session.prepare(txn(insert));
 
-        session.execute(dropTableStatement);
-        session.execute(createTableStatement);
+        sessionSchemaUpdate(session, dropTableStatement);
+        sessionSchemaUpdate(session, createTableStatement);
         updateTxnState();
 
         session.execute(prepared.bind(1, 1, "value"));
         session.execute(preparedBatch.bind(2, 2, "value2"));
         session.execute(preparedTxn.bind(3, 3, "value3"));
 
-        session.execute(dropKsStatement);
-        session.execute(createKsStatement);
-        session.execute(createTableStatement);
+        sessionSchemaUpdate(session, dropKsStatement);
+        sessionSchemaUpdate(session, createKsStatement);
+        sessionSchemaUpdate(session, createTableStatement);
         updateTxnState();
 
         // The driver will get a response about the prepared statement being invalid, causing it to transparently
@@ -108,7 +132,7 @@ public class PreparedStatementsTest extends CQLTester
         session.execute(prepared.bind(1, 1, "value"));
         session.execute(preparedBatch.bind(2, 2, "value2"));
         session.execute(preparedTxn.bind(3, 3, "value3"));
-        session.execute(dropKsStatement);
+        sessionSchemaUpdate(session, dropKsStatement);
     }
 
     @Test
@@ -126,12 +150,12 @@ public class PreparedStatementsTest extends CQLTester
     private void testInvalidatePreparedStatementOnAlter(ProtocolVersion version, boolean supportsMetadataChange)
     {
         Session session = sessionNet(version);
-        String createTableStatement = "CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".qp_cleanup (a int PRIMARY KEY, b int, c int);";
+        String createTableStatement = "CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".qp_cleanup (a int PRIMARY KEY, b int, c int) WITH transactional_mode='unsafe';";
         String alterTableStatement = "ALTER TABLE " + KEYSPACE + ".qp_cleanup ADD d int;";
 
-        session.execute(dropKsStatement);
-        session.execute(createKsStatement);
-        session.execute(createTableStatement);
+        sessionSchemaUpdate(session, dropKsStatement);
+        sessionSchemaUpdate(session, createKsStatement);
+        sessionSchemaUpdate(session, createTableStatement);
         updateTxnState();
 
         String select = "SELECT * FROM " + KEYSPACE + ".qp_cleanup";
@@ -150,7 +174,7 @@ public class PreparedStatementsTest extends CQLTester
         assertRowsNet(session.execute(preparedSelectTxn.bind(2)),
                       row(2, 3, 4));
 
-        session.execute(alterTableStatement);
+        sessionSchemaUpdate(session, alterTableStatement);
         updateTxnState();
 
         session.execute("INSERT INTO " + KEYSPACE + ".qp_cleanup (a, b, c, d) VALUES (?, ?, ?, ?);",
@@ -194,7 +218,7 @@ public class PreparedStatementsTest extends CQLTester
             }
         }
 
-        session.execute(dropKsStatement);
+        sessionSchemaUpdate(session, dropKsStatement);
     }
 
     @Test
@@ -212,12 +236,12 @@ public class PreparedStatementsTest extends CQLTester
     private void testInvalidatePreparedStatementOnAlterUnchangedMetadata(ProtocolVersion version)
     {
         Session session = sessionNet(version);
-        String createTableStatement = "CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".qp_cleanup (a int PRIMARY KEY, b int, c int);";
+        String createTableStatement = "CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".qp_cleanup (a int PRIMARY KEY, b int, c int) WITH transactional_mode='unsafe';";
         String alterTableStatement = "ALTER TABLE " + KEYSPACE + ".qp_cleanup ADD d int;";
 
-        session.execute(dropKsStatement);
-        session.execute(createKsStatement);
-        session.execute(createTableStatement);
+        sessionSchemaUpdate(session, dropKsStatement);
+        sessionSchemaUpdate(session, createKsStatement);
+        sessionSchemaUpdate(session, createTableStatement);
         updateTxnState();
 
         String select = "SELECT a, b, c FROM " + KEYSPACE + ".qp_cleanup";
@@ -241,7 +265,7 @@ public class PreparedStatementsTest extends CQLTester
             Assertions.assertThat(columnNames(rs)).containsExactlyInAnyOrder("a", "b", "c");
         }
 
-        session.execute(alterTableStatement);
+        sessionSchemaUpdate(session, alterTableStatement);
         updateTxnState();
 
         session.execute("INSERT INTO " + KEYSPACE + ".qp_cleanup (a, b, c, d) VALUES (?, ?, ?, ?);",
@@ -261,18 +285,18 @@ public class PreparedStatementsTest extends CQLTester
             Assertions.assertThat(columnNames(rs)).containsExactlyInAnyOrder("a", "b", "c");
         }
 
-        session.execute(dropKsStatement);
+        sessionSchemaUpdate(session, dropKsStatement);
     }
 
     @Test
-    public void testStatementRePreparationOnReconnect()
+    public void testStatementRePreparationOnReconnect() throws Throwable
     {
         Session session = sessionNet(ProtocolVersion.V5);
         session.execute("USE " + keyspace());
 
-        session.execute(dropKsStatement);
-        session.execute(createKsStatement);
-        createTable("CREATE TABLE %s (id int PRIMARY KEY, cid int, val text);");
+        sessionSchemaUpdate(session, dropKsStatement);
+        sessionSchemaUpdate(session, createKsStatement);
+        runAndAwaitNextEpoch(() -> createTable("CREATE TABLE %s (id int PRIMARY KEY, cid int, val text) WITH transactional_mode='unsafe';"));
         updateTxnState();
 
         String insertCQL = "INSERT INTO " + currentTable() + " (id, cid, val) VALUES (?, ?, ?)";
@@ -317,14 +341,14 @@ public class PreparedStatementsTest extends CQLTester
     {
         Session session = sessionNet(ProtocolVersion.V5);
 
-        session.execute(dropKsStatement);
-        session.execute(createKsStatement);
+        sessionSchemaUpdate(session, dropKsStatement);
+        sessionSchemaUpdate(session, createKsStatement);
         String table = "custom_expr_test";
         String index = "custom_index";
 
-        session.execute(String.format("CREATE TABLE IF NOT EXISTS %s.%s (id int PRIMARY KEY, cid int, val text);",
+        sessionSchemaUpdate(session, String.format("CREATE TABLE IF NOT EXISTS %s.%s (id int PRIMARY KEY, cid int, val text) WITH transactional_mode='unsafe';",
                                       KEYSPACE, table));
-        session.execute(String.format("CREATE CUSTOM INDEX %s ON %s.%s(val) USING '%s'",
+        sessionSchemaUpdate(session, String.format("CREATE CUSTOM INDEX %s ON %s.%s(val) USING '%s'",
                                       index, KEYSPACE, table, StubIndex.class.getName()));
         updateTxnState();
 
@@ -363,7 +387,7 @@ public class PreparedStatementsTest extends CQLTester
         // Note: this test does not cover all aspects of 10786 (yet) - it was intended to test the
         // changes for CASSANDRA-13992.
 
-        createTable("CREATE TABLE %s (pk int, v1 int, v2 int, PRIMARY KEY (pk))");
+        runAndAwaitNextEpoch(() -> createTable("CREATE TABLE %s (pk int, v1 int, v2 int, PRIMARY KEY (pk))"));
         execute("INSERT INTO %s (pk, v1, v2) VALUES (1,1,1)");
 
         try (SimpleClient simpleClient = newSimpleClient(ProtocolVersion.BETA.orElse(ProtocolVersion.CURRENT)))
@@ -549,7 +573,7 @@ public class PreparedStatementsTest extends CQLTester
     {
         Session session = sessionNet(version);
         session.execute("USE " + keyspace());
-        createTable("CREATE TABLE %s (pk int, v1 int, v2 int, PRIMARY KEY (pk))");
+        runAndAwaitNextEpoch(() -> createTable("CREATE TABLE %s (pk int, v1 int, v2 int, PRIMARY KEY (pk))"));
 
         PreparedStatement prepared1 = session.prepare(String.format("UPDATE %s SET v1 = ?, v2 = ?  WHERE pk = 1 IF v1 = ?", currentTable()));
         PreparedStatement prepared2 = session.prepare(String.format("INSERT INTO %s (pk, v1, v2) VALUES (?, 200, 300) IF NOT EXISTS", currentTable()));
@@ -613,7 +637,7 @@ public class PreparedStatementsTest extends CQLTester
     {
         Session session = sessionNet(version);
         session.execute("USE " + keyspace());
-        createTable("CREATE TABLE %s (pk int, v1 int, v2 int, PRIMARY KEY (pk))");
+        runAndAwaitNextEpoch(() -> createTable("CREATE TABLE %s (pk int, v1 int, v2 int, PRIMARY KEY (pk))"));
 
         PreparedStatement prepared1 = session.prepare("BEGIN BATCH " +
                                                       "UPDATE " + currentTable() + " SET v1 = ? WHERE pk = 1 IF v1 = ?;" +
@@ -648,7 +672,7 @@ public class PreparedStatementsTest extends CQLTester
                       row(false, 1, 10, 20));
         assertEquals(rs.getColumnDefinitions().size(), 4);
 
-        alterTable("ALTER TABLE %s ADD v3 int;");
+        runAndAwaitNextEpoch(() -> alterTable("ALTER TABLE %s ADD v3 int;"));
 
         rs = session.execute(prepared2.bind());
         assertRowsNet(rs,
@@ -680,7 +704,7 @@ public class PreparedStatementsTest extends CQLTester
         int maxAttempts = 3;
         Session session = sessionNet(version);
         session.execute("USE " + keyspace());
-        createTable("CREATE TABLE %s (pk int, v1 int, v2 int, PRIMARY KEY (pk))");
+        runAndAwaitNextEpoch(() -> createTable("CREATE TABLE %s (pk int, v1 int, v2 int, PRIMARY KEY (pk)) WITH transactional_mode='full'"));
         updateTxnState();
 
         PreparedStatement writeOnly = session.prepare(txn(
