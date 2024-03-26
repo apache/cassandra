@@ -221,6 +221,7 @@ public interface Transformation
         ADVANCE_CMS_RECONFIGURATION(33, () -> AdvanceCMSReconfiguration.serializer),
         CANCEL_CMS_RECONFIGURATION(34, () -> CancelCMSReconfiguration.serializer),
         ALTER_TOPOLOGY(35, () -> AlterTopology.serializer),
+        ADD_ACCORD_KEYSPACE(36, () -> AddAccordKeyspace.serializer)
         ;
 
         private final Supplier<AsymmetricMetadataSerializer<Transformation, ? extends Transformation>> serializer;

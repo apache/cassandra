@@ -33,7 +33,6 @@ import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 
-
 import org.apache.cassandra.ServerTestUtils.ResettableClusterMetadataService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -69,6 +68,7 @@ import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.ownership.AccordKeyspaces;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
@@ -149,6 +149,7 @@ public class ClusterMetadataTestHelper
                                    Directory.EMPTY,
                                    new TokenMap(partitioner),
                                    DataPlacements.empty(),
+                                   AccordKeyspaces.EMPTY,
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
                                    ImmutableMap.of());
@@ -162,6 +163,7 @@ public class ClusterMetadataTestHelper
                                    null,
                                    null,
                                    DataPlacements.empty(),
+                                   AccordKeyspaces.EMPTY,
                                    null,
                                    null,
                                    ImmutableMap.of());
@@ -175,6 +177,7 @@ public class ClusterMetadataTestHelper
                                    null,
                                    null,
                                    DataPlacements.empty(),
+                                   AccordKeyspaces.EMPTY,
                                    null,
                                    null,
                                    ImmutableMap.of());
