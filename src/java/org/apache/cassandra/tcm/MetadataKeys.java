@@ -37,7 +37,6 @@ public class MetadataKeys
     public static final MetadataKey NODE_DIRECTORY          = make(CORE_NS, "membership", "node_directory");
     public static final MetadataKey TOKEN_MAP               = make(CORE_NS, "ownership", "token_map");
     public static final MetadataKey DATA_PLACEMENTS         = make(CORE_NS, "ownership", "data_placements");
-    public static final MetadataKey ACCORD_TABLES           = make(CORE_NS, "ownership", "accord_tables");
     public static final MetadataKey ACCORD_FAST_PATH        = make(CORE_NS, "ownership", "accord_fast_path");
     public static final MetadataKey LOCKED_RANGES           = make(CORE_NS, "sequences", "locked_ranges");
     public static final MetadataKey IN_PROGRESS_SEQUENCES   = make(CORE_NS, "sequences", "in_progress");
@@ -47,7 +46,6 @@ public class MetadataKeys
                                                                                   NODE_DIRECTORY,
                                                                                   TOKEN_MAP,
                                                                                   DATA_PLACEMENTS,
-                                                                                  ACCORD_TABLES,
                                                                                   ACCORD_FAST_PATH,
                                                                                   LOCKED_RANGES,
                                                                                   IN_PROGRESS_SEQUENCES,

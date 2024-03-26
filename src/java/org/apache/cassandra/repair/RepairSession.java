@@ -59,7 +59,7 @@ import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.repair.state.SessionState;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigration;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
@@ -350,7 +350,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
                                     new AccordRepairJob(this, cfname) :
                                     new CassandraRepairJob(this, cfname);
             // Repairs can drive forward progress for consensus migration so always check
-            job.addCallback(ConsensusTableMigrationState.completedRepairJobHandler);
+            job.addCallback(ConsensusTableMigration.completedRepairJobHandler);
             state.register(job.state);
             executor.execute(job);
             jobs.add(job);

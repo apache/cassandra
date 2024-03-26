@@ -52,7 +52,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationState;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
@@ -65,7 +65,6 @@ import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
-import org.apache.cassandra.tcm.ownership.AccordTables;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
@@ -283,7 +282,6 @@ public class GossipHelper
                                    Directory.EMPTY,
                                    new TokenMap(DatabaseDescriptor.getPartitioner()),
                                    DataPlacements.empty(),
-                                   AccordTables.EMPTY,
                                    AccordFastPath.EMPTY,
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
@@ -356,7 +354,6 @@ public class GossipHelper
                                                                       directory,
                                                                       tokenMap,
                                                                       DataPlacements.empty(),
-                                                                      AccordTables.EMPTY,
                                                                       AccordFastPath.EMPTY,
                                                                       LockedRanges.EMPTY,
                                                                       InProgressSequences.EMPTY,
@@ -368,7 +365,6 @@ public class GossipHelper
                                    directory,
                                    tokenMap,
                                    new UniformRangePlacement().calculatePlacements(Epoch.UPGRADE_GOSSIP, forPlacementCalculation, schema.getKeyspaces()),
-                                   AccordTables.EMPTY,
                                    AccordFastPath.EMPTY,
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,

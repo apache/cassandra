@@ -73,7 +73,7 @@ public class AccordCommandTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace("ks", KeyspaceParams.simple(1),
-                                    parse("CREATE TABLE tbl (k int, c int, v int, primary key (k, c))", "ks"));
+                                    parse("CREATE TABLE tbl (k int, c int, v int, primary key (k, c)) WITH transactional_mode='full'", "ks"));
         StorageService.instance.initServer();
     }
 
