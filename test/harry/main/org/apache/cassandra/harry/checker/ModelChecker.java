@@ -69,6 +69,7 @@ public class ModelChecker<STATE>
         if (afterAll != null)
             afterAll.accept(state.get());
     }
+
     public ModelChecker<STATE> init(STATE state)
     {
         this.init = state;

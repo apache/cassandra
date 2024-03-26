@@ -19,46 +19,31 @@
 package org.apache.cassandra.fuzz.harry.integration.dsl;
 
 import java.util.Random;
-import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import org.junit.Test;
 
-import org.apache.cassandra.fuzz.harry.integration.model.ModelTestBase;
+import org.apache.cassandra.fuzz.harry.integration.model.IntegrationTestBase;
 import org.apache.cassandra.harry.checker.ModelChecker;
-import org.apache.cassandra.harry.core.Configuration;
-import org.apache.cassandra.harry.core.Run;
 import org.apache.cassandra.harry.ddl.SchemaGenerators;
 import org.apache.cassandra.harry.ddl.SchemaSpec;
 import org.apache.cassandra.harry.dsl.BatchVisitBuilder;
 import org.apache.cassandra.harry.dsl.HistoryBuilder;
 import org.apache.cassandra.harry.dsl.SingleOperationBuilder;
-import org.apache.cassandra.harry.dsl.ValueDescriptorIndexGenerator;
 import org.apache.cassandra.harry.gen.rng.JdkRandomEntropySource;
 import org.apache.cassandra.harry.model.Model;
 import org.apache.cassandra.harry.operations.Query;
 import org.apache.cassandra.harry.sut.SystemUnderTest;
 import org.apache.cassandra.harry.sut.TokenPlacementModel;
+import org.apache.cassandra.harry.tracker.DataTracker;
+import org.apache.cassandra.harry.tracker.DefaultDataTracker;
 import org.apache.cassandra.harry.visitors.ReplayingVisitor;
 
-public class HistoryBuilderIntegrationTest extends ModelTestBase
+public class HistoryBuilderIntegrationTest extends IntegrationTestBase
 {
-    private final long seed = 1L;
-    private final int STEPS_PER_ITERATION = 1_000;
-    private final int MAX_PARTITIONS = 100;
-
-    @Override
-    protected Configuration.ModelConfiguration modelConfiguration()
-    {
-        return new Configuration.QuiescentCheckerConfig();
-    }
-
-    public Configuration.ConfigurationBuilder configuration(long seed, SchemaSpec schema)
-    {
-        return super.configuration(seed, schema)
-                    .setPartitionDescriptorSelector(new Configuration.DefaultPDSelectorConfiguration(2, 2))
-                    .setClusteringDescriptorSelector((builder) -> builder.setOperationsPerLtsDistribution(new Configuration.ConstantDistributionConfig(100_000)));
-    }
+    private static final long SEED = 1L;
+    private static final int STEPS_PER_ITERATION = 1_000;
+    private static final int MAX_PARTITIONS = 50;
 
     @Test
     public void simpleDSLTest() throws Throwable
@@ -67,46 +52,36 @@ public class HistoryBuilderIntegrationTest extends ModelTestBase
         for (int i = 0; i < SchemaGenerators.DEFAULT_RUNS; i++)
         {
             SchemaSpec schema = supplier.get();
-            Configuration config = configuration(i, schema).build();
-
-            Run run = config.createRun();
+            DataTracker tracker = new DefaultDataTracker();
             beforeEach();
-            run.sut.schemaChange(schema.compile().cql());
+            sut.schemaChange(schema.compile().cql());
 
             ModelChecker<SingleOperationBuilder> modelChecker = new ModelChecker<>();
-            JdkRandomEntropySource entropySource = new JdkRandomEntropySource(new Random(seed));
-
-            LongSupplier[] valueGenerators = new LongSupplier[run.schemaSpec.regularColumns.size()];
-            for (int j = 0; j < valueGenerators.length; j++)
-            {
-                valueGenerators[j] = new ValueDescriptorIndexGenerator(run.schemaSpec.regularColumns.get(j),
-                                                                       run.rng)
-                                     .toSupplier(entropySource.derive(), 20, 0.2f);
-            }
+            JdkRandomEntropySource rng = new JdkRandomEntropySource(new Random(SEED));
 
             TokenPlacementModel.ReplicationFactor rf = new TokenPlacementModel.SimpleReplicationFactor(1);
 
             int maxPartitionSize = 100;
-            modelChecker.init(new HistoryBuilder(seed, maxPartitionSize, 10, schema, rf))
+            modelChecker.init(new HistoryBuilder(SEED, maxPartitionSize, 10, schema, rf))
                         .step((history) -> {
                             return history.insert();
                         })
                         .step((history) -> {
-                            return history.insert(entropySource.nextInt(maxPartitionSize));
+                            return history.insert(rng.nextInt(maxPartitionSize));
                         })
                         .step((history) -> {
-                            int row = entropySource.nextInt(maxPartitionSize);
-                            long[] vds = new long[valueGenerators.length];
-                            for (int j = 0; j < valueGenerators.length; j++)
-                                vds[j] = valueGenerators[j].getAsLong();
+                            int row = rng.nextInt(maxPartitionSize);
+                            long[] vIdxs = new long[schema.regularColumns.size()];
+                            for (int j = 0; j < schema.regularColumns.size(); j++)
+                                vIdxs[j] = rng.nextInt(20);
 
-                            return history.insert(row, vds);
+                            return history.insert(row, vIdxs);
                         })
                         .step((history) -> {
                             return history.deleteRow();
                         })
                         .step((history) -> {
-                            return history.deleteRow(entropySource.nextInt(maxPartitionSize));
+                            return history.deleteRow(rng.nextInt(maxPartitionSize));
                         })
                         .step(SingleOperationBuilder::deletePartition)
                         .step(SingleOperationBuilder::deleteColumns)
@@ -115,10 +90,10 @@ public class HistoryBuilderIntegrationTest extends ModelTestBase
                             return history.deleteRowRange();
                         })
                         .step((history) -> {
-                            return history.deleteRowRange(entropySource.nextInt(maxPartitionSize),
-                                                          entropySource.nextInt(maxPartitionSize),
-                                                          entropySource.nextBoolean(),
-                                                          entropySource.nextBoolean());
+                            return history.deleteRowRange(rng.nextInt(maxPartitionSize),
+                                                          rng.nextInt(maxPartitionSize),
+                                                          rng.nextBoolean(),
+                                                          rng.nextBoolean());
                         })
                         .step((history) -> history instanceof HistoryBuilder,
                               (history) -> ((HistoryBuilder) history).beginBatch())
@@ -129,20 +104,92 @@ public class HistoryBuilderIntegrationTest extends ModelTestBase
                                 return false;
 
                             HistoryBuilder historyBuilder = (HistoryBuilder) history;
-                            ReplayingVisitor visitor = historyBuilder.visitor(run.tracker, run.sut, SystemUnderTest.ConsistencyLevel.ALL);
+                            ReplayingVisitor visitor = historyBuilder.visitor(tracker, sut, SystemUnderTest.ConsistencyLevel.ALL);
                             visitor.replayAll();
 
-                            if (historyBuilder.presetSelector.pds().size() < MAX_PARTITIONS)
+                            if (historyBuilder.visitedPds().size() < MAX_PARTITIONS)
                                 return false;
 
-                            Model model = historyBuilder.quiescentChecker(run.tracker, sut);
+                            Model model = historyBuilder.quiescentChecker(tracker, sut);
 
-                            for (Long pd : historyBuilder.presetSelector.pds())
-                                model.validate(Query.selectPartition(run.schemaSpec, pd,false));
+                            for (Long pd : historyBuilder.visitedPds())
+                                model.validate(Query.selectPartition(historyBuilder.schema(), pd,false));
 
                             return true;
                         })
-                        .run(STEPS_PER_ITERATION, seed);
+                        .run(STEPS_PER_ITERATION, SEED);
+        }
+    }
+
+    @Test
+    public void overrideCkTest() throws Throwable
+    {
+        Supplier<SchemaSpec> supplier = SchemaGenerators.progression(SchemaGenerators.DEFAULT_SWITCH_AFTER);
+        for (int schemaIdx = 0; schemaIdx < SchemaGenerators.DEFAULT_RUNS; schemaIdx++)
+        {
+            SchemaSpec schema = supplier.get();
+            DataTracker tracker = new DefaultDataTracker();
+            beforeEach();
+            sut.schemaChange(schema.compile().cql());
+
+            ModelChecker<HistoryBuilder> modelChecker = new ModelChecker<>();
+            JdkRandomEntropySource rng = new JdkRandomEntropySource(new Random(SEED));
+
+            TokenPlacementModel.ReplicationFactor rf = new TokenPlacementModel.SimpleReplicationFactor(1);
+
+            int maxPartitionSize = 10;
+            modelChecker.init(new HistoryBuilder(SEED, maxPartitionSize, 10, schema, rf))
+                        .beforeAll((history) -> {
+                            for (int i = 0; i < MAX_PARTITIONS; i++)
+                                history.forPartition(i).ensureClustering(schema.ckGenerator.inflate(rng.nextLong()));
+                        })
+                        .step((history) -> {
+                            history.visitPartition(rng.nextInt(MAX_PARTITIONS))
+                                   .insert();
+                        })
+                        .step((history) -> {
+                            history.visitPartition(rng.nextInt(MAX_PARTITIONS))
+                                   .insert(rng.nextInt(maxPartitionSize));
+                        })
+                        .step((history) -> {
+                            history.visitPartition(rng.nextInt(MAX_PARTITIONS))
+                                   .deleteRow();
+                        })
+                        .step((history) -> {
+                            history.visitPartition(rng.nextInt(MAX_PARTITIONS))
+                                   .deleteRow(rng.nextInt(maxPartitionSize));
+                        })
+                        .step((history) -> {
+                            history.visitPartition(rng.nextInt(MAX_PARTITIONS))
+                                   .deletePartition();
+                        })
+                        .step((history) -> {
+                            history.visitPartition(rng.nextInt(MAX_PARTITIONS))
+                                   .deleteColumns();
+                        })
+                        .step((history) -> {
+                            history.visitPartition(rng.nextInt(MAX_PARTITIONS))
+                                   .deleteRowRange();
+                        })
+                        .step((history) -> {
+                            history.visitPartition(rng.nextInt(MAX_PARTITIONS))
+                                   .deleteRowSlice();
+                        })
+                        .exitCondition((history) -> {
+                            ReplayingVisitor visitor = history.visitor(tracker, sut, SystemUnderTest.ConsistencyLevel.ALL);
+                            visitor.replayAll();
+
+                            if (history.visitedPds().size() < MAX_PARTITIONS)
+                                return false;
+
+                            Model model = history.quiescentChecker(tracker, sut);
+
+                            for (Long pd : history.visitedPds())
+                                model.validate(Query.selectPartition(history.schema(), pd,false));
+
+                            return true;
+                        })
+                        .run(STEPS_PER_ITERATION, SEED);
         }
     }
 }

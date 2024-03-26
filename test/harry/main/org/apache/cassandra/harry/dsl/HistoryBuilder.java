@@ -20,7 +20,6 @@ package org.apache.cassandra.harry.dsl;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -29,6 +28,7 @@ import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 import org.apache.cassandra.harry.clock.ApproximateClock;
@@ -38,6 +38,7 @@ import org.apache.cassandra.harry.ddl.SchemaSpec;
 import org.apache.cassandra.harry.gen.EntropySource;
 import org.apache.cassandra.harry.gen.rng.JdkRandomEntropySource;
 import org.apache.cassandra.harry.model.Model;
+import org.apache.cassandra.harry.model.NoOpChecker;
 import org.apache.cassandra.harry.model.OpSelectors;
 import org.apache.cassandra.harry.model.QuiescentChecker;
 import org.apache.cassandra.harry.model.reconciler.Reconciler;
@@ -97,25 +98,46 @@ import org.apache.cassandra.harry.visitors.VisitExecutor;
  * streams for the values for corresponding columns.
  *
  * Other possible operations are deleteRow, deleteColumns, deleteRowRange, deleteRowSlide, and deletePartition.
+ *
+ * HistoryBuilder also allows hardcoding/overriding clustering keys, regular, and static values, but _not_ for
+ * partition keys as of now.
+ *
+ * Since clusterings are ordered according to their value, it is only possible to instruct generator to ensure
+ * such value is going to be present. This is done by:
+ *
+ *     history.forPartition(1).ensureClustering(new Object[]{ "", "b", -1L, "c", "d" });
+ *
+ * For regular and static columns, overrides are done on the top level, not per-partition, so you can simply do:
+ *
+ *     history.valueOverrides().override(column.name, 1245, "overriden value");
+ *
+ *     history.visitPartition(1)
+ *            .insert(1, new long[]{ 12345, 12345 });
+ *
+ *  This will insert "overriden value" for the 1st row of 1st partition, for two columns. In other words, the index
+ *  12345 will now be associated with this overriden value. But all other / random values will still be, random.
  */
 public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleOperationBuilder, BatchOperationBuilder
 {
+    protected final OverridingCkGenerator ckGenerator;
+
     protected final SchemaSpec schema;
     protected final TokenPlacementModel.ReplicationFactor rf;
 
     protected final OpSelectors.PureRng pureRng;
     protected final OpSelectors.DescriptorSelector descriptorSelector;
-
+    protected final ValueHelper valueHelper;
     // TODO: would be great to have a very simple B-Tree here
     protected final Map<Long, ReplayingVisitor.Visit> log;
 
     // TODO: primitive array with a custom/noncopying growth strat
-    protected final Map<Long, PartitionVisitState> partitionStates = new HashMap<>();
+    protected final Map<Long, PartitionVisitStateImpl> partitionStates = new HashMap<>();
+    protected final Set<Long> visitedPartitions = new HashSet<>();
 
     /**
      * A selector that is going to be used by the model checker.
      */
-    public final PresetPdSelector presetSelector;
+    protected final PresetPdSelector presetSelector;
 
     /**
      * Default selector will select every partition exactly once.
@@ -134,7 +156,11 @@ public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleO
         this.log = new HashMap<>();
         this.pureRng = new OpSelectors.PCGFast(seed);
 
-        this.schema = schema;
+        this.presetSelector = new PresetPdSelector();
+        this.ckGenerator = OverridingCkGenerator.make(schema.ckGenerator);
+        this.valueHelper = new ValueHelper(schema, pureRng);
+        this.schema = schema.withCkGenerator(this.ckGenerator, this.ckGenerator.columns)
+                            .withColumns(valueHelper.regularColumns, valueHelper.staticColumns);
         this.rf = rf;
 
         // TODO: make clock pluggable
@@ -142,7 +168,6 @@ public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleO
                                      interleaveWindowSize,
                                      new JdkRandomEntropySource(seed));
 
-        this.presetSelector = new PresetPdSelector();
         this.defaultSelector = new OpSelectors.DefaultPdSelector(pureRng, 1, 1);
 
         this.descriptorSelector = new Configuration.CDSelectorConfigurationBuilder()
@@ -150,6 +175,11 @@ public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleO
                                   .setMaxPartitionSize(maxPartitionSize)
                                   .build()
                                   .make(pureRng, schema);
+    }
+
+    public ValueOverrides valueOverrides()
+    {
+        return valueHelper;
     }
 
     public SchemaSpec schema()
@@ -166,12 +196,13 @@ public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleO
     {
         return clock;
     }
+
     /**
      * Visited partition descriptors _not_ in the order they were visited
      */
     public List<Long> visitedPds()
     {
-        return new ArrayList<>(partitionStates.keySet());
+        return new ArrayList<>(visitedPartitions);
     }
 
     @Override
@@ -183,13 +214,14 @@ public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleO
     protected SingleOperationVisitBuilder singleOpVisitBuilder()
     {
         long visitLts = clock.nextLts();
-        return singleOpVisitBuilder(defaultSelector.pd(visitLts, schema), visitLts);
+        return singleOpVisitBuilder(defaultSelector.pd(visitLts, schema), visitLts, (ps) -> {});
     }
 
-    protected SingleOperationVisitBuilder singleOpVisitBuilder(long pd, long lts)
+    protected SingleOperationVisitBuilder singleOpVisitBuilder(long pd, long lts, Consumer<PartitionVisitState> setupPs)
     {
-        PartitionVisitState partitionState = presetSelector.register(lts, pd);
-        return new SingleOperationVisitBuilder(partitionState, lts, pureRng, descriptorSelector, schema, (visit) -> {
+        PartitionVisitStateImpl partitionState = presetSelector.register(lts, pd, setupPs);
+        return new SingleOperationVisitBuilder(partitionState, lts, pureRng, descriptorSelector, schema, valueHelper, (visit) -> {
+            visitedPartitions.add(pd);
             log.put(visit.lts, visit);
         });
     }
@@ -209,15 +241,15 @@ public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleO
     }
 
     @Override
-    public HistoryBuilder insert(int rowId, long[] vds)
+    public HistoryBuilder insert(int rowId, long[] valueIdxs)
     {
-        singleOpVisitBuilder().insert(rowId, vds);
+        singleOpVisitBuilder().insert(rowId, valueIdxs);
         return this;
     }
 
-    public SingleOperationBuilder insert(int rowIdx, long[] vds, long[] sds)
+    public SingleOperationBuilder insert(int rowIdx, long[] valueIdxs, long[] sValueIdxs)
     {
-        singleOpVisitBuilder().insert(rowIdx, vds, sds);
+        singleOpVisitBuilder().insert(rowIdx, valueIdxs, sValueIdxs);
         return this;
     }
 
@@ -292,8 +324,9 @@ public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleO
 
     protected BatchVisitBuilder batchVisitBuilder(long pd, long lts)
     {
-        PartitionVisitState partitionState = presetSelector.register(lts, pd);
-        return new BatchVisitBuilder(this, partitionState, lts, pureRng, descriptorSelector, schema, (visit) -> {
+        PartitionVisitStateImpl partitionState = presetSelector.register(lts, pd, (ps) -> {});
+        return new BatchVisitBuilder(this, partitionState, lts, pureRng, descriptorSelector, schema, valueHelper, (visit) -> {
+            visitedPartitions.add(pd);
             log.put(visit.lts, visit);
         });
     }
@@ -302,7 +335,43 @@ public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleO
     {
         long visitLts = clock.nextLts();
         long pd = presetSelector.pdAtPosition(pdIdx);
-        return singleOpVisitBuilder(pd, visitLts);
+        return singleOpVisitBuilder(pd, visitLts, (ps) -> {});
+    }
+
+    public SingleOperationBuilder visitPartition(long pdIdx, Consumer<PartitionVisitState> setupPs)
+    {
+        long visitLts = clock.nextLts();
+        long pd = presetSelector.pdAtPosition(pdIdx);
+        return singleOpVisitBuilder(pd, visitLts, setupPs);
+    }
+
+    public PartitionVisitState forPartition(long pdIdx)
+    {
+        long pd = defaultSelector.pdAtPosition(pdIdx, schema);
+        return partitionStates.computeIfAbsent(pd, (pd_) -> makePartitionVisitState(pd));
+    }
+
+    private PartitionVisitStateImpl makePartitionVisitState(long pd)
+    {
+        Long[] possibleCds = new Long[maxPartitionSize];
+        for (int cdIdx = 0; cdIdx < possibleCds.length; cdIdx++)
+        {
+            long cd = descriptorSelector.cd(pd, 0, cdIdx, schema);
+            possibleCds[cdIdx] = cd;
+        }
+        Arrays.sort(possibleCds, Long::compare);
+
+        long[] primitiveArray = new long[maxPartitionSize];
+        for (int i = 0; i < possibleCds.length; i++)
+            primitiveArray[i] = possibleCds[i];
+
+        // TODO: can we have something more efficient than a tree set here?
+        return new PartitionVisitStateImpl(pd, primitiveArray, new TreeSet<>(), schema);
+    }
+
+    public PresetPdSelector pdSelector()
+    {
+        return presetSelector;
     }
 
     /**
@@ -319,19 +388,17 @@ public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleO
         // TODO: implement a primitive long map?
         private final Map<Long, Long> ltsToPd = new HashMap<>();
 
-        public PartitionVisitState register(long lts, long pd)
+        public PartitionVisitStateImpl register(long lts, long pd, Consumer<PartitionVisitState> setup)
         {
             Long prev = ltsToPd.put(lts, pd);
             if (prev != null)
                 throw new IllegalStateException(String.format("LTS %d. Was registered twice, first with %d, and then with %d", lts,  prev, pd));
 
-            long[] possibleCds = new long[maxPartitionSize];
-            for (int i = 0; i < possibleCds.length; i++)
-                possibleCds[i] = descriptorSelector.cd(pd, 0, i, schema);
-            Arrays.sort(possibleCds);
-
-            // TODO: can we have something more efficient than a tree set here?
-            PartitionVisitState partitionState = partitionStates.computeIfAbsent(pd, (pd_) -> new PartitionVisitState(pd, possibleCds, new TreeSet<>()));
+            PartitionVisitStateImpl partitionState = partitionStates.computeIfAbsent(pd, (pd_) -> {
+                PartitionVisitStateImpl partitionVisitState = makePartitionVisitState(pd);
+                setup.accept(partitionVisitState);
+                return partitionVisitState;
+            });
             partitionState.visitedLts.add(lts);
             return partitionState;
         }
@@ -344,7 +411,7 @@ public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleO
         public long nextLts(long lts)
         {
             long pd = pd(lts);
-            PartitionVisitState partitionState = partitionStates.get(pd);
+            PartitionVisitStateImpl partitionState = partitionStates.get(pd);
             NavigableSet<Long> visitedLts = partitionState.visitedLts.subSet(lts, false, Long.MAX_VALUE, false);
             if (visitedLts.isEmpty())
                 return -1;
@@ -355,7 +422,7 @@ public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleO
         public long prevLts(long lts)
         {
             long pd = pd(lts);
-            PartitionVisitState partitionState = partitionStates.get(pd);
+            PartitionVisitStateImpl partitionState = partitionStates.get(pd);
             NavigableSet<Long> visitedLts = partitionState.visitedLts.descendingSet().subSet(lts, false, 0L, false);
             if (visitedLts.isEmpty())
                 return -1;
@@ -365,7 +432,7 @@ public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleO
 
         public long maxLtsFor(long pd)
         {
-            PartitionVisitState partitionState = partitionStates.get(pd);
+            PartitionVisitStateImpl partitionState = partitionStates.get(pd);
             if (partitionState == null)
                 return -1;
             return partitionState.visitedLts.last();
@@ -373,7 +440,7 @@ public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleO
 
         public long minLtsFor(long pd)
         {
-            PartitionVisitState partitionState = partitionStates.get(pd);
+            PartitionVisitStateImpl partitionState = partitionStates.get(pd);
             if (partitionState == null)
                 return -1;
             return partitionState.visitedLts.first();
@@ -382,11 +449,6 @@ public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleO
         public long pdAtPosition(long pdIdx)
         {
             return defaultSelector.pdAtPosition(pdIdx, schema);
-        }
-
-        public Collection<Long> pds()
-        {
-            return partitionStates.keySet();
         }
 
         public long minLtsAt(long position)
@@ -424,6 +486,11 @@ public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleO
         }
     }
 
+    public Model noOpChecker(SystemUnderTest.ConsistencyLevel cl, SystemUnderTest sut)
+    {
+        return new NoOpChecker(sut, cl);
+    }
+
     public Model quiescentChecker(DataTracker tracker, SystemUnderTest sut)
     {
         // TODO: CL for quiescent checker
@@ -437,8 +504,8 @@ public class HistoryBuilder implements Iterable<ReplayingVisitor.Visit>, SingleO
     {
         return new QuiescentLocalStateChecker(clock, presetSelector, sut, tracker, schema,
                                               new Reconciler(presetSelector,
-                                                   schema,
-                                                   this::visitor),
+                                                             schema,
+                                                             this::visitor),
                                               rf);
     }
 

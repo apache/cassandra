@@ -51,19 +51,20 @@ import org.apache.cassandra.harry.tracker.DefaultDataTracker;
 
 public class StaticsTortureTest extends IntegrationTestBase
 {
+    private static final long SEED = 1;
     private static final int MAX_PARTITION_SIZE = 10_000;
     private static final int NUM_PARTITIONS = 100;
     private static final int UNIQUE_CELL_VALUES = 5;
-
-    long seed = 1;
 
     @Test
     public void staticsTortureTest()
     {
         CassandraRelevantProperties.SAI_INTERSECTION_CLAUSE_LIMIT.setInt(6);
+        int idx = 0;
         staticsTortureTest(Arrays.asList(ColumnSpec.ck("ck1", ColumnSpec.asciiType(4, 100)),
                                          ColumnSpec.ck("ck2", ColumnSpec.asciiType),
-                                         ColumnSpec.ck("ck3", ColumnSpec.int64Type)));
+                                         ColumnSpec.ck("ck3", ColumnSpec.int64Type)),
+                           idx++);
 
         for (boolean b1 : new boolean[]{ true, false })
             for (boolean b2 : new boolean[]{ true, false })
@@ -71,13 +72,14 @@ public class StaticsTortureTest extends IntegrationTestBase
                 {
                     staticsTortureTest(Arrays.asList(ColumnSpec.ck("ck1", ColumnSpec.asciiType(4, 100), b1),
                                                      ColumnSpec.ck("ck2", ColumnSpec.asciiType, b2),
-                                                     ColumnSpec.ck("ck3", ColumnSpec.int64Type, b3)));
+                                                     ColumnSpec.ck("ck3", ColumnSpec.int64Type, b3)),
+                                       idx++);
                 }
     }
 
-    public void staticsTortureTest(List<ColumnSpec<?>> cks)
+    public void staticsTortureTest(List<ColumnSpec<?>> cks, int idx)
     {
-        SchemaSpec schema = new SchemaSpec(KEYSPACE, "tbl" + (seed++),
+        SchemaSpec schema = new SchemaSpec(KEYSPACE, "tbl" + idx,
                                            Arrays.asList(ColumnSpec.ck("pk1", ColumnSpec.int64Type),
                                                          ColumnSpec.ck("pk2", ColumnSpec.asciiType(4, 100)),
                                                          ColumnSpec.ck("pk3", ColumnSpec.int64Type)),
@@ -132,7 +134,7 @@ public class StaticsTortureTest extends IntegrationTestBase
                                        schema.staticColumns.get(2).name));
         DataTracker tracker = new DefaultDataTracker();
         TokenPlacementModel.ReplicationFactor rf = new TokenPlacementModel.SimpleReplicationFactor(cluster.size());
-        ReplayingHistoryBuilder history = new ReplayingHistoryBuilder(seed,
+        ReplayingHistoryBuilder history = new ReplayingHistoryBuilder(SEED + idx,
                                                                       MAX_PARTITION_SIZE,
                                                                       100,
                                                                       tracker,
@@ -201,8 +203,8 @@ public class StaticsTortureTest extends IntegrationTestBase
 
         for (int pdx = 0; pdx < NUM_PARTITIONS; pdx++)
         {
-            long pd = history.presetSelector.pdAtPosition(pdx);
-            history.presetSelector.pdAtPosition(1);
+            long pd = history.pdSelector().pdAtPosition(pdx);
+            history.pdSelector().pdAtPosition(1);
             for (int i1 = 0; i1 < values.length; i1++)
                 for (int i2 = 0; i2 < values.length; i2++)
                     for (int i3 = 0; i3 < values.length; i3++)
