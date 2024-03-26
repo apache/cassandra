@@ -38,12 +38,12 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.UUIDSerializer;
 
-import static org.apache.cassandra.net.MessagingService.instance;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.PAXOS2_CLEANUP_RSP2;
 
@@ -70,43 +70,47 @@ public class PaxosCleanupRequest
         this.ranges = rangesOrMin(ranges);
     }
 
-    public static final IVerbHandler<PaxosCleanupRequest> verbHandler = in -> {
-        PaxosCleanupRequest request = in.payload;
+    public static IVerbHandler<PaxosCleanupRequest> createVerbHandler(SharedContext ctx)
+    {
+        return in -> {
+            PaxosCleanupRequest request = in.payload;
 
-        if (!PaxosCleanup.isInRangeAndShouldProcess(request.ranges, request.tableId))
-        {
-            // Try catching up, in case it's us
-            ClusterMetadataService.instance().fetchLogFromPeerOrCMSAsync(ClusterMetadata.current(), in.from(),in.epoch());
-
-            String msg = String.format("Rejecting cleanup request %s from %s. Some ranges are not replicated (%s)",
-                                       request.session, in.from(), request.ranges);
-            Message<PaxosCleanupResponse> response = Message.out(PAXOS2_CLEANUP_RSP2, PaxosCleanupResponse.failed(request.session, msg));
-            instance().send(response, in.respondTo());
-            return;
-        }
-
-        PaxosCleanupLocalCoordinator coordinator = PaxosCleanupLocalCoordinator.create(request);
-
-        coordinator.addCallback(new FutureCallback<PaxosCleanupResponse>()
-        {
-            public void onSuccess(@Nullable PaxosCleanupResponse finished)
+            if (!PaxosCleanup.isInRangeAndShouldProcess(ctx, request.ranges, request.tableId))
             {
-                Message<PaxosCleanupResponse> response = Message.out(PAXOS2_CLEANUP_RSP2, coordinator.getNow());
-                instance().send(response, in.respondTo());
+                // Try catching up, in case it's us
+                ClusterMetadataService.instance().fetchLogFromPeerOrCMSAsync(ClusterMetadata.current(), in.from(),in.epoch());
+
+                String msg = String.format("Rejecting cleanup request %s from %s. Some ranges are not replicated (%s)",
+                                           request.session, in.from(), request.ranges);
+                Message<PaxosCleanupResponse> response = Message.out(PAXOS2_CLEANUP_RSP2, PaxosCleanupResponse.failed(request.session, msg));
+                ctx.messaging().send(response, in.respondTo());
+                return;
             }
 
-            public void onFailure(Throwable throwable)
+            PaxosCleanupLocalCoordinator coordinator = PaxosCleanupLocalCoordinator.create(ctx, request);
+
+            coordinator.addCallback(new FutureCallback<PaxosCleanupResponse>()
             {
-                Message<PaxosCleanupResponse> response = Message.out(PAXOS2_CLEANUP_RSP2, PaxosCleanupResponse.failed(request.session, throwable.getMessage()));
-                instance().send(response, in.respondTo());
-            }
-        });
+                public void onSuccess(@Nullable PaxosCleanupResponse finished)
+                {
+                    Message<PaxosCleanupResponse> response = Message.out(PAXOS2_CLEANUP_RSP2, coordinator.getNow());
+                    ctx.messaging().send(response, in.respondTo());
+                }
 
-        // ack the request so the coordinator knows we've started
-        instance().respond(noPayload, in);
+                public void onFailure(Throwable throwable)
+                {
+                    Message<PaxosCleanupResponse> response = Message.out(PAXOS2_CLEANUP_RSP2, PaxosCleanupResponse.failed(request.session, throwable.getMessage()));
+                    ctx.messaging().send(response, in.respondTo());
+                }
+            });
 
-        coordinator.start();
-    };
+            // ack the request so the coordinator knows we've started
+            ctx.messaging().respond(noPayload, in);
+
+            coordinator.start();
+        };
+    }
+    public static final IVerbHandler<PaxosCleanupRequest> verbHandler = createVerbHandler(SharedContext.Global.instance);
 
     public static final IVersionedSerializer<PaxosCleanupRequest> serializer = new IVersionedSerializer<PaxosCleanupRequest>()
     {

@@ -36,7 +36,10 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.*;
+import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.RequestCallbackWithFailure;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.paxos.Ballot;
@@ -74,14 +77,14 @@ public class PaxosStartPrepareCleanup extends AsyncFuture<PaxosCleanupHistory> i
      * prepare message to prevent racing with gossip dissemination and guarantee that every repair participant is aware
      * of the pending ring change during repair.
      */
-    public static PaxosStartPrepareCleanup prepare(TableId tableId, Collection<InetAddressAndPort> endpoints, EndpointState localEpState, Collection<Range<Token>> ranges)
+    public static PaxosStartPrepareCleanup prepare(SharedContext ctx, TableId tableId, Collection<InetAddressAndPort> endpoints, EndpointState localEpState, Collection<Range<Token>> ranges)
     {
         PaxosStartPrepareCleanup callback = new PaxosStartPrepareCleanup(tableId, endpoints);
         synchronized (callback)
         {
             Message<Request> message = Message.out(PAXOS2_CLEANUP_START_PREPARE_REQ, new Request(tableId, localEpState, ranges));
             for (InetAddressAndPort endpoint : endpoints)
-                MessagingService.instance().sendWithCallback(message, endpoint, callback);
+                ctx.messaging().sendWithCallback(message, endpoint, callback);
         }
         return callback;
     }
@@ -109,17 +112,17 @@ public class PaxosStartPrepareCleanup extends AsyncFuture<PaxosCleanupHistory> i
             trySuccess(new PaxosCleanupHistory(table, maxBallot, history));
     }
 
-    private static void maybeUpdateTopology(InetAddressAndPort endpoint, EndpointState remote)
+    private static void maybeUpdateTopology(SharedContext ctx, InetAddressAndPort endpoint, EndpointState remote)
     {
-        EndpointState local = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
+        EndpointState local = ctx.gossiper().getEndpointStateForEndpoint(endpoint);
         if (local == null || local.isSupersededBy(remote))
         {
             logger.trace("updating endpoint info for {} with {}", endpoint, remote);
             Map<InetAddressAndPort, EndpointState> states = Collections.singletonMap(endpoint, remote);
 
             Gossiper.runInGossipStageBlocking(() -> {
-                Gossiper.instance.notifyFailureDetector(states);
-                Gossiper.instance.applyStateLocally(states);
+                ctx.gossiper().notifyFailureDetector(states);
+                ctx.gossiper().applyStateLocally(states);
             });
             // TODO: We should also wait for schema pulls/pushes, however this would be quite an involved change to MigrationManager
             //       (which currently drops some migration tasks on the floor).
@@ -178,12 +181,17 @@ public class PaxosStartPrepareCleanup extends AsyncFuture<PaxosCleanupHistory> i
         }
     }
 
-    public static final IVerbHandler<Request> verbHandler = in -> {
-        ColumnFamilyStore table = Schema.instance.getColumnFamilyStoreInstance(in.payload.tableId);
-        maybeUpdateTopology(in.from(), in.payload.epState);
-        Ballot highBound = newBallot(ballotTracker().getHighBound(), ConsistencyLevel.SERIAL);
-        PaxosRepairHistory history = table.getPaxosRepairHistoryForRanges(in.payload.ranges);
-        Message<PaxosCleanupHistory> out = in.responseWith(new PaxosCleanupHistory(table.metadata.id, highBound, history));
-        MessagingService.instance().send(out, in.respondTo());
-    };
+    public static IVerbHandler<Request> createVerbHandler(SharedContext ctx)
+    {
+        return in -> {
+            ColumnFamilyStore table = Schema.instance.getColumnFamilyStoreInstance(in.payload.tableId);
+            maybeUpdateTopology(ctx, in.from(), in.payload.epState);
+            Ballot highBound = newBallot(ballotTracker().getHighBound(), ConsistencyLevel.SERIAL);
+            PaxosRepairHistory history = table.getPaxosRepairHistoryForRanges(in.payload.ranges);
+            Message<PaxosCleanupHistory> out = in.responseWith(new PaxosCleanupHistory(table.metadata.id, highBound, history));
+            ctx.messaging().send(out, in.respondTo());
+        };
+    }
+
+    public static final IVerbHandler<Request> verbHandler = createVerbHandler(SharedContext.Global.instance);
 }

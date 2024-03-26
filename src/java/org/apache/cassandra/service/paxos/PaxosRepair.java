@@ -51,6 +51,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -667,16 +668,16 @@ public class PaxosRepair extends AbstractPaxosRepair
         return result;
     }
 
-    static boolean validatePeerCompatibility(TableMetadata table, Range<Token> range)
+    static boolean validatePeerCompatibility(SharedContext ctx, TableMetadata table, Range<Token> range)
     {
         ClusterMetadata metadata = ClusterMetadata.current();
-        Participants participants = Participants.get(table, range.right, ConsistencyLevel.SERIAL);
+        Participants participants = Participants.get(metadata, table, range.right, ConsistencyLevel.SERIAL, r -> ctx.failureDetector().isAlive(r.endpoint()));
         return Iterables.all(participants.all, (participant) -> validatePeerCompatibility(metadata, participant));
     }
 
-    public static boolean validatePeerCompatibility(TableMetadata table, Collection<Range<Token>> ranges)
+    public static boolean validatePeerCompatibility(SharedContext ctx, TableMetadata table, Collection<Range<Token>> ranges)
     {
-        return Iterables.all(ranges, range -> validatePeerCompatibility(table, range));
+        return Iterables.all(ranges, range -> validatePeerCompatibility(ctx, table, range));
     }
 
     public static void shutdownAndWait(long timeout, TimeUnit units) throws InterruptedException, TimeoutException

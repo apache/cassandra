@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.gms;
 
+import java.util.Map;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -30,6 +31,8 @@ public interface IGossiper
 
     @Nullable
     EndpointState getEndpointStateForEndpoint(InetAddressAndPort ep);
+    void notifyFailureDetector(Map<InetAddressAndPort, EndpointState> remoteEpStateMap);
+    void applyStateLocally(Map<InetAddressAndPort, EndpointState> epStateMap);
     @Nullable
     default CassandraVersion getReleaseVersion(InetAddressAndPort ep)
     {
