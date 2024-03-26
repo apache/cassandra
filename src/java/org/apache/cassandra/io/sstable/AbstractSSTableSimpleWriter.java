@@ -128,5 +128,10 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
      * @return an update on partition {@code key} that is tied to this writer.
      */
     abstract PartitionUpdate getUpdateFor(DecoratedKey key) throws IOException;
+
+    /**
+     * Request that buffered contents are flushed to disk.
+     */
+    abstract void flush() throws IOException;
 }
 
