@@ -1305,8 +1305,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
 
         // we need to make sure rate limiter is enabled for each unit test method
         CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
-        cassandraResourceUtilization.throttlingOptions.setToDefault();
-        cassandraResourceUtilization.throttlingOptions.setEnabled(true);
+        resetThrottlingOption(cassandraResourceUtilization.throttlingOptions);
         cassandraResourceUtilization.syncAllFilters();
         cassandraResourceUtilization.resetThrottlingParams();
         cassandraResourceUtilization.isSetupComplete = true;
@@ -1410,5 +1409,33 @@ public class CassandraResourceUtilizationTest extends CQLTester
     private void resetCounter(Counter counter)
     {
         counter.dec(counter.getCount());
+    }
+
+    private void resetThrottlingOption(ThrottlingOptions throttlingOptions) {
+        throttlingOptions.enabled = true;
+        throttlingOptions.cpu_threshold_cur = 35;
+        throttlingOptions.cpu_threshold_one_minute = 80;
+        throttlingOptions.pending_reads_threshold_cur = 0;
+        throttlingOptions.pending_reads_threshold_one_minute = 0;
+        throttlingOptions.pending_mutations_threshold_cur = 0;
+        throttlingOptions.pending_mutations_threshold_one_minute = 0;
+        throttlingOptions.pending_native_transport_threshold_cur = 0;
+        throttlingOptions.pending_native_transport_threshold_one_minute = 0;
+        throttlingOptions.percentage_of_traffic_to_throttling = 0.1;
+        throttlingOptions.more_aggressive_throttling_after_in_sec = 1 * 60; // 1 minutes
+        throttlingOptions.reset_after_no_throttling_seen_in_sec = 15 * 60; // 15 minutes
+        throttlingOptions.aggressive_throttling_qps_ratio = 4;
+        throttlingOptions.aggressive_throttling_latency_ratio = 4;
+        throttlingOptions.ignore_tables_regex = "^system.*\\..+|^pingless\\..+";
+        throttlingOptions.health_check_init_delay_in_sec = 60;
+        throttlingOptions.health_check_freq_in_sec = 1;
+        throttlingOptions.throttle_read_replica_traffic = true;
+        throttlingOptions.throttle_mutation_replica_traffic = true;
+        throttlingOptions.hard_block_single_partition_coord_reads_tables_regex = "";
+        throttlingOptions.hard_block_single_partition_replica_reads_tables_regex = "";
+        throttlingOptions.hard_block_range_coord_reads_tables_regex = "";
+        throttlingOptions.hard_block_range_replica_reads_tables_regex = "";
+        throttlingOptions.hard_block_coord_writes_tables_regex = "";
+        throttlingOptions.hard_block_replica_writes_tables_regex = "";
     }
 }

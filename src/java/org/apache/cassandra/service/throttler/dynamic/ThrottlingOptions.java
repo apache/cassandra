@@ -22,69 +22,35 @@ public class ThrottlingOptions
 {
     // Also, adjust the default values based on the POC
     // TODO: think of the need to declare the following variables a vilotale, given they can be modified by nodetool at runtime
-    public boolean enabled;
+    public boolean enabled = false;
 
-    public long cpu_threshold_cur;
-    public long cpu_threshold_one_minute;
-    public int pending_reads_threshold_cur;
-    public int pending_reads_threshold_one_minute;
-    public int pending_mutations_threshold_cur;
-    public int pending_mutations_threshold_one_minute;
-    public int pending_native_transport_threshold_cur;
-    public int pending_native_transport_threshold_one_minute;
-    public double percentage_of_traffic_to_throttling;
-    public int more_aggressive_throttling_after_in_sec;
-    public int reset_after_no_throttling_seen_in_sec;
-    public double aggressive_throttling_qps_ratio;
-    public double aggressive_throttling_latency_ratio;
-    public String ignore_tables_regex;
-    public int health_check_init_delay_in_sec;
-    public int health_check_freq_in_sec;
-    public boolean throttle_read_replica_traffic;
-    public boolean throttle_mutation_replica_traffic;
-    public String hard_block_single_partition_coord_reads_tables_regex;
-    public String hard_block_single_partition_replica_reads_tables_regex;
-    public String hard_block_range_coord_reads_tables_regex;
-    public String hard_block_range_replica_reads_tables_regex;
-    public String hard_block_coord_writes_tables_regex;
-    public String hard_block_replica_writes_tables_regex;
+    public long cpu_threshold_cur = 35; //TODO: deprecate it, as it is not at all participating in the throttling algo
+    public long cpu_threshold_one_minute = 80;
+    public int pending_reads_threshold_cur = 1;
+    public int pending_reads_threshold_one_minute = 10;
+    public int pending_mutations_threshold_cur = 1;
+    public int pending_mutations_threshold_one_minute = 10;
+    public int pending_native_transport_threshold_cur = 1;
+    public int pending_native_transport_threshold_one_minute = 10;
+    public double percentage_of_traffic_to_throttling = 0.05;
+    public int more_aggressive_throttling_after_in_sec = 2 * 60; // 2 minutes
+    public int reset_after_no_throttling_seen_in_sec = 15 * 60; // 15 minutes
+    public double aggressive_throttling_qps_ratio = 5;
+    public double aggressive_throttling_latency_ratio = 5;
+    public String ignore_tables_regex = "^system.*\\..+|^pingless\\..+";
+    public int health_check_init_delay_in_sec = 60;
+    public int health_check_freq_in_sec = 1;
+    public boolean throttle_read_replica_traffic = true;
+    public boolean throttle_mutation_replica_traffic = false;
+    public String hard_block_single_partition_coord_reads_tables_regex = "";
+    public String hard_block_single_partition_replica_reads_tables_regex = "";
+    public String hard_block_range_coord_reads_tables_regex = "";
+    public String hard_block_range_replica_reads_tables_regex = "";
+    public String hard_block_coord_writes_tables_regex = "";
+    public String hard_block_replica_writes_tables_regex = "";
 
     public ThrottlingOptions()
     {
-        setToDefault();
-    }
-
-    public void setToDefault()
-    {
-        // By default, we'd like to have rate limiter disabled.
-        // When the field 'throttling_options' dones't exist in cassandra.yaml, which is the default, DatabaseDescriptor
-        // will refer to the default values here.
-        enabled = false;
-
-        cpu_threshold_cur = 35;
-        cpu_threshold_one_minute = 35;
-        pending_reads_threshold_cur = 0;
-        pending_reads_threshold_one_minute = 0;
-        pending_mutations_threshold_cur = 0;
-        pending_mutations_threshold_one_minute = 0;
-        pending_native_transport_threshold_cur = 0;
-        pending_native_transport_threshold_one_minute = 0;
-        percentage_of_traffic_to_throttling = 0.1;
-        more_aggressive_throttling_after_in_sec = 1 * 60; // 1 minutes
-        reset_after_no_throttling_seen_in_sec = 15 * 60; // 15 minutes
-        aggressive_throttling_qps_ratio = 4;
-        aggressive_throttling_latency_ratio = 4;
-        ignore_tables_regex = "^system.*\\..+|^pingless\\..+";
-        health_check_init_delay_in_sec = 60;
-        health_check_freq_in_sec = 1;
-        throttle_read_replica_traffic = true;
-        throttle_mutation_replica_traffic = true;
-        hard_block_single_partition_coord_reads_tables_regex = "";
-        hard_block_single_partition_replica_reads_tables_regex = "";
-        hard_block_range_coord_reads_tables_regex = "";
-        hard_block_range_replica_reads_tables_regex = "";
-        hard_block_coord_writes_tables_regex = "";
-        hard_block_replica_writes_tables_regex = "";
     }
 
     // getters and setters
