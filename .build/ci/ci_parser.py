@@ -27,14 +27,17 @@ import pstats
 import os
 import shutil
 import xml.etree.ElementTree as ET
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Callable, Dict, List, IO, Optional, Tuple, Type
+from typing import Callable, Dict, Tuple, Type
 from pathlib import Path
 
 from junit_helpers import JUnitResultBuilder, JUnitTestCase, JUnitTestSuite, JUnitTestStatus, LOG_FILE_NAME
 from logging_helper import build_logger, mute_logging, CustomLogger
 
-from bs4 import BeautifulSoup
+try:
+    from bs4 import BeautifulSoup
+except ImportError:
+    print('bs4 not installed; make sure you have bs4 in your active python env.')
+    exit(1)
 
 
 parser = argparse.ArgumentParser(description="""
@@ -64,79 +67,36 @@ if args.mute:
 def main():
     check_file_condition(lambda: os.path.exists(args.input), f'Cannot find {args.input}. Aborting.')
 
-    # if needed create a blank ci_summary.html
-    if not os.path.exists(args.output):
-        with open(args.output, "w") as ci_summary_html:
-            ci_summary_html.write('<html><head><body><h1>CI Summary – Test Failures</h1></body></head></html>')
+    xml_files = [str(file) for file in Path(args.input).rglob('*.xml')]
+    check_file_condition(lambda: len(xml_files) != 0, f'Found 0 .xml files in path: {args.input}. Cannot proceed with .xml extraction.')
+    logger.info(f'Found {len(xml_files)} xml files under: {args.input}')
 
+    test_suites = process_xml_files(xml_files)
 
-    test_suites = extract_junit_from_test_run(args.input)
     for suite in test_suites.values():
-        logger.info(f'Suite: {suite.name()}')
-        logger.info(f'-- Passed: {suite.passed()}')
-        logger.info(f'-- Failure: {suite.failed()}')
-        logger.info(f'-- Skipped: {suite.skipped()}')
         if suite.is_empty() and suite.file_count() == 0:
             logger.warning(f'Have an empty test_suite: {suite.name()} that had no .xml files associated with it. Did the jobs run correctly and produce junit files? Check {suite.get_archive()} for test run command result details.')
         elif suite.is_empty():
             logger.warning(f'Got an unexpected empty test_suite: {suite.name()} with no .xml file parsing associated with it. Check {LOG_FILE_NAME}.log when run with -v for details.')
-    append_failure_results(test_suites, args.output)
+
+    create_summary_file(test_suites, xml_files, args.output)
 
 
-def extract_junit_from_test_run(input_dir: str) -> Dict[str, JUnitTestSuite]:
+def process_xml_files(xml_files: str) -> Dict[str, JUnitTestSuite]:
     """
     For a given input input_dir, will find all .xml files in that tree, extract files from them preserving input_dir structure
     and parse out all found junit test results into the global test result containers.
-    :param input_dir: Input directory to recursively search for .xml files
+    :param xml_files: all .xml files under args.input_dir
     """
 
-    # Skip archives that we know exist but don't have results we want.
-    xml_exclusions = ['split', 'result_details']
-
-    # Inclusions win over exclusions right now but are empty by default.
-
-    # TODO: Make this a command-line regex? Used for debugging; could use to parse just a certain subset of suites.
-    xml_inclusions = None  # type: Optional[List[str]]
-    # xml_inclusions = ['python']
-
-    # TODO: Make this a command-line debug flag? Used for debugging
-    debug_file = None  # type: Optional[str]
-    # debug_file = 'jvm17-utests_archive.tar.xml'
-    if debug_file is not None:
-        xml_files = [str(file) for file in Path(input_dir).rglob('*.xml') if debug_file in str(file)]
-    elif xml_inclusions is not None:
-        xml_files = [str(file) for file in Path(input_dir).rglob('*.xml') if any(x in str(file) for x in xml_inclusions)]
-    else:
-        xml_files = [str(file) for file in Path(input_dir).rglob('*.xml') if not any(x in str(file) for x in xml_exclusions)]
-    check_file_condition(lambda: len(xml_files) != 0, f'Found 0 .xml files in path: {input_dir}. Cannot proceed with .xml extraction.')
-    logger.debug(f'Extracting .xml from {len(xml_files)} xml files from path: {input_dir}')
-
-    archive_count = 0
-    test_file_count = 0
+    test_suites = dict()  # type: Dict[str, JUnitTestSuite]
     test_count = 0
 
-    test_suites = dict()  # type: Dict[str, JUnitTestSuite]
-
-    logger.info('List of xml files to be processed:')
     for file in xml_files:
-        logger.info(f' -- {file}')
+        files, tests = process_xml_file(file, test_suites)
+        test_count += tests
 
-    # Since we have a 1:1 ratio on .xml files to suites, we can parallelize w/out any kind of synchronization. We also
-    # check to ensure this contract is upheld in the processing method.
-    with ThreadPoolExecutor() as executor:
-        futures = [executor.submit(process_xml_file, xml_file, input_dir, test_suites) for xml_file in xml_files]
-        for future in as_completed(futures):
-            exception = future.exception()
-            if exception is not None:
-                logger.critical('Saw an exception processing .xml file. Aborting.')
-                raise exception
-            else:
-                files, tests = future.result()
-                test_file_count += files
-                test_count += tests
-
-    logger.progress(f'Total archive count: {archive_count}')
-    logger.progress(f'Total junit file count: {test_file_count}')
+    logger.progress(f'Total junit file count: {len(xml_files)}')
     logger.progress(f'Total suite count: {len(test_suites.keys())}')
     logger.progress(f'Total test count: {test_count}')
     passed = 0
@@ -156,14 +116,14 @@ def extract_junit_from_test_run(input_dir: str) -> Dict[str, JUnitTestSuite]:
     return test_suites
 
 
-def process_xml_file(xml_file: str, input_dir: str, test_suites: Dict[str, JUnitTestSuite]) -> Tuple[int, int]:
+def process_xml_file(xml_file, test_suites: Dict[str, JUnitTestSuite]) -> Tuple[int, int]:
     """
-    Pretty straightforward here - we unpack all our .xml files, walk through any .xml files in there and look for tests,
+    Pretty straightforward here - walk through and look for tests,
     parsing them out into our global JUnitTestCase Dicts as we find them
 
     No thread safety on target Dict -> relying on the "one .xml per suite" rule to keep things clean
 
-    This takes place in the context of an executor thread
+    Can be called in context of executor thread.
     :return: Tuple[file count, test count]
     """
 
@@ -178,27 +138,24 @@ def process_xml_file(xml_file: str, input_dir: str, test_suites: Dict[str, JUnit
             # And make sure we're not racing
             if suite_name in test_suites:
                 logger.error(f'Got a duplicate suite_name - this will lead to race conditions. Suite: {suite_name}. xml file: {xml_file}. Skipping this file.')
-                return 0,0
+                return 0, 0
             else:
                 test_suites[suite_name] = JUnitTestSuite(suite_name)
 
             active_suite = test_suites[suite_name]
             # Store this for later logging if we have a failed job; help the user know where to look next.
             active_suite.set_archive(xml_file)
-            active_file = ''
             test_file_count = 0
             test_count = 0
-            if '.xml' in xml_file:
-                active_file = xml_file
-                fc = extract_test_cases(active_suite, xml_file, root)
-                if fc != 0:
-                    test_file_count += 1
-                    test_count += fc
+            fc = process_test_cases(active_suite, xml_file, root)
+            if fc != 0:
+                test_file_count += 1
+                test_count += fc
         except (EOFError, ET.ParseError) as e:
             logger.error(f'Error on {xml_file}: {e}. Skipping; will be missing results for {suite_name}')
             return 0, 0
         except Exception as e:
-            logger.critical(f'Got unexpected error while parsing {xml_file} on file: {active_file}: {e}. Aborting.')
+            logger.critical(f'Got unexpected error while parsing {xml_file}: {e}. Aborting.')
             raise e
     return test_file_count, test_count
 
@@ -209,15 +166,15 @@ def print_errors(suite: JUnitTestSuite) -> None:
         logger.warning(f'{testcase}')
 
 
-def extract_test_cases(suite: JUnitTestSuite, file_name: str, root) -> int:
+def process_test_cases(suite: JUnitTestSuite, file_name: str, root) -> int:
     """
     For a given input .xml, will extract all JUnitTestCase matching objects and store them in the global registry keyed off
     suite name.
 
-    Called in context of executor thread.
+    Can be clled in context of executor thread.
     :param suite: The JUnitTestSuite object we're currently working with
-    :param file_name: .xml file_name to check for tests. May or may not be junit format.
-    :param file_contents: uncompressed file contents to read .xml from
+    :param file_name: .xml file_name to check for tests. junit format.
+    :param root: etree root for file_name
     :return : count of tests extracted from this file_name
     """
     xml_exclusions = ['logback', 'checkstyle']
@@ -246,43 +203,75 @@ def extract_test_cases(suite: JUnitTestSuite, file_name: str, root) -> int:
 
 # TODO: Update this to instead be "create_summary_file" and build the entire summary page, not just append failures to existing
 # This should be trivial to do using JUnitTestSuite.failed, passed, etc methods
-def append_failure_results(test_suites: Dict[str, JUnitTestSuite], output: str) -> None:
+def create_summary_file(test_suites: Dict[str, JUnitTestSuite], xml_files, output: str) -> None:
     """
     Will create a table with all failed tests in it organized by sorted suite name.
     :param test_suites: Collection of JUnitTestSuite's parsed out pass/fail data
     :param output: Path to the .html we want to append to the <body> of
     """
+
+    # if needed create a blank ci_summary.html
+    if not os.path.exists(args.output):
+        with open(args.output, "w") as ci_summary_html:
+            ci_summary_html.write('<html><head><body><h1>CI Summary</h1></body></head></html>')
+
     with open(output, 'r') as file:
         soup = BeautifulSoup(file, 'html.parser')
 
-    new_tag = soup.new_tag("div", style="font-size: 22px; color: white; font-weight: bold;")
-    new_tag.string = '[Test Failure Details]'
-    soup.body.append(new_tag)
+    failures_tag = soup.new_tag("div")
+    failures_tag.string = '<br/><br/>[Test Failure Details]<br/><br/>'
+    suites_tag = soup.new_tag("div")
+    suites_tag.string = '<br/><br/><hr/>[Test Suite Details]<br/><br/>'
+    suites_builder = JUnitResultBuilder('Suites')
+    suites_builder.label_columns(['Suite', 'Passed', 'Failed', 'Skipped'])
+
     JUnitResultBuilder.add_style_tags(soup)
 
     # We cut off at 200 failures; if you have > than that chances are you have a bad run and there's no point in
     # just continuing to pollute the summary file with it and blow past file size. Since the inlined failures are
     # a tool to be used in the attaching / review process and not primarily workflow and fixing.
+    total_passed_count = 0
+    total_skipped_count = 0
     total_failure_count = 0
     for suite_name in sorted(test_suites.keys()):
         suite = test_suites[suite_name]
-        failure_count = suite.count(JUnitTestStatus.FAILURE)
+        passed_count = suite.passed()
+        skipped_count = suite.skipped()
+        failure_count = suite.failed()
+
+        suites_builder.add_row([suite_name, str(passed_count), str(failure_count), str(skipped_count)])
+
         if failure_count == 0:
             # Don't append anything to results in the happy path case.
             logger.debug(f'No failed tests in suite: {suite_name}')
-        else:
+        elif total_failure_count < 200:
             # Else independent table per suite.
-            builder = JUnitResultBuilder(suite_name, failure_count)
-            builder.label_columns(JUnitTestCase.headers())
+            failures_builder = JUnitResultBuilder(suite_name)
+            failures_builder.label_columns(JUnitTestCase.headers())
             for test in suite.get_tests(JUnitTestStatus.FAILURE):
-                builder.add_row(test.row_data())
-            table_data = BeautifulSoup(builder.build_table(), 'html.parser')
-            soup.append(table_data)
-        total_failure_count += failure_count
-        # TODO: Consider making 200 configurable via a command-line flag if we find this is useful for local debugging work.
-        if total_failure_count > 200:
-            logger.critical(f'Saw {total_failure_count} failures; greater than 200 threshold. Not appending further failure details to {output}.')
-            break
+                failures_builder.add_row(test.row_data())
+            failures_tag.append(BeautifulSoup(failures_builder.build_table(), 'html.parser'))
+            total_failure_count += failure_count
+            if total_failure_count > 200:
+                logger.critical(f'Saw {total_failure_count} failures; greater than 200 threshold. Not appending further failure details to {output}.')
+        total_passed_count += passed_count
+        total_skipped_count += skipped_count
+
+    # totals, manual html
+    totals_tag = soup.new_tag("div")
+    totals_tag.string = f"""[Totals]<br/><br/><table style="width:100px">
+        <tr><td >Passed</td><td></td><td align="right"> {total_passed_count}</td></tr>
+        <tr><td >Failed</td><td></td><td align="right"> {total_failure_count}</td></tr>
+        <tr><td >Skipped</td><td></td><td align="right"> {total_skipped_count}</td></tr>
+        <tr><td >Total</td><td>&nbsp;&nbsp;&nbsp;</td><td align="right"> {total_passed_count + total_failure_count + total_skipped_count}</td></tr>
+        <tr><td >Files</td><td></td><td align="right"> {len(xml_files)}</td></tr>
+        <tr><td >Suites</td><td></td><td align="right"> {len(test_suites.keys())}</td></tr></table><hr/>
+        """
+
+    soup.body.append(totals_tag)
+    soup.body.append(failures_tag)
+    suites_tag.append(BeautifulSoup(suites_builder.build_table(), 'html.parser'))
+    soup.body.append(suites_tag)
 
     # Only backup the output file if we've gotten this far
     shutil.copyfile(output, output + '.bak')

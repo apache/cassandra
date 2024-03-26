@@ -70,9 +70,8 @@ class JUnitResultBuilder:
     templating combined with BeautifulSoup means things are... very very particular. Bad parsing on things from the .sh
     or other sources can make bs4 replace things in weird ways.
     """
-    def __init__(self, name: str, failures: int) -> None:
+    def __init__(self, name: str) -> None:
         self._name = name
-        self._failures = failures
         self._labels = []  # type: List[str]
         self._rows = []  # type: List[List[str]]
         self._header = ['unknown', 'unknown', 'unknown', 'unknown']
@@ -81,11 +80,8 @@ class JUnitResultBuilder:
         # otherwise.
         self._template = Template('''
         <table class="table-fixed">
-          <tr style = "height: 18px; background-color: black; color: white;">
-            <th> {{header}} </th>
-            <th></th>
-            <th></th>
-            <th></th>
+          <tr style = "height: 18px;">
+            <th colspan="4"> {{header}} </th>
           </tr>
           <tr>
             <th>{{ labels[0] }}</td>
@@ -112,6 +108,9 @@ class JUnitResultBuilder:
         """
         style_tag = soup.new_tag("style")
         style_tag.string = """
+        table, th, td {
+            border: 1px solid black; border-collapse: collapse;
+        }
         .table-fixed {
             table-layout: fixed;
             width: 100%;
@@ -144,7 +143,7 @@ class JUnitResultBuilder:
         self._rows.append(row)
 
     def build_table(self) -> str:
-        return self._template.render(header=f'{self._name} failures: {self._failures}', labels=self._labels, rows=self._rows)
+        return self._template.render(header=f'{self._name}', labels=self._labels, rows=self._rows)
 
 
 class JUnitTestCase:

@@ -27,6 +27,21 @@ command -v ant >/dev/null 2>&1 || { echo >&2 "ant needs to be installed"; exit 1
 
 # generate CI summary file
 cd ${DIST_DIR}/
+
+cat >${DIST_DIR}/ci_summary.html <<EOL
+<html>
+<head></head>
+<body>
+<h1>CI Summary</h1>
+<h2>sha:  $(git ls-files -s ${CASSANDRA_DIR} | git hash-object --stdin)</h2>
+<h2>branch: $(git -C ${CASSANDRA_DIR} rev-parse --abbrev-ref HEAD)</h2>
+<h2>repo: $(git -C ${CASSANDRA_DIR} remote get-url origin)</h2>
+<h2>Date: $(date)</h2>
+</body>
+</html>
+...
+EOL
+
 pip install -r ${CASSANDRA_DIR}/.build/ci/requirements.txt
 ${CASSANDRA_DIR}/.build/ci/ci_parser.py --mute --input ${DIST_DIR}/test/output/ --output ${DIST_DIR}/ci_summary.html
 
