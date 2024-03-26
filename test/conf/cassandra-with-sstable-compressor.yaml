@@ -101,10 +101,11 @@ memtable:
         test_invalid_factory_field:
             class_name: org.apache.cassandra.cql3.validation.operations.CreateTest$InvalidMemtableFactoryField
 
-sstable_compression:
-    class_name: lz4
-    parameters:
-        lz4_compressor_type: high
-        lz4_high_compressor_level: "8"
-        chunk_length: 32MiB
-        min_compress_ratio: "1.5"
+sstable:
+    default_compression:
+        class_name: lz4
+        parameters:
+            lz4_compressor_type: high
+            lz4_high_compressor_level: "8"
+            chunk_length: 32MiB
+            min_compress_ratio: "1.5"

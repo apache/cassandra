@@ -977,7 +977,7 @@ public class DatabaseDescriptor
         if (conf.paxos_state_purging == null)
             conf.paxos_state_purging = PaxosStatePurging.legacy;
 
-        sstableCompression = conf.sstable_compression;
+        sstableCompression = conf.sstable.default_compression;
 
         logInitializationOutcome(logger);
 
@@ -2677,7 +2677,7 @@ public class DatabaseDescriptor
 
     public static void setSSTableCompression(ParameterizedClass compressor)
     {
-        conf.sstable_compression = compressor;
+        conf.sstable.default_compression = compressor;
     }
 
    /**

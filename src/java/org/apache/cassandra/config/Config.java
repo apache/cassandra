@@ -371,6 +371,9 @@ public class Config
     {
         public String selected_format = BigFormat.NAME;
         public Map<String, Map<String, String>> format = new HashMap<>();
+
+        @Nullable
+        public ParameterizedClass default_compression;
     }
 
     public final SSTableConfig sstable = new SSTableConfig();
@@ -1125,9 +1128,6 @@ public class Config
      * Default compaction configuration, used if a table does not specify any.
      */
     public ParameterizedClass default_compaction = null;
-
-    @Nullable
-    public ParameterizedClass sstable_compression;
 
     public static Supplier<Config> getOverrideLoadConfig()
     {
