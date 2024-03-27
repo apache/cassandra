@@ -51,10 +51,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.BiPredicate;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.filter;
@@ -247,18 +247,18 @@ public class ReplicaPlans
     {
         return filterBatchlogEndpoints(localRack,
                                        endpoints,
-                                       Collections::shuffle,
-                                       FailureDetector.isEndpointAlive,
-                                       ThreadLocalRandom.current()::nextInt);
+                                       FailureDetector.instance::sortEndpointsByResponseTime,
+                                       FailureDetector.isEpASlowerThanEpB,
+                                       FailureDetector.isEndpointAlive);
     }
 
     // Collect a list of candidates for batchlog hosting. If possible these will be two nodes from different racks.
     @VisibleForTesting
     public static Collection<InetAddressAndPort> filterBatchlogEndpoints(String localRack,
                                                                          Multimap<String, InetAddressAndPort> endpoints,
-                                                                         Consumer<List<?>> shuffle,
-                                                                         Predicate<InetAddressAndPort> isAlive,
-                                                                         Function<Integer, Integer> indexPicker)
+                                                                         Consumer<List<InetAddressAndPort>> endpointsSorter,
+                                                                         BiPredicate<InetAddressAndPort, InetAddressAndPort> enpointsCompare,
+                                                                         Predicate<InetAddressAndPort> isAlive)
     {
         // special case for single-node data centers
         if (endpoints.values().size() == 1)
@@ -290,7 +290,7 @@ public class ReplicaPlans
              * because of the preceding if block.
              */
             List<InetAddressAndPort> otherRack = Lists.newArrayList(validated.values());
-            shuffle.accept(otherRack);
+            endpointsSorter.accept(otherRack);
             return otherRack.subList(0, 2);
         }
 
@@ -302,8 +302,22 @@ public class ReplicaPlans
         }
         else
         {
-            racks = Lists.newArrayList(validated.keySet());
-            shuffle.accept((List<?>) racks);
+            ArrayList<String> sortedRacks = Lists.newArrayList(validated.keySet());
+            sortedRacks.sort((String rackA, String rackB) -> {
+                List<InetAddressAndPort> rackMembersA = validated.get(rackA);
+                List<InetAddressAndPort> rackMembersB = validated.get(rackB);
+
+                if (rackMembersA == null || rackMembersA.isEmpty())
+                    return 1;
+                if (rackMembersB == null || rackMembersB.isEmpty())
+                    return -1;
+                
+                endpointsSorter.accept(rackMembersA);
+                endpointsSorter.accept(rackMembersB);
+
+                return enpointsCompare.test(rackMembersA.get(0), rackMembersB.get(0)) ? 1 : -1;
+            });
+            racks = sortedRacks;
         }
 
         // grab a random member of up to two racks
@@ -311,7 +325,7 @@ public class ReplicaPlans
         for (String rack : Iterables.limit(racks, 2))
         {
             List<InetAddressAndPort> rackMembers = validated.get(rack);
-            result.add(rackMembers.get(indexPicker.apply(rackMembers.size())));
+            result.add(rackMembers.get(0)); // Pick the node with fastest response time in the rack
         }
 
         return result;

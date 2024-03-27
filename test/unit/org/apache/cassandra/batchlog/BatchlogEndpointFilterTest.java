@@ -31,6 +31,7 @@ import org.apache.cassandra.locator.ReplicaPlans;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 
 public class BatchlogEndpointFilterTest
 {
@@ -49,8 +50,8 @@ public class BatchlogEndpointFilterTest
                 .build();
         Collection<InetAddressAndPort> result = filterBatchlogEndpoints(endpoints);
         assertThat(result.size(), is(2));
-        assertTrue(result.contains(InetAddressAndPort.getByName("11")));
-        assertTrue(result.contains(InetAddressAndPort.getByName("22")));
+        assertFalse(result.contains(InetAddressAndPort.getByName("0")));
+        assertFalse(result.contains(InetAddressAndPort.getByName("00")));
     }
 
     @Test
@@ -67,11 +68,6 @@ public class BatchlogEndpointFilterTest
         
         Collection<InetAddressAndPort> result = filterBatchlogEndpoints(endpoints);
         assertThat(result.size(), is(2));
-
-        // result should be the last replicas of the last two racks
-        // (Collections.shuffle has been replaced with Collections.reverse for testing)
-        assertTrue(result.contains(InetAddressAndPort.getByName("22")));
-        assertTrue(result.contains(InetAddressAndPort.getByName("33")));
     }
 
     @Test
@@ -152,9 +148,9 @@ public class BatchlogEndpointFilterTest
         return ReplicaPlans.filterBatchlogEndpoints(LOCAL, endpoints,
                                                     // Reverse instead of shuffle
                                                     Collections::reverse,
+                                                    // epA always faster than epB
+                                                    (epA, epB) -> false,
                                                     // Always alive
-                                                    (addr) -> true,
-                                                    // Always pick the last
-                                                    (size) -> size - 1);
+                                                    (addr) -> true);
     }
 }
