@@ -37,6 +37,7 @@ import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 // TODO: this test should be removed after running in-jvm dtests is set up via the shared API repository
@@ -50,7 +51,7 @@ public class BootstrapTest extends TestBaseImpl
         Cluster.Builder builder = builder().withNodes(originalNodeCount)
                                            .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
                                            .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
-                                           .withConfig(config -> config.with(NETWORK, GOSSIP));
+                                           .withConfig(config -> config.with(NETWORK, GOSSIP, JMX));
 
         Map<Integer, Long> withBootstrap = null;
         Map<Integer, Long> naturally = null;

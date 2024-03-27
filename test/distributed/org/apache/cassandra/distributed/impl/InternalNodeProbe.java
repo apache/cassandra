@@ -16,14 +16,12 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.mock.nodetool;
+package org.apache.cassandra.distributed.impl;
 
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.util.Iterator;
 import java.util.Map;
-
-import javax.management.ListenerNotFoundException;
 
 import com.google.common.collect.Multimap;
 
@@ -46,14 +44,13 @@ import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.tools.NodeProbe;
-import org.mockito.Mockito;
 
 public class InternalNodeProbe extends NodeProbe
 {
     private final boolean withNotifications;
+    private boolean previousSkipNotificationListeners = false;
 
     public InternalNodeProbe(boolean withNotifications)
     {
@@ -67,27 +64,7 @@ public class InternalNodeProbe extends NodeProbe
         mbeanServerConn = null;
         jmxc = null;
 
-
-        if (withNotifications)
-        {
-            ssProxy = StorageService.instance;
-        }
-        else
-        {
-            // replace the notification apis with a no-op method
-            StorageServiceMBean mock = Mockito.spy(StorageService.instance);
-            Mockito.doNothing().when(mock).addNotificationListener(Mockito.any(), Mockito.any(), Mockito.any());
-            try
-            {
-                Mockito.doNothing().when(mock).removeNotificationListener(Mockito.any(), Mockito.any(), Mockito.any());
-                Mockito.doNothing().when(mock).removeNotificationListener(Mockito.any());
-            }
-            catch (ListenerNotFoundException e)
-            {
-                throw new AssertionError(e);
-            }
-            ssProxy = mock;
-        }
+        previousSkipNotificationListeners = StorageService.instance.skipNotificationListeners(!withNotifications);
 
         ssProxy = StorageService.instance;
         msProxy = MessagingService.instance();
@@ -106,7 +83,7 @@ public class InternalNodeProbe extends NodeProbe
 
     public void close() throws IOException
     {
-        // nothing to close. no-op
+        StorageService.instance.skipNotificationListeners(previousSkipNotificationListeners);
     }
 
     // overrides all the methods referenced mbeanServerConn/jmxc in super
@@ -115,6 +92,7 @@ public class InternalNodeProbe extends NodeProbe
         return new EndpointSnitchInfo();
     }
 
+    @Override
     public DynamicEndpointSnitchMBean getDynamicEndpointSnitchInfoProxy()
     {
         return (DynamicEndpointSnitchMBean) DatabaseDescriptor.createEndpointSnitch(true, DatabaseDescriptor.getRawConfig().endpoint_snitch);
