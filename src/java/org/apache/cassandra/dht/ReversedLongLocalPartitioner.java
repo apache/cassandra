@@ -22,9 +22,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.function.Function;
 
 import com.google.common.primitives.Longs;
 
+import accord.primitives.Ranges;
 import org.apache.cassandra.db.CachedHashDecoratedKey;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -147,6 +149,12 @@ public class ReversedLongLocalPartitioner implements IPartitioner
         return LongType.instance;
     }
 
+    @Override
+    public Function<Ranges, AccordSplitter> accordSplitter()
+    {
+        throw new UnsupportedOperationException("Accord is not supported by " + getClass().getName());
+    }
+
     private static class ReversedLongLocalToken extends Token
     {
         private final long token;
@@ -175,6 +183,12 @@ public class ReversedLongLocalPartitioner implements IPartitioner
         }
 
         @Override
+        public int tokenHash()
+        {
+            return Long.hashCode(token);
+        }
+
+        @Override
         public ByteSource asComparableBytes(ByteComparable.Version version)
         {
             return ByteSource.of(token);
@@ -189,6 +203,13 @@ public class ReversedLongLocalPartitioner implements IPartitioner
 
         @Override
         public Token nextValidToken()
+        {
+            throw new UnsupportedOperationException(String.format("Token type %s does not support token allocation.",
+                                                                  getClass().getSimpleName()));
+        }
+
+        @Override
+        public Token decreaseSlightly()
         {
             throw new UnsupportedOperationException(String.format("Token type %s does not support token allocation.",
                                                                   getClass().getSimpleName()));

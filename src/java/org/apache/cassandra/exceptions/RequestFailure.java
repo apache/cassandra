@@ -49,6 +49,7 @@ public class RequestFailure
     public static final RequestFailure INVALID_ROUTING = new RequestFailure(RequestFailureReason.INVALID_ROUTING);
     public static final RequestFailure INDEX_NOT_AVAILABLE = new RequestFailure(RequestFailureReason.INDEX_NOT_AVAILABLE);
     public static final RequestFailure COORDINATOR_BEHIND = new RequestFailure(RequestFailureReason.COORDINATOR_BEHIND);
+    public static final RequestFailure READ_TOO_MANY_INDEXES = new RequestFailure(RequestFailureReason.READ_TOO_MANY_INDEXES);
 
     static
     {
