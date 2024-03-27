@@ -771,6 +771,30 @@ class TestCqlParsing(TestCase):
                                   ('"/*MyTable*/"', 'quotedName'),
                                   (';', 'endtoken')])
 
+        parsed = parse_cqlsh_statements('''
+                                        INSERT into a (key,c1,c2) VALUES ('aKey','v1','/v2/*/v3');
+                                        ''')
+        self.assertSequenceEqual(tokens_with_types(parsed),
+                                [('INSERT','reserved_identifier'),
+                                ('into','reserved_identifier'),
+                                ('a','identifier'),
+                                ('(','op'),
+                                ('key','identifier'),
+                                (',','op'),
+                                ('c1','identifier'),
+                                (',','op'),
+                                ('c2','identifier'),
+                                (')','op'),
+                                ('VALUES','identifier'),
+                                ('(','op'),
+                                ("'aKey'",'quotedStringLiteral'),
+                                (',','op'),
+                                ("'v1'",'quotedStringLiteral'),
+                                (',','op'),
+                                ("'/v2/*/v3'",'quotedStringLiteral'),
+                                (')','op'),
+                                (';','endtoken')])
+
         parse_cqlsh_statements('''
                                */ SELECT FROM "MyTable";
                                ''')
