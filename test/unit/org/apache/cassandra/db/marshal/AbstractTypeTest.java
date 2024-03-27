@@ -25,34 +25,66 @@ import java.nio.ByteBuffer;
 import java.security.CodeSource;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Multimaps;
 import com.google.common.collect.Sets;
+import com.google.common.collect.Streams;
+import org.junit.BeforeClass;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.Constants;
+import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.VariableSpecifications;
+import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.ComplexColumnData;
+import org.apache.cassandra.db.rows.DeserializationHelper;
+import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.SerializationHelper;
+import org.apache.cassandra.db.rows.UnfilteredSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.CQLTypeParser;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
@@ -63,29 +95,49 @@ import org.apache.cassandra.utils.AbstractTypeGenerators.TypeGenBuilder;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.Generators;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
+import org.assertj.core.api.Assertions;
+import org.assertj.core.api.SoftAssertions;
+import org.assertj.core.description.Description;
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
 import org.reflections.Reflections;
 import org.reflections.scanners.Scanners;
 import org.reflections.util.ConfigurationBuilder;
 
-import static org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind.*;
+import static org.apache.cassandra.db.marshal.AbstractTypeTest.TypesCompatibility.inverse;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.PRIMITIVE_TYPE_DATA_GENS;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind.COMPOSITE;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind.COUNTER;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind.DYNAMIC_COMPOSITE;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind.PRIMITIVE;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind.UDT;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.TypeSupport.of;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.extractUDTs;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.getTypeSupport;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.overridePrimitiveTypeSupport;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.primitiveTypePairs;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.primitiveTypes;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.stringComparator;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.typeTree;
+import static org.apache.cassandra.utils.ByteBufferUtil.bytesToHex;
+import static org.apache.commons.math3.util.MathUtils.copySign;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.quicktheories.QuickTheory.qt;
+import static org.quicktheories.generators.SourceDSL.arbitrary;
 import static org.quicktheories.generators.SourceDSL.doubles;
 import static org.quicktheories.generators.SourceDSL.floats;
 
+@SuppressWarnings("unchecked")
 public class AbstractTypeTest
 {
+    private final static Logger logger = LoggerFactory.getLogger(AbstractTypeTest.class);
+    private static final Pattern TYPE_PREFIX_PATTERN = Pattern.compile("org\\.apache\\.cassandra\\.db\\.marshal\\.");
+
     static
     {
         // make sure blob is always the same
@@ -98,9 +150,17 @@ public class AbstractTypeTest
                                                                    .setExpandSuperTypes(true)
                                                                    .setParallel(true));
 
+    private final static TypesCompatibility typesCompatibility = Cassandra50BetaTypesCompatibility.instance;
+
+
     // TODO
-    // isCompatibleWith/isValueCompatibleWith/isSerializationCompatibleWith,
     // withUpdatedUserType/expandUserTypes/referencesDuration - types that recursive check types
+
+    @BeforeClass
+    public static void beforeClass()
+    {
+        DatabaseDescriptor.clientInitialization();
+    }
 
     @Test
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -571,7 +631,7 @@ public class AbstractTypeTest
 
     private static void assertBytesEquals(ByteBuffer actual, ByteBuffer expected, String msg, Object... args)
     {
-        assertThat(ByteBufferUtil.bytesToHex(actual)).describedAs(msg, args).isEqualTo(ByteBufferUtil.bytesToHex(expected));
+        assertThat(bytesToHex(actual)).describedAs(msg, args).isEqualTo(bytesToHex(expected));
     }
 
     private static ColumnMetadata fake(AbstractType<?> type)
@@ -706,7 +766,7 @@ public class AbstractTypeTest
     {
         Gen<Example> gen = rnd -> {
             AbstractType<?> type = typeGen.generate(rnd);
-            AbstractTypeGenerators.TypeSupport<?> support = AbstractTypeGenerators.getTypeSupport(type);
+            AbstractTypeGenerators.TypeSupport<?> support = getTypeSupport(type);
             List<Object> list = new ArrayList<>(samples);
             for (int i = 0; i < samples; i++)
                 list.add(support.valueGen.generate(rnd));
@@ -738,6 +798,928 @@ public class AbstractTypeTest
                    "type=" + type +
                    ", value=" + samples +
                    '}';
+        }
+    }
+
+    /**
+     * This test case checks the output of is*CompatibleWith methods for primitive types - whether the output is
+     * consistent with the assumed relation defined in this test class (expected compatibility entered manually).
+     */
+    @Test
+    public void testAssumedPrimitiveTypesCompatibility()
+    {
+        testAssumedPrimitiveTypesCompatibility(typesCompatibility);
+        if (typesCompatibility.prev != null)
+            testAssumedPrimitiveTypesCompatibility(typesCompatibility.prev);
+    }
+
+    public void testAssumedPrimitiveTypesCompatibility(TypesCompatibility typesCompatibility)
+    {
+        SoftAssertions assertions = new SoftAssertions();
+
+        // assumed compatibility
+        typesCompatibility.compatibleWith.forEach((l, r) -> assertions.assertThat(l.isCompatibleWith(r)).describedAs(isCompatibleWithDesc(l, r)).isTrue());
+        typesCompatibility.valueCompatibleWith.forEach((l, r) -> assertions.assertThat(l.isValueCompatibleWith(r)).describedAs(isValueCompatibleWithDesc(l, r)).isTrue());
+        typesCompatibility.serializationCompatibleWith.forEach((l, r) -> assertions.assertThat(l.isSerializationCompatibleWith(r)).describedAs(isSerializationCompatibleWithDesc(l, r)).isTrue());
+
+        // assumed incompatibility
+        inverse(typesCompatibility.compatibleWith).forEach(p -> assertions.assertThat(p.left.isCompatibleWith(p.right)).describedAs(isCompatibleWithDesc(p.left, p.right)).isFalse());
+        inverse(typesCompatibility.valueCompatibleWith).forEach(p -> assertions.assertThat(p.left.isValueCompatibleWith(p.right)).describedAs(isValueCompatibleWithDesc(p.left, p.right)).isFalse());
+        inverse(typesCompatibility.serializationCompatibleWith).forEach(p -> assertions.assertThat(p.left.isSerializationCompatibleWith(p.right)).describedAs(isSerializationCompatibleWithDesc(p.left, p.right)).isFalse());
+
+        // it is implied that isSerializationCompatibleWith is a subset of isValueCompatibleWith
+        typesCompatibility.serializationCompatibleWith.forEach((l, r) -> assertions.assertThat(typesCompatibility.valueCompatibleWith.containsEntry(l, r)).describedAs(isValueCompatibleWithDesc(l, r)).isTrue());
+        assertions.assertAll();
+    }
+
+    /**
+     * Assuming that {@link #testAssumedPrimitiveTypesCompatibility()} passes, this test case verifies whether the types
+     * said to be compatible hold the assumed properties. In particular:
+     * <li>L {@link AbstractType#isValueCompatibleWith(AbstractType)} R - if it is possible to {@code L.compose(R.decompose(v))} for any v valid for type R, and the converted value of type L still makes sense</li>
+     * <li>L {@link AbstractType#isSerializationCompatibleWith(AbstractType)} R - if it is possible to read a cell written using R's type serializer with L's type serializer</li>
+     * <li>L {@link AbstractType#isCompatibleWith(AbstractType)} R - L isSerializationCompatibleWith R and it is possible to compare decomposed values of R's type using L's type comparator</li>
+     */
+    @Test
+    public void testPrimitiveTypesCompatibility()
+    {
+        SoftAssertions assertions = new SoftAssertions();
+        typesCompatibility.valueCompatibleWith.forEach((left, right) -> assertions.check(() -> verifyTypesCompatibility(left, right, getTypeSupport(right).valueGen)));
+        assertions.assertAll();
+    }
+
+    private static void verifyTypesCompatibility(AbstractType left, AbstractType right, Gen rightGen)
+    {
+        if (left.equals(right))
+            return;
+
+        if (!left.isValueCompatibleWith(right))
+            return;
+
+        ColumnMetadata rightColumn = new ColumnMetadata("k", "t", ColumnIdentifier.getInterned("c", false), right, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
+        ColumnMetadata leftColumn = new ColumnMetadata("k", "t", ColumnIdentifier.getInterned("c", false), left, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, null);
+
+        TableMetadata leftTable = TableMetadata.builder("k", "t").addPartitionKeyColumn("pk", EmptyType.instance).addColumn(leftColumn).build();
+        TableMetadata rightTable = TableMetadata.builder("k", "t").addPartitionKeyColumn("pk", EmptyType.instance).addColumn(rightColumn).build();
+
+        SerializationHeader leftHeader = new SerializationHeader(false, leftTable, leftTable.regularAndStaticColumns(), EncodingStats.NO_STATS);
+        SerializationHeader rightHeader = new SerializationHeader(false, rightTable, rightTable.regularAndStaticColumns(), EncodingStats.NO_STATS);
+
+        DeserializationHelper leftHelper = new DeserializationHelper(leftTable, MessagingService.current_version, DeserializationHelper.Flag.LOCAL, ColumnFilter.all(leftTable));
+        SerializationHelper rightHelper = new SerializationHelper(rightHeader);
+
+        qt().withExamples(10).forAll(rightGen).checkAssert(v -> {
+            Assertions.assertThatNoException().describedAs(typeRelDesc(".decompose", left, right)).isThrownBy(() -> {
+
+                // value compatibility means that we can use left's type serializer to decompose a value of right's type
+                ByteBuffer rightDecomposed = right.decompose(v);
+                Object leftComposed = left.compose(rightDecomposed);
+                ByteBuffer leftDecomposed = left.decompose(leftComposed);
+                assertThat(leftDecomposed.hasRemaining()).isEqualTo(rightDecomposed.hasRemaining());
+            });
+
+            Assertions.assertThatNoException().describedAs(typeRelDesc(".deserialize", left, right)).isThrownBy(() -> {
+                // serialization compatibility means that we can read a cell written using right's type serializer with left's type serializer;
+                // this additinoally imposes the requirement for storing the buffer lenght in the serialized form if the value is of variable length
+                // as well as, either both types serialize into a single or multiple cells
+                if (left.isSerializationCompatibleWith(right))
+                {
+                    if (!left.isMultiCell() && !right.isMultiCell())
+                        verifySerializationCompatibilityForSimpleCells(left, right, v, rightTable, rightColumn, rightHelper, leftHeader, leftHelper, leftColumn);
+                    else
+                        verifySerializationCompatibilityForComplexCells(left, right, v, rightTable, rightColumn, rightHelper, leftHeader, leftHelper, leftColumn);
+                }
+            });
+        });
+
+        if (!left.isCompatibleWith(right) || right.comparisonType == AbstractType.ComparisonType.NOT_COMPARABLE || left.comparisonType == AbstractType.ComparisonType.NOT_COMPARABLE)
+            return;
+
+        // types compatibility means that we can compare values of right's type using left's type comparator additionally
+        // to types being serialization compatible
+        if (!left.isMultiCell() && !right.isMultiCell())
+        {
+            // make sure that frozen<left> isCompatibleWith frozen<right> ==> left isCompatibleWith right
+            assertThat(left.unfreeze().isCompatibleWith(right.unfreeze())).isTrue();
+        }
+        qt().withExamples(10).forAll(rightGen, rightGen).checkAssert((r1, r2) -> {
+            Assertions.assertThatNoException().describedAs(typeRelDesc(".compare", left, right)).isThrownBy(() -> {
+                ByteBuffer rBuf1 = right.decompose(r1);
+                ByteBuffer rBuf2 = right.decompose(r2);
+                ByteBuffer lBuf1 = left.decompose(left.compose(rBuf1));
+                ByteBuffer lBuf2 = left.decompose(left.compose(rBuf2));
+
+                int c = right.compare(rBuf1, rBuf2);
+                // first just check that the comparison is antisymmetric
+                assertThat(copySign(1, right.compare(rBuf2, rBuf1))).isEqualTo(copySign(1, -c));
+
+                // then, check if we can compare buffers using left's comparator
+                assertThat(copySign(1, left.compare(lBuf1, lBuf2))).isEqualTo(copySign(1, c));
+                assertThat(copySign(1, left.compare(lBuf1, rBuf2))).isEqualTo(copySign(1, c));
+                assertThat(copySign(1, left.compare(rBuf1, lBuf2))).isEqualTo(copySign(1, c));
+                assertThat(copySign(1, left.compare(rBuf1, rBuf2))).isEqualTo(copySign(1, c));
+
+                assertThat(copySign(1, left.compare(lBuf2, lBuf1))).isEqualTo(copySign(1, -c));
+                assertThat(copySign(1, left.compare(lBuf2, rBuf1))).isEqualTo(copySign(1, -c));
+                assertThat(copySign(1, left.compare(rBuf2, lBuf1))).isEqualTo(copySign(1, -c));
+                assertThat(copySign(1, left.compare(rBuf2, rBuf1))).isEqualTo(copySign(1, -c));
+            });
+        });
+    }
+
+    private static void verifySerializationCompatibilityForSimpleCells(AbstractType left, AbstractType right, Object v,
+                                                                       TableMetadata rightTable, ColumnMetadata rightColumn, SerializationHelper rightHelper,
+                                                                       SerializationHeader leftHeader, DeserializationHelper leftHelper, ColumnMetadata leftColumn) throws IOException
+    {
+        Row rightRow = Rows.simpleBuilder(rightTable).noPrimaryKeyLivenessInfo().add(rightColumn.name.toString(), v).build();
+        try (DataOutputBuffer out = new DataOutputBuffer())
+        {
+            UnfilteredSerializer.serializer.serialize(rightRow, rightHelper, out, MessagingService.current_version);
+            try (DataInputBuffer in = new DataInputBuffer(out.getData()))
+            {
+                Row.Builder builder = BTreeRow.sortedBuilder();
+                builder.addPrimaryKeyLivenessInfo(rightRow.primaryKeyLivenessInfo());
+                Row leftRow = (Row) UnfilteredSerializer.serializer.deserialize(in, leftHeader, leftHelper, builder);
+                Cell leftData = (Cell) leftRow.getColumnData(leftColumn);
+                Cell rightData = (Cell) rightRow.getColumnData(rightColumn);
+                assertThat(leftData.buffer()).describedAs(typeRelDesc(".deserialize", left, right)).isEqualTo(rightData.buffer());
+            }
+        }
+    }
+
+    private static void verifySerializationCompatibilityForComplexCells(AbstractType left, AbstractType right, Object v,
+                                                                        TableMetadata rightTable, ColumnMetadata rightColumn, SerializationHelper rightHelper,
+                                                                        SerializationHeader leftHeader, DeserializationHelper leftHelper, ColumnMetadata leftColumn) throws IOException
+    {
+        Row rightRow = Rows.simpleBuilder(rightTable).noPrimaryKeyLivenessInfo().add(rightColumn.name.toString(), v).build();
+        try (DataOutputBuffer out = new DataOutputBuffer())
+        {
+            UnfilteredSerializer.serializer.serialize(rightRow, rightHelper, out, MessagingService.current_version);
+            try (DataInputBuffer in = new DataInputBuffer(out.getData()))
+            {
+                Row.Builder builder = BTreeRow.sortedBuilder();
+                builder.addPrimaryKeyLivenessInfo(rightRow.primaryKeyLivenessInfo());
+                Row leftRow = (Row) UnfilteredSerializer.serializer.deserialize(in, leftHeader, leftHelper, builder);
+                ComplexColumnData leftData = leftRow.getComplexColumnData(leftColumn);
+                ComplexColumnData rightData = rightRow.getComplexColumnData(rightColumn);
+                assertThat(leftData.cellsCount()).isEqualTo(rightData.cellsCount());
+                for (int i = 0; i < leftData.cellsCount(); i++)
+                {
+                    Cell leftCell = leftData.getCellByIndex(i);
+                    Cell rightCell = rightData.getCellByIndex(i);
+                    assertThat(leftCell.buffer()).describedAs(bytesToHex(leftCell.buffer())).isEqualTo(rightCell.buffer()).describedAs(bytesToHex(rightCell.buffer()));
+                    assertThat(leftCell.path().size()).isEqualTo(rightCell.path().size());
+                    for (int j = 0; j < leftCell.path().size(); j++)
+                        assertThat(leftCell.path().get(j)).describedAs(bytesToHex(leftCell.path().get(j))).isEqualTo(rightCell.path().get(j)).describedAs(bytesToHex(rightCell.path().get(j)));
+                }
+            }
+        }
+    }
+
+    @Test
+    public void testMultiCellSupport()
+    {
+        if (typesCompatibility.prev != null)
+        {
+            // for compatibility, we ensure that this version can read values of all the types the previous version can write
+            assertThat(typesCompatibility.multiCellSupportingTypesForReading).containsAll(typesCompatibility.prev.multiCellSupportingTypes);
+        }
+
+        // all primitive types should be freezing agnostic
+        primitiveTypes().forEach(type -> {
+            assertThat(type.freeze()).isSameAs(type);
+            assertThat(type.unfreeze()).isSameAs(type);
+        });
+
+        qt().forAll(genBuilder().withoutTypeKinds(PRIMITIVE)
+                                .withMaxDepth(1)
+                                .multiCellIfRelevant()
+                                .withUserTypeKeyspace("ks")
+                                .withUDTNames(arbitrary().constant("ut"))
+                                .build())
+            .checkAssert(type -> {
+                if (typesCompatibility.multiCellSupportingTypesForReading.contains(type.getClass()))
+                {
+                    assertThat(type.isMultiCell()).isTrue();
+                    assertThat(type.freeze()).isNotEqualTo(type);
+                    assertThat(type.freeze().unfreeze()).isNotEqualTo(type.freeze());
+                }
+                else
+                {
+                    assertThat(type.isMultiCell()).isFalse();
+                    assertThat(type.freeze()).isSameAs(type);
+                    assertThat(type.unfreeze()).isSameAs(type);
+                }
+            });
+    }
+
+    @Test
+    public void testMapTypesCompatibility()
+    {
+        SoftAssertions assertions = new SoftAssertions();
+        SoftAssertions upgradeAssertions = new SoftAssertions();
+
+        primitiveTypePairs(t -> t.getClass() != EmptyType.class).forEach(keyPair -> { // key cannot be empty
+            primitiveTypePairs().forEach(valuePair -> {
+                MapType<?, ?> leftMap = MapType.getInstance(keyPair.left, valuePair.left, true);
+                MapType<?, ?> rightMap = MapType.getInstance(keyPair.right, valuePair.right, true);
+
+                // note that we can assume is*Compatible methods are correct for primitive types because they are verified in other tests
+                typesCompatibility.checkMapTypeCompatibility(leftMap, rightMap, assertions);
+                if (typesCompatibility.prev != null)
+                    typesCompatibility.prev.checkMapTypeCompatibility(leftMap, rightMap, upgradeAssertions);
+            });
+        });
+
+        assertions.assertAll();
+        upgradeAssertions.assertAll();
+    }
+
+    @Test
+    public void testSetTypesCompatibility()
+    {
+        SoftAssertions assertions = new SoftAssertions();
+        SoftAssertions upgradeAssertions = new SoftAssertions();
+
+        primitiveTypePairs().forEach(keyPair -> {
+            SetType<?> leftSet = SetType.getInstance(keyPair.left, true);
+            SetType<?> rightSet = SetType.getInstance(keyPair.right, true);
+            // note that we can assume is*Compatible methods are correct for primitive types because they are verified in other tests
+            typesCompatibility.checkSetTypeCompatibility(leftSet, rightSet, assertions);
+            if (typesCompatibility.prev != null)
+                typesCompatibility.prev.checkSetTypeCompatibility(leftSet, rightSet, upgradeAssertions);
+        });
+
+        assertions.assertAll();
+        upgradeAssertions.assertAll();
+    }
+
+    @Test
+    public void testListTypesCompatibility()
+    {
+        SoftAssertions assertions = new SoftAssertions();
+        SoftAssertions upgradeAssertions = new SoftAssertions();
+
+        primitiveTypePairs().forEach(valuePair -> {
+            ListType<?> leftList = ListType.getInstance(valuePair.left, true);
+            ListType<?> rightList = ListType.getInstance(valuePair.right, true);
+            // note that we can assume is*Compatible methods are correct for primitive types because they are verified in other tests
+            typesCompatibility.checkListTypeCompatibility(leftList, rightList, assertions);
+            if (typesCompatibility.prev != null)
+                typesCompatibility.prev.checkListTypeCompatibility(leftList, rightList, upgradeAssertions);
+        });
+
+        assertions.assertAll();
+        upgradeAssertions.assertAll();
+    }
+
+    @Test
+    public void testUserTypesCompatibility()
+    {
+        SoftAssertions assertions = new SoftAssertions();
+        SoftAssertions upgradeAssertions = new SoftAssertions();
+
+        String ks = "ks";
+        ByteBuffer t = ByteBufferUtil.bytes("t");
+        List<FieldIdentifier> names = Stream.of("a", "b").map(FieldIdentifier::forUnquoted).collect(Collectors.toUnmodifiableList());
+
+        primitiveTypePairs().forEach(elem1Pair -> {
+            primitiveTypePairs().forEach(elem2Pair -> {
+                UserType leftType = new UserType(ks, t, names, List.of(elem1Pair.left, elem2Pair.left), true);
+                UserType rightType = new UserType(ks, t, names, List.of(elem1Pair.right, elem2Pair.right), true);
+
+                // note that we can assume is*Compatible methods are correct for primitive types because they are verified in other tests
+                typesCompatibility.checkUserTypeCompatibility(leftType, rightType, assertions);
+                if (typesCompatibility.prev != null)
+                    typesCompatibility.prev.checkUserTypeCompatibility(leftType, rightType, upgradeAssertions);
+            });
+        });
+
+        assertions.assertAll();
+        upgradeAssertions.assertAll();
+    }
+
+    @Test
+    public void testCompositeTypesCompatibility()
+    {
+        SoftAssertions assertions = new SoftAssertions();
+        SoftAssertions upgradeAssertions = new SoftAssertions();
+
+        primitiveTypePairs().forEach(elem1Pair -> {
+            primitiveTypePairs().forEach(elem2Pair -> {
+                DynamicCompositeType leftType = DynamicCompositeType.getInstance(Map.of((byte) 0, elem1Pair.left, (byte) 1, elem2Pair.left));
+                DynamicCompositeType rightType = DynamicCompositeType.getInstance(Map.of((byte) 0, elem1Pair.right, (byte) 1, elem2Pair.right));
+                // note that we can assume is*Compatible methods are correct for primitive types because they are verified in other tests
+                typesCompatibility.checkCompositeTypeCompatibility(leftType, rightType, assertions);
+                if (typesCompatibility.prev != null)
+                    typesCompatibility.prev.checkCompositeTypeCompatibility(leftType, rightType, upgradeAssertions);
+            });
+        });
+
+        assertions.assertAll();
+        upgradeAssertions.assertAll();
+    }
+
+    private static Description typeRelDesc(String rel, AbstractType<?> left, AbstractType<?> right)
+    {
+        return typeRelDesc(rel, left, right, null);
+    }
+
+    private static Description typeRelDesc(String rel, AbstractType<?> left, AbstractType<?> right, String extraInfo)
+    {
+        return new Description()
+        {
+            @Override
+            public String value()
+            {
+                if (extraInfo != null)
+                {
+                    return TYPE_PREFIX_PATTERN.matcher(String.format("%s %s %s, %s", left, rel, right, extraInfo)).replaceAll("");
+                }
+                else if (!left.equals(right))
+                {
+                    String extraInfo = Streams.zip(left.subTypes().stream(), right.subTypes().stream(), (l, r) -> {
+                        if (l.equals(r))
+                            return "";
+
+                        StringBuilder out = new StringBuilder();
+                        if (l.isCompatibleWith(r))
+                            out.append(" cmp");
+                        if (l.isValueCompatibleWith(r))
+                            out.append(" val");
+                        if (l.isSerializationCompatibleWith(r))
+                            out.append(" ser");
+                        if (out.length() > 0)
+                            return String.format("%s is%s compatible with %s", l, out, r);
+                        else
+                            return String.format("%s is not compatible with %s", l, r);
+                    }).collect(Collectors.joining("; ", "{", "}"));
+                    return TYPE_PREFIX_PATTERN.matcher(String.format("%s %s %s, %s", left, rel, right, extraInfo)).replaceAll("");
+                }
+                else
+                {
+                    return TYPE_PREFIX_PATTERN.matcher(String.format("%s %s %s", left, rel, right)).replaceAll("");
+                }
+            }
+        };
+    }
+
+    private static Description isCompatibleWithDesc(AbstractType<?> left, AbstractType<?> right)
+    {
+        return typeRelDesc("isCompatibleWith", left, right);
+    }
+
+    private static Description isValueCompatibleWithDesc(AbstractType<?> left, AbstractType<?> right)
+    {
+        return typeRelDesc("isValueCompatibleWith", left, right);
+    }
+
+    private static Description isSerializationCompatibleWithDesc(AbstractType<?> left, AbstractType<?> right)
+    {
+        return typeRelDesc("isSerializationCompatibleWith", left, right);
+    }
+
+    /**
+     * The instances of this class provides types compatibility checks valid for a certain version of Cassandra.
+     * This way we can verify whether the current implementation satisfy assumed compatibility rules, as well as
+     * upgrade compatibility (that is, whether the new implementation ensures the compatibility rules from the previous
+     * verion of Cassandra are still satisfied).
+     */
+    public abstract static class TypesCompatibility
+    {
+        public final Set<Class<? extends AbstractType>> multiCellSupportingTypes = new HashSet<>();
+        public final Set<Class<? extends AbstractType>> multiCellSupportingTypesForReading = new HashSet<>();
+
+
+        public final Multimap<AbstractType<?>, AbstractType<?>> valueCompatibleWith = HashMultimap.create();
+        public final Multimap<AbstractType<?>, AbstractType<?>> serializationCompatibleWith = HashMultimap.create();
+        public final Multimap<AbstractType<?>, AbstractType<?>> compatibleWith = HashMultimap.create();
+
+        public final TypesCompatibility prev;
+
+        protected static final Set<AbstractType<?>> PRIMITIVE_TYPES = PRIMITIVE_TYPE_DATA_GENS.keySet();
+
+        public TypesCompatibility(TypesCompatibility prev)
+        {
+            this.prev = prev;
+        }
+
+        static <T> Multimap<T, T> buildTransitiveClosure(Multimap<T, T> relation, Multimap<T, T> transitiveClosure, Collection<T> domain)
+        {
+            transitiveClosure.clear();
+            Deque<T> path = new LinkedList<>();
+            domain.forEach(lt -> {
+                transitiveClosure.put(lt, lt);
+                path.addLast(lt);
+                relation.get(lt).forEach(rt -> addToTransitiveClosure(relation, transitiveClosure, path, rt));
+                path.removeLast();
+                assert path.isEmpty();
+            });
+            return transitiveClosure;
+        }
+
+        private static <T> void addToTransitiveClosure(Multimap<T, T> relation, Multimap<T, T> transitiveClosure, Deque<T> path, T element)
+        {
+            assert !path.isEmpty();
+
+            if (path.contains(element))
+                return; // cycle
+
+            path.forEach(lt -> transitiveClosure.put(lt, element));
+            path.addLast(element);
+            relation.get(element).forEach(t -> addToTransitiveClosure(relation, transitiveClosure, path, t));
+            path.removeLast();
+        }
+
+        static Stream<Pair<AbstractType<?>, AbstractType<?>>> inverse(Multimap<AbstractType<?>, AbstractType<?>> relation, Collection<AbstractType<?>> domain)
+        {
+            return domain.stream()
+                         .flatMap(l -> domain.stream()
+                                             .filter(r -> !relation.containsEntry(l, r))
+                                             .map(r -> Pair.create(l, r)));
+        }
+
+        static Stream<Pair<AbstractType<?>, AbstractType<?>>> inverse(Multimap<AbstractType<?>, AbstractType<?>> relation)
+        {
+            return inverse(relation, PRIMITIVE_TYPES);
+        }
+
+        <L extends AbstractType, R extends AbstractType> void checkMultiCellTypeCompatibility(Collection<L> leftVariants, Collection<R> rightVariants, BiPredicate<L, R> checkPredicate, BiPredicate<L, R> expectPredicate, BiFunction<L, R, Description> descProvider, SoftAssertions assertions)
+        {
+            for (L left : leftVariants)
+                if (left.isMultiCell() && multiCellSupportingTypes.contains(left.getClass()) || !left.isMultiCell())
+                    for (R right : rightVariants)
+                        if (right.isMultiCell() && multiCellSupportingTypes.contains(right.getClass()) || !right.isMultiCell())
+                        {
+                            assertions.assertThat(checkPredicate.test(left, right))
+                                      .as(descProvider.apply(left, right))
+                                      .isEqualTo(expectPredicate.test(left, right));
+
+                            verifyTypesCompatibility(left, right, getTypeSupport(right, ignored -> 2, null).valueGen);
+                        }
+        }
+
+        <L extends AbstractType, R extends AbstractType> void checkCollectionTypeCompatibility(L left, R right, BiPredicate<L, R> checkPredicate, BiPredicate<L, R> expectPredicate, BiFunction<L, R, Description> descProvider, SoftAssertions assertions)
+        {
+            checkMultiCellTypeCompatibility(frozenAndUnfrozen(left), frozenAndUnfrozen(right), checkPredicate, expectPredicate, descProvider, assertions);
+        }
+
+        private <T extends AbstractType> Set<T> frozenAndUnfrozen(T type)
+        {
+            return Set.of((T) type.freeze(), (T) type.unfreeze());
+        }
+
+        void checkMapTypeCompatibility(MapType left, MapType right, SoftAssertions assertions)
+        {
+            this.checkCollectionTypeCompatibility(left, right, MapType::isCompatibleWith, this::isMapCompatibleWith, AbstractTypeTest::isCompatibleWithDesc, assertions);
+            this.checkCollectionTypeCompatibility(left, right, MapType::isValueCompatibleWith, this::isMapValueCompatibleWith, AbstractTypeTest::isValueCompatibleWithDesc, assertions);
+            this.checkCollectionTypeCompatibility(left, right, MapType::isSerializationCompatibleWith, this::isMapSerializationCompatibleWith, AbstractTypeTest::isSerializationCompatibleWithDesc, assertions);
+        }
+
+        void checkSetTypeCompatibility(SetType left, SetType right, SoftAssertions assertions)
+        {
+            this.checkCollectionTypeCompatibility(left, right, SetType::isCompatibleWith, this::isSetCompatibleWith, AbstractTypeTest::isCompatibleWithDesc, assertions);
+            this.checkCollectionTypeCompatibility(left, right, SetType::isValueCompatibleWith, this::isSetValueCompatibleWith, AbstractTypeTest::isValueCompatibleWithDesc, assertions);
+            this.checkCollectionTypeCompatibility(left, right, SetType::isSerializationCompatibleWith, this::isSetSerializationCompatibleWith, AbstractTypeTest::isSerializationCompatibleWithDesc, assertions);
+        }
+
+        void checkListTypeCompatibility(ListType left, ListType right, SoftAssertions assertions)
+        {
+            this.checkCollectionTypeCompatibility(left, right, ListType::isCompatibleWith, this::isListCompatibleWith, AbstractTypeTest::isCompatibleWithDesc, assertions);
+            this.checkCollectionTypeCompatibility(left, right, ListType::isValueCompatibleWith, this::isListValueCompatibleWith, AbstractTypeTest::isValueCompatibleWithDesc, assertions);
+            this.checkCollectionTypeCompatibility(left, right, ListType::isSerializationCompatibleWith, this::isListSerializationCompatibleWith, AbstractTypeTest::isSerializationCompatibleWithDesc, assertions);
+        }
+
+        public void checkUserTypeCompatibility(UserType leftType, UserType rightType, SoftAssertions assertions)
+        {
+            TupleType leftTypeAsTuple = (TupleType) new TupleType(leftType.types, false).unfreeze();
+            TupleType rightTypeAsTuple = (TupleType) new TupleType(rightType.types, false).unfreeze();
+
+            UserType extLeftType = withAddedField(leftType, "extra", EmptyType.instance);
+            UserType extRightType = withAddedField(rightType, "extra", EmptyType.instance);
+
+            TupleType extLeftTypeAsTuple = (TupleType) new TupleType(extLeftType.types, false).unfreeze();
+            TupleType extRightTypeAsTuple = (TupleType) new TupleType(extRightType.types, false).unfreeze();
+
+            Set<TupleType> leftTypes = ImmutableSet.of(leftType, leftTypeAsTuple, extLeftType, extLeftTypeAsTuple,
+                                                       leftType.freeze(), (TupleType) leftTypeAsTuple.freeze(), extLeftType.freeze(), (TupleType) extLeftTypeAsTuple.freeze());
+            Set<TupleType> rightTypes = ImmutableSet.of(rightType, rightTypeAsTuple, extRightType, extRightTypeAsTuple,
+                                                        rightType.freeze(), (TupleType) rightTypeAsTuple.freeze(), extRightType.freeze(), (TupleType) extRightTypeAsTuple.freeze());
+
+            this.checkMultiCellTypeCompatibility(leftTypes, rightTypes, TupleType::isCompatibleWith, this::isTupleCompatibleWith, AbstractTypeTest::isCompatibleWithDesc, assertions);
+            this.checkMultiCellTypeCompatibility(leftTypes, rightTypes, TupleType::isValueCompatibleWith, this::isTupleValueCompatibleWith, AbstractTypeTest::isValueCompatibleWithDesc, assertions);
+            this.checkMultiCellTypeCompatibility(leftTypes, rightTypes, TupleType::isSerializationCompatibleWith, this::isTupleSerializationCompatibleWith, AbstractTypeTest::isSerializationCompatibleWithDesc, assertions);
+        }
+
+        private UserType withAddedField(UserType type, String fieldName, AbstractType<?> fieldType)
+        {
+            ArrayList<FieldIdentifier> fieldNames = new ArrayList<>(type.fieldNames());
+            fieldNames.add(FieldIdentifier.forUnquoted(fieldName));
+            List<AbstractType<?>> fieldTypes = new ArrayList<>(type.fieldTypes());
+            fieldTypes.add(fieldType);
+            return new UserType(type.keyspace, type.name, fieldNames, fieldTypes, true);
+        }
+
+        public void checkCompositeTypeCompatibility(DynamicCompositeType leftType, DynamicCompositeType rightType, SoftAssertions assertions)
+        {
+            CompositeType leftTypeNonDymamic = CompositeType.getInstance(leftType.aliases.values());
+            CompositeType rightTypeNonDynamic = CompositeType.getInstance(rightType.aliases.values());
+
+            DynamicCompositeType extLeftType = withAddedField(leftType, EmptyType.instance);
+            DynamicCompositeType extRightType = withAddedField(rightType, EmptyType.instance);
+
+            CompositeType extLeftTypeNonDynamic = CompositeType.getInstance(extLeftType.aliases.values());
+            CompositeType extRightTypeNonDynamic = CompositeType.getInstance(extRightType.aliases.values());
+
+            Set<AbstractCompositeType> leftTypes = Stream.of(leftType, leftTypeNonDymamic, extLeftType, extLeftTypeNonDynamic,
+                                                             leftType.freeze(), leftTypeNonDymamic.freeze(), extLeftType.freeze(), extLeftTypeNonDynamic.freeze())
+                                                         .map(AbstractCompositeType.class::cast).collect(Collectors.toUnmodifiableSet());
+            Set<AbstractCompositeType> rightTypes = Stream.of(rightType, rightTypeNonDynamic, extRightType, extRightTypeNonDynamic,
+                                                              rightType.freeze(), rightTypeNonDynamic.freeze(), extRightType.freeze(), extRightTypeNonDynamic.freeze())
+                                                          .map(AbstractCompositeType.class::cast).collect(Collectors.toUnmodifiableSet());
+
+            this.checkMultiCellTypeCompatibility(leftTypes, rightTypes, AbstractCompositeType::isCompatibleWith, this::isCompositeCompatibleWith, AbstractTypeTest::isCompatibleWithDesc, assertions);
+            this.checkMultiCellTypeCompatibility(leftTypes, rightTypes, AbstractCompositeType::isValueCompatibleWith, this::isCompositeValueCompatibleWith, AbstractTypeTest::isValueCompatibleWithDesc, assertions);
+            this.checkMultiCellTypeCompatibility(leftTypes, rightTypes, AbstractCompositeType::isSerializationCompatibleWith, this::isCompositeSerializationCompatibleWith, AbstractTypeTest::isSerializationCompatibleWithDesc, assertions);
+        }
+
+        private DynamicCompositeType withAddedField(DynamicCompositeType type, AbstractType<?> fieldType)
+        {
+            Map<Byte, AbstractType<?>> aliases = new HashMap<>(type.aliases);
+            aliases.put((byte) (type.aliases.size() + 1), fieldType);
+            return DynamicCompositeType.getInstance(aliases);
+        }
+
+        abstract <L extends MapType, R extends MapType> boolean isMapCompatibleWith(L left, R right);
+
+        abstract <L extends MapType, R extends MapType> boolean isMapValueCompatibleWith(L left, R right);
+
+        abstract <L extends MapType, R extends MapType> boolean isMapSerializationCompatibleWith(L left, R right);
+
+        abstract <L extends SetType, R extends SetType> boolean isSetCompatibleWith(L left, R right);
+
+        abstract <L extends SetType, R extends SetType> boolean isSetValueCompatibleWith(L left, R right);
+
+        abstract <L extends SetType, R extends SetType> boolean isSetSerializationCompatibleWith(L left, R right);
+
+        abstract <L extends ListType, R extends ListType> boolean isListCompatibleWith(L left, R right);
+
+        abstract <L extends ListType, R extends ListType> boolean isListValueCompatibleWith(L left, R right);
+
+        abstract <L extends ListType, R extends ListType> boolean isListSerializationCompatibleWith(L left, R right);
+
+        abstract <L extends TupleType, R extends TupleType> boolean isTupleCompatibleWith(L left, R right);
+
+        abstract <L extends TupleType, R extends TupleType> boolean isTupleValueCompatibleWith(L left, R right);
+
+        abstract <L extends TupleType, R extends TupleType> boolean isTupleSerializationCompatibleWith(L left, R right);
+
+        abstract <L extends AbstractCompositeType, R extends AbstractCompositeType> boolean isCompositeCompatibleWith(L left, R right);
+
+        abstract <L extends AbstractCompositeType, R extends AbstractCompositeType> boolean isCompositeValueCompatibleWith(L left, R right);
+
+        abstract <L extends AbstractCompositeType, R extends AbstractCompositeType> boolean isCompositeSerializationCompatibleWith(L left, R right);
+    }
+
+    private static class Cassandra50BetaTypesCompatibility extends TypesCompatibility
+    {
+        public final static Cassandra50BetaTypesCompatibility instance = new Cassandra50BetaTypesCompatibility(null);
+
+        private Cassandra50BetaTypesCompatibility(TypesCompatibility prev)
+        {
+            super(prev);
+            valueCompatibleWith.put(BytesType.instance, AsciiType.instance);
+            valueCompatibleWith.put(BytesType.instance, BooleanType.instance);
+            valueCompatibleWith.put(BytesType.instance, ByteType.instance);
+            valueCompatibleWith.put(BytesType.instance, DecimalType.instance);
+            valueCompatibleWith.put(BytesType.instance, DoubleType.instance);
+            valueCompatibleWith.put(BytesType.instance, DurationType.instance);
+            valueCompatibleWith.put(BytesType.instance, EmptyType.instance);
+            valueCompatibleWith.put(BytesType.instance, FloatType.instance);
+            valueCompatibleWith.put(BytesType.instance, InetAddressType.instance);
+            valueCompatibleWith.put(BytesType.instance, Int32Type.instance);
+            valueCompatibleWith.put(BytesType.instance, IntegerType.instance);
+            valueCompatibleWith.put(BytesType.instance, LexicalUUIDType.instance);
+            valueCompatibleWith.put(BytesType.instance, LongType.instance);
+            valueCompatibleWith.put(BytesType.instance, ShortType.instance);
+            valueCompatibleWith.put(BytesType.instance, SimpleDateType.instance);
+            valueCompatibleWith.put(BytesType.instance, TimeType.instance);
+            valueCompatibleWith.put(BytesType.instance, TimeUUIDType.instance);
+            valueCompatibleWith.put(BytesType.instance, TimestampType.instance);
+            valueCompatibleWith.put(BytesType.instance, UTF8Type.instance);
+            valueCompatibleWith.put(BytesType.instance, UUIDType.instance);
+            valueCompatibleWith.put(IntegerType.instance, Int32Type.instance);
+            valueCompatibleWith.put(IntegerType.instance, LongType.instance);
+            valueCompatibleWith.put(IntegerType.instance, TimestampType.instance);
+            valueCompatibleWith.put(LongType.instance, TimestampType.instance);
+            valueCompatibleWith.put(SimpleDateType.instance, Int32Type.instance);
+            valueCompatibleWith.put(TimeType.instance, LongType.instance);
+            valueCompatibleWith.put(TimestampType.instance, LongType.instance);
+            valueCompatibleWith.put(UTF8Type.instance, AsciiType.instance);
+            valueCompatibleWith.put(UUIDType.instance, TimeUUIDType.instance);
+
+            serializationCompatibleWith.put(BytesType.instance, AsciiType.instance);
+            serializationCompatibleWith.put(BytesType.instance, ByteType.instance);
+            serializationCompatibleWith.put(BytesType.instance, DecimalType.instance);
+            serializationCompatibleWith.put(BytesType.instance, DurationType.instance);
+            serializationCompatibleWith.put(BytesType.instance, InetAddressType.instance);
+            serializationCompatibleWith.put(BytesType.instance, IntegerType.instance);
+            serializationCompatibleWith.put(BytesType.instance, ShortType.instance);
+            serializationCompatibleWith.put(BytesType.instance, SimpleDateType.instance);
+            serializationCompatibleWith.put(BytesType.instance, TimeType.instance);
+            serializationCompatibleWith.put(BytesType.instance, UTF8Type.instance);
+            serializationCompatibleWith.put(LongType.instance, TimestampType.instance);
+            serializationCompatibleWith.put(TimestampType.instance, LongType.instance);
+            serializationCompatibleWith.put(UTF8Type.instance, AsciiType.instance);
+            serializationCompatibleWith.put(UUIDType.instance, TimeUUIDType.instance);
+
+            compatibleWith.put(BytesType.instance, AsciiType.instance);
+            compatibleWith.put(BytesType.instance, UTF8Type.instance);
+            compatibleWith.put(UTF8Type.instance, AsciiType.instance);
+
+            for (AbstractType<?> t : PRIMITIVE_TYPES)
+            {
+                valueCompatibleWith.put(t, t);
+                serializationCompatibleWith.put(t, t);
+                compatibleWith.put(t, t);
+            }
+
+            multiCellSupportingTypes.add(MapType.class);
+            multiCellSupportingTypes.add(SetType.class);
+            multiCellSupportingTypes.add(ListType.class);
+
+            multiCellSupportingTypesForReading.addAll(multiCellSupportingTypes);
+            multiCellSupportingTypesForReading.add(UserType.class); // Cassandra 3.11 was able to write multi-cel user types?
+        }
+
+        @Override
+        boolean isMapCompatibleWith(MapType left, MapType right)
+        {
+            if (left.isMultiCell() && right.isMultiCell())
+                // multicell
+                return left.getKeysType().isCompatibleWith(right.getKeysType()) && left.getValuesType().isSerializationCompatibleWith(right.getValuesType());
+            else if (!left.isMultiCell() && !right.isMultiCell())
+                // frozen
+                return left.getKeysType().isCompatibleWith(right.getKeysType()) && left.getValuesType().isCompatibleWith(right.getValuesType());
+            else
+                return false;
+        }
+
+        @Override
+        boolean isMapValueCompatibleWith(MapType left, MapType right)
+        {
+            if (left.isMultiCell() && right.isMultiCell())
+                return left.getKeysType().isCompatibleWith(right.getKeysType()) && left.getValuesType().isSerializationCompatibleWith(right.getValuesType());
+            else if (!left.isMultiCell() && !right.isMultiCell())
+                return left.getKeysType().isCompatibleWith(right.getKeysType()) && left.getValuesType().isValueCompatibleWith(right.getValuesType());
+            else
+                return false;
+        }
+
+        @Override
+        boolean isMapSerializationCompatibleWith(MapType left, MapType right)
+        {
+            if (left.isMultiCell() && right.isMultiCell())
+                return left.getKeysType().isCompatibleWith(right.getKeysType()) && left.getValuesType().isValueCompatibleWith(right.getValuesType()) && left.getValuesType().isSerializationCompatibleWith(right.getValuesType());
+            else if (!left.isMultiCell() && !right.isMultiCell())
+                return left.getKeysType().isCompatibleWith(right.getKeysType()) && left.getValuesType().isValueCompatibleWith(right.getValuesType()) && left.getValuesType().isSerializationCompatibleWith(right.getValuesType());
+            else
+                return false;
+        }
+
+        @Override
+        boolean isSetCompatibleWith(SetType left, SetType right)
+        {
+            if (left.isMultiCell() && right.isMultiCell())
+                // multicell
+                return left.getElementsType().isCompatibleWith(right.getElementsType());
+            else if (!left.isMultiCell() && !right.isMultiCell())
+                // frozen
+                return left.getElementsType().isCompatibleWith(right.getElementsType());
+            else
+                return false;
+        }
+
+        @Override
+        boolean isSetValueCompatibleWith(SetType left, SetType right)
+        {
+            if (left.isMultiCell() && right.isMultiCell())
+                return left.getElementsType().isCompatibleWith(right.getElementsType());
+            else if (!left.isMultiCell() && !right.isMultiCell())
+                return left.getElementsType().isCompatibleWith(right.getElementsType());
+            else
+                return false;
+        }
+
+        @Override
+        boolean isSetSerializationCompatibleWith(SetType left, SetType right)
+        {
+            if (left.isMultiCell() && right.isMultiCell())
+                return left.getElementsType().isCompatibleWith(right.getElementsType());
+            else if (!left.isMultiCell() && !right.isMultiCell())
+                return left.getElementsType().isCompatibleWith(right.getElementsType());
+            else
+                return false;
+        }
+
+        @Override
+        boolean isListCompatibleWith(ListType left, ListType right)
+        {
+            if (left.isMultiCell() && right.isMultiCell())
+                // multicell
+                return left.getElementsType().isSerializationCompatibleWith(right.getElementsType());
+            else if (!left.isMultiCell() && !right.isMultiCell())
+                // frozen
+                return left.getElementsType().isCompatibleWith(right.getElementsType());
+            else
+                return false;
+        }
+
+        @Override
+        boolean isListValueCompatibleWith(ListType left, ListType right)
+        {
+            if (left.isMultiCell() && right.isMultiCell())
+                return left.getElementsType().isSerializationCompatibleWith(right.getElementsType());
+            else if (!left.isMultiCell() && !right.isMultiCell())
+                return left.getElementsType().isValueCompatibleWith(right.getElementsType());
+            else
+                return false;
+        }
+
+        @Override
+        boolean isListSerializationCompatibleWith(ListType left, ListType right)
+        {
+            if (left.isMultiCell() && right.isMultiCell())
+                return left.getElementsType().isValueCompatibleWith(right.getElementsType()) && left.getElementsType().isSerializationCompatibleWith(right.getElementsType());
+            else if (!left.isMultiCell() && !right.isMultiCell())
+                return left.getElementsType().isValueCompatibleWith(right.getElementsType()) && left.getElementsType().isSerializationCompatibleWith(right.getElementsType());
+            else
+                return false;
+        }
+
+        boolean isSubTypesCompatible(AbstractType<?> left, AbstractType<?> right, BiPredicate<AbstractType<?>, AbstractType<?>> subTypePredicate)
+        {
+            if (left.subTypes().size() < right.subTypes().size())
+                return false;
+
+            List<AbstractType<?>> leftSubTypes;
+            List<AbstractType<?>> rightSubTypes;
+            if (left.getClass() == DynamicCompositeType.class)
+            {
+                leftSubTypes = Arrays.asList(new AbstractType<?>[256]);
+                ((DynamicCompositeType) left).aliases.forEach((k, v) -> leftSubTypes.set(k + 128, v));
+            }
+            else
+                leftSubTypes = left.subTypes();
+
+            if (right.getClass() == DynamicCompositeType.class)
+            {
+                rightSubTypes = Arrays.asList(new AbstractType<?>[256]);
+                ((DynamicCompositeType) right).aliases.forEach((k, v) -> rightSubTypes.set(k + 128, v));
+            }
+            else
+                rightSubTypes = right.subTypes();
+
+            return Streams.zip(leftSubTypes.subList(0, rightSubTypes.size()).stream(),
+                               rightSubTypes.stream(),
+                               subTypePredicate::test).allMatch(b -> b);
+        }
+
+        @Override
+        boolean isTupleCompatibleWith(TupleType left, TupleType right)
+        {
+            return isSubTypesCompatible(left, right, AbstractType::isCompatibleWith);
+        }
+
+        @Override
+        boolean isTupleValueCompatibleWith(TupleType left, TupleType right)
+        {
+            if (left.isUDT())
+            {
+                if (!right.isUDT())
+                    return false;
+
+                if (left.isMultiCell() != right.isMultiCell())
+                    return false;
+
+                return isSubTypesCompatible(left, right, AbstractType::isCompatibleWith);
+            }
+            else
+            {
+                return isSubTypesCompatible(left, right, AbstractType::isValueCompatibleWith);
+            }
+        }
+
+        @Override
+        <L extends TupleType, R extends TupleType> boolean isTupleSerializationCompatibleWith(L left, R right)
+        {
+            if (left.isMultiCell() != right.isMultiCell())
+                return false;
+
+            if (left.valueLengthIfFixed() != right.valueLengthIfFixed())
+                return false;
+
+            if (left.isUDT())
+            {
+                if (!right.isUDT())
+                    return false;
+
+                return isSubTypesCompatible(left, right, AbstractType::isCompatibleWith);
+            }
+            else
+            {
+                return isSubTypesCompatible(left, right, AbstractType::isValueCompatibleWith);
+            }
+        }
+
+        @Override
+        boolean isCompositeCompatibleWith(AbstractCompositeType left, AbstractCompositeType right)
+        {
+            if (left.getClass() != right.getClass())
+                return false;
+
+            if (left.isMultiCell() != right.isMultiCell())
+                return false;
+
+            if (left.getClass() == DynamicCompositeType.class)
+            {
+                return isSubTypesCompatible(left, right, (l, r) -> r == null || l == r);
+            }
+            else
+            {
+                return isSubTypesCompatible(left, right, (l, r) -> r == null || l != null && l.isCompatibleWith(r));
+            }
+        }
+
+        @Override
+        boolean isCompositeValueCompatibleWith(AbstractCompositeType left, AbstractCompositeType right)
+        {
+            if (left.getClass() != right.getClass())
+                return false;
+
+            if (left.isMultiCell() != right.isMultiCell())
+                return false;
+
+            if (left.getClass() == DynamicCompositeType.class)
+            {
+                return isSubTypesCompatible(left, right, (l, r) -> r == null || l == r);
+            }
+            else
+            {
+                return isSubTypesCompatible(left, right, (l, r) -> r == null || l != null && l.isValueCompatibleWith(r));
+            }
+        }
+
+        @Override
+        boolean isCompositeSerializationCompatibleWith(AbstractCompositeType left, AbstractCompositeType right)
+        {
+            if (left.getClass() != right.getClass())
+                return false;
+
+            if (left.isMultiCell() != right.isMultiCell())
+                return false;
+
+            if (left.valueLengthIfFixed() != right.valueLengthIfFixed())
+                return false;
+
+            if (left.getClass() == DynamicCompositeType.class)
+            {
+                return isSubTypesCompatible(left, right, (l, r) -> r == null || l == r);
+            }
+            else
+            {
+                return isSubTypesCompatible(left, right, (l, r) -> r == null || l != null && l.isValueCompatibleWith(r));
+            }
+        }
+    }
+
+    private static class Cassandra50TypesCompatibility extends Cassandra50BetaTypesCompatibility
+    {
+        public final static Cassandra50TypesCompatibility instance = new Cassandra50TypesCompatibility(Cassandra50BetaTypesCompatibility.instance);
+
+        private Cassandra50TypesCompatibility(TypesCompatibility prev)
+        {
+            super(prev);
+            Multimap<AbstractType<?>, AbstractType<?>> valueCompatibleWith = Multimaps.newSetMultimap(new HashMap<>(), Sets::newHashSet);
+            valueCompatibleWith.putAll(this.valueCompatibleWith);
+            // extra compatibility that we have for free
+            valueCompatibleWith.put(Int32Type.instance, SimpleDateType.instance);
+            valueCompatibleWith.put(IntegerType.instance, ByteType.instance);
+            valueCompatibleWith.put(IntegerType.instance, ShortType.instance);
+            valueCompatibleWith.put(IntegerType.instance, SimpleDateType.instance);
+            valueCompatibleWith.put(IntegerType.instance, TimeType.instance);
+            valueCompatibleWith.put(LongType.instance, TimeType.instance);
+            buildTransitiveClosure(valueCompatibleWith, this.valueCompatibleWith, PRIMITIVE_TYPES);
+
+            Multimap<AbstractType<?>, AbstractType<?>> serializationCompatibleWith = Multimaps.newSetMultimap(new HashMap<>(), Sets::newHashSet);
+            serializationCompatibleWith.putAll(this.serializationCompatibleWith);
+            // extra compatibility that we have for free
+            serializationCompatibleWith.put(SimpleDateType.instance, Int32Type.instance);
+            serializationCompatibleWith.put(TimeType.instance, LongType.instance);
+            buildTransitiveClosure(serializationCompatibleWith, this.serializationCompatibleWith, PRIMITIVE_TYPES);
+
+            Multimap<AbstractType<?>, AbstractType<?>> compatibleWith = Multimaps.newSetMultimap(new HashMap<>(), Sets::newHashSet);
+            compatibleWith.putAll(this.compatibleWith);
+            buildTransitiveClosure(compatibleWith, this.compatibleWith, PRIMITIVE_TYPES);
         }
     }
 }

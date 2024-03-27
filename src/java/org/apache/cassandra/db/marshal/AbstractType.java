@@ -33,6 +33,7 @@ import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
+import org.apache.cassandra.cql3.statements.schema.AlterTableStatement;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -328,9 +329,13 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
      * A comparator cn should be compatible with a previous one cp if forall columns c1 and c2,
      * if   cn.validate(c1) and cn.validate(c2) and cn.compare(c1, c2) == v,
      * then cp.validate(c1) and cp.validate(c2) and cp.compare(c1, c2) == v.
-     *
+     * <p/>
      * Note that a type should be compatible with at least itself and when in
      * doubt, keep the default behavior of not being compatible with any other comparator!
+     * <p/>
+     * Used for user functions and aggregates to validate the returning type when the function is replaced.
+     * Used for validation of table metadata when replacing metadata in ref (alterting a table) and when scrubbing
+     * an sstable to validate whether metadata stored in the sstable is compatible with the current metadata.
      */
     public boolean isCompatibleWith(AbstractType<?> previous)
     {
@@ -338,15 +343,21 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     }
 
     /**
-     * Returns true if values of the other AbstractType can be read and "reasonably" interpreted by the this
+     * Returns true if values of the other AbstractType can be read and "reasonably" interpreted by this
      * AbstractType. Note that this is a weaker version of isCompatibleWith, as it does not require that both type
      * compare values the same way.
-     *
+     * <p/>
      * The restriction on the other type being "reasonably" interpreted is to prevent, for example, IntegerType from
      * being compatible with all other types.  Even though any byte string is a valid IntegerType value, it doesn't
      * necessarily make sense to interpret a UUID or a UTF8 string as an integer.
-     *
+     * <p/>
      * Note that a type should be compatible with at least itself.
+     * <p/>
+     * Used for type casting and values assignment. It valid if we can compose L values which were decomposed using R
+     * serializer. Therefore, it does not care about whether the type is reversed or not. It should not whether the
+     * type is fixed or variable length as for compose/decompose we always deal with all remaining data in the buffer
+     * (so for example, a variable length type may be compatible with fixed length type given the interpretation is
+     * consistent, like between BigInt and Long).
      */
     public boolean isValueCompatibleWith(AbstractType<?> previous)
     {
@@ -368,6 +379,10 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
      * Similar to {@link #isValueCompatibleWith(AbstractType)}, but takes into account {@link Cell} encoding.
      * In particular, this method doesn't consider two types serialization compatible if one of them has fixed
      * length (overrides {@link #valueLengthIfFixed()}, and the other one doesn't.
+     * </p>
+     * Used in {@link AlterTableStatement} when adding a column with the same name as the previously dropped column.
+     * The new column type must be serialization compatible with the old one. We must be able to read cells of the new
+     * type which were serialized as cells of the old type.
      */
     public boolean isSerializationCompatibleWith(AbstractType<?> previous)
     {
