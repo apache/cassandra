@@ -41,7 +41,6 @@ public class RequestFailure
 {
     public static final RequestFailure UNKNOWN = new RequestFailure(RequestFailureReason.UNKNOWN);
     public static final RequestFailure READ_TOO_MANY_TOMBSTONES = new RequestFailure(RequestFailureReason.READ_TOO_MANY_TOMBSTONES);
-    public static final RequestFailure READ_TOO_MANY_INDEXES = new RequestFailure(RequestFailureReason.READ_TOO_MANY_INDEXES);
     public static final RequestFailure TIMEOUT = new RequestFailure(RequestFailureReason.TIMEOUT);
     public static final RequestFailure INCOMPATIBLE_SCHEMA = new RequestFailure(RequestFailureReason.INCOMPATIBLE_SCHEMA);
     public static final RequestFailure READ_SIZE = new RequestFailure(RequestFailureReason.READ_SIZE);
@@ -50,6 +49,7 @@ public class RequestFailure
     public static final RequestFailure INVALID_ROUTING = new RequestFailure(RequestFailureReason.INVALID_ROUTING);
     public static final RequestFailure INDEX_NOT_AVAILABLE = new RequestFailure(RequestFailureReason.INDEX_NOT_AVAILABLE);
     public static final RequestFailure COORDINATOR_BEHIND = new RequestFailure(RequestFailureReason.COORDINATOR_BEHIND);
+    public static final RequestFailure READ_TOO_MANY_INDEXES = new RequestFailure(RequestFailureReason.READ_TOO_MANY_INDEXES);
 
     static
     {
@@ -124,7 +124,6 @@ public class RequestFailure
             default: throw new IllegalStateException("Unhandled request failure reason " + reason);
             case UNKNOWN: return UNKNOWN;
             case READ_TOO_MANY_TOMBSTONES: return READ_TOO_MANY_TOMBSTONES;
-            case READ_TOO_MANY_INDEXES: return READ_TOO_MANY_INDEXES;
             case TIMEOUT: return TIMEOUT;
             case INCOMPATIBLE_SCHEMA: return INCOMPATIBLE_SCHEMA;
             case READ_SIZE: return READ_SIZE;
@@ -133,6 +132,7 @@ public class RequestFailure
             case INVALID_ROUTING: return INVALID_ROUTING;
             case INDEX_NOT_AVAILABLE: return INDEX_NOT_AVAILABLE;
             case COORDINATOR_BEHIND: return COORDINATOR_BEHIND;
+            case READ_TOO_MANY_INDEXES: return READ_TOO_MANY_INDEXES;
         }
     }
 

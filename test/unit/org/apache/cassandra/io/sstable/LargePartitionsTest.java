@@ -135,7 +135,7 @@ public class LargePartitionsTest extends CQLTester
                            " size:" + metrics.size.getValue() +
                            " entries:" + metrics.entries.getValue() +
                            " hit-rate:" + metrics.hitRate.getValue() +
-                           " one-min-rate:" + metrics.hitRate.getValue());
+                           " one-min-rate:" + metrics.oneMinuteHitRate.getValue());
     }
 
     @Test
