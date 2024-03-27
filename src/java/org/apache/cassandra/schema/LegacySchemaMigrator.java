@@ -42,6 +42,7 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.lang.String.format;
@@ -741,7 +742,14 @@ public final class LegacySchemaMigrator
         AbstractType<?> comparator = isCQLTable
                                      ? UTF8Type.instance
                                      : CompactTables.columnDefinitionComparator(rawKind, isSuper, rawComparator, rawSubComparator);
-        ColumnIdentifier name = ColumnIdentifier.getInterned(comparator.fromString(row.getString("column_name")), comparator);
+        ColumnIdentifier name;
+        if (comparator instanceof BytesType) {
+            // Do not intern at this time
+            String cName = row.getString("column_name");
+            name = new ColumnIdentifier(ByteBufferUtil.bytes(cName), cName);
+        } else {
+            name = ColumnIdentifier.getInterned(comparator.fromString(row.getString("column_name")), comparator);
+        }
 
         AbstractType<?> validator = parseType(row.getString("validator"));
 
