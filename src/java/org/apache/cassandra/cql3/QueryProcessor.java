@@ -730,13 +730,6 @@ public class QueryProcessor implements QueryHandler
                 return createResultMessage(hashWithKeyspace, cachedWithKeyspace);
             }
         }
-        else
-        {
-            // Make sure the missing one is going to be eventually re-prepared
-            evictPrepared(hashWithKeyspace);
-            evictPrepared(hashWithoutKeyspace);
-        }
-
         Prepared prepared = parseAndPrepare(queryString, clientState, false);
         CQLStatement statement = prepared.statement;
 
