@@ -531,7 +531,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         {
             try(LogFile txn = LogFile.make(entry.getKey(), entry.getValue()))
             {
-                if (txn.verify())
+                if (txn.verify(true))
                 {
                     Throwable failure = txn.removeUnfinishedLeftovers(null);
                     if (failure != null)
