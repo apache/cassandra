@@ -50,6 +50,7 @@ import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.terms.UserTypes;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.LongType;
@@ -94,7 +95,7 @@ public class SerDeserTest
         for (Integer i : l)
             lb.add(Int32Type.instance.decompose(i));
 
-        assertEquals(l, lt.compose(lt.pack(lb)));
+        assertEquals(l, lt.compose(lt.pack(lb, ByteBufferAccessor.instance)));
 
         // Sets
         SetType<?> st = SetType.getInstance(UTF8Type.instance, true);
@@ -104,7 +105,7 @@ public class SerDeserTest
         for (String t : s)
             sb.add(UTF8Type.instance.decompose(t));
 
-        assertEquals(s, st.compose(st.pack(sb)));
+        assertEquals(s, st.compose(st.pack(sb, ByteBufferAccessor.instance)));
 
         // Maps
         MapType<?, ?> mt = MapType.getInstance(UTF8Type.instance, LongType.instance, true);
@@ -120,7 +121,7 @@ public class SerDeserTest
             mb.add(LongType.instance.decompose(entry.getValue()));
         }
 
-        assertEquals(m, mt.compose(mt.pack(mb)));
+        assertEquals(m, mt.compose(mt.pack(mb, ByteBufferAccessor.instance)));
     }
 
     @Test(expected = MarshalException.class)
@@ -130,7 +131,7 @@ public class SerDeserTest
         List<ByteBuffer> sb = new ArrayList<>(1);
         sb.add(null);
 
-        st.compose(st.pack(sb));
+        st.compose(st.pack(sb, ByteBufferAccessor.instance));
     }
 
     @Test(expected = MarshalException.class)
@@ -141,7 +142,7 @@ public class SerDeserTest
         mb.add(null);
         mb.add(LongType.instance.decompose(999L));
 
-        mt.compose(mt.pack(mb));
+        mt.compose(mt.pack(mb, ByteBufferAccessor.instance));
     }
 
     @Test(expected = MarshalException.class)
@@ -152,7 +153,7 @@ public class SerDeserTest
         mb.add(UTF8Type.instance.decompose("danger"));
         mb.add(null);
 
-        mt.compose(mt.pack(mb));
+        mt.compose(mt.pack(mb, ByteBufferAccessor.instance));
     }
 
     @Test
