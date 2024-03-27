@@ -335,15 +335,15 @@ public abstract class CollectionType<T> extends MultiElementType<T>
     }
 
     @Override
-    public ByteBuffer pack(List<ByteBuffer> elements)
+    public <V> V pack(List<V> elements, ValueAccessor<V> accessor)
     {
-        return getSerializer().pack(elements);
+        return getSerializer().pack(elements, accessor);
     }
 
     @Override
-    public List<ByteBuffer> unpack(ByteBuffer input)
+    public <V> List<V> unpack(V value, ValueAccessor<V> accessor)
     {
-        return getSerializer().unpack(input);
+        return getSerializer().unpack(value, accessor);
     }
 
     /**

@@ -31,6 +31,7 @@ import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.terms.Terms;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexRegistry;
@@ -363,7 +364,7 @@ public final class SimpleRestriction implements SingleRestriction
 
     private static ByteBuffer inValues(ColumnMetadata column, List<ByteBuffer> values)
     {
-        return ListType.getInstance(column.type, false).pack(values);
+        return ListType.getInstance(column.type, false).pack(values, ByteBufferAccessor.instance);
     }
 
     @Override
