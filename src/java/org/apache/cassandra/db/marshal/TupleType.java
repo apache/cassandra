@@ -295,11 +295,6 @@ public class TupleType extends MultiElementType<ByteBuffer>
     }
 
     @Override
-    public List<ByteBuffer> unpack(ByteBuffer value)
-    {
-        return unpack(value, ByteBufferAccessor.instance);
-    }
-
     public <V> List<V> unpack(V value, ValueAccessor<V> accessor)
     {
         int numberOfElements = size();
@@ -381,14 +376,14 @@ public class TupleType extends MultiElementType<ByteBuffer>
     }
 
     @Override
-    public ByteBuffer pack(List<ByteBuffer> components)
+    public <V> V pack(List<V> elements, ValueAccessor<V> accessor)
     {
-        return pack(ByteBufferAccessor.instance, components);
+        return pack(accessor, elements);
     }
 
     public ByteBuffer pack(ByteBuffer... components)
     {
-        return pack(Arrays.asList(components));
+        return pack(Arrays.asList(components), ByteBufferAccessor.instance);
     }
 
     @Override
@@ -472,7 +467,7 @@ public class TupleType extends MultiElementType<ByteBuffer>
                 fields.add(type.fromString(fieldString));
             }
         }
-        return pack(fields);
+        return pack(fields, ByteBufferAccessor.instance);
     }
 
     @Override
@@ -613,7 +608,7 @@ public class TupleType extends MultiElementType<ByteBuffer>
         for (AbstractType<?> type : types)
             buffers.add(type.getMaskedValue());
 
-        return serializer.serialize(pack(buffers));
+        return serializer.serialize(pack(buffers, ByteBufferAccessor.instance));
     }
 
     @Override

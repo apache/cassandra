@@ -27,6 +27,7 @@ import com.google.common.collect.BoundType;
 import com.google.common.collect.Range;
 
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UserType;
@@ -384,7 +385,7 @@ abstract class ColumnTimestamps
             List<ByteBuffer> buffers = new ArrayList<>(timestamps.size());
             timestamps.forEach(timestamp -> buffers.add(type.toByteBuffer(timestamp)));
 
-            return LONG_LIST_TYPE.pack(buffers);
+            return LONG_LIST_TYPE.pack(buffers, ByteBufferAccessor.instance);
         }
 
         @Override
