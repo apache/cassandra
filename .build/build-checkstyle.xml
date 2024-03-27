@@ -41,7 +41,7 @@
                     failOnViolation="true">
             <formatter type="plain"/>
             <formatter type="xml" tofile="${checkstyle.report.file}"/>
-            <fileset dir="${build.src.java}" includes="**/*.java"/>
+            <fileset dir="${build.src.java}" includes="**/*.java" excludes="build/**/*.java" />
         </checkstyle>
     </target>
 

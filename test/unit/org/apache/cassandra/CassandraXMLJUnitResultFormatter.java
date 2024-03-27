@@ -109,6 +109,9 @@ public class CassandraXMLJUnitResultFormatter implements JUnitResultFormatter, X
      */
     private final Hashtable<String, Element> testElements = new Hashtable<String, Element>();
 
+    private Element propsElement;
+    private Element systemOutputElement;
+
     /**
      * tests that failed.
      */
@@ -142,12 +145,12 @@ public class CassandraXMLJUnitResultFormatter implements JUnitResultFormatter, X
 
     /** {@inheritDoc}. */
     public void setSystemOutput(final String out) {
-        formatOutput(SYSTEM_OUT, out);
+        systemOutputElement = formatOutput(SYSTEM_OUT, out);
     }
 
     /** {@inheritDoc}. */
     public void setSystemError(final String out) {
-        formatOutput(SYSTEM_ERR, out);
+        rootElement.appendChild(formatOutput(SYSTEM_ERR, out));
     }
 
     /**
@@ -170,8 +173,7 @@ public class CassandraXMLJUnitResultFormatter implements JUnitResultFormatter, X
         rootElement.setAttribute(HOSTNAME, getHostname());
 
         // Output properties
-        final Element propsElement = doc.createElement(PROPERTIES);
-        rootElement.appendChild(propsElement);
+        propsElement = doc.createElement(PROPERTIES);
         final Properties props = suite.getProperties();
         if (props != null) {
             final Enumeration e = props.propertyNames();
@@ -212,8 +214,13 @@ public class CassandraXMLJUnitResultFormatter implements JUnitResultFormatter, X
         rootElement.setAttribute(ATTR_FAILURES, "" + suite.failureCount());
         rootElement.setAttribute(ATTR_ERRORS, "" + suite.errorCount());
         rootElement.setAttribute(ATTR_SKIPPED, "" + suite.skipCount());
-        rootElement.setAttribute(
-            ATTR_TIME, "" + (suite.getRunTime() / ONE_SECOND));
+        rootElement.setAttribute(ATTR_TIME, "" + (suite.getRunTime() / ONE_SECOND));
+        if (suite.failureCount() > 0 || suite.errorCount() > 0)
+        {
+            // only include properties and system-out if there's failure/error
+            rootElement.appendChild(propsElement);
+            rootElement.appendChild(systemOutputElement);
+        }
         if (out != null) {
             Writer wri = null;
             try {
@@ -351,10 +358,10 @@ public class CassandraXMLJUnitResultFormatter implements JUnitResultFormatter, X
         nested.appendChild(trace);
     }
 
-    private void formatOutput(final String type, final String output) {
+    private Element formatOutput(final String type, final String output) {
         final Element nested = doc.createElement(type);
-        rootElement.appendChild(nested);
         nested.appendChild(doc.createCDATASection(output));
+        return nested;
     }
 
     public void testIgnored(final Test test) {

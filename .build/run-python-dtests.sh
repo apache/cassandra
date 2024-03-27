@@ -117,8 +117,8 @@ if [ "${DTEST_TARGET}" = "dtest" ]; then
     DTEST_ARGS="--use-vnodes --num-tokens=${NUM_TOKENS} --skip-resource-intensive-tests"
 elif [ "${DTEST_TARGET}" = "dtest-novnode" ]; then
     DTEST_ARGS="--skip-resource-intensive-tests --keep-failed-test-dir"
-elif [ "${DTEST_TARGET}" = "dtest-offheap" ]; then
-    DTEST_ARGS="--use-vnodes --num-tokens=${NUM_TOKENS} --use-off-heap-memtables --skip-resource-intensive-tests"
+elif [ "${DTEST_TARGET}" = "dtest-latest" ]; then
+    DTEST_ARGS="--use-vnodes --num-tokens=${NUM_TOKENS} --configuration-yaml=cassandra_latest.yaml --skip-resource-intensive-tests"
 elif [ "${DTEST_TARGET}" = "dtest-large" ]; then
     DTEST_ARGS="--use-vnodes --num-tokens=${NUM_TOKENS} --only-resource-intensive-tests --force-resource-intensive-tests"
 elif [ "${DTEST_TARGET}" = "dtest-large-novnode" ]; then
@@ -145,6 +145,7 @@ if [[ "${DTEST_SPLIT_CHUNK}" =~ ^[0-9]+/[0-9]+$ ]]; then
     ( split --help 2>&1 ) | grep -q "r/K/N" || split_cmd=gsplit
     command -v ${split_cmd} >/dev/null 2>&1 || { echo >&2 "${split_cmd} needs to be installed"; exit 1; }
     SPLIT_TESTS=$(${split_cmd} -n r/${DTEST_SPLIT_CHUNK} ${DIST_DIR}/test_list.txt)
+    SPLIT_STRING="_${DTEST_SPLIT_CHUNK//\//_}"
 elif [[ "x" != "x${DTEST_SPLIT_CHUNK}" ]] ; then
     SPLIT_TESTS=$(grep -e "${DTEST_SPLIT_CHUNK}" ${DIST_DIR}/test_list.txt)
     [[ "x" != "x${SPLIT_TESTS}" ]] || { echo "no tests match regexp \"${DTEST_SPLIT_CHUNK}\""; exit 1; }
@@ -164,10 +165,13 @@ fi
 
 # merge all unit xml files into one, and print summary test numbers
 pushd ${CASSANDRA_DIR}/ >/dev/null
-# remove <testsuites> wrapping elements. `ant generate-unified-test-report` doesn't like it`
+# remove <testsuites> wrapping elements. ant generate-test-report` doesn't like it, and update testsuite name
 sed -r "s/<[\/]?testsuites>//g" ${DIST_DIR}/test/output/nosetests.xml > ${TMPDIR}/nosetests.xml
 cat ${TMPDIR}/nosetests.xml > ${DIST_DIR}/test/output/nosetests.xml
-ant -quiet -silent generate-unified-test-report
+sed "s/testsuite name=\"Cassandra dtests\"/testsuite name=\"${DTEST_TARGET}_jdk${java_version}_python${python_version}_cython${cython}_$(uname -m)${SPLIT_STRING}\"/g" ${DIST_DIR}/test/output/nosetests.xml > ${TMPDIR}/nosetests.xml
+cat ${TMPDIR}/nosetests.xml > ${DIST_DIR}/test/output/nosetests.xml
+
+ant -quiet -silent generate-test-report
 popd  >/dev/null
 
 ################################
