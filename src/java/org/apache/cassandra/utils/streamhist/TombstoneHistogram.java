@@ -25,6 +25,7 @@ import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.CassandraUInt;
 import org.apache.cassandra.utils.streamhist.StreamingTombstoneHistogramBuilder.DataHolder;
 
 /**
@@ -84,9 +85,9 @@ public class TombstoneHistogram
             final int maxBinSize = size; // we write this for legacy reasons
             out.writeInt(maxBinSize);
             out.writeInt(size);
-            histogram.forEach((point, value) ->
+            histogram.forEach((pointUnsigned, value) ->
                               {
-                                  out.writeLong(point);
+                                  out.writeInt(pointUnsigned);
                                   out.writeInt(value);
                               });
         }
@@ -98,12 +99,10 @@ public class TombstoneHistogram
             DataHolder dataHolder = new DataHolder(size, 1);
             for (int i = 0; i < size; i++)
             {
-                // Already serialized sstable metadata may contain negative deletion-time values (see CASSANDRA-14092).
-                // Just do a "safe cast" and it should be good. For safety, also do that for the 'value' (tombstone count).
-                long localDeletionTime = StreamingTombstoneHistogramBuilder.saturatingCastToMaxDeletionTime((long) in.readLong());
+                int localDeletionTimeUnsigned = in.readInt();
                 int count = StreamingTombstoneHistogramBuilder.saturatingCastToInt(in.readInt());
 
-                dataHolder.addValue(localDeletionTime, count);
+                dataHolder.addValue(localDeletionTimeUnsigned, count);
             }
 
             return new TombstoneHistogram(dataHolder);
@@ -115,8 +114,8 @@ public class TombstoneHistogram
             long size = TypeSizes.sizeof(maxBinSize);
             final int histSize = histogram.size();
             size += TypeSizes.sizeof(histSize);
-            // size of entries = size * (8(double) + 8(long))
-            size += histSize * (8L + 8L);
+            // size of entries = size * (4(int) + 4(int))
+            size += histSize * (4L + 4L);
             return size;
         }
     }
@@ -139,24 +138,26 @@ public class TombstoneHistogram
     {
         return bin.hashCode();
     }
-    
+
     public static class LegacyHistogramSerializer extends HistogramSerializer
     {
         public static final LegacyHistogramSerializer instance = new LegacyHistogramSerializer();
 
+        @Override
         public void serialize(TombstoneHistogram histogram, DataOutputPlus out) throws IOException
         {
             final int size = histogram.size();
             final int maxBinSize = size; // we write this for legacy reasons
             out.writeInt(maxBinSize);
             out.writeInt(size);
-            histogram.forEach((point, value) ->
+            histogram.forEach((pointUnsigned, value) ->
                               {
-                                  out.writeDouble((double) point);
+                                  out.writeDouble((double) CassandraUInt.toLong(pointUnsigned));
                                   out.writeLong((long) value);
                               });
         }
 
+        @Override
         public TombstoneHistogram deserialize(DataInputPlus in) throws IOException
         {
             in.readInt(); // max bin size
@@ -175,6 +176,7 @@ public class TombstoneHistogram
             return new TombstoneHistogram(dataHolder);
         }
 
+        @Override
         public long serializedSize(TombstoneHistogram histogram)
         {
             int maxBinSize = 0;
