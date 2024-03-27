@@ -496,7 +496,7 @@ public class QueryProcessor implements QueryHandler
         }
         else
         {
-            clientState.warnAboutUseWithPreparedStatements(hashWithKeyspace, clientState.getRawKeyspace());
+            clientState.warnAboutUseWithPreparedStatements(hashWithKeyspace, prepared.statement, clientState.getRawKeyspace());
 
             ResultMessage.Prepared nonQualifiedWithKeyspace = storePreparedStatement(queryString, clientState.getRawKeyspace(), prepared, forThrift);
             ResultMessage.Prepared nonQualifiedWithoutKeyspace = storePreparedStatement(queryString, null, prepared, forThrift);
