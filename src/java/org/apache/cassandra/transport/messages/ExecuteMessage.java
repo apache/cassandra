@@ -27,9 +27,11 @@ import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.cql3.statements.SelectStatement;
+import org.apache.cassandra.db.KeyspaceNotDefinedException;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
@@ -107,10 +109,19 @@ public class ExecuteMessage extends Message.Request
                                            " Executing the resulting prepared statement will return unexpected results: %s (on keyspace %s, previously prepared on %s)",
                                            statementId, state.getClientState().getRawKeyspace(), prepared.keyspace);
                 nospam.error(msg);
+                // 'KeyspaceNotDefinedException' exception name does not match the issues here, but we cannot add a new type as that would require
+                // a protocol change, hence using 'KeyspaceNotDefinedException' as the closet match. Basically, whenever there is a collision, we should not
+                // execute the statement at all. We should just throw an error back to the client. This should never ever happen unless any bug on the server,
+                // which was introduced as part of (https://issues.apache.org/jira/browse/CASSANDRA-17248)
+                QueryProcessor.metrics.preparedStatementCollisionFound.inc();
+                throw new KeyspaceNotDefinedException("Keyspace collision: " + msg);
             }
 
             if (prepared == null)
+            {
+                QueryProcessor.metrics.emptyPreparedStatementFound.inc();
                 throw new PreparedQueryNotFoundException(statementId);
+            }
 
             options.prepare(prepared.boundNames);
             CQLStatement statement = prepared.statement;

@@ -43,6 +43,7 @@ import org.apache.cassandra.transport.Event.SchemaChange.Target;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.MD5Digest;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 

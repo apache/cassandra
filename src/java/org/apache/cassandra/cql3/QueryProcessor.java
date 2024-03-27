@@ -419,6 +419,11 @@ public class QueryProcessor implements QueryHandler
         }
     }
 
+    public ResultMessage.Prepared prepare(String queryString, ClientState clientState, boolean forThrift)
+    {
+        return prepare(queryString, clientState, forThrift, useNewPreparedStatementBehaviour());
+    }
+
     /**
      * This method got slightly out of hand, but this is with best intentions: to allow users to be upgraded from any
      * prior version, and help implementers avoid previous mistakes by clearly separating fully qualified and non-fully
@@ -439,15 +444,20 @@ public class QueryProcessor implements QueryHandler
      *   clients, but they will be able to continue using the old prepared statement id after that exception since we
      *   store the query both with and without keyspace.
      */
-    public ResultMessage.Prepared prepare(String queryString, ClientState clientState, boolean forThrift)
+    public ResultMessage.Prepared prepare(String queryString, ClientState clientState, boolean forThrift, boolean newPreparedStatementBehaviour)
     {
-        boolean newPreparedStatementBehaviour = useNewPreparedStatementBehaviour();
         MD5Digest hashWithoutKeyspace = computeId(queryString, null);
         MD5Digest hashWithKeyspace = computeId(queryString, clientState.getRawKeyspace());
         ParsedStatement.Prepared cachedWithoutKeyspace = preparedStatements.get(hashWithoutKeyspace);
         ParsedStatement.Prepared cachedWithKeyspace = preparedStatements.get(hashWithKeyspace);
         // We assume it is only safe to return cached prepare if we have both instances
         boolean safeToReturnCached = cachedWithoutKeyspace != null && cachedWithKeyspace != null;
+        if (!safeToReturnCached && cachedWithoutKeyspace == null && cachedWithKeyspace != null && clientState.getRawKeyspace() != null && !cachedWithKeyspace.fullyQualified)
+        {
+            // if the prepared statement is non-fully qualified one, then we would never ever generate `cachedWithoutKeyspace` i.e.
+            // it will always be null. In such case, we just need to check 'cachedWithKeyspace' and if it is non-null, then it is safe to return from cache
+            safeToReturnCached =  true;
+        }
 
         if (!forThrift)
         {
@@ -455,14 +465,21 @@ public class QueryProcessor implements QueryHandler
             {
                 if (newPreparedStatementBehaviour)
                 {
-                    if (cachedWithoutKeyspace.fullyQualified) // For fully qualified statements, we always skip keyspace to avoid digest switching
+                    if (cachedWithoutKeyspace != null && cachedWithoutKeyspace.fullyQualified) // For fully qualified statements, we always skip keyspace to avoid digest switching
+                    {
+                        metrics.preparedCacheIsUsed.inc();
                         return new ResultMessage.Prepared(hashWithoutKeyspace, cachedWithoutKeyspace);
+                    }
 
                     if (clientState.getRawKeyspace() != null && !cachedWithKeyspace.fullyQualified) // For non-fully qualified statements, we always include keyspace to avoid ambiguity
+                    {
+                        metrics.preparedCacheIsUsed.inc();
                         return new ResultMessage.Prepared(hashWithKeyspace, cachedWithKeyspace);
+                    }
                 }
                 else // legacy caches, pre-CASSANDRA-15252 behaviour
                 {
+                    metrics.preparedCacheIsUsed.inc();
                     return new ResultMessage.Prepared(hashWithKeyspace, cachedWithKeyspace);
                 }
             }
@@ -496,18 +513,11 @@ public class QueryProcessor implements QueryHandler
         }
         else
         {
-            clientState.warnAboutUseWithPreparedStatements(hashWithKeyspace, clientState.getRawKeyspace());
-
-            ResultMessage.Prepared nonQualifiedWithKeyspace = storePreparedStatement(queryString, clientState.getRawKeyspace(), prepared, forThrift);
-            ResultMessage.Prepared nonQualifiedWithoutKeyspace = storePreparedStatement(queryString, null, prepared, forThrift);
-            if (!newPreparedStatementBehaviour)
-                return nonQualifiedWithoutKeyspace;
-
-            return nonQualifiedWithKeyspace;
+            return storePreparedStatement(queryString, clientState.getRawKeyspace(), prepared, forThrift);
         }
     }
 
-    private static MD5Digest computeId(String queryString, String keyspace)
+    public static MD5Digest computeId(String queryString, String keyspace)
     {
         String toHash = keyspace == null ? queryString : keyspace + queryString;
         return MD5Digest.compute(toHash);
