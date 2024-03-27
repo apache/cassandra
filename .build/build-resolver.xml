@@ -23,13 +23,15 @@
     <property name="resolver-ant-tasks.version" value="1.3.0" />
     <property name="resolver-ant-tasks.local" value="${local.repository}/org/apache/maven/resolver/maven-resolver-ant-tasks/${resolver-ant-tasks.version}/maven-resolver-ant-tasks-${resolver-ant-tasks.version}.jar"/>
     <property name="resolver-ant-tasks.url" value="https://repo1.maven.org/maven2/org/apache/maven/resolver/maven-resolver-ant-tasks" />
-
-    <!-- version of lib/ downloads -->
-    <property name="lib.download.sha" value="27de93ebb1285e731570eb8585d66832c79c4289"/>
-
     <condition property="resolver-ant-tasks.jar.exists">
         <available file="${resolver-ant-tasks.local}" />
     </condition>
+
+    <property name="artifact.python.pypi" value="https://files.pythonhosted.org/packages" />
+
+    <!-- version of lib/ downloads -->
+    <property name="lib.download.sha" value="27de93ebb1285e731570eb8585d66832c79c4289"/>
+    <property name="lib.download.base.url" value="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}" />
 
     <path id="resolver-ant-tasks.classpath" path="${resolver-ant-tasks.local}" />
 
@@ -180,36 +182,36 @@
         <mkdir dir="${build.lib}/sigar-bin"/>
 
         <!-- files.pythonhosted.org -->
-        <get src="https://files.pythonhosted.org/packages/59/a0/cf4cd997e1750f0c2d91c6ea5abea218251c43c3581bcc2f118b00baf5cf/futures-2.1.6-py2.py3-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
-        <get src="https://files.pythonhosted.org/packages/2e/a4/6dcb84af409b7bc0c258a0d6bd7e14231724d9a46b750c048f09d74d870c/six-1.7.3-py2.py3-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/six-1.7.3-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+        <get src="${artifact.python.pypi}/59/a0/cf4cd997e1750f0c2d91c6ea5abea218251c43c3581bcc2f118b00baf5cf/futures-2.1.6-py2.py3-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+        <get src="${artifact.python.pypi}/2e/a4/6dcb84af409b7bc0c258a0d6bd7e14231724d9a46b750c048f09d74d870c/six-1.7.3-py2.py3-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/six-1.7.3-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
 
         <!-- python-driver -->
-        <get src="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/cassandra-driver-internal-only-3.11.0-bb96859b.zip" dest="${local.repository}/org/apache/cassandra/deps/cassandra-driver-internal-only-3.11.0-bb96859b.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+        <get src="${lib.download.base.url}/lib/cassandra-driver-internal-only-3.11.0-bb96859b.zip" dest="${local.repository}/org/apache/cassandra/deps/cassandra-driver-internal-only-3.11.0-bb96859b.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
 
         <!-- apache/cassandra/lib -->
         <get dest="${local.repository}/org/apache/cassandra/deps/sigar-bin/" quiet="true" usetimestamp="true" skipexisting="true">
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-amd64-freebsd-6.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-amd64-linux.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-amd64-solaris.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-ia64-hpux-11.sl"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-ia64-linux.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-pa-hpux-11.sl"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-ppc-aix-5.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-ppc-linux.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-ppc64-aix-5.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-ppc64-linux.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-s390x-linux.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-sparc-solaris.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-sparc64-solaris.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-universal-macosx.dylib"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-universal64-macosx.dylib"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-x86-freebsd-5.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-x86-freebsd-6.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-x86-linux.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-x86-solaris.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/sigar-amd64-winnt.dll"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/sigar-x86-winnt.dll"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/sigar-x86-winnt.lib"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-amd64-freebsd-6.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-amd64-linux.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-amd64-solaris.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ia64-hpux-11.sl"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ia64-linux.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-pa-hpux-11.sl"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ppc-aix-5.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ppc-linux.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ppc64-aix-5.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ppc64-linux.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-s390x-linux.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-sparc-solaris.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-sparc64-solaris.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-universal-macosx.dylib"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-universal64-macosx.dylib"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-x86-freebsd-5.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-x86-freebsd-6.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-x86-linux.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-x86-solaris.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/sigar-amd64-winnt.dll"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/sigar-x86-winnt.dll"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/sigar-x86-winnt.lib"/>
         </get>
         
         <copy todir="${build.lib}" quiet="true">
