@@ -42,6 +42,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
@@ -413,7 +414,8 @@ public class Keyspace
     // disassociate a cfs from this keyspace instance.
     private void unloadCf(ColumnFamilyStore cfs)
     {
-        cfs.forceBlockingFlush();
+        if (!CassandraRelevantProperties.SKIP_FORCE_RECYCLE_COMMITLOG_SEGMENTS_ON_DROP_TABLE.getBoolean())
+            cfs.forceBlockingFlush();
         cfs.invalidate();
     }
 

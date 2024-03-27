@@ -1351,10 +1351,11 @@ public class AggregationTest extends CQLTester
     @Test
     public void testWrongKeyspace() throws Throwable
     {
+        String otherKeyspace = createKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
         String typeName = createType("CREATE TYPE %s (txt text, i int)");
         String type = KEYSPACE + '.' + typeName;
 
-        String fState = createFunction(KEYSPACE_PER_TEST,
+        String fState = createFunction(otherKeyspace,
                                        "int, int",
                                        "CREATE FUNCTION %s(a int, b int) " +
                                        "CALLED ON NULL INPUT " +
@@ -1362,7 +1363,7 @@ public class AggregationTest extends CQLTester
                                        "LANGUAGE java " +
                                        "AS 'return Double.valueOf(1.0);'");
 
-        String fFinal = createFunction(KEYSPACE_PER_TEST,
+        String fFinal = createFunction(otherKeyspace,
                                        "int",
                                        "CREATE FUNCTION %s(a int) " +
                                        "CALLED ON NULL INPUT " +
@@ -1387,29 +1388,29 @@ public class AggregationTest extends CQLTester
                                        "AS 'return Integer.valueOf(1);';");
 
         assertInvalidMessage(String.format("Statement on keyspace %s cannot refer to a user type in keyspace %s; user types can only be used in the keyspace they are defined in",
-                                           KEYSPACE_PER_TEST, KEYSPACE),
-                             "CREATE AGGREGATE " + KEYSPACE_PER_TEST + ".test_wrong_ks(int) " +
+                                           otherKeyspace, KEYSPACE),
+                             "CREATE AGGREGATE " + otherKeyspace + ".test_wrong_ks(int) " +
                              "SFUNC " + shortFunctionName(fState) + ' ' +
                              "STYPE " + type + " " +
                              "FINALFUNC " + shortFunctionName(fFinal) + ' ' +
                              "INITCOND 1");
 
         assertInvalidMessage("mismatched input", // specifying a function using "keyspace.functionname" is a syntax error
-                             "CREATE AGGREGATE " + KEYSPACE_PER_TEST + ".test_wrong_ks(int) " +
+                             "CREATE AGGREGATE " + otherKeyspace + ".test_wrong_ks(int) " +
                              "SFUNC " + fStateWrong + ' ' +
                              "STYPE " + type + " " +
                              "FINALFUNC " + shortFunctionName(fFinal) + ' ' +
                              "INITCOND 1");
 
         assertInvalidMessage("expecting EOF", // specifying a function using "keyspace.functionname" is a syntax error
-                             "CREATE AGGREGATE " + KEYSPACE_PER_TEST + ".test_wrong_ks(int) " +
+                             "CREATE AGGREGATE " + otherKeyspace + ".test_wrong_ks(int) " +
                              "SFUNC " + shortFunctionName(fState) + ' ' +
                              "STYPE " + type + " " +
                              "FINALFUNC " + fFinalWrong + ' ' +
                              "INITCOND 1");
 
         assertInvalidMessage("expecting EOF", // specifying a function using "keyspace.functionname" is a syntax error
-                             "CREATE AGGREGATE " + KEYSPACE_PER_TEST + ".test_wrong_ks(int) " +
+                             "CREATE AGGREGATE " + otherKeyspace + ".test_wrong_ks(int) " +
                              "SFUNC " + shortFunctionName(fState) + ' ' +
                              "STYPE " + type + ' ' +
                              "FINALFUNC " + SchemaConstants.SYSTEM_KEYSPACE_NAME + ".min " +
@@ -2129,10 +2130,11 @@ public class AggregationTest extends CQLTester
     @Test
     public void testRejectInvalidAggregateNamesOnCreation()
     {
+        String otherKeyspace = createKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
         for (String funcName : Arrays.asList("my/fancy/aggregate", "my_other[fancy]aggregate"))
         {
             assertThatThrownBy(() -> {
-                createAggregateOverload(String.format("%s.\"%s\"", KEYSPACE_PER_TEST, funcName), "int",
+                createAggregateOverload(String.format("%s.\"%s\"", otherKeyspace, funcName), "int",
                                         " CREATE AGGREGATE IF NOT EXISTS %s(text, text)\n" +
                                         " SFUNC func\n" +
                                         " STYPE map<text,bigint>\n" +

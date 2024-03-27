@@ -665,6 +665,10 @@ public final class FileUtils
         deleteWithConfirmWithThrottle(dir, rateLimiter);
     }
 
+    public static void deleteRecursive(File dir)
+    {
+        deleteRecursive(dir, false);
+    }
 
     /**
      * Deletes the specified directory after having deleted its content.
@@ -672,18 +676,21 @@ public final class FileUtils
      * @param dir Directory to be deleted
      * @throws FSWriteError if any part of the tree cannot be deleted
      */
-    public static void deleteRecursive(File dir)
+    public static void deleteRecursive(File dir, boolean quietly)
     {
         if (USE_NIX_RECURSIVE_DELETE.getBoolean() && dir.toPath().getFileSystem() == FileSystems.getDefault())
         {
-            deleteRecursiveUsingNixCommand(dir.toPath(), false);
+            deleteRecursiveUsingNixCommand(dir.toPath(), quietly);
             return;
         }
 
-        deleteChildrenRecursive(dir);
+        deleteChildrenRecursive(dir, quietly);
 
         // The directory is now empty, so now it can be smoked
-        deleteWithConfirm(dir);
+        if (quietly)
+            delete(dir);
+        else
+            deleteWithConfirm(dir);
     }
 
     /**
@@ -692,7 +699,7 @@ public final class FileUtils
      * @param dir Directory to be deleted
      * @throws FSWriteError if any part of the tree cannot be deleted
      */
-    public static void deleteChildrenRecursive(File dir)
+    public static void deleteChildrenRecursive(File dir, boolean quietly)
     {
         if (dir.isDirectory())
         {
@@ -703,12 +710,12 @@ public final class FileUtils
             if (USE_NIX_RECURSIVE_DELETE.getBoolean() && dir.toPath().getFileSystem() == FileSystems.getDefault())
             {
                 for (String child : children)
-                    deleteRecursiveUsingNixCommand(dir.toPath().resolve(child), false);
+                    deleteRecursiveUsingNixCommand(dir.toPath().resolve(child), quietly);
             }
             else
             {
                 for (String child : children)
-                    deleteRecursive(new File(dir, child));
+                    deleteRecursive(new File(dir, child), quietly);
             }
         }
     }
@@ -730,6 +737,12 @@ public final class FileUtils
 
         try
         {
+            if (!Files.exists(path))
+                if (quietly)
+                    return;
+                else
+                    throw new NoSuchFileException(path.toString());
+
             Process p = Runtime.getRuntime().exec(cmd);
             int result = p.waitFor();
 
@@ -749,7 +762,8 @@ public final class FileUtils
         }
         catch (IOException e)
         {
-            throw new FSWriteError(e, path.toString());
+            if (!quietly)
+                throw new FSWriteError(e, path.toString());
         }
         catch (InterruptedException e)
         {

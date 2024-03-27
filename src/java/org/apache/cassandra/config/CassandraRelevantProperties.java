@@ -61,6 +61,12 @@ public enum CassandraRelevantProperties
     /** Operating system name. */
     OS_NAME ("os.name"),
 
+    /** Disables flushing changes of {@link org.apache.cassandra.schema.SchemaKeyspace}, {@link org.apache.cassandra.db.SystemKeyspace}, and {@link org.apache.cassandra.schema.SystemDistributedKeyspace} after each change. schema modification. In production,
+     * we always do that. However, tests which do not restart nodes may disable this functionality in order to run
+     * faster. Note that this is disabled for unit tests but if an individual test requires schema to be flushed, it
+     * can be also done manually for that particular case: {@code flush(SchemaConstants.SCHEMA_KEYSPACE_NAME);}. */
+    UNSAFE_SYSTEM("cassandra.unsafesystem"),
+
     /** User's home directory. */
     USER_HOME ("user.home"),
 
@@ -231,11 +237,13 @@ public enum CassandraRelevantProperties
      * when the JVM terminates. Therefore, we can use such optimization and not wait unnecessarily. */
     NON_GRACEFUL_SHUTDOWN("cassandra.test.messagingService.nonGracefulShutdown"),
 
-    /** Flush changes of {@link org.apache.cassandra.schema.SchemaKeyspace} after each schema modification. In production,
-     * we always do that. However, tests which do not restart nodes may disable this functionality in order to run
-     * faster. Note that this is disabled for unit tests but if an individual test requires schema to be flushed, it
-     * can be also done manually for that particular case: {@code flush(SchemaConstants.SCHEMA_KEYSPACE_NAME);}. */
-    FLUSH_LOCAL_SCHEMA_CHANGES("cassandra.test.flush_local_schema_changes", "true"),
+    /**
+     * When a table is dropped, we flush all the dirty tables as part of recycling the commitlog segments. This can
+     * slow down tests execution as we drop all the tables in the after-test hook. It is safe to disable this
+     * behaviour for unit tests after-test hook as those tests never restart a node and thus do not replay the commitlog.
+     * See discussion on this ticket for details https://issues.apache.org/jira/browse/CASSANDRA-16986.
+     */
+    SKIP_FORCE_RECYCLE_COMMITLOG_SEGMENTS_ON_DROP_TABLE("cassandra.test.skip_force_recycle_commitlog_segments_on_table_drop", "false"),
 
     /**
      * Delay before checking if gossip is settled.

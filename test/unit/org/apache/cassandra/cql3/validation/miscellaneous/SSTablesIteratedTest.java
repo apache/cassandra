@@ -37,7 +37,7 @@ public class SSTablesIteratedTest extends CQLTester
 {
     private void executeAndCheck(String query, int numSSTables, Object[]... rows) throws Throwable
     {
-        ColumnFamilyStore cfs = getCurrentColumnFamilyStore(KEYSPACE_PER_TEST);
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore(KEYSPACE);
 
         ((ClearableHistogram) cfs.metric.sstablesPerReadHistogram.cf).clear(); // resets counts
 
@@ -48,26 +48,6 @@ public class SSTablesIteratedTest extends CQLTester
                                    numSSTables, numSSTablesIterated, cfs.getLiveSSTables().size()),
                      numSSTables,
                      numSSTablesIterated);
-    }
-
-    @Override
-    protected String createTable(String query)
-    {
-        String ret = super.createTable(KEYSPACE_PER_TEST, query);
-        disableCompaction(KEYSPACE_PER_TEST);
-        return ret;
-    }
-
-    @Override
-    protected UntypedResultSet execute(String query, Object... values) throws Throwable
-    {
-        return executeFormattedQuery(formatQuery(KEYSPACE_PER_TEST, query), values);
-    }
-
-    @Override
-    public void flush()
-    {
-        super.flush(KEYSPACE_PER_TEST);
     }
 
     @Test

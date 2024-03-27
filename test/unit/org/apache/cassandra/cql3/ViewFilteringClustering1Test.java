@@ -142,9 +142,6 @@ public class ViewFilteringClustering1Test extends ViewFilteringTester
                                     row(0, 1, 0, 0),
                                     row(0, 1, 1, 0)
             );
-
-            dropView("mv_test" + i);
-            dropTable("DROP TABLE %s");
         }
     }
 
@@ -250,9 +247,6 @@ public class ViewFilteringClustering1Test extends ViewFilteringTester
                                     row(0, 1, 0, 0),
                                     row(0, 1, 1, 0)
             );
-
-            dropView("mv_test" + i);
-            dropTable("DROP TABLE %s");
         }
     }
 
@@ -367,9 +361,6 @@ public class ViewFilteringClustering1Test extends ViewFilteringTester
                                     row(0, 1, 0, 0),
                                     row(0, 1, 1, 0)
             );
-
-            dropView("mv_test" + i);
-            dropTable("DROP TABLE %s");
         }
     }
 }

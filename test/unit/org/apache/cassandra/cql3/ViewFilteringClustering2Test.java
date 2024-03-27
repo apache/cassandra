@@ -146,9 +146,6 @@ public class ViewFilteringClustering2Test extends ViewFilteringTester
                                     row(0, 1, 0, 0),
                                     row(0, 1, 1, 0)
             );
-
-            dropView("mv_test" + i);
-            dropTable("DROP TABLE %s");
         }
     }
 
@@ -271,9 +268,6 @@ public class ViewFilteringClustering2Test extends ViewFilteringTester
                                     row(0, 1, 1, 0),
                                     row(4, 4, 1, 1)
             );
-
-            dropView("mv_test" + i);
-            dropTable("DROP TABLE %s");
         }
     }
 }

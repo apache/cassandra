@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.runner.RunWith;
@@ -73,18 +72,6 @@ public abstract class ViewComplexTester extends CQLTester
     public void begin() throws Throwable
     {
         views.clear();
-    }
-
-    @After
-    public void end() throws Throwable
-    {
-        dropMViews();
-    }
-
-    protected void dropMViews() throws Throwable
-    {
-        for (String viewName : views)
-            executeNet(version, "DROP MATERIALIZED VIEW " + viewName);
     }
 
     protected String createView(String query) throws Throwable
