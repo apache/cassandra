@@ -30,6 +30,7 @@ import org.apache.cassandra.cql3.terms.Lists;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -126,7 +127,7 @@ public class VectorSelector extends Selector
         for (int i = 0, m = elements.size(); i < m; i++)
             buffers.add(elements.get(i).getOutput(protocolVersion));
 
-        return type.pack(buffers);
+        return type.pack(buffers, ByteBufferAccessor.instance);
     }
 
     @Override

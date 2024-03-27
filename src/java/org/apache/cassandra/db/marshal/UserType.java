@@ -199,7 +199,7 @@ public class UserType extends TupleType implements SchemaElement
         while (components.size() < size())
             components.add(null);
 
-        return pack(components);
+        return pack(components, ByteBufferAccessor.instance);
     }
 
     public <V> void validateCell(Cell<V> cell) throws MarshalException

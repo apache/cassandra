@@ -26,6 +26,7 @@ import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.terms.Terms;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.functions.Function;
@@ -271,7 +272,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         {
             List<ByteBuffer> elements = values.bindAndGet(options);
             ListType<?> type = ListType.getInstance(columnDef.type, false);
-            ByteBuffer buffer = type.pack(elements);
+            ByteBuffer buffer = type.pack(elements, ByteBufferAccessor.instance);
             filter.add(columnDef, Operator.IN, buffer);
         }
 

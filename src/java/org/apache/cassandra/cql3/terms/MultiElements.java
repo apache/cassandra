@@ -25,6 +25,7 @@ import java.util.List;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.MultiElementType;
 import org.apache.cassandra.serializers.MarshalException;
 
@@ -83,7 +84,7 @@ public final class MultiElements
         @Override
         public ByteBuffer get()
         {
-            return type.pack(elements);
+            return type.pack(elements, ByteBufferAccessor.instance);
         }
 
         @Override

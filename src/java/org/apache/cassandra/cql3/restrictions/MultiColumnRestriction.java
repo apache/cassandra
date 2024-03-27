@@ -37,6 +37,7 @@ import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.MultiCBuilder;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexRegistry;
@@ -326,7 +327,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
                     values.add(splitValue.get(0));
 
                 ListType<?> type = ListType.getInstance(getFirstColumn().type, false);
-                ByteBuffer buffer = type.pack(values);
+                ByteBuffer buffer = type.pack(values, ByteBufferAccessor.instance);
                 filter.add(getFirstColumn(), Operator.IN, buffer);
             }
             else

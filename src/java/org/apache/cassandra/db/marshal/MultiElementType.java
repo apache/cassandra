@@ -39,7 +39,17 @@ public abstract class MultiElementType<T> extends AbstractType<T>
      * @param elements the serialized values of the elements
      * @return the serialized representation of the value composed of the specified elements.
      */
-    public abstract ByteBuffer pack(List<ByteBuffer> elements);
+    public abstract <V> V pack(List<V> elements, ValueAccessor<V> accessor);
+
+    public final ByteBuffer packBuffer(List<ByteBuffer> elements)
+    {
+        return pack(elements, ByteBufferAccessor.instance);
+    }
+
+    public final byte[] packArray(List<byte[]> elements)
+    {
+        return pack(elements, ByteArrayAccessor.instance);
+    }
 
     /**
      * Returns the serialized representation of the elements composing the specified value.
@@ -47,7 +57,23 @@ public abstract class MultiElementType<T> extends AbstractType<T>
      * @param value a serialized value of this type
      * @return the serialized representation of the elements composing the specified value.
      */
-    public abstract List<ByteBuffer> unpack(ByteBuffer value);
+    /**
+     * Returns the serialized representation of the elements composing the specified value.
+     *
+     * @param value a serialized value of this type
+     * @return the serialized representation of the elements composing the specified value.
+     */
+    public abstract <V> List<V> unpack(V value, ValueAccessor<V> accessor);
+
+    public final List<byte[]> unpack(byte[] value)
+    {
+        return unpack(value, ByteArrayAccessor.instance);
+    }
+
+    public final List<ByteBuffer> unpack(ByteBuffer value)
+    {
+        return unpack(value, ByteBufferAccessor.instance);
+    }
 
     /**
      * Checks if this type supports bind markers for its elements when the type value is provided through a literal.

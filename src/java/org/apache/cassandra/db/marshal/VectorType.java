@@ -136,12 +136,6 @@ public final class VectorType<T> extends MultiElementType<List<T>>
         return serializer;
     }
 
-    @Override
-    public List<ByteBuffer> unpack(ByteBuffer buffer)
-    {
-        return unpack(buffer, ByteBufferAccessor.instance);
-    }
-
     public <V> List<V> unpack(V buffer, ValueAccessor<V> accessor)
     {
         return getSerializer().unpack(buffer, accessor);
@@ -190,11 +184,6 @@ public final class VectorType<T> extends MultiElementType<List<T>>
             offset+= Float.BYTES;
         }
         return buffer;
-    }
-
-    public ByteBuffer pack(List<ByteBuffer> elements)
-    {
-        return pack(elements, ByteBufferAccessor.instance);
     }
 
     public <V> V pack(List<V> elements, ValueAccessor<V> accessor)

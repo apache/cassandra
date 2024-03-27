@@ -858,12 +858,12 @@ public class AccordKeyspace
 
     private static ByteBuffer serializeKey(PartitionKey key)
     {
-        return TupleType.buildValue(UUIDSerializer.instance.serialize(key.table().asUUID()), key.partitionKey().getKey());
+        return KEY_TYPE.pack(UUIDSerializer.instance.serialize(key.table().asUUID()), key.partitionKey().getKey());
     }
 
     private static ByteBuffer serializeTimestamp(Timestamp timestamp)
     {
-        return TupleType.buildValue(bytes(timestamp.msb), bytes(timestamp.lsb), bytes(timestamp.node.id));
+        return TIMESTAMP_TYPE.pack(bytes(timestamp.msb), bytes(timestamp.lsb), bytes(timestamp.node.id));
     }
 
     public interface TimestampFactory<T extends Timestamp>
@@ -876,8 +876,8 @@ public class AccordKeyspace
     {
         if (bytes == null || ByteBufferAccessor.instance.isEmpty(bytes))
             return null;
-        ByteBuffer[] split = TIMESTAMP_TYPE.split(ByteBufferAccessor.instance, bytes);
-        return factory.create(split[0].getLong(), split[1].getLong(), new Node.Id(split[2].getInt()));
+        List<ByteBuffer> split = TIMESTAMP_TYPE.unpack(bytes, ByteBufferAccessor.instance);
+        return factory.create(split.get(0).getLong(), split.get(1).getLong(), new Node.Id(split.get(2).getInt()));
     }
 
     public static <V> Timestamp deserializeTimestampOrNull(Cell<V> cell)
@@ -888,24 +888,24 @@ public class AccordKeyspace
         V value = cell.value();
         if (accessor.isEmpty(value))
             return null;
-        V[] split = TIMESTAMP_TYPE.split(accessor, value);
-        return Timestamp.fromBits(accessor.getLong(split[0], 0), accessor.getLong(split[1], 0), new Node.Id(accessor.getInt(split[2], 0)));
+        List<V> split = TIMESTAMP_TYPE.unpack(value, accessor);
+        return Timestamp.fromBits(accessor.getLong(split.get(0), 0), accessor.getLong(split.get(1), 0), new Node.Id(accessor.getInt(split.get(2), 0)));
     }
 
     public static <V, T extends Timestamp> T deserializeTimestampOrDefault(V value, ValueAccessor<V> accessor, TimestampFactory<T> factory, T defaultVal)
     {
         if (value == null || accessor.isEmpty(value))
             return defaultVal;
-        V[] split = TIMESTAMP_TYPE.split(accessor, value);
-        return factory.create(accessor.getLong(split[0], 0), accessor.getLong(split[1], 0), new Node.Id(accessor.getInt(split[2], 0)));
+        List<V> split = TIMESTAMP_TYPE.unpack(value, accessor);
+        return factory.create(accessor.getLong(split.get(0), 0), accessor.getLong(split.get(1), 0), new Node.Id(accessor.getInt(split.get(2), 0)));
     }
 
     public static <V, T extends Timestamp> T deserializeTimestampOrNull(V value, ValueAccessor<V> accessor, TimestampFactory<T> factory)
     {
         if (value == null || accessor.isEmpty(value))
             return null;
-        V[] split = TIMESTAMP_TYPE.split(accessor, value);
-        return factory.create(accessor.getLong(split[0], 0), accessor.getLong(split[1], 0), new Node.Id(accessor.getInt(split[2], 0)));
+        List<V> split = TIMESTAMP_TYPE.unpack(value, accessor);
+        return factory.create(accessor.getLong(split.get(0), 0), accessor.getLong(split.get(1), 0), new Node.Id(accessor.getInt(split.get(2), 0)));
     }
 
     private static <T extends Timestamp> T deserializeTimestampOrNull(UntypedResultSet.Row row, String name, TimestampFactory<T> factory)
@@ -1295,9 +1295,9 @@ public class AccordKeyspace
 
     public static PartitionKey deserializeKey(ByteBuffer buffer)
     {
-        ByteBuffer[] split = KEY_TYPE.split(ByteBufferAccessor.instance, buffer);
-        TableId tableId = TableId.fromUUID(UUIDSerializer.instance.deserialize(split[0]));
-        ByteBuffer key = split[1];
+        List<ByteBuffer> split = KEY_TYPE.unpack(buffer, ByteBufferAccessor.instance);
+        TableId tableId = TableId.fromUUID(UUIDSerializer.instance.deserialize(split.get(0)));
+        ByteBuffer key = split.get(1);
 
         TableMetadata metadata = Schema.instance.getTableMetadata(tableId);
         if (metadata == null)
