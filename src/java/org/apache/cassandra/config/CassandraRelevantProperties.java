@@ -344,6 +344,16 @@ public enum CassandraRelevantProperties
      */
     GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED("cassandra.gossip_settle_poll_success_required", "3"),
 
+    /**
+     * Maximum number of polls to wait for live endpoints. Disabled by default since dtests fail with this on.
+     */
+    GOSSIP_SETTLE_WAIT_LIVE_MAX("cassandra.gossip_settle_wait_live_max", "0"),
+
+    /**
+     * Number of polls without live endpoint state change to consider live endpoints as settled.
+     */
+    GOSSIP_SETTLE_WAIT_LIVE_REQUIRED("cassandra.gossip_settle_wait_live_required", "60"),
+
     ;
 
     CassandraRelevantProperties(String key, String defaultVal)
