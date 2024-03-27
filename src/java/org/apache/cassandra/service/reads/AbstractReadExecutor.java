@@ -50,6 +50,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static com.google.common.collect.Iterables.all;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * Sends a read request to the replicas needed to satisfy a given ConsistencyLevel.
@@ -162,8 +163,9 @@ public abstract class AbstractReadExecutor
     }
 
     /**
-     * Perform additional requests if it looks like the original will time out.  May block while it waits
-     * to see if the original requests are answered first.
+     * Perform additional requests if it looks like the original takes "too much time", as defined
+     * by the subclass.
+     * May block while it waits to see if the original requests are answered first.
      */
     public abstract void maybeTryAdditionalReplicas();
 
@@ -238,7 +240,7 @@ public abstract class AbstractReadExecutor
 
         if (logger.isTraceEnabled())
             logger.trace("Awaiting {} microseconds before speculating", cfs.sampleReadLatencyMicros);
-        return !handler.await(cfs.sampleReadLatencyMicros, MICROSECONDS);
+        return !handler.awaitFrom(nanoTime(), cfs.sampleReadLatencyMicros, MICROSECONDS);
     }
 
     ReplicaPlan.ForTokenRead replicaPlan()
