@@ -684,6 +684,11 @@ public class QueryProcessor implements QueryHandler
         }
     }
 
+    public ResultMessage.Prepared prepare(String queryString, ClientState clientState)
+    {
+        return prepare(queryString, clientState, 0,0,0);
+    }
+
     /**
      * This method got slightly out of hand, but this is with best intentions: to allow users to be upgraded from any
      * prior version, and help implementers avoid previous mistakes by clearly separating fully qualified and non-fully
@@ -704,8 +709,19 @@ public class QueryProcessor implements QueryHandler
      *   clients, but they will be able to continue using the old prepared statement id after that exception since we
      *   store the query both with and without keyspace.
      */
-    public ResultMessage.Prepared prepare(String queryString, ClientState clientState)
+    public ResultMessage.Prepared prepare(String queryString, ClientState clientState, long delay1ForUnitTest, long delay2ForUnitTest, long delay3ForUnitTest)
     {
+        if (delay1ForUnitTest > 0) {
+            try
+            {
+                Thread.sleep(delay1ForUnitTest);
+            }
+            catch (InterruptedException e)
+            {
+                e.printStackTrace();
+            }
+        }
+
         boolean useNewPreparedStatementBehaviour = useNewPreparedStatementBehaviour();
         MD5Digest hashWithoutKeyspace = computeId(queryString, null);
         MD5Digest hashWithKeyspace = computeId(queryString, clientState.getRawKeyspace());
@@ -713,6 +729,16 @@ public class QueryProcessor implements QueryHandler
         Prepared cachedWithKeyspace = preparedStatements.getIfPresent(hashWithKeyspace);
         // We assume it is only safe to return cached prepare if we have both instances
         boolean safeToReturnCached = cachedWithoutKeyspace != null && cachedWithKeyspace != null;
+        if (delay2ForUnitTest > 0) {
+            try
+            {
+                Thread.sleep(delay2ForUnitTest);
+            }
+            catch (InterruptedException e)
+            {
+                e.printStackTrace();
+            }
+        }
 
         if (safeToReturnCached)
         {
@@ -735,6 +761,16 @@ public class QueryProcessor implements QueryHandler
             // Make sure the missing one is going to be eventually re-prepared
             evictPrepared(hashWithKeyspace);
             evictPrepared(hashWithoutKeyspace);
+        }
+        if (delay3ForUnitTest > 0) {
+            try
+            {
+                Thread.sleep(delay3ForUnitTest);
+            }
+            catch (InterruptedException e)
+            {
+                e.printStackTrace();
+            }
         }
 
         Prepared prepared = parseAndPrepare(queryString, clientState, false);
@@ -953,6 +989,12 @@ public class QueryProcessor implements QueryHandler
     public static void clearPreparedStatementsCache()
     {
         preparedStatements.asMap().clear();
+    }
+
+    @VisibleForTesting
+    public static ConcurrentMap<MD5Digest, Prepared> getPreparedStatementsCache()
+    {
+        return preparedStatements.asMap();
     }
 
     public static void registerStatementInvalidatingListener()
