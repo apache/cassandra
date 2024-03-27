@@ -57,9 +57,9 @@ final class CachesTable extends AbstractVirtualTable
     private void addRow(SimpleDataSet result, String name, CacheMetrics metrics)
     {
         result.row(name)
-              .column(CAPACITY_BYTES, metrics.cacheSize.capacity.getValue())
-              .column(SIZE_BYTES, metrics.cacheSize.size.getValue())
-              .column(ENTRY_COUNT, metrics.cacheSize.entries.getValue())
+              .column(CAPACITY_BYTES, metrics.capacity.getValue())
+              .column(SIZE_BYTES, metrics.size.getValue())
+              .column(ENTRY_COUNT, metrics.entries.getValue())
               .column(REQUEST_COUNT, metrics.requests.getCount())
               .column(HIT_COUNT, metrics.hits.getCount())
               .column(HIT_RATIO, metrics.hitRate.mean.getValue())

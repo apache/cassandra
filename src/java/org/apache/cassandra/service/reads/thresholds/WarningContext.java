@@ -67,7 +67,7 @@ public class WarningContext
                     counter = tombstones;
                     break;
                 case TOO_MANY_REFERENCED_INDEXES_FAIL:
-                    reason = RequestFailureReason.READ_TOO_MANY_INDEXES;
+                    reason = RequestFailure.READ_TOO_MANY_INDEXES;
                 case TOO_MANY_REFERENCED_INDEXES_WARN:
                     counter = indexReadSSTablesCount;
                     break;

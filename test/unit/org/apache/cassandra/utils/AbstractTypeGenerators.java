@@ -1242,7 +1242,7 @@ public final class AbstractTypeGenerators
                 TypeSupport<Object> support = eSupport.get(i);
                 elements.add(support.type.decompose(support.valueGen.generate(rnd)));
             }
-            return type.pack(elements);
+            return type.pack(elements, ByteBufferAccessor.instance);
         }
     }
 

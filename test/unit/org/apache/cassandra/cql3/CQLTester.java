@@ -67,6 +67,8 @@ import com.google.common.base.Objects;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
 import org.apache.commons.lang3.ArrayUtils;
@@ -2878,7 +2880,7 @@ public abstract class CQLTester
                 types.add(type);
                 bbs.add(makeByteBuffer(value, type));
             }
-            return new TupleType(types).pack(bbs);
+            return new TupleType(types).pack(bbs, ByteBufferAccessor.instance);
         }
 
         public String toCQLString()
