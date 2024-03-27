@@ -1928,7 +1928,7 @@ public class StorageProxy implements StorageProxyMBean
 
                 // Do a full data read to resolve the correct response (and repair node that need be)
                 Keyspace keyspace = Keyspace.open(command.metadata().ksName);
-                DataResolver resolver = new DataResolver(keyspace, command, ConsistencyLevel.ALL, executor.handler.endpoints.size(), queryStartNanoTime);
+                DataResolver resolver = new DataResolver(keyspace, command, consistency, executor.handler.endpoints.size(), queryStartNanoTime);
                 repairHandler = new ReadCallback(resolver,
                                                  ConsistencyLevel.ALL,
                                                  executor.getContactedReplicas().size(),
@@ -1970,7 +1970,7 @@ public class StorageProxy implements StorageProxyMBean
                 // the caught exception here will have CL.ALL from the repair command,
                 // not whatever CL the initial command was at (CASSANDRA-7947)
                 int blockFor = consistency.blockFor(Keyspace.open(command.metadata().ksName));
-                throw new ReadTimeoutException(consistency, blockFor-1, blockFor, true);
+                throw new ReadTimeoutException(consistency, e.received, blockFor, true);
             }
         }
 

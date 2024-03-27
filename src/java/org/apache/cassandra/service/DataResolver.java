@@ -26,6 +26,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
 
+import org.apache.commons.lang3.mutable.MutableInt;
+
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.*;
@@ -57,9 +59,15 @@ public class DataResolver extends ResponseResolver
 
     DataResolver(Keyspace keyspace, ReadCommand command, ConsistencyLevel consistency, int maxResponseCount, long queryStartNanoTime)
     {
+        this(keyspace, command, consistency, maxResponseCount, queryStartNanoTime, command.metadata().enforceStrictLiveness());
+    }
+
+    @VisibleForTesting
+    DataResolver(Keyspace keyspace, ReadCommand command, ConsistencyLevel consistency, int maxResponseCount, long queryStartNanoTime, boolean enforceStrictLiveness)
+    {
         super(keyspace, command, consistency, maxResponseCount);
         this.queryStartNanoTime = queryStartNanoTime;
-        this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
+        this.enforceStrictLiveness = enforceStrictLiveness;
     }
 
     public PartitionIterator getData()
@@ -164,7 +172,7 @@ public class DataResolver extends ResponseResolver
                                                     ResponseProvider responseProvider,
                                                     UnaryOperator<PartitionIterator> preCountFilter)
     {
-        return resolveInternal(context, new RepairMergeListener(context.sources), responseProvider, preCountFilter);
+        return resolveInternal(context, new RepairMergeListener(context.sources, repairResults, consistency), responseProvider, preCountFilter);
     }
 
     private PartitionIterator resolveWithReplicaFilteringProtection()
@@ -248,13 +256,22 @@ public class DataResolver extends ResponseResolver
                : Transformation.apply(counted, new EmptyPartitionsDiscarder());
     }
 
-    private class RepairMergeListener implements UnfilteredPartitionIterators.MergeListener
+    @VisibleForTesting
+    class RepairMergeListener implements UnfilteredPartitionIterators.MergeListener
     {
+        @VisibleForTesting
+        final MutableInt finishedRepairs = new MutableInt();
+        private final List<AsyncOneResponse<?>> repairResults;
         private final InetAddress[] sources;
+        private final ConsistencyLevel consistency;
 
-        private RepairMergeListener(InetAddress[] sources)
+        public RepairMergeListener(InetAddress[] sources,
+                                   List<AsyncOneResponse<?>> repairResults,
+                                   ConsistencyLevel consistency)
         {
             this.sources = sources;
+            this.repairResults = repairResults;
+            this.consistency = consistency;
         }
 
         public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
@@ -293,22 +310,30 @@ public class DataResolver extends ResponseResolver
             return false;
         }
 
+        @VisibleForTesting
+        void waitForRepairResults() throws TimeoutException
+        {
+            FBUtilities.waitOnFutures(repairResults, DatabaseDescriptor.getWriteRpcTimeout(), finishedRepairs);
+        }
+
         public void close()
         {
             try
             {
-                FBUtilities.waitOnFutures(repairResults, DatabaseDescriptor.getWriteRpcTimeout());
+                waitForRepairResults();
             }
             catch (TimeoutException ex)
             {
                 // We got all responses, but timed out while repairing
-                int blockFor = consistency.blockFor(keyspace);
+                int blockFor = repairResults.size();
                 if (Tracing.isTracing())
-                    Tracing.trace("Timed out while read-repairing after receiving all {} data and digest responses", blockFor);
+                    Tracing.trace("Timed out while read-repairing after receiving {} from {} data and digest responses",
+                                  finishedRepairs.intValue(), blockFor);
                 else
-                    logger.debug("Timeout while read-repairing after receiving all {} data and digest responses", blockFor);
+                    logger.debug("Timeout while read-repairing after receiving {} from {} data and digest responses",
+                                 finishedRepairs.intValue(), blockFor);
 
-                throw new ReadTimeoutException(consistency, blockFor-1, blockFor, true);
+                throw new ReadTimeoutException(consistency, finishedRepairs.intValue(), blockFor, true);
             }
         }
 
