@@ -859,12 +859,12 @@ public class AccordKeyspace
 
     private static ByteBuffer serializeKey(PartitionKey key)
     {
-        return TupleType.pack(ByteBufferAccessor.instance, UUIDSerializer.instance.serialize(key.table().asUUID()), key.partitionKey().getKey());
+        return KEY_TYPE.pack(UUIDSerializer.instance.serialize(key.table().asUUID()), key.partitionKey().getKey());
     }
 
     private static ByteBuffer serializeTimestamp(Timestamp timestamp)
     {
-        return TupleType.pack(ByteBufferAccessor.instance, bytes(timestamp.msb), bytes(timestamp.lsb), bytes(timestamp.node.id));
+        return TIMESTAMP_TYPE.pack(bytes(timestamp.msb), bytes(timestamp.lsb), bytes(timestamp.node.id));
     }
 
     public interface TimestampFactory<T extends Timestamp>
