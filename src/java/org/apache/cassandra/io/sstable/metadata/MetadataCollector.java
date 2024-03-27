@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Optional;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
@@ -116,7 +117,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
 
     public MetadataCollector(ClusteringComparator comparator)
     {
-        this(comparator, StorageService.instance.getLocalHostUUID());
+        this(comparator, Optional.ofNullable(StorageService.instance.getLocalHostUUID()).orElseGet(SystemKeyspace::getLocalHostId));
     }
 
     public MetadataCollector(ClusteringComparator comparator, UUID originatingHostId)
