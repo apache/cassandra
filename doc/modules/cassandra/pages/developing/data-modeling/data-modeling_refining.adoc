@@ -188,7 +188,7 @@ the original design is shown in the figure below. While the `month`
 column is partially duplicative of the `date`, it provides a nice way of
 grouping related data in a partition that will not get too large.
 
-image::data-modeling_hotel_bucketing.png[image]
+image::data_modeling_hotel_bucketing.png[image]
 
 If you really felt strongly about preserving a wide partition design,
 you could instead add the `room_id` to the partition key, so that each

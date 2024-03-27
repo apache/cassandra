@@ -19,7 +19,7 @@ notation for physical data models. To draw physical models, you need to
 be able to add the typing information for each column. This figure shows
 the addition of a type for each column in a sample table.
 
-image::cassandra:developing/data-modeling/data-modeling_chebotko_physical.png[image]
+image::cassandra:developing/data-modeling/data_modeling_chebotko_physical.png[image]
 
 The figure includes a designation of the keyspace containing each table
 and visual cues for columns represented using collections and
@@ -61,7 +61,7 @@ As you work to create physical representations of various tables in the
 logical hotel data model, you use the same approach. The resulting
 design is shown in this figure:
 
-image::cassandra:developing/data-modeling/data-modeling_hotel_physical.png[image]
+image::cassandra:developing/data-modeling/data_modeling_hotel_physical.png[image]
 
 Note that the `address` type is also included in the design. It is
 designated with an asterisk to denote that it is a user-defined type,
@@ -86,7 +86,7 @@ first iteration of your physical data model design, assume you're going
 to manage this denormalization manually. Note that this design could be
 revised to use Cassandra's (experimental) materialized view feature.
 
-image::cassandra:developing/data-modeling/data-modeling_reservation_physical.png[image]
+image::cassandra:developing/data-modeling/data_modeling_reservation_physical.png[image]
 
 Note that the `address` type is reproduced in this keyspace and
 `guest_id` is modeled as a `uuid` type in all of the tables.

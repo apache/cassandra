@@ -12,7 +12,7 @@ relationships from the conceptual model of hotels-to-points of interest,
 rooms-to-amenities, rooms-to-availability, and guests-to-rooms (via a
 reservation).
 
-image::data-modeling_hotel_relational.png[image]
+image::data_modeling_hotel_relational.png[image]
 
 == Design Differences Between RDBMS and Cassandra
 
