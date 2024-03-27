@@ -21,7 +21,6 @@ import java.util.function.DoubleSupplier;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.RatioGauge;
 
@@ -53,19 +52,12 @@ public abstract class AbstractCacheMetrics
     /**
      * all time cache hit rate
      */
-    public final Gauge<Double> hitRate;
+    public final RatioGaugeSet hitRate;
+
     /**
-     * 1m hit rate
+     * all time cache miss rate
      */
-    public final Gauge<Double> oneMinuteHitRate;
-    /**
-     * 5m hit rate
-     */
-    public final Gauge<Double> fiveMinuteHitRate;
-    /**
-     * 15m hit rate
-     */
-    public final Gauge<Double> fifteenMinuteHitRate;
+    public final RatioGaugeSet missRate;
 
     protected final MetricNameFactory factory;
 
@@ -77,14 +69,8 @@ public abstract class AbstractCacheMetrics
         misses = Metrics.meter(factory.createMetricName("Misses"));
         requests = Metrics.meter(factory.createMetricName("Requests"));
 
-        hitRate = Metrics.register(factory.createMetricName("HitRate"),
-                                   ratioGauge(hits::getCount, requests::getCount));
-        oneMinuteHitRate = Metrics.register(factory.createMetricName("OneMinuteHitRate"),
-                                            ratioGauge(hits::getOneMinuteRate, requests::getOneMinuteRate));
-        fiveMinuteHitRate = Metrics.register(factory.createMetricName("FiveMinuteHitRate"),
-                                             ratioGauge(hits::getFiveMinuteRate, requests::getFiveMinuteRate));
-        fifteenMinuteHitRate = Metrics.register(factory.createMetricName("FifteenMinuteHitRate"),
-                                                ratioGauge(hits::getFifteenMinuteRate, requests::getFifteenMinuteRate));
+        this.hitRate = new RatioGaugeSet(hits, requests, factory, "%sHitRate");
+        this.missRate = new RatioGaugeSet(misses, requests, factory, "%sMissRate");
     }
 
     @VisibleForTesting
