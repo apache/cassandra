@@ -130,7 +130,8 @@ public class SettingsNode implements Serializable
 
     public String randomNode()
     {
-        int index = (int) (Math.random() * nodes.size());
+	Random rand = new Random();
+        int index = (int) (rand.nextDouble() * nodes.size());
         if (index >= nodes.size())
             index = nodes.size() - 1;
         return nodes.get(index);
