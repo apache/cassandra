@@ -132,6 +132,7 @@ public class RequestFailure
             case INVALID_ROUTING: return INVALID_ROUTING;
             case INDEX_NOT_AVAILABLE: return INDEX_NOT_AVAILABLE;
             case COORDINATOR_BEHIND: return COORDINATOR_BEHIND;
+            case READ_TOO_MANY_INDEXES: return READ_TOO_MANY_INDEXES;
         }
     }
 

@@ -101,7 +101,7 @@ public class ColumnConditionTest extends CQLTester
             }
             else
             {
-                ByteBuffer udtValue = TupleType.pack(ByteBufferAccessor.instance, List.of(value, TWO));
+                ByteBuffer udtValue = TupleType.pack(ByteBufferAccessor.instance, Arrays.asList(value, TWO));
                 cell = new BufferCell(definition, 0L, Cell.NO_TTL, Cell.NO_DELETION_TIME, udtValue, null);
             }
         }
