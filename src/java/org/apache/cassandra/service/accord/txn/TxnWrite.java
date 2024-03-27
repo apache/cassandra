@@ -69,7 +69,7 @@ import org.apache.cassandra.utils.BooleanSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
-import static org.apache.cassandra.cql3.Lists.accordListPathSupplier;
+import static org.apache.cassandra.cql3.terms.Lists.accordListPathSupplier;
 import static org.apache.cassandra.service.accord.AccordSerializers.partitionUpdateSerializer;
 import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializeArray;
