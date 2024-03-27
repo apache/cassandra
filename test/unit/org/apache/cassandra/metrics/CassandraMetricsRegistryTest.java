@@ -20,22 +20,26 @@
  */
 package org.apache.cassandra.metrics;
 
-import static org.junit.Assert.*;
-
 import java.lang.management.ManagementFactory;
 import java.util.Collection;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-
-import com.codahale.metrics.Timer;
-import org.apache.cassandra.metrics.CassandraMetricsRegistry.MetricName;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Test;
 
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.Timer;
 import com.codahale.metrics.jvm.BufferPoolMetricSet;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
+import org.apache.cassandra.metrics.CassandraMetricsRegistry.MetricName;
 import org.apache.cassandra.utils.EstimatedHistogram;
 
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 public class CassandraMetricsRegistryTest
 {
@@ -159,5 +163,31 @@ public class CassandraMetricsRegistryTest
     private boolean inRange(long anchor, long input, double range)
     {
         return input / ((double) anchor) < range;
+    }
+
+    @Test
+    public void testTickMeters() throws InterruptedException
+    {
+        CassandraMetricsRegistry cmr = new CassandraMetricsRegistry(TimeUnit.SECONDS.toMicros(1));
+        int numMeters = 1000;
+        CountDownLatch ticked = new CountDownLatch(numMeters);
+        AtomicInteger counted = new AtomicInteger();
+        Meter m = new Meter()
+        {
+            @Override
+            public double getOneMinuteRate() {
+                if (counted.incrementAndGet() % 2 == 0)
+                    throw new RuntimeException("test failure handling");
+                ticked.countDown();
+                return super.getOneMinuteRate();
+            }
+        };
+        for (int ii = 0; ii < numMeters; ii++)
+        {
+            cmr.register("ignored" + ii, m);
+        }
+        assertNotNull(cmr.periodicMeterTicker);
+        assertTrue(cmr.periodicMeterTicker.getDelay(TimeUnit.SECONDS) <= 1);
+        assertTrue(ticked.await(1, TimeUnit.MINUTES));
     }
 }
