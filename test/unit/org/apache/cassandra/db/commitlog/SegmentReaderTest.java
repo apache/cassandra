@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.commitlog;
 
+import org.apache.cassandra.io.compress.QPLCompressor;
 import org.apache.cassandra.io.util.*;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -78,6 +79,12 @@ public class SegmentReaderTest
     public void compressedSegmenter_Zstd() throws IOException
     {
         compressedSegmenter(ZstdCompressor.create(Collections.emptyMap()));
+    }
+
+    @Test
+    public void compressedSegmenter_QPL() throws IOException
+    {
+        compressedSegmenter(QPLCompressor.create(Collections.emptyMap()));
     }
 
     private void compressedSegmenter(ICompressor compressor) throws IOException
