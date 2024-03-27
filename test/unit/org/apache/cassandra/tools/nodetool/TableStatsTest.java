@@ -61,26 +61,24 @@ public class TableStatsTest extends CQLTester
                         "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" +
                         "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" +
                         "                [(-u <username> | --username <username>)] tablestats\n" +
-                        "                [(-F <format> | --format <format>)] [(-H | --human-readable)] [-i]\n" +
-                        "                [(-l | --sstable-location-check)] [(-s <sort_key> | --sort <sort_key>)]\n" +
-                        "                [(-t <top> | --top <top>)] [--] [<keyspace.table>...]\n" +
-                        "\n" + 
+                        "                [(-F <format> | --format <format>)] [-i]\n" +
+                        "                [(-l | --sstable-location-check)] [(-r | --no-human-readable)]\n" +
+                        "                [(-s <sort_key> | --sort <sort_key>)] [(-t <top> | --top <top>)] [--]\n" +
+                        "                [<keyspace.table>...]\n" +
+                        "\n" +
                         "OPTIONS\n" +
                         "        -F <format>, --format <format>\n" +
                         "            Output format (json, yaml)\n" + 
-                        "\n" + 
+                        "\n" +
                         "        -h <host>, --host <host>\n" + 
                         "            Node hostname or ip address\n" + 
-                        "\n" + 
-                        "        -H, --human-readable\n" + 
-                        "            Display bytes in human readable form, i.e. KiB, MiB, GiB, TiB\n" + 
-                        "\n" + 
+                        "\n" +
                         "        -i\n" + 
                         "            Ignore the list of tables and display the remaining tables\n" +
                         "\n" +
                         "        -l, --sstable-location-check\n" +
                         "            Check whether or not the SSTables are in the correct location.\n" +
-                        "\n" + 
+                        "\n" +
                         "        -p <port>, --port <port>\n" + 
                         "            Remote jmx agent port number\n" + 
                         "\n" + 
@@ -91,7 +89,10 @@ public class TableStatsTest extends CQLTester
                         "            Remote jmx agent password\n" + 
                         "\n" + 
                         "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n" + 
-                        "            Path to the JMX password file\n" + 
+                        "            Path to the JMX password file\n" +
+                        "\n" +
+                        "        -r, --no-human-readable\n" +
+                        "            Disable displaying bytes in human readable form\n" +
                         "\n" + 
                         "        -s <sort_key>, --sort <sort_key>\n" + 
                         "            Sort tables by specified sort key\n" + 
@@ -159,12 +160,12 @@ public class TableStatsTest extends CQLTester
     }
 
     @Test
-    public void testHumanReadableArg()
+    public void testNoHumanReadableArg()
     {
-        Arrays.asList("-H", "--human-readable").forEach(arg -> {
+        Arrays.asList("-r", "--no-human-readable").forEach(arg -> {
             ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", arg);
             tool.assertOnCleanExit();
-            assertThat(tool.getStdout()).contains(" KiB");
+            assertThat(tool.getStdout()).doesNotContain(" KiB");
         });
     }
 
