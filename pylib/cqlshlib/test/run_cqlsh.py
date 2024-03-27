@@ -32,7 +32,7 @@ def is_win():
     return sys.platform in ("cygwin", "win32")
 
 if is_win():
-    from winpty import WinPty
+    from .winpty import WinPty
     DEFAULT_PREFIX = ''
 else:
     import pty
@@ -40,6 +40,12 @@ else:
 
 DEFAULT_CQLSH_PROMPT = DEFAULT_PREFIX + '(\S+@)?cqlsh(:\S+)?> '
 DEFAULT_CQLSH_TERM = 'xterm'
+
+try:
+    Pattern = re._pattern_type
+except AttributeError:
+    # Python 3.7+
+    Pattern = re.Pattern
 
 cqlshlog = basecase.cqlshlog
 
@@ -103,7 +109,7 @@ def timing_out_alarm(seconds):
 if is_win():
     try:
         import eventlet
-    except ImportError, e:
+    except ImportError as e:
         sys.exit("evenlet library required to run cqlshlib tests on Windows")
 
     def timing_out(seconds):
@@ -171,23 +177,34 @@ class ProcRunner:
         return self.proc.wait()
 
     def send_tty(self, data):
+        if not isinstance(data, bytes):
+            data = data.encode("utf-8")
         os.write(self.childpty, data)
 
     def send_pipe(self, data):
         self.proc.stdin.write(data)
 
     def read_tty(self, blksize, timeout=None):
-        return os.read(self.childpty, blksize)
+        buf = os.read(self.childpty, blksize)
+        if isinstance(buf, bytes):
+            buf = buf.decode("utf-8")
+        return buf
 
     def read_pipe(self, blksize, timeout=None):
-        return self.proc.stdout.read(blksize)
+        buf = self.proc.stdout.read(blksize)
+        if isinstance(buf, bytes):
+            buf = buf.decode("utf-8")
+        return buf
 
     def read_winpty(self, blksize, timeout=None):
-        return self.winpty.read(blksize, timeout)
+        buf = self.winpty.read(blksize, timeout)
+        if isinstance(buf, bytes):
+            buf = buf.decode("utf-8")
+        return buf
 
     def read_until(self, until, blksize=4096, timeout=None,
-                   flags=0, ptty_timeout=None):
-        if not isinstance(until, re._pattern_type):
+                   flags=0, ptty_timeout=None, replace=[]):
+        if not isinstance(until, Pattern):
             until = re.compile(until, flags)
 
         cqlshlog.debug("Searching for %r" % (until.pattern,))
@@ -196,6 +213,9 @@ class ProcRunner:
         with timing_out(timeout):
             while True:
                 val = self.read(blksize, ptty_timeout)
+                for replace_target in replace:
+                    if (replace_target != ''):
+                        val = val.replace(replace_target, '')
                 cqlshlog.debug("read %r from subproc" % (val,))
                 if val == '':
                     raise EOFError("'until' pattern %r not found" % (until.pattern,))
@@ -309,4 +329,6 @@ def call_cqlsh(**kwargs):
     c = CqlshRunner(**kwargs)
     output, _ = c.proc.communicate(proginput)
     result = c.close()
+    if isinstance(output, bytes):
+        output = output.decode("utf-8")
     return output, result

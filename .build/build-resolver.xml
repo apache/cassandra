@@ -181,7 +181,7 @@
 
         <!-- files.pythonhosted.org -->
         <get src="https://files.pythonhosted.org/packages/59/a0/cf4cd997e1750f0c2d91c6ea5abea218251c43c3581bcc2f118b00baf5cf/futures-2.1.6-py2.py3-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
-        <get src="https://files.pythonhosted.org/packages/2e/a4/6dcb84af409b7bc0c258a0d6bd7e14231724d9a46b750c048f09d74d870c/six-1.7.3-py2.py3-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/six-1.7.3-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+        <get src="https://files.pythonhosted.org/packages/d9/5a/e7c31adbe875f2abbb91bd84cf2dc52d792b5a01506781dbcf25c91daf11/six-1.16.0-py2.py3-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/six-1.16.0-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
 
         <!-- python-driver -->
         <get src="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/cassandra-driver-internal-only-3.11.0-bb96859b.zip" dest="${local.repository}/org/apache/cassandra/deps/cassandra-driver-internal-only-3.11.0-bb96859b.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
@@ -215,7 +215,7 @@
         <copy todir="${build.lib}" quiet="true">
             <file file="${local.repository}/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip"/>
             <file file="${local.repository}/org/apache/cassandra/deps/cassandra-driver-internal-only-3.11.0-bb96859b.zip"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/six-1.7.3-py2.py3-none-any.zip"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/six-1.16.0-py2.py3-none-any.zip"/>
         </copy>
         <copy todir="${build.lib}/sigar-bin/" quiet="true">
             <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-amd64-freebsd-6.so"/>

@@ -88,14 +88,14 @@ class CqlshCompletionCase(BaseTestCase):
             prompt_regex = self.cqlsh.prompt.lstrip() + re.escape(inputstring)
             msg = ('Double-tab completion '
                    'does not print prompt for input "{}"'.format(inputstring))
-            self.assertRegexpMatches(choice_lines[-1], prompt_regex, msg=msg)
+            self.assertRegex(choice_lines[-1], prompt_regex, msg=msg)
 
         choice_lines = [line.strip() for line in choice_lines[:-1]]
         choice_lines = [line for line in choice_lines if line]
 
         if split_completed_lines:
-            completed_lines = map(set, (completion_separation_re.split(line.strip())
-                                  for line in choice_lines))
+            completed_lines = list(map(set, (completion_separation_re.split(line.strip())
+                                  for line in choice_lines)))
 
             if not completed_lines:
                 return set()
