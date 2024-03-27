@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.concurrent;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.*;
 
@@ -36,6 +38,8 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
  */
 public class ThreadPoolExecutorBase extends ThreadPoolExecutor implements ResizableThreadPool
 {
+    public static final List<ThreadPoolExecutorBase> threadPools = Collections.synchronizedList(new ArrayList<>());
+
     public static final RejectedExecutionHandler blockingExecutionHandler = (task, executor) ->
     {
         BlockingQueue<Runnable> queue = executor.getQueue();
@@ -81,6 +85,8 @@ public class ThreadPoolExecutorBase extends ThreadPoolExecutor implements Resiza
         // (there is an extensive analysis of the options here at
         //  http://today.java.net/pub/a/today/2008/10/23/creating-a-notifying-blocking-thread-pool-executor.html)
         setRejectedExecutionHandler(builder.rejectedExecutionHandler(blockingExecutionHandler));
+
+        threadPools.add(this);
     }
 
     // no RejectedExecutionHandler
@@ -89,6 +95,8 @@ public class ThreadPoolExecutorBase extends ThreadPoolExecutor implements Resiza
         super(threads, threads, keepAlive, keepAliveUnits, queue, threadFactory);
         assert queue.isEmpty() : "Executor initialized with non-empty task queue";
         allowCoreThreadTimeOut(true);
+
+        threadPools.add(this);
     }
 
     public void onShutdown(Runnable onShutdown)
@@ -116,6 +124,7 @@ public class ThreadPoolExecutorBase extends ThreadPoolExecutor implements Resiza
         }
         finally
         {
+            threadPools.remove(this);
             if (onShutdown != null)
                 onShutdown.run();
         }
@@ -136,6 +145,7 @@ public class ThreadPoolExecutorBase extends ThreadPoolExecutor implements Resiza
         }
         finally
         {
+            threadPools.remove(this);
             if (onShutdown != null)
                 onShutdown.run();
         }

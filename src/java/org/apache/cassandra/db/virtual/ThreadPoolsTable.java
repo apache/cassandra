@@ -17,17 +17,23 @@
  */
 package org.apache.cassandra.db.virtual;
 
+import java.util.Optional;
+import java.util.Set;
+
+import org.apache.cassandra.concurrent.ThreadPoolExecutorBase;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.metrics.ThreadPoolMetrics;
 import org.apache.cassandra.schema.TableMetadata;
 
+import static java.lang.String.format;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
-final class ThreadPoolsTable extends AbstractVirtualTable
+final class ThreadPoolsTable extends AbstractMutableVirtualTable
 {
     private static final String NAME = "name";
     private static final String ACTIVE_TASKS = "active_tasks";
@@ -39,6 +45,7 @@ final class ThreadPoolsTable extends AbstractVirtualTable
     private static final String CORE_POOL_SIZE = "core_pool_size";
     private static final String MAX_POOL_SIZE = "max_pool_size";
     private static final String MAX_TASKS_QUEUED = "max_tasks_queued";
+    private static final Set<String> UPDATEABLE_COLUMNS = Set.of(CORE_POOL_SIZE, MAX_POOL_SIZE);
 
     ThreadPoolsTable(String keyspace)
     {
@@ -76,6 +83,67 @@ final class ThreadPoolsTable extends AbstractVirtualTable
         Metrics.allThreadPoolMetrics()
                .forEach(metrics -> addRow(result, metrics));
         return result;
+    }
+
+    @Override
+    protected void applyColumnUpdate(ColumnValues partitionKey,
+                                     ColumnValues clusteringColumns,
+                                     Optional<ColumnValue> maybeColumnValue)
+    {
+        if (maybeColumnValue.isEmpty())
+            return;
+
+        ColumnValue columnValue = maybeColumnValue.get();
+        String columnName = columnValue.name();
+
+        if (!UPDATEABLE_COLUMNS.contains(columnName))
+        {
+            throw new InvalidRequestException(format("It is possible to update only these columns for table %s.%s: %s",
+                                                     metadata().keyspace,
+                                                     metadata().name,
+                                                     UPDATEABLE_COLUMNS));
+        }
+
+        String poolName = partitionKey.value(0);
+        int value = columnValue.value();
+
+        Optional<ThreadPoolExecutorBase> maybeExecutor =
+        ThreadPoolExecutorBase.threadPools.stream()
+                                          .filter(executor -> poolName.equals(executor.getThreadFactory().id))
+                                          .findFirst();
+
+        if (maybeExecutor.isEmpty())
+            return;
+
+        ThreadPoolExecutorBase executor = maybeExecutor.get();
+
+        if (columnName.equals(CORE_POOL_SIZE))
+        {
+            if (value > executor.getCorePoolSize())
+            {
+                executor.setMaximumThreads(value);
+                executor.setCoreThreads(value);
+            }
+            else if (value < executor.getCorePoolSize())
+            {
+                executor.setCoreThreads(value);
+                executor.setMaximumThreads(value);
+            }
+        }
+        else
+        {
+            if (value > executor.getMaximumThreads())
+            {
+                executor.setMaximumThreads(value);
+            }
+            else if (value < executor.getMaximumThreads())
+            {
+                if (value < executor.getCoreThreads())
+                    executor.setCoreThreads(value);
+
+                executor.setMaximumThreads(value);
+            }
+        }
     }
 
     private void addRow(SimpleDataSet dataSet, ThreadPoolMetrics metrics)
