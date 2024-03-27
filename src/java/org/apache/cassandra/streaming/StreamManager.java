@@ -42,6 +42,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.db.streaming.StreamMetricsHandler;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.management.StreamEventJMXNotifier;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
@@ -231,6 +232,7 @@ public class StreamManager implements StreamManagerMBean
         @Override
         public void onRegister(StreamResultFuture result)
         {
+            result.addEventListener(new StreamMetricsHandler());
             if (!DatabaseDescriptor.getStreamingStatsEnabled())
                 return;
             // reason for synchronized rather than states.get is to detect duplicates
