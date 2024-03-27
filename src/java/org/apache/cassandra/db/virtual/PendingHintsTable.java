@@ -27,6 +27,7 @@ import java.util.Map;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
@@ -51,6 +52,9 @@ final class PendingHintsTable extends AbstractVirtualTable
     private static final String FILES = "files";
     private static final String NEWEST = "newest";
     private static final String OLDEST = "oldest";
+    private static final String TOTAL_FILES_SIZE = "total_size";
+    private static final String CORRUPTED_FILES = "corrupted_files";
+    private static final String TOTAL_CORRUPTED_FILES_SIZE = "total_corrupted_files_size";
 
     PendingHintsTable(String keyspace)
     {
@@ -65,6 +69,9 @@ final class PendingHintsTable extends AbstractVirtualTable
                            .addRegularColumn(DC, UTF8Type.instance)
                            .addRegularColumn(STATUS, UTF8Type.instance)
                            .addRegularColumn(FILES, Int32Type.instance)
+                           .addRegularColumn(TOTAL_FILES_SIZE, LongType.instance)
+                           .addRegularColumn(CORRUPTED_FILES, Int32Type.instance)
+                           .addRegularColumn(TOTAL_CORRUPTED_FILES_SIZE, LongType.instance)
                            .addRegularColumn(NEWEST, TimestampType.instance)
                            .addRegularColumn(OLDEST, TimestampType.instance)
                            .build());
@@ -107,6 +114,9 @@ final class PendingHintsTable extends AbstractVirtualTable
                   .column(DC, dc)
                   .column(STATUS, status)
                   .column(FILES, info.totalFiles)
+                  .column(TOTAL_FILES_SIZE, info.totalSize)
+                  .column(CORRUPTED_FILES, info.corruptedFiles)
+                  .column(TOTAL_CORRUPTED_FILES_SIZE, info.corruptedFilesSize)
                   .column(NEWEST, new Date(info.newestTimestamp))
                   .column(OLDEST, new Date(info.oldestTimestamp));
         }

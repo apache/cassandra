@@ -39,9 +39,11 @@ import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 @SuppressWarnings("Convert2MethodRef")
-public class HintsMaxSizeTest extends TestBaseImpl
+public class HintsSizeTest extends TestBaseImpl
 {
     @Test
     public void testMaxHintedHandoffSize() throws Exception
@@ -114,6 +116,22 @@ public class HintsMaxSizeTest extends TestBaseImpl
         // there might be small overflow in general, depending on hints flushing etc
         assertThat(totalHintsSize).isLessThan(4 * 1000 * 1000);
         assertThat(totalHintsSize).isGreaterThan(2 * 1000 * 1000);
+
+        assertVTableContent(node, node2UUID);
+    }
+
+    private void assertVTableContent(IInvokableInstance node, UUID node2UUID)
+    {
+        Object[][] rows = node.coordinator().execute("SELECT * from system_views.pending_hints", ONE);
+        assertEquals(1, rows.length);
+        Object[] row = rows[0];
+        assertNotNull(row);
+
+        assertEquals(node2UUID, row[0]);
+        assertEquals(0, row[2]); // corrupted_files
+        assertThat((Integer) row[4]).isPositive(); // total_files
+        assertEquals(0L, row[10]); // total_corrupted_files_size
+        assertThat((Long) row[11]).isPositive(); // total_files_size
     }
 
     private static void waitForExistingRoles(Cluster cluster)
