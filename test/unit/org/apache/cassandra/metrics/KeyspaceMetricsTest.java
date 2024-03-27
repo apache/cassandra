@@ -27,7 +27,10 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.codahale.metrics.Metric;
 import com.datastax.driver.core.Cluster;
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -35,6 +38,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class KeyspaceMetricsTest
@@ -69,6 +73,36 @@ public class KeyspaceMetricsTest
         session.execute(String.format("DROP KEYSPACE %s;", keyspace));
         // no metrics after drop
         assertEquals(metrics.get().collect(Collectors.joining(",")), 0, metrics.get().count());
+    }
+
+    @Test
+    public void testKeyspaceVirtualTable()
+    {
+        String keyspace = "uniquemetricskeyspace1";
+        session.execute(String.format(
+            "CREATE KEYSPACE %s WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };",
+            keyspace));
+
+        assertTrue(CassandraMetricsRegistry.Metrics.getNames().stream().anyMatch(m -> m.endsWith(keyspace)));
+        ResultSet resultSet = session.execute(
+            "SELECT * FROM system_metrics.keyspace_group WHERE scope = '" + keyspace + "';");
+
+        int count = 0;
+        for (Row row : resultSet)
+        {
+            String metricName = row.getString("name");
+            if (!metricName.endsWith(keyspace))
+                continue;
+
+            Metric metric = CassandraMetricsRegistry.Metrics.getMetrics().get(metricName);
+            assertEquals(CassandraMetricsRegistry.getValueAsString(metric), row.getString("value"));
+            count++;
+        }
+
+        assertTrue("Keyspace " + keyspace + " metrics was not found", count > 0);
+
+        session.execute(String.format("DROP KEYSPACE %s;", keyspace));
+        assertFalse(CassandraMetricsRegistry.Metrics.getNames().stream().anyMatch(m -> m.endsWith(keyspace)));
     }
 
     @AfterClass

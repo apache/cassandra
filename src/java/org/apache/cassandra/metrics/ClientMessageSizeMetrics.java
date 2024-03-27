@@ -28,7 +28,7 @@ import com.codahale.metrics.Histogram;
  */
 public class ClientMessageSizeMetrics
 {
-    private static final String TYPE = "ClientMessageSize";
+    public static final String TYPE = "ClientMessageSize";
     public static final Counter bytesReceived = Metrics.counter(DefaultNameFactory.createMetricName(TYPE, "BytesReceived", null));
     public static final Counter bytesSent = Metrics.counter(DefaultNameFactory.createMetricName(TYPE, "BytesSent", null));
     public static final Histogram bytesReceivedPerRequest = Metrics.histogram(DefaultNameFactory.createMetricName(TYPE, "BytesReceivedPerRequest", null), true);

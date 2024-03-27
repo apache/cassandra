@@ -27,6 +27,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  */
 public class UnweightedCacheMetrics extends AbstractCacheMetrics
 {
+    public static final String TYPE_NAME = "UnweightedCache";
     /**
      * Cache capacity (maximum number of entries)
      */
@@ -45,7 +46,7 @@ public class UnweightedCacheMetrics extends AbstractCacheMetrics
      */
     public UnweightedCacheMetrics(String type, UnweightedCacheSize cache)
     {
-        super(new DefaultNameFactory("UnweightedCache", type), type);
+        super(new DefaultNameFactory(TYPE_NAME, type), type);
 
         maxEntries = Metrics.register(factory.createMetricName("MaxEntries"), cache::maxEntries);
         entries = Metrics.register(factory.createMetricName("Entries"), cache::entries);

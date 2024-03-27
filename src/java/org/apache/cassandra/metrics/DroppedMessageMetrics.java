@@ -35,7 +35,7 @@ import static org.apache.cassandra.metrics.DefaultNameFactory.createMetricName;
  */
 public class DroppedMessageMetrics
 {
-    private static final String TYPE = "DroppedMessage";
+    public static final String TYPE = "DroppedMessage";
 
     // backward compatibility for request metrics which names have changed in 4.0 as part of CASSANDRA-15066
     private static final ImmutableMap<Verb, String> REQUEST_VERB_ALIAS;

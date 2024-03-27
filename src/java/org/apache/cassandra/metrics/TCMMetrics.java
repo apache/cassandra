@@ -33,7 +33,8 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 public class TCMMetrics
 {
-    private static final MetricNameFactory factory = new DefaultNameFactory("TCM");
+    public static final String TYPE_NAME = "TCM";
+    private static final MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME);
 
     public static final TCMMetrics instance = new TCMMetrics();
 
