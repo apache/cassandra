@@ -40,9 +40,12 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.config.SchemaConstants;
+import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.statements.ModificationStatement;
+import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -53,7 +56,6 @@ import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.MD5Digest;
 
 /**
@@ -92,7 +94,8 @@ public class ClientState
     // Current user for the session
     private volatile AuthenticatedUser user;
     private volatile String keyspace;
-    private volatile boolean issuedPreparedStatementsUseWarning;
+    private volatile boolean issuedPreparedStatementsUseWarningForSelectionOrModification;
+    private volatile boolean issuedPreparedStatementsUseWarningForOtherStatements;
 
     /**
      * Force Compact Tables to be represented as CQL ones for the current client session (simulates
@@ -461,15 +464,21 @@ public class ClientState
         return user.getPermissions(resource);
     }
 
-    public void warnAboutUseWithPreparedStatements(MD5Digest statementId, String preparedKeyspace)
+    public void warnAboutUseWithPreparedStatements(MD5Digest statementId, CQLStatement statement, String preparedKeyspace)
     {
-        if (!issuedPreparedStatementsUseWarning)
+        if (!issuedPreparedStatementsUseWarningForSelectionOrModification && (statement instanceof SelectStatement || statement instanceof ModificationStatement))
         {
             ClientWarn.instance.warn(String.format("`USE <keyspace>` with prepared statements is considered to be an anti-pattern due to ambiguity in non-qualified table names. " +
                                                    "Please consider removing instances of `Session#setKeyspace(<keyspace>)`, `Session#execute(\"USE <keyspace>\")` and `cluster.newSession(<keyspace>)` from your code, and " +
                                                    "always use fully qualified table names (e.g. <keyspace>.<table>). " +
                                                    "Keyspace used: %s, statement keyspace: %s, statement id: %s", getRawKeyspace(), preparedKeyspace, statementId));
-            issuedPreparedStatementsUseWarning = true;
+            issuedPreparedStatementsUseWarningForSelectionOrModification = true;
+        }
+        else if (!issuedPreparedStatementsUseWarningForOtherStatements && !(statement instanceof SelectStatement) && !(statement instanceof ModificationStatement))
+        {
+            ClientWarn.instance.warn(String.format("`USE <keyspace>` with prepared statements should be used only for selection or modification statements. " +
+                                                   "Keyspace used: %s, statement keyspace: %s, statement id: %s", getRawKeyspace(), preparedKeyspace, statementId));
+            issuedPreparedStatementsUseWarningForOtherStatements = true;
         }
     }
 }
