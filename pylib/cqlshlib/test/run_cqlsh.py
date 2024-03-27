@@ -87,10 +87,6 @@ def raising_signal(signum, exc):
         signal.signal(signum, oldhandlr)
 
 
-class TimeoutError(Exception):
-    pass
-
-
 @contextlib.contextmanager
 def timing_out(seconds):
     if seconds is None:
@@ -107,10 +103,6 @@ def timing_out(seconds):
             signal.setitimer(signal.ITIMER_REAL, 0)
 
 
-def noop(*a):
-    pass
-
-
 class ProcRunner:
     def __init__(self, path, tty=True, env=None, args=()):
         self.exe_path = path
@@ -124,7 +116,6 @@ class ProcRunner:
         self.start_proc()
 
     def start_proc(self):
-        preexec = noop
         stdin = stdout = stderr = None
         cqlshlog.info("Spawning %r subprocess with args: %r and env: %r"
                       % (self.exe_path, self.args, self.env))
@@ -141,7 +132,6 @@ class ProcRunner:
             self.read = self.read_tty
         else:
             stdin = stdout = subprocess.PIPE
-            stderr = subprocess.STDOUT
             self.proc = subprocess.Popen((self.exe_path,) + tuple(self.args),
                                          env=self.env, stdin=stdin, stdout=stdout,
                                          stderr=stderr, bufsize=0, close_fds=False)
@@ -178,7 +168,9 @@ class ProcRunner:
         return buf
 
     def read_until(self, until, blksize=4096, timeout=None,
-                   flags=0, ptty_timeout=None, replace=[]):
+                   flags=0, ptty_timeout=None, replace=None):
+        if replace is None:
+            replace = []
         if not isinstance(until, Pattern):
             until = re.compile(until, flags)
 
