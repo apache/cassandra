@@ -130,7 +130,9 @@ public class PrepareReplace implements Transformation
         StartReplace start = new StartReplace(replaced, replacement, addNewNodeToWrites.build(), unlockKey);
         MidReplace mid = new MidReplace(replaced, replacement, addNewNodeToReads.build(), unlockKey);
         FinishReplace finish = new FinishReplace(replaced, replacement, removeOldNodeFromWrites.build(), unlockKey);
-
+        Result res = PlacementTransitionPlan.assertPreExistingWriteReplica(prev.placements, start.delta, mid.delta, finish.delta);
+        if (res != null)
+            return res;
         Set<Token> tokens = new HashSet<>(prev.tokenMap.tokens(replaced));
         BootstrapAndReplace plan = BootstrapAndReplace.newSequence(prev.nextEpoch(),
                                                                    unlockKey,

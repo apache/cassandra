@@ -25,7 +25,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
 
 import com.google.common.collect.Sets;
 import org.junit.Test;
@@ -38,15 +40,23 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SKIP_SCHEMA_CHECK;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.awaitRingJoin;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.pauseBeforeCommit;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.pauseBeforeEnacting;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.replaceHostAndStart;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseCommits;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseEnactment;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.waitForCMSToQuiesce;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 @SuppressWarnings("unchecked")
 public class TransientRangeMovementTest extends TestBaseImpl
@@ -126,37 +136,32 @@ public class TransientRangeMovementTest extends TestBaseImpl
     }
 
     @Test
-    public void testLeave() throws IOException, ExecutionException, InterruptedException
+    public void testLeave() throws Exception
     {
-
-        try (Cluster cluster = init(Cluster.build(4)
-                                           .withTokenSupplier(new OPPTokens())
-                                           .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
-                                           .withConfig(conf -> conf.set("transient_replication_enabled","true")
-                                                                   .set("partitioner", "OrderPreservingPartitioner") // just makes it easier to read the tokens in the log
-                                                                   .with(Feature.NETWORK, Feature.GOSSIP))
-                                           .start()))
-        {
-            populate(cluster);
-            cluster.get(4).nodetoolResult("decommission", "--force").asserts().success();
-            cluster.forEach(i -> i.nodetoolResult("cleanup"));
-            assertAllContained(localStrs(cluster.get(1)),
-                               newArrayList("12", "14", "16", "18", "20"),
-                               Pair.create("00", "10"),
-                               Pair.create("21", "50"));
-            assertAllContained(localStrs(cluster.get(2)),
-                               newArrayList("22", "24", "26", "28", "30"),
-                               Pair.create("00", "20"),
-                               Pair.create("31", "50"));
-            assertAllContained(localStrs(cluster.get(3)),
-                               newArrayList("00", "02", "04", "06", "08", "10",
-                                                  "32", "34", "36", "38", "40", "42", "44", "46", "48"),
-                               Pair.create("11", "30"));
-        }
+        testDecommissionOrRemove(cluster -> () -> {
+            new Thread(() -> cluster.get(4).nodetoolResult("decommission", "--force").asserts().success()).start();
+        });
     }
 
     @Test
-    public void testRemoveNode() throws IOException, ExecutionException, InterruptedException
+    public void testRemoveNode() throws Exception
+    {
+        testDecommissionOrRemove(cluster -> () -> {
+            String nodeId = cluster.get(4).callOnInstance(() -> ClusterMetadata.current().myNodeId().toUUID().toString());
+            try
+            {
+                cluster.get(4).shutdown().get();
+            }
+            catch (Exception e)
+            {
+                e.printStackTrace();
+                fail("Unexpected exception during shutdown of node4");
+            }
+            new Thread(() -> cluster.get(1).nodetoolResult("removenode", nodeId, "--force").asserts().success()).start();
+        });
+    }
+
+    private void testDecommissionOrRemove(Function<Cluster, Runnable> decommissionOrLeave) throws Exception
     {
         try (Cluster cluster = init(Cluster.build(4)
                                            .withTokenSupplier(new OPPTokens())
@@ -168,13 +173,32 @@ public class TransientRangeMovementTest extends TestBaseImpl
                                            .start()))
         {
             populate(cluster);
-            String nodeId = cluster.get(4).callOnInstance(() -> ClusterMetadata.current().myNodeId().toUUID().toString());
-            cluster.get(4).shutdown().get();
-            cluster.get(1).nodetoolResult("removenode", nodeId, "--force").asserts().success();
+
+            // Have the CMS node pause before the FINISH_LEAVE step is committed, so we can make a note of the _next_
+            // epoch (i.e. when the FINISH_LEAVE will be enacted). Then we can pause one replica before enacting it
+            Callable<Epoch> pending = pauseBeforeCommit(cluster.get(1), (e) -> e instanceof PrepareLeave.FinishLeave);
+
+            // Trigger the removal of node4
+            decommissionOrLeave.apply(cluster).run();
+            Epoch pauseBeforeEnacting = pending.call().nextEpoch();
+
+            // Unpause the CMS. It will commit the FINISH_LEAVE, but instance 2 will wait before enacting it
+            Callable<?> beforeEnacted = pauseBeforeEnacting(cluster.get(2), pauseBeforeEnacting);
+            unpauseCommits(cluster.get(1));
+            beforeEnacted.call();
+
+            // Before node2 completes the removal of node4, run cleanup. Prior to CASSANDRA-19XXX node2 would not yet
+            // have become a FULL write replica of all the ranges it should be, so some keys would be remove prematurely
+            // causing the subsequent assertions to fail
             cluster.forEach(i -> {
                 if (i.config().num() != 4)
                     i.nodetoolResult("cleanup").asserts().success();
             });
+
+            // Unpause node2 so it completes the removal of node4
+            unpauseEnactment(cluster.get(2));
+            waitForCMSToQuiesce(cluster, cluster.get(1));
+            cluster.get(2).nodetoolResult("cleanup").asserts().success();
 
             assertAllContained(localStrs(cluster.get(1)),
                                newArrayList("12", "14", "16", "18", "20"),
@@ -200,7 +224,7 @@ public class TransientRangeMovementTest extends TestBaseImpl
         {
             String key = toStr(i);
             if (contained(key, ranges))
-                assertTrue("NOT IN CURRENT: " + key + " -- " + Arrays.toString(ranges), cur.remove(key));
+                assertTrue("NOT IN CURRENT: " + key + " -- " + Arrays.toString(ranges) + " -- " + current, cur.remove(key));
             else if (expectTransient.remove(key))
                 cur.remove(key);
             else
@@ -263,7 +287,9 @@ public class TransientRangeMovementTest extends TestBaseImpl
         cluster.schemaChange("create table tr.x (id varchar primary key) with read_repair = 'NONE'");
         for (int i = 0; i < 50; i++)
             cluster.coordinator(1).execute("insert into tr.x (id) values (?)", ConsistencyLevel.QUORUM, toStr(i));
+
         cluster.forEach((i) -> i.nodetoolResult("repair", "-pr", "tr").asserts().success());
+
         cluster.get(1).shutdown().get();
         for (int i = 0; i < 50; i += 2)
             cluster.coordinator(2).execute("insert into tr.x (id) values (?)", ConsistencyLevel.QUORUM, toStr(i));
