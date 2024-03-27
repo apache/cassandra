@@ -39,6 +39,7 @@ import org.junit.BeforeClass;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.DecimalType;
@@ -132,7 +133,7 @@ public class TestBaseImpl extends DistributedTestBase
             bbs.add(value == null ? null : type.decompose(value));
         }
         TupleType tupleType = new TupleType(types);
-        return tupleType.pack(bbs);
+        return tupleType.pack(bbs, ByteBufferAccessor.instance);
     }
 
     public static String batch(String... queries)

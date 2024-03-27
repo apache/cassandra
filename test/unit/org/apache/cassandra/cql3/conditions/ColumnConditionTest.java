@@ -117,7 +117,7 @@ public class ColumnConditionTest extends CQLTester
         AbstractType<?> type = definition.type;
         if (type.isFrozenCollection())
         {
-            ByteBuffer cellValue = listType.pack(values);
+            ByteBuffer cellValue = listType.pack(values, ByteBufferAccessor.instance);
             Cell<ByteBuffer> cell = new BufferCell(definition, 0L, Cell.NO_TTL, Cell.NO_DELETION_TIME, cellValue, null);
             return BTreeRow.singleCellRow(Clustering.EMPTY, cell);
         }
@@ -163,7 +163,7 @@ public class ColumnConditionTest extends CQLTester
     {
         if (definition.type.isFrozenCollection())
         {
-            ByteBuffer cellValue = setType.pack(new ArrayList<>(values));
+            ByteBuffer cellValue = setType.pack(new ArrayList<>(values), ByteBufferAccessor.instance);
             Cell<ByteBuffer> cell = new BufferCell(definition, 0L, Cell.NO_TTL, Cell.NO_DELETION_TIME, cellValue, null);
             return BTreeRow.singleCellRow(Clustering.EMPTY, cell);
         }
@@ -193,11 +193,7 @@ public class ColumnConditionTest extends CQLTester
         if (definition.type.isFrozenCollection())
         {
             List<ByteBuffer> packableValues = values.entrySet().stream().flatMap(entry -> Stream.of(entry.getKey(), entry.getValue())).collect(Collectors.toList());
-<<<<<<< HEAD
-            ByteBuffer cellValue = mapType.pack(packableValues);
-=======
-            ByteBuffer cellValue = MapSerializer.pack(packableValues, values.size());
->>>>>>> 54e38fca9f (Post-rebase fixes around CASSANDRA-18099 and CASSANDRA-18114 (among other things))
+            ByteBuffer cellValue = mapType.pack(packableValues, ByteBufferAccessor.instance);
             Cell<ByteBuffer> cell = new BufferCell(definition, 0L, Cell.NO_TTL, Cell.NO_DELETION_TIME, cellValue, null);
             return BTreeRow.singleCellRow(Clustering.EMPTY, cell);
         }

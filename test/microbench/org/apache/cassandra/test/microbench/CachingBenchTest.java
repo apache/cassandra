@@ -241,7 +241,7 @@ public class CachingBenchTest extends CQLTester
         System.out.println("Reader " + cfs.getLiveSSTables().iterator().next().getFileDataInput(0).toString());
         if (cacheEnabled)
             System.out.format("Cache size %s requests %,d hit ratio %f\n",
-                FileUtils.stringifyFileSize(ChunkCache.instance.metrics.cacheSize.size.getValue()),
+                FileUtils.stringifyFileSize(ChunkCache.instance.metrics.size.getValue()),
                 ChunkCache.instance.metrics.requests.getCount(),
                 ChunkCache.instance.metrics.hitRate.mean.getValue());
         else

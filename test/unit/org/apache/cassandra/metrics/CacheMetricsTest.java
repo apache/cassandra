@@ -76,9 +76,9 @@ public class CacheMetricsTest
         // calculations - applying some general assertions for hitRate calculations that essentially just smoke test
         // existence (i.e. NaN at initialization) since they are established by way of an inner class on CacheMetrics
         // itself.
-        assertEquals(expectation.cacheSize.capacity(), actual.cacheSize.capacity.getValue().longValue());
-        assertEquals(expectation.cacheSize.weightedSize(), actual.cacheSize.size.getValue().longValue());
-        assertEquals(expectation.cacheSize.size(), actual.cacheSize.entries.getValue().intValue());
+        assertEquals(expectation.cacheSize.capacity(), actual.capacity.getValue().longValue());
+        assertEquals(expectation.cacheSize.weightedSize(), actual.size.getValue().longValue());
+        assertEquals(expectation.cacheSize.size(), actual.entries.getValue().intValue());
         assertEquals(expectation.hits, actual.hits.getCount());
         assertEquals(expectation.misses, actual.misses.getCount());
         assertEquals(expectation.requests(), actual.requests.getCount());

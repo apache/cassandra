@@ -78,7 +78,7 @@ public class AllTypesSimpleEqTest extends AbstractSimpleEqTestBase
     {
         Gen<ByteBuffer> gen = genFromType();
         test(type, SHORT_DOMAIN_FAILING_SEEDS.get(type), 10, rs -> {
-            List<ByteBuffer> domain = Gens.lists(gen).uniqueBestEffort().ofSizeBetween(5, 100).next(rs);
+            List<ByteBuffer> domain = Gens.lists(gen).unique().ofSizeBetween(5, 100).next(rs);
             return r -> r.pick(domain);
         });
     }

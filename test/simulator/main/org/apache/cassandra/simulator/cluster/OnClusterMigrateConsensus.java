@@ -29,7 +29,7 @@ import java.util.Map.Entry;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.distributed.test.log.PlacementSimulator.Lookup;
+import org.apache.cassandra.harry.sut.TokenPlacementModel;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -57,7 +57,7 @@ class OnClusterMigrateConsensus extends Action
         ClusterMetadata cm = ClusterMetadata.current();
         TokenMap tm = cm.tokenMap;
         IPartitioner partitioner = tm.partitioner();
-        Lookup lookup = actions.factory.lookup();
+        TokenPlacementModel.Lookup lookup = actions.factory.lookup();
         Map<Integer, NodeId> idToNodeId = new HashMap<>();
         for (int id : actions.all.toArray())
             idToNodeId.put(id, lookup.nodeId(id));
