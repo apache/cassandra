@@ -3006,8 +3006,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         for (String keyspace : keyspaces)
             clearKeyspaceSnapshot(keyspace, tag, clearOlderThanTimestamp);
 
-        if (logger.isDebugEnabled())
-            logger.debug("Cleared out snapshot directories");
+        logger.debug("Cleared out snapshot directories");
     }
 
     /**
