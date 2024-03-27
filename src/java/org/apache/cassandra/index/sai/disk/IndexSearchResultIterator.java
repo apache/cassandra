@@ -47,7 +47,7 @@ public class IndexSearchResultIterator extends KeyRangeIterator
 
     private IndexSearchResultIterator(KeyRangeIterator union, Collection<SSTableIndex> referencedIndexes, QueryContext queryContext)
     {
-        super(union.getMinimum(), union.getMaximum(), union.getCount());
+        super(union.getMinimum(), union.getMaximum(), union.getMaxKeys());
 
         this.union = union;
         this.referencedIndexes = referencedIndexes;

@@ -152,7 +152,6 @@ public class BalancedTreeIndexSearcherTest extends SAIRandomizedTester
                                                                        .add(Operator.EQ, rawType.decompose(rawValueProducer.apply(EQ_TEST_LOWER_BOUND_INCLUSIVE)))
                                                              , null, mock(QueryContext.class)))
         {
-            assertEquals(results.getMinimum(), results.getCurrent());
             assertTrue(results.hasNext());
 
             assertEquals(0L, results.next().token().getLongValue());
@@ -186,7 +185,6 @@ public class BalancedTreeIndexSearcherTest extends SAIRandomizedTester
                                                                        .add(Operator.LTE, rawType.decompose(rawValueProducer.apply((short)7))),
                                                              null, mock(QueryContext.class)))
         {
-            assertEquals(results.getMinimum(), results.getCurrent());
             assertTrue(results.hasNext());
 
             List<Long> actualTokenList = Lists.newArrayList(Iterators.transform(results, key -> key.token().getLongValue()));
