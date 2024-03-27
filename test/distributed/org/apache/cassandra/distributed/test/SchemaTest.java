@@ -32,14 +32,20 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableCallable;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.schema.Schema;
+
 import org.apache.cassandra.schema.SchemaConstants;
 import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
 import org.awaitility.core.ConditionFactory;
 
 import static java.time.Duration.ofSeconds;
+
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.junit.Assert.assertFalse;
+
+
+import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
+import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 import static org.junit.Assert.assertTrue;
 
 public class SchemaTest extends TestBaseImpl
@@ -196,5 +202,115 @@ public class SchemaTest extends TestBaseImpl
             return (Schema.instance.getTableMetadata(KEYSPACE, TABLE_ONE) != null ^ !one)
                    && (Schema.instance.getTableMetadata(KEYSPACE, TABLE_TWO) != null ^ !two);
         });
+    }
+
+    @Test
+    public void dropColumnMixedMode() throws Throwable
+    {
+        try (Cluster cluster = init(Cluster.build(2).start()))
+        {
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (id int primary key, v1 int, v2 int, v3 int)"));
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (id, v1, v2, v3) VALUES (?,?,?, ?)") , ConsistencyLevel.ALL, 1, 10, 100, 1000);
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (id, v1, v2, v3) VALUES (?,?,?, ?)") , ConsistencyLevel.ALL, 2, 20, 200, 2000);
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (id, v1, v2, v3) VALUES (?,?,?, ?)") , ConsistencyLevel.ALL, 3, 30, 300, 3000);
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (id, v1, v2, v3) VALUES (?,?,?, ?)") , ConsistencyLevel.ALL, 4, 40, 400, 4000);
+
+            cluster.forEach((instance) -> instance.flush(KEYSPACE));
+            cluster.get(1).schemaChangeInternal(withKeyspace("ALTER TABLE %s.tbl DROP v2"));
+
+            assertRows(cluster.coordinator(1).execute(withKeyspace("SELECT id, v1 FROM %s.tbl"), ConsistencyLevel.ALL),
+                       row(1, 10),
+                       row(2, 20),
+                       row(4, 40),
+                       row(3, 30));
+
+            assertRows(cluster.coordinator(1).execute(withKeyspace("SELECT * FROM %s.tbl"), ConsistencyLevel.ALL),
+                       row(1, 10, 1000),
+                       row(2, 20, 2000),
+                       row(4, 40, 4000),
+                       row(3, 30, 3000));
+
+            assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT id, v1 FROM %s.tbl"), ConsistencyLevel.ALL),
+                       row(1, 10),
+                       row(2, 20),
+                       row(4, 40),
+                       row(3, 30));
+
+            assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT * FROM %s.tbl"), ConsistencyLevel.ALL),
+                       row(1, 10, 100, 1000),
+                       row(2, 20, 200, 2000),
+                       row(4, 40, 400, 4000),
+                       row(3, 30, 300, 3000));
+        }
+    }
+
+    @Test
+    public void dropStaticColumnMixedMode() throws Throwable
+    {
+        try (Cluster cluster = init(Cluster.build(2).start()))
+        {
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, c int, v1 int, v2 int, s1 int static, s2 int static, PRIMARY KEY(pk, c))"));
+
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (pk, s1, s2) VALUES (?, ?, ?)") , ConsistencyLevel.ALL, 1, 10, 100);
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (pk, s1, s2) VALUES (?, ?, ?)") , ConsistencyLevel.ALL, 2, 20, 200);
+
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (pk, c, v1, v2) VALUES (?, ?, ?, ?)") , ConsistencyLevel.ALL, 1, 1, 10, 100);
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (pk, c, v1, v2) VALUES (?, ?, ?, ?)") , ConsistencyLevel.ALL, 1, 2, 20, 200);
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (pk, c, v1, v2) VALUES (?, ?, ?, ?)") , ConsistencyLevel.ALL, 1, 3, 30, 300);
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (pk, c, v1, v2) VALUES (?, ?, ?, ?)") , ConsistencyLevel.ALL, 2, 1, 10, 100);
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (pk, c, v1, v2) VALUES (?, ?, ?, ?)") , ConsistencyLevel.ALL, 2, 2, 20, 200);
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (pk, c, v1, v2) VALUES (?, ?, ?, ?)") , ConsistencyLevel.ALL, 2, 3, 30, 300);
+
+            cluster.forEach((instance) -> instance.flush(KEYSPACE));
+            cluster.get(1).schemaChangeInternal(withKeyspace("ALTER TABLE %s.tbl DROP s2"));
+
+            assertRows(cluster.coordinator(1).execute(withKeyspace("SELECT DISTINCT pk, s1 FROM %s.tbl"), ConsistencyLevel.ALL),
+                       row(1, 10),
+                       row(2, 20));
+
+            assertRows(cluster.coordinator(1).execute(withKeyspace("SELECT pk, c, s1, v1 FROM %s.tbl"), ConsistencyLevel.ALL),
+                       row(1, 1, 10, 10),
+                       row(1, 2, 10, 20),
+                       row(1, 3, 10, 30),
+                       row(2, 1, 20, 10),
+                       row(2, 2, 20, 20),
+                       row(2, 3, 20, 30));
+
+            assertRows(cluster.coordinator(1).execute(withKeyspace("SELECT pk, c, s1 FROM %s.tbl WHERE pk IN (1, 2) AND c = 2"), ConsistencyLevel.ALL),
+                       row(1, 2, 10),
+                       row(2, 2, 20));
+
+            assertRows(cluster.coordinator(1).execute(withKeyspace("SELECT * FROM %s.tbl"), ConsistencyLevel.ALL),
+                       row(1, 1, 10, 10, 100),
+                       row(1, 2, 10, 20, 200),
+                       row(1, 3, 10, 30, 300),
+                       row(2, 1, 20, 10, 100),
+                       row(2, 2, 20, 20, 200),
+                       row(2, 3, 20, 30, 300));
+
+            assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT DISTINCT pk, s1, s2 FROM %s.tbl"), ConsistencyLevel.ALL),
+                       row(1, 10, 100),
+                       row(2, 20, 200));
+
+            assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT pk, c, s1, s2, v1 FROM %s.tbl"), ConsistencyLevel.ALL),
+                       row(1, 1, 10, 100, 10),
+                       row(1, 2, 10, 100, 20),
+                       row(1, 3, 10, 100, 30),
+                       row(2, 1, 20, 200, 10),
+                       row(2, 2, 20, 200, 20),
+                       row(2, 3, 20, 200, 30));
+
+            assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT pk, c, s1, s2 FROM %s.tbl WHERE pk IN (1, 2) AND c = 2"), ConsistencyLevel.ALL),
+                       row(1, 2, 10, 100),
+                       row(2, 2, 20, 200));
+
+            assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT * FROM %s.tbl"), ConsistencyLevel.ALL),
+                       row(1, 1, 10, 100, 10, 100),
+                       row(1, 2, 10, 100, 20, 200),
+                       row(1, 3, 10, 100, 30, 300),
+                       row(2, 1, 20, 200, 10, 100),
+                       row(2, 2, 20, 200, 20, 200),
+                       row(2, 3, 20, 200, 30, 300));
+        }
     }
 }
