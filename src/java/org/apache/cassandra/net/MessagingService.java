@@ -381,6 +381,9 @@ public final class MessagingService implements MessagingServiceMBean
     // message sinks are a testing hook
     private final Set<IMessageSink> messageSinks = new CopyOnWriteArraySet<>();
 
+    // used to detect if shutdown happens twice
+    private volatile boolean isShutdown = false;
+
     public void addMessageSink(IMessageSink sink)
     {
         messageSinks.add(sink);
@@ -509,6 +512,7 @@ public final class MessagingService implements MessagingServiceMBean
             listen(FBUtilities.getBroadcastAddress());
         }
         listenGate.signalAll();
+        isShutdown = false;
     }
 
     /**
@@ -818,8 +822,16 @@ public final class MessagingService implements MessagingServiceMBean
     {
         shutdown(true);
     }
-    public void shutdown(boolean gracefully)
+
+    public synchronized void shutdown(boolean gracefully)
     {
+        if (isShutdown)
+        {
+            logger.info("Messaging service was already shut down.");
+            return;
+        }
+        isShutdown = true;
+
         logger.info("Waiting for messaging service to quiesce");
         // We may need to schedule hints on the mutation stage, so it's erroneous to shut down the mutation stage first
         assert !StageManager.getStage(Stage.MUTATION).isShutdown();
