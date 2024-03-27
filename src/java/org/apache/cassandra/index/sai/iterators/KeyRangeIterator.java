@@ -39,20 +39,27 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
 {
     private final PrimaryKey min, max;
     private final long count;
+    private final Runnable onClose;
 
-    protected KeyRangeIterator(Builder.Statistics statistics)
+    protected KeyRangeIterator(Builder.Statistics statistics, Runnable onClose)
     {
-        this(statistics.min, statistics.max, statistics.count);
+        this(statistics.min, statistics.max, statistics.count, onClose);
     }
 
-    public KeyRangeIterator(KeyRangeIterator range)
+    public KeyRangeIterator(KeyRangeIterator range, Runnable onClose)
     {
         this(range == null ? null : range.min,
              range == null ? null : range.max,
-             range == null ? -1 : range.count);
+             range == null ? -1 : range.count,
+             onClose);
     }
 
     public KeyRangeIterator(PrimaryKey min, PrimaryKey max, long count)
+    {
+        this(min, max, count, () -> {});
+    }
+
+    public KeyRangeIterator(PrimaryKey min, PrimaryKey max, long count, Runnable onClose)
     {
         boolean isComplete = min != null && max != null && count != 0;
         boolean isEmpty = min == null && max == null && (count == 0 || count == -1);
@@ -64,6 +71,7 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
         this.min = min;
         this.max = max;
         this.count = count;
+        this.onClose = onClose;
     }
 
     public final PrimaryKey getMinimum()
@@ -118,6 +126,12 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
      * or the first one after it if not present.
      */
     protected abstract void performSkipTo(PrimaryKey nextKey);
+    
+    @Override
+    public void close()
+    {
+        onClose.run();
+    }
 
     public static KeyRangeIterator empty()
     {
@@ -127,7 +141,7 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
     private static class EmptyRangeIterator extends KeyRangeIterator
     {
         static final KeyRangeIterator instance = new EmptyRangeIterator();
-        EmptyRangeIterator() { super(null, null, 0); }
+        EmptyRangeIterator() { super(null, null, 0, () -> {}); }
         public PrimaryKey computeNext() { return endOfData(); }
         protected void performSkipTo(PrimaryKey nextKey) { }
         public void close() { }
@@ -137,10 +151,12 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
     public static abstract class Builder
     {
         protected final Statistics statistics;
+        protected final Runnable onClose;
 
-        public Builder(Statistics statistics)
+        public Builder(Statistics statistics, Runnable onClose)
         {
             this.statistics = statistics;
+            this.onClose = onClose;
         }
 
         public PrimaryKey getMinimum()
@@ -179,7 +195,10 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
 
         public abstract int rangeCount();
 
-        public abstract void cleanup();
+        public void cleanup()
+        {
+            onClose.run();
+        }
 
         protected abstract KeyRangeIterator buildIterator();
 

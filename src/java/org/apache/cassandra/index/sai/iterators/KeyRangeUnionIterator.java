@@ -33,9 +33,9 @@ public class KeyRangeUnionIterator extends KeyRangeIterator
     private final List<KeyRangeIterator> ranges;
     private final List<KeyRangeIterator> candidates;
 
-    private KeyRangeUnionIterator(Builder.Statistics statistics, List<KeyRangeIterator> ranges)
+    private KeyRangeUnionIterator(Builder.Statistics statistics, List<KeyRangeIterator> ranges, Runnable onClose)
     {
-        super(statistics);
+        super(statistics, onClose);
         this.ranges = ranges;
         this.candidates = new ArrayList<>(ranges.size());
     }
@@ -110,18 +110,29 @@ public class KeyRangeUnionIterator extends KeyRangeIterator
     @Override
     public void close()
     {
+        super.close();
+
         // Due to lazy key fetching, we cannot close iterator immediately
         FileUtils.closeQuietly(ranges);
     }
 
     public static Builder builder(int size)
     {
-        return new Builder(size);
+        return builder(size, () -> {});
     }
 
+    public static Builder builder(int size, Runnable onClose)
+    {
+        return new Builder(size, onClose);
+    }
+
+    public static KeyRangeIterator build(List<KeyRangeIterator> keys, Runnable onClose)
+    {
+        return new Builder(keys.size(), onClose).add(keys).build();
+    }
     public static KeyRangeIterator build(List<KeyRangeIterator> keys)
     {
-        return new Builder(keys.size()).add(keys).build();
+        return build(keys, () -> {});
     }
 
     @VisibleForTesting
@@ -129,9 +140,9 @@ public class KeyRangeUnionIterator extends KeyRangeIterator
     {
         protected final List<KeyRangeIterator> rangeIterators;
 
-        Builder(int size)
+        Builder(int size, Runnable onClose)
         {
-            super(new UnionStatistics());
+            super(new UnionStatistics(), onClose);
             this.rangeIterators = new ArrayList<>(size);
         }
 
@@ -163,6 +174,7 @@ public class KeyRangeUnionIterator extends KeyRangeIterator
         @Override
         public void cleanup()
         {
+            super.cleanup();
             FileUtils.closeQuietly(rangeIterators);
         }
 
@@ -172,7 +184,7 @@ public class KeyRangeUnionIterator extends KeyRangeIterator
             if (rangeCount() == 1)
                 return rangeIterators.get(0);
 
-            return new KeyRangeUnionIterator(statistics, rangeIterators);
+            return new KeyRangeUnionIterator(statistics, rangeIterators, onClose);
         }
     }
 

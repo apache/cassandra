@@ -41,17 +41,12 @@ public class IndexSearchResultIterator extends KeyRangeIterator
 {
     private static final Logger logger = LoggerFactory.getLogger(IndexSearchResultIterator.class);
 
-    private final QueryContext context;
     private final KeyRangeIterator union;
-    private final Collection<SSTableIndex> referencedIndexes;
 
-    private IndexSearchResultIterator(KeyRangeIterator union, Collection<SSTableIndex> referencedIndexes, QueryContext queryContext)
+    private IndexSearchResultIterator(KeyRangeIterator union, Runnable onClose)
     {
-        super(union.getMinimum(), union.getMaximum(), union.getMaxKeys());
-
+        super(union.getMinimum(), union.getMaximum(), union.getMaxKeys(), onClose);
         this.union = union;
-        this.referencedIndexes = referencedIndexes;
-        this.context = queryContext;
     }
 
     /**
@@ -62,7 +57,8 @@ public class IndexSearchResultIterator extends KeyRangeIterator
                                                   Collection<SSTableIndex> sstableIndexes,
                                                   AbstractBounds<PartitionPosition> keyRange,
                                                   QueryContext queryContext,
-                                                  boolean includeMemtables)
+                                                  boolean includeMemtables,
+                                                  Runnable onClose)
     {
         List<KeyRangeIterator> subIterators = new ArrayList<>(sstableIndexes.size() + (includeMemtables ? 1 : 0));
 
@@ -97,24 +93,25 @@ public class IndexSearchResultIterator extends KeyRangeIterator
             }
         }
 
-        KeyRangeIterator union = KeyRangeUnionIterator.build(subIterators);
-        return new IndexSearchResultIterator(union, sstableIndexes, queryContext);
+        KeyRangeIterator union = KeyRangeUnionIterator.build(subIterators, () -> {});
+        return new IndexSearchResultIterator(union, onClose);
     }
 
     public static IndexSearchResultIterator build(List<KeyRangeIterator> sstableIntersections,
                                                   KeyRangeIterator memtableResults,
                                                   Set<SSTableIndex> referencedIndexes,
-                                                  QueryContext queryContext)
+                                                  QueryContext queryContext,
+                                                  Runnable onClose)
     {
         queryContext.sstablesHit += referencedIndexes
                                     .stream()
                                     .map(SSTableIndex::getSSTable).collect(Collectors.toSet()).size();
         queryContext.checkpoint();
-        KeyRangeIterator union = KeyRangeUnionIterator.builder(sstableIntersections.size() + 1)
+        KeyRangeIterator union = KeyRangeUnionIterator.builder(sstableIntersections.size() + 1, () -> {})
                                                       .add(sstableIntersections)
                                                       .add(memtableResults)
                                                       .build();
-        return new IndexSearchResultIterator(union, referencedIndexes, queryContext);
+        return new IndexSearchResultIterator(union, onClose);
     }
 
     protected PrimaryKey computeNext()
@@ -127,22 +124,9 @@ public class IndexSearchResultIterator extends KeyRangeIterator
         union.skipTo(nextKey);
     }
 
+    @Override
     public void close()
     {
         FileUtils.closeQuietly(union);
-        referencedIndexes.forEach(IndexSearchResultIterator::releaseQuietly);
-        referencedIndexes.clear();
-    }
-
-    private static void releaseQuietly(SSTableIndex index)
-    {
-        try
-        {
-            index.release();
-        }
-        catch (Throwable e)
-        {
-            logger.error(index.getIndexIdentifier().logMessage(String.format("Failed to release index on SSTable %s", index.getSSTable())), e);
-        }
     }
 }

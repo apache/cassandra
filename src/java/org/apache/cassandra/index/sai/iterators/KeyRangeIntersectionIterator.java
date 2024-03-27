@@ -54,9 +54,9 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
     private final List<KeyRangeIterator> ranges;
     private PrimaryKey highestKey;
 
-    private KeyRangeIntersectionIterator(Builder.Statistics statistics, List<KeyRangeIterator> ranges)
+    private KeyRangeIntersectionIterator(Builder.Statistics statistics, List<KeyRangeIterator> ranges, Runnable onClose)
     {
-        super(statistics);
+        super(statistics, onClose);
         this.ranges = ranges;
         this.highestKey = null;
     }
@@ -183,6 +183,7 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
     @Override
     public void close()
     {
+        super.close();
         FileUtils.closeQuietly(ranges);
     }
 
@@ -196,15 +197,20 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
         return iterator.hasNext() ? iterator.peek() : null;
     }
 
-    public static Builder builder(int size)
+    public static Builder builder(int size, int limit)
     {
-        return new Builder(size);
+        return builder(size, limit, () -> {});
+    }
+
+    public static Builder builder(int size, Runnable onClose)
+    {
+        return new Builder(size, onClose);
     }
 
     @VisibleForTesting
-    public static Builder builder(int size, int limit)
+    public static Builder builder(int size, int limit, Runnable onClose)
     {
-        return new Builder(size, limit);
+        return new Builder(size, limit, onClose);
     }
 
     @VisibleForTesting
@@ -221,14 +227,14 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
 
         protected final List<KeyRangeIterator> rangeIterators;
 
-        Builder(int size)
+        Builder(int size, Runnable onClose)
         {
-            this(size, CassandraRelevantProperties.SAI_INTERSECTION_CLAUSE_LIMIT.getInt());
+            this(size, CassandraRelevantProperties.SAI_INTERSECTION_CLAUSE_LIMIT.getInt(), onClose);
         }
 
-        Builder(int size, int limit)
+        Builder(int size, int limit, Runnable onClose)
         {
-            super(new IntersectionStatistics());
+            super(new IntersectionStatistics(), onClose);
             rangeIterators = new ArrayList<>(size);
             this.limit = limit;
         }
@@ -258,6 +264,7 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
         @Override
         public void cleanup()
         {
+            super.cleanup();
             FileUtils.closeQuietly(rangeIterators);
         }
 
@@ -324,7 +331,7 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
                         throw new IllegalArgumentException("Cannot intersect " + firstKind + " and " + key.kind() + " ranges!");
             }
 
-            return new KeyRangeIntersectionIterator(statistics, ranges);
+            return new KeyRangeIntersectionIterator(statistics, ranges, onClose);
         }
 
         private void updateStatistics(Statistics statistics, KeyRangeIterator range)

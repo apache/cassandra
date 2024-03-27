@@ -42,9 +42,9 @@ public class KeyRangeConcatIterator extends KeyRangeIterator
     private KeyRangeIterator currentRange;
     private final List<KeyRangeIterator> toRelease;
 
-    protected KeyRangeConcatIterator(KeyRangeIterator.Builder.Statistics statistics, List<KeyRangeIterator> ranges)
+    protected KeyRangeConcatIterator(KeyRangeIterator.Builder.Statistics statistics, List<KeyRangeIterator> ranges, Runnable onClose)
     {
-        super(statistics);
+        super(statistics, onClose);
 
         if (ranges.isEmpty())
             throw new IllegalArgumentException("Cannot concatenate empty list of ranges");
@@ -88,13 +88,20 @@ public class KeyRangeConcatIterator extends KeyRangeIterator
     @Override
     public void close()
     {
+        super.close();
+
         // due to lazy key fetching, we cannot close iterator immediately
         FileUtils.closeQuietly(toRelease);
     }
 
     public static Builder builder(int size)
     {
-        return new Builder(size);
+        return builder(size, () -> {});
+    }
+
+    public static Builder builder(int size, Runnable onClose)
+    {
+        return new Builder(size, onClose);
     }
 
     @VisibleForTesting
@@ -103,9 +110,9 @@ public class KeyRangeConcatIterator extends KeyRangeIterator
         // We can use a list because the iterators are already in order
         private final List<KeyRangeIterator> ranges;
 
-        Builder(int size)
+        Builder(int size, Runnable onClose)
         {
-            super(new ConcatStatistics());
+            super(new ConcatStatistics(), onClose);
             this.ranges = new ArrayList<>(size);
         }
 
@@ -133,6 +140,7 @@ public class KeyRangeConcatIterator extends KeyRangeIterator
         @Override
         public void cleanup()
         {
+            super.cleanup();
             FileUtils.closeQuietly(ranges);
         }
 
@@ -144,7 +152,7 @@ public class KeyRangeConcatIterator extends KeyRangeIterator
             if (rangeCount() == 1)
                 return ranges.get(0);
 
-            return new KeyRangeConcatIterator(statistics, ranges);
+            return new KeyRangeConcatIterator(statistics, ranges, onClose);
         }
     }
 
