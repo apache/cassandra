@@ -287,7 +287,7 @@ public class Descriptor
             throw invalidSSTable(name, "unknown 'format' part (%s)", formatString);
         }
 
-        Component component = Component.parse(tokens.get(3));
+        Component component = Component.parseFromFinalToken(tokens.get(3));
 
         Version version = format.info.getVersion(versionString);
         if (!version.isCompatible())

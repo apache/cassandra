@@ -154,7 +154,13 @@ final class LogFile implements AutoCloseable
         this.id = id;
     }
 
-    boolean verify()
+    /**
+     * Check a variety of the internals of the LogRecord as well as the state of the LogRecord vs. the files found on disk
+     * to ensure they remain correct and nothing was changed external to the process.
+     * @param skipStatsTS We can't trust the timestap on the STATS file as a race in notification on compaction completion
+     *                    can lead to mutation of the mtime. This should become considerably less common after CASSANDRA-17874
+     */
+    boolean verify(boolean skipStatsTS)
     {
         records.clear();
         if (!replicas.readRecords(records))
@@ -176,7 +182,7 @@ final class LogFile implements AutoCloseable
                 String key = record.absolutePath.get();
                 existingFiles = recordFiles.getOrDefault(key, Collections.emptyList());
             }
-            LogFile.verifyRecord(record, existingFiles);
+            LogFile.verifyRecord(record, existingFiles, skipStatsTS);
         }
 
         Optional<LogRecord> firstInvalid = records.stream().filter(LogRecord::isInvalidOrPartial).findFirst();
@@ -215,7 +221,11 @@ final class LogFile implements AutoCloseable
         return record;
     }
 
-    static void verifyRecord(LogRecord record, List<File> existingFiles)
+    /**
+     * Sets the {@link LogRecord.Status#error} if something wrong is found with the record.
+     * @param skipStatsTS Optionally skip calculation of STATS file for timestamp on the LogRecord
+     */
+    static void verifyRecord(LogRecord record, List<File> existingFiles, boolean skipStatsTS)
     {
         if (record.checksum != record.computeChecksum())
         {
@@ -226,6 +236,7 @@ final class LogFile implements AutoCloseable
             return;
         }
 
+        // If it's not a removal we don't check it since we're not going to take action on it
         if (record.type != Type.REMOVE)
             return;
 
@@ -235,7 +246,7 @@ final class LogFile implements AutoCloseable
         // file that obsoleted the very same files. So we check the latest update time and make sure
         // it matches. Because we delete files from oldest to newest, the latest update time should
         // always match.
-        record.status.onDiskRecord = record.withExistingFiles(existingFiles);
+        record.status.onDiskRecord = record.withExistingFiles(existingFiles, skipStatsTS);
         // we can have transaction files with mismatching updateTime resolutions due to switching between jdk8 and jdk11, truncate both to be consistent:
         if (truncateMillis(record.updateTime) != truncateMillis(record.status.onDiskRecord.updateTime) && record.status.onDiskRecord.updateTime > 0)
         {
@@ -246,7 +257,6 @@ final class LogFile implements AutoCloseable
                                           record.status.onDiskRecord.updateTime,
                                           record.updateTime,
                                           record.updateTime));
-
         }
     }
 
