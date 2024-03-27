@@ -598,9 +598,20 @@ public class LeveledCompactionStrategyTest
                 {
                     try
                     {
-                        assertTrue(task instanceof LeveledCompactionTask);
-                        LeveledCompactionTask lcsTask = (LeveledCompactionTask) task;
-                        level = Math.max(level, lcsTask.getLevel());
+                        if (task instanceof LeveledCompactionTask)
+                        {
+                            LeveledCompactionTask lcsTask = (LeveledCompactionTask) task;
+                            level = Math.max(level, lcsTask.getLevel());
+                        }
+                        else if (task instanceof SingleSSTableLCSTask)
+                        {
+                            SingleSSTableLCSTask singleSSTableLCSTask = (SingleSSTableLCSTask) task;
+                            level = Math.max(level, singleSSTableLCSTask.getLevel());
+                        }
+                        else
+                        {
+                            Assert.fail("Got unexpected task of type " + task.getClass().getCanonicalName());
+                        }
                     }
                     finally
                     {
