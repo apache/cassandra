@@ -19,6 +19,7 @@ package org.apache.cassandra.metrics;
 
 import java.util.Set;
 import java.util.function.ToLongFunction;
+import java.util.stream.StreamSupport;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
@@ -27,8 +28,12 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
+import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
+import org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry.MetricName;
 import org.apache.cassandra.metrics.TableMetrics.ReleasableMetric;
+import org.apache.cassandra.schema.Tables;
 
 import com.google.common.collect.Sets;
 
@@ -183,6 +188,12 @@ public class KeyspaceMetrics
     public final Counter singleMutationThrottles;
     /** Estimate of number of pending SSTable cleanup for this Keyspace */
     public final Gauge<Long> pendingCleanups;
+    /** Number of STCS tables within this keyspace */
+    public final Gauge<Long> stcsTables;
+    /** Number of LCS tables within this keyspace */
+    public final Gauge<Long> lcsTables;
+    /** Number of TWCS tables within this keyspace */
+    public final Gauge<Long> twcsTables;
 
     public final MetricNameFactory factory;
     private Keyspace keyspace;
@@ -287,6 +298,38 @@ public class KeyspaceMetrics
         outOfRangeTokenReads = createKeyspaceCounter("ReadOutOfRangeToken");
         outOfRangeTokenWrites = createKeyspaceCounter("WriteOutOfRangeToken");
         outOfRangeTokenPaxosRequests = createKeyspaceCounter("PaxosOutOfRangeToken");
+        stcsTables = createKeyspaceGauge("STCSTables", new Gauge<Long>()
+        {
+            public Long getValue()
+            {
+                Tables tables = keyspace.getMetadata().tables;
+                return StreamSupport.stream(tables.spliterator(), false)
+                                    .filter(x -> (x.params.compaction.klass().equals(SizeTieredCompactionStrategy.class)))
+                                    .count();
+            }
+        });
+
+        lcsTables = createKeyspaceGauge("LCSTables", new Gauge<Long>()
+        {
+            public Long getValue()
+            {
+                Tables tables = keyspace.getMetadata().tables;
+                return StreamSupport.stream(tables.spliterator(), false)
+                                    .filter(x -> (x.params.compaction.klass().equals(LeveledCompactionStrategy.class)))
+                                    .count();
+            }
+        });
+
+        twcsTables = createKeyspaceGauge("TWCSTables", new Gauge<Long>()
+        {
+            public Long getValue()
+            {
+                Tables tables = keyspace.getMetadata().tables;
+                return StreamSupport.stream(tables.spliterator(), false)
+                                    .filter(x -> (x.params.compaction.klass().equals(TimeWindowCompactionStrategy.class)))
+                                    .count();
+            }
+        });
 
         serialReadThrottles = createKeyspaceCounter("SerialReadThrottles");
         singleReadThrottles = createKeyspaceCounter("SingleReadThrottles");
@@ -327,6 +370,18 @@ public class KeyspaceMetrics
                 return sum;
             }
         });
+    }
+
+    /**
+     * Creates a gauge, that doesn't have table level metric, from the given function
+     * @param name
+     * @param func
+     * @return Gauge&lt;Long> that computes sum of MetricValue.getValue()
+     */
+    private Gauge<Long> createKeyspaceGauge(String name, Gauge<Long> func)
+    {
+        allMetrics.add(() -> releaseMetric(name));
+        return Metrics.register(factory.createMetricName(name), func);
     }
 
     /**

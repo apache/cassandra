@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-27738] Add keyspace level metrics for number of tables with different type of compaction strategies
  * [SO-27485] Feature to enable/disable guardrails on superuser
  * [SO-28512] Do a full repair through AutoRepair on MVs
  * [SO-28465] Allow direct MV modification based on configuration

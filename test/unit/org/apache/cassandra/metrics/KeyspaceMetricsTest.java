@@ -23,6 +23,11 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.service.EmbeddedCassandraService;
+
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -69,6 +74,39 @@ public class KeyspaceMetricsTest
         session.execute(String.format("DROP KEYSPACE %s;", keyspace));
         // no metrics after drop
         assertEquals(metrics.get().collect(Collectors.joining(",")), 0, metrics.get().count());
+    }
+
+    @Test
+    public void testTableCount()
+    {
+        String keyspace = "keyspacemetricstest_test_table_count";
+        String table = "tablecount";
+        session.execute(String.format("CREATE KEYSPACE %s WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };",
+                                      keyspace));
+        session.execute(String.format("CREATE TABLE IF NOT EXISTS %s.%s (id int PRIMARY KEY, content text);",
+                                      keyspace, table));
+        Keyspace ks = Keyspace.open(keyspace);
+        // should contain 1 STCS table
+        assertEquals(1, (long) ks.metric.stcsTables.getValue());
+        assertEquals(0, (long) ks.metric.lcsTables.getValue());
+        assertEquals(0, (long) ks.metric.twcsTables.getValue());
+
+        session.execute(String.format("ALTER TABLE %s.%s WITH compaction={'class': 'LeveledCompactionStrategy'};",
+                                      keyspace, table));
+        assertEquals(0, (long) ks.metric.stcsTables.getValue());
+        assertEquals(1, (long) ks.metric.lcsTables.getValue());
+        assertEquals(0, (long) ks.metric.twcsTables.getValue());
+
+        session.execute(String.format("ALTER TABLE %s.%s WITH compaction={'class': 'TimeWindowCompactionStrategy'};",
+                                      keyspace, table));
+        assertEquals(0, (long) ks.metric.stcsTables.getValue());
+        assertEquals(0, (long) ks.metric.lcsTables.getValue());
+        assertEquals(1, (long) ks.metric.twcsTables.getValue());
+
+        session.execute(String.format("DROP TABLE IF EXISTS %s.%s", keyspace, table));
+        assertEquals(0, (long) ks.metric.stcsTables.getValue());
+        assertEquals(0, (long) ks.metric.lcsTables.getValue());
+        assertEquals(0, (long) ks.metric.twcsTables.getValue());
     }
 
     @AfterClass
