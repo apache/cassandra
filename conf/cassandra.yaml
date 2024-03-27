@@ -1589,6 +1589,9 @@ server_encryption_options:
   require_endpoint_verification: false
   # More advanced defaults:
   # protocol: TLS
+  # accepted_protocols: [
+  #   TLSv1.2, TLSv1.1
+  # ]
   # store_type: JKS
   # cipher_suites: [
   #   TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
@@ -1642,6 +1645,9 @@ client_encryption_options:
   # truststore_password: cassandra
   # More advanced defaults:
   # protocol: TLS
+  # accepted_protocols: [
+  #   TLSv1.2, TLSv1.1
+  # ]
   # store_type: JKS
   # cipher_suites: [
   #   TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
