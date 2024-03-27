@@ -90,6 +90,7 @@ public final class ClientMetrics
     private Meter requestDispatched;
 
     private Meter protocolException;
+    private Meter sslHandshakeException;
     private Meter unknownException;
 
     private static final String AUTH_SUCCESS = "AuthSuccess";
@@ -157,6 +158,11 @@ public final class ClientMetrics
         protocolException.mark();
     }
 
+    public void markSslHandshakeException()
+    {
+        sslHandshakeException.mark();
+    }
+
     public void markUnknownException()
     {
         unknownException.mark();
@@ -216,6 +222,7 @@ public final class ClientMetrics
         requestDispatched = registerMeter("RequestDispatched");
 
         protocolException = registerMeter("ProtocolException");
+        sslHandshakeException = registerMeter("SslHandshakeException");
         unknownException = registerMeter("UnknownException");
 
         initialized = true;
