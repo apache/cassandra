@@ -444,31 +444,21 @@ def saveAgentReport() {
 /////////////////////////////////////////
 
 def summateStatus() {
-  // FIXME stageResults is never in binding :shrug:
-  //  stageResults code has been removed in the pipeline above, implement it from scratch
-  //catchError(buildResult: null, message: 'unknown stageResults states') {
-  //  if(stageResults.find { "FAILURE" == it.value }) {
-  //    currentBuild.result='FAILURE'
-  //    error("Build failed due to failed stages")
-  //  } else if(stageResults.find { "UNSTABLE" == it.value || "ABORTED" == it.value }) {
-  //    if ("ABORTED" != currentBuild.result) { currentBuild.result='UNSTABLE' }
-  //    echo("Build unstable due to unstable or aborted stages")
-  //  }
-  //}
+  echo("Congratulations")
 }
 
 def generateTestReports() {
-  node('cassandra-amd64-large') {
+  node('cassandra-amd64-medium') {
     cleanWs()
     checkout changelog: false, scm: scmGit(branches: [[name: params.branch]], extensions: [cloneOption(depth: 1, noTags: true, reference: '', shallow: true)], userRemoteConfigs: [[url: params.repository]])
     copyArtifacts filter: 'test/**/TEST-*.xml.xz,test/**/cqlshlib*.xml.xz,test/**/nosetests*.xml.xz', fingerprintArtifacts: true, projectName: env.JOB_NAME, selector: specific(env.BUILD_NUMBER), target: "build/", optional: true
     if (fileExists('build/test/output')) {
 
-        // merge splits for each target's test report, other axes are kept separate. TODO for loop could be parallelised
+        // merge splits for each target's test report, other axes are kept separate
+        //   TODO parallelised for loop
+        //   TODO results_details.tar.xz needs to include all logs for failed tests
         sh """
-                find build/test/ -name TEST-*.xml.xz -exec xz -f --decompress {} ';'
-                find build/test/ -name cqlshlib*.xml.xz -exec xz -f --decompress {} ';'
-                find build/test/ -name nosetests*.xml.xz -exec xz -f --decompress {} ';'
+                find build/test/output -name *.xml.xz -exec sh -c 'xz -f --decompress {} &' ';' ; wait
 
                 for target in \$(ls build/test/output/) ; do
                   if test -d build/test/output/\${target} ; then

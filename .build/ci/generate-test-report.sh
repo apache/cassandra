@@ -26,6 +26,6 @@ command -v ant >/dev/null 2>&1 || { echo >&2 "ant needs to be installed"; exit 1
 [ -d "${DIST_DIR}" ] || { mkdir -p "${DIST_DIR}" ; }
 
 # generate test xml summary file and html report directories
-ANT_OPTS="-Xmx15g ${ANT_OPTS}" ant -f "${CASSANDRA_DIR}/build.xml" generate-test-report
+ant -f "${CASSANDRA_DIR}/build.xml" generate-test-report
 exit $?
 
