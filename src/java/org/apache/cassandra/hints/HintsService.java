@@ -476,4 +476,9 @@ public final class HintsService implements HintsServiceMBean
     {
         return isDispatchPaused.get();
     }
+
+    HintsBufferPool getHintsBufferPool()
+    {
+        return bufferPool;
+    }
 }
