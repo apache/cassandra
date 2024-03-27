@@ -245,7 +245,9 @@ else
   # turn on JMX authentication. See below for further options
   JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.authenticate=true"
 
-  # jmx ssl options
+  # JMX SSL options
+  # Consider using the jmx_encryption_options section of cassandra.yaml instead to prevent sensitive information being
+  #   exposxed
   #JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.ssl=true"
   #JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.ssl.need.client.auth=true"
   #JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.ssl.enabled.protocols=<enabled-protocols>"
