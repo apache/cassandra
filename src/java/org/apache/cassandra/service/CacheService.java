@@ -301,17 +301,14 @@ public class CacheService implements CacheServiceMBean
         counterCache.clear();
     }
 
-
-
-
     public void setRowCacheCapacityInMB(long capacity)
     {
         if (capacity < 0)
             throw new RuntimeException("capacity should not be negative.");
 
         rowCache.setCapacity(capacity * 1024 * 1024);
+        DatabaseDescriptor.setRowCacheSizeInMB(capacity);
     }
-
 
     public void setKeyCacheCapacityInMB(long capacity)
     {
@@ -319,6 +316,7 @@ public class CacheService implements CacheServiceMBean
             throw new RuntimeException("capacity should not be negative.");
 
         keyCache.setCapacity(capacity * 1024 * 1024);
+        DatabaseDescriptor.setKeyCacheSizeInMB(capacity);
     }
 
     public void setCounterCacheCapacityInMB(long capacity)
@@ -327,6 +325,7 @@ public class CacheService implements CacheServiceMBean
             throw new RuntimeException("capacity should not be negative.");
 
         counterCache.setCapacity(capacity * 1024 * 1024);
+        DatabaseDescriptor.setCounterCacheSizeInMB(capacity);
     }
 
     public void saveCaches() throws ExecutionException, InterruptedException

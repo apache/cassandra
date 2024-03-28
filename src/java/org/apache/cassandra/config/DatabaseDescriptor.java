@@ -2695,6 +2695,11 @@ public class DatabaseDescriptor
         return keyCacheSizeInMB;
     }
 
+    public static void setKeyCacheSizeInMB(long size)
+    {
+        keyCacheSizeInMB = size;
+    }
+
     public static long getIndexSummaryCapacityInMB()
     {
         return indexSummaryCapacityInMB;
@@ -2754,6 +2759,11 @@ public class DatabaseDescriptor
     public static long getCounterCacheSizeInMB()
     {
         return counterCacheSizeInMB;
+    }
+
+    public static void setCounterCacheSizeInMB(long val)
+    {
+        counterCacheSizeInMB = val;
     }
 
     public static void setRowCacheKeysToSave(int rowCacheKeysToSave)
