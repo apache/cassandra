@@ -18,7 +18,6 @@
 package org.apache.cassandra.index.sai.iterators;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -38,9 +37,9 @@ import org.apache.cassandra.io.util.FileUtils;
 public class KeyRangeConcatIterator extends KeyRangeIterator
 {
     public static final String MUST_BE_SORTED_ERROR = "RangeIterator must be sorted, previous max: %s, next min: %s";
-    private final Iterator<KeyRangeIterator> ranges;
-    private KeyRangeIterator currentRange;
-    private final List<KeyRangeIterator> toRelease;
+    private final List<KeyRangeIterator> ranges;
+
+    private int current;
 
     protected KeyRangeConcatIterator(KeyRangeIterator.Builder.Statistics statistics, List<KeyRangeIterator> ranges, Runnable onClose)
     {
@@ -49,40 +48,44 @@ public class KeyRangeConcatIterator extends KeyRangeIterator
         if (ranges.isEmpty())
             throw new IllegalArgumentException("Cannot concatenate empty list of ranges");
 
-        this.ranges = ranges.iterator();
-        this.currentRange = this.ranges.next();
-        this.toRelease = new ArrayList<>(ranges);
+        this.current = 0;
+        this.ranges = new ArrayList<>(ranges);
     }
 
     @Override
     protected void performSkipTo(PrimaryKey nextKey)
     {
-        while (true)
+        while (current < ranges.size())
         {
-            if (currentRange.getMaximum().compareTo(nextKey) >= 0)
+            KeyRangeIterator currentIterator = ranges.get(current);
+
+            if (currentIterator.hasNext() && currentIterator.peek().compareTo(nextKey) >= 0)
+                break;
+
+            if (currentIterator.getMaximum().compareTo(nextKey) >= 0)
             {
-                currentRange.skipTo(nextKey);
-                return;
+                currentIterator.skipTo(nextKey);
+                break;
             }
-            if (!ranges.hasNext())
-            {
-                currentRange.skipTo(nextKey);
-                return;
-            }
-            currentRange = ranges.next();
+
+            current++;
         }
     }
 
     @Override
     protected PrimaryKey computeNext()
     {
-        while (!currentRange.hasNext())
+        while (current < ranges.size())
         {
-            if (!ranges.hasNext())
-                return endOfData();
-            currentRange = ranges.next();
+            KeyRangeIterator currentIterator = ranges.get(current);
+
+            if (currentIterator.hasNext())
+                return currentIterator.next();
+
+            current++;
         }
-        return currentRange.next();
+
+        return endOfData();
     }
 
     @Override
@@ -91,7 +94,7 @@ public class KeyRangeConcatIterator extends KeyRangeIterator
         super.close();
 
         // due to lazy key fetching, we cannot close iterator immediately
-        FileUtils.closeQuietly(toRelease);
+        FileUtils.closeQuietly(ranges);
     }
 
     public static Builder builder(int size)
