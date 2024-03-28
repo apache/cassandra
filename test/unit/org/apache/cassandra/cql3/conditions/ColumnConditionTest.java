@@ -341,7 +341,7 @@ public class ColumnConditionTest extends CQLTester
 
     private boolean conditionApplies(SortedMap<ByteBuffer, ByteBuffer> rowValue, Operator op, SortedMap<ByteBuffer, ByteBuffer> conditionValue, MapType<Integer, Integer> columnType)
     {
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", columnType);
+        ColumnMetadata definition = ColumnMetadata.regularColumn(KEYSPACE, maybeCreateTable(columnType, columnType.isFrozenCollection()), "c", columnType);
         List<ByteBuffer> value = new ArrayList<>(conditionValue.size() * 2);
         for (Map.Entry<ByteBuffer, ByteBuffer> entry: conditionValue.entrySet())
         {
