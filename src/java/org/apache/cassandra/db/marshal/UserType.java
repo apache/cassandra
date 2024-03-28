@@ -342,7 +342,7 @@ public class UserType extends TupleType implements SchemaElement
     @Override
     public boolean equals(Object o)
     {
-        if(!(o instanceof UserType))
+        if (o.getClass() != UserType.class)
             return false;
 
         UserType that = (UserType)o;
