@@ -41,13 +41,22 @@ public interface CommitLogMBean
 
     /**
      * Restore mutations created up to and including this timestamp in GMT
-     * Format: yyyy:MM:dd HH:mm:ss (2012:04:31 20:43:12)
+     * There are only three different formats to express three time precisions:
+     * Seconds, Milliseconds, and Microseconds.
+     * Seconds format: yyyy:MM:dd HH:mm:ss (2012:04:31 20:43:12)
+     * Milliseconds format: yyyy:MM:dd HH:mm:ss[.[SSS]] (2012:04:31 20:43:12.633)
+     * Microseconds format: yyyy:MM:dd HH:mm:ss[.[SSSSSS]] (2012:04:31 20:43:12.633222)
      *
      * Recovery will continue through the segment when the first client-supplied
      * timestamp greater than this time is encountered, but only mutations less than
      * or equal to this timestamp will be applied.
      */
     public long getRestorePointInTime();
+
+    /**
+     * only used for testing
+     * */
+    public void setCommitlogArchiver(CommitLogArchiver archiver);
 
     /**
      * get precision of the timestamp used in the restore (MILLISECONDS, MICROSECONDS, ...)
