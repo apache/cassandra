@@ -235,6 +235,13 @@ public class ByteArrayAccessor implements ValueAccessor<byte[]>
     }
 
     @Override
+    public int putByte(byte[] dst, int offset, byte value)
+    {
+        dst[offset] = value;
+        return TypeSizes.BYTE_SIZE;
+    }
+
+    @Override
     public int putShort(byte[] dst, int offset, short value)
     {
         ByteArrayUtil.putShort(dst, offset, value);
