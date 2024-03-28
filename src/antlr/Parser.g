@@ -1767,36 +1767,36 @@ relationType returns [Operator op]
     ;
 
 relation[WhereClause.Builder clauses]
-    : name=cident type=relationType t=term { $clauses.add(new SingleColumnRelation(name, type, t)); }
-    | name=cident K_LIKE t=term { $clauses.add(new SingleColumnRelation(name, Operator.LIKE, t)); }
-    | name=cident K_IS K_NOT K_NULL { $clauses.add(new SingleColumnRelation(name, Operator.IS_NOT, Constants.NULL_LITERAL)); }
+    : name=cident type=relationType t=term { $clauses.add(Relation.singleColumn(name, type, t)); }
+    | name=cident K_LIKE t=term { $clauses.add(Relation.singleColumn(name, Operator.LIKE, t)); }
+    | name=cident K_IS K_NOT K_NULL { $clauses.add(Relation.singleColumn(name, Operator.IS_NOT, Constants.NULL_LITERAL)); }
     | K_TOKEN l=tupleOfIdentifiers type=relationType t=term
-        { $clauses.add(new TokenRelation(l, type, t)); }
+        { $clauses.add(Relation.token(l, type, t)); }
     | name=cident K_IN marker=inMarker
-        { $clauses.add(new SingleColumnRelation(name, Operator.IN, marker)); }
+        { $clauses.add(Relation.singleColumn(name, Operator.IN, marker)); }
     | name=cident K_IN inValues=singleColumnInValues
-        { $clauses.add(SingleColumnRelation.createInRelation($name.id, inValues)); }
-    | name=cident rt=containsOperator t=term { $clauses.add(new SingleColumnRelation(name, rt, t)); }
-    | name=cident '[' key=term ']' type=relationType t=term { $clauses.add(new SingleColumnRelation(name, key, type, t)); }
+        { $clauses.add(Relation.singleColumn($name.id, Operator.IN, inValues)); }
+    | name=cident rt=containsOperator t=term { $clauses.add(Relation.singleColumn(name, rt, t)); }
+    | name=cident '[' key=term ']' type=relationType t=term { $clauses.add(Relation.mapElement(name, key, type, t)); }
     | ids=tupleOfIdentifiers
       ( K_IN
           ( '(' ')'
-              { $clauses.add(MultiColumnRelation.createInRelation(ids, Terms.Raw.of(Collections.emptyList()))); }
+              { $clauses.add(Relation.multiColumns(ids, Operator.IN, Terms.Raw.of(Collections.emptyList()))); }
           | tupleInMarker=inMarker /* (a, b, c) IN ? */
-              { $clauses.add(MultiColumnRelation.createInRelation(ids, tupleInMarker)); }
+              { $clauses.add(Relation.multiColumns(ids, Operator.IN, tupleInMarker)); }
           | literals=tupleOfTupleLiterals /* (a, b, c) IN ((1, 2, 3), (4, 5, 6), ...) */
               {
-                  $clauses.add(MultiColumnRelation.createInRelation(ids, literals));
+                  $clauses.add(Relation.multiColumns(ids, Operator.IN, literals));
               }
           | markers=tupleOfMarkersForTuples /* (a, b, c) IN (?, ?, ...) */
-              { $clauses.add(MultiColumnRelation.createInRelation(ids, markers)); }
+              { $clauses.add(Relation.multiColumns(ids, Operator.IN, markers)); }
           )
       | type=relationType literal=tupleLiteral /* (a, b, c) > (1, 2, 3) or (a, b, c) > (?, ?, ?) */
           {
-              $clauses.add(MultiColumnRelation.createNonInRelation(ids, type, literal));
+              $clauses.add(Relation.multiColumns(ids, type, literal));
           }
       | type=relationType tupleMarker=markerForTuple /* (a, b, c) >= ? */
-          { $clauses.add(MultiColumnRelation.createNonInRelation(ids, type, tupleMarker)); }
+          { $clauses.add(Relation.multiColumns(ids, type, tupleMarker)); }
       )
     | '(' relation[$clauses] ')'
     ;

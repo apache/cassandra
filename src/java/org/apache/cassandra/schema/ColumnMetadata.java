@@ -512,7 +512,6 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         return sb.toString();
     }
 
-
     public void appendNameAndOrderTo(CqlBuilder builder)
     {
         builder.append(name.toCQLString())

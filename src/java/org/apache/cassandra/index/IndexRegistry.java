@@ -22,6 +22,7 @@ package org.apache.cassandra.index;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -56,7 +57,7 @@ import org.apache.cassandra.schema.TableMetadata;
  * i) subscribe to the stream of updates being applied to partitions in the base table
  * ii) provide searchers to support queries with the relevant search predicates
  */
-public interface IndexRegistry
+public interface IndexRegistry extends Iterable<Index>
 {
     /**
      * An empty {@code IndexRegistry}
@@ -302,6 +303,12 @@ public interface IndexRegistry
 
     Index getIndex(IndexMetadata indexMetadata);
     Collection<Index> listIndexes();
+
+    @Override
+    default Iterator<Index> iterator()
+    {
+        return listIndexes().iterator();
+    }
 
     Optional<Index> getBestIndexFor(RowFilter.Expression expression);
 

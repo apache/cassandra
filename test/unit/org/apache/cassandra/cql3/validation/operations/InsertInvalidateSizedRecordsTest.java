@@ -60,7 +60,7 @@ public class InsertInvalidateSizedRecordsTest extends CQLTester
         // null / empty checks
         Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a) VALUES (?)", new Object[] {null}))
                   .hasRootCauseInstanceOf(InvalidQueryException.class)
-                  .hasRootCauseMessage("Invalid null value in condition for column a");
+                  .hasRootCauseMessage("Invalid null value for column a");
         Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a) VALUES (?)", EMPTY_BYTE_BUFFER))
                   .hasRootCauseInstanceOf(InvalidQueryException.class)
                   .hasRootCauseMessage("Key may not be empty");
@@ -86,13 +86,13 @@ public class InsertInvalidateSizedRecordsTest extends CQLTester
         // user opts-in to allow it (NULL='-'), so we will find that null is blocked, but empty is allowed!
         Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", new Object[] {null, null}))
                   .hasRootCauseInstanceOf(InvalidQueryException.class)
-                  .hasRootCauseMessage("Invalid null value in condition for column a");
+                  .hasRootCauseMessage("Invalid null value for column a");
         Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", new Object[] {MEDIUM_BLOB, null}))
                   .hasRootCauseInstanceOf(InvalidQueryException.class)
-                  .hasRootCauseMessage("Invalid null value in condition for column b");
+                  .hasRootCauseMessage("Invalid null value for column b");
         Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", new Object[] {null, MEDIUM_BLOB}))
                   .hasRootCauseInstanceOf(InvalidQueryException.class)
-                  .hasRootCauseMessage("Invalid null value in condition for column a");
+                  .hasRootCauseMessage("Invalid null value for column a");
 
         // empty is allowed when composite partition columns...
         executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", EMPTY_BYTE_BUFFER, EMPTY_BYTE_BUFFER);
@@ -115,7 +115,7 @@ public class InsertInvalidateSizedRecordsTest extends CQLTester
         // null / empty checks
         Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", MEDIUM_BLOB, null))
                   .hasRootCauseInstanceOf(InvalidQueryException.class)
-                  .hasRootCauseMessage("Invalid null value in condition for column b");
+                  .hasRootCauseMessage("Invalid null value for column b");
 
         // org.apache.cassandra.db.MultiCBuilder.OneClusteringBuilder.addElementToAll defines "null" differently than most of the code;
         // most of the code defines null as:
