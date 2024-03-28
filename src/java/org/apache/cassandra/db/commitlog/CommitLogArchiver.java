@@ -23,14 +23,21 @@ package org.apache.cassandra.db.commitlog;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.ParseException;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Map;
 import java.util.Properties;
-import java.util.TimeZone;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
@@ -49,16 +56,64 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
 public class CommitLogArchiver
 {
     private static final Logger logger = LoggerFactory.getLogger(CommitLogArchiver.class);
-    public static final SimpleDateFormat format = new SimpleDateFormat("yyyy:MM:dd HH:mm:ss");
+
+    public enum RIPLEVEL
+    {
+        SECONDS
+        {
+            @Override
+            public long getMicroLevelTimeStamp(String ripTime)
+            {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss").withZone(ZoneId.of("GMT"));
+                return getMicroSeconds(ripTime, formatter);
+            }
+
+            @Override
+            public long getMillSeconds(long targetTs)
+            {
+                return targetTs == Long.MAX_VALUE ? Long.MAX_VALUE : targetTs * 1000;
+            }
+        },
+        MILLISECONDS
+        {
+            @Override
+            public long getMicroLevelTimeStamp(String ripTime)
+            {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss[.[SSS]]").withZone(ZoneId.of("GMT"));
+                return getMicroSeconds(ripTime, formatter);
+            }
+
+            @Override
+            public long getMillSeconds(long targetTs)
+            {
+                return targetTs == Long.MAX_VALUE ? Long.MAX_VALUE : targetTs ;
+            }
+        },
+        MICROSECONDS
+        {
+            @Override
+            public long getMicroLevelTimeStamp(String ripTime)
+            {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss[.[SSSSSS]]").withZone(ZoneId.of("GMT"));
+                return getMicroSeconds(ripTime, formatter);
+            }
+
+            @Override
+            public long getMillSeconds(long targetTs)
+            {
+                return targetTs == Long.MAX_VALUE ? Long.MAX_VALUE : targetTs / 1000;
+            }
+        };
+
+       public abstract long getMicroLevelTimeStamp(String ripTime);
+       public abstract long getMillSeconds(long targetTs);
+    }
+
     private static final String DELIMITER = ",";
     private static final Pattern NAME = Pattern.compile("%name");
     private static final Pattern PATH = Pattern.compile("%path");
     private static final Pattern FROM = Pattern.compile("%from");
     private static final Pattern TO = Pattern.compile("%to");
-    static
-    {
-        format.setTimeZone(TimeZone.getTimeZone("GMT"));
-    }
 
     public final Map<String, Future<?>> archivePending = new ConcurrentHashMap<String, Future<?>>();
     private final ExecutorService executor;
@@ -68,9 +123,10 @@ public class CommitLogArchiver
     public long restorePointInTime;
     public CommitLogPosition snapshotCommitLogPosition;
     public final TimeUnit precision;
+    public RIPLEVEL riplevel;
 
     public CommitLogArchiver(String archiveCommand, String restoreCommand, String restoreDirectories,
-            long restorePointInTime, CommitLogPosition snapshotCommitLogPosition, TimeUnit precision)
+            long restorePointInTime, CommitLogPosition snapshotCommitLogPosition, TimeUnit precision, RIPLEVEL riplevel)
     {
         this.archiveCommand = archiveCommand;
         this.restoreCommand = restoreCommand;
@@ -78,6 +134,7 @@ public class CommitLogArchiver
         this.restorePointInTime = restorePointInTime;
         this.snapshotCommitLogPosition = snapshotCommitLogPosition;
         this.precision = precision;
+        this.riplevel = riplevel;
         executor = !Strings.isNullOrEmpty(archiveCommand)
                 ? executorFactory()
                     .withJmxInternal()
@@ -87,7 +144,7 @@ public class CommitLogArchiver
 
     public static CommitLogArchiver disabled()
     {
-        return new CommitLogArchiver(null, null, null, Long.MAX_VALUE, CommitLogPosition.NONE, TimeUnit.MICROSECONDS);
+        return new CommitLogArchiver(null, null, null, Long.MAX_VALUE, CommitLogPosition.NONE, TimeUnit.MICROSECONDS, null);
     }
 
     public static CommitLogArchiver construct()
@@ -103,62 +160,79 @@ public class CommitLogArchiver
             else
             {
                 commitlog_commands.load(stream);
-                String archiveCommand = commitlog_commands.getProperty("archive_command");
-                String restoreCommand = commitlog_commands.getProperty("restore_command");
-                String restoreDirectories = commitlog_commands.getProperty("restore_directories");
-                if (restoreDirectories != null && !restoreDirectories.isEmpty())
-                {
-                    for (String dir : restoreDirectories.split(DELIMITER))
-                    {
-                        File directory = new File(dir);
-                        if (!directory.exists())
-                        {
-                            if (!directory.tryCreateDirectory())
-                            {
-                                throw new RuntimeException("Unable to create directory: " + dir);
-                            }
-                        }
-                    }
-                }
-                String targetTime = commitlog_commands.getProperty("restore_point_in_time");
-                TimeUnit precision = TimeUnit.valueOf(commitlog_commands.getProperty("precision", "MICROSECONDS"));
-                long restorePointInTime;
-                try
-                {
-                    restorePointInTime = Strings.isNullOrEmpty(targetTime) ? Long.MAX_VALUE : format.parse(targetTime).getTime();
-                }
-                catch (ParseException e)
-                {
-                    throw new RuntimeException("Unable to parse restore target time", e);
-                }
-
-                String snapshotPosition = commitlog_commands.getProperty("snapshot_commitlog_position");
-                CommitLogPosition snapshotCommitLogPosition;
-                try
-                {
-
-                    snapshotCommitLogPosition = Strings.isNullOrEmpty(snapshotPosition)
-                                                ? CommitLogPosition.NONE
-                                                : CommitLogPosition.serializer.fromString(snapshotPosition);
-                }
-                catch (ParseException | NumberFormatException e)
-                {
-                    throw new RuntimeException("Unable to parse snapshot commit log position", e);
-                }
-
-                return new CommitLogArchiver(archiveCommand,
-                                             restoreCommand,
-                                             restoreDirectories,
-                                             restorePointInTime,
-                                             snapshotCommitLogPosition,
-                                             precision);
+                return getArchiverFromProperty(commitlog_commands);
             }
         }
         catch (IOException e)
         {
             throw new RuntimeException("Unable to load commitlog_archiving.properties", e);
         }
+    }
 
+    public static CommitLogArchiver getArchiverFromProperty(Properties commitlogCommands)
+    {
+        assert !commitlogCommands.isEmpty();
+        String archiveCommand = commitlogCommands.getProperty("archive_command");
+        String restoreCommand = commitlogCommands.getProperty("restore_command");
+        String restoreDirectories = commitlogCommands.getProperty("restore_directories");
+        if (restoreDirectories != null && !restoreDirectories.isEmpty())
+        {
+            for (String dir : restoreDirectories.split(DELIMITER))
+            {
+                File directory = new File(dir);
+                if (!directory.exists())
+                {
+                    if (!directory.tryCreateDirectory())
+                    {
+                        throw new RuntimeException("Unable to create directory: " + dir);
+                    }
+                }
+            }
+        }
+        String targetTime = commitlogCommands.getProperty("restore_point_in_time");
+        //todo remove this as this is not used
+        TimeUnit precision = TimeUnit.valueOf(commitlogCommands.getProperty("precision", "MICROSECONDS"));
+        long restorePointInTime;
+        RIPLEVEL riplevel = null;
+        try
+        {
+            if (Strings.isNullOrEmpty(targetTime))
+            {
+                restorePointInTime = Long.MAX_VALUE;
+            }
+            else
+            {
+                riplevel = getRipLevel(targetTime);
+                // the restorePointInTime is millseconds level by default, set to microlevel by default as c* use this level ts.
+                restorePointInTime = riplevel.getMicroLevelTimeStamp(targetTime);
+            }
+        }
+        catch (DateTimeParseException | ConfigurationException e)
+        {
+            throw new RuntimeException("Unable to parse restore target time", e);
+        }
+
+        String snapshotPosition = commitlogCommands.getProperty("snapshot_commitlog_position");
+        CommitLogPosition snapshotCommitLogPosition;
+        try
+        {
+
+            snapshotCommitLogPosition = Strings.isNullOrEmpty(snapshotPosition)
+                                        ? CommitLogPosition.NONE
+                                        : CommitLogPosition.serializer.fromString(snapshotPosition);
+        }
+        catch (ParseException | NumberFormatException e)
+        {
+            throw new RuntimeException("Unable to parse snapshot commit log position", e);
+        }
+
+        return new CommitLogArchiver(archiveCommand,
+                                     restoreCommand,
+                                     restoreDirectories,
+                                     restorePointInTime,
+                                     snapshotCommitLogPosition,
+                                     precision,
+                                     riplevel);
     }
 
     public void maybeArchive(final CommitLogSegment segment)
@@ -309,5 +383,49 @@ public class CommitLogArchiver
         ProcessBuilder pb = new ProcessBuilder(command.split(" "));
         pb.redirectErrorStream(true);
         FBUtilities.exec(pb);
+    }
+
+    /**
+     * we change the restorePointInTime into MicroSeconds level as cassandra use MicroSeconds
+     * as the timestamp.
+     * */
+    private static long getMicroSeconds(String restorePointInTime, DateTimeFormatter format)
+    {
+        Instant instant = format.parse(restorePointInTime, Instant::from);
+        return instant.getEpochSecond() * 1000_000 + instant.getNano() / 1000;
+    }
+
+    public static RIPLEVEL getRipLevel(String targetTime)
+    {
+        String[] timeElementArry = targetTime.split("\\.");
+        if (timeElementArry.length == 1)
+        {
+            // // yyyy:MM:dd HH:mm:ss
+            return RIPLEVEL.SECONDS;
+        }
+        else if (timeElementArry[timeElementArry.length - 1].length() == 3)
+        {
+            // yyyy:MM:dd HH:mm:ss[.[SSS]]
+            return RIPLEVEL.MILLISECONDS;
+        }
+        else if (timeElementArry[timeElementArry.length - 1].length() == 6)
+        {
+            // yyyy:MM:dd HH:mm:ss[.[SSSSS]]
+            return RIPLEVEL.MICROSECONDS;
+        }
+        throw new ConfigurationException("Wrong property format for restore_point_in_time :" + targetTime);
+    }
+
+    public long getRestorePointInTimeInMicroLevel()
+    {
+        if (riplevel == null)
+            return Long.MAX_VALUE;
+        return this.restorePointInTime;
+    }
+
+    @VisibleForTesting
+    public void setRestorePointInTime(long restorePointInTimeInMicroLevel)
+    {
+        this.restorePointInTime = restorePointInTimeInMicroLevel;
     }
 }

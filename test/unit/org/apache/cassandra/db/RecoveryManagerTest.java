@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -250,28 +249,84 @@ public class RecoveryManagerTest
     public void testRecoverPIT() throws Exception
     {
         CommitLog.instance.resetUnsafe(true);
+        long ripTimeInit = CommitLog.instance.archiver.restorePointInTime;
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
-        Date date = CommitLogArchiver.format.parse("2112:12:12 12:12:12");
-        long timeMS = date.getTime() - 5000;
 
+        // seconds level
+        // the archiver's restorePointInTime use the commitlog_archiving_properties file's
+        long ripTs = CommitLogArchiver.getRipLevel("2112:12:12 12:12:12").getMicroLevelTimeStamp("2112:12:12 12:12:12");
+        long timeInMicroLevel =  ripTs - 5000;
         Keyspace keyspace1 = Keyspace.open(KEYSPACE1);
         for (int i = 0; i < 10; ++i)
         {
-            long ts = TimeUnit.MILLISECONDS.toMicros(timeMS + (i * 1000));
+            long ts = timeInMicroLevel + (i * 1000);
             new RowUpdateBuilder(cfs.metadata(), ts, "name-" + i)
                 .clustering("cc")
                 .add("val", Integer.toString(i))
                 .build()
                 .apply();
         }
-
         // Sanity check row count prior to clear and replay
         assertEquals(10, Util.getAll(Util.cmd(cfs).build()).size());
-
-        keyspace1.getColumnFamilyStore("Standard1").clearUnsafe();
+        keyspace1.getColumnFamilyStore(CF_STANDARD1).clearUnsafe();
         CommitLog.instance.resetUnsafe(false);
-
         assertEquals(6, Util.getAll(Util.cmd(cfs).build()).size());
+        //reset the rip
+        CommitLog.instance.archiver.setRestorePointInTime(ripTimeInit);
+
+        CommitLog.instance.resetUnsafe(true);
+        cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
+        keyspace1 = Keyspace.open(KEYSPACE1);
+
+        // milseconds level
+        keyspace1.getColumnFamilyStore(CF_STANDARD1).clearUnsafe();
+        ripTs = CommitLogArchiver.getRipLevel("2112:12:12 12:12:12.063").getMicroLevelTimeStamp("2112:12:12 12:12:12.063");
+        timeInMicroLevel = ripTs - 5000;
+        keyspace1 = Keyspace.open(KEYSPACE1);
+        for (int i = 0; i < 10; ++i)
+        {
+            long ts = timeInMicroLevel + (i * 1000);
+            new RowUpdateBuilder(cfs.metadata(), ts, "name1-" + i)
+                    .clustering("cc")
+                    .add("val", Integer.toString(i))
+                    .build()
+                    .apply();
+        }
+        // Sanity check row count prior to clear and replay
+        assertEquals(10, Util.getAll(Util.cmd(cfs).build()).size());
+        keyspace1.getColumnFamilyStore(CF_STANDARD1).clearUnsafe();
+        CommitLog.instance.archiver.setRestorePointInTime(ripTs);
+        CommitLog.instance.resetUnsafe(false);
+        assertEquals(6, Util.getAll(Util.cmd(cfs).build()).size());
+
+        //reset the rip
+        CommitLog.instance.archiver.setRestorePointInTime(ripTimeInit);
+        CommitLog.instance.resetUnsafe(true);
+        cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
+        keyspace1 = Keyspace.open(KEYSPACE1);
+
+        // milseconds level
+        keyspace1.getColumnFamilyStore(CF_STANDARD1).clearUnsafe();
+        ripTs = CommitLogArchiver.getRipLevel("2112:12:12 12:12:12.063222").getMicroLevelTimeStamp("2112:12:12 12:12:12.063222");
+        timeInMicroLevel = ripTs - 5000;
+        keyspace1 = Keyspace.open(KEYSPACE1);
+        for (int i = 0; i < 10; ++i)
+        {
+            long ts = timeInMicroLevel + (i * 1000);
+            new RowUpdateBuilder(cfs.metadata(), ts, "name1-" + i)
+                    .clustering("cc")
+                    .add("val", Integer.toString(i))
+                    .build()
+                    .apply();
+        }
+        // Sanity check row count prior to clear and replay
+        assertEquals(10, Util.getAll(Util.cmd(cfs).build()).size());
+        keyspace1.getColumnFamilyStore(CF_STANDARD1).clearUnsafe();
+        CommitLog.instance.archiver.setRestorePointInTime(ripTs);
+        CommitLog.instance.resetUnsafe(false);
+        assertEquals(6, Util.getAll(Util.cmd(cfs).build()).size());
+        //reset the rip
+        CommitLog.instance.archiver.setRestorePointInTime(ripTimeInit);
     }
 
     @Test
@@ -280,13 +335,11 @@ public class RecoveryManagerTest
         CommitLog.instance.resetUnsafe(true);
         Keyspace keyspace1 = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace1.getColumnFamilyStore(CF_STATIC1);
-        Date date = CommitLogArchiver.format.parse("2112:12:12 12:12:12");
-        long timeMS = date.getTime() - 5000;
-
+        long timeInMicroLevel = CommitLogArchiver.getRipLevel("2112:12:12 12:12:12").getMicroLevelTimeStamp("2112:12:12 12:12:12") - 5000;
 
         for (int i = 0; i < 10; ++i)
         {
-            long ts = TimeUnit.MILLISECONDS.toMicros(timeMS + (i * 1000));
+            long ts = timeInMicroLevel + (i * 1000);
             new RowUpdateBuilder(cfs.metadata(), ts, "name-" + i)
             .add("val", Integer.toString(i))
             .build()
@@ -307,8 +360,8 @@ public class RecoveryManagerTest
     {
         CommitLog.instance.resetUnsafe(true);
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
-        Date date = CommitLogArchiver.format.parse("2112:12:12 12:12:12");
-        long timeMS = date.getTime();
+        // 2112:12:12 12:12:12 is from the commitlog_archiving.properties file for testing
+        long timeInMicroLevel = CommitLogArchiver.getRipLevel("2112:12:12 12:12:12").getMicroLevelTimeStamp("2112:12:12 12:12:12");
 
         Keyspace keyspace1 = Keyspace.open(KEYSPACE1);
 
@@ -317,9 +370,9 @@ public class RecoveryManagerTest
         {
             long ts;
             if (i == 9)
-                ts = TimeUnit.MILLISECONDS.toMicros(timeMS - 1000);
+                ts = timeInMicroLevel - 1000;
             else
-                ts = TimeUnit.MILLISECONDS.toMicros(timeMS + (i * 1000));
+                ts = timeInMicroLevel + (i * 1000);
 
             new RowUpdateBuilder(cfs.metadata(), ts, "name-" + i)
                 .clustering("cc")
@@ -331,9 +384,8 @@ public class RecoveryManagerTest
         // Sanity check row count prior to clear and replay
         assertEquals(10, Util.getAll(Util.cmd(cfs).build()).size());
 
-        keyspace1.getColumnFamilyStore("Standard1").clearUnsafe();
+        keyspace1.getColumnFamilyStore(CF_STANDARD1).clearUnsafe();
         CommitLog.instance.resetUnsafe(false);
-
         assertEquals(2, Util.getAll(Util.cmd(cfs).build()).size());
     }
 
