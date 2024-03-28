@@ -214,9 +214,10 @@ public final class TableParams
         if (this == o)
             return true;
 
-        if (!(o instanceof TableParams p))
+        if (!(o instanceof TableParams))
             return false;
 
+        TableParams p = (TableParams)o;
         return comment.equals(p.comment)
             && additionalWritePolicy.equals(p.additionalWritePolicy)
             && allowAutoSnapshot == p.allowAutoSnapshot
