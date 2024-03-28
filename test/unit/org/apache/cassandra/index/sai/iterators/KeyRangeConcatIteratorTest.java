@@ -421,7 +421,7 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
                 ranges.add(build(current.stream().mapToLong(Long::longValue).toArray()));
                 current.clear();
             }
-            if (randomDouble() < 0.1)
+            if (nextDouble() < 0.1)
                 i += nextInt(5);
         }
         ranges.add(build(current.stream().mapToLong(Long::longValue).toArray()));

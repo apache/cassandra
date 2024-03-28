@@ -159,11 +159,6 @@ public class SAIRandomizedTester extends SAITester
         return min == max ? min : min + (max - min) * getRandom().nextDouble();
     }
 
-    public static double randomDouble()
-    {
-        return getRandom().nextDouble();
-    }
-
     public static String randomSimpleString(int minLength, int maxLength)
     {
         Preconditions.checkArgument(minLength >= 0);
