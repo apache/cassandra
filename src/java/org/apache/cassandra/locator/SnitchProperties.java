@@ -80,6 +80,16 @@ public class SnitchProperties
     }
 
     /**
+     * Returns copy of properties.
+     *
+     * @return new copy of properties
+     */
+    public Properties getProperties()
+    {
+        return new Properties(properties);
+    }
+
+    /**
      * Get a snitch property value or return defaultValue if not defined.
      */
     public String get(String propertyName, String defaultValue)
