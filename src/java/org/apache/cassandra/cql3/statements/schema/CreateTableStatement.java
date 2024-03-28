@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3.statements.schema;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -265,7 +266,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
         List<ColumnIdentifier> nonClusterColumn = clusteringOrder.keySet().stream()
                                                                  .filter((id) -> !clusteringColumns.contains(id))
-                                                                 .toList();
+                                                                 .collect(Collectors.toList());
         if (!nonClusterColumn.isEmpty())
         {
             throw ire("Only clustering key columns can be defined in CLUSTERING ORDER directive: " + nonClusterColumn + " are not clustering columns");
