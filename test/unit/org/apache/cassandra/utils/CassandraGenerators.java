@@ -33,6 +33,7 @@ import org.apache.commons.lang3.builder.MultilineRecursiveToStringStyle;
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.SchemaCQLHelper;
@@ -316,4 +317,24 @@ public final class CassandraGenerators
             }
         }, true);
     }
+
+    public static Gen<Duration> duration()
+    {
+        Constraint ints = Constraint.between(0, Integer.MAX_VALUE);
+        Constraint longs = Constraint.between(0, Long.MAX_VALUE);
+        Gen<Boolean> neg = SourceDSL.booleans().all();
+        return rnd -> {
+            int months = (int) rnd.next(ints);
+            int days = (int) rnd.next(ints);
+            long nanoseconds = rnd.next(longs);
+            if (neg.generate(rnd))
+            {
+                months = -1 * months;
+                days = -1 * days;
+                nanoseconds = -1 * nanoseconds;
+            }
+            return Duration.newInstance(months, days, nanoseconds);
+        };
+    }
+
 }

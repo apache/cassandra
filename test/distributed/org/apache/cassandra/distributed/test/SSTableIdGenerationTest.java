@@ -525,7 +525,7 @@ public class SSTableIdGenerationTest extends TestBaseImpl
     {
         SimpleQueryResult result = instance.executeInternalWithResult(format("SELECT * FROM %s.%s", ks, tableName));
         Object[][] rows = result.toObjectArrays();
-        assertThat(rows).withFailMessage("Invalid results for %s.%s - should have %d rows but has %d: \n%s", ks, tableName, expectedNumber,
+        assertThat((Object []) rows).withFailMessage("Invalid results for %s.%s - should have %d rows but has %d: \n%s", ks, tableName, expectedNumber,
                                          rows.length, result.toString()).hasSize(expectedNumber);
     }
 }

@@ -160,7 +160,7 @@ public class QueryResultUtil
 
         public SimpleQueryResultAssertHelper isEqualTo(Object... values)
         {
-            Assertions.assertThat(qr.toObjectArrays())
+            Assertions.assertThat((Object[]) qr.toObjectArrays())
                       .hasSize(1)
                       .contains(values);
             return this;
@@ -168,13 +168,13 @@ public class QueryResultUtil
 
         public SimpleQueryResultAssertHelper hasSize(int size)
         {
-            Assertions.assertThat(qr.toObjectArrays()).hasSize(size);
+            Assertions.assertThat((Object[]) qr.toObjectArrays()).hasSize(size);
             return this;
         }
 
         public SimpleQueryResultAssertHelper hasSizeGreaterThan(int size)
         {
-            Assertions.assertThat(qr.toObjectArrays()).hasSizeGreaterThan(size);
+            Assertions.assertThat((Object[]) qr.toObjectArrays()).hasSizeGreaterThan(size);
             return this;
         }
 
