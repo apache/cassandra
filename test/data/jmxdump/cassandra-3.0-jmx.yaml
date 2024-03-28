@@ -1850,7 +1850,6 @@ org.apache.cassandra.db:type=Commitlog:
   - {access: read-only, name: RestoreCommand, type: java.lang.String}
   - {access: read-only, name: RestoreDirectories, type: java.lang.String}
   - {access: read-only, name: RestorePointInTime, type: long}
-  - {access: read-only, name: RestorePrecision, type: java.lang.String}
   operations:
   - name: recover
     parameters:
