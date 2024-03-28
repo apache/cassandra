@@ -269,7 +269,7 @@ public class SchemaCQLHelperTest extends CQLTester
                .bloomFilterFpChance(1.0)
                .comment("comment")
                .compaction(CompactionParams.lcs(Collections.singletonMap("sstable_size_in_mb", "1")))
-               .compression(CompressionParams.lz4(1 << 16, 1 << 15))
+               .compression(TestCompressionParamsFactory.lz4(1 << 16, 1 << 15))
                .crcCheckChance(0.3)
                .defaultTimeToLive(4)
                .gcGraceSeconds(5)

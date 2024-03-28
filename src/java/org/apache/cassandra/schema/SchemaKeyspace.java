@@ -1050,7 +1050,7 @@ public final class SchemaKeyspace
         if (row.has("incremental_backups"))
             builder.incrementalBackups(row.getBoolean("incremental_backups"));
 
-        return builder.build();
+        return builder.build(row.getString("keyspace_name"));
     }
 
     private static List<ColumnMetadata> fetchColumns(String keyspace, String table, Types types, UserFunctions functions)

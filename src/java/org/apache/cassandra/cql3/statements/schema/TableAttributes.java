@@ -54,22 +54,22 @@ public final class TableAttributes extends PropertyDefinitions
         obsoleteKeywords = ImmutableSet.of();
     }
 
-    public void validate()
+    public void validate(String keyspace)
     {
         validate(validKeywords, obsoleteKeywords);
-        build(TableParams.builder()).validate();
+        build(TableParams.builder(), keyspace).validate();
     }
 
-    TableParams asNewTableParams()
+    TableParams asNewTableParams(String keyspace)
     {
-        return build(TableParams.builder());
+        return build(TableParams.builder(), keyspace);
     }
 
-    TableParams asAlteredTableParams(TableParams previous)
+    TableParams asAlteredTableParams(TableParams previous, String keyspaceName)
     {
         if (getId() != null)
             throw new ConfigurationException("Cannot alter table id.");
-        return build(previous.unbuild());
+        return build(previous.unbuild(), keyspaceName);
     }
 
     public TableId getId() throws ConfigurationException
@@ -95,7 +95,7 @@ public final class TableAttributes extends PropertyDefinitions
         return Sets.union(validKeywords, obsoleteKeywords);
     }
 
-    private TableParams build(TableParams.Builder builder)
+    private TableParams build(TableParams.Builder builder, String keyspace)
     {
         if (hasOption(ALLOW_AUTO_SNAPSHOT))
             builder.allowAutoSnapshot(getBoolean(ALLOW_AUTO_SNAPSHOT.toString(), true));
@@ -151,7 +151,7 @@ public final class TableAttributes extends PropertyDefinitions
         if (hasOption(READ_REPAIR))
             builder.readRepair(ReadRepairStrategy.fromString(getString(READ_REPAIR)));
 
-        return builder.build();
+        return builder.build(keyspace);
     }
 
     public boolean hasOption(Option option)

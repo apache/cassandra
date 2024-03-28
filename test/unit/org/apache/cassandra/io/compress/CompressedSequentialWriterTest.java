@@ -47,6 +47,7 @@ import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.io.util.SequentialWriterTest;
 import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.schema.TestCompressionParamsFactory;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.schema.CompressionParams.DEFAULT_CHUNK_LENGTH;
@@ -88,35 +89,35 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
     @Test
     public void testLZ4Writer() throws IOException
     {
-        compressionParameters = CompressionParams.lz4();
+        compressionParameters = TestCompressionParamsFactory.lz4();
         runTests("LZ4");
     }
 
     @Test
     public void testDeflateWriter() throws IOException
     {
-        compressionParameters = CompressionParams.deflate();
+        compressionParameters = TestCompressionParamsFactory.deflate();
         runTests("Deflate");
     }
 
     @Test
     public void testSnappyWriter() throws IOException
     {
-        compressionParameters = CompressionParams.snappy();
+        compressionParameters = TestCompressionParamsFactory.snappy();
         runTests("Snappy");
     }
 
     @Test
     public void testZSTDWriter() throws IOException
     {
-        compressionParameters = CompressionParams.zstd();
+        compressionParameters = TestCompressionParamsFactory.zstd();
         runTests("ZSTD");
     }
 
     @Test
     public void testNoopWriter() throws IOException
     {
-        compressionParameters = CompressionParams.noop();
+        compressionParameters = TestCompressionParamsFactory.noop();
         runTests("Noop");
     }
 
@@ -191,7 +192,7 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
     public void testShortUncompressedChunk() throws IOException
     {
         // Test uncompressed chunk below threshold (CASSANDRA-14892)
-        compressionParameters = CompressionParams.lz4(DEFAULT_CHUNK_LENGTH, DEFAULT_CHUNK_LENGTH);
+        compressionParameters = TestCompressionParamsFactory.lz4(DEFAULT_CHUNK_LENGTH, DEFAULT_CHUNK_LENGTH);
         testWrite(FileUtils.createTempFile("14892", "1"), compressionParameters.maxCompressedLength() - 1, false);
     }
 
@@ -288,7 +289,7 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
         byte[] toWrite = new byte[writeSize];
         try (SequentialWriter writer = new CompressedSequentialWriter(tempFile, offsetsFile,
                                                                       null, SequentialWriterOption.DEFAULT,
-                                                                      CompressionParams.lz4(bufferSize),
+                                                                      TestCompressionParamsFactory.lz4(bufferSize),
                                                                       new MetadataCollector(new ClusteringComparator(UTF8Type.instance))))
         {
             // write bytes greather than buffer
@@ -342,7 +343,7 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
         {
             this(file, offsetsFile, new CompressedSequentialWriter(file, offsetsFile,
                                                                    null, SequentialWriterOption.DEFAULT,
-                                                                   CompressionParams.lz4(BUFFER_SIZE, MAX_COMPRESSED),
+                                                                   TestCompressionParamsFactory.lz4(BUFFER_SIZE, MAX_COMPRESSED),
                                                                    new MetadataCollector(new ClusteringComparator(UTF8Type.instance))));
 
         }

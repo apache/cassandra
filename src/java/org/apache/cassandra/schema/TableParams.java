@@ -47,7 +47,6 @@ import static org.apache.cassandra.db.TypeSizes.sizeof;
 
 public final class TableParams
 {
-    public static final Serializer serializer = new Serializer();
     public enum Option
     {
         ALLOW_AUTO_SNAPSHOT,
@@ -218,8 +217,7 @@ public final class TableParams
         if (!(o instanceof TableParams))
             return false;
 
-        TableParams p = (TableParams) o;
-
+        TableParams p = (TableParams)o;
         return comment.equals(p.comment)
             && additionalWritePolicy.equals(p.additionalWritePolicy)
             && allowAutoSnapshot == p.allowAutoSnapshot
@@ -358,7 +356,7 @@ public final class TableParams
         private SpeculativeRetryPolicy additionalWritePolicy = PercentileSpeculativeRetryPolicy.NINETY_NINE_P;
         private CachingParams caching = CachingParams.DEFAULT;
         private CompactionParams compaction = CompactionParams.DEFAULT;
-        private CompressionParams compression = CompressionParams.DEFAULT;
+        private CompressionParams compression;
         private MemtableParams memtable = MemtableParams.DEFAULT;
         private ImmutableMap<String, ByteBuffer> extensions = ImmutableMap.of();
         private boolean cdc;
@@ -368,8 +366,11 @@ public final class TableParams
         {
         }
 
-        public TableParams build()
+        public TableParams build(String keyspace)
         {
+            if (compression == null)
+                compression = CompressionParams.defaultParams(keyspace);
+
             return new TableParams(this);
         }
 
@@ -490,6 +491,11 @@ public final class TableParams
 
     public static class Serializer implements MetadataSerializer<TableParams>
     {
+        private final String keyspace;
+        Serializer(String keyspace) {
+            this.keyspace = keyspace;
+        }
+
         public void serialize(TableParams t, DataOutputPlus out, Version version) throws IOException
         {
             out.writeUTF(t.comment);
@@ -532,7 +538,7 @@ public final class TableParams
                    .extensions(deserializeMapBB(in))
                    .cdc(in.readBoolean())
                    .readRepair(ReadRepairStrategy.fromString(in.readUTF()));
-            return builder.build();
+            return builder.build(keyspace);
         }
 
         public long serializedSize(TableParams t, Version version)

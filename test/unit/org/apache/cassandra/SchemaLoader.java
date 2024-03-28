@@ -749,15 +749,15 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
         switch (algo)
         {
             case "deflate":
-                return CompressionParams.deflate(chunkLength);
+                return TestCompressionParamsFactory.deflate(chunkLength);
             case "lz4":
-                return CompressionParams.lz4(chunkLength);
+                return TestCompressionParamsFactory.lz4(chunkLength);
             case "snappy":
-                return CompressionParams.snappy(chunkLength);
+                return TestCompressionParamsFactory.snappy(chunkLength);
             case "noop":
-                return CompressionParams.noop();
+                return TestCompressionParamsFactory.noop();
             case "zstd":
-                return CompressionParams.zstd(chunkLength);
+                return TestCompressionParamsFactory.zstd(chunkLength);
             case "none":
                 return CompressionParams.noCompression();
             default:

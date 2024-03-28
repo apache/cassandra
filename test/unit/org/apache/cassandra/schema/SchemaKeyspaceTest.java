@@ -78,7 +78,7 @@ public class SchemaKeyspaceTest
                 checkInverses(cfs.metadata());
 
                 // Testing with compression to catch #3558
-                TableMetadata withCompression = cfs.metadata().unbuild().compression(CompressionParams.snappy(32768)).build();
+                TableMetadata withCompression = cfs.metadata().unbuild().compression(TestCompressionParamsFactory.snappy(32768)).build();
                 checkInverses(withCompression);
             }
         }

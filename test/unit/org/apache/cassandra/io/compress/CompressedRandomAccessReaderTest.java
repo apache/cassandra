@@ -41,6 +41,7 @@ import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.schema.TestCompressionParamsFactory;
 import org.apache.cassandra.utils.SyncUtil;
 import org.assertj.core.api.Assertions;
 
@@ -106,7 +107,7 @@ public class CompressedRandomAccessReaderTest
         MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
         try(CompressedSequentialWriter writer = new CompressedSequentialWriter(f, new File(filename + ".metadata"),
                                                                                null, SequentialWriterOption.DEFAULT,
-                                                                               CompressionParams.snappy(32),
+                                                                               TestCompressionParamsFactory.snappy(32),
                                                                                sstableMetadataCollector))
         {
 
@@ -155,7 +156,7 @@ public class CompressedRandomAccessReaderTest
 
         try
         {
-            writeSSTable(file, CompressionParams.snappy(chunkLength), 10);
+            writeSSTable(file, TestCompressionParamsFactory.snappy(chunkLength), 10);
             CompressionMetadata metadata = CompressionMetadata.open(new File(filename + ".metadata"), file.length(), true);
 
             long chunks = 2761628520L;
@@ -180,7 +181,7 @@ public class CompressedRandomAccessReaderTest
     private static void testResetAndTruncate(File f, boolean compressed, boolean usemmap, int junkSize, double minCompressRatio) throws IOException
     {
         final String filename = f.absolutePath();
-        writeSSTable(f, compressed ? CompressionParams.snappy() : null, junkSize);
+        writeSSTable(f, compressed ? TestCompressionParamsFactory.snappy() : null, junkSize);
 
         try (CompressionMetadata compressionMetadata = compressed ? CompressionMetadata.open(new File(filename + ".metadata"), f.length(), true) : null;
              FileHandle fh = new FileHandle.Builder(f).mmapped(usemmap).withCompressionMetadata(compressionMetadata).complete();
@@ -249,7 +250,7 @@ public class CompressedRandomAccessReaderTest
         MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
         try (SequentialWriter writer = new CompressedSequentialWriter(file, metadata,
                                                                       null, SequentialWriterOption.DEFAULT,
-                                                                      CompressionParams.snappy(), sstableMetadataCollector))
+                                                                      TestCompressionParamsFactory.snappy(), sstableMetadataCollector))
         {
             writer.write(CONTENT.getBytes());
             writer.finish();
