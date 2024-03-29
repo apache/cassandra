@@ -125,7 +125,7 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
         AccordSafeCommand safeCommand = new AccordSafeCommand(AccordTestUtils.loaded(id, null));
         safeCommand.set(committed);
 
-        Commit commit = Commit.SerializerSupport.create(id, route.slice(scope), 1, Commit.Kind.StableFastPath, Ballot.ZERO, id, partialTxn.keys(), partialTxn, partialDeps, route, null);
+        Commit commit = Commit.SerializerSupport.create(id, route.slice(scope), 1, Commit.Kind.CommitSlowPath, Ballot.ZERO, id, partialTxn.keys(), partialTxn, partialDeps, route, null);
         store.appendToJournal(commit);
 
         Mutation mutation = AccordKeyspace.getCommandMutation(store, safeCommand, 42);
