@@ -50,6 +50,7 @@ import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.SimpleGraph;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.DTEST_ACCORD_ENABLED;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_GC_INSPECTOR;
 import static org.apache.cassandra.distributed.shared.Versions.Version;
 import static org.apache.cassandra.distributed.shared.Versions.find;
@@ -71,6 +72,7 @@ public class UpgradeTestBase extends DistributedTestBase
     {
         ICluster.setup();
         SKIP_GC_INSPECTOR.setBoolean(true);
+        DTEST_ACCORD_ENABLED.setBoolean(false);
     }
 
 

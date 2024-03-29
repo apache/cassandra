@@ -17,13 +17,11 @@
  */
 package org.apache.cassandra.service.accord.async;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-
 import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
@@ -34,26 +32,26 @@ import accord.api.Key;
 import accord.local.CommandStore;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
-import accord.primitives.RoutableKey;
 import accord.primitives.Seekables;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordSafeCommand;
-import org.apache.cassandra.service.accord.AccordSafeCommandsForKey;
 import org.apache.cassandra.service.accord.AccordSafeCommandStore;
+import org.apache.cassandra.service.accord.AccordSafeCommandsForKey;
+import org.apache.cassandra.service.accord.AccordSafeCommandsForRanges;
 import org.apache.cassandra.service.accord.AccordSafeState;
 import org.apache.cassandra.service.accord.AccordSafeTimestampsForKey;
 
 import static org.apache.cassandra.service.accord.async.AsyncLoader.txnIds;
+import static org.apache.cassandra.service.accord.async.AsyncOperation.State.COMPLETING;
+import static org.apache.cassandra.service.accord.async.AsyncOperation.State.FAILED;
+import static org.apache.cassandra.service.accord.async.AsyncOperation.State.FINISHED;
 import static org.apache.cassandra.service.accord.async.AsyncOperation.State.INITIALIZED;
 import static org.apache.cassandra.service.accord.async.AsyncOperation.State.LOADING;
 import static org.apache.cassandra.service.accord.async.AsyncOperation.State.PREPARING;
 import static org.apache.cassandra.service.accord.async.AsyncOperation.State.RUNNING;
-import static org.apache.cassandra.service.accord.async.AsyncOperation.State.COMPLETING;
-import static org.apache.cassandra.service.accord.async.AsyncOperation.State.FINISHED;
-import static org.apache.cassandra.service.accord.async.AsyncOperation.State.FAILED;
 
 public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements Runnable, Function<SafeCommandStore, R>
 {
@@ -70,6 +68,8 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         final HashMap<TxnId, AccordSafeCommand> commands = new HashMap<>();
         final TreeMap<Key, AccordSafeTimestampsForKey> timestampsForKey = new TreeMap<>();
         final TreeMap<Key, AccordSafeCommandsForKey> commandsForKey = new TreeMap<>();
+        @Nullable
+        AccordSafeCommandsForRanges commandsForRanges = null;
 
         void releaseResources(AccordCommandStore commandStore)
         {
@@ -83,6 +83,8 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
             commands.values().forEach(AccordSafeState::revert);
             timestampsForKey.values().forEach(AccordSafeState::revert);
             commandsForKey.values().forEach(AccordSafeState::revert);
+            if (commandsForRanges != null)
+                commandsForRanges.revert();
         }
     }
 
@@ -187,19 +189,9 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
     }
 
     @SuppressWarnings("unchecked")
-    Iterable<RoutableKey> keys()
+    Seekables<?, ?> keys()
     {
-        Seekables<?, ?> keys = preLoadContext.keys();
-        switch (keys.domain())
-        {
-            default:
-                throw new IllegalStateException("Unhandled domain " + keys.domain());
-            case Key:
-                return (Iterable<RoutableKey>) keys;
-            case Range:
-                // TODO (expected): handle ranges
-                return Collections.emptyList();
-        }
+        return preLoadContext.keys();
     }
 
     private void fail(Throwable throwable)
@@ -255,11 +247,11 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
                     return;
                 state(PREPARING);
             case PREPARING:
-                safeStore = commandStore.beginOperation(preLoadContext, context.commands, context.timestampsForKey, context.commandsForKey);
+                safeStore = commandStore.beginOperation(preLoadContext, context.commands, context.timestampsForKey, context.commandsForKey, context.commandsForRanges);
                 state(RUNNING);
             case RUNNING:
                 result = apply(safeStore);
-                safeStore.postExecute(context.commands, context.timestampsForKey, context.commandsForKey);
+                safeStore.postExecute(context.commands, context.timestampsForKey, context.commandsForKey, context.commandsForRanges);
                 context.releaseResources(commandStore);
                 commandStore.completeOperation(safeStore);
                 commandStore.executionOrder().unregister(this);

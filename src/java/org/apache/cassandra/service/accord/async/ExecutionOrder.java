@@ -18,11 +18,20 @@
 package org.apache.cassandra.service.accord.async;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.IdentityHashMap;
+import java.util.List;
 
-import accord.primitives.RoutableKey;
+import accord.api.Key;
+import accord.api.RoutingKey;
+import accord.primitives.Range;
+import accord.primitives.Seekable;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import org.agrona.collections.Object2ObjectHashMap;
+import org.apache.cassandra.service.accord.RangeTreeRangeAccessor;
+import org.apache.cassandra.utils.RTree;
+import org.apache.cassandra.utils.RangeTree;
 
 /**
  * Assists with correct ordering of {@link AsyncOperation} execution wrt each other,
@@ -30,7 +39,85 @@ import org.agrona.collections.Object2ObjectHashMap;
  */
 public class ExecutionOrder
 {
+    private static class Conflicts
+    {
+        private final List<Key> keyConflicts;
+        private final List<Range> rangeConflicts;
+
+        private Conflicts(List<Key> keyConflicts, List<Range> rangeConflicts)
+        {
+            this.keyConflicts = keyConflicts;
+            this.rangeConflicts = rangeConflicts;
+        }
+    }
+    private class RangeState
+    {
+        private final Range range;
+        private final IdentityHashMap<AsyncOperation<?>, Conflicts> operationToConflicts = new IdentityHashMap<>();
+        private Object operationOrQueue;
+
+        public RangeState(Range range, List<Key> keyConflicts, List<Range> rangeConflicts, AsyncOperation<?> operation)
+        {
+            this.range = range;
+            this.operationOrQueue = operation;
+            add(operation, keyConflicts, rangeConflicts);
+        }
+
+        public void add(AsyncOperation<?> operation, List<Key> keyConflicts, List<Range> rangeConflicts)
+        {
+            operationToConflicts.put(operation, new Conflicts(keyConflicts, rangeConflicts));
+        }
+
+        boolean canRun(AsyncOperation<?> operation)
+        {
+            if (operationOrQueue instanceof AsyncOperation<?>)
+            {
+                Invariants.checkState(operationOrQueue == operation);
+                return true;
+            }
+            else
+            {
+                ArrayDeque<AsyncOperation<?>> queue = (ArrayDeque<AsyncOperation<?>>) operationOrQueue;
+                return queue.peek() == operation;
+            }
+        }
+
+        Conflicts remove(AsyncOperation<?> operation)
+        {
+            if (operationOrQueue instanceof AsyncOperation<?>)
+            {
+                Invariants.checkState(operationOrQueue == operation);
+                rangeQueues.remove(range);
+            }
+            else
+            {
+                @SuppressWarnings("unchecked")
+                ArrayDeque<AsyncOperation<?>> queue = (ArrayDeque<AsyncOperation<?>>) operationOrQueue;
+                AsyncOperation<?> head = queue.poll();
+                Invariants.checkState(head == operation);
+
+                if (queue.isEmpty())
+                {
+                    rangeQueues.remove(range);
+                }
+                else
+                {
+                    head = queue.peek();
+                    if (canRun(head))
+                        head.onUnblocked();
+                }
+            }
+            return operationToConflicts.remove(operation);
+        }
+
+        public Conflicts conflicts(AsyncOperation<?> operation)
+        {
+            return operationToConflicts.get(operation);
+        }
+    }
+
     private final Object2ObjectHashMap<Object, Object> queues = new Object2ObjectHashMap<>();
+    private final RangeTree<RoutingKey, Range, RangeState> rangeQueues = RTree.create(RangeTreeRangeAccessor.instance);
 
     /**
      * Register an operation as having a dependency on its keys and TxnIds
@@ -39,12 +126,86 @@ public class ExecutionOrder
     boolean register(AsyncOperation<?> operation)
     {
         boolean canRun = true;
-        for (RoutableKey key : operation.keys())
-            canRun &= register(key, operation);
+        for (Seekable seekable : operation.keys())
+        {
+            switch (seekable.domain())
+            {
+                case Key:
+                    canRun &= register(seekable.asKey(), operation);
+                    break;
+                case Range:
+                    canRun &= register(seekable.asRange(), operation);
+                    break;
+                default:
+                    throw new AssertionError("Unexpected domain: " + seekable.domain());
+            }
+        }
         TxnId primaryTxnId = operation.primaryTxnId();
         if (null != primaryTxnId)
             canRun &= register(primaryTxnId, operation);
         return canRun;
+    }
+
+    private boolean register(Range range, AsyncOperation<?> operation)
+    {
+        // Ranges depend on Ranges and Keys
+        // Keys depend on Keys...
+        // This adds a complication to this logic as keys should be able to make progress regardless of ranges, but rangest must depend on keys
+        List<Key> keyConflicts = null;
+        for (Object o : queues.keySet())
+        {
+            if (!(o instanceof Key))
+                continue;
+            Key key = (Key) o;
+            if (!range.contains(key))
+                continue;
+            if (keyConflicts == null)
+                keyConflicts = new ArrayList<>();
+            keyConflicts.add(key);
+        }
+        if (keyConflicts != null)
+            keyConflicts.forEach(k -> register(k, operation));
+
+        class Result
+        {
+            RangeState sameRange = null;
+            List<Range> rangeConflicts = null;
+        }
+        Result result = new Result();
+        rangeQueues.search(range, e -> {
+            if (range.equals(e.getKey()))
+                result.sameRange = e.getValue();
+            else
+            {
+                if (result.rangeConflicts == null)
+                    result.rangeConflicts = new ArrayList<>();
+                result.rangeConflicts.add(e.getKey());
+            }
+            RangeState state = e.getValue();
+            Object operationOrQueue = state.operationOrQueue;
+            if (operationOrQueue instanceof AsyncOperation)
+            {
+                ArrayDeque<AsyncOperation<?>> queue = new ArrayDeque<>(4);
+                queue.add((AsyncOperation<?>) operationOrQueue);
+                queue.add(operation);
+                state.operationOrQueue = queue;
+            }
+            else
+            {
+                @SuppressWarnings("unchecked")
+                ArrayDeque<AsyncOperation<?>> queue = (ArrayDeque<AsyncOperation<?>>) operationOrQueue;
+                queue.add(operation);
+            }
+        });
+        if (result.sameRange != null)
+        {
+            result.sameRange.add(operation, keyConflicts, result.rangeConflicts);
+        }
+        else
+        {
+            rangeQueues.add(range, new RangeState(range, keyConflicts, result.rangeConflicts, operation));
+        }
+        return keyConflicts == null && result.rangeConflicts == null;
     }
 
     /**
@@ -81,11 +242,34 @@ public class ExecutionOrder
      */
     void unregister(AsyncOperation<?> operation)
     {
-        for (RoutableKey key : operation.keys())
-            unregister(key, operation);
+        for (Seekable seekable : operation.keys())
+        {
+            switch (seekable.domain())
+            {
+                case Key:
+                    unregister(seekable.asKey(), operation);
+                    break;
+                case Range:
+                    unregister(seekable.asRange(), operation);
+                    break;
+                default:
+                    throw new AssertionError("Unexpected domain: " + seekable.domain());
+            }
+
+        }
         TxnId primaryTxnId = operation.primaryTxnId();
         if (null != primaryTxnId)
             unregister(primaryTxnId, operation);
+    }
+
+    private void unregister(Range range, AsyncOperation<?> operation)
+    {
+        var state = state(range);
+        var conflicts = state.remove(operation);
+        if (conflicts.rangeConflicts != null)
+            conflicts.rangeConflicts.forEach(r -> state(r).remove(operation));
+        if (conflicts.keyConflicts != null)
+            conflicts.keyConflicts.forEach(k -> unregister(k, operation));
     }
 
     /**
@@ -123,12 +307,58 @@ public class ExecutionOrder
 
     boolean canRun(AsyncOperation<?> operation)
     {
-        for (RoutableKey key : operation.keys())
-            if (!canRun(key, operation))
-                return false;
+        for (Seekable seekable : operation.keys())
+        {
+            switch (seekable.domain())
+            {
+                case Key:
+                    if (!canRun(seekable.asKey(), operation))
+                        return false;
+                    break;
+                case Range:
+                    if (!canRun(seekable.asRange(), operation))
+                        return false;
+                    break;
+                default:
+                    throw new AssertionError("Unexpected domain: " + seekable.domain());
+            }
+
+        }
 
         TxnId primaryTxnId = operation.primaryTxnId();
         return primaryTxnId == null || canRun(primaryTxnId, operation);
+    }
+
+    private boolean canRun(Range range, AsyncOperation<?> operation)
+    {
+        var state = state(range);
+        if (!state.canRun(operation))
+            return false;
+        var conflicts = state.conflicts(operation);
+        if (conflicts.rangeConflicts != null)
+        {
+            for (var r : conflicts.rangeConflicts)
+            {
+                if (!state(r).canRun(operation))
+                    return false;
+            }
+        }
+        if (conflicts.keyConflicts != null)
+        {
+            for (Key key : conflicts.keyConflicts)
+            {
+                if (!canRun(key, operation))
+                    return false;
+            }
+        }
+        return true;
+    }
+
+    private RangeState state(Range range)
+    {
+        var list = rangeQueues.get(range);
+        assert list.size() == 1 : String.format("Expected 1 element but saw list %s", list);
+        return list.get(0);
     }
 
     private boolean canRun(Object keyOrTxnId, AsyncOperation<?> operation)

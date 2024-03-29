@@ -34,6 +34,11 @@ public interface RandomSource
     {
         return new accord.utilsfork.WrappedRandomSource(random);
     }
+    //TODO (maintaince): once the rebase is over remove this...
+    static RandomSource wrap(accord.utils.RandomSource rs)
+    {
+        return new WrappedRandomSource(rs.asJdkRandom());
+    }
 
     void nextBytes(byte[] bytes);
 

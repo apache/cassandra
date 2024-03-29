@@ -148,7 +148,7 @@ public class AccordCommandStoreTest
             Apply.SerializationSupport.create(txnId,
                                               route.slice(Ranges.of(TokenRange.fullRange(tableId))),
                                               1L,
-                                              Apply.Kind.Minimal,
+                                              Apply.Kind.Maximal,
                                               depTxn.keys(),
                                               executeAt,
                                               dependencies,
