@@ -131,7 +131,7 @@ public class SAIRandomizedTester extends SAITester
 
     public static double nextDouble()
     {
-        return randomDoubleBetween(0, 1);
+        return getRandom().nextDouble();
     }
 
     public static boolean nextBoolean()

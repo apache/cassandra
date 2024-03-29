@@ -49,7 +49,7 @@ public class KeyRangeConcatIterator extends KeyRangeIterator
             throw new IllegalArgumentException("Cannot concatenate empty list of ranges");
 
         this.current = 0;
-        this.ranges = new ArrayList<>(ranges);
+        this.ranges = ranges;
     }
 
     @Override
