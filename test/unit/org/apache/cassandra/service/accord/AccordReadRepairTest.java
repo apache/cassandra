@@ -38,7 +38,7 @@ import static org.apache.cassandra.distributed.util.QueryResultUtil.assertThat;
 
 public class AccordReadRepairTest extends AccordTestBase
 {
-    private static final Logger logger = LoggerFactory.getLogger(org.apache.cassandra.distributed.test.accord.AccordCQLTest.class);
+    private static final Logger logger = LoggerFactory.getLogger(AccordReadRepairTest.class);
 
     @Override
     protected Logger logger()

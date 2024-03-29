@@ -18,8 +18,7 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.Collections;
-import java.util.List;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
@@ -27,23 +26,19 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
-
 import javax.annotation.Nullable;
 
+import accord.api.Key;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
 import accord.api.DataStore;
-import accord.api.Key;
 import accord.api.ProgressLog;
 import accord.local.CommandsForKey;
-import accord.impl.CommandsSummary;
 import accord.impl.TimestampsForKey;
 import accord.local.Command;
 import accord.local.CommandStore;
@@ -52,37 +47,28 @@ import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
 import accord.local.SafeCommandStore;
-import accord.local.SaveStatus;
-import accord.local.SerializerSupport;
 import accord.local.SerializerSupport.MessageProvider;
 import accord.messages.Message;
-import accord.primitives.AbstractKeys;
-import accord.primitives.AbstractRanges;
-import accord.primitives.Ballot;
-import accord.primitives.Range;
 import accord.primitives.Ranges;
-import accord.primitives.Routable;
 import accord.primitives.RoutableKey;
-import accord.primitives.Routables;
-import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.ReducingRangeMap;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
-import accord.utils.async.Observable;
 import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.metrics.AccordStateCacheMetrics;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.service.accord.async.ExecutionOrder;
+import org.apache.cassandra.service.accord.events.CacheEvents;
 import org.apache.cassandra.utils.Clock;
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
@@ -91,8 +77,12 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCommandStore.class);
 
+    private static final boolean CHECK_THREADS = CassandraRelevantProperties.TEST_ACCORD_STORE_THREAD_CHECKS_ENABLED.getBoolean();
+
     private static long getThreadId(ExecutorService executor)
     {
+        if (!CHECK_THREADS)
+            return 0;
         try
         {
             return executor.submit(() -> Thread.currentThread().getId()).get();
@@ -109,7 +99,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
     private final long threadId;
     public final String loggingId;
-    private final AccordJournal journal;
+    private final IJournal journal;
     private final ExecutorService executor;
     private final ExecutionOrder executionOrder;
     private final AccordStateCache stateCache;
@@ -119,7 +109,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     private AsyncOperation<?> currentOperation = null;
     private AccordSafeCommandStore current = null;
     private long lastSystemTimestampMicros = Long.MIN_VALUE;
-    private CommandsForRanges commandsForRanges = new CommandsForRanges();
+    private final CommandsForRangesLoader commandsForRangesLoader;
 
     public AccordCommandStore(int id,
                               NodeTimeService time,
@@ -127,10 +117,77 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                               DataStore dataStore,
                               ProgressLog.Factory progressLogFactory,
                               EpochUpdateHolder epochUpdateHolder,
-                              AccordJournal journal,
+                              IJournal journal,
                               AccordStateCacheMetrics cacheMetrics)
     {
         this(id, time, agent, dataStore, progressLogFactory, epochUpdateHolder, journal, Stage.READ.executor(), Stage.MUTATION.executor(), cacheMetrics);
+    }
+
+    private static <K, V> void registerJfrListener(int id, AccordStateCache.Instance<K, V, ?> instance, String name)
+    {
+        if (!DatabaseDescriptor.getAccordStateCacheListenerJFREnabled())
+            return;
+        instance.register(new AccordStateCache.Listener<K, V>() {
+            private final IdentityHashMap<AccordCachingState<?, ?>, CacheEvents.Evict> pendingEvicts = new IdentityHashMap<>();
+
+            @Override
+            public void onAdd(AccordCachingState<K, V> state)
+            {
+                CacheEvents.Add add = new CacheEvents.Add();
+                CacheEvents.Evict evict = new CacheEvents.Evict();
+                if (!add.isEnabled())
+                    return;
+                add.begin();
+                evict.begin();
+                add.store = evict.store = id;
+                add.instance = evict.instance = name;
+                add.key = evict.key = state.key().toString();
+                updateMutable(instance, state, add);
+                add.commit();
+                pendingEvicts.put(state, evict);
+            }
+
+            @Override
+            public void onRelease(AccordCachingState<K, V> state)
+            {
+
+            }
+
+            @Override
+            public void onEvict(AccordCachingState<K, V> state)
+            {
+                CacheEvents.Evict event = pendingEvicts.remove(state);
+                if (event == null) return;
+                updateMutable(instance, state, event);
+                event.commit();
+            }
+        });
+    }
+
+    private static void updateMutable(AccordStateCache.Instance<?, ?, ?> instance, AccordCachingState<?, ?> state, CacheEvents event)
+    {
+        event.status = state.state().status().name();
+
+        event.lastQueriedEstimatedSizeOnHeap = state.lastQueriedEstimatedSizeOnHeap();
+
+        event.instanceAllocated = instance.weightedSize();
+        AccordStateCache.Stats stats = instance.stats();
+        event.instanceStatsQueries = stats.queries;
+        event.instanceStatsHits = stats.hits;
+        event.instanceStatsMisses = stats.misses;
+
+        event.globalSize = instance.size();
+        event.globalReferenced = instance.globalReferencedEntries();
+        event.globalUnreferenced = instance.globalUnreferencedEntries();
+        event.globalCapacity = instance.capacity();
+        event.globalAllocated = instance.globalAllocated();
+
+        stats = instance.globalStats();
+        event.globalStatsQueries = stats.queries;
+        event.globalStatsHits = stats.hits;
+        event.globalStatsMisses = stats.misses;
+
+        event.update();
     }
 
     @VisibleForTesting
@@ -140,7 +197,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                               DataStore dataStore,
                               ProgressLog.Factory progressLogFactory,
                               EpochUpdateHolder epochUpdateHolder,
-                              AccordJournal journal,
+                              IJournal journal,
                               ExecutorPlus loadExecutor,
                               ExecutorPlus saveExecutor,
                               AccordStateCacheMetrics cacheMetrics)
@@ -160,6 +217,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                                 this::saveCommand,
                                 this::validateCommand,
                                 AccordObjectSizes::command);
+        registerJfrListener(id, commandCache, "Command");
         timestampsForKeyCache =
             stateCache.instance(Key.class,
                                 AccordSafeTimestampsForKey.class,
@@ -168,6 +226,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                                 this::saveTimestampsForKey,
                                 this::validateTimestampsForKey,
                                 AccordObjectSizes::timestampsForKey);
+        registerJfrListener(id, timestampsForKeyCache, "TimestampsForKey");
         commandsForKeyCache =
             stateCache.instance(Key.class,
                                 AccordSafeCommandsForKey.class,
@@ -177,6 +236,9 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                                 this::validateCommandsForKey,
                                 AccordObjectSizes::commandsForKey,
                                 AccordCachingState::new);
+        registerJfrListener(id, commandsForKeyCache, "CommandsForKey");
+
+        this.commandsForRangesLoader = new CommandsForRangesLoader(this);
 
         AccordKeyspace.loadCommandStoreMetadata(id, ((rejectBefore, durableBefore, redundantBefore, bootstrapBeganAt, safeToRead) -> {
             executor.submit(() -> {
@@ -194,7 +256,6 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         }));
 
         executor.execute(() -> CommandStore.register(this));
-        executor.execute(this::loadRangesToCommands);
     }
 
     static Factory factory(AccordJournal journal, AccordStateCacheMetrics cacheMetrics)
@@ -203,66 +264,16 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                new AccordCommandStore(id, time, agent, dataStore, progressLogFactory, rangesForEpoch, journal, cacheMetrics);
     }
 
-    private void loadRangesToCommands()
+    public CommandsForRangesLoader diskCommandsForRanges()
     {
-        AsyncPromise<CommandsForRanges> future = new AsyncPromise<>();
-        AccordKeyspace.findAllCommandsByDomain(id, Routable.Domain.Range, ImmutableSet.of("txn_id", "status", "accepted_ballot", "execute_at"), new Observable<UntypedResultSet.Row>()
-        {
-            private CommandsForRanges.Builder builder = new CommandsForRanges.Builder();
-
-            @Override
-            public void onNext(UntypedResultSet.Row row) throws Exception
-            {
-                TxnId txnId = AccordKeyspace.deserializeTxnId(row);
-                SaveStatus status = AccordKeyspace.deserializeStatus(row);
-                Timestamp executeAt = AccordKeyspace.deserializeExecuteAtOrNull(row);
-                Ballot accepted = AccordKeyspace.deserializeAcceptedOrNull(row);
-
-                MessageProvider messageProvider = journal.makeMessageProvider(txnId);
-
-                SerializerSupport.TxnAndDeps txnAndDeps = SerializerSupport.extractTxnAndDeps(unsafeRangesForEpoch(), status, accepted, messageProvider);
-                Seekables<?, ?> keys = txnAndDeps.txn.keys();
-                if (keys.domain() != Routable.Domain.Range)
-                    throw new AssertionError(String.format("Txn keys are not range for %s", txnAndDeps.txn));
-                Ranges ranges = (Ranges) keys;
-
-                List<TxnId> dependsOn = txnAndDeps.deps == null ? Collections.emptyList() : txnAndDeps.deps.txnIds();
-                builder.put(txnId, ranges, status, executeAt, dependsOn);
-            }
-
-            @Override
-            public void onError(Throwable t)
-            {
-                builder = null;
-                future.tryFailure(t);
-            }
-
-            @Override
-            public void onCompleted()
-            {
-                CommandsForRanges result = this.builder.build();
-                builder = null;
-                future.trySuccess(result);
-            }
-        });
-        try
-        {
-            commandsForRanges = future.get();
-            logger.debug("Loaded {} intervals", commandsForRanges.size());
-        }
-        catch (InterruptedException e)
-        {
-            throw new UncheckedInterruptedException(e);
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e.getCause());
-        }
+        return commandsForRangesLoader;
     }
 
     @Override
     public boolean inStore()
     {
+        if (!CHECK_THREADS)
+            return true;
         return Thread.currentThread().getId() == threadId;
     }
 
@@ -298,6 +309,8 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
     public void checkNotInStoreThread()
     {
+        if (!CHECK_THREADS)
+            return;
         Invariants.checkState(!inStore());
     }
 
@@ -320,7 +333,6 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     {
         return commandsForKeyCache;
     }
-
     Command loadCommand(TxnId txnId)
     {
         return AccordKeyspace.loadCommand(this, txnId);
@@ -467,13 +479,16 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     public AccordSafeCommandStore beginOperation(PreLoadContext preLoadContext,
                                                  Map<TxnId, AccordSafeCommand> commands,
                                                  NavigableMap<Key, AccordSafeTimestampsForKey> timestampsForKeys,
-                                                 NavigableMap<Key, AccordSafeCommandsForKey> commandsForKeys)
+                                                 NavigableMap<Key, AccordSafeCommandsForKey> commandsForKeys,
+                                                 @Nullable AccordSafeCommandsForRanges commandsForRanges)
     {
         Invariants.checkState(current == null);
         commands.values().forEach(AccordSafeState::preExecute);
         commandsForKeys.values().forEach(AccordSafeState::preExecute);
         timestampsForKeys.values().forEach(AccordSafeState::preExecute);
-        current = new AccordSafeCommandStore(preLoadContext, commands, timestampsForKeys, commandsForKeys, this);
+        if (commandsForRanges != null)
+            commandsForRanges.preExecute();
+        current = new AccordSafeCommandStore(preLoadContext, commands, timestampsForKeys, commandsForKeys, commandsForRanges, this);
         return current;
     }
 
@@ -487,46 +502,6 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         Invariants.checkState(current == store);
         current.complete();
         current = null;
-    }
-
-    <O> O mapReduceForRange(Routables<?> keysOrRanges, Ranges slice, BiFunction<CommandsSummary, O, O> map, O accumulate)
-    {
-        keysOrRanges = keysOrRanges.slice(slice, Routables.Slice.Minimal);
-        switch (keysOrRanges.domain())
-        {
-            case Key:
-            {
-                AbstractKeys<Key> keys = (AbstractKeys<Key>) keysOrRanges;
-                for (CommandsSummary summary : commandsForRanges.search(keys))
-                    accumulate = map.apply(summary, accumulate);
-            }
-            break;
-            case Range:
-            {
-                AbstractRanges ranges = (AbstractRanges) keysOrRanges;
-                for (Range range : ranges)
-                {
-                    CommandsSummary summary = commandsForRanges.search(range);
-                    if (summary == null)
-                        continue;
-                    accumulate = map.apply(summary, accumulate);
-                }
-            }
-            break;
-            default:
-                throw new AssertionError("Unknown domain: " + keysOrRanges.domain());
-        }
-        return accumulate;
-    }
-
-    CommandsForRanges commandsForRanges()
-    {
-        return commandsForRanges;
-    }
-
-    CommandsForRanges.Updater updateRanges()
-    {
-        return commandsForRanges.update();
     }
 
     public void abortCurrentOperation()
@@ -574,13 +549,6 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         super.setRedundantBefore(newRedundantBefore);
         // TODO (required): this needs to be synchronous, or at least needs to take effect before we rely upon it
         AccordKeyspace.updateRedundantBefore(this, newRedundantBefore);
-    }
-
-    @Override
-    public void markShardDurable(SafeCommandStore safeStore, TxnId globalSyncId, Ranges ranges)
-    {
-        super.markShardDurable(safeStore, globalSyncId, ranges);
-        commandsForRanges.prune(globalSyncId, ranges);
     }
 
     public NavigableMap<TxnId, Ranges> bootstrapBeganAt() { return super.bootstrapBeganAt(); }

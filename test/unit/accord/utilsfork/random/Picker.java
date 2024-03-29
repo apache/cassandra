@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package accord.utils.random;
+package accord.utilsfork.random;
 
 import java.util.Arrays;
 import java.util.function.Supplier;

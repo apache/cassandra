@@ -33,7 +33,7 @@ import java.util.function.Supplier;
 
 import com.google.common.collect.Iterables;
 
-import accord.utils.random.Picker;
+import accord.utilsfork.random.Picker;
 
 // TODO (expected): merge with C* RandomSource
 public interface RandomSource
@@ -41,6 +41,11 @@ public interface RandomSource
     static RandomSource wrap(Random random)
     {
         return new accord.utilsfork.WrappedRandomSource(random);
+    }
+    //TODO (maintaince): once the rebase is over remove this...
+    static RandomSource wrap(accord.utils.RandomSource rs)
+    {
+        return new WrappedRandomSource(rs.asJdkRandom());
     }
 
     void nextBytes(byte[] bytes);

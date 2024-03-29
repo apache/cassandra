@@ -193,4 +193,65 @@ public interface DataOutputPlus extends DataOutput
     {
         throw new UnsupportedOperationException();
     }
+
+    @Override
+    default void writeBoolean(boolean v) throws IOException
+    {
+        write(v ? 1 : 0);
+    }
+
+    @Override
+    default void writeShort(int v) throws IOException
+    {
+        write((v >>> 8) & 0xFF);
+        write((v >>> 0) & 0xFF);
+    }
+
+    @Override
+    default void writeChar(int v) throws IOException
+    {
+        write((v >>> 8) & 0xFF);
+        write((v >>> 0) & 0xFF);
+    }
+
+    @Override
+    default void writeInt(int v) throws IOException
+    {
+        write((v >>> 24) & 0xFF);
+        write((v >>> 16) & 0xFF);
+        write((v >>>  8) & 0xFF);
+        write((v >>>  0) & 0xFF);
+    }
+
+    @Override
+    default void writeFloat(float v) throws IOException
+    {
+        writeInt(Float.floatToIntBits(v));
+    }
+
+    @Override
+    default void writeDouble(double v) throws IOException
+    {
+        writeLong(Double.doubleToLongBits(v));
+    }
+
+    @Override
+    default void writeBytes(String s) throws IOException
+    {
+        int len = s.length();
+        for (int i = 0 ; i < len ; i++) {
+            write((byte)s.charAt(i));
+        }
+    }
+
+    @Override
+    default void writeChars(String s) throws IOException
+    {
+        int len = s.length();
+        for (int i = 0 ; i < len ; i++) {
+            int v = s.charAt(i);
+            write((v >>> 8) & 0xFF);
+            write((v >>> 0) & 0xFF);
+        }
+    }
 }
