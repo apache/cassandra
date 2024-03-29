@@ -130,6 +130,13 @@ public class SimulatedExecutorFactory implements ExecutorFactory, Clock
         return true;
     }
 
+    public void processAll()
+    {
+        while (processOne())
+        {
+        }
+    }
+
     @Override
     public long nanoTime()
     {
