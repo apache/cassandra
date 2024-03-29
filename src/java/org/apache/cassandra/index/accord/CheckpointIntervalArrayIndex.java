@@ -669,11 +669,17 @@ public class CheckpointIntervalArrayIndex
         @Override
         public int compareTo(Interval b)
         {
+            int rc = compareStart(b);
+            if (rc == 0)
+                rc = ByteArrayUtil.compareUnsigned(value, 0, b.value, 0, value.length);
+            return rc;
+        }
+
+        public int compareStart(Interval b)
+        {
             int rc = ByteArrayUtil.compareUnsigned(start, 0, b.start, 0, start.length);
             if (rc == 0)
                 rc = ByteArrayUtil.compareUnsigned(end, 0, b.end, 0, end.length);
-            if (rc == 0)
-                rc = ByteArrayUtil.compareUnsigned(value, 0, b.value, 0, value.length);
             return rc;
         }
 

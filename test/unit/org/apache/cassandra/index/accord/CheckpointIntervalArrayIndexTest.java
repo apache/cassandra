@@ -118,7 +118,7 @@ public class CheckpointIntervalArrayIndexTest
     {
         var minToken = 0;
         int numRecords = 10;
-        qt().check(rs -> fuzz(rs, minToken, MAX_TOKEN_GEN.nextInt(rs), PATTERN_GEN.next(rs), numRecords));
+        qt().withTimeout(Duration.ofSeconds(60)).check(rs -> fuzz(rs, minToken, MAX_TOKEN_GEN.nextInt(rs), PATTERN_GEN.next(rs), numRecords));
     }
 
     @Test
@@ -279,7 +279,7 @@ public class CheckpointIntervalArrayIndexTest
                                 start = intervals.get(offset);
                                 end = intervals.get(offset + numOverlaps);
                             }
-                            while (start.compareTo(end) == 0 && start.size() == 1);
+                            while (start.compareStart(end) == 0 && start.size() == 1);
                             var a = rs.nextInt(unbc(start.start), unbc(start.end)) + 1;
                             var b = rs.nextInt(unbc(end.start), unbc(end.end)) + 1;
                             if (a == b && end.size() == 1)
