@@ -5379,4 +5379,8 @@ public class DatabaseDescriptor
     {
         return conf.sai_sstable_indexes_per_query_fail_threshold;
     }
+
+    public static boolean getAccordEphemeralReadEnabledEnabled() {
+        return conf.accord.ephemeralReadEnabled;
+    }
 }

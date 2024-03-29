@@ -331,8 +331,10 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             List<TxnNamedRead> reads = createNamedReads(options, state, ImmutableMap.of(), keySet::add);
             Keys txnKeys = toKeys(keySet);
             TxnRead read = createTxnRead(reads, txnKeys, null);
-            Txn.Kind kind = txnKeys.size() == 1 && transactionalModeForSingleKey(txnKeys) == TransactionalMode.full
-                            ? EphemeralRead : Read;
+            Txn.Kind kind = txnKeys.size() == 1
+                    && transactionalModeForSingleKey(txnKeys) == TransactionalMode.full
+                    && DatabaseDescriptor.getAccordEphemeralReadEnabledEnabled()
+                    ? EphemeralRead : Read;
             return new Txn.InMemory(kind, txnKeys, read, TxnQuery.ALL, null);
         }
         else
