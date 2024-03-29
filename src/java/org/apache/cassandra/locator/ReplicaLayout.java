@@ -27,6 +27,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.LocalPartitioner;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -405,6 +407,10 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
 
     static EndpointsForToken forLocalStrategyToken(ClusterMetadata metadata, AbstractReplicationStrategy replicationStrategy, Token t)
     {
-        return replicationStrategy.calculateNaturalReplicas(t, metadata).forToken(t);
+        if (!(t instanceof LocalPartitioner.LocalToken))
+            return replicationStrategy.calculateNaturalReplicas(t, metadata).forToken(t);
+
+        // local tokens use a different partitioner than the global one... so update the ranges
+        return EndpointsForToken.of(t, new Replica(FBUtilities.getBroadcastAddressAndPort(), new Range<>(t, t), true));
     }
 }

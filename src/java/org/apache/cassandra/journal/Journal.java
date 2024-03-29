@@ -195,7 +195,10 @@ public class Journal<K, V> implements Shutdownable
     @Override
     public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException
     {
-        return false;
+        boolean r = true;
+        r &= allocator.awaitTermination(timeout, units);
+        r &= closer.awaitTermination(timeout, units);
+        return r;
     }
 
     /**

@@ -70,4 +70,5 @@ public class AccordSpec
      */
     public TransactionalMode default_transactional_mode = TransactionalMode.off;
     public boolean ephemeralReadEnabled = false;
+    public boolean state_cache_listener_jfr_enabled = true;
 }
