@@ -399,6 +399,8 @@ public final class HintsService implements HintsServiceMBean
 
         // delete all the hints files and remove the HintsStore instance from the map in the catalog
         catalog.exciseStore(hostId);
+
+        bufferPool.clearEarliestHintsForHostId(hostId);
     }
 
     /**
@@ -475,5 +477,10 @@ public final class HintsService implements HintsServiceMBean
     public boolean isDispatchPaused()
     {
         return isDispatchPaused.get();
+    }
+
+    HintsBufferPool getHintsBufferPool()
+    {
+        return bufferPool;
     }
 }
