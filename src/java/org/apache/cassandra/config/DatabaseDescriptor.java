@@ -5810,4 +5810,9 @@ public class DatabaseDescriptor
     {
         conf.paxos_repair_race_wait = paxosRepairRaceWait;
     }
+
+    public static boolean getAccordEphemeralReadEnabledEnabled()
+    {
+        return conf.accord.ephemeralReadEnabled;
+    }
 }
