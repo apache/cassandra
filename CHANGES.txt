@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * Fix hints delivery for a node going down repeatedly (CASSANDRA-19495)
  * Add table metric PurgeableTombstoneScannedHistogram and a tracing event for scanned purgeable tombstones (CASSANDRA-20132)
 4.1.3.18
  * [SO-40218] Fix NPE when getautorepairconfig
