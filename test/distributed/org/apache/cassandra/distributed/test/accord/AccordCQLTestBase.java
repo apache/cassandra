@@ -18,41 +18,14 @@
 
 package org.apache.cassandra.distributed.test.accord;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.stream.Collectors;
-
+import accord.primitives.Unseekables;
+import accord.topology.Topologies;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Ignore;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import accord.primitives.Unseekables;
-import accord.topology.Topologies;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.functions.types.utils.Bytes;
-import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.db.marshal.ListType;
-import org.apache.cassandra.db.marshal.MapType;
-import org.apache.cassandra.db.marshal.SetType;
-import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
@@ -64,41 +37,39 @@ import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.assertj.core.api.Assertions;
+import org.junit.BeforeClass;
+import org.junit.Ignore;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.apache.cassandra.cql3.CQLTester.row;
 import static org.apache.cassandra.distributed.util.QueryResultUtil.assertThat;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.*;
 
-@RunWith(Parameterized.class)
-public class AccordCQLTest extends AccordTestBase
+public abstract class AccordCQLTestBase extends AccordTestBase
 {
-    private static final Logger logger = LoggerFactory.getLogger(AccordCQLTest.class);
+    private static final Logger logger = LoggerFactory.getLogger(AccordCQLTestBase.class);
+
+    private final TransactionalMode transactionalMode;
+
+    protected AccordCQLTestBase(TransactionalMode transactionalMode) {
+        this.transactionalMode = transactionalMode;
+    }
 
     @Override
     protected Logger logger()
     {
         return logger;
-    }
-
-    @Parameterized.Parameter
-    public String transactionalModeName;
-
-    TransactionalMode transactionalMode;
-
-    @Parameterized.Parameters(name = "transactionalMode={0}")
-    public static Collection<Object[]> data()
-    {
-        return ImmutableList.of(new Object[] {TransactionalMode.full.toString()},
-                                new Object[] {TransactionalMode.mixed_reads.toString()});
-    }
-
-    @Before
-    public void setNonSerialWriteStrategy()
-    {
-        transactionalMode = TransactionalMode.valueOf(transactionalModeName);
     }
 
     @BeforeClass
@@ -2278,7 +2249,7 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void testMultiCellMapSelection() throws Exception
     {
-        testMapSelection("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>)");
+        testMapSelection("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, int_map map<text, int>) WITH transactional_mode='" + transactionalMode + "'");
     }
 
     @Test
