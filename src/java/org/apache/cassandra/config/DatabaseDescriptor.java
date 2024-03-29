@@ -5396,4 +5396,9 @@ public class DatabaseDescriptor
     {
         return conf.triggers_policy;
     }
+
+    public static boolean getAccordEphemeralReadEnabledEnabled()
+    {
+        return conf.accord.ephemeralReadEnabled;
+    }
 }

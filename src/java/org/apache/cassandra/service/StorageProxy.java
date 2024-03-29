@@ -2028,7 +2028,7 @@ public class StorageProxy implements StorageProxyMBean
         consistencyLevel = transactionalMode.readCLForStrategy(consistencyLevel);
         TxnRead read = TxnRead.createSerialRead(readCommand, consistencyLevel);
         Invariants.checkState(read.keys().size() == 1, "Ephemeral reads are only strict-serializable for single partition reads");
-        Txn txn = new Txn.InMemory(transactionalMode == TransactionalMode.full ? EphemeralRead : Read, read.keys(), read, TxnQuery.ALL, null);
+        Txn txn = new Txn.InMemory(transactionalMode == TransactionalMode.full && DatabaseDescriptor.getAccordEphemeralReadEnabledEnabled() ? EphemeralRead : Read, read.keys(), read, TxnQuery.ALL, null);
         IAccordService accordService = AccordService.instance();
         TxnResult txnResult = accordService.coordinate(txn, consistencyLevel, queryStartNanoTime);
         if (txnResult.kind() == retry_new_protocol)
