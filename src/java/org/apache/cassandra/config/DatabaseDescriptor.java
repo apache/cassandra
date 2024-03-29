@@ -5545,4 +5545,9 @@ public class DatabaseDescriptor
     {
         return conf.password_validator_reconfiguration_enabled;
     }
+
+    public static boolean getAccordEphemeralReadEnabledEnabled()
+    {
+        return conf.accord.ephemeralReadEnabled;
+    }
 }
