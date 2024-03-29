@@ -1251,7 +1251,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
         public long serializedSize(ReadCommand command, int version)
         {
-            return IS_FOR_THRIFT // kind + flags
+            return 2 // kind + flags
                    + (command.isDigestQuery() ? TypeSizes.sizeofUnsignedVInt(command.digestVersion()) : 0)
                    + command.metadata().id.serializedSize()
                    + (version >= MessagingService.VERSION_51 ? Epoch.serializer.serializedSize(command.metadata().epoch) : 0)
