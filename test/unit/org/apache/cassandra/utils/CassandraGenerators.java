@@ -33,7 +33,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
@@ -55,8 +54,8 @@ import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.EmptyType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
@@ -601,6 +600,21 @@ public final class CassandraGenerators
         return rs -> partitioner.getToken(bytes.generate(rs));
     }
 
+    public static Gen<IPartitioner> localPartitioner()
+    {
+        return AbstractTypeGenerators.safeTypeGen().map(LocalPartitioner::new);
+    }
+
+    public static Gen<Token> localPartitionerToken()
+    {
+        var lpGen = localPartitioner();
+        return rs -> {
+            var lp = lpGen.generate(rs);
+            var bytes = AbstractTypeGenerators.getTypeSupport(lp.getTokenValidator()).bytesGen();
+            return lp.getToken(bytes.generate(rs));
+        };
+    }
+
     public static Gen<Token> orderPreservingToken()
     {
         // empty token only happens if partition key is byte[0], which isn't allowed
@@ -613,6 +627,43 @@ public final class CassandraGenerators
         IPartitioner partitioner = range.left.getPartitioner();
         if (partitioner instanceof Murmur3Partitioner) return murmurTokenIn(range);
         throw new UnsupportedOperationException("Unsupported partitioner: " + partitioner.getClass());
+    }
+
+    private enum SupportedPartitioners { Murmur, ByteOrdered, Random, Local, OrderPreserving}
+
+    public static Gen<IPartitioner> partitioners()
+    {
+        var pGen = SourceDSL.arbitrary().enumValues(SupportedPartitioners.class);
+        return pGen.flatMap(p -> {
+            switch (p)
+            {
+                case Murmur: return ignore -> Murmur3Partitioner.instance;
+                case ByteOrdered: return ignore -> ByteOrderedPartitioner.instance;
+                case Random: return ignore -> RandomPartitioner.instance;
+                case OrderPreserving: return ignore -> OrderPreservingPartitioner.instance;
+                case Local: return localPartitioner();
+                default: throw new AssertionError("Unknown partition: " + p);
+            }
+        });
+    }
+
+    public static Gen<Token> token()
+    {
+        return SourceDSL.arbitrary().enumValues(SupportedPartitioners.class)
+                        .flatMap(CassandraGenerators::token);
+    }
+
+    private static Gen<Token> token(SupportedPartitioners p)
+    {
+        switch (p)
+        {
+            case Murmur: return murmurToken();
+            case Local: return localPartitionerToken();
+            case Random: return randomPartitionerToken();
+            case ByteOrdered: return byteOrderToken();
+            case OrderPreserving: return orderPreservingToken();
+            default: throw new AssertionError("Unknown partitioner: " + p);
+        }
     }
 
     public static Gen<Token> token(IPartitioner partitioner)

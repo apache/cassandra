@@ -38,7 +38,6 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.test.log.CMSTestBase;
 import org.apache.cassandra.distributed.test.log.RngUtils;
-import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.harry.gen.EntropySource;
 import org.apache.cassandra.harry.gen.Surjections;
 import org.apache.cassandra.harry.gen.rng.PCGFastPure;

@@ -24,6 +24,8 @@ import java.util.*;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterators;
@@ -138,12 +140,22 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
         return search(Interval.<C, D>create(point, point, null));
     }
 
+    public List<D> search(C start, C end)
+    {
+        return search(Interval.<C, D>create(start, end, null));
+    }
+
     public Iterator<I> iterator()
     {
         if (head == null)
             return Collections.emptyIterator();
 
         return new TreeIterator(head);
+    }
+
+    public Stream<I> stream()
+    {
+        return StreamSupport.stream(spliterator(), false);
     }
 
     @Override
@@ -410,11 +422,6 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
         {
             intervals.add(interval);
             return this;
-        }
-
-        public interface TriPredicate<A, B, C>
-        {
-            boolean test(A a, B b, C c);
         }
 
         public Builder<C, D, I> removeIf(TriPredicate<C, C, D> predicate)

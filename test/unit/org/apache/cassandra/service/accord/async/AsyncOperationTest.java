@@ -26,8 +26,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
+import accord.utils.DefaultRandom;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
+import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
+import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -100,6 +104,11 @@ public class AsyncOperationTest
 {
     private static final Logger logger = LoggerFactory.getLogger(AsyncOperationTest.class);
     private static final AtomicLong clock = new AtomicLong(0);
+
+    static
+    {
+        CassandraRelevantProperties.TEST_ACCORD_STORE_THREAD_CHECKS_ENABLED.setBoolean(false);
+    }
 
     @BeforeClass
     public static void beforeClass() throws Throwable
@@ -314,7 +323,8 @@ public class AsyncOperationTest
     @Test
     public void testFutureCleanup() throws Throwable
     {
-        AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
+        SimulatedExecutorFactory factory = new SimulatedExecutorFactory(new DefaultRandom(42), 42);
+        AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl", factory.scheduled("ignored"), Stage.MUTATION.executor());
 
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
 
@@ -342,12 +352,15 @@ public class AsyncOperationTest
                         {
                             case SETUP:
                                 assertFutureState(cache(), txnId, false, false, false);
+                                factory.processAll();
                                 break;
                             case FINISHED:
                                 assertFutureState(cache(), txnId, true, false, false);
+                                factory.processAll();
                                 break;
                             case LOADING:
                                 assertFutureState(cache(), txnId, true, true, false);
+                                factory.processAll();
                                 break;
                         }
                         super.state(state);

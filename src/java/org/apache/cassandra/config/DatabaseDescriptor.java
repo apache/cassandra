@@ -4978,6 +4978,11 @@ public class DatabaseDescriptor
         conf.accord.shard_durability_cycle = new DurationSpec.IntSecondsBound(seconds);
     }
 
+    public static boolean getAccordStateCacheListenerJFREnabled()
+    {
+        return conf.accord.state_cache_listener_jfr_enabled;
+    }
+
     public static boolean getForceNewPreparedStatementBehaviour()
     {
         return conf.force_new_prepared_statement_behaviour;

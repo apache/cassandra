@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.zip.Checksum;
@@ -99,6 +101,7 @@ import org.apache.cassandra.service.accord.serializers.PreacceptSerializers;
 import org.apache.cassandra.service.accord.serializers.RecoverySerializers;
 import org.apache.cassandra.service.accord.serializers.SetDurableSerializers;
 import org.apache.cassandra.utils.ByteArrayUtil;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.concurrent.Semaphore;
 import org.jctools.queues.SpscLinkedQueue;
 
@@ -143,7 +146,7 @@ import static org.apache.cassandra.utils.CollectionSerializers.serializedListSiz
 import static org.apache.cassandra.utils.concurrent.Semaphore.newSemaphore;
 import static org.apache.cassandra.utils.vint.VIntCoding.computeUnsignedVIntSize;
 
-public class AccordJournal implements Shutdownable
+public class AccordJournal implements IJournal, Shutdownable
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordJournal.class);
 
@@ -262,8 +265,15 @@ public class AccordJournal implements Shutdownable
     @Override
     public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException
     {
-        // TODO (expected, other)
-        return true;
+        try
+        {
+            ExecutorUtils.awaitTermination(timeout, units, Arrays.asList(journal, frameAggregator, frameApplicator));
+            return true;
+        }
+        catch (TimeoutException e)
+        {
+            return false;
+        }
     }
 
     /**
@@ -296,6 +306,7 @@ public class AccordJournal implements Shutdownable
     }
 
     @VisibleForTesting
+    @Override
     public void appendMessageBlocking(Message message)
     {
         Type type = Type.fromMessageType(message.type());
@@ -1061,7 +1072,7 @@ public class AccordJournal implements Shutdownable
      * Once written, the frame record is submitted to {@link FrameApplicator}, which will process all the framed
      * requests once the frame has been flushed to disk.
      */
-    private final class FrameAggregator implements Interruptible.Task
+    private final class FrameAggregator implements Interruptible.Task, Shutdownable
     {
         /* external MPSC pending request queue */
         private final ManyToOneConcurrentLinkedQueue<RequestContext> unframedRequests = new ManyToOneConcurrentLinkedQueue<>();
@@ -1091,9 +1102,26 @@ public class AccordJournal implements Shutdownable
             executor = executorFactory().infiniteLoop("AccordJournal#FrameAggregator", this, SAFE, NON_DAEMON, SYNCHRONIZED);
         }
 
-        void shutdown()
+        @Override
+        public boolean isTerminated() {
+            return executor == null || executor.isTerminated();
+        }
+
+        @Override
+        public void shutdown()
         {
-            executor.shutdown();
+            if (executor != null)
+                executor.shutdown();
+        }
+
+        @Override
+        public Object shutdownNow() {
+            return executor == null ? null : executor.shutdownNow();
+        }
+
+        @Override
+        public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException {
+            return executor == null || executor.awaitTermination(timeout, units);
         }
 
         @Override
@@ -1168,7 +1196,7 @@ public class AccordJournal implements Shutdownable
      * Gets the aggregated frames containing previously written requests/messages,
      * and sorts and "applies" them once part of the journal that fully contains them is flushed.
      */
-    private final class FrameApplicator implements Runnable
+    private final class FrameApplicator implements Runnable, Shutdownable
     {
         /** external SPSC written frame queue */
         private final SpscLinkedQueue<PendingFrame> newFrames = new SpscLinkedQueue<>();
@@ -1199,9 +1227,26 @@ public class AccordJournal implements Shutdownable
             executor = executorFactory().sequential("AccordJournal#FrameApplicator");
         }
 
-        void shutdown()
+        @Override
+        public boolean isTerminated() {
+            return executor == null || executor.isTerminated();
+        }
+
+        @Override
+        public void shutdown()
         {
-            executor.shutdown();
+            if (executor != null)
+                executor.shutdown();
+        }
+
+        @Override
+        public Object shutdownNow() {
+            return executor == null ? null : executor.shutdownNow();
+        }
+
+        @Override
+        public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException {
+            return executor == null || executor.awaitTermination(timeout, units);
         }
 
         @Override
@@ -1334,8 +1379,8 @@ public class AccordJournal implements Shutdownable
     /*
      * Message provider implementation
      */
-
-    SerializerSupport.MessageProvider makeMessageProvider(TxnId txnId)
+    @Override
+    public SerializerSupport.MessageProvider makeMessageProvider(TxnId txnId)
     {
         return LOG_MESSAGE_PROVIDER ? new LoggingMessageProvider(txnId, new MessageProvider(txnId)) : new MessageProvider(txnId);
     }

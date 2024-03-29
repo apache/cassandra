@@ -40,6 +40,8 @@ import org.apache.cassandra.distributed.upgrade.UpgradeTestBase;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SimpleSeedProvider;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.DTEST_ACCORD_ENABLED;
+
 public class InstanceConfig implements IInstanceConfig
 {
     public final int num;
@@ -311,7 +313,7 @@ public class InstanceConfig implements IInstanceConfig
                                           int datadirCount)
     {
         AccordSpec accordSpec = new AccordSpec();
-        accordSpec.enabled = true;
+        accordSpec.enabled = DTEST_ACCORD_ENABLED.getBoolean();
         accordSpec.journal_directory = String.format("%s/node%d/accord_journal", root, nodeNum);
         accordSpec.shard_count = new OptionaldPositiveInt(4);
         return new InstanceConfig(nodeNum,
