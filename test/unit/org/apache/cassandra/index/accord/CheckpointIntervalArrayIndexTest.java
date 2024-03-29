@@ -21,6 +21,7 @@ package org.apache.cassandra.index.accord;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -125,7 +126,7 @@ public class CheckpointIntervalArrayIndexTest
     {
         var minToken = 0;
         int numRecords = 1_000;
-        qt().check(rs -> fuzz(rs, minToken, MAX_TOKEN_GEN.nextInt(rs), PATTERN_GEN.next(rs), numRecords));
+        qt().withTimeout(Duration.ofSeconds(60)).check(rs -> fuzz(rs, minToken, MAX_TOKEN_GEN.nextInt(rs), PATTERN_GEN.next(rs), numRecords));
     }
 
     private void fuzz(RandomSource rs, int minToken, int maxToken, Pattern pattern, int numRecords) throws IOException
