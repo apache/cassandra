@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from enum import Enum
 from collections import defaultdict
 
 RED = '\033[0;1;31m'
@@ -27,12 +28,17 @@ DARK_MAGENTA = '\033[0;35m'
 ANSI_RESET = '\033[0m'
 
 
-def colorme(bval, colormap, colorkey):
+class Alignment(Enum):
+    LEFT = 1
+    RIGHT = 2
+
+
+def colorme(bval, colormap, colorkey, alignment=None):
     if colormap is NO_COLOR_MAP:
         return bval
     if colormap is None:
         colormap = DEFAULT_VALUE_COLORS
-    return FormattedValue(bval, colormap[colorkey] + bval + colormap['reset'])
+    return FormattedValue(bval, colormap[colorkey] + bval + colormap['reset'], alignment=alignment)
 
 
 def get_str(val):
@@ -43,7 +49,7 @@ def get_str(val):
 
 class FormattedValue:
 
-    def __init__(self, strval, coloredval=None, displaywidth=None):
+    def __init__(self, strval, coloredval=None, displaywidth=None, alignment=Alignment.RIGHT):
         self.strval = strval
         if coloredval is None:
             coloredval = strval
@@ -53,6 +59,7 @@ class FormattedValue:
         # displaywidth is useful for display of special unicode characters
         # with
         self.displaywidth = displaywidth
+        self.alignment = alignment
 
     def __len__(self):
         return len(self.strval)
@@ -62,6 +69,11 @@ class FormattedValue:
             return fill * (width - self.displaywidth)
         else:
             return ''
+
+    def just(self, width, fill=' ', color=False):
+        if self.alignment == Alignment.LEFT:
+            return self.ljust(width, fill, color)
+        return self.rjust(width, fill, color)
 
     def ljust(self, width, fill=' ', color=False):
         """
