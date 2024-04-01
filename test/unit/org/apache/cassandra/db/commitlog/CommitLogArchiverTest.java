@@ -18,9 +18,10 @@
 
 package org.apache.cassandra.db.commitlog;
 
-import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
 import org.junit.AfterClass;
@@ -30,9 +31,6 @@ import org.junit.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.Properties;
 
@@ -40,8 +38,6 @@ import static org.apache.cassandra.db.commitlog.CommitLogArchiver.RIPLEVEL.MICRO
 import static org.apache.cassandra.db.commitlog.CommitLogArchiver.RIPLEVEL.MILLISECONDS;
 import static org.apache.cassandra.db.commitlog.CommitLogArchiver.RIPLEVEL.SECONDS;
 import static org.apache.cassandra.db.commitlog.CommitLogArchiver.getRipLevel;
-import static org.apache.cassandra.db.commitlog.CommitLogTest.KEYSPACE1;
-import static org.apache.cassandra.db.commitlog.CommitLogTest.STANDARD1;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
