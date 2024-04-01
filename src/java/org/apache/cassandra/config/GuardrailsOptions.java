@@ -847,6 +847,35 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
+    public boolean getIntersectFilteringQueryWarned()
+    {
+        return config.intersect_filtering_query_warned;
+    }
+
+    @Override
+    public void setIntersectFilteringQueryWarned(boolean value)
+    {
+        updatePropertyWithLogging("intersect_filtering_query_warned",
+                                  value,
+                                  () -> config.intersect_filtering_query_warned,
+                                  x -> config.intersect_filtering_query_warned = x);
+    }
+
+    @Override
+    public boolean getIntersectFilteringQueryEnabled()
+    {
+        return config.intersect_filtering_query_enabled;
+    }
+
+    public void setIntersectFilteringQueryEnabled(boolean value)
+    {
+        updatePropertyWithLogging("intersect_filtering_query_enabled",
+                                  value,
+                                  () -> config.intersect_filtering_query_enabled,
+                                  x -> config.intersect_filtering_query_enabled = x);
+    }
+
+    @Override
     public  DurationSpec.LongMicrosecondsBound getMaximumTimestampWarnThreshold()
     {
         return config.maximum_timestamp_warn_threshold;

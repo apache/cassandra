@@ -905,6 +905,8 @@ public class Config
     public volatile boolean non_partition_restricted_index_query_enabled = true;
     public volatile int sai_sstable_indexes_per_query_warn_threshold = 32;
     public volatile int sai_sstable_indexes_per_query_fail_threshold = -1;
+    public volatile boolean intersect_filtering_query_warned = true;
+    public volatile boolean intersect_filtering_query_enabled = true;
 
     public volatile DurationSpec.LongNanosecondsBound streaming_state_expires = new DurationSpec.LongNanosecondsBound("3d");
     public volatile DataStorageSpec.LongBytesBound streaming_state_size = new DataStorageSpec.LongBytesBound("40MiB");

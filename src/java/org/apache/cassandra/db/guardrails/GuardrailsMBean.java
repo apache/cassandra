@@ -804,4 +804,20 @@ public interface GuardrailsMBean
      * @param enabled {@code true} if a query without partition key is enabled or not
      */
     void setNonPartitionRestrictedQueryEnabled(boolean enabled);
+
+    /**
+     * @return true if a client warning is emitted for a filtering query with an intersection on mutable columns at a 
+     *         consistency level requiring coordinator reconciliation
+     */
+    boolean getIntersectFilteringQueryWarned();
+    
+    void setIntersectFilteringQueryWarned(boolean value);
+
+    /**
+     * @return true if it is possible to execute a filtering query with an intersection on mutable columns at a 
+     *         consistency level requiring coordinator reconciliation
+     */
+    boolean getIntersectFilteringQueryEnabled();
+    
+    void setIntersectFilteringQueryEnabled(boolean value);
 }
