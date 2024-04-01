@@ -1408,6 +1408,7 @@ public class AccordJournal implements IJournal, Shutdownable
             return presentMessages;
         }
 
+        @Override
         public Set<MessageType> all()
         {
             Set<Type> types = EnumSet.allOf(Type.class);
@@ -1510,6 +1511,15 @@ public class AccordJournal implements IJournal, Shutdownable
         {
             logger.debug("Checking {} messages for {}", messages, txnId);
             Set<MessageType> confirmed = provider.test(messages);
+            logger.debug("Confirmed {} messages for {}", confirmed, txnId);
+            return confirmed;
+        }
+
+        @Override
+        public Set<MessageType> all()
+        {
+            logger.debug("Checking all messages for {}", txnId);
+            Set<MessageType> confirmed = provider.all();
             logger.debug("Confirmed {} messages for {}", confirmed, txnId);
             return confirmed;
         }

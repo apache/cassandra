@@ -91,7 +91,7 @@ public class AccordBootstrapTest extends TestBaseImpl
 //        withProperty(BOOTSTRAP_SCHEMA_DELAY_MS.getKey(), Integer.toString(90 * 1000),
 //                     () -> withProperty("cassandra.join_ring", false, () -> newInstance.startup(cluster)));
 //        newInstance.nodetoolResult("join").asserts().success();
-        newInstance.nodetoolResult("describecms").asserts().success(); // just make sure we're joined, remove later
+        newInstance.nodetoolResult("cms", "describe").asserts().success(); // just make sure we're joined, remove later
     }
 
     private static AccordService service()
