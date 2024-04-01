@@ -127,7 +127,7 @@ public class ServerConnection extends Connection
                                                       .get("ssl");
         X509Certificate[] certificates = null;
 
-        if (sslHandler != null)
+        if (sslHandler != null && DatabaseDescriptor.getNativeProtocolEncryptionOptions().require_client_auth)
         {
             try
             {
