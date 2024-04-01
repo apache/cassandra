@@ -31,6 +31,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 
+import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
+
 public class ServerConnection extends Connection
 {
     private static final Logger logger = LoggerFactory.getLogger(ServerConnection.class);
@@ -127,7 +129,7 @@ public class ServerConnection extends Connection
                                                       .get("ssl");
         Certificate[] certificates = null;
 
-        if (sslHandler != null)
+        if (sslHandler != null && DatabaseDescriptor.getNativeProtocolEncryptionOptions().getClientAuth() == REQUIRED)
         {
             try
             {
