@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -36,6 +37,8 @@ import accord.messages.Propagate;
 import accord.primitives.Ballot;
 import accord.primitives.TxnId;
 import org.agrona.collections.ObjectHashSet;
+import org.apache.cassandra.service.accord.AccordJournal.Key;
+import org.apache.cassandra.service.accord.AccordJournal.Type;
 
 import static accord.messages.MessageType.ACCEPT_REQ;
 import static accord.messages.MessageType.APPLY_MAXIMAL_REQ;
@@ -52,7 +55,7 @@ import static accord.messages.MessageType.STABLE_MAXIMAL_REQ;
 
 public class MockJournal implements IJournal
 {
-    private final Map<AccordJournal.Key, Message> writes = new HashMap<>();
+    private final Map<Key, Message> writes = new HashMap<>();
     @Override
     public SerializerSupport.MessageProvider makeMessageProvider(TxnId txnId)
     {
@@ -61,27 +64,41 @@ public class MockJournal implements IJournal
             @Override
             public Set<MessageType> test(Set<MessageType> messages)
             {
-                Set<AccordJournal.Key> keys = new ObjectHashSet<>(messages.size() + 1, 0.9f);
+                Set<Key> keys = new ObjectHashSet<>(messages.size() + 1, 0.9f);
                 for (MessageType message : messages)
-                    for (AccordJournal.Type synonymousType : AccordJournal.Type.synonymousTypesFromMessageType(message))
-                        keys.add(new AccordJournal.Key(txnId, synonymousType));
-                Set<AccordJournal.Key> presentKeys = Sets.intersection(writes.keySet(), keys);
+                    for (Type synonymousType : Type.synonymousTypesFromMessageType(message))
+                        keys.add(new Key(txnId, synonymousType));
+                Set<Key> presentKeys = Sets.intersection(writes.keySet(), keys);
                 Set<MessageType> presentMessages = new ObjectHashSet<>(presentKeys.size() + 1, 0.9f);
-                for (AccordJournal.Key key : presentKeys)
+                for (Key key : presentKeys)
                     presentMessages.add(key.type.outgoingType);
                 return presentMessages;
             }
 
-            private <T extends Message> T get(AccordJournal.Key key)
+            @Override
+            public Set<MessageType> all()
+            {
+                Set<Type> types = EnumSet.allOf(Type.class);
+                Set<Key> keys = new ObjectHashSet<>(types.size() + 1, 0.9f);
+                for (Type type : types)
+                    keys.add(new Key(txnId, type));
+                Set<Key> presentKeys = Sets.intersection(writes.keySet(), keys);
+                Set<MessageType> presentMessages = new ObjectHashSet<>(presentKeys.size() + 1, 0.9f);
+                for (Key key : presentKeys)
+                    presentMessages.add(key.type.outgoingType);
+                return presentMessages;
+            }
+
+            private <T extends Message> T get(Key key)
             {
                 return (T) writes.get(key);
             }
 
             private <T extends Message> T get(MessageType messageType)
             {
-                for (AccordJournal.Type type : AccordJournal.Type.synonymousTypesFromMessageType(messageType))
+                for (Type type : Type.synonymousTypesFromMessageType(messageType))
                 {
-                    T value = get(new AccordJournal.Key(txnId, type));
+                    T value = get(new Key(txnId, type));
                     if (value != null) return value;
                 }
                 return null;
@@ -164,8 +181,8 @@ public class MockJournal implements IJournal
     @Override
     public void appendMessageBlocking(Message message)
     {
-        AccordJournal.Type type = AccordJournal.Type.fromMessageType(message.type());
-        AccordJournal.Key key = new AccordJournal.Key(type.txnId(message), type);
+        Type type = Type.fromMessageType(message.type());
+        Key key = new Key(type.txnId(message), type);
         writes.put(key, message);
     }
 }
