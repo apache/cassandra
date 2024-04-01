@@ -126,6 +126,8 @@ public class AccordMessageSink implements MessageSink
             builder.put(MessageType.GET_DEPS_RSP,                             Verb.ACCORD_GET_DEPS_RSP);
             builder.put(MessageType.GET_EPHEMERAL_READ_DEPS_REQ,              Verb.ACCORD_GET_EPHMRL_READ_DEPS_REQ);
             builder.put(MessageType.GET_EPHEMERAL_READ_DEPS_RSP,              Verb.ACCORD_GET_EPHMRL_READ_DEPS_RSP);
+            builder.put(MessageType.GET_MAX_CONFLICT_REQ,                     Verb.ACCORD_GET_MAX_CONFLICT_REQ);
+            builder.put(MessageType.GET_MAX_CONFLICT_RSP,                     Verb.ACCORD_GET_MAX_CONFLICT_RSP);
             builder.put(MessageType.COMMIT_SLOW_PATH_REQ,                     Verb.ACCORD_COMMIT_REQ);
             builder.put(MessageType.COMMIT_MAXIMAL_REQ,                       Verb.ACCORD_COMMIT_REQ);
             builder.put(MessageType.STABLE_FAST_PATH_REQ,                     Verb.ACCORD_COMMIT_REQ);
