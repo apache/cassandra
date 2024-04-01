@@ -653,7 +653,7 @@ public class QueryProcessor implements QueryHandler
         try (PartitionIterator iter = partitions)
         {
             SelectStatement ss = (SelectStatement) getStatement(query, null);
-            ResultSet cqlRows = ss.process(iter, FBUtilities.nowInSeconds(), true);
+            ResultSet cqlRows = ss.process(iter, FBUtilities.nowInSeconds(), true, ClientState.forInternalCalls());
             return UntypedResultSet.create(cqlRows);
         }
     }

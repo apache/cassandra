@@ -21,6 +21,10 @@ package org.apache.cassandra.distributed.test.guardrails;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Session;
+import com.datastax.driver.core.SimpleStatement;
+import org.apache.cassandra.distributed.util.Auth;
 import org.junit.After;
 import org.junit.Before;
 
@@ -41,17 +45,52 @@ public abstract class GuardrailTester extends TestBaseImpl
 
     protected abstract Cluster getCluster();
 
+    protected Session getSession()
+    {
+        return null;
+    }
+
     @Before
     public void beforeTest()
     {
         tableName = "t_" + seqNumber.getAndIncrement();
-        qualifiedTableName = KEYSPACE + "." + tableName;
+        qualifiedTableName = KEYSPACE + '.' + tableName;
     }
 
     @After
     public void afterTest()
     {
         schemaChange("DROP TABLE IF EXISTS %s");
+    }
+
+    protected static com.datastax.driver.core.Cluster buildDriverCluster(Cluster cluster)
+    {
+        Auth.waitForExistingRoles(cluster.get(1));
+
+        // create a regular user, since the default superuser is excluded from guardrails
+        com.datastax.driver.core.Cluster.Builder builder = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1");
+        try (com.datastax.driver.core.Cluster c = builder.withCredentials("cassandra", "cassandra").build();
+             Session session = c.connect())
+        {
+            session.execute("CREATE USER test WITH PASSWORD 'test'");
+        }
+
+        // connect using that superuser, we use the driver to get access to the client warnings
+        return builder.withCredentials("test", "test").build();
+    }
+
+    /**
+     * Execution of statements via driver will not bypass guardrails as internal queries would do as they are
+     * done by superuser / they do not have any notion of roles
+     *
+     * @return list of warnings
+     */
+    protected List<String> executeViaDriver(String query)
+    {
+        SimpleStatement stmt = new SimpleStatement(query);
+        stmt.setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.QUORUM);
+        ResultSet resultSet = getSession().execute(stmt);
+        return resultSet.getExecutionInfo().getWarnings();
     }
 
     protected String format(String query)
