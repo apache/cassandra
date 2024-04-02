@@ -404,7 +404,7 @@ public class CommitLog implements CommitLogMBean
     @Override
     public long getRestorePointInTime()
     {
-        return archiver.restorePointInTime;
+        return archiver.restorePointInTimeInMicros;
     }
 
     @Override
