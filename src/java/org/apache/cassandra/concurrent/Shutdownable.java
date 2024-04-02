@@ -31,6 +31,11 @@ public interface Shutdownable
 {
     boolean isTerminated();
 
+    default boolean isShutdown()
+    {
+        return isTerminated();
+    }
+
     /**
      * Shutdown once any remaining work has completed (however this is defined for the implementation).
      */

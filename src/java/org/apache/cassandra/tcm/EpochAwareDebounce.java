@@ -80,6 +80,12 @@ public class EpochAwareDebounce<T> implements Shutdownable
     }
 
     @Override
+    public boolean isShutdown()
+    {
+        return executor.isShutdown();
+    }
+
+    @Override
     public void shutdown()
     {
         executor.shutdown();
