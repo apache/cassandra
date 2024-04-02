@@ -120,7 +120,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
                 // deleted at a later point in time. Any truncation record after that point must thus be cleared prior
                 // to replay (CASSANDRA-9195).
                 // truncatedTime is millseconds level but restoreTime is microlevel
-                long restoreTime = commitLog.archiver.restorePointInTime == Long.MAX_VALUE ? Long.MAX_VALUE : commitLog.archiver.restorePointInTime / 1000;
+                long restoreTime = commitLog.archiver.restorePointInTimeInMicros == Long.MAX_VALUE ? Long.MAX_VALUE : commitLog.archiver.restorePointInTimeInMicros / 1000;
                 long truncatedTime = SystemKeyspace.getTruncatedAt(cfs.metadata.id);
                 if (truncatedTime > restoreTime)
                 {
@@ -492,7 +492,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
 
     protected boolean pointInTimeExceeded(Mutation fm)
     {
-        long tsInMicroSecondsLevel = archiver.restorePointInTime;
+        long tsInMicroSecondsLevel = archiver.restorePointInTimeInMicros;
 
         for (PartitionUpdate upd : fm.getPartitionUpdates())
         {

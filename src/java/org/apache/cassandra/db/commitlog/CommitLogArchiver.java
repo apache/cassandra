@@ -120,18 +120,18 @@ public class CommitLogArchiver
     final String archiveCommand;
     final String restoreCommand;
     final String restoreDirectories;
-    public long restorePointInTime;
+    public long restorePointInTimeInMicros;
     public CommitLogPosition snapshotCommitLogPosition;
     public final TimeUnit precision;
     public RIPLEVEL riplevel;
 
     public CommitLogArchiver(String archiveCommand, String restoreCommand, String restoreDirectories,
-            long restorePointInTime, CommitLogPosition snapshotCommitLogPosition, TimeUnit precision, RIPLEVEL riplevel)
+            long restorePointInTimeInMicros, CommitLogPosition snapshotCommitLogPosition, TimeUnit precision, RIPLEVEL riplevel)
     {
         this.archiveCommand = archiveCommand;
         this.restoreCommand = restoreCommand;
         this.restoreDirectories = restoreDirectories;
-        this.restorePointInTime = restorePointInTime;
+        this.restorePointInTimeInMicros = restorePointInTimeInMicros;
         this.snapshotCommitLogPosition = snapshotCommitLogPosition;
         this.precision = precision;
         this.riplevel = riplevel;
@@ -420,12 +420,12 @@ public class CommitLogArchiver
     {
         if (riplevel == null)
             return Long.MAX_VALUE;
-        return this.restorePointInTime;
+        return this.restorePointInTimeInMicros;
     }
 
     @VisibleForTesting
-    public void setRestorePointInTime(long restorePointInTimeInMicroLevel)
+    public void setRestorePointInTime(long restorePointInTimeInMicros)
     {
-        this.restorePointInTime = restorePointInTimeInMicroLevel;
+        this.restorePointInTimeInMicros = restorePointInTimeInMicros;
     }
 }

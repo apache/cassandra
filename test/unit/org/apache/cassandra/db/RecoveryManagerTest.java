@@ -249,7 +249,7 @@ public class RecoveryManagerTest
     public void testRecoverPIT() throws Exception
     {
         CommitLog.instance.resetUnsafe(true);
-        long ripTimeInit = CommitLog.instance.archiver.restorePointInTime;
+        long ripTimeInit = CommitLog.instance.archiver.restorePointInTimeInMicros;
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
 
         // seconds level
