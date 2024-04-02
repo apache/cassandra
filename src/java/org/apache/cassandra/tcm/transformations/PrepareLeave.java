@@ -115,7 +115,7 @@ public class PrepareLeave implements Transformation
         PlacementDeltas startDelta = transitionPlan.addToWrites();
         PlacementDeltas midDelta = transitionPlan.moveReads();
         PlacementDeltas finishDelta = transitionPlan.removeFromWrites();
-        PlacementTransitionPlan.assertPreExistingWriteReplica(prev.placements, transitionPlan);
+        transitionPlan.assertPreExistingWriteReplica(prev.placements);
 
         LockedRanges.Key unlockKey = LockedRanges.keyFor(proposed.epoch);
 

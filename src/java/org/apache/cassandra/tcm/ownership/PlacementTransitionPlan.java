@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -159,17 +160,14 @@ public class PlacementTransitionPlan
      * @return null if everything is good, otherwise a Transformation.Result rejection containing information about the bad replica
      */
     @Nullable
-    public static void assertPreExistingWriteReplica(DataPlacements placements, PlacementTransitionPlan transitionPlan)
+    public void assertPreExistingWriteReplica(DataPlacements placements)
     {
-        assertPreExistingWriteReplica(placements,
-                                      transitionPlan.toSplit,
-                                      transitionPlan.addToWrites(),
-                                      transitionPlan.moveReads(),
-                                      transitionPlan.removeFromWrites());
+        assertPreExistingWriteReplica(placements, toSplit, addToWrites(), moveReads(), removeFromWrites());
     }
 
     @Nullable
-    public static void assertPreExistingWriteReplica(DataPlacements placements, PlacementDeltas ... deltasInOrder)
+    @VisibleForTesting
+    protected void assertPreExistingWriteReplica(DataPlacements placements, PlacementDeltas... deltasInOrder)
     {
         for (PlacementDeltas deltas : deltasInOrder)
         {
