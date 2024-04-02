@@ -44,7 +44,7 @@ public class PlacementTransitionPlanTest
         PlacementDeltas addRead = PlacementDeltas.builder()
                                                  .put(params,
                                                       addReadDelta(newReads)).build();
-        PlacementTransitionPlan.assertPreExistingWriteReplica(startPlacements, addRead);
+        assertPreExistingWriteReplica(startPlacements, addRead);
     }
 
     @Test
@@ -59,7 +59,7 @@ public class PlacementTransitionPlanTest
         PlacementDeltas addRead = PlacementDeltas.builder()
                                                  .put(params,
                                                       addReadDelta(newReplica)).build();
-        PlacementTransitionPlan.assertPreExistingWriteReplica(startPlacements, addWrite, addRead);
+        assertPreExistingWriteReplica(startPlacements, addWrite, addRead);
     }
 
     @Test
@@ -74,7 +74,7 @@ public class PlacementTransitionPlanTest
         PlacementDeltas addRead = PlacementDeltas.builder()
                                                  .put(params,
                                                       addReadDelta(readReplicas)).build();
-        PlacementTransitionPlan.assertPreExistingWriteReplica(startPlacements, addWrite, addRead);
+        assertPreExistingWriteReplica(startPlacements, addWrite, addRead);
     }
     @Test
     public void testAddSplitReadReplica()
@@ -88,7 +88,7 @@ public class PlacementTransitionPlanTest
         PlacementDeltas addRead = PlacementDeltas.builder()
                                                  .put(params,
                                                       addReadDelta(readReplicas)).build();
-        PlacementTransitionPlan.assertPreExistingWriteReplica(startPlacements, addWrite, addRead);
+        assertPreExistingWriteReplica(startPlacements, addWrite, addRead);
     }
 
     @Test
@@ -103,7 +103,7 @@ public class PlacementTransitionPlanTest
         PlacementDeltas addRead = PlacementDeltas.builder()
                                                  .put(params,
                                                       addReadDelta(readReplicas)).build();
-        PlacementTransitionPlan.assertPreExistingWriteReplica(startPlacements, addWrite, addRead);
+        assertPreExistingWriteReplica(startPlacements, addWrite, addRead);
     }
 
     @Test(expected = Transformation.RejectedTransformationException.class)
@@ -118,7 +118,7 @@ public class PlacementTransitionPlanTest
         PlacementDeltas addRead = PlacementDeltas.builder()
                                                  .put(params,
                                                       addReadDelta(readReplicas)).build();
-        PlacementTransitionPlan.assertPreExistingWriteReplica(startPlacements, addWrite, addRead);
+        assertPreExistingWriteReplica(startPlacements, addWrite, addRead);
     }
 
     @Test
@@ -138,7 +138,7 @@ public class PlacementTransitionPlanTest
                                                  .put(params,
                                                       addReadDelta(readReplicas)).build();
         // first delta adds (0, 20] as write, second (20, 40] - make sure both are in placements when adding the read replica;
-        PlacementTransitionPlan.assertPreExistingWriteReplica(startPlacements, addWrite1, addWrite2, addRead);
+        assertPreExistingWriteReplica(startPlacements, addWrite1, addWrite2, addRead);
     }
 
     @Test(expected = Transformation.RejectedTransformationException.class)
@@ -154,7 +154,7 @@ public class PlacementTransitionPlanTest
         PlacementDeltas addRead = PlacementDeltas.builder()
                                                  .put(params,
                                                       addReadDelta(fullRead)).build();
-        PlacementTransitionPlan.assertPreExistingWriteReplica(startPlacements, addWrite, addRead);
+        assertPreExistingWriteReplica(startPlacements, addWrite, addRead);
     }
 
     @Test
@@ -170,7 +170,7 @@ public class PlacementTransitionPlanTest
         PlacementDeltas addRead = PlacementDeltas.builder()
                                                  .put(params,
                                                       addReadDelta(transientRead)).build();
-        PlacementTransitionPlan.assertPreExistingWriteReplica(startPlacements, addWrite, addRead);
+        assertPreExistingWriteReplica(startPlacements, addWrite, addRead);
     }
 
     @Test
@@ -186,7 +186,7 @@ public class PlacementTransitionPlanTest
         PlacementDeltas addRead = PlacementDeltas.builder()
                                                  .put(params,
                                                       addReadDelta(transientRead)).build();
-        PlacementTransitionPlan.assertPreExistingWriteReplica(startPlacements, addWrite, addRead);
+        assertPreExistingWriteReplica(startPlacements, addWrite, addRead);
     }
 
     @Test(expected = Transformation.RejectedTransformationException.class)
@@ -206,7 +206,15 @@ public class PlacementTransitionPlanTest
         PlacementDeltas addRead = PlacementDeltas.builder()
                                                  .put(params,
                                                       addReadDelta(readReplicas)).build();
-        PlacementTransitionPlan.assertPreExistingWriteReplica(startPlacements, addWriteFull, addWriteTransient, addRead);
+        assertPreExistingWriteReplica(startPlacements, addWriteFull, addWriteTransient, addRead);
+    }
+
+    private void assertPreExistingWriteReplica(DataPlacements start, PlacementDeltas ... deltasInOrder)
+    {
+        new PlacementTransitionPlan(PlacementDeltas.empty(),
+                                    PlacementDeltas.empty(),
+                                    PlacementDeltas.empty(),
+                                    PlacementDeltas.empty()).assertPreExistingWriteReplica(start, deltasInOrder);
     }
 
     private PlacementDeltas.PlacementDelta addReadDelta(RangesByEndpoint replica)
