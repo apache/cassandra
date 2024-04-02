@@ -156,6 +156,7 @@ public class NodeTool
                 GetInterDCStreamThroughput.class,
                 GetLoggingLevels.class,
                 GetForceDisableTrace.class,
+                GetGuardrailsConfig.class,
                 GetMaxHintWindow.class,
                 GetSSTables.class,
                 GetSeeds.class,
