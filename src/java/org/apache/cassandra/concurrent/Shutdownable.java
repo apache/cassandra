@@ -19,7 +19,9 @@
 package org.apache.cassandra.concurrent;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.Shared;
 
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
@@ -42,5 +44,10 @@ public interface Shutdownable
     /**
      * Await termination of this object, i.e. the cessation of all current and future work.
      */
-    public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException;
+    boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException;
+
+    default void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
+    {
+        ExecutorUtils.shutdownAndWait(timeout, unit, this);
+    }
 }

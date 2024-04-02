@@ -885,6 +885,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     {
         Future<?> future = async((ExecutorService executor) -> {
             Throwable error = null;
+            inInstancelogger.warn("Shutting down in thread {}", Thread.currentThread().getName());
 
             CompactionManager.instance.forceShutdown();
 
@@ -1225,6 +1226,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 }
             }));
         }
+        // This is not used code, but it is here for when you run in a debugger...
+        // When shutdown gets blocked we need to be able to trace down which future is blocked, so this idx
+        // helps map the location... the reason we can't leverage here is the timeout logic is higher up, so
+        // 'idx' really only helps out in a debugger...
+        int idx = 0;
         for (Future<Throwable> future : results)
         {
             try
@@ -1237,6 +1243,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             {
                 accumulate = Throwables.merge(accumulate, t);
             }
+            idx++;
         }
         return accumulate;
     }
