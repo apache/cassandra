@@ -225,7 +225,7 @@ public class TypeParser
 
             String alias = readNextIdentifier();
             if (alias.length() != 1)
-                throwSyntaxError("An alias should be a single character");
+                throwSyntaxError("An alias should be a single character: '" + alias + "', string: " + str);
             char aliasChar = alias.charAt(0);
             if (aliasChar < 33 || aliasChar > 127)
                 throwSyntaxError("An alias should be a single character in [0..9a..bA..B-+._&]");
