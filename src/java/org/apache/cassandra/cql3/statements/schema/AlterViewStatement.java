@@ -76,7 +76,7 @@ public final class AlterViewStatement extends AlterSchemaStatement
         // Guardrails on table properties
         Guardrails.tableProperties.guard(attrs.updatedProperties(), attrs::removeProperty, state);
 
-        TableParams params = attrs.asAlteredTableParams(view.metadata.params, keyspaceName);
+        TableParams params = attrs.asAlteredTableParams(view.metadata.params);
 
         if (params.gcGraceSeconds == 0)
         {
