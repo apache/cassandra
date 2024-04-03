@@ -75,7 +75,7 @@ public class SystemKeyspaceStorage implements LogStorage
             ByteBuffer serializedTransformation = entry.transform.kind().toVersionedBytes(entry.transform);
             String query = String.format("INSERT INTO %s.%s (epoch, entry_id, transformation, kind) VALUES (?,?,?,?)",
                                          SchemaConstants.SYSTEM_KEYSPACE_NAME, NAME);
-            executeInternal(query, entry.epoch.getEpoch(), entry.id.entryId, serializedTransformation, entry.transform.kind().toString());
+            executeInternal(query, entry.epoch.getEpoch(), entry.id.entryId, serializedTransformation, entry.transform.kind().id);
             // todo; should probably not flush every time, but it simplifies tests
             Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(NAME).forceBlockingFlush(ColumnFamilyStore.FlushReason.INTERNALLY_FORCED);
         }
@@ -149,7 +149,7 @@ public class SystemKeyspaceStorage implements LogStorage
         {
             long entryId = row.getLong("entry_id");
             Epoch epoch = Epoch.create(row.getLong("epoch"));
-            Transformation.Kind kind = Transformation.Kind.valueOf(row.getString("kind"));
+            Transformation.Kind kind = Transformation.Kind.fromId(row.getInt("kind"));
             Transformation transform = kind.fromVersionedBytes(row.getBlob("transformation"));
             holder.add(new Entry(new Entry.Id(entryId), epoch, transform));
         }

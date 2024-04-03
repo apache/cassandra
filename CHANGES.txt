@@ -1,4 +1,5 @@
 5.1
+ * Use Transformation.Kind.id in local and distributed log tables (CASSANDRA-19516)
  * Remove period field from ClusterMetadata and metadata log tables (CASSANDRA-19482)
  * Enrich system_views.pending_hints vtable with hints sizes (CASSANDRA-19486)
  * Expose all dropwizard metrics in virtual tables (CASSANDRA-14572)

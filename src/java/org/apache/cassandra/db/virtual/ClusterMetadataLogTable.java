@@ -66,7 +66,7 @@ final class ClusterMetadataLogTable extends AbstractVirtualTable
                                                   "FROM %s.%s", METADATA_KEYSPACE_NAME, TABLE_NAME), ConsistencyLevel.QUORUM);
             for (UntypedResultSet.Row r : res)
             {
-                Transformation.Kind kind = Transformation.Kind.valueOf(r.getString("kind"));
+                Transformation.Kind kind = Transformation.Kind.fromId(r.getInt("kind"));
                 Transformation transformation = kind.fromVersionedBytes(r.getBlob("transformation"));
 
                 result.row(r.getLong("epoch"))
