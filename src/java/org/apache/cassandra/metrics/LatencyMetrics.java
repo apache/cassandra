@@ -99,8 +99,8 @@ public class LatencyMetrics
         }
         else
         {
-            latency = Metrics.register(factory.createMetricName(namePrefix + "Latency"), aliasFactory.createMetricName(namePrefix + "Latency"), timer);
-            totalLatency = Metrics.register(factory.createMetricName(namePrefix + "TotalLatency"), aliasFactory.createMetricName(namePrefix + "TotalLatency"), counter);
+            latency = Metrics.register(factory.createMetricName(namePrefix + "Latency"), timer, aliasFactory.createMetricName(namePrefix + "Latency"));
+            totalLatency = Metrics.register(factory.createMetricName(namePrefix + "TotalLatency"), counter, aliasFactory.createMetricName(namePrefix + "TotalLatency"));
         }
     }
     
@@ -164,16 +164,9 @@ public class LatencyMetrics
         {
             parent.removeChildren(this);
         }
-        if (aliasFactory == null)
-        {
-            Metrics.remove(factory.createMetricName(namePrefix + "Latency"));
-            Metrics.remove(factory.createMetricName(namePrefix + "TotalLatency"));
-        }
-        else
-        {
-            Metrics.remove(factory.createMetricName(namePrefix + "Latency"), aliasFactory.createMetricName(namePrefix + "Latency"));
-            Metrics.remove(factory.createMetricName(namePrefix + "TotalLatency"), aliasFactory.createMetricName(namePrefix + "TotalLatency"));
-        }
+        // Aliases are already known to the parent metrics, so we don't need to remove them here.
+        Metrics.remove(factory.createMetricName(namePrefix + "Latency"));
+        Metrics.remove(factory.createMetricName(namePrefix + "TotalLatency"));
     }
 
     public class LatencyMetricsTimer extends Timer

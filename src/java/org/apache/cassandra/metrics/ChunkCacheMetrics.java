@@ -33,6 +33,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  */
 public class ChunkCacheMetrics extends CacheMetrics implements StatsCounter
 {
+    public static final String TYPE_NAME = "ChunkCache";
     /** Latency of misses */
     public final Timer missLatency;
 
@@ -43,7 +44,7 @@ public class ChunkCacheMetrics extends CacheMetrics implements StatsCounter
      */
     public ChunkCacheMetrics(ChunkCache cache)
     {
-        super("ChunkCache", cache);
+        super(TYPE_NAME, cache);
         missLatency = Metrics.timer(factory.createMetricName("MissLatency"));
     }
 

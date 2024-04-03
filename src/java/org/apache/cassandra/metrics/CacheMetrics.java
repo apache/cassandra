@@ -27,6 +27,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  */
 public class CacheMetrics extends AbstractCacheMetrics
 {
+    public static final String TYPE_NAME = "Cache";
     /** Cache capacity in bytes */
     public final Gauge<Long> capacity;
 
@@ -44,7 +45,7 @@ public class CacheMetrics extends AbstractCacheMetrics
      */
     public CacheMetrics(String type, CacheSize cache)
     {
-        super(new DefaultNameFactory("Cache", type), type);
+        super(new DefaultNameFactory(TYPE_NAME, type), type);
         capacity = Metrics.register(factory.createMetricName("Capacity"), cache::capacity);
         size = Metrics.register(factory.createMetricName("Size"), cache::weightedSize);
         entries = Metrics.register(factory.createMetricName("Entries"), cache::size);

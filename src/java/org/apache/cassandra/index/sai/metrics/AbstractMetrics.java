@@ -34,7 +34,7 @@ public abstract class AbstractMetrics
     protected final String table;
     private final String index;
     private final String scope;
-    protected final List<CassandraMetricsRegistry.MetricName> tracked = new ArrayList<>();
+    protected final List<String> tracked = new ArrayList<>();
 
     AbstractMetrics(IndexIdentifier indexIdentifier, String scope)
     {
@@ -77,7 +77,7 @@ public abstract class AbstractMetrics
 
         CassandraMetricsRegistry.MetricName metricName = new CassandraMetricsRegistry.MetricName(DefaultNameFactory.GROUP_NAME,
                                                                                                  TYPE, name, metricScope, createMBeanName(name, scope));
-        tracked.add(metricName);
+        tracked.add(metricName.getMetricName());
         return metricName;
     }
 

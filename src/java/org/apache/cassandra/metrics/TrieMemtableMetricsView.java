@@ -21,9 +21,11 @@ package org.apache.cassandra.metrics;
 import com.codahale.metrics.Counter;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+import static org.apache.cassandra.metrics.DefaultNameFactory.GROUP_NAME;
 
 public class TrieMemtableMetricsView
 {
+    public static final String TYPE_NAME = "TrieMemtable";
     private static final String UNCONTENDED_PUTS = "Uncontended memtable puts";
     private static final String CONTENDED_PUTS = "Contended memtable puts";
     private static final String CONTENTION_TIME = "Contention time";
@@ -74,17 +76,14 @@ public class TrieMemtableMetricsView
 
         public CassandraMetricsRegistry.MetricName createMetricName(String metricName)
         {
-            String groupName = TableMetrics.class.getPackage().getName();
-            String type = "TrieMemtable";
-
             StringBuilder mbeanName = new StringBuilder();
-            mbeanName.append(groupName).append(":");
-            mbeanName.append("type=").append(type);
+            mbeanName.append(GROUP_NAME).append(":");
+            mbeanName.append("type=").append(TYPE_NAME);
             mbeanName.append(",keyspace=").append(keyspace);
             mbeanName.append(",scope=").append(table);
             mbeanName.append(",name=").append(metricName);
 
-            return new CassandraMetricsRegistry.MetricName(groupName, type, metricName, keyspace + "." + table, mbeanName.toString());
+            return new CassandraMetricsRegistry.MetricName(GROUP_NAME, TYPE_NAME, metricName, keyspace + '.' + table, mbeanName.toString());
         }
     }
 }

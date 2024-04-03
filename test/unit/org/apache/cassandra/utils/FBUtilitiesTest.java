@@ -251,7 +251,8 @@ public class FBUtilitiesTest
         AssertionError error = null;
         for (Pair<String, String> a : Arrays.asList(Pair.create("Testing", "testing"),
                                                     Pair.create("fooBarBaz", "foo_bar_baz"),
-                                                    Pair.create("foo_bar_baz", "foo_bar_baz")
+                                                    Pair.create("foo_bar_baz", "foo_bar_baz"),
+                                                    Pair.create("TCM", "tcm")
         ))
         {
             try

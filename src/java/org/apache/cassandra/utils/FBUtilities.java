@@ -1402,6 +1402,9 @@ public class FBUtilities
 
     public static String camelToSnake(String camel)
     {
+        if (camel.chars().allMatch(Character::isUpperCase))
+            return camel.toLowerCase();
+
         StringBuilder sb = new StringBuilder();
         for (char c : camel.toCharArray())
         {
