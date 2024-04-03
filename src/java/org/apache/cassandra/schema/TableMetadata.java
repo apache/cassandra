@@ -207,6 +207,14 @@ public class TableMetadata implements SchemaElement
         kind = builder.kind;
         params = builder.params.build();
 
+        if (SchemaConstants.getLocalAndReplicatedSystemKeyspaceNames().contains(keyspace))
+        {
+            if (!params.compression.equals(CompressionParams.DEFAULT))
+            {
+                throw new ConfigurationException("Compressors can not be customly set for system tables.");
+            }
+        }
+
         indexName = kind == Kind.INDEX ? name.substring(name.indexOf('.') + 1) : null;
 
         droppedColumns = ImmutableMap.copyOf(builder.droppedColumns);
