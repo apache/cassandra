@@ -42,7 +42,7 @@ public class KeyRangeOrderingIterator extends KeyRangeIterator
 
     public KeyRangeOrderingIterator(KeyRangeIterator input, int chunkSize, Function<List<PrimaryKey>, KeyRangeIterator> nextRangeFunction)
     {
-        super(input);
+        super(input, () -> {});
         this.input = input;
         this.chunkSize = chunkSize;
         this.nextRangeFunction = nextRangeFunction;
