@@ -165,7 +165,15 @@ public class RowFilter implements Iterable<RowFilter.Expression>
      */
     public boolean isStrict()
     {
-        return !needsReconciliation || expressions.stream().filter(e -> !e.column.isPrimaryKeyColumn()).count() <= 1;
+        return !needsReconciliation || !isMutableIntersection();
+    }
+
+    /**
+     * @return true if this filter contains an intersection on two or more mutable columns
+     */
+    public boolean isMutableIntersection()
+    {
+        return expressions.stream().filter(e -> !e.column.isPrimaryKeyColumn()).count() > 1;
     }
 
     /**
