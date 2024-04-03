@@ -192,6 +192,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     private final AtomicLong startedAt = new AtomicLong();
     private IsolatedJmx isolatedJmx;
 
+    private enum Status { INIT, STARTUP, RUNNING, SHUTDOWN, TERMINATED }
+    private volatile Status status = Status.INIT;
+
     /** @deprecated See CASSANDRA-17013 */
     @Deprecated(since = "4.1")
     Instance(IInstanceConfig config, ClassLoader classLoader)
@@ -327,7 +330,26 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     public boolean isShutdown()
     {
-        return isolatedExecutor.isShutdown();
+        return isolatedExecutor.isShutdown() || isInternalShutdown();
+    }
+
+    private boolean isInternalShutdown()
+    {
+        switch (status)
+        {
+            case INIT:
+            case STARTUP:
+                return false;
+            case RUNNING:
+                break; // need to check internal status
+            case SHUTDOWN:
+            case TERMINATED:
+                return true;
+        }
+        // org.apache.cassandra.service.StorageService.shutdownNetworking
+        // When we do decom we shutdown the process, but jvm-dtest doesn't know this, so need to check
+        // if that happened
+        return Stage.READ.executor().isShutdown();
     }
 
     @Override
@@ -607,6 +629,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
         sync(() -> {
             inInstancelogger = LoggerFactory.getLogger(Instance.class);
+            status = Status.STARTUP;
             try
             {
                 boolean isFullStartup = config.get(Constants.KEY_DTEST_FULL_STARTUP) != null && (boolean) config.get(Constants.KEY_DTEST_FULL_STARTUP);
@@ -625,6 +648,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     partialStartup(cluster);
                 }
                 StorageService.instance.startSnapshotManager();
+                status = Status.RUNNING;
             }
             catch (Throwable t)
             {
@@ -879,6 +903,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     public Future<Void> shutdown(boolean runOnExitThreads, boolean shutdownMessagingGracefully)
     {
         Future<?> future = async((ExecutorService executor) -> {
+            status = Status.SHUTDOWN;
             Throwable error = null;
 
             CompactionManager.instance.forceShutdown();
@@ -986,6 +1011,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             }
             finally
             {
+                status = Status.TERMINATED;
                 super.shutdown();
                 startedAt.set(0L);
                 //withThreadLeakCheck();
