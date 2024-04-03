@@ -75,8 +75,7 @@ public final class CompressionParams
                                                                        DEFAULT_MIN_COMPRESS_RATIO,
                                                                        emptyMap());
 
-    /** (legacy) Default for when no other compression is specified.
-     * You probalby want defaultParams(keyspace) rather than this. */
+    /** (legacy) Default for when no other compression is specified */
     public static final CompressionParams DEFAULT = new CompressionParams(LZ4Compressor.create(Collections.emptyMap()),
                                                                            DEFAULT_CHUNK_LENGTH,
                                                                            calcMaxCompressedLength(DEFAULT_CHUNK_LENGTH, DEFAULT_MIN_COMPRESS_RATIO),
