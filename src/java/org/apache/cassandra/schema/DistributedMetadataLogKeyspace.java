@@ -68,7 +68,7 @@ public final class DistributedMetadataLogKeyspace
                                                + "epoch bigint,"
                                                + "entry_id bigint,"
                                                + "transformation blob,"
-                                               + "kind text,"
+                                               + "kind int,"
                                                + "PRIMARY KEY (epoch))";
 
     public static final TableMetadata Log =
@@ -88,7 +88,7 @@ public final class DistributedMetadataLogKeyspace
             UntypedResultSet result = QueryProcessor.execute(init, ConsistencyLevel.QUORUM,
                                                              FIRST.getEpoch(),
                                                              Transformation.Kind.PRE_INITIALIZE_CMS.toVersionedBytes(PreInitialize.blank()),
-                                                             Transformation.Kind.PRE_INITIALIZE_CMS.toString(),
+                                                             Transformation.Kind.PRE_INITIALIZE_CMS.id,
                                                              Entry.Id.NONE.entryId);
 
             UntypedResultSet.Row row = result.one();
@@ -97,7 +97,7 @@ public final class DistributedMetadataLogKeyspace
 
             if (row.getLong("epoch") == FIRST.getEpoch() &&
                 row.getLong("entry_id") == Entry.Id.NONE.entryId &&
-                Transformation.Kind.PRE_INITIALIZE_CMS.toString().equals(row.getString("kind")))
+                Transformation.Kind.PRE_INITIALIZE_CMS.id == row.getInt("kind"))
                 return true;
 
             throw new IllegalStateException("Could not initialize log.");
@@ -137,7 +137,7 @@ public final class DistributedMetadataLogKeyspace
                                                              nextEpoch.getEpoch(),
                                                              entryId.entryId,
                                                              serializedEvent,
-                                                             transform.kind().toString());
+                                                             transform.kind().id);
 
             return result.one().getBoolean("[applied]");
         }
@@ -191,7 +191,7 @@ public final class DistributedMetadataLogKeyspace
             {
                 long entryId = row.getLong("entry_id");
                 Epoch epoch = Epoch.create(row.getLong("epoch"));
-                Transformation.Kind kind = Transformation.Kind.valueOf(row.getString("kind"));
+                Transformation.Kind kind = Transformation.Kind.fromId(row.getInt("kind"));
                 Transformation transform = kind.fromVersionedBytes(row.getBlob("transformation"));
                 entryHolder.add(new Entry(new Entry.Id(entryId), epoch, transform));
             }
