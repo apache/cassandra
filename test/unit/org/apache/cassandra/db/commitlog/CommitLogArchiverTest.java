@@ -22,7 +22,6 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -34,19 +33,13 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.Properties;
 
-import static org.apache.cassandra.db.commitlog.CommitLogArchiver.RIPLEVEL.MICROSECONDS;
-import static org.apache.cassandra.db.commitlog.CommitLogArchiver.RIPLEVEL.MILLISECONDS;
-import static org.apache.cassandra.db.commitlog.CommitLogArchiver.RIPLEVEL.SECONDS;
-import static org.apache.cassandra.db.commitlog.CommitLogArchiver.getRipLevel;
-import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class CommitLogArchiverTest extends CQLTester
 {
     private static String dirName = "backup_commitlog";
     private static Path backupDir;
-    private String ripTime = "2024:03:22 20:43:12.633222";
+    private String rpiTime = "2024:03:22 20:43:12.633222";
 
     @BeforeClass
     public static void beforeClass() throws IOException
@@ -61,21 +54,6 @@ public class CommitLogArchiverTest extends CQLTester
         dir.deleteRecursive();
     }
 
-
-    @Test
-    public void getRipLevelTest()
-    {
-        assertEquals(SECONDS, getRipLevel("2024:03:22 10:11:23"));
-        assertEquals(MILLISECONDS, getRipLevel("2024:03:22 10:11:23.222"));
-        assertEquals(MICROSECONDS, getRipLevel("2024:03:22 10:11:23.222222"));
-
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> getRipLevel("2024:03:22 10:11:23.2"))
-                .withMessageContaining("Wrong property format for restore_point_in_time :2024:03:22 10:11:23.2");
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> getRipLevel("2024:03:22 10:11:23.2222"))
-                .withMessageContaining("Wrong property format for restore_point_in_time :2024:03:22 10:11:23.2222");
-
-    }
-
     @Test
     public void testArchiveAndRestore() throws IOException
     {
@@ -86,12 +64,12 @@ public class CommitLogArchiverTest extends CQLTester
         properties.putAll(Map.of("archive_command", "/bin/mv %path " + backupDir,
                                  "restore_command", "/bin/mv -f %from %to",
                                  "restore_directories", backupDir,
-                                 "restore_point_in_time", ripTime));
+                                 "restore_point_in_time", rpiTime));
         CommitLogArchiver commitLogArchiver = CommitLogArchiver.getArchiverFromProperty(properties);
         commitLog.setCommitlogArchiver(commitLogArchiver);
 
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(table);
-        long ts = CommitLogArchiver.getRipLevel(ripTime).getMicroLevelTimeStamp(ripTime);
+        long ts = CommitLogArchiver.getMicroSeconds(rpiTime);
         for (int i = 1; i <= 10; ++i)
         {
             new RowUpdateBuilder(cfs.metadata(), ts - i, "name-" + i)

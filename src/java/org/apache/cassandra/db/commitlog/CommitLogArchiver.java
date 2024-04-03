@@ -57,58 +57,7 @@ public class CommitLogArchiver
 {
     private static final Logger logger = LoggerFactory.getLogger(CommitLogArchiver.class);
 
-    public enum RIPLEVEL
-    {
-        SECONDS
-        {
-            @Override
-            public long getMicroLevelTimeStamp(String ripTime)
-            {
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss").withZone(ZoneId.of("GMT"));
-                return getMicroSeconds(ripTime, formatter);
-            }
-
-            @Override
-            public long getMillSeconds(long targetTs)
-            {
-                return targetTs == Long.MAX_VALUE ? Long.MAX_VALUE : targetTs * 1000;
-            }
-        },
-        MILLISECONDS
-        {
-            @Override
-            public long getMicroLevelTimeStamp(String ripTime)
-            {
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss[.[SSS]]").withZone(ZoneId.of("GMT"));
-                return getMicroSeconds(ripTime, formatter);
-            }
-
-            @Override
-            public long getMillSeconds(long targetTs)
-            {
-                return targetTs == Long.MAX_VALUE ? Long.MAX_VALUE : targetTs ;
-            }
-        },
-        MICROSECONDS
-        {
-            @Override
-            public long getMicroLevelTimeStamp(String ripTime)
-            {
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss[.[SSSSSS]]").withZone(ZoneId.of("GMT"));
-                return getMicroSeconds(ripTime, formatter);
-            }
-
-            @Override
-            public long getMillSeconds(long targetTs)
-            {
-                return targetTs == Long.MAX_VALUE ? Long.MAX_VALUE : targetTs / 1000;
-            }
-        };
-
-       public abstract long getMicroLevelTimeStamp(String ripTime);
-       public abstract long getMillSeconds(long targetTs);
-    }
-
+    public static final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss[.[SSSSSS][SSS]]").withZone(ZoneId.of("GMT"));
     private static final String DELIMITER = ",";
     private static final Pattern NAME = Pattern.compile("%name");
     private static final Pattern PATH = Pattern.compile("%path");
@@ -123,10 +72,10 @@ public class CommitLogArchiver
     public long restorePointInTimeInMicros;
     public CommitLogPosition snapshotCommitLogPosition;
     public final TimeUnit precision;
-    public RIPLEVEL riplevel;
+
 
     public CommitLogArchiver(String archiveCommand, String restoreCommand, String restoreDirectories,
-            long restorePointInTimeInMicros, CommitLogPosition snapshotCommitLogPosition, TimeUnit precision, RIPLEVEL riplevel)
+            long restorePointInTimeInMicros, CommitLogPosition snapshotCommitLogPosition, TimeUnit precision)
     {
         this.archiveCommand = archiveCommand;
         this.restoreCommand = restoreCommand;
@@ -134,7 +83,6 @@ public class CommitLogArchiver
         this.restorePointInTimeInMicros = restorePointInTimeInMicros;
         this.snapshotCommitLogPosition = snapshotCommitLogPosition;
         this.precision = precision;
-        this.riplevel = riplevel;
         executor = !Strings.isNullOrEmpty(archiveCommand)
                 ? executorFactory()
                     .withJmxInternal()
@@ -144,7 +92,7 @@ public class CommitLogArchiver
 
     public static CommitLogArchiver disabled()
     {
-        return new CommitLogArchiver(null, null, null, Long.MAX_VALUE, CommitLogPosition.NONE, TimeUnit.MICROSECONDS, null);
+        return new CommitLogArchiver(null, null, null, Long.MAX_VALUE, CommitLogPosition.NONE, TimeUnit.MICROSECONDS);
     }
 
     public static CommitLogArchiver construct()
@@ -193,7 +141,6 @@ public class CommitLogArchiver
         //todo remove this as this is not used
         TimeUnit precision = TimeUnit.valueOf(commitlogCommands.getProperty("precision", "MICROSECONDS"));
         long restorePointInTime;
-        RIPLEVEL riplevel = null;
         try
         {
             if (Strings.isNullOrEmpty(targetTime))
@@ -202,9 +149,8 @@ public class CommitLogArchiver
             }
             else
             {
-                riplevel = getRipLevel(targetTime);
-                // the restorePointInTime is millseconds level by default, set to microlevel by default as c* use this level ts.
-                restorePointInTime = riplevel.getMicroLevelTimeStamp(targetTime);
+                // get restorePointInTime  microlevel by default as c* use this level ts.
+                restorePointInTime = getMicroSeconds(targetTime);
             }
         }
         catch (DateTimeParseException | ConfigurationException e)
@@ -231,8 +177,7 @@ public class CommitLogArchiver
                                      restoreDirectories,
                                      restorePointInTime,
                                      snapshotCommitLogPosition,
-                                     precision,
-                                     riplevel);
+                                     precision);
     }
 
     public void maybeArchive(final CommitLogSegment segment)
@@ -389,37 +334,15 @@ public class CommitLogArchiver
      * we change the restorePointInTime into MicroSeconds level as cassandra use MicroSeconds
      * as the timestamp.
      * */
-    private static long getMicroSeconds(String restorePointInTime, DateTimeFormatter format)
+    public static long getMicroSeconds(String restorePointInTime)
     {
+        assert format != null;
         Instant instant = format.parse(restorePointInTime, Instant::from);
         return instant.getEpochSecond() * 1000_000 + instant.getNano() / 1000;
     }
 
-    public static RIPLEVEL getRipLevel(String targetTime)
-    {
-        String[] timeElementArry = targetTime.split("\\.");
-        if (timeElementArry.length == 1)
-        {
-            // // yyyy:MM:dd HH:mm:ss
-            return RIPLEVEL.SECONDS;
-        }
-        else if (timeElementArry[timeElementArry.length - 1].length() == 3)
-        {
-            // yyyy:MM:dd HH:mm:ss[.[SSS]]
-            return RIPLEVEL.MILLISECONDS;
-        }
-        else if (timeElementArry[timeElementArry.length - 1].length() == 6)
-        {
-            // yyyy:MM:dd HH:mm:ss[.[SSSSS]]
-            return RIPLEVEL.MICROSECONDS;
-        }
-        throw new ConfigurationException("Wrong property format for restore_point_in_time :" + targetTime);
-    }
-
     public long getRestorePointInTimeInMicroLevel()
     {
-        if (riplevel == null)
-            return Long.MAX_VALUE;
         return this.restorePointInTimeInMicros;
     }
 
