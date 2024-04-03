@@ -1,4 +1,5 @@
 5.1
+ * Ensured that PropertyFileSnitchTest do not overwrite cassandra-toploogy.properties (CASSANDRA-19502)
  * Add option for MutualTlsAuthenticator to restrict the certificate validity period (CASSANDRA-18951)
  * Fix StorageService::constructRangeToEndpointMap for non-distributed keyspaces (CASSANDRA-19255)
  * Group nodetool cms commands into single command group (CASSANDRA-19393)
