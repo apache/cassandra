@@ -206,10 +206,18 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     Instance(IInstanceConfig config, ClassLoader classLoader, FileSystem fileSystem, ShutdownExecutor shutdownExecutor)
     {
+        this(config, classLoader, fileSystem, shutdownExecutor, null);
+    }
+
+    Instance(IInstanceConfig config, ClassLoader classLoader, FileSystem fileSystem, ShutdownExecutor shutdownExecutor, SharedUncaughtExceptionHandler uncaughtExceptionHandler)
+    {
         super("node" + config.num(), classLoader, executorFactory().pooled("isolatedExecutor", Integer.MAX_VALUE), shutdownExecutor);
         this.config = config;
         if (fileSystem != null)
             File.unsafeSetFilesystem(fileSystem);
+        // It is intentional not to include isolatedExecutor.  Most tests will see these errors and are more than likely testing failure cases.
+        if (uncaughtExceptionHandler != null)
+            ExecutorFactory.Global.tryUnsafeSet(new ExecutorFactory.Default(classLoader, null, uncaughtExceptionHandler));
         Object clusterId = Objects.requireNonNull(config.get(Constants.KEY_DTEST_API_CLUSTER_ID), "cluster_id is not defined");
         ClusterIDDefiner.setId("cluster-" + clusterId);
         InstanceIDDefiner.setInstanceId(config.num());
@@ -675,6 +683,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     {
         // org.apache.cassandra.distributed.impl.AbstractCluster.startup sets the exception handler for the thread
         // so extract it to populate ExecutorFactory.Global
+        // In the common path this will be set in the constructor, but for older jvm-dtests that might not be true, so need to set here as well
         ExecutorFactory.Global.tryUnsafeSet(new ExecutorFactory.Default(Thread.currentThread().getContextClassLoader(), null, Thread.getDefaultUncaughtExceptionHandler()));
         if (config.has(GOSSIP))
         {

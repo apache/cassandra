@@ -36,6 +36,7 @@ import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -50,6 +51,7 @@ import org.apache.cassandra.tcm.sequences.SequenceState;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.PrepareReplace;
+import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.concurrent.Condition;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS_FIRST_BOOT;
@@ -65,6 +67,11 @@ import static org.apache.cassandra.tcm.sequences.SequenceState.halted;
 
 public class InProgressSequenceCoordinationTest extends FuzzTestBase
 {
+    private static boolean allowedErrors(Throwable t)
+    {
+        return AssertionUtils.isInstanceof(ReadTimeoutException.class).matches(t);
+    }
+
     @Test
     public void bootstrapProgressTest() throws Throwable
     {
@@ -77,6 +84,7 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
                                         .start())
         {
+            cluster.setUncaughtExceptionsFilter(InProgressSequenceCoordinationTest::allowedErrors);
 
             IInvokableInstance cmsInstance = cluster.get(1);
             ClusterUtils.waitForCMSToQuiesce(cluster, cmsInstance);
@@ -134,6 +142,8 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
                                         .start())
         {
+            cluster.setUncaughtExceptionsFilter(InProgressSequenceCoordinationTest::allowedErrors);
+
             IInvokableInstance cmsInstance = cluster.get(1);
             ClusterUtils.waitForCMSToQuiesce(cluster, cmsInstance);
 
@@ -204,6 +214,7 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
                                         .start())
         {
+            cluster.setUncaughtExceptionsFilter(InProgressSequenceCoordinationTest::allowedErrors);
 
             IInvokableInstance cmsInstance = cluster.get(1);
             ClusterUtils.waitForCMSToQuiesce(cluster, cmsInstance);
@@ -260,6 +271,7 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
         try (Cluster cluster = builder().withNodes(2)
                                         .start())
         {
+            cluster.setUncaughtExceptionsFilter(InProgressSequenceCoordinationTest::allowedErrors);
             cluster.get(2).runOnInstance(() -> {
                 NodeId self = ClusterMetadata.current().myNodeId();
                 ClusterMetadataService.instance().commit(new PrepareLeave(self,
@@ -288,6 +300,7 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
                                         .withConfig((config) -> config.with(Feature.NETWORK, Feature.GOSSIP).set("request_timeout_in_ms", "1000"))
                                         .start())
         {
+            cluster.setUncaughtExceptionsFilter(InProgressSequenceCoordinationTest::allowedErrors);
             cluster.filters()
                    .inbound()
                    .messagesMatching(new IMessageFilters.Matcher()

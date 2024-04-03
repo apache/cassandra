@@ -41,6 +41,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -312,20 +313,32 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             IInvokableInstance instance;
             try
             {
-                instance = Instance.transferAdhocPropagate((SerializableQuadFunction<IInstanceConfig, ClassLoader, FileSystem, ShutdownExecutor, Instance>)Instance::new, classLoader)
-                                   .apply(config.forVersion(version.version), classLoader, root.getFileSystem(), shutdownExecutor);
+                instance = Instance.transferAdhocPropagate((SerializableQuintFunction<IInstanceConfig, ClassLoader, FileSystem, ShutdownExecutor, SharedUncaughtExceptionHandler, Instance>)Instance::new, classLoader)
+                                   .apply(config.forVersion(version.version), classLoader, root.getFileSystem(), shutdownExecutor, AbstractCluster.this::uncaughtExceptions);
             }
             catch (InvocationTargetException e)
             {
                 try
                 {
-                    instance = Instance.transferAdhocPropagate((SerializableTriFunction<IInstanceConfig, ClassLoader, FileSystem, Instance>)Instance::new, classLoader)
-                                       .apply(config.forVersion(version.version), classLoader, root.getFileSystem());
+                    instance = Instance.transferAdhocPropagate((SerializableQuadFunction<IInstanceConfig, ClassLoader, FileSystem, ShutdownExecutor, Instance>)Instance::new, classLoader)
+                                       .apply(config.forVersion(version.version), classLoader, root.getFileSystem(), shutdownExecutor);
                 }
                 catch (InvocationTargetException e2)
                 {
-                    instance = Instance.transferAdhoc((SerializableBiFunction<IInstanceConfig, ClassLoader, Instance>)Instance::new, classLoader)
-                                       .apply(config.forVersion(version.version), classLoader);
+                    try
+                    {
+                        instance = Instance.transferAdhocPropagate((SerializableTriFunction<IInstanceConfig, ClassLoader, FileSystem, Instance>)Instance::new, classLoader)
+                                           .apply(config.forVersion(version.version), classLoader, root.getFileSystem());
+                    }
+                    catch (InvocationTargetException e3)
+                    {
+                        instance = Instance.transferAdhoc((SerializableBiFunction<IInstanceConfig, ClassLoader, Instance>)Instance::new, classLoader)
+                                           .apply(config.forVersion(version.version), classLoader);
+                    }
+                    catch (IllegalAccessException e3)
+                    {
+                        throw new RuntimeException(e);
+                    }
                 }
                 catch (IllegalAccessException e2)
                 {
@@ -1022,8 +1035,11 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         }
     }
 
+    private static final Set<AbstractCluster<?>> ALL_CLUSTERS = new CopyOnWriteArraySet<>();
+
     public void startup()
     {
+        ALL_CLUSTERS.add(this);
         previousHandler = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler(this::uncaughtExceptions);
         try (AllMembersAliveMonitor monitor = new AllMembersAliveMonitor())
@@ -1056,6 +1072,16 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         }
     }
 
+    private boolean ownsThread(Thread thread)
+    {
+        if (!(thread.getContextClassLoader() instanceof InstanceClassLoader))
+            return false;
+        InstanceClassLoader cl = (InstanceClassLoader) thread.getContextClassLoader();
+        Wrapper instance = (Wrapper) get(cl.getInstanceId());
+        IInvokableInstance delegate = instance == null ? null : instance.delegate;
+        return delegate != null && delegate.getClass().getClassLoader() == cl;
+    }
+
     private void uncaughtExceptions(Thread thread, Throwable error)
     {
         if (!(thread.getContextClassLoader() instanceof InstanceClassLoader))
@@ -1066,11 +1092,27 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             return;
         }
 
+        if (!ownsThread(thread))
+        {
+            // another cluster hit us... which one?
+            boolean found = false;
+            for (AbstractCluster<?> cluster : ALL_CLUSTERS)
+            {
+                if (cluster == this || !cluster.ownsThread(thread)) continue;
+                cluster.uncaughtExceptions(thread, error);
+                found = true;
+                break;
+            }
+            if (!found)
+                logger.warn("Uncaught exception was sent to the wrong cluster object, but no active clusters can handle", error);
+            return;
+        }
         InstanceClassLoader cl = (InstanceClassLoader) thread.getContextClassLoader();
-        get(cl.getInstanceId()).uncaughtException(thread, error);
+        I instance = get(cl.getInstanceId());
+        if (instance != null && !instance.isShutdown())
+            instance.uncaughtException(thread, error);
 
         BiPredicate<Integer, Throwable> ignore = ignoreUncaughtThrowable;
-        I instance = get(cl.getInstanceId());
         if ((ignore == null || !ignore.test(cl.getInstanceId(), error)) && instance != null && !instance.isShutdown())
             uncaughtExceptions.add(error);
     }
@@ -1110,6 +1152,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         checkAndResetUncaughtExceptions();
         //checkForThreadLeaks();
         //withThreadLeakCheck(futures);
+        ALL_CLUSTERS.remove(this);
     }
 
     @Override
