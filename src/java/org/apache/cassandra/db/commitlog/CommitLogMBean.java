@@ -54,11 +54,6 @@ public interface CommitLogMBean
     public long getRestorePointInTime();
 
     /**
-     * only used for testing
-     * */
-    public void setCommitlogArchiver(CommitLogArchiver archiver);
-
-    /**
      * get precision of the timestamp used in the restore (MILLISECONDS, MICROSECONDS, ...)
      * to determine if passed the restore point in time.
      */

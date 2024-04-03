@@ -407,7 +407,7 @@ public class CommitLog implements CommitLogMBean
         return archiver.restorePointInTimeInMicros;
     }
 
-    @Override
+    @VisibleForTesting
     public void setCommitlogArchiver(CommitLogArchiver archiver)
     {
         this.archiver = archiver;
