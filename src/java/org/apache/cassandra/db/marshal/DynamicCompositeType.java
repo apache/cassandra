@@ -22,6 +22,7 @@ import java.nio.charset.CharacterCodingException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,7 +61,8 @@ public class DynamicCompositeType extends AbstractCompositeType
 {
     private static final Logger logger = LoggerFactory.getLogger(DynamicCompositeType.class);
 
-    private final Map<Byte, AbstractType<?>> aliases;
+    @VisibleForTesting
+    public final Map<Byte, AbstractType<?>> aliases;
 
     // interning instances
     private static final ConcurrentHashMap<Map<Byte, AbstractType<?>>, DynamicCompositeType> instances = new ConcurrentHashMap<>();
@@ -378,7 +380,8 @@ public class DynamicCompositeType extends AbstractCompositeType
      * A comparator that always sorts it's first argument before the second
      * one.
      */
-    private static class FixedValueComparator extends AbstractType<Void>
+    @VisibleForTesting
+    public static class FixedValueComparator extends AbstractType<Void>
     {
         public static final FixedValueComparator alwaysLesserThan = new FixedValueComparator(-1);
         public static final FixedValueComparator alwaysGreaterThan = new FixedValueComparator(1);

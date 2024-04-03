@@ -71,7 +71,6 @@ import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.asserts.SyncTaskListAssert;
 
 import static org.apache.cassandra.utils.asserts.SyncTaskAssert.assertThat;
-import static org.apache.cassandra.utils.asserts.SyncTaskListAssert.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertTrue;
 
@@ -661,7 +660,7 @@ public class RepairJobTest
                                                                                             false,
                                                                                             PreviewKind.ALL));
 
-        assertThat(tasks.values()).areAllInstanceOf(AsymmetricRemoteSyncTask.class);
+        SyncTaskListAssert.assertThat(tasks.values()).areAllInstanceOf(AsymmetricRemoteSyncTask.class);
 
         // addr1 streams range1 from addr3:
         assertThat(tasks.get(pair(addr1, addr3)).rangesToSync).contains(RANGE_1);
