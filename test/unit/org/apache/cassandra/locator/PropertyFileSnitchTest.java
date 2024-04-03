@@ -31,6 +31,7 @@ import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -79,91 +80,64 @@ public class PropertyFileSnitchTest
     @Test
     public void localLocationPresentInConfig() throws IOException
     {
-        try
-        {
-            replaceConfigFile(Collections.singletonMap(localAddress.getHostAddressAndPort(), "DC1:RAC2"));
-            PropertyFileSnitch snitch = new PropertyFileSnitch();
-            assertEquals("DC1", snitch.getDatacenter(localAddress));
-            assertEquals("RAC2", snitch.getRack(localAddress));
-        }
-        finally
-        {
-            restoreOrigConfigFile();
-        }
+        replaceConfigFile(Collections.singletonMap(localAddress.getHostAddressAndPort(), "DC1:RAC2"));
+        PropertyFileSnitch snitch = new PropertyFileSnitch();
+        assertEquals("DC1", snitch.getDatacenter(localAddress));
+        assertEquals("RAC2", snitch.getRack(localAddress));
     }
 
     @Test
     public void localLocationNotPresentInConfig() throws IOException
     {
-        try
-        {
         replaceConfigFile(Collections.singletonMap("default", "DEFAULT_DC:DEFAULT_RACK"));
         PropertyFileSnitch snitch = new PropertyFileSnitch();
         assertEquals("DEFAULT_DC", snitch.getDatacenter(localAddress));
         assertEquals("DEFAULT_RACK", snitch.getRack(localAddress));
-        }
-        finally
-        {
-            restoreOrigConfigFile();
-        }
     }
 
     @Test
     public void localAndDefaultLocationNotPresentInConfig() throws IOException
     {
+        replaceConfigFile(Collections.emptyMap());
         try
         {
-            replaceConfigFile(Collections.emptyMap());
-            try
-            {
-                PropertyFileSnitch snitch = new PropertyFileSnitch();
-                fail("Expected ConfigurationException");
-            }
-            catch (ConfigurationException e)
-            {
-                String expectedMessage = String.format("Snitch definitions at %s do not define a location for this node's " +
-                                                       "broadcast address %s, nor does it provides a default",
-                                                       PropertyFileSnitch.SNITCH_PROPERTIES_FILENAME, localAddress);
-                assertTrue(e.getMessage().contains(expectedMessage));
-            }
+            PropertyFileSnitch snitch = new PropertyFileSnitch();
+            fail("Expected ConfigurationException");
         }
-        finally
+        catch (ConfigurationException e)
         {
-            restoreOrigConfigFile();
+            String expectedMessage = String.format("Snitch definitions at %s do not define a location for this node's " +
+                                                   "broadcast address %s, nor does it provides a default",
+                                                   PropertyFileSnitch.SNITCH_PROPERTIES_FILENAME, localAddress);
+            assertTrue(e.getMessage().contains(expectedMessage));
         }
     }
 
     @Test
     public void configContainsRemoteConfig() throws IOException
     {
-        try
-        {
-            // Locations of remote peers should not be accessible from this snitch unless
-            // they are present in ClusterMetadata
-            Random r = new Random(System.nanoTime());
-            InetAddressAndPort peer = MembershipUtils.endpoint(99);
-            replaceConfigFile(ImmutableMap.of(localAddress.getHostAddressAndPort(), "DC1:RAC1",
-                                              peer.getHostAddressAndPort(), "OTHER_DC1:OTHER_RAC1"));
-            PropertyFileSnitch snitch = new PropertyFileSnitch();
-            assertEquals("DC1", snitch.getDatacenter(localAddress));
-            assertEquals("RAC1", snitch.getRack(localAddress));
+        // Locations of remote peers should not be accessible from this snitch unless
+        // they are present in ClusterMetadata
+        Random r = new Random(System.nanoTime());
+        InetAddressAndPort peer = MembershipUtils.endpoint(99);
+        replaceConfigFile(ImmutableMap.of(localAddress.getHostAddressAndPort(), "DC1:RAC1",
+                                          peer.getHostAddressAndPort(), "OTHER_DC1:OTHER_RAC1"));
+        PropertyFileSnitch snitch = new PropertyFileSnitch();
+        assertEquals("DC1", snitch.getDatacenter(localAddress));
+        assertEquals("RAC1", snitch.getRack(localAddress));
 
-            assertEquals(PropertyFileSnitch.DEFAULT_DC, snitch.getDatacenter(peer));
-            assertEquals(PropertyFileSnitch.DEFAULT_RACK, snitch.getRack(peer));
+        assertEquals(PropertyFileSnitch.DEFAULT_DC, snitch.getDatacenter(peer));
+        assertEquals(PropertyFileSnitch.DEFAULT_RACK, snitch.getRack(peer));
 
-            // Register peer, causing ClusterMetadata to be updated. Note that the location
-            // here is not the one in the config file, that should still be irrelevant
-            ClusterMetadataTestHelper.register(peer, "OTHER_DC2", "OTHER_RAC2");
-            assertEquals("OTHER_DC2", snitch.getDatacenter(peer));
-            assertEquals("OTHER_RAC2", snitch.getRack(peer));
-        }
-        finally
-        {
-            restoreOrigConfigFile();
-        }
+        // Register peer, causing ClusterMetadata to be updated. Note that the location
+        // here is not the one in the config file, that should still be irrelevant
+        ClusterMetadataTestHelper.register(peer, "OTHER_DC2", "OTHER_RAC2");
+        assertEquals("OTHER_DC2", snitch.getDatacenter(peer));
+        assertEquals("OTHER_RAC2", snitch.getRack(peer));
     }
 
-    private void restoreOrigConfigFile() throws IOException
+    @After
+    public void restoreOrigConfigFile() throws IOException
     {
         if (Files.exists(backupFile))
         {
