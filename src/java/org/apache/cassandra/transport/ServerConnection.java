@@ -127,7 +127,7 @@ public class ServerConnection extends Connection
                                                       .get("ssl");
         Certificate[] certificates = null;
 
-        if (sslHandler != null && DatabaseDescriptor.getNativeProtocolEncryptionOptions().require_client_auth)
+        if (sslHandler != null)
         {
             try
             {
@@ -137,7 +137,8 @@ public class ServerConnection extends Connection
             }
             catch (SSLPeerUnverifiedException e)
             {
-                logger.debug("Failed to get peer certificates for peer {}", channel().remoteAddress(), e);
+                if (logger.isTraceEnabled())
+                    logger.trace("Failed to get peer certificates for peer {}", channel().remoteAddress(), e);
             }
         }
         return certificates;
