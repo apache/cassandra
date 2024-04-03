@@ -57,7 +57,7 @@ public class PaxosStateTest
         SchemaLoader.loadSchema();
         SchemaLoader.schemaDefinition("PaxosStateTest");
         metadata = Keyspace.open("PaxosStateTestKeyspace1").getColumnFamilyStore("Standard1").metadata.get();
-        metadata.withSwapped(metadata.params.unbuild().gcGraceSeconds(3600).build("PaxosStateTestKeyspace1"));
+        metadata.withSwapped(metadata.params.unbuild().gcGraceSeconds(3600).build());
     }
 
     @AfterClass

@@ -564,7 +564,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         {
             attrs.validate(keyspaceName);
 
-            TableParams params = attrs.asAlteredTableParams(table.params, keyspaceName);
+            TableParams params = attrs.asAlteredTableParams(table.params);
 
             if (table.isCounter() && params.defaultTimeToLive > 0)
                 throw ire("Cannot set default_time_to_live on a table with counters");
