@@ -1,9 +1,8 @@
-The latest major version is {40_version} and the corresponding distribution name is `40x` (with an "x" as the suffix).
+The latest major version is {51_version} and the corresponding distribution name is `51x` (with an "x" as the suffix).
 For older releases use:
 
-* `311x` for C* {3x_version} series
-* `30x` for {30_version}
-* `22x` for {22_version}
-* `21x` for {21_version}
+* `51x` for C* {51_version} series
+* `50x` for C* {50_version} series
+* `41x` for C* {41_version} series
 
-For example, to add the repository for version {40_version} (`40x`):
+For example, to add the repository for version {51_version} (`51x`):
