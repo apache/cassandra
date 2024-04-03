@@ -205,7 +205,7 @@ public class TableMetadata implements SchemaElement
         epoch = builder.epoch;
         partitioner = builder.partitioner;
         kind = builder.kind;
-        params = builder.params.setDefaultCompressionIfNotSet(keyspace).build();
+        params = builder.params.build();
 
         indexName = kind == Kind.INDEX ? name.substring(name.indexOf('.') + 1) : null;
 
@@ -827,6 +827,8 @@ public class TableMetadata implements SchemaElement
                 throw new ConfigurationException(keyspace + '.' + name + ": Keyspace name must not be empty");
             if (partitioner == null)
                 partitioner = DatabaseDescriptor.getPartitioner();
+
+            params.setDefaultCompressionIfNotSet(keyspace);
 
             if (id == null)
             {
@@ -1850,7 +1852,6 @@ public class TableMetadata implements SchemaElement
             builder.partitioner(FBUtilities.newPartitioner(in.readUTF()));
             builder.kind(Kind.valueOf(in.readUTF()));
             builder.params(TableParams.serializer.deserialize(in, version));
-            builder.params.setDefaultCompressionIfNotSet(ks);
             int flagCount = in.readInt();
             Set<Flag> flags = new HashSet<>();
             for (int i = 0; i < flagCount; i++)
