@@ -664,10 +664,7 @@ public class TableMetadata implements SchemaElement
         // Row caching is never enabled; see CASSANDRA-5732
         builder.caching(baseTableParams.caching.cacheKeys() ? CachingParams.CACHE_KEYS : CachingParams.CACHE_NOTHING);
 
-        Builder unbuilt = unbuild();
-        builder.setDefaultCompressionIfNotSet(unbuilt.keyspace);
-
-        return unbuilt.params(builder.build()).build();
+        return unbuild().params(builder.build()).build();
     }
 
     boolean referencesUserType(ByteBuffer name)
