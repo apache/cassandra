@@ -57,12 +57,12 @@ public final class TableAttributes extends PropertyDefinitions
     public void validate(String keyspace)
     {
         validate(validKeywords, obsoleteKeywords);
-        partiallyBuild(TableParams.builder()).setDefaultCompressionIfNotSet(keyspace).build().validate();
+        build(TableParams.builder()).validate();
     }
 
-    TableParams asNewTableParams(String keyspace)
+    TableParams asNewTableParams()
     {
-        return partiallyBuild(TableParams.builder()).setDefaultCompressionIfNotSet(keyspace).build();
+        return build(TableParams.builder());
     }
 
     TableParams asAlteredTableParams(TableParams previous)
@@ -96,11 +96,6 @@ public final class TableAttributes extends PropertyDefinitions
     }
 
     private TableParams build(TableParams.Builder builder)
-    {
-        return partiallyBuild(builder).build();
-    }
-
-    private TableParams.Builder partiallyBuild(TableParams.Builder builder)
     {
         if (hasOption(ALLOW_AUTO_SNAPSHOT))
             builder.allowAutoSnapshot(getBoolean(ALLOW_AUTO_SNAPSHOT.toString(), true));
@@ -156,7 +151,7 @@ public final class TableAttributes extends PropertyDefinitions
         if (hasOption(READ_REPAIR))
             builder.readRepair(ReadRepairStrategy.fromString(getString(READ_REPAIR)));
 
-        return builder;
+        return builder.build();
     }
 
     public boolean hasOption(Option option)
