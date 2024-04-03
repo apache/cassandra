@@ -47,6 +47,7 @@ import static org.apache.cassandra.db.TypeSizes.sizeof;
 
 public final class TableParams
 {
+    public static final Serializer serializer = new Serializer();
     public enum Option
     {
         ALLOW_AUTO_SNAPSHOT,
@@ -369,7 +370,7 @@ public final class TableParams
         public TableParams build(String keyspace)
         {
             if (compression == null)
-                compression = CompressionParams.defaultParams(keyspace);
+                compression = keyspace == null ? CompressionParams.DEFAULT :  CompressionParams.defaultParams(keyspace);
 
             return new TableParams(this);
         }
@@ -491,11 +492,6 @@ public final class TableParams
 
     public static class Serializer implements MetadataSerializer<TableParams>
     {
-        private final String keyspace;
-        Serializer(String keyspace) {
-            this.keyspace = keyspace;
-        }
-
         public void serialize(TableParams t, DataOutputPlus out, Version version) throws IOException
         {
             out.writeUTF(t.comment);
@@ -538,7 +534,7 @@ public final class TableParams
                    .extensions(deserializeMapBB(in))
                    .cdc(in.readBoolean())
                    .readRepair(ReadRepairStrategy.fromString(in.readUTF()));
-            return builder.build(keyspace);
+            return builder.build(null);
         }
 
         public long serializedSize(TableParams t, Version version)
