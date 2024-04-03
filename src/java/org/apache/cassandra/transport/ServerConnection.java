@@ -31,7 +31,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 
-import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
 
 public class ServerConnection extends Connection
 {
@@ -129,7 +128,7 @@ public class ServerConnection extends Connection
                                                       .get("ssl");
         Certificate[] certificates = null;
 
-        if (sslHandler != null && DatabaseDescriptor.getNativeProtocolEncryptionOptions().getClientAuth() == REQUIRED)
+        if (sslHandler != null)
         {
             try
             {
@@ -139,7 +138,8 @@ public class ServerConnection extends Connection
             }
             catch (SSLPeerUnverifiedException e)
             {
-                logger.debug("Failed to get peer certificates for peer {}", channel().remoteAddress(), e);
+                if (logger.isTraceEnabled())
+                    logger.trace("Failed to get peer certificates for peer {}", channel().remoteAddress(), e);
             }
         }
         return certificates;
