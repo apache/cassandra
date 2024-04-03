@@ -93,6 +93,7 @@ public final class RemoteProcessor implements Processor
             {
                 log.waitForHighestConsecutive();
             }
+
             return result;
         }
         catch (Exception e)
@@ -257,7 +258,7 @@ public final class RemoteProcessor implements Processor
             }
 
             @Override
-            public void onFailure(InetAddressAndPort from, RequestFailure failure)
+            public void onFailure(InetAddressAndPort from, RequestFailure failureReason)
             {
                 // "success" - this lets us just try the next one in cmsIter
                 promise.setSuccess(new DiscoveredNodes(Collections.emptySet(), DiscoveredNodes.Kind.KNOWN_PEERS));
