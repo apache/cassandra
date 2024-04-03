@@ -357,7 +357,7 @@ public final class CassandraGenerators
                                                          .partitioner(PARTITIONER_GEN.generate(rnd))
                                                          .kind(tableKindGen.generate(rnd))
                                                          .isCounter(BOOLEAN_GEN.generate(rnd))
-                                                         .params(params.setDefaultCompressionIfNotSet(ks).build());
+                                                         .params(params.build());
 
             int numPartitionColumns = numPartitionColumnsGen.generate(rnd);
             int numClusteringColumns = numClusteringColumnsGen.generate(rnd);
