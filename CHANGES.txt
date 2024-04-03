@@ -1,4 +1,5 @@
 4.0.13
+ * Fix few types issues and implement types compatibility tests (CASSANDRA-19479)
  * Optionally avoid hint transfer during decommission (CASSANDRA-19525)
  * Change logging to TRACE when failing to get peer certificate (CASSANDRA-19508)
  * Push LocalSessions info logs to debug (CASSANDRA-18335)
