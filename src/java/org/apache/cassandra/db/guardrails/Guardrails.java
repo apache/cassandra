@@ -226,6 +226,21 @@ public final class Guardrails implements GuardrailsMBean
                    "0 default_time_to_live on a table with " + TimeWindowCompactionStrategy.class.getSimpleName() + " compaction strategy");
 
     /**
+     * Guardrail to warn on or fail filtering queries that contain intersections on mutable columns at consistency
+     * levels that require coordinator reconciliation.
+     * 
+     * @see <a href="https://issues.apache.org/jira/browse/CASSANDRA-19007">CASSANDRA-19007</a>
+     */
+    public static final EnableFlag intersectFilteringQueryEnabled =
+            new EnableFlag("intersect_filtering_query",
+                           "Filtering queries involving an intersection on multiple mutable (i.e. non-key) columns " +
+                           "over unrepaired data at read consistency levels that would require coordinator " +
+                           "reconciliation may violate the guarantees of those consistency levels.",
+                           state -> CONFIG_PROVIDER.getOrCreate(state).getIntersectFilteringQueryWarned(),
+                           state -> CONFIG_PROVIDER.getOrCreate(state).getIntersectFilteringQueryEnabled(),
+                           "Filtering query with intersection on mutable columns at consistency level requiring coordinator reconciliation");
+
+    /**
      * Guardrail on the number of elements returned within page.
      */
     public static final MaxThreshold pageSize =
@@ -1264,6 +1279,30 @@ public final class Guardrails implements GuardrailsMBean
     public void setNonPartitionRestrictedQueryEnabled(boolean enabled)
     {
         DEFAULT_CONFIG.setNonPartitionRestrictedQueryEnabled(enabled);
+    }
+
+    @Override
+    public boolean getIntersectFilteringQueryWarned()
+    {
+        return DEFAULT_CONFIG.getIntersectFilteringQueryWarned();
+    }
+
+    @Override
+    public void setIntersectFilteringQueryWarned(boolean value)
+    {
+        DEFAULT_CONFIG.setIntersectFilteringQueryWarned(value);
+    }
+
+    @Override
+    public boolean getIntersectFilteringQueryEnabled()
+    {
+        return DEFAULT_CONFIG.getIntersectFilteringQueryEnabled();
+    }
+
+    @Override
+    public void setIntersectFilteringQueryEnabled(boolean value)
+    {
+        DEFAULT_CONFIG.setIntersectFilteringQueryEnabled(value);
     }
 
     private static String toCSV(Set<String> values)

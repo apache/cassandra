@@ -392,6 +392,22 @@ public interface GuardrailsConfig
     void setZeroTTLOnTWCSEnabled(boolean value);
 
     /**
+     * @return true if a client warning is emitted for a filtering query with an intersection on mutable columns at a 
+     *         consistency level requiring coordinator reconciliation
+     */
+    boolean getIntersectFilteringQueryWarned();
+
+    void setIntersectFilteringQueryWarned(boolean value);
+
+    /**
+     * @return true if it is possible to execute a filtering query with an intersection on mutable columns at a 
+     *         consistency level requiring coordinator reconciliation
+     */
+    boolean getIntersectFilteringQueryEnabled();
+
+    void setIntersectFilteringQueryEnabled(boolean value);
+
+    /**
      * @return A timestamp that if a user supplied timestamp is after will trigger a warning
      */
     @Nullable
