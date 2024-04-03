@@ -31,7 +31,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 
-
 public class ServerConnection extends Connection
 {
     private static final Logger logger = LoggerFactory.getLogger(ServerConnection.class);
