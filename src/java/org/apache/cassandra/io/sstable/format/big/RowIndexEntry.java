@@ -137,6 +137,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  */
 public class RowIndexEntry extends AbstractRowIndexEntry
 {
+    public static final String TYPE_NAME = "Index";
     private static final BigFormat FORMAT = BigFormat.getInstance();
     private static final long EMPTY_SIZE = ObjectSizes.measure(new RowIndexEntry(0));
 
@@ -151,7 +152,7 @@ public class RowIndexEntry extends AbstractRowIndexEntry
     static final Histogram indexInfoReadsHistogram;
     static
     {
-        MetricNameFactory factory = new DefaultNameFactory("Index", "RowIndexEntry");
+        MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME, "RowIndexEntry");
         indexEntrySizeHistogram = Metrics.histogram(factory.createMetricName("IndexedEntrySize"), false);
         indexInfoCountHistogram = Metrics.histogram(factory.createMetricName("IndexInfoCount"), false);
         indexInfoGetsHistogram = Metrics.histogram(factory.createMetricName("IndexInfoGets"), false);

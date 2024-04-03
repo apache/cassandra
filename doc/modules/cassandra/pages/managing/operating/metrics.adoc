@@ -792,22 +792,24 @@ Reported name format:
 *Metric Name*::
   `org.apache.cassandra.metrics.Storage.<MetricName>`
 *JMX MBean*::
-  `org.apache.cassandra.metrics:type=Storage name=<MetricName>`
+  `org.apache.cassandra.metrics:type=Storage,name=<MetricName>`
 
 [cols=",,",options="header",]
 |===
 |Name |Type |Description
 |Exceptions |Counter |Number of internal exceptions caught. Under normal
 exceptions this should be zero.
-
 |Load |Counter |Size, in bytes, of the on disk data size this node
 manages.
-
 |TotalHints |Counter |Number of hint messages written to this node since
 [re]start. Includes one entry for each host to be hinted per hint.
-
 |TotalHintsInProgress |Counter |Number of hints attemping to be sent
 currently.
+|BootstrapFilesReceived | Gauage<Long> | Number of files received during bootstrap.
+|BootstrapFilesTotal | Gauge<Long> | Total number of files to be received during bootstrap.
+|BootstrapFilesThroughput | Meter | Throughput of files received during bootstrap.
+|BootstrapLastSeenError | Gauge<String> | Last error message seen during bootstrap.
+|BootstrapLastSeenStatus | Gauge<String> | Last status message seen during bootstrap.
 |===
 
 [[handoff-metrics]]

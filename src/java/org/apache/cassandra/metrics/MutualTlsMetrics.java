@@ -28,7 +28,8 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  */
 public class MutualTlsMetrics
 {
-    private static final MetricNameFactory factory = new DefaultNameFactory("MutualTls");
+    public static final String TYPE_NAME = "MutualTls";
+    private static final MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME);
 
     public final static MutualTlsMetrics instance = new MutualTlsMetrics();
 

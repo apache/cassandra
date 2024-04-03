@@ -47,9 +47,10 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 public final class ClientMetrics
 {
+    public static final String TYPE_NAME = "Client";
     public static final ClientMetrics instance = new ClientMetrics();
 
-    private static final MetricNameFactory factory = new DefaultNameFactory("Client");
+    private static final MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME);
 
     private volatile boolean initialized = false;
     private Server server = null;
@@ -282,9 +283,7 @@ public final class ClientMetrics
 
     private <T> Gauge<T> registerGauge(String name, String deprecated, Gauge<T> gauge)
     {
-        Gauge<T> registeredGauge = registerGauge(name, gauge);
-        Metrics.registerMBean(registeredGauge, factory.createMetricName(deprecated).getMBeanName());
-        return registeredGauge;
+        return Metrics.gauge(factory.createMetricName(name), factory.createMetricName(deprecated), () -> gauge);
     }
 
     private Meter registerMeter(String name)
