@@ -1773,7 +1773,7 @@ public class TableMetadata implements SchemaElement
             t.id.serialize(out);
             out.writeUTF(t.partitioner.getClass().getCanonicalName());
             out.writeUTF(t.kind.name());
-            TableParams.serializer.serialize(t.params, out, version);
+            new TableParams.Serializer(t.keyspace).serialize(t.params, out, version);
 
             out.writeInt(t.flags.size());
             for (Flag f : t.flags)
@@ -1835,7 +1835,7 @@ public class TableMetadata implements SchemaElement
                         t.id.serializedSize() +
                         sizeof(t.partitioner.getClass().getCanonicalName()) +
                         sizeof(t.kind.name()) +
-                        TableParams.serializer.serializedSize(t.params, version);
+                        new TableParams.Serializer(t.keyspace).serializedSize(t.params, version);
 
             size += sizeof(t.epoch != null);
             if (t.epoch != null)

@@ -57,19 +57,19 @@ public final class TableAttributes extends PropertyDefinitions
     public void validate(String keyspace)
     {
         validate(validKeywords, obsoleteKeywords);
-        build(TableParams.builder(), keyspace).validate();
+        partiallyBuild(TableParams.builder()).setDefaultCompressionIfNotSet(keyspace).build().validate();
     }
 
     TableParams asNewTableParams(String keyspace)
     {
-        return build(TableParams.builder(), keyspace);
+        return partiallyBuild(TableParams.builder()).setDefaultCompressionIfNotSet(keyspace).build();
     }
 
-    TableParams asAlteredTableParams(TableParams previous, String keyspaceName)
+    TableParams asAlteredTableParams(TableParams previous)
     {
         if (getId() != null)
             throw new ConfigurationException("Cannot alter table id.");
-        return build(previous.unbuild(), keyspaceName);
+        return build(previous.unbuild());
     }
 
     public TableId getId() throws ConfigurationException
@@ -95,7 +95,12 @@ public final class TableAttributes extends PropertyDefinitions
         return Sets.union(validKeywords, obsoleteKeywords);
     }
 
-    private TableParams build(TableParams.Builder builder, String keyspace)
+    private TableParams build(TableParams.Builder builder)
+    {
+        return partiallyBuild(builder).build();
+    }
+
+    private TableParams.Builder partiallyBuild(TableParams.Builder builder)
     {
         if (hasOption(ALLOW_AUTO_SNAPSHOT))
             builder.allowAutoSnapshot(getBoolean(ALLOW_AUTO_SNAPSHOT.toString(), true));
@@ -151,7 +156,7 @@ public final class TableAttributes extends PropertyDefinitions
         if (hasOption(READ_REPAIR))
             builder.readRepair(ReadRepairStrategy.fromString(getString(READ_REPAIR)));
 
-        return builder.build(keyspace);
+        return builder;
     }
 
     public boolean hasOption(Option option)
