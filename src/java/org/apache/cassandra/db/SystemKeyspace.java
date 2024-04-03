@@ -489,7 +489,7 @@ public final class SystemKeyspace
               + "epoch bigint,"
               + "entry_id bigint,"
               + "transformation blob,"
-              + "kind text,"
+              + "kind int,"
               + "PRIMARY KEY (epoch))")
         .partitioner(MetaStrategy.partitioner)
         .compaction(CompactionParams.twcs(ImmutableMap.of("compaction_window_unit","DAYS",

@@ -217,7 +217,7 @@ public interface Transformation
         ;
 
         private final Supplier<AsymmetricMetadataSerializer<Transformation, ? extends Transformation>> serializer;
-        private final int id;
+        public final int id;
 
         private static final Kind[] idToKindMap;
 
