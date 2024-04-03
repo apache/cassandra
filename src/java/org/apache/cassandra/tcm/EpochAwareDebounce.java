@@ -21,7 +21,6 @@ package org.apache.cassandra.tcm;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -30,8 +29,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.tcm.log.LogState;
-import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.Promise;
@@ -42,7 +41,7 @@ import org.apache.cassandra.utils.concurrent.Promise;
  * comes in, we create a new future. If a request for a newer epoch comes in, we simply
  * swap out the current future reference for a new one which is requesting the newer epoch.
  */
-public class EpochAwareDebounce
+public class EpochAwareDebounce<T> implements Shutdownable
 {
     private static final Logger logger = LoggerFactory.getLogger(EpochAwareDebounce.class);
     public static final EpochAwareDebounce instance = new EpochAwareDebounce();
@@ -108,20 +107,42 @@ public class EpochAwareDebounce
         }
     }
 
-    private static class EpochAwareAsyncPromise extends AsyncPromise<ClusterMetadata>
+    @Override
+    public boolean isTerminated()
+    {
+        return executor.isTerminated();
+    }
+
+    @Override
+    public boolean isShutdown()
+    {
+        return executor.isShutdown();
+    }
+
+    @Override
+    public void shutdown()
+    {
+        executor.shutdown();
+    }
+
+    @Override
+    public Object shutdownNow()
+    {
+        return executor.shutdownNow();
+    }
+
+    @Override
+    public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException
+    {
+        return executor.awaitTermination(timeout, units);
+    }
+
+    private static class EpochAwareAsyncPromise<T> extends AsyncPromise<T>
     {
         private final Epoch epoch;
         public EpochAwareAsyncPromise(Epoch epoch)
         {
             this.epoch = epoch;
         }
-    }
-
-    public void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
-    {
-        logger.info("Cancelling {} in flight log fetch requests", inflightRequests.size());
-        for (Promise<LogState> toCancel : inflightRequests)
-            toCancel.cancel(true);
-        ExecutorUtils.shutdownAndWait(timeout, unit, executor);
     }
 }

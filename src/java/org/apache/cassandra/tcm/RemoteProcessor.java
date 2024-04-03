@@ -206,6 +206,8 @@ public final class RemoteProcessor implements Processor
             {
                 if (promise.isCancelled() || promise.isDone())
                     return;
+                if (EpochAwareDebounce.instance.isShutdown())
+                    promise.tryFailure(new IllegalStateException("Unable to retry as we are shutting down"));
                 if (!candidates.hasNext())
                     promise.tryFailure(new IllegalStateException(String.format("Ran out of candidates while sending %s: %s", verb, candidates)));
 

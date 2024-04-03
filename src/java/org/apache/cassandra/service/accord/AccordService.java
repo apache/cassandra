@@ -35,7 +35,9 @@ import com.google.common.primitives.Ints;
 import accord.coordinate.TopologyMismatch;
 import accord.impl.CoordinateDurabilityScheduling;
 import org.apache.cassandra.cql3.statements.RequestValidations;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.interop.AccordInteropAdapter.AccordInteropFactory;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.service.accord.api.*;
 import org.apache.cassandra.utils.*;
@@ -241,6 +243,14 @@ public class AccordService implements IAccordService, Shutdownable
         }
         AccordService as = new AccordService(AccordTopology.tcmIdToAccord(tcmId));
         as.startup();
+        if (StorageService.instance.isReplacingSameAddress())
+        {
+            // when replacing another node but using the same ip the hostId will also match, this causes no TCM transactions
+            // to be committed...
+            // In order to bootup correctly, need to pull in the current epoch
+            ClusterMetadata current = ClusterMetadata.current();
+            as.configurationService().notifyPostCommit(current, current, false);
+        }
         instance = as;
     }
 
