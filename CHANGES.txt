@@ -28,6 +28,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Clean up KeyRangeIterator classes (CASSANDRA-19428)
  * Warn clients about possible consistency violations for filtering queries against multiple mutable columns (CASSANDRA-19489)
  * Align buffer with commitlog segment size (CASSANDRA-19471)
  * Ensure SAI indexes empty byte buffers for types that allow them as a valid input (CASSANDRA-19461)
