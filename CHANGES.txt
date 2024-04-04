@@ -2,6 +2,7 @@
  * Do not go to disk for reading hints file sizes (CASSANDRA-19477)
  * Fix system_views.settings to handle array types (CASSANDRA-19475)
 Merged from 4.0:
+ * Change logging to TRACE when failing to get peer certificate (CASSANDRA-19508)
  * Push LocalSessions info logs to debug (CASSANDRA-18335)
  * Filter remote DC replicas out when constructing the initial replica plan for the local read repair (CASSANDRA-19120)
  * Remove redundant code in StorageProxy#sendToHintedReplicas (CASSANDRA-19412)
