@@ -557,7 +557,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 MemtableParams.get(attrs.getString(TableParams.Option.MEMTABLE.toString()));
             Guardrails.tableProperties.guard(attrs.updatedProperties(), attrs::removeProperty, state);
 
-            validateDefaultTimeToLive(attrs.asNewTableParams(keyspaceName));
+            validateDefaultTimeToLive(attrs.asNewTableParams());
         }
 
         public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)

@@ -330,7 +330,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
         else if (!builder.hasId() && !DatabaseDescriptor.useDeterministicTableID())
             builder.id(TableId.get(metadata));
 
-        builder.params(attrs.asNewTableParams(keyspaceName))
+        builder.params(attrs.asNewTableParams())
                .kind(TableMetadata.Kind.VIEW);
 
         partitionKeyColumns.stream()
