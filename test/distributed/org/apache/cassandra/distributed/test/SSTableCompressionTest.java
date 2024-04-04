@@ -29,11 +29,12 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.junit.Test;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
@@ -78,25 +79,33 @@ public class SSTableCompressionTest
     private static final Consumer<IInstanceConfig> DEFAULT_CONFIG = c -> {
         c.with(NATIVE_PROTOCOL, NETWORK, GOSSIP); // need gossip to get hostid for Java driver
         c.set("flush_compression", "fast"); // this is default
-        c.set("sstable_compression", ImmutableMap.builder().put("class_name", "lz4").build());
+        Config.SSTableConfig config = new Config.SSTableConfig();
+        config.default_compression = new ParameterizedClass("lz4");
+        c.set("sstable", config);
     };
 
     private static final Consumer<IInstanceConfig> FAST_CONFIG = c -> {
         c.with(NATIVE_PROTOCOL, NETWORK, GOSSIP); // need gossip to get hostid for Java driver
         c.set("flush_compression", "fast"); // this is default
-        c.set("sstable_compression", ImmutableMap.builder().put("class_name", "snappy").build());
+        Config.SSTableConfig config = new Config.SSTableConfig();
+        config.default_compression = new ParameterizedClass("snappy");
+        c.set("sstable", config);
     };
 
     private static final Consumer<IInstanceConfig> SLOW_CONFIG = c -> {
         c.with(NATIVE_PROTOCOL, NETWORK, GOSSIP); // need gossip to get hostid for Java driver
         c.set("flush_compression", "fast"); // this is default
-        c.set("sstable_compression", ImmutableMap.builder().put("class_name", "deflate").build());
+        Config.SSTableConfig config = new Config.SSTableConfig();
+        config.default_compression = new ParameterizedClass("deflate");
+        c.set("sstable", config);
     };
 
     private static final Consumer<IInstanceConfig> ZSTD_CONFIG = c -> {
         c.with(NATIVE_PROTOCOL, NETWORK, GOSSIP); // need gossip to get hostid for Java driver
         c.set("flush_compression", "fast"); // this is default
-        c.set("sstable_compression", ImmutableMap.builder().put("class_name", "zstd").build());
+        Config.SSTableConfig config = new Config.SSTableConfig();
+        config.default_compression = new ParameterizedClass("zstd");
+        c.set("sstable", config);
     };
 
     public static Path setupCluster(Consumer<IInstanceConfig> config, Path root) throws IOException
