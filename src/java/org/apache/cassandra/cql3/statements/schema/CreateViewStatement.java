@@ -309,7 +309,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
          * Validate WITH params
          */
 
-        attrs.validate(keyspaceName);
+        attrs.validate();
 
         if (attrs.hasOption(TableParams.Option.DEFAULT_TIME_TO_LIVE)
             && attrs.getInt(TableParams.Option.DEFAULT_TIME_TO_LIVE.toString(), 0) != 0)

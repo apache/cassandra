@@ -54,7 +54,7 @@ public final class TableAttributes extends PropertyDefinitions
         obsoleteKeywords = ImmutableSet.of();
     }
 
-    public void validate(String keyspace)
+    public void validate()
     {
         validate(validKeywords, obsoleteKeywords);
         build(TableParams.builder()).validate();

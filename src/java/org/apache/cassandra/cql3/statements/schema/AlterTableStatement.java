@@ -562,7 +562,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
         public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)
         {
-            attrs.validate(keyspaceName);
+            attrs.validate();
 
             TableParams params = attrs.asAlteredTableParams(table.params);
 
