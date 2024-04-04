@@ -5153,4 +5153,15 @@ public class DatabaseDescriptor
     {
         return conf.sai_sstable_indexes_per_query_fail_threshold;
     }
+
+    public static void setTriggersPolicy(Config.TriggersPolicy policy)
+    {
+        logger.info("triggers_policy set to {}", policy);
+        conf.triggers_policy = policy;
+    }
+
+    public static Config.TriggersPolicy getTriggersPolicy()
+    {
+        return conf.triggers_policy;
+    }
 }
