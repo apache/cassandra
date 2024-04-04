@@ -833,7 +833,8 @@ public class TableMetadata implements SchemaElement
             if (partitioner == null)
                 partitioner = DatabaseDescriptor.getPartitioner();
 
-            params.setDefaultCompressionIfNotSet(keyspace);
+            CompressionParams compressionParams = params.setDefaultCompressionIfNotSet(keyspace);
+            compressionParams.validate();
 
             if (id == null)
             {

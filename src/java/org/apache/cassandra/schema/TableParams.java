@@ -158,7 +158,8 @@ public final class TableParams
     public void validate()
     {
         compaction.validate();
-        compression.validate();
+        if (compression != null)
+            compression.validate();
 
         double minBloomFilterFpChanceValue = BloomCalculations.minSupportedBloomFilterFpChance();
         if (bloomFilterFpChance <=  minBloomFilterFpChanceValue || bloomFilterFpChance > 1)
@@ -468,12 +469,12 @@ public final class TableParams
             return this;
         }
 
-        public Builder setDefaultCompressionIfNotSet(String keyspace)
+        public CompressionParams setDefaultCompressionIfNotSet(String keyspace)
         {
             if (compression == null)
                 compression = CompressionParams.defaultParams(keyspace);
 
-            return this;
+            return compression;
         }
 
         public Builder cdc(boolean val)
