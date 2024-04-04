@@ -1655,6 +1655,12 @@ trace_type_repair_ttl: 7d
 # As of Cassandra 3.0 there is a sandbox in place that should prevent execution of evil code.
 user_defined_functions_enabled: false
 
+# Triggers are enabled by default.
+# `enabled` executes queries and their triggers.
+# `disabled` executes queries but skips trigger execution, and logs a warning.
+# `forbidden` fails queries that would execute triggers with TriggerDisabledException.
+triggers_policy: enabled
+
 # Enables encrypting data at-rest (on disk). Different key providers can be plugged in, but the default reads from
 # a JCE-style keystore. A single keystore can hold multiple keys, but the one referenced by
 # the "key_alias" is the only key that will be used for encrypt opertaions; previously used keys

@@ -21,6 +21,7 @@ import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QualifiedName;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
@@ -72,11 +73,13 @@ public final class CreateTriggerStatement extends AlterSchemaStatement
 
         try
         {
-            TriggerExecutor.instance.loadTriggerInstance(triggerClass);
+            TriggerExecutor.instance.loadTriggerClass(triggerClass);
         }
         catch (Exception e)
         {
-            throw ire("Trigger class '%s' couldn't be loaded", triggerClass);
+            InvalidRequestException thrown = ire("Trigger class '%s' couldn't be loaded", triggerClass);
+            thrown.initCause(e);
+            throw thrown;
         }
 
         TableMetadata newTable = table.withSwapped(table.triggers.with(TriggerMetadata.create(triggerName, triggerClass)));

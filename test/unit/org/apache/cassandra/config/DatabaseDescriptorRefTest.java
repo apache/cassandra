@@ -95,6 +95,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.Config$PaxosVariant",
     "org.apache.cassandra.config.Config$RepairCommandPoolFullStrategy",
     "org.apache.cassandra.config.Config$SSTableConfig",
+    "org.apache.cassandra.config.Config$TriggersPolicy",
     "org.apache.cassandra.config.Config$UserFunctionTimeoutPolicy",
     "org.apache.cassandra.config.ConfigBeanInfo",
     "org.apache.cassandra.config.ConfigCustomizer",
