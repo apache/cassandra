@@ -241,8 +241,6 @@ public class DatabaseDescriptor
     private static volatile SSTableFormat<?, ?> selectedSSTableFormat;
     private static StorageCompatibilityMode storageCompatibilityMode = CassandraRelevantProperties.TEST_STORAGE_COMPATIBILITY_MODE.getEnum(true, StorageCompatibilityMode.class);
 
-    private static ParameterizedClass sstableCompression;
-
     private static Function<CommitLog, AbstractCommitLogSegmentManager> commitLogSegmentMgrProvider = c -> DatabaseDescriptor.isCDCEnabled()
                                                                                                            ? new CommitLogSegmentManagerCDC(c, DatabaseDescriptor.getCommitLogLocation())
                                                                                                            : new CommitLogSegmentManagerStandard(c, DatabaseDescriptor.getCommitLogLocation());
@@ -976,8 +974,6 @@ public class DatabaseDescriptor
         Paxos.setPaxosVariant(conf.paxos_variant);
         if (conf.paxos_state_purging == null)
             conf.paxos_state_purging = PaxosStatePurging.legacy;
-
-        sstableCompression = conf.sstable.default_compression;
 
         logInitializationOutcome(logger);
 
@@ -2670,12 +2666,12 @@ public class DatabaseDescriptor
         conf.flush_compression = compression;
     }
 
-    public static ParameterizedClass getSSTableCompression()
+    public static ParameterizedClass getDefaultSSTableCompression()
     {
-        return sstableCompression;
+        return conf.sstable.default_compression;
     }
 
-    public static void setSSTableCompression(ParameterizedClass compressor)
+    public static void setDefaultSSTableCompression(ParameterizedClass compressor)
     {
         conf.sstable.default_compression = compressor;
     }

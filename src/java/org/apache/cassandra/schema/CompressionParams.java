@@ -77,15 +77,15 @@ public final class CompressionParams
 
     /** (legacy) Default for when no other compression is specified */
     public static final CompressionParams DEFAULT = new CompressionParams(LZ4Compressor.create(Collections.emptyMap()),
-                                                                           DEFAULT_CHUNK_LENGTH,
-                                                                           calcMaxCompressedLength(DEFAULT_CHUNK_LENGTH, DEFAULT_MIN_COMPRESS_RATIO),
-                                                                           DEFAULT_MIN_COMPRESS_RATIO,
-                                                                           emptyMap());
+                                                                          DEFAULT_CHUNK_LENGTH,
+                                                                          calcMaxCompressedLength(DEFAULT_CHUNK_LENGTH, DEFAULT_MIN_COMPRESS_RATIO),
+                                                                          DEFAULT_MIN_COMPRESS_RATIO,
+                                                                          emptyMap());
 
     /** A guaranteed FAST compressor  */
     public static final CompressionParams FAST = DEFAULT;
 
-    /** The default calculated fromthe config.yaml */
+    /** The default calculated from cassandra.yaml */
     private static CompressionParams CALCULATED_DEFAULT;
 
     /** error message format for when 'chunk_length' and 'chunklenth_in_kb" are both specified */
@@ -161,7 +161,13 @@ public final class CompressionParams
 
         CompressionParams result = CALCULATED_DEFAULT;
         if (result == null)
-            result = CALCULATED_DEFAULT = fromParameterizedClass(DatabaseDescriptor.getSSTableCompression());
+        {
+            ParameterizedClass defaultSSTableCompression = DatabaseDescriptor.getDefaultSSTableCompression();
+            if (defaultSSTableCompression == null)
+                result = CALCULATED_DEFAULT = DEFAULT;
+            else
+                result = CALCULATED_DEFAULT = fromParameterizedClass(defaultSSTableCompression);
+        }
 
         return result;
     }
