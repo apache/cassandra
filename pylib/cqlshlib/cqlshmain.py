@@ -1999,7 +1999,8 @@ def read_options(cmdlineargs, parser, config_file, cql_dir, environment=os.envir
             print("\nWarning: Password is found in an insecure cqlshrc file. The file is owned or readable by other users on the system.",
                   end='', file=sys.stderr)
         print("\nNotice: Credentials in the cqlshrc file is deprecated and will be ignored in the future."
-              "\nPlease use a credentials file to specify the username and password.\n", file=sys.stderr)
+              "\nFor basic authentication, please use a credentials file with username and password in the [PlainTextAuthProvider] section.\n",
+              file=sys.stderr)
 
     argvalues = argparse.Namespace()
 
@@ -2073,7 +2074,7 @@ def read_options(cmdlineargs, parser, config_file, cql_dir, environment=os.envir
             credentials.read(options.credentials)
 
         # use the username from credentials file but fallback to cqlshrc if username is absent from the command line parameters
-        options.username = username_from_cqlshrc
+        options.username = option_with_default(credentials.get, 'plain_text_auth', 'username', username_from_cqlshrc)
 
     if not options.password:
         rawcredentials = configparser.RawConfigParser()
@@ -2082,7 +2083,7 @@ def read_options(cmdlineargs, parser, config_file, cql_dir, environment=os.envir
 
         # handling password in the same way as username, priority cli > credentials > cqlshrc
         options.password = option_with_default(rawcredentials.get, 'plain_text_auth', 'password', password_from_cqlshrc)
-        options.password = password_from_cqlshrc
+        
     elif not options.insecure_password_without_warning:
         print("\nWarning: Using a password on the command line interface can be insecure."
               "\nRecommendation: use the credentials file to securely provide the password.\n", file=sys.stderr)
