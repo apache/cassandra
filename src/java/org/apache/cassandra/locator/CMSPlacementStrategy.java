@@ -118,7 +118,8 @@ public interface CMSPlacementStrategy
             }
 
             // Although MetaStrategy has its own entireRange, it uses a custom partitioner which isn't compatible with
-            // NTS. For that reason, we select replicas here using tokens provided by the configured partitioner.
+            // regular, non-CMS placements. For that reason, we select replicas here using tokens provided by the
+            // globally configured partitioner.
             Token minToken = DatabaseDescriptor.getPartitioner().getMinimumToken();
             EndpointsForRange endpoints = NetworkTopologyStrategy.calculateNaturalReplicas(minToken,
                                                                                            new Range<>(minToken, minToken),
