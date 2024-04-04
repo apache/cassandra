@@ -158,7 +158,8 @@ public final class TableParams
     public void validate()
     {
         compaction.validate();
-        compression.validate();
+        if (compression != null)
+            compression.validate();
 
         double minBloomFilterFpChanceValue = BloomCalculations.minSupportedBloomFilterFpChance();
         if (bloomFilterFpChance <=  minBloomFilterFpChanceValue || bloomFilterFpChance > 1)
@@ -468,6 +469,14 @@ public final class TableParams
             return this;
         }
 
+        public Builder setDefaultCompressionIfNotSet(String keyspace)
+        {
+            if (compression == null)
+                compression = CompressionParams.defaultParams(keyspace);
+
+            return this;
+        }
+
         public Builder cdc(boolean val)
         {
             cdc = val;
@@ -489,11 +498,6 @@ public final class TableParams
 
     public static class Serializer implements MetadataSerializer<TableParams>
     {
-        private final String keyspace;
-        Serializer(String keyspace) {
-            this.keyspace = keyspace;
-        }
-
         public void serialize(TableParams t, DataOutputPlus out, Version version) throws IOException
         {
             out.writeUTF(t.comment);

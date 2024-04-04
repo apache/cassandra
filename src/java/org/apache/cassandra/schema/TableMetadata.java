@@ -833,6 +833,9 @@ public class TableMetadata implements SchemaElement
             if (partitioner == null)
                 partitioner = DatabaseDescriptor.getPartitioner();
 
+            CompressionParams compressionParams = params.setDefaultCompressionIfNotSet(keyspace);
+            compressionParams.validate();
+
             if (id == null)
             {
                 // make sure vtables use deteriminstic ids so they can be referenced in calls cross-nodes
@@ -1815,7 +1818,6 @@ public class TableMetadata implements SchemaElement
             builder.partitioner(FBUtilities.newPartitioner(in.readUTF()));
             builder.kind(Kind.valueOf(in.readUTF()));
             builder.params(TableParams.serializer.deserialize(in, version));
-            builder.params.setDefaultCompressionIfNotSet(ks);
             int flagCount = in.readInt();
             Set<Flag> flags = new HashSet<>();
             for (int i = 0; i < flagCount; i++)
