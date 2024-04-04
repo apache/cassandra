@@ -71,7 +71,15 @@ public class SchemaKeyspaceTest
     @Test
     public void testConversionsInverses() throws Exception
     {
-        for (String keyspaceName : Schema.instance.distributedKeyspaces().names())
+        Set<String> distributed = new HashSet<>(Schema.instance.distributedKeyspaces().names()); // this contains system_auth too
+        Set<String> distributedSystem = SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES; // this contains system replicated
+
+        // From CASSANDRA-12937, it is not possible to modify compressor on system tables.
+        // The modification of system tables, replicated or not, was done only on CQL level,
+        // from CASSANDRA-12937 we can not modify compressors even programmatically.
+        distributed.removeAll(distributedSystem);
+
+        for (String keyspaceName : distributed)
         {
             for (ColumnFamilyStore cfs : Keyspace.open(keyspaceName).getColumnFamilyStores())
             {
