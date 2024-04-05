@@ -16,26 +16,32 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.test;
+package org.apache.cassandra.distributed.test.tcm;
+
+import java.util.UUID;
 
 import org.junit.Test;
 
-import org.apache.cassandra.auth.CassandraRoleManager;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor;
+import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 import static java.lang.String.format;
-import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
-import static org.awaitility.Awaitility.await;
+import static org.apache.cassandra.distributed.util.Auth.waitForExistingRoles;
+import static org.junit.Assert.assertEquals;
 
 public class TruncationTest extends TestBaseImpl
 {
     @Test
-    public void testMaxHintedHandoffSize() throws Exception
+    public void truncationTest() throws Exception
     {
         try (Cluster cluster = init(Cluster.build(2)
                                            .withDataDirCount(1)
@@ -45,25 +51,30 @@ public class TruncationTest extends TestBaseImpl
             final IInvokableInstance node1 = cluster.get(1);
             final IInvokableInstance node2 = cluster.get(2);
 
-            waitForExistingRoles(cluster);
+            waitForExistingRoles(node1);
+            waitForExistingRoles(node2);
 
-            String createTableStatement = format("CREATE TABLE %s.cf (k text PRIMARY KEY, c1 text) " +
-                                                 "WITH compaction = {'class': 'SizeTieredCompactionStrategy', 'enabled': 'false'} ", KEYSPACE);
-            cluster.schemaChange(createTableStatement);
+            cluster.schemaChange(format("CREATE TABLE %s.cf (k text PRIMARY KEY, c1 text)", KEYSPACE));
 
             node1.coordinator().execute(format("TRUNCATE %s.cf", KEYSPACE), ConsistencyLevel.ONE);
 
-            Thread.sleep(1000);
+            Thread.sleep(10000);
+
+            UUID tableId = node1.appliesOnInstance((IIsolatedExecutor.SerializableBiFunction<String, String, UUID>) (ks, tb) -> {
+                return ClusterMetadata.current().schema.getKeyspaceMetadata(ks).getTableNullable(tb).id.asUUID();
+            }).apply(KEYSPACE, "cf");
+
+            Long node1TruncationTime = getTruncationTime(node1, tableId);
+            Long node2TruncationTime = getTruncationTime(node2, tableId);
+
+            assertEquals(node1TruncationTime, node2TruncationTime);
         }
     }
 
-    private static void waitForExistingRoles(Cluster cluster)
+    private long getTruncationTime(IInvokableInstance node, UUID tableId)
     {
-        cluster.forEach(instance -> {
-            await().pollDelay(1, SECONDS)
-                   .pollInterval(1, SECONDS)
-                   .atMost(60, SECONDS)
-                   .until(() -> instance.callOnInstance(CassandraRoleManager::hasExistingRoles));
-        });
+        return node.appliesOnInstance((IIsolatedExecutor.SerializableFunction<UUID, Long>) (uuid) -> {
+            return SystemKeyspace.getTruncatedAt(TableId.fromUUID(uuid));
+        }).apply(tableId);
     }
 }

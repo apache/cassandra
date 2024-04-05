@@ -42,22 +42,15 @@ public class TableTruncationListener implements ChangeListener
         ImmutableMap<TableId, TruncationRecord> diff = prev.truncations.diff(next.truncations);
 
         for (Map.Entry<TableId, TruncationRecord> entry : diff.entrySet())
-            truncate(entry.getKey(), entry.getValue());
-    }
-
-    private void truncate(TableId tableId, TruncationRecord truncationRecord)
-    {
-        TableMetadata tableOrViewNullable = ClusterMetadata.current().schema.getKeyspaces().getTableOrViewNullable(tableId);
-        if (tableOrViewNullable == null)
-            return;
-
-        ColumnFamilyStore columnFamilyStore = Keyspace.openAndGetStore(tableOrViewNullable);
-
-        long truncatedAt = SystemKeyspace.getTruncatedAt(tableId);
-
-        if (truncationRecord.truncationTimestamp > truncatedAt)
         {
-            columnFamilyStore.truncateBlocking(truncationRecord.truncationTimestamp);
+            TableMetadata tableOrViewNullable = prev.schema.getKeyspaces().getTableOrViewNullable(entry.getKey());
+            if (tableOrViewNullable == null)
+                return;
+
+            ColumnFamilyStore columnFamilyStore = Keyspace.openAndGetStore(tableOrViewNullable);
+            long truncatedAt = SystemKeyspace.getTruncatedAt(tableOrViewNullable.id);
+            if (entry.getValue().truncationTimestamp > truncatedAt)
+                columnFamilyStore.truncateBlocking(entry.getValue().truncationTimestamp);
         }
     }
 }
