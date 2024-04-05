@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.dht;
 
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
@@ -30,7 +31,9 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
@@ -53,9 +56,14 @@ public class ReversedLongLocalPartitioner implements IPartitioner
         return new CachedHashDecoratedKey(getToken(key), key); // CachedHashDecoratedKey is used for bloom filter hash calculation
     }
 
-    public Token midpoint(Token left, Token right)
+    public Token midpoint(Token ltoken, Token rtoken)
     {
-        throw new UnsupportedOperationException();
+        // the symbolic MINIMUM token should act as ZERO: the empty bit array
+        BigInteger left = ltoken.equals(MIN_TOKEN) ? BigInteger.ZERO : BigInteger.valueOf(ltoken.getLongValue());
+        BigInteger right = rtoken.equals(MIN_TOKEN) ? BigInteger.ZERO : BigInteger.valueOf(rtoken.getLongValue());
+        Pair<BigInteger, Boolean> midpair = FBUtilities.midpoint(left, right, 63);
+        // discard the remainder
+        return new ReversedLongLocalToken(midpair.left.longValue());
     }
 
     public Token split(Token left, Token right, double ratioToLeft)
@@ -170,6 +178,12 @@ public class ReversedLongLocalPartitioner implements IPartitioner
 
         @Override
         public Object getTokenValue()
+        {
+            return token;
+        }
+
+        @Override
+        public long getLongValue()
         {
             return token;
         }

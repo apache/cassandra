@@ -3158,7 +3158,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public Pair<Integer, Future<?>> repair(String keyspace, Map<String, String> repairSpec, List<ProgressListener> listeners)
     {
-        RepairOption option = RepairOption.parse(repairSpec, ClusterMetadata.current().partitioner);
+        IPartitioner partitioner = Keyspace.open(keyspace).getMetadata().params.replication.isMeta()
+                                   ? MetaStrategy.partitioner
+                                   : IPartitioner.global();
+        RepairOption option = RepairOption.parse(repairSpec, partitioner);
         return repair(keyspace, option, listeners);
     }
 

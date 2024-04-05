@@ -32,7 +32,9 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.TimeUUID;
@@ -122,11 +124,18 @@ public class PrepareMessage extends RepairMessage
             List<TableId> tableIds = new ArrayList<>(tableIdCount);
             for (int i = 0; i < tableIdCount; i++)
                 tableIds.add(TableId.deserialize(in));
+
+            // TODO: It would be nicer to actually serialize the partitioner rather than infer it from the tableId
+            //  This way is not pleasant but it is cheap and easy given the metadata keyspace currently contains only a
+            //  single table
+            IPartitioner partitioner = tableIds.contains(DistributedMetadataLogKeyspace.LOG_TABLE_ID)
+                                       ? MetaStrategy.partitioner
+                                       : IPartitioner.global();
             TimeUUID parentRepairSession = TimeUUID.deserialize(in);
             int rangeCount = in.readInt();
             List<Range<Token>> ranges = new ArrayList<>(rangeCount);
             for (int i = 0; i < rangeCount; i++)
-                ranges.add((Range<Token>) Range.tokenSerializer.deserialize(in, IPartitioner.global(), version));
+                ranges.add((Range<Token>) Range.tokenSerializer.deserialize(in, partitioner, version));
             boolean isIncremental = in.readBoolean();
             long timestamp = in.readLong();
             boolean isGlobal = in.readBoolean();

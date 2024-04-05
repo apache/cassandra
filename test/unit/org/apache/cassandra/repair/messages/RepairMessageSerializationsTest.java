@@ -45,6 +45,9 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.SyncNodePair;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.schema.TableId;
@@ -68,6 +71,8 @@ public class RepairMessageSerializationsTest
         DatabaseDescriptor.daemonInitialization();
         originalPartitioner = StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
         ClusterMetadataTestHelper.setInstanceForTest();
+        SchemaTestUtil.addOrUpdateKeyspace(KeyspaceMetadata.create("serializationsTestKeyspace",
+                                                                   KeyspaceParams.simple(3)));
     }
 
     @AfterClass

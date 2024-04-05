@@ -34,7 +34,9 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -139,10 +141,12 @@ public class RepairJobDesc
             Collection<Range<Token>> ranges = new ArrayList<>(nRanges);
             Range<Token> range;
 
+            IPartitioner partitioner = ClusterMetadata.current().schema.getKeyspaceMetadata(keyspace).params.replication.isMeta()
+                                       ? MetaStrategy.partitioner
+                                       : IPartitioner.global();
             for (int i = 0; i < nRanges; i++)
             {
-                range = (Range<Token>) AbstractBounds.tokenSerializer.deserialize(in,
-                        IPartitioner.global(), version);
+                range = (Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, partitioner, version);
                 ranges.add(range);
             }
 
