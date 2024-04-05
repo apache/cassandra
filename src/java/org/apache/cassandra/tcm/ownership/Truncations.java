@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -41,19 +42,18 @@ public class Truncations implements MetadataValue<Truncations>
     public static final Serializer serializer = new Serializer();
 
     private final Epoch lastModified;
-    // TODO this might be just on TableId -> Long if it turns out that TruncationRecord object is not necessary
-    private final ImmutableMap<TableId, TruncationRecord> truncations;
+    private final ImmutableMap<UUID, Long> tablesTruncations;
 
-    public Truncations(Epoch lastModified, ImmutableMap<TableId, TruncationRecord> truncations)
+    public Truncations(Epoch lastModified, ImmutableMap<UUID, Long> tablesTruncations)
     {
         this.lastModified = lastModified;
-        this.truncations = truncations;
+        this.tablesTruncations = tablesTruncations;
     }
 
     @Override
     public Truncations withLastModified(Epoch epoch)
     {
-        return new Truncations(epoch, truncations);
+        return new Truncations(epoch, tablesTruncations);
     }
 
     @Override
@@ -62,29 +62,33 @@ public class Truncations implements MetadataValue<Truncations>
         return lastModified;
     }
 
-    public ImmutableMap<TableId, TruncationRecord> diff(Truncations next)
+    public ImmutableMap<UUID, Long> diff(Truncations next)
     {
-        Map<TableId, TruncationRecord> diff = new HashMap<>();
-        for (Map.Entry<TableId, TruncationRecord> entry : next.truncations.entrySet())
+        Map<UUID, Long> diff = new HashMap<>();
+        for (Map.Entry<UUID, Long> entry : next.tablesTruncations.entrySet())
         {
-            TableId maybeNewKey = entry.getKey();
-            TruncationRecord maybeNewRecord = entry.getValue();
-            TruncationRecord truncationRecord = truncations.get(maybeNewKey);
-            if (truncationRecord == null || maybeNewRecord.truncationTimestamp > truncationRecord.truncationTimestamp)
-            {
-                diff.put(maybeNewKey, maybeNewRecord);
-            }
+            UUID maybeNewKey = entry.getKey();
+            long maybeNewValue = entry.getValue();
+            Long maybeAlreadyExistingTruncation = tablesTruncations.get(maybeNewKey);
+            if (maybeAlreadyExistingTruncation == null || maybeNewValue > maybeAlreadyExistingTruncation)
+                diff.put(maybeNewKey, maybeNewValue);
         }
         return ImmutableMap.copyOf(diff);
     }
 
-    public Truncations withTruncation(TableId tableId, TruncationRecord truncationRecord)
+    public Truncations withTruncation(TableId tableId, long trucationTimestamp)
     {
-        Map<TableId, TruncationRecord> map = new HashMap<>(truncations);
-        // overwrite what is there with new record
-        // TODO - should we check that what we are going to put has timestamp strictly bigger than what is already there?
-        map.put(tableId, truncationRecord);
-        return new Truncations(lastModified, ImmutableMap.copyOf(map));
+        Map<UUID, Long> map = new HashMap<>(tablesTruncations);
+        Long maybeExistingTimestamp = map.get(tableId.asUUID());
+
+        // it does not make sense to insert truncation with timestamp smaller than what is already there
+        if (maybeExistingTimestamp == null || maybeExistingTimestamp < trucationTimestamp)
+        {
+            map.put(tableId.asUUID(), trucationTimestamp);
+            return new Truncations(lastModified, ImmutableMap.copyOf(map));
+        }
+
+        return this;
     }
 
     @Override
@@ -93,13 +97,13 @@ public class Truncations implements MetadataValue<Truncations>
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Truncations that = (Truncations) o;
-        return Objects.equals(lastModified, that.lastModified) && Objects.equals(truncations, that.truncations);
+        return Objects.equals(lastModified, that.lastModified) && Objects.equals(tablesTruncations, that.tablesTruncations);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(lastModified, truncations);
+        return Objects.hash(lastModified, tablesTruncations);
     }
 
     @Override
@@ -107,41 +111,8 @@ public class Truncations implements MetadataValue<Truncations>
     {
         return "Truncations{" +
                "lastModified=" + lastModified +
-               ", truncations=" + truncations +
+               ", truncations=" + tablesTruncations +
                '}';
-    }
-
-    public static class TruncationRecord
-    {
-        public final long truncationTimestamp;
-
-        public TruncationRecord(long truncationTimestamp)
-        {
-            this.truncationTimestamp = truncationTimestamp;
-        }
-
-        @Override
-        public boolean equals(Object o)
-        {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            TruncationRecord that = (TruncationRecord) o;
-            return truncationTimestamp == that.truncationTimestamp;
-        }
-
-        @Override
-        public int hashCode()
-        {
-            return Objects.hash(truncationTimestamp);
-        }
-
-        @Override
-        public String toString()
-        {
-            return "TruncationRecord{" +
-                   "truncationTimestamp=" + truncationTimestamp +
-                   '}';
-        }
     }
 
     public static final class Serializer implements MetadataSerializer<Truncations>
@@ -151,11 +122,11 @@ public class Truncations implements MetadataValue<Truncations>
         public void serialize(Truncations t, DataOutputPlus out, Version version) throws IOException
         {
             Epoch.serializer.serialize(t.lastModified, out, version);
-            out.writeInt(t.truncations.size());
-            for (Map.Entry<TableId, TruncationRecord> entry : t.truncations.entrySet())
+            out.writeInt(t.tablesTruncations.size());
+            for (Map.Entry<UUID, Long> entry : t.tablesTruncations.entrySet())
             {
-                entry.getKey().serialize(out);
-                out.writeLong(entry.getValue().truncationTimestamp);
+                TableId.fromUUID(entry.getKey()).serialize(out);
+                out.writeLong(entry.getValue());
             }
         }
 
@@ -165,11 +136,11 @@ public class Truncations implements MetadataValue<Truncations>
             Epoch lastModified = Epoch.serializer.deserialize(in, version);
             int size = in.readInt();
             if (size == 0) return new Truncations(lastModified, ImmutableMap.of());
-            ImmutableMap.Builder<TableId, TruncationRecord> result = ImmutableMap.builder();
+            ImmutableMap.Builder<UUID, Long> result = ImmutableMap.builder();
             for (int i = 0; i < size; i++)
             {
-                TableId tableId = TableId.deserialize(in);
-                TruncationRecord truncationRecord = new TruncationRecord(in.readLong());
+                UUID tableId = TableId.deserialize(in).asUUID();
+                Long truncationRecord = in.readLong();
                 result.put(tableId, truncationRecord);
             }
             return new Truncations(lastModified, result.build());
@@ -179,11 +150,11 @@ public class Truncations implements MetadataValue<Truncations>
         public long serializedSize(Truncations t, Version version)
         {
             long size = Epoch.serializer.serializedSize(t.lastModified, version);
-            size += TypeSizes.sizeof(t.truncations.size());
-            for (Map.Entry<TableId, TruncationRecord> entry : t.truncations.entrySet())
+            size += TypeSizes.sizeof(t.tablesTruncations.size());
+            for (Map.Entry<UUID, Long> entry : t.tablesTruncations.entrySet())
             {
                 size += 16; // TableId.serializedSize(), not sure why it is not static
-                size += TypeSizes.sizeof(entry.getValue().truncationTimestamp);
+                size += TypeSizes.sizeof(entry.getValue());
             }
             return size;
         }

@@ -66,7 +66,6 @@ import org.apache.cassandra.tcm.ownership.PrimaryRangeComparator;
 import org.apache.cassandra.tcm.ownership.PlacementForRange;
 import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.ownership.Truncations;
-import org.apache.cassandra.tcm.ownership.Truncations.TruncationRecord;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
@@ -476,15 +475,10 @@ public class ClusterMetadata
             return this;
         }
 
-        public Transformer truncateTable(TableId tableId, TruncationRecord truncationRecord)
+        public Transformer truncateTable(TableId tableId, Long truncationRecord)
         {
             truncations = truncations.withTruncation(tableId, truncationRecord);
             return this;
-        }
-
-        public Transformer truncateTable(TableId tableId, long timestamp)
-        {
-            return truncateTable(tableId, new TruncationRecord(timestamp));
         }
 
         public Transformer proposeToken(NodeId nodeId, Collection<Token> tokens)

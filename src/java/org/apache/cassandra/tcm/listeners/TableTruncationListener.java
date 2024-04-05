@@ -19,6 +19,7 @@
 package org.apache.cassandra.tcm.listeners;
 
 import java.util.Map;
+import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
@@ -30,7 +31,6 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.ownership.Truncations.TruncationRecord;
 
 public class TableTruncationListener implements ChangeListener
 {
@@ -39,18 +39,19 @@ public class TableTruncationListener implements ChangeListener
     @Override
     public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
     {
-        ImmutableMap<TableId, TruncationRecord> diff = prev.truncations.diff(next.truncations);
+        ImmutableMap<UUID, Long> diff = prev.truncations.diff(next.truncations);
 
-        for (Map.Entry<TableId, TruncationRecord> entry : diff.entrySet())
+        for (Map.Entry<UUID, Long> entry : diff.entrySet())
         {
-            TableMetadata tableOrViewNullable = prev.schema.getKeyspaces().getTableOrViewNullable(entry.getKey());
+            TableMetadata tableOrViewNullable = prev.schema.getKeyspaces().getTableOrViewNullable(TableId.fromUUID(entry.getKey()));
             if (tableOrViewNullable == null)
                 return;
 
             ColumnFamilyStore columnFamilyStore = Keyspace.openAndGetStore(tableOrViewNullable);
-            long truncatedAt = SystemKeyspace.getTruncatedAt(tableOrViewNullable.id);
-            if (entry.getValue().truncationTimestamp > truncatedAt)
-                columnFamilyStore.truncateBlocking(entry.getValue().truncationTimestamp);
+            long trucatedAt = SystemKeyspace.getTruncatedAt(tableOrViewNullable.id);
+            long metadataTimestamp = entry.getValue();
+            if (metadataTimestamp > trucatedAt)
+                columnFamilyStore.truncateBlocking(metadataTimestamp);
         }
     }
 }

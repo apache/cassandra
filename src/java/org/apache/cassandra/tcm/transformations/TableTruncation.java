@@ -26,7 +26,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Transformation;
-import org.apache.cassandra.tcm.ownership.Truncations.TruncationRecord;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -62,7 +61,7 @@ public class TableTruncation implements Transformation
     @Override
     public Result execute(ClusterMetadata prev)
     {
-        return Transformation.success(prev.transformer().truncateTable(tableId, new TruncationRecord(truncationTimestamp)),
+        return Transformation.success(prev.transformer().truncateTable(tableId, truncationTimestamp),
                                       LockedRanges.AffectedRanges.EMPTY);
     }
 
