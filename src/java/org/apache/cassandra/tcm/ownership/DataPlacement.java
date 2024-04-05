@@ -25,7 +25,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -41,11 +40,11 @@ import org.apache.cassandra.tcm.serialization.Version;
 
 public class DataPlacement
 {
-    private static final Serializer serializer = new Serializer(DatabaseDescriptor.getPartitioner());
+    private static final Serializer globalSerializer = new Serializer(IPartitioner.global());
     private static final Serializer metaKeyspaceSerializer = new Serializer(MetaStrategy.partitioner);
     public static Serializer serializerFor(ReplicationParams replication)
     {
-        return replication.isMeta() ? metaKeyspaceSerializer : serializer;
+        return replication.isMeta() ? metaKeyspaceSerializer : globalSerializer;
     }
 
     private static final DataPlacement EMPTY = new DataPlacement(PlacementForRange.EMPTY, PlacementForRange.EMPTY);
