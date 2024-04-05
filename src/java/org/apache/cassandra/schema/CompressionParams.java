@@ -163,7 +163,10 @@ public final class CompressionParams
         if (result == null)
         {
             if (DatabaseDescriptor.getRawConfig() == null)
-                return CompressionParams.DEFAULT;
+            {
+                result = CALCULATED_DEFAULT = CompressionParams.DEFAULT;
+                return result;
+            }
 
             ParameterizedClass defaultSSTableCompression = DatabaseDescriptor.getDefaultSSTableCompression();
             if (defaultSSTableCompression == null)
