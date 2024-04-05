@@ -581,7 +581,7 @@ public class TupleType extends MultiElementType<ByteBuffer>
     @Override
     public boolean equals(Object o)
     {
-        if(!(o instanceof TupleType))
+        if (o.getClass() != TupleType.class)
             return false;
 
         TupleType that = (TupleType)o;
