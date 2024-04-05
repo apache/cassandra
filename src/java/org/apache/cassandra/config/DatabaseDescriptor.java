@@ -2596,6 +2596,16 @@ public class DatabaseDescriptor
         conf.hints_compression = parameterizedClass;
     }
 
+    public static boolean getTransferHintsOnDecommission()
+    {
+        return conf.transfer_hints_on_decommission;
+    }
+
+    public static void setTransferHintsOnDecommission(boolean enabled)
+    {
+        conf.transfer_hints_on_decommission = enabled;
+    }
+
     public static boolean isIncrementalBackupsEnabled()
     {
         return conf.incremental_backups;

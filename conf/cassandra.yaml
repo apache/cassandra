@@ -86,6 +86,11 @@ hints_flush_period_in_ms: 10000
 # Maximum size for a single hints file, in megabytes.
 max_hints_file_size_in_mb: 128
 
+# Enable/disable transfering hints to a peer during decommission. Even when enabled, this does not guarantee
+# consistency for logged batches, and it may delay decommission when coupled with a strict hinted_handoff_throttle.
+# Default: true
+#transfer_hints_on_decommission: true
+
 # Compression to apply to the hint files. If omitted, hints files
 # will be written uncompressed. LZ4, Snappy, and Deflate compressors
 # are supported.
