@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -51,6 +52,12 @@ public class TableTruncationListener implements ChangeListener
             return;
 
         ColumnFamilyStore columnFamilyStore = Keyspace.openAndGetStore(tableOrViewNullable);
-        columnFamilyStore.truncateBlocking(truncationRecord.truncationTimestamp);
+
+        long truncatedAt = SystemKeyspace.getTruncatedAt(tableId);
+
+        if (truncationRecord.truncationTimestamp > truncatedAt)
+        {
+            columnFamilyStore.truncateBlocking(truncationRecord.truncationTimestamp);
+        }
     }
 }
