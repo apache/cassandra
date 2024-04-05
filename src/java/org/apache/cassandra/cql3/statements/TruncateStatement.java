@@ -109,6 +109,7 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
         }
         catch (Exception e)
         {
+            e.printStackTrace();
             throw new TruncateException(e);
         }
     }

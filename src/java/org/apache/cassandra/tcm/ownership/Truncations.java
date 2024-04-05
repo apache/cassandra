@@ -80,11 +80,11 @@ public class Truncations implements MetadataValue<Truncations>
 
     public Truncations withTruncation(TableId tableId, TruncationRecord truncationRecord)
     {
-        return new Truncations(lastModified,
-                               ImmutableMap.<TableId, TruncationRecord>builderWithExpectedSize(truncations.size())
-                                           .putAll(truncations)
-                                           .put(tableId, truncationRecord)
-                                           .build());
+        Map<TableId, TruncationRecord> map = new HashMap<>(truncations);
+        // overwrite what is there with new record
+        // TODO - should we check that what we are going to put has timestamp strictly bigger than what is already there?
+        map.put(tableId, truncationRecord);
+        return new Truncations(lastModified, ImmutableMap.copyOf(map));
     }
 
     @Override
