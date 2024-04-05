@@ -27,14 +27,18 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.metrics.HintsServiceMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.service.StorageService;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.junit.Assert.assertEquals;
 
 import static org.apache.cassandra.distributed.action.GossipHelper.decommission;
+import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
+import static org.apache.cassandra.distributed.api.ConsistencyLevel.TWO;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
@@ -46,6 +50,39 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
  */
 public class HintedHandoffAddRemoveNodesTest extends TestBaseImpl
 {
+    @SuppressWarnings("Convert2MethodRef")
+    @Test
+    public void shouldAvoidHintTransferOnDecommission() throws Exception
+    {
+        try (Cluster cluster = init(builder().withNodes(3)
+                                             .withConfig(config -> config.set("transfer_hints_on_decommission", false).with(GOSSIP))
+                                             .withoutVNodes()
+                                             .start()))
+        {
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.decom_no_hints_test (key int PRIMARY KEY, value int)"));
+
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.decom_no_hints_test (key, value) VALUES (?, ?)"), ALL, 0, 0);
+            long hintsBeforeShutdown = countTotalHints(cluster.get(1));
+            assertThat(hintsBeforeShutdown).isEqualTo(0);
+            long hintsDelivered = countHintsDelivered(cluster.get(1));
+            assertThat(hintsDelivered).isEqualTo(0);
+
+            // Shutdown node 3 so hints can be written against it.
+            cluster.get(3).shutdown().get();
+
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.decom_no_hints_test (key, value) VALUES (?, ?)"), TWO, 0, 0);
+            Awaitility.await().until(() -> countTotalHints(cluster.get(1)) > 0);
+            long hintsAfterShutdown = countTotalHints(cluster.get(1));
+            assertThat(hintsAfterShutdown).isEqualTo(1);
+
+            cluster.get(1).nodetoolResult("decommission", "--force").asserts().success();
+            long hintsDeliveredByDecom = countHintsDelivered(cluster.get(1));
+            String mode = cluster.get(1).callOnInstance(() -> StorageService.instance.getOperationMode());
+            assertEquals(StorageService.Mode.DECOMMISSIONED.toString(), mode);
+            assertThat(hintsDeliveredByDecom).isEqualTo(0);
+        }
+    }
+
     /**
      * Replaces Python dtest {@code hintedhandoff_test.py:TestHintedHandoff.test_hintedhandoff_decom()}.
      */
@@ -128,6 +165,12 @@ public class HintedHandoffAddRemoveNodesTest extends TestBaseImpl
     private long countTotalHints(IInvokableInstance instance)
     {
         return instance.callOnInstance(() -> StorageMetrics.totalHints.getCount());
+    }
+
+    @SuppressWarnings("Convert2MethodRef")
+    private long countHintsDelivered(IInvokableInstance instance)
+    {
+        return instance.callOnInstance(() -> HintsServiceMetrics.hintsSucceeded.getCount());
     }
 
     @SuppressWarnings("SameParameterValue")
