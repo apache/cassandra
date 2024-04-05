@@ -203,6 +203,7 @@ import org.apache.cassandra.tcm.transformations.Assassinate;
 import org.apache.cassandra.tcm.transformations.CancelInProgressSequence;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.Startup;
+import org.apache.cassandra.tcm.transformations.TableTruncation;
 import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.transport.ClientResourceLimits;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -4099,14 +4100,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         verifyKeyspaceIsValid(keyspace);
 
-        try
-        {
-            StorageProxy.truncateBlocking(keyspace, table);
-        }
-        catch (UnavailableException e)
-        {
-            throw new IOException(e.getMessage());
-        }
+        ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
+        ClusterMetadataService.instance().commit(new TableTruncation(cfs.metadata.id, Clock.Global.currentTimeMillis()));
     }
 
     public Map<InetAddress, Float> getOwnership()

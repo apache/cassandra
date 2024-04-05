@@ -33,7 +33,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -67,7 +66,6 @@ import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.RejectException;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
-import org.apache.cassandra.db.TruncateRequest;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.db.partitions.FilteredPartition;
@@ -166,7 +164,6 @@ import static org.apache.cassandra.net.Verb.PAXOS_COMMIT_REQ;
 import static org.apache.cassandra.net.Verb.PAXOS_PREPARE_REQ;
 import static org.apache.cassandra.net.Verb.PAXOS_PROPOSE_REQ;
 import static org.apache.cassandra.net.Verb.SCHEMA_VERSION_REQ;
-import static org.apache.cassandra.net.Verb.TRUNCATE_REQ;
 import static org.apache.cassandra.service.BatchlogResponseHandler.BatchlogCleanup;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.GLOBAL;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.LOCAL;
@@ -2418,50 +2415,6 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         return true;
-    }
-
-    /**
-     * Performs the truncate operatoin, which effectively deletes all data from
-     * the column family cfname
-     * @param keyspace
-     * @param cfname
-     * @throws UnavailableException If some of the hosts in the ring are down.
-     * @throws TimeoutException
-     */
-    public static void truncateBlocking(String keyspace, String cfname) throws UnavailableException, TimeoutException
-    {
-        logger.debug("Starting a blocking truncate operation on keyspace {}, CF {}", keyspace, cfname);
-        if (isAnyStorageHostDown())
-        {
-            logger.info("Cannot perform truncate, some hosts are down");
-            // Since the truncate operation is so aggressive and is typically only
-            // invoked by an admin, for simplicity we require that all nodes are up
-            // to perform the operation.
-            int liveMembers = Gossiper.instance.getLiveMembers().size();
-            throw UnavailableException.create(ConsistencyLevel.ALL, liveMembers + Gossiper.instance.getUnreachableMembers().size(), liveMembers);
-        }
-
-        Set<InetAddressAndPort> allEndpoints = StorageService.instance.getLiveRingMembers(true);
-
-        int blockFor = allEndpoints.size();
-        final TruncateResponseHandler responseHandler = new TruncateResponseHandler(blockFor);
-
-        // Send out the truncate calls and track the responses with the callbacks.
-        Tracing.trace("Enqueuing truncate messages to hosts {}", allEndpoints);
-        Message<TruncateRequest> message = Message.out(TRUNCATE_REQ, new TruncateRequest(keyspace, cfname));
-        for (InetAddressAndPort endpoint : allEndpoints)
-            MessagingService.instance().sendWithCallback(message, endpoint, responseHandler);
-
-        // Wait for all
-        try
-        {
-            responseHandler.get();
-        }
-        catch (TimeoutException e)
-        {
-            Tracing.trace("Timed out");
-            throw e;
-        }
     }
 
     /**
