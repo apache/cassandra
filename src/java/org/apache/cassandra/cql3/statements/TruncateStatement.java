@@ -41,7 +41,6 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.transformations.TableTruncation;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.utils.Clock;
 
 public class TruncateStatement extends QualifiedStatement implements CQLStatement
 {
@@ -70,7 +69,8 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
     {
         executeInternal(() -> {
             ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(name());
-            ClusterMetadataService.instance().commit(new TableTruncation(cfs.metadata.id, Clock.Global.currentTimeMillis()));
+            long timestampMillis = queryStartNanoTime / 1000 / 1000;
+            ClusterMetadataService.instance().commit(new TableTruncation(cfs.metadata.id, timestampMillis));
         });
 
         return null;
@@ -80,7 +80,12 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
     {
         executeInternal(() -> {
             ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(name());
-            cfs.truncateBlocking(Clock.Global.currentTimeMillis());
+
+            // we need some timestamp too for local executions
+            // as that one does not come as the param as execute() method has it
+            // let's take it from state where is it stored in microseconds so we convert
+            long timestampMillis = state.getTimestamp() / 1000;
+            cfs.truncateBlocking(timestampMillis);
         });
 
         return null;
@@ -109,7 +114,6 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
         }
         catch (Exception e)
         {
-            e.printStackTrace();
             throw new TruncateException(e);
         }
     }
