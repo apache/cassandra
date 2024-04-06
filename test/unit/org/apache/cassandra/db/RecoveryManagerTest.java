@@ -249,7 +249,7 @@ public class RecoveryManagerTest
     public void testRecoverPIT() throws Exception
     {
         CommitLog.instance.resetUnsafe(true);
-        long rpiTimeInit = CommitLog.instance.archiver.restorePointInTimeInMicros;
+        long originalPIT = CommitLog.instance.archiver.restorePointInTimeInMicros;
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
 
         // seconds level
@@ -272,7 +272,7 @@ public class RecoveryManagerTest
         CommitLog.instance.resetUnsafe(false);
         assertEquals(6, Util.getAll(Util.cmd(cfs).build()).size());
         //reset the rpi
-        CommitLog.instance.archiver.setRestorePointInTime(rpiTimeInit);
+        CommitLog.instance.archiver.setRestorePointInTime(originalPIT);
 
         CommitLog.instance.resetUnsafe(true);
         cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
@@ -300,7 +300,7 @@ public class RecoveryManagerTest
         assertEquals(6, Util.getAll(Util.cmd(cfs).build()).size());
 
         //reset the rpi
-        CommitLog.instance.archiver.setRestorePointInTime(rpiTimeInit);
+        CommitLog.instance.archiver.setRestorePointInTime(originalPIT);
         CommitLog.instance.resetUnsafe(true);
         cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
         keyspace1 = Keyspace.open(KEYSPACE1);
@@ -326,7 +326,7 @@ public class RecoveryManagerTest
         CommitLog.instance.resetUnsafe(false);
         assertEquals(6, Util.getAll(Util.cmd(cfs).build()).size());
         //reset the rpi
-        CommitLog.instance.archiver.setRestorePointInTime(rpiTimeInit);
+        CommitLog.instance.archiver.setRestorePointInTime(originalPIT);
     }
 
     @Test
