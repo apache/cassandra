@@ -201,8 +201,6 @@ def process_test_cases(suite: JUnitTestSuite, file_name: str, root) -> int:
     return test_count
 
 
-# TODO: Update this to instead be "create_summary_file" and build the entire summary page, not just append failures to existing
-# This should be trivial to do using JUnitTestSuite.failed, passed, etc methods
 def create_summary_file(test_suites: Dict[str, JUnitTestSuite], xml_files, output: str) -> None:
     """
     Will create a table with all failed tests in it organized by sorted suite name.
@@ -218,6 +216,8 @@ def create_summary_file(test_suites: Dict[str, JUnitTestSuite], xml_files, outpu
     with open(output, 'r') as file:
         soup = BeautifulSoup(file, 'html.parser')
 
+    failures_list_tag = soup.new_tag("div")
+    failures_list_tag.string = '<br/><br/>[Test Failures]<br/><br/>'
     failures_tag = soup.new_tag("div")
     failures_tag.string = '<br/><br/>[Test Failure Details]<br/><br/>'
     suites_tag = soup.new_tag("div")
@@ -250,6 +250,7 @@ def create_summary_file(test_suites: Dict[str, JUnitTestSuite], xml_files, outpu
             failures_builder.label_columns(['Class', 'Method', 'Output', 'Duration'], ["width: 15%; text-align: left;", "width: 15%; text-align: left;", "width: 60%; text-align: left;", "width: 10%; text-align: right;"])
             for test in suite.get_tests(JUnitTestStatus.FAILURE):
                 failures_builder.add_row(test.row_data())
+            failures_list_tag.append(BeautifulSoup(failures_builder.build_list(), 'html.parser'))
             failures_tag.append(BeautifulSoup(failures_builder.build_table(), 'html.parser'))
             total_failure_count += failure_count
             if total_failure_count > 200:
@@ -269,6 +270,7 @@ def create_summary_file(test_suites: Dict[str, JUnitTestSuite], xml_files, outpu
         """
 
     soup.body.append(totals_tag)
+    soup.body.append(failures_list_tag)
     soup.body.append(failures_tag)
     suites_tag.append(BeautifulSoup(suites_builder.build_table(), 'html.parser'))
     soup.body.append(suites_tag)

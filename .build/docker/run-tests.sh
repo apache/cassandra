@@ -30,6 +30,12 @@ if [ "$#" -lt 1 ] || [ "$#" -gt 3 ] || [ "$1" == "-h" ]; then
     exit 1
 fi
 
+error() {
+    echo >&2 $2;
+    set -x
+    exit $1
+}
+
 # variables, with defaults
 [ "x${cassandra_dir}" != "x" ] || cassandra_dir="$(readlink -f $(dirname "$0")/../..)"
 [ "x${cassandra_dtest_dir}" != "x" ] || cassandra_dtest_dir="${cassandra_dir}/../cassandra-dtest"
@@ -39,12 +45,12 @@ fi
 [ -d "${m2_dir}" ] || { mkdir -p "${m2_dir}" ; }
 
 # pre-conditions
-command -v docker >/dev/null 2>&1 || { echo >&2 "docker needs to be installed"; exit 1; }
-command -v bc >/dev/null 2>&1 || { echo >&2 "bc needs to be installed"; exit 1; }
-command -v timeout >/dev/null 2>&1 || { echo >&2 "timeout needs to be installed"; exit 1; }
-(docker info >/dev/null 2>&1) || { echo >&2 "docker needs to running"; exit 1; }
-[ -f "${cassandra_dir}/build.xml" ] || { echo >&2 "${cassandra_dir}/build.xml must exist"; exit 1; }
-[ -f "${cassandra_dir}/.build/run-tests.sh" ] || { echo >&2 "${cassandra_dir}/.build/run-tests.sh must exist"; exit 1; }
+command -v docker >/dev/null 2>&1 || { error 1 "docker needs to be installed"; }
+command -v bc >/dev/null 2>&1 || { error 1 "bc needs to be installed"; }
+command -v timeout >/dev/null 2>&1 || { error 1 "timeout needs to be installed"; }
+(docker info >/dev/null 2>&1) || { error 1 "docker needs to running"; }
+[ -f "${cassandra_dir}/build.xml" ] || { error 1 "${cassandra_dir}/build.xml must exist"; }
+[ -f "${cassandra_dir}/.build/run-tests.sh" ] || { error 1 "${cassandra_dir}/.build/run-tests.sh must exist"; }
 
 # arguments
 target=$1
@@ -63,8 +69,7 @@ fi
 
 regx_java_version="(${java_version_supported//,/|})"
 if [[ ! "${java_version}" =~ $regx_java_version ]]; then
-    echo "Error: Java version is not in ${java_version_supported}, it is set to ${java_version}"
-    exit 1
+    error 1 "Error: Java version is not in ${java_version_supported}, it is set to ${java_version}"
 fi
 
 # allow python version override, otherwise default to current python version or 3.8
@@ -88,14 +93,10 @@ docker_mounts="${docker_mounts} -v "${build_dir}/tmp":/home/cassandra/cassandra/
 
 # Look for existing docker image, otherwise build
 if ! ( [[ "$(docker images -q ${image_name} 2>/dev/null)" != "" ]] ) ; then
-  echo "Build image not found locally"
-  # try docker login to increase dockerhub rate limits
-  echo "Attempting 'docker login' to increase dockerhub rate limits"
-  timeout -k 5 5 docker login >/dev/null 2>/dev/null
-  echo "Pulling build image..."
+  echo "Build image not found locally, pulling image ${image_name}..."
   if ! ( docker pull -q ${image_name} >/dev/null 2>/dev/null ) ; then
     # Create build images containing the build tool-chain, Java and an Apache Cassandra git working directory, with retry
-    echo "Building docker image ${image_name}..."
+    echo "Building docker image..."
     until docker build -t ${image_name} -f docker/${dockerfile} .  ; do
       echo "docker build failed… trying again in 10s… "
       sleep 10
@@ -103,9 +104,9 @@ if ! ( [[ "$(docker images -q ${image_name} 2>/dev/null)" != "" ]] ) ; then
     echo "Docker image ${image_name} has been built"
   else
     echo "Successfully pulled build image."
-  fi  
+  fi
 else
-    echo "Found build image locally."
+  echo "Found build image locally."
 fi
 
 pushd ${cassandra_dir} >/dev/null
@@ -119,47 +120,47 @@ if [[ ! -z ${JENKINS_URL+x} ]] && [[ ! -z ${NODE_NAME+x} ]] ; then
 fi
 
 # find host's available cores and mem
-cores=$(docker run --rm alpine nproc --all) || { echo >&2 "Unable to check available CPU cores"; exit 1; }
+cores=$(docker run --rm alpine:3.19.1 nproc --all) || { error 1 "Unable to check available CPU cores"; }
 
 case $(uname) in
     "Linux")
-        mem=$(docker run --rm alpine free -b | grep Mem: | awk '{print $2}') || { echo >&2 "Unable to check available memory"; exit 1; }
+        mem=$(docker run --rm alpine:3.19.1 free -b | grep Mem: | awk '{print $2}') || { error 1 "Unable to check available memory"; }
         ;;
     "Darwin")
-        mem=$(sysctl -n hw.memsize) || { echo >&2 "Unable to check available memory"; exit 1; }
+        mem=$(sysctl -n hw.memsize) || { error 1 "Unable to check available memory"; }
         ;;
     *)
-        echo >&2 "Unsupported operating system, expected Linux or Darwin"
-        exit 1
+        error 1 "Unsupported operating system, expected Linux or Darwin"
 esac
 
 # figure out resource limits, scripts, and mounts for the test type
+docker_flags="-m 5g --memory-swap 5g"
 case ${target} in
     "build_dtest_jars")
     ;;
     "stress-test" | "fqltool-test" )
-        [[ ${mem} -gt $((1 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { echo >&2 "${target} require minimum docker memory 1g (per jenkins executor (${jenkins_executors})), found ${mem}"; exit 1; }
+        [[ ${mem} -gt $((1 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { error 1 "${target} require minimum docker memory 1g (per jenkins executor (${jenkins_executors})), found ${mem}"; }
     ;;
     # test-burn doesn't have enough tests in it to split beyond 8, and burn and long we want a bit more resources anyway
     "microbench" | "test-burn" | "long-test" | "cqlsh-test" )
-        [[ ${mem} -gt $((5 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { echo >&2 "${target} require minimum docker memory 6g (per jenkins executor (${jenkins_executors})), found ${mem}"; exit 1; }
+        [[ ${mem} -gt $((5 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { error 1 "${target} require minimum docker memory 6g (per jenkins executor (${jenkins_executors})), found ${mem}"; }
     ;;
-    "dtest" | "dtest-novnode" | "dtest-latest" | "dtest-large" | "dtest-large-novnode" | "dtest-upgrade" | "dtest-upgrade-novnode"| "dtest-upgrade-large" | "dtest-upgrade-novnode-large" )
-        [ -f "${cassandra_dtest_dir}/dtest.py" ] || { echo >&2 "${cassandra_dtest_dir}/dtest.py must exist"; exit 1; }
-        [[ ${mem} -gt $((15 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { echo >&2 "${target} require minimum docker memory 16g (per jenkins executor (${jenkins_executors})), found ${mem}"; exit 1; }
+    "simulator-dtest")
+        [[ ${mem} -gt $((15 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { error 1 "${target} require minimum docker memory 16g (per jenkins executor (${jenkins_executors})), found ${mem}"; }
+        docker_flags="-m 15g --memory-swap 15g"
+    ;;
+    "dtest" | "dtest-novnode" | "dtest-latest" | "dtest-large" | "dtest-large-novnode" | "dtest-upgrade" | "dtest-upgrade-novnode"| "dtest-upgrade-large" | "dtest-upgrade-novnode-large")
+        [ -f "${cassandra_dtest_dir}/dtest.py" ] || { error 1 "${cassandra_dtest_dir}/dtest.py not found. please specify 'cassandra_dtest_dir' to point to the local cassandra-dtest source"; }
         test_script="run-python-dtests.sh"
         docker_mounts="${docker_mounts} -v ${cassandra_dtest_dir}:/home/cassandra/cassandra-dtest"
-        # check that ${cassandra_dtest_dir} is valid
-        [ -f "${cassandra_dtest_dir}/dtest.py" ] || { echo >&2 "${cassandra_dtest_dir}/dtest.py not found. please specify 'cassandra_dtest_dir' to point to the local cassandra-dtest source"; exit 1; }
+        [[ ${mem} -gt $((15 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { error 1 "${target} require minimum docker memory 16g (per jenkins executor (${jenkins_executors})), found ${mem}"; }
+        docker_flags="-m 15g --memory-swap 15g"
     ;;
-    "test"| "test-cdc" | "test-compression" | "test-oa" | "test-system-keyspace-directory" | "test-latest" | "jvm-dtest" | "jvm-dtest-upgrade" | "jvm-dtest-novnode" | "jvm-dtest-upgrade-novnode" | "simulator-dtest")
-        [[ ${mem} -gt $((5 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { echo >&2 "${target} require minimum docker memory 6g (per jenkins executor (${jenkins_executors})), found ${mem}"; exit 1; }
-        max_docker_runs_by_cores=$( echo "sqrt( ${cores} / ${jenkins_executors} )" | bc )
-        max_docker_runs_by_mem=$(( ${mem} / ( 5 * 1024 * 1024 * 1024 * ${jenkins_executors} ) ))
+    "test"| "test-cdc" | "test-compression" | "test-oa" | "test-system-keyspace-directory" | "test-latest" | "jvm-dtest" | "jvm-dtest-upgrade" | "jvm-dtest-novnode" | "jvm-dtest-upgrade-novnode")
+        [[ ${mem} -gt $((5 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { error 1 "${target} require minimum docker memory 6g (per jenkins executor (${jenkins_executors})), found ${mem}"; }
     ;;
     *)
-    echo "unrecognized test type \"${target}\""
-    exit 1
+    error 1 "unrecognized test type \"${target}\""
     ;;
 esac
 
@@ -171,12 +172,8 @@ if (( $(echo "${docker_cpus} > ${docker_cpus_limit}" |bc -l) )) ; then
 fi
 
 # hack: long-test does not handle limited CPUs
-if [ "${target}" == "long-test" ] ; then
-    docker_flags="-m 5g --memory-swap 5g"
-elif [[ "${target}" =~ dtest* ]] ; then
-    docker_flags="--cpus=${docker_cpus} -m 15g --memory-swap 15g"
-else
-    docker_flags="--cpus=${docker_cpus} -m 5g --memory-swap 5g"
+if [ "${target}" != "long-test" ] ; then
+    docker_flags="--cpus=${docker_cpus} ${docker_flags}"
 fi
 
 docker_flags="${docker_flags} -d --rm"
@@ -203,7 +200,7 @@ esac
 
 # cython can be used for cqlsh-test
 if [ "$cython" == "yes" ]; then
-    [ "${target}" == "cqlsh-test" ] || { echo "cython is only supported for cqlsh-test"; exit 1; }
+    [ "${target}" == "cqlsh-test" ] || { error 1 "cython is only supported for cqlsh-test"; }
     ANT_OPTS="${ANT_OPTS}_cython"
 else
     cython="no"
@@ -268,4 +265,5 @@ xz -f ${logfile} 2>/dev/null
 
 popd >/dev/null
 popd >/dev/null
+set -x
 exit ${status}
