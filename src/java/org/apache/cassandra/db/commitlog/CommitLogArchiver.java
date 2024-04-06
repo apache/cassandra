@@ -140,16 +140,12 @@ public class CommitLogArchiver
         String targetTime = commitlogCommands.getProperty("restore_point_in_time");
         //todo remove this as this is not used
         TimeUnit precision = TimeUnit.valueOf(commitlogCommands.getProperty("precision", "MICROSECONDS"));
-        long restorePointInTime;
+        long restorePointInTime = Long.MAX_VALUE;
         try
         {
-            if (Strings.isNullOrEmpty(targetTime))
+            if (!Strings.isNullOrEmpty(targetTime))
             {
-                restorePointInTime = Long.MAX_VALUE;
-            }
-            else
-            {
-                // get restorePointInTime  microlevel by default as c* use this level ts.
+                // get restorePointInTime in microseconds level by default as cassandra use this level's timestamp
                 restorePointInTime = getMicroSeconds(targetTime);
             }
         }

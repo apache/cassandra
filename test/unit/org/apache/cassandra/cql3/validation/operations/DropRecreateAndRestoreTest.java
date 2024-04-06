@@ -71,7 +71,7 @@ public class DropRecreateAndRestoreTest extends CQLTester
             FileUtils.renameWithConfirm(new File(logPath, segment + ".save"), new File(logPath, segment));
         try
         {
-            // Restore to point in time, the rpi time is micro level
+            // Restore to point in time (microseconds granularity)
             CommitLog.instance.archiver.setRestorePointInTime(time * 1000);
             CommitLog.instance.resetUnsafe(false);
         }
