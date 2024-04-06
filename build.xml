@@ -1851,7 +1851,7 @@
           </fileset>
           <report todir="${build.test.report.dir}/unitTestReport/html" unless:true="${print-summary.skip}" />
       </junitreport>
-      <!-- concat the report through a filter chain to extract what you want -->
+      <!-- concat the report through a filter chain to extract a single line summary -->
       <concat unless:true="${print-summary.skip}">
           <fileset file="${build.test.report.dir}/unitTestReport/html/overview-summary.html" />
           <filterchain>
