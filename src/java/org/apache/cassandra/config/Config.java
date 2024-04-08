@@ -742,7 +742,7 @@ public class Config
      *
      * This flag determines whether we need to run anti-entropy, a.k.a, repair on the MV table or not.
      */
-    public Boolean auto_repair_mv_repair_enabled = false;
+    public Boolean auto_repair_mv_repair_enabled = true;
 
     // Set this to be true if compaction should ignore repair status of the SSTables and reset them to be unrepaired
     public volatile boolean ignore_repairedat_enabled = false;

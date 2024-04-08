@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.repair;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.AutoRepairMetrics;
@@ -338,5 +339,11 @@ public class AutoRepairTest extends CQLTester
 
         AutoRepairService.instance.setMVRepairEnabled(false);
         AutoRepairService.instance.setRepairSSTableCountHigherThreshold(beforeCount);
+    }
+
+    @Test
+    public void testDefaultMVRepairEnabled()
+    {
+        Assert.assertTrue("Expected MV repair to be enabled by default", DatabaseDescriptor.getMVRepairEnabled());
     }
 }
