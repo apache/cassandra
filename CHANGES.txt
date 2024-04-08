@@ -1,4 +1,5 @@
 4.0.14
+ * Fix millisecond and microsecond precision for commit log replay (CASSANDRA-19448)
  * Improve accuracy of memtable heap usage tracking (CASSANDRA-17298)
  * Fix rendering UNSET collection types in query tracing (CASSANDRA-19880)
  * Fix latency reported by ideal consistency level monitoring (CASSANDRA-19651)
