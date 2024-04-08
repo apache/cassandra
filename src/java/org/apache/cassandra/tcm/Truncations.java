@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
@@ -58,6 +59,21 @@ public class Truncations implements MetadataValue<Truncations>
     public Epoch lastModified()
     {
         return lastModified;
+    }
+
+    public Optional<Long> getTruncation(TableId id)
+    {
+        return getTruncation(id.asUUID());
+    }
+
+    public Optional<Long> getTruncation(UUID id)
+    {
+        return Optional.ofNullable(tablesTruncations.get(id));
+    }
+
+    public ImmutableMap<UUID, Long> getTruncations()
+    {
+        return tablesTruncations;
     }
 
     public ImmutableMap<UUID, Long> diff(Truncations next)
