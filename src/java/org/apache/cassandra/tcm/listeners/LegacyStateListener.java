@@ -63,7 +63,9 @@ public class LegacyStateListener implements ChangeListener.Async
             next.tokenMap.lastModified().equals(prev.tokenMap.lastModified()))
             return;
 
-        Set<NodeId> removed = Sets.difference(prev.directory.peerIds(), next.directory.peerIds());
+        Set<InetAddressAndPort> removedAddr = Sets.difference(new HashSet<>(prev.directory.allAddresses()),
+                                                              new HashSet<>(next.directory.allAddresses()));
+
         Set<NodeId> changed = new HashSet<>();
         for (NodeId node : next.directory.peerIds())
         {
@@ -71,10 +73,10 @@ public class LegacyStateListener implements ChangeListener.Async
                 changed.add(node);
         }
 
-        for (NodeId remove : removed)
+        for (InetAddressAndPort remove : removedAddr)
         {
-            GossipHelper.evictFromMembership(prev.directory.endpoint(remove));
-            PeersTable.updateLegacyPeerTable(remove, prev, next);
+            GossipHelper.evictFromMembership(remove);
+            PeersTable.removeFromLegacyPeerTable(remove);
         }
 
         for (NodeId change : changed)

@@ -156,9 +156,7 @@ public class PeersTable extends AbstractVirtualTable
         if (next.directory.peerState(nodeId) == null || next.directory.peerState(nodeId) == NodeState.LEFT)
         {
             NodeAddresses addresses = prev.directory.getNodeAddresses(nodeId);
-            logger.debug("Purging {} from system.peers_v2 table", addresses);
-            QueryProcessor.executeInternal(String.format(peers_delete_query, SYSTEM_KEYSPACE_NAME, PEERS_V2), addresses.broadcastAddress.getAddress(), addresses.broadcastAddress.getPort());
-            QueryProcessor.executeInternal(String.format(legacy_peers_delete_query, SYSTEM_KEYSPACE_NAME, LEGACY_PEERS), addresses.broadcastAddress.getAddress());
+            removeFromLegacyPeerTable(addresses.broadcastAddress);
         }
         else if (NodeState.isPreJoin(next.directory.peerState(nodeId)))
         {
@@ -196,5 +194,12 @@ public class PeersTable extends AbstractVirtualTable
                                            next.schema.getVersion(),
                                            tokens);
         }
+    }
+
+    public static void removeFromLegacyPeerTable(InetAddressAndPort addr)
+    {
+        logger.debug("Purging {} from system.peers_v2 table", addr);
+        QueryProcessor.executeInternal(String.format(peers_delete_query, SYSTEM_KEYSPACE_NAME, PEERS_V2), addr.getAddress(), addr.getPort());
+        QueryProcessor.executeInternal(String.format(legacy_peers_delete_query, SYSTEM_KEYSPACE_NAME, LEGACY_PEERS), addr.getAddress());
     }
 }
