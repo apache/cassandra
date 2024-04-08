@@ -3521,6 +3521,11 @@ public class DatabaseDescriptor
         return conf.max_hints_file_size.toBytesInLong();
     }
 
+    public static void setMaxHintsFileSize(long value)
+    {
+        conf.max_hints_file_size = new DataStorageSpec.IntMebibytesBound(value);
+    }
+
     public static ParameterizedClass getHintsCompression()
     {
         return conf.hints_compression;
