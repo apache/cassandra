@@ -60,6 +60,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -664,11 +665,18 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         Set<String> failedNodes = synchronizedSet(new HashSet<>());
         AsyncPromise<Void> promise = new AsyncPromise<>();
 
+        Set<IPartitioner> partitioners = new HashSet<>(1);
         List<TableId> tableIds = new ArrayList<>(columnFamilyStores.size());
         for (ColumnFamilyStore cfs : columnFamilyStores)
+        {
             tableIds.add(cfs.metadata.id);
+            partitioners.add(cfs.getPartitioner());
+        }
 
-        PrepareMessage message = new PrepareMessage(parentRepairSession, tableIds, options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
+        if (partitioners.size() > 1)
+            failRepair(parentRepairSession, "The tables involved in repair are configured with multiple partitioners.");
+
+        PrepareMessage message = new PrepareMessage(parentRepairSession, tableIds, columnFamilyStores.get(0).getPartitioner(), options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
         register(new ParticipateState(ctx.clock(), ctx.broadcastAddressAndPort(), message));
         for (InetAddressAndPort neighbour : endpoints)
         {

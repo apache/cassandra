@@ -244,7 +244,7 @@ public class RepairMessageVerbHandlerOutOfRangeTest
     }
     private static PrepareMessage prepareMsg(TimeUUID parentRepairSession, Collection<Range<Token>> ranges)
     {
-        return new PrepareMessage(parentRepairSession, tableIds, ranges, false, ActiveRepairService.UNREPAIRED_SSTABLE, true, PreviewKind.NONE);
+        return new PrepareMessage(parentRepairSession, tableIds, Murmur3Partitioner.instance, ranges, false, ActiveRepairService.UNREPAIRED_SSTABLE, true, PreviewKind.NONE);
     }
 
     private static ValidationRequest validationMsg(Range<Token> range)
