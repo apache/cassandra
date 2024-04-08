@@ -26,6 +26,8 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.PooledByteBufAllocator;
 
+import java.nio.charset.StandardCharsets;
+
 public class CBUtilTest
 {
     private static final ByteBufAllocator allocator = PooledByteBufAllocator.DEFAULT;
@@ -90,5 +92,18 @@ public class CBUtilTest
         Assert.assertNotEquals("Characters (> 0x007F) is considered as 2 bytes in sizeOfString, meanwhile writeAsciiString writes just 1 byte",
                                size,
                                buf.writerIndex());
+    }
+
+    @Test
+    public void writeAndReadHigherPlaneUnicodeString()
+    {
+        // UTF-8 representation of \U0010FFFF - the highest unicode code point.
+        final String text = new String(new byte[]{(byte)244, (byte)143, (byte)191, (byte)191}, StandardCharsets.UTF_8);
+        int size = CBUtil.sizeOfString(text);
+        buf = allocator.heapBuffer(size);
+        CBUtil.writeString(text, buf);
+        Assert.assertEquals(size, buf.writerIndex());
+        Assert.assertEquals(text, CBUtil.readString(buf));
+        Assert.assertEquals(buf.writerIndex(), buf.readerIndex());
     }
 }
