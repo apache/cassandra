@@ -76,7 +76,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
     private long pendingMutationBytes = 0;
 
     private final ReplayFilter replayFilter;
-    private final CommitLogArchiver archiver;
+    private CommitLogArchiver archiver;
 
     @VisibleForTesting
     protected boolean sawCDCMutation;
@@ -115,7 +115,8 @@ public class CommitLogReplayer implements CommitLogReadHandler
                 // Point in time restore is taken to mean that the tables need to be replayed even if they were
                 // deleted at a later point in time. Any truncation record after that point must thus be cleared prior
                 // to replay (CASSANDRA-9195).
-                long restoreTime = commitLog.archiver.restorePointInTime;
+                // truncatedTime is millseconds level but restoreTime is microlevel
+                long restoreTime = commitLog.archiver.restorePointInTimeInMicros == Long.MAX_VALUE ? Long.MAX_VALUE : commitLog.archiver.restorePointInTimeInMicros / 1000;
                 long truncatedTime = SystemKeyspace.getTruncatedAt(cfs.metadata.id);
                 if (truncatedTime > restoreTime)
                 {
@@ -141,7 +142,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
                 }
                 else
                 {
-                    if (commitLog.archiver.restorePointInTime == Long.MAX_VALUE)
+                    if (commitLog.archiver.getRestorePointInTimeInMicroLevel() == Long.MAX_VALUE)
                     {
                         // Normal restart, everything is persisted and restored by the memtable itself.
                         filter = new IntervalSet<>(CommitLogPosition.NONE, CommitLog.instance.getCurrentPosition());
@@ -455,11 +456,11 @@ public class CommitLogReplayer implements CommitLogReadHandler
 
     protected boolean pointInTimeExceeded(Mutation fm)
     {
-        long restoreTarget = archiver.restorePointInTime;
+        long tsInMicroSecondsLevel = archiver.restorePointInTimeInMicros;
 
         for (PartitionUpdate upd : fm.getPartitionUpdates())
         {
-            if (archiver.precision.toMillis(upd.maxTimestamp()) > restoreTarget)
+            if ( upd.maxTimestamp() > tsInMicroSecondsLevel)
                 return true;
         }
         return false;
@@ -509,6 +510,12 @@ public class CommitLogReplayer implements CommitLogReadHandler
     {
         // Don't care about return value, use this simply to throw exception as appropriate.
         shouldSkipSegmentOnError(exception);
+    }
+
+    @VisibleForTesting
+    public void setCommitlogArchiver(CommitLogArchiver archiver)
+    {
+        this.archiver = archiver;
     }
 
     @SuppressWarnings("serial")

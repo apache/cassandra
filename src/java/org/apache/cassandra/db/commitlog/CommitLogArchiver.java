@@ -23,14 +23,21 @@ package org.apache.cassandra.db.commitlog;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.ParseException;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Map;
 import java.util.Properties;
-import java.util.TimeZone;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
@@ -49,33 +56,31 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
 public class CommitLogArchiver
 {
     private static final Logger logger = LoggerFactory.getLogger(CommitLogArchiver.class);
-    public static final SimpleDateFormat format = new SimpleDateFormat("yyyy:MM:dd HH:mm:ss");
+
+    public static final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss[.[SSSSSS][SSS]]").withZone(ZoneId.of("GMT"));
     private static final String DELIMITER = ",";
     private static final Pattern NAME = Pattern.compile("%name");
     private static final Pattern PATH = Pattern.compile("%path");
     private static final Pattern FROM = Pattern.compile("%from");
     private static final Pattern TO = Pattern.compile("%to");
-    static
-    {
-        format.setTimeZone(TimeZone.getTimeZone("GMT"));
-    }
 
     public final Map<String, Future<?>> archivePending = new ConcurrentHashMap<String, Future<?>>();
     private final ExecutorService executor;
     final String archiveCommand;
     final String restoreCommand;
     final String restoreDirectories;
-    public long restorePointInTime;
+    public long restorePointInTimeInMicros;
     public CommitLogPosition snapshotCommitLogPosition;
     public final TimeUnit precision;
 
+
     public CommitLogArchiver(String archiveCommand, String restoreCommand, String restoreDirectories,
-            long restorePointInTime, CommitLogPosition snapshotCommitLogPosition, TimeUnit precision)
+            long restorePointInTimeInMicros, CommitLogPosition snapshotCommitLogPosition, TimeUnit precision)
     {
         this.archiveCommand = archiveCommand;
         this.restoreCommand = restoreCommand;
         this.restoreDirectories = restoreDirectories;
-        this.restorePointInTime = restorePointInTime;
+        this.restorePointInTimeInMicros = restorePointInTimeInMicros;
         this.snapshotCommitLogPosition = snapshotCommitLogPosition;
         this.precision = precision;
         executor = !Strings.isNullOrEmpty(archiveCommand)
@@ -103,62 +108,72 @@ public class CommitLogArchiver
             else
             {
                 commitlog_commands.load(stream);
-                String archiveCommand = commitlog_commands.getProperty("archive_command");
-                String restoreCommand = commitlog_commands.getProperty("restore_command");
-                String restoreDirectories = commitlog_commands.getProperty("restore_directories");
-                if (restoreDirectories != null && !restoreDirectories.isEmpty())
-                {
-                    for (String dir : restoreDirectories.split(DELIMITER))
-                    {
-                        File directory = new File(dir);
-                        if (!directory.exists())
-                        {
-                            if (!directory.tryCreateDirectory())
-                            {
-                                throw new RuntimeException("Unable to create directory: " + dir);
-                            }
-                        }
-                    }
-                }
-                String targetTime = commitlog_commands.getProperty("restore_point_in_time");
-                TimeUnit precision = TimeUnit.valueOf(commitlog_commands.getProperty("precision", "MICROSECONDS"));
-                long restorePointInTime;
-                try
-                {
-                    restorePointInTime = Strings.isNullOrEmpty(targetTime) ? Long.MAX_VALUE : format.parse(targetTime).getTime();
-                }
-                catch (ParseException e)
-                {
-                    throw new RuntimeException("Unable to parse restore target time", e);
-                }
-
-                String snapshotPosition = commitlog_commands.getProperty("snapshot_commitlog_position");
-                CommitLogPosition snapshotCommitLogPosition;
-                try
-                {
-
-                    snapshotCommitLogPosition = Strings.isNullOrEmpty(snapshotPosition)
-                                                ? CommitLogPosition.NONE
-                                                : CommitLogPosition.serializer.fromString(snapshotPosition);
-                }
-                catch (ParseException | NumberFormatException e)
-                {
-                    throw new RuntimeException("Unable to parse snapshot commit log position", e);
-                }
-
-                return new CommitLogArchiver(archiveCommand,
-                                             restoreCommand,
-                                             restoreDirectories,
-                                             restorePointInTime,
-                                             snapshotCommitLogPosition,
-                                             precision);
+                return getArchiverFromProperty(commitlog_commands);
             }
         }
         catch (IOException e)
         {
             throw new RuntimeException("Unable to load commitlog_archiving.properties", e);
         }
+    }
 
+    public static CommitLogArchiver getArchiverFromProperty(Properties commitlogCommands)
+    {
+        assert !commitlogCommands.isEmpty();
+        String archiveCommand = commitlogCommands.getProperty("archive_command");
+        String restoreCommand = commitlogCommands.getProperty("restore_command");
+        String restoreDirectories = commitlogCommands.getProperty("restore_directories");
+        if (restoreDirectories != null && !restoreDirectories.isEmpty())
+        {
+            for (String dir : restoreDirectories.split(DELIMITER))
+            {
+                File directory = new File(dir);
+                if (!directory.exists())
+                {
+                    if (!directory.tryCreateDirectory())
+                    {
+                        throw new RuntimeException("Unable to create directory: " + dir);
+                    }
+                }
+            }
+        }
+        String targetTime = commitlogCommands.getProperty("restore_point_in_time");
+        //todo remove this as this is not used
+        TimeUnit precision = TimeUnit.valueOf(commitlogCommands.getProperty("precision", "MICROSECONDS"));
+        long restorePointInTime = Long.MAX_VALUE;
+        try
+        {
+            if (!Strings.isNullOrEmpty(targetTime))
+            {
+                // get restorePointInTime in microseconds level by default as cassandra use this level's timestamp
+                restorePointInTime = getMicroSeconds(targetTime);
+            }
+        }
+        catch (DateTimeParseException | ConfigurationException e)
+        {
+            throw new RuntimeException("Unable to parse restore target time", e);
+        }
+
+        String snapshotPosition = commitlogCommands.getProperty("snapshot_commitlog_position");
+        CommitLogPosition snapshotCommitLogPosition;
+        try
+        {
+
+            snapshotCommitLogPosition = Strings.isNullOrEmpty(snapshotPosition)
+                                        ? CommitLogPosition.NONE
+                                        : CommitLogPosition.serializer.fromString(snapshotPosition);
+        }
+        catch (ParseException | NumberFormatException e)
+        {
+            throw new RuntimeException("Unable to parse snapshot commit log position", e);
+        }
+
+        return new CommitLogArchiver(archiveCommand,
+                                     restoreCommand,
+                                     restoreDirectories,
+                                     restorePointInTime,
+                                     snapshotCommitLogPosition,
+                                     precision);
     }
 
     public void maybeArchive(final CommitLogSegment segment)
@@ -309,5 +324,27 @@ public class CommitLogArchiver
         ProcessBuilder pb = new ProcessBuilder(command.split(" "));
         pb.redirectErrorStream(true);
         FBUtilities.exec(pb);
+    }
+
+    /**
+     * we change the restorePointInTime into MicroSeconds level as cassandra use MicroSeconds
+     * as the timestamp.
+     * */
+    public static long getMicroSeconds(String restorePointInTime)
+    {
+        assert format != null;
+        Instant instant = format.parse(restorePointInTime, Instant::from);
+        return instant.getEpochSecond() * 1000_000 + instant.getNano() / 1000;
+    }
+
+    public long getRestorePointInTimeInMicroLevel()
+    {
+        return this.restorePointInTimeInMicros;
+    }
+
+    @VisibleForTesting
+    public void setRestorePointInTime(long restorePointInTimeInMicros)
+    {
+        this.restorePointInTimeInMicros = restorePointInTimeInMicros;
     }
 }

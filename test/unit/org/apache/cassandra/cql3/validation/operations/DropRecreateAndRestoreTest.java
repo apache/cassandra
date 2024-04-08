@@ -68,13 +68,13 @@ public class DropRecreateAndRestoreTest extends CQLTester
             FileUtils.renameWithConfirm(new File(logPath, segment + ".save"), new File(logPath, segment));
         try
         {
-            // Restore to point in time.
-            CommitLog.instance.archiver.restorePointInTime = time;
+            // Restore to point in time (microseconds granularity)
+            CommitLog.instance.archiver.setRestorePointInTime(time * 1000);
             CommitLog.instance.resetUnsafe(false);
         }
         finally
         {
-            CommitLog.instance.archiver.restorePointInTime = Long.MAX_VALUE;
+            CommitLog.instance.archiver.setRestorePointInTime(Long.MAX_VALUE);
         }
 
         assertRows(execute("SELECT * FROM %s"), row(0, 0, 0), row(0, 1, 1));
