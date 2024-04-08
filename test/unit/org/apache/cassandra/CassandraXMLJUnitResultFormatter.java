@@ -219,7 +219,8 @@ public class CassandraXMLJUnitResultFormatter implements JUnitResultFormatter, X
         {
             // only include properties and system-out if there's failure/error
             rootElement.appendChild(propsElement);
-            rootElement.appendChild(systemOutputElement);
+            if (null != systemOutputElement)
+                rootElement.appendChild(systemOutputElement);
         }
         if (out != null) {
             Writer wri = null;

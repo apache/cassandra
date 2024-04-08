@@ -325,6 +325,42 @@ public class VectorInvalidQueryTest extends SAITester
     }
 
     @Test
+    public void canOrderWithWhereOnPrimaryColumns() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, v vector<float, 2>, PRIMARY KEY ((a,b),c,d))");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
+
+        execute("INSERT INTO %s (a, b, c, d, v) VALUES (1, 2, 1, 2, [6.0,1.0])");
+
+        ResultSet result = execute("SELECT * FROM %s WHERE a = 1 AND b = 2 ORDER BY v ANN OF [2.0,1.0] LIMIT 1", ConsistencyLevel.ONE);
+        assertEquals(1, result.size());
+        result = execute("SELECT * FROM %s WHERE a = 1 AND b = 2 AND c = 1 ORDER BY v ANN OF [2.0,1.0] LIMIT 1", ConsistencyLevel.ONE);
+        assertEquals(1, result.size());
+        result = execute("SELECT * FROM %s WHERE a = 1 AND b = 2 AND c = 1 AND d = 2 ORDER BY v ANN OF [2.0,1.0] LIMIT 1", ConsistencyLevel.ONE);
+        assertEquals(1, result.size());
+
+        assertThatThrownBy(() -> executeNet("SELECT * FROM %s WHERE a = 1 AND b = 2 AND d = 2 ORDER BY v ANN OF [2.0,1.0] LIMIT 1"))
+            .isInstanceOf(InvalidQueryException.class).hasMessage(StatementRestrictions.ANN_REQUIRES_INDEXED_FILTERING_MESSAGE);
+
+        createIndex("CREATE CUSTOM INDEX c_idx ON %s(c) USING 'StorageAttachedIndex'");
+
+        assertThatThrownBy(() -> executeNet("SELECT * FROM %s WHERE a = 1 AND b = 2 AND d = 2 ORDER BY v ANN OF [2.0,1.0] LIMIT 1"))
+            .isInstanceOf(InvalidQueryException.class).hasMessage(StatementRestrictions.ANN_REQUIRES_INDEXED_FILTERING_MESSAGE);
+
+        dropIndex("DROP INDEX %s.c_idx");
+        createIndex("CREATE CUSTOM INDEX ON %s(d) USING 'StorageAttachedIndex'");
+
+        result = execute("SELECT * FROM %s WHERE a = 1 AND b = 2 AND c = 1 ORDER BY v ANN OF [2.0,1.0] LIMIT 1", ConsistencyLevel.ONE);
+        assertEquals(1, result.size());
+        result = execute("SELECT * FROM %s WHERE a = 1 AND b = 2 AND c = 1 AND d = 2 ORDER BY v ANN OF [2.0,1.0] LIMIT 1", ConsistencyLevel.ONE);
+        assertEquals(1, result.size());
+        result = execute("SELECT * FROM %s WHERE a = 1 AND b = 2 AND d = 2 ORDER BY v ANN OF [2.0,1.0] LIMIT 1", ConsistencyLevel.ONE);
+        assertEquals(1, result.size());
+        result = execute("SELECT * FROM %s WHERE a = 1 AND b = 2 AND c > 0 ORDER BY v ANN OF [2.0,1.0] LIMIT 1", ConsistencyLevel.ONE);
+        assertEquals(1, result.size());
+    }
+
+    @Test
     public void canOnlyExecuteWithCorrectConsistencyLevel()
     {
         createTable("CREATE TABLE %s (k int, c int, v vector<float, 1>, PRIMARY KEY(k, c))");
