@@ -3119,6 +3119,15 @@ public class DatabaseDescriptor
     {
         conf.auto_hints_cleanup_enabled = value;
     }
+    public static boolean getTransferHintsOnDecommission()
+    {
+        return conf.transfer_hints_on_decommission;
+    }
+
+    public static void setTransferHintsOnDecommission(boolean enabled)
+    {
+        conf.transfer_hints_on_decommission = enabled;
+    }
 
     public static boolean isIncrementalBackupsEnabled()
     {

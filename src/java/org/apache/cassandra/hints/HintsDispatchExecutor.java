@@ -192,7 +192,7 @@ final class HintsDispatchExecutor
         private boolean transfer(UUID hostId)
         {
             catalog.stores()
-                   .map(store -> new DispatchHintsTask(store, hostId))
+                   .map(store -> new DispatchHintsTask(store, hostId, true))
                    .forEach(Runnable::run);
 
             return !catalog.hasFiles();
@@ -205,20 +205,27 @@ final class HintsDispatchExecutor
         private final UUID hostId;
         private final RateLimiter rateLimiter;
 
-        DispatchHintsTask(HintsStore store, UUID hostId)
+        DispatchHintsTask(HintsStore store, UUID hostId, boolean isTransfer)
         {
             this.store = store;
             this.hostId = hostId;
 
-            // rate limit is in bytes per second. Uses Double.MAX_VALUE if disabled (set to 0 in cassandra.yaml).
-            // max rate is scaled by the number of nodes in the cluster (CASSANDRA-5272).
-            // the goal is to bound maximum hints traffic going towards a particular node from the rest of the cluster,
-            // not total outgoing hints traffic from this node - this is why the rate limiter is not shared between
+            // Rate limit is in bytes per second. Uses Double.MAX_VALUE if disabled (set to 0 in cassandra.yaml).
+            // Max rate is scaled by the number of nodes in the cluster (CASSANDRA-5272), unless we are transferring
+            // hints during decomission rather than dispatching them to their final destination.
+            // The goal is to bound maximum hints traffic going towards a particular node from the rest of the cluster,
+            // not total outgoing hints traffic from this node. This is why the rate limiter is not shared between
             // all the dispatch tasks (as there will be at most one dispatch task for a particular host id at a time).
-            int nodesCount = Math.max(1, StorageService.instance.getTokenMetadata().getAllEndpoints().size() - 1);
+            int nodesCount = isTransfer ? 1 : Math.max(1, StorageService.instance.getTokenMetadata().getAllEndpoints().size() - 1);
             double throttleInBytes = DatabaseDescriptor.getHintedHandoffThrottleInKiB() * 1024.0 / nodesCount;
             this.rateLimiter = RateLimiter.create(throttleInBytes == 0 ? Double.MAX_VALUE : throttleInBytes);
         }
+
+        DispatchHintsTask(HintsStore store, UUID hostId)
+        {
+            this(store, hostId, false);
+        }
+
 
         public void run()
         {
