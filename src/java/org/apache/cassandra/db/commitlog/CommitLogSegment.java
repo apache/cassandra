@@ -244,7 +244,8 @@ public abstract class CommitLogSegment
     /**
      * FOR TESTING PURPOSES.
      */
-    static void resetReplayLimit()
+    @VisibleForTesting
+    public static void resetReplayLimit()
     {
         replayLimitId = getNextId();
     }
