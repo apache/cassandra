@@ -18,23 +18,29 @@
 package org.apache.cassandra.hints;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Predicate;
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
-import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
@@ -111,17 +117,40 @@ final class HintsStore
         int queueSize = 0;
         long minTimestamp = Long.MAX_VALUE;
         long maxTimestamp = Long.MIN_VALUE;
+        long totalSize = 0;
         while (descriptors.hasNext())
         {
             HintsDescriptor descriptor = descriptors.next();
             minTimestamp = Math.min(minTimestamp, descriptor.timestamp);
             maxTimestamp = Math.max(maxTimestamp, descriptor.timestamp);
+            totalSize += descriptor.hintsFileSize(hintsDirectory);
             queueSize++;
         }
 
-        if (queueSize == 0)
+        int corruptedFilesCount = 0;
+        long corruptedFilesSize = 0;
+
+        Iterator<HintsDescriptor> corruptedDescriptors = corruptedFiles.iterator();
+        while (corruptedDescriptors.hasNext())
+        {
+            HintsDescriptor corruptedDescriptor = corruptedDescriptors.next();
+            try
+            {
+                corruptedFilesSize += corruptedDescriptor.hintsFileSize(hintsDirectory);
+            }
+            catch (Exception ex)
+            {
+                // the logic behind this is that if a descriptor was added among corrupted, it was done so in a catch,
+                // so it is probable that if we ask its size it would throw again, just to be super sure we do not ruin
+                // whole query, lets just wrap it in a try-catch
+            }
+            corruptedFilesCount++;
+        }
+
+        if (queueSize == 0 && corruptedFilesCount == 0)
             return null;
-        return new PendingHintsInfo(hostId, queueSize, minTimestamp, maxTimestamp);
+        return new PendingHintsInfo(hostId, queueSize, minTimestamp, maxTimestamp,
+                                    totalSize, corruptedFilesCount, corruptedFilesSize);
     }
 
     boolean isLive()

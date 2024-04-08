@@ -1,4 +1,5 @@
 5.1
+ * Enrich system_views.pending_hints vtable with hints sizes (CASSANDRA-19486)
  * Expose all dropwizard metrics in virtual tables (CASSANDRA-14572)
  * Ensured that PropertyFileSnitchTest do not overwrite cassandra-toploogy.properties (CASSANDRA-19502)
  * Add option for MutualTlsAuthenticator to restrict the certificate validity period (CASSANDRA-18951)
