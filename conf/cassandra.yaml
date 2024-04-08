@@ -99,6 +99,11 @@ max_hints_file_size: 128MiB
 # Disable the option in order to preserve those hints on the disk.
 auto_hints_cleanup_enabled: false
 
+# Enable/disable transfering hints to a peer during decommission. Even when enabled, this does not guarantee
+# consistency for logged batches, and it may delay decommission when coupled with a strict hinted_handoff_throttle.
+# Default: true
+# transfer_hints_on_decommission: true
+
 # Compression to apply to the hint files. If omitted, hints files
 # will be written uncompressed. LZ4, Snappy, and Deflate compressors
 # are supported.
