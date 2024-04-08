@@ -38,17 +38,17 @@ public class DropRecreateAndRestoreTest extends CQLTester
     {
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY(a, b))");
 
-        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 0, 0);
-        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 1, 1);
+        long timeInMicroSecond1 = System.currentTimeMillis() * 1000;
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP ? ", 0, 0, 0, timeInMicroSecond1);
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP ?", 0, 1, 1, timeInMicroSecond1);
 
-
-        long time = System.currentTimeMillis();
         TableId id = currentTableMetadata().id;
         assertRows(execute("SELECT * FROM %s"), row(0, 0, 0), row(0, 1, 1));
         Thread.sleep(5);
 
-        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 1, 0, 2);
-        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 1, 1, 3);
+        long timeInMicroSecond2 = System.currentTimeMillis() * 1000;
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP ? ", 1, 0, 2, timeInMicroSecond2);
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP ? ", 1, 1, 3, timeInMicroSecond2);
         assertRows(execute("SELECT * FROM %s"), row(1, 0, 2), row(1, 1, 3), row(0, 0, 0), row(0, 1, 1));
 
         // Drop will flush and clean segments. Hard-link them so that they can be restored later.
@@ -68,13 +68,13 @@ public class DropRecreateAndRestoreTest extends CQLTester
             FileUtils.renameWithConfirm(new File(logPath, segment + ".save"), new File(logPath, segment));
         try
         {
-            // Restore to point in time.
-            CommitLog.instance.archiver.restorePointInTime = time;
+            // Restore to point in time (microseconds granularity)
+            CommitLog.instance.archiver.setRestorePointInTime(timeInMicroSecond1);
             CommitLog.instance.resetUnsafe(false);
         }
         finally
         {
-            CommitLog.instance.archiver.restorePointInTime = Long.MAX_VALUE;
+            CommitLog.instance.archiver.setRestorePointInTime(Long.MAX_VALUE);
         }
 
         assertRows(execute("SELECT * FROM %s"), row(0, 0, 0), row(0, 1, 1));
