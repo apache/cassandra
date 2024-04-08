@@ -25,6 +25,12 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.tracing.Tracing;
 
+/**
+ * A truncate operation descriptor
+ *
+ * @deprecated See CASSANDRA-19130
+ */
+@Deprecated(since = "5.1")
 public class TruncateVerbHandler implements IVerbHandler<TruncateRequest>
 {
     public static final TruncateVerbHandler instance = new TruncateVerbHandler();
