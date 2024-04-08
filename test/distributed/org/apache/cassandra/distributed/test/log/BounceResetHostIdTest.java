@@ -18,35 +18,120 @@
 
 package org.apache.cassandra.distributed.test.log;
 
-import java.util.UUID;
+import java.net.InetAddress;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.concurrent.TimeUnit;
 
+import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.shared.AssertUtils;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.tcm.membership.NodeId;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.apache.cassandra.distributed.shared.AssertUtils.row;
+import static org.junit.Assert.fail;
 
 public class BounceResetHostIdTest extends TestBaseImpl
 {
     @Test
-    public void bounceTest() throws Exception
+    public void swapIpsTest() throws Exception
     {
-        try (Cluster cluster = init(builder().withNodes(1)
-                                             .start()))
+        try (Cluster cluster = builder().withNodes(3)
+                                        .withConfig(c -> c.with(Feature.GOSSIP, Feature.NATIVE_PROTOCOL)
+                                                               // disable DistributedTestSnitch as it tries to query before we setup
+                                                               .set("endpoint_snitch", "org.apache.cassandra.locator.SimpleSnitch"))
+                                        .createWithoutStarting())
         {
-            String wrongId = UUID.randomUUID().toString();
-            cluster.get(1).runOnInstance(() -> {
-                SystemKeyspace.setLocalHostId(UUID.fromString(wrongId));
-                assertFalse(NodeId.isValidNodeId(SystemKeyspace.getLocalHostId()));
-            });
-            cluster.get(1).shutdown().get();
-            cluster.get(1).startup();
-            cluster.get(1).logs().watchFor("NodeId is wrong, updating from "+wrongId+" to "+(new NodeId(1).toUUID()));
-            cluster.get(1).runOnInstance(() -> assertTrue(NodeId.isValidNodeId(SystemKeyspace.getLocalHostId())));
+            // This test relies on node IDs being in the same order as IP addresses
+            for (int i = 1; i <= 3; i++)
+                cluster.get(i).startup();
+
+            cluster.get(2).shutdown().get();
+            ClusterUtils.updateAddress(cluster.get(2), "127.0.0.4");
+            cluster.get(2).startup();
+
+            cluster.get(3).shutdown().get();
+            ClusterUtils.updateAddress(cluster.get(3), "127.0.0.2");
+            cluster.get(3).startup();
+
+            cluster.get(2).shutdown().get();
+            ClusterUtils.updateAddress(cluster.get(2), "127.0.0.3");
+            cluster.get(2).startup();
+
+            ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1));
+
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+            while (true)
+            {
+                try
+                {
+                    AssertUtils.assertRows(sortHelper(cluster.coordinator(2).execute("select peer, host_id from system.peers_v2", ConsistencyLevel.QUORUM)),
+                                           rows(row(InetAddress.getByName("127.0.0.1"), new NodeId(1).toUUID()),
+                                                row(InetAddress.getByName("127.0.0.2"), new NodeId(3).toUUID())
+                                           ));
+                    AssertUtils.assertRows(sortHelper(cluster.coordinator(3).execute("select peer, host_id from system.peers_v2", ConsistencyLevel.QUORUM)),
+                                           rows(row(InetAddress.getByName("127.0.0.1"), new NodeId(1).toUUID()),
+                                                row(InetAddress.getByName("127.0.0.3"), new NodeId(2).toUUID())
+
+                                           ));
+                    return;
+                }
+                catch (AssertionError t)
+                {
+                    // If we are past the deadline, throw; allow to retry otherwise
+                    if (System.nanoTime() > deadline)
+                        throw t;
+                }
+            }
         }
+    }
+
+    @Test
+    public void swapIpsDirectlyTest() throws Exception
+    {
+        try (Cluster cluster = builder().withNodes(3)
+                                        .withConfig(c -> c.with(Feature.GOSSIP, Feature.NATIVE_PROTOCOL)
+                                                          // disable DistributedTestSnitch as it tries to query before we setup
+                                                          .set("endpoint_snitch", "org.apache.cassandra.locator.SimpleSnitch"))
+                                        .createWithoutStarting())
+        {
+            // This test relies on node IDs being in the same order as IP addresses
+            for (int i = 1; i <= 3; i++)
+                cluster.get(i).startup();
+
+            cluster.get(2).shutdown().get();
+            cluster.get(3).shutdown().get();
+            ClusterUtils.updateAddress(cluster.get(2), "127.0.0.3");
+            ClusterUtils.updateAddress(cluster.get(3), "127.0.0.2");
+            try
+            {
+                cluster.get(2).startup();
+                fail("Should not have been able to start");
+            }
+            catch (Throwable t)
+            {
+                Assert.assertTrue(t.getMessage().contains("NodeId does not match locally set one"));
+            }
+            try
+            {
+                cluster.get(3).startup();
+                fail("Should not have been able to start");
+            }
+            catch (Throwable t)
+            {
+                Assert.assertTrue(t.getMessage().contains("NodeId does not match locally set one"));
+            }
+        }
+    }
+    public static Object[][] sortHelper(Object[][] rows)
+    {
+        Arrays.sort(rows, Comparator.comparing(r -> ((InetAddress)r[0]).getHostAddress()));
+        return rows;
     }
 }
