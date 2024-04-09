@@ -53,6 +53,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 public class MemtableIndexWriter implements PerColumnIndexWriter
 {
     private static final Logger logger = LoggerFactory.getLogger(MemtableIndexWriter.class);
+    private static final int NO_ROWS = -1;
 
     private final IndexDescriptor indexDescriptor;
     private final IndexTermType indexTermType;
@@ -60,6 +61,11 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
     private final IndexMetrics indexMetrics;
     private final MemtableIndex memtable;
     private final RowMapping rowMapping;
+
+    private PrimaryKey minKey;
+    private PrimaryKey maxKey;
+    private long maxSSTableRowId = NO_ROWS;
+    private int rowCount;
 
     public MemtableIndexWriter(MemtableIndex memtable,
                                IndexDescriptor indexDescriptor,
@@ -83,13 +89,31 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
     {
         // Memtable indexes are flushed directly to disk with the aid of a mapping between primary
         // keys and row IDs in the flushing SSTable. This writer, therefore, does nothing in
-        // response to the flushing of individual rows.
+        // response to the flushing of individual rows except for keeping index-specific statistics.
+        boolean isStatic = indexTermType.columnMetadata().isStatic();
+
+        // Indexes on static columns should only track static rows, and indexes on non-static columns 
+        // should only track non-static rows. (Within a partition, the row ID for a static row will always
+        // come before any non-static row.) 
+        if (key.kind() == PrimaryKey.Kind.STATIC && isStatic || key.kind() != PrimaryKey.Kind.STATIC && !isStatic)
+        {
+            if (minKey == null)
+                minKey = key;
+            maxKey = key;
+            rowCount++;
+            maxSSTableRowId = Math.max(maxSSTableRowId, sstableRowId);
+        }
     }
 
     @Override
     public void abort(Throwable cause)
     {
-        logger.warn(indexIdentifier.logMessage("Aborting index memtable flush for {}..."), indexDescriptor.sstableDescriptor, cause);
+        if (cause == null)
+            // This commonly occurs when a Memtable has no rows to flush, and is harmless:
+            logger.debug(indexIdentifier.logMessage("Aborting index memtable flush for {}..."), indexDescriptor.sstableDescriptor);
+        else
+            logger.warn(indexIdentifier.logMessage("Aborting index memtable flush for {}..."), indexDescriptor.sstableDescriptor, cause);
+
         indexDescriptor.deleteColumnIndex(indexTermType, indexIdentifier);
     }
 
@@ -102,7 +126,7 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
 
         try
         {
-            if (!rowMapping.hasRows() || memtable == null || memtable.isEmpty())
+            if (maxSSTableRowId == -1 || memtable == null || memtable.isEmpty())
             {
                 logger.debug(indexIdentifier.logMessage("No indexed rows to flush from SSTable {}."), indexDescriptor.sstableDescriptor);
                 // Write a completion marker even though we haven't written anything to the index,
@@ -155,9 +179,6 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
             return 0;
         }
 
-        PrimaryKey minKey = indexTermType.columnMetadata().isStatic() ? rowMapping.minStaticKey : rowMapping.minKey;
-        PrimaryKey maxKey = indexTermType.columnMetadata().isStatic() ? rowMapping.maxStaticKey : rowMapping.maxKey;
-
         // During index memtable flush, the data is sorted based on terms.
         SegmentMetadata metadata = new SegmentMetadata(0,
                                                        numRows,
@@ -176,11 +197,6 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
 
     private void flushVectorIndex(long startTime, Stopwatch stopwatch) throws IOException
     {
-        int rowCount = indexTermType.columnMetadata().isStatic() ? rowMapping.staticRowCount : rowMapping.rowCount;
-        PrimaryKey minKey = indexTermType.columnMetadata().isStatic() ? rowMapping.minStaticKey : rowMapping.minKey;
-        PrimaryKey maxKey = indexTermType.columnMetadata().isStatic() ? rowMapping.maxStaticKey : rowMapping.maxKey;
-        long maxSSTableRowId = indexTermType.columnMetadata().isStatic() ? rowMapping.maxStaticSSTableRowId : rowMapping.maxSSTableRowId;
-
         SegmentMetadata.ComponentMetadataMap metadataMap = memtable.writeDirect(indexDescriptor, indexIdentifier, rowMapping::get);
         completeIndexFlush(rowCount, startTime, stopwatch);
 

@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.harry.dsl;
 
+import java.util.function.Consumer;
+
 import org.apache.cassandra.harry.ddl.SchemaSpec;
 import org.apache.cassandra.harry.model.Model;
 import org.apache.cassandra.harry.sut.SystemUnderTest;
@@ -46,10 +48,11 @@ public class ReplayingHistoryBuilder extends HistoryBuilder
         this.sut = sut;
     }
 
-    protected SingleOperationVisitBuilder singleOpVisitBuilder(long pd, long lts)
+    @Override
+    protected SingleOperationVisitBuilder singleOpVisitBuilder(long pd, long lts, Consumer<PartitionVisitState> setupPs)
     {
-        PartitionVisitState partitionState = presetSelector.register(lts, pd);
-        return new SingleOperationVisitBuilder(partitionState, lts, pureRng, descriptorSelector, schema, (visit) -> {
+        PartitionVisitStateImpl partitionState = presetSelector.register(lts, pd, setupPs);
+        return new SingleOperationVisitBuilder(partitionState, lts, pureRng, descriptorSelector, schema, valueHelper, (visit) -> {
             log.put(lts, visit);
         }) {
             @Override
@@ -84,8 +87,8 @@ public class ReplayingHistoryBuilder extends HistoryBuilder
     @Override
     protected BatchVisitBuilder batchVisitBuilder(long pd, long lts)
     {
-        PartitionVisitState partitionState = presetSelector.register(lts, pd);
-        return new BatchVisitBuilder(this, partitionState, lts, pureRng, descriptorSelector, schema, (visit) -> {
+        PartitionVisitStateImpl partitionState = presetSelector.register(lts, pd, (ps) -> {});
+        return new BatchVisitBuilder(this, partitionState, lts, pureRng, descriptorSelector, schema, valueHelper, (visit) -> {
             log.put(lts, visit);
         }) {
             @Override

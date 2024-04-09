@@ -40,6 +40,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ExceptionCode;
+import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -47,11 +48,10 @@ import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.tcm.listeners.SchemaListener;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
-import org.apache.cassandra.tcm.log.LogStorage;
-import org.apache.cassandra.tcm.log.Replication;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.migration.Election;
@@ -116,7 +116,7 @@ public class ClusterMetadataService
     private final LocalLog log;
     private final MetadataSnapshots snapshots;
 
-    private final IVerbHandler<Replication> replicationHandler;
+    private final IVerbHandler<LogState> replicationHandler;
     private final IVerbHandler<LogState> logNotifyHandler;
     private final IVerbHandler<FetchCMSLog> fetchLogHandler;
     private final IVerbHandler<Commit> commitRequestHandler;
@@ -150,22 +150,21 @@ public class ClusterMetadataService
     ClusterMetadataService(PlacementProvider placementProvider,
                            Function<Processor, Processor> wrapProcessor,
                            Supplier<State> cmsStateSupplier,
-                           LocalLog.LogSpec logSpec)
+                           LocalLog.LogSpec logSpec) throws StartupException
     {
         this.placementProvider = placementProvider;
         this.snapshots = new MetadataSnapshots.SystemKeyspaceMetadataSnapshots();
 
         Processor localProcessor;
-        LogStorage logStorage = LogStorage.SystemKeyspace;
         if (CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR.getBoolean())
         {
-            log = LocalLog.sync(logSpec);
+            log = logSpec.sync().createLog();
             localProcessor = wrapProcessor.apply(new AtomicLongBackedProcessor(log, logSpec.isReset()));
-            fetchLogHandler = new FetchCMSLog.Handler((e, ignored) -> logStorage.getLogState(e));
+            fetchLogHandler = new FetchCMSLog.Handler((e, ignored) -> logSpec.storage().getLogState(log.metadata().period, e));
         }
         else
         {
-            log = LocalLog.async(logSpec);
+            log = logSpec.async().createLog();
             localProcessor = wrapProcessor.apply(new PaxosBackedProcessor(log));
             fetchLogHandler = new FetchCMSLog.Handler();
         }
@@ -186,8 +185,8 @@ public class ClusterMetadataService
                                             cmsStateSupplier);
 
 
-        replicationHandler = new Replication.ReplicationHandler(log);
-        logNotifyHandler = new Replication.LogNotifyHandler(log);
+        replicationHandler = new LogState.ReplicationHandler(log);
+        logNotifyHandler = new LogState.LogNotifyHandler(log);
         peerLogFetcher = new PeerLogFetcher(log);
     }
 
@@ -205,8 +204,8 @@ public class ClusterMetadataService
         this.processor = new SwitchableProcessor(processor, null, null, replicator, () -> State.LOCAL);
         this.snapshots = snapshots;
 
-        replicationHandler = new Replication.ReplicationHandler(log);
-        logNotifyHandler = new Replication.LogNotifyHandler(log);
+        replicationHandler = new LogState.ReplicationHandler(log);
+        logNotifyHandler = new LogState.LogNotifyHandler(log);
         currentEpochHandler = new CurrentEpochRequestHandler();
 
         fetchLogHandler = isMemberOfOwnershipGroup ? new FetchCMSLog.Handler() : null;
@@ -219,8 +218,8 @@ public class ClusterMetadataService
                                    MetadataSnapshots snapshots,
                                    LocalLog log,
                                    Processor processor,
-                                   Replication.ReplicationHandler replicationHandler,
-                                   Replication.LogNotifyHandler logNotifyHandler,
+                                   LogState.ReplicationHandler replicationHandler,
+                                   LogState.LogNotifyHandler logNotifyHandler,
                                    CurrentEpochRequestHandler currentEpochHandler,
                                    FetchCMSLog.Handler fetchLogHandler,
                                    Commit.Handler commitRequestHandler,
@@ -243,23 +242,35 @@ public class ClusterMetadataService
     {
         if (instance != null)
             return;
-        ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables(Collections.singleton("DC1"));
-        emptyFromSystemTables.schema.initializeKeyspaceInstances(DistributedSchema.empty(), loadSSTables);
-        emptyFromSystemTables = emptyFromSystemTables.forceEpoch(Epoch.EMPTY);
-        LocalLog.LogSpec logSpec = new LocalLog.LogSpec().withInitialState(emptyFromSystemTables)
-                                                         .withStorage(new AtomicLongBackedProcessor.InMemoryStorage());
-        LocalLog log = LocalLog.sync(logSpec);
-        log.ready();
+        ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables(Collections.singleton("DC1"))
+                                                .forceEpoch(Epoch.EMPTY);
+
+        LocalLog.LogSpec logSpec = LocalLog.logSpec()
+                                           .withInitialState(emptyFromSystemTables)
+                                           .loadSSTables(loadSSTables)
+                                           .withDefaultListeners(false)
+                                           .withListener(new SchemaListener(loadSSTables) {
+                                               @Override
+                                               public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
+                                               {
+                                                   // we do not need a post-commit hook for tools
+                                               }
+                                           })
+                                           .sync()
+                                           .withStorage(new AtomicLongBackedProcessor.InMemoryStorage());
+        LocalLog log = logSpec.createLog();
         ClusterMetadataService cms = new ClusterMetadataService(new UniformRangePlacement(),
                                                                 MetadataSnapshots.NO_OP,
                                                                 log,
                                                                 new AtomicLongBackedProcessor(log),
-                                                                new Replication.ReplicationHandler(log),
-                                                                new Replication.LogNotifyHandler(log),
+                                                                new LogState.ReplicationHandler(log),
+                                                                new LogState.LogNotifyHandler(log),
                                                                 new CurrentEpochRequestHandler(),
                                                                 null,
                                                                 null,
                                                                 new PeerLogFetcher(log));
+
+        log.readyUnchecked();
         log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
         ClusterMetadataService.setInstance(cms);
     }
@@ -441,7 +452,7 @@ public class ClusterMetadataService
     private ClusterMetadata transformSnapshot(LogState state)
     {
         ClusterMetadata toApply = state.baseState;
-        for (Entry entry : state.transformations.entries())
+        for (Entry entry : state.entries)
         {
             Transformation.Result res = entry.transform.execute(toApply);
             assert res.isSuccess();
@@ -528,7 +539,7 @@ public class ClusterMetadataService
      * Accessors
      */
 
-    public static IVerbHandler<Replication> replicationHandler()
+    public static IVerbHandler<LogState> replicationHandler()
     {
         // Make it possible to get Verb without throwing NPE during simulation
         ClusterMetadataService instance = ClusterMetadataService.instance();
@@ -751,11 +762,6 @@ public class ClusterMetadataService
                                                           // If the transformation got rejected, someone else has beat us to seal this period
                                                           return ClusterMetadata.current();
                                                       });
-    }
-
-    public void initRecentlySealedPeriodsIndex()
-    {
-        Sealed.initIndexFromSystemTables();
     }
 
     public boolean isMigrating()

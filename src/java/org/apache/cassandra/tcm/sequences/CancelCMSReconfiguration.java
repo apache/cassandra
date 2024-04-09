@@ -19,16 +19,24 @@
 package org.apache.cassandra.tcm.sequences;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.schema.DistributedSchema;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
+import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.EntireRange;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -59,25 +67,55 @@ public class CancelCMSReconfiguration implements Transformation
 
         ReplicationParams metaParams = ReplicationParams.meta(prev);
         ClusterMetadata.Transformer transformer = prev.transformer();
+        DataPlacement placement = prev.placements.get(metaParams);
+        // Reset any partially completed transition by removing the pending replica from the write group
         if (reconfigureCMS.next.activeTransition != null)
         {
             InetAddressAndPort pendingEndpoint = prev.directory.endpoint(reconfigureCMS.next.activeTransition.nodeId);
             Replica pendingReplica = new Replica(pendingEndpoint, entireRange, true);
-            DataPlacement.Builder builder = prev.placements.get(metaParams).unbuild()
-                                                           .withoutWriteReplica(prev.nextEpoch(), pendingReplica);
-
-            DataPlacement placement = builder.build();
-            if (!placement.reads.equals(placement.writes))
-                return new Rejected(ExceptionCode.INVALID, String.format("Placements will be inconsistent if this transformation is applied:\nReads %s\nWrites: %s",
-                                                                         placement.reads,
-                                                                         placement.writes));
-
-            transformer = transformer.with(prev.placements.unbuild().with(metaParams, placement).build());
+            placement = placement.unbuild()
+                                 .withoutWriteReplica(prev.nextEpoch(), pendingReplica)
+                                 .build();
         }
+        if (!placement.reads.equals(placement.writes))
+            return new Rejected(ExceptionCode.INVALID, String.format("Placements will be inconsistent if this transformation is applied:\nReads %s\nWrites: %s",
+                                                                     placement.reads,
+                                                                     placement.writes));
+
+        // Reset the replication params for the meta keyspace based on the actual placement in case they no longer match
+        ReplicationParams fromPlacement = getAccurateReplication(prev.directory, placement);
+
+        // If they no longer match, i.e. the transitions completed so far did not bring the placements into line with
+        // the configuration, remove the entry keyed by the existing configured params.
+        DataPlacements.Builder builder = prev.placements.unbuild();
+        if (!metaParams.equals(fromPlacement))
+        {
+            builder = builder.without(metaParams);
+
+            // Also update schema with the corrected params
+            KeyspaceMetadata keyspace = prev.schema.getKeyspaceMetadata(SchemaConstants.METADATA_KEYSPACE_NAME);
+            KeyspaceMetadata newKeyspace = keyspace.withSwapped(new KeyspaceParams(keyspace.params.durableWrites, fromPlacement));
+            transformer = transformer.with(new DistributedSchema(prev.schema.getKeyspaces().withAddedOrUpdated(newKeyspace)));
+        }
+
+        // finally, add the possibly corrected placement keyed by the possibly corrected params
+        builder = builder.with(fromPlacement, placement);
+        transformer = transformer.with(builder.build());
 
         return Transformation.success(transformer.with(prev.inProgressSequences.without(ReconfigureCMS.SequenceKey.instance))
                                                  .with(prev.lockedRanges.unlock(reconfigureCMS.next.lockKey)),
                                       EntireRange.affectedRanges(prev));
+    }
+
+    private ReplicationParams getAccurateReplication(Directory directory, DataPlacement placement)
+    {
+        Map<String, Integer> replicasPerDc = new HashMap<>();
+        placement.writes.byEndpoint().keySet().forEach(i -> {
+            String dc = directory.location(directory.peerId(i)).datacenter;
+            int count = replicasPerDc.getOrDefault(dc, 0);
+            replicasPerDc.put(dc, ++count);
+        });
+        return ReplicationParams.ntsMeta(replicasPerDc);
     }
 
     @Override

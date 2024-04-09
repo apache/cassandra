@@ -37,8 +37,6 @@ import org.apache.commons.io.FileUtils;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import io.netty.handler.ssl.OpenSslClientContext;
 import io.netty.handler.ssl.OpenSslServerContext;
@@ -50,6 +48,7 @@ import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.transport.TlsTestUtils;
 
 import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.NOT_REQUIRED;
 import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
@@ -58,8 +57,6 @@ import static org.junit.Assert.assertNotNull;
 
 public class SSLFactoryTest
 {
-    private static final Logger logger = LoggerFactory.getLogger(SSLFactoryTest.class);
-
     static final SelfSignedCertificate ssc;
     static
     {
@@ -81,8 +78,8 @@ public class SSLFactoryTest
     {
         SSLFactory.clearSslContextCache();
         encryptionOptions = new ServerEncryptionOptions()
-                            .withTrustStore("test/conf/cassandra_ssl_test.truststore")
-                            .withTrustStorePassword("cassandra")
+                            .withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PATH)
+                            .withTrustStorePassword(TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD)
                             .withRequireClientAuth(NOT_REQUIRED)
                             .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA")
                             .withSslContextFactory(new ParameterizedClass(TestFileBasedSSLContextFactory.class.getName(),
@@ -91,10 +88,10 @@ public class SSLFactoryTest
 
     private ServerEncryptionOptions addKeystoreOptions(ServerEncryptionOptions options)
     {
-        return options.withKeyStore("test/conf/cassandra_ssl_test.keystore")
-                      .withKeyStorePassword("cassandra")
-                      .withOutboundKeystore("test/conf/cassandra_ssl_test_outbound.keystore")
-                      .withOutboundKeystorePassword("cassandra");
+        return options.withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH)
+                      .withKeyStorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
+                      .withOutboundKeystore(TlsTestUtils.SERVER_OUTBOUND_KEYSTORE_PATH)
+                      .withOutboundKeystorePassword(TlsTestUtils.SERVER_OUTBOUND_KEYSTORE_PASSWORD);
     }
 
     private ServerEncryptionOptions addPEMKeystoreOptions(ServerEncryptionOptions options)
@@ -102,11 +99,11 @@ public class SSLFactoryTest
         ParameterizedClass sslContextFactoryClass = new ParameterizedClass("org.apache.cassandra.security.PEMBasedSslContextFactory",
                                                                            new HashMap<>());
         return options.withSslContextFactory(sslContextFactoryClass)
-                      .withKeyStore("test/conf/cassandra_ssl_test.keystore.pem")
-                      .withKeyStorePassword("cassandra")
-                      .withOutboundKeystore("test/conf/cassandra_ssl_test.keystore.pem")
-                      .withOutboundKeystorePassword("cassandra")
-                      .withTrustStore("test/conf/cassandra_ssl_test.truststore.pem");
+                      .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH_PEM)
+                      .withKeyStorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
+                      .withOutboundKeystore(TlsTestUtils.SERVER_KEYSTORE_PATH_PEM)
+                      .withOutboundKeystorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
+                      .withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PEM_PATH);
     }
 
     @Test
@@ -158,7 +155,7 @@ public class SSLFactoryTest
 
         // Verify if right certificate is loaded into SslContext
         final Certificate loadedCertificate = getCertificateLoadedInSslContext(context.sessionContext());
-        final Certificate certificate = getCertificates("test/conf/cassandra_ssl_test.keystore", "cassandra");
+        final Certificate certificate = getCertificates(TlsTestUtils.SERVER_KEYSTORE_PATH, TlsTestUtils.SERVER_KEYSTORE_PASSWORD);
         assertEquals(loadedCertificate, certificate);
     }
 
@@ -175,7 +172,7 @@ public class SSLFactoryTest
 
         // Verify if right certificate is loaded into SslContext
         final Certificate loadedCertificate = getCertificateLoadedInSslContext(context.sessionContext());
-        final Certificate certificate = getCertificates("test/conf/cassandra_ssl_test_outbound.keystore", "cassandra");
+        final Certificate certificate = getCertificates(TlsTestUtils.SERVER_OUTBOUND_KEYSTORE_PATH, TlsTestUtils.SERVER_OUTBOUND_KEYSTORE_PASSWORD);
         assertEquals(loadedCertificate, certificate);
     }
 

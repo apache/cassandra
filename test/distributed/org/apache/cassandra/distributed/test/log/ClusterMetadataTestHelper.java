@@ -22,8 +22,8 @@ import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Random;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
@@ -46,9 +46,9 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
@@ -63,6 +63,7 @@ import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.Period;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.log.LocalLog;
+import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -73,9 +74,9 @@ import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
-import org.apache.cassandra.tcm.sequences.Move;
 import org.apache.cassandra.tcm.sequences.LeaveStreams;
 import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
+import org.apache.cassandra.tcm.sequences.Move;
 import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 import org.apache.cassandra.tcm.transformations.AlterSchema;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
@@ -86,7 +87,6 @@ import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.cms.AdvanceCMSReconfiguration;
 import org.apache.cassandra.tcm.transformations.cms.PrepareCMSReconfiguration;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.tcm.transformations.cms.Initialize;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 
@@ -123,35 +123,17 @@ public class ClusterMetadataTestHelper
     public static ClusterMetadataService instanceForTest()
     {
         ClusterMetadata current = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
-        LocalLog log = LocalLog.asyncForTests();
+        LocalLog log = LocalLog.logSpec()
+                               .withInitialState(current)
+                               .createLog();
         ResettableClusterMetadataService service = new ResettableClusterMetadataService(new UniformRangePlacement(),
                                                                                         MetadataSnapshots.NO_OP,
                                                                                         log,
                                                                                         new AtomicLongBackedProcessor(log),
                                                                                         Commit.Replicator.NO_OP,
                                                                                         true);
+        log.readyUnchecked();
         log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
-        service.commit(new Initialize(current));
-        QueryProcessor.registerStatementInvalidatingListener();
-        service.mark();
-        return service;
-    }
-
-    /**
-     * Create a pre-configured CMS which supports mark & reset for use in tests. This version dose not perform initial
-     * CMS setup, neither bootstrapping the log nor applying an Initialize transformation. It assumes that the supplied
-     * ClusterMetadata instance is in the state required by the specific caller.
-     * @return a resettable CMS instance, to be used in a call to ClusterMetadataService::setInstance
-     */
-    public static ClusterMetadataService instanceForTest(ClusterMetadata current)
-    {
-        LocalLog log = LocalLog.asyncForTests();
-        ResettableClusterMetadataService service = new ResettableClusterMetadataService(new UniformRangePlacement(),
-                                                                                        MetadataSnapshots.NO_OP,
-                                                                                        log,
-                                                                                        new AtomicLongBackedProcessor(log),
-                                                                                        Commit.Replicator.NO_OP,
-                                                                                        true);
         QueryProcessor.registerStatementInvalidatingListener();
         service.mark();
         return service;
@@ -186,13 +168,13 @@ public class ClusterMetadataTestHelper
                                    null,
                                    ImmutableMap.of());
     }
+
     public static void forceCurrentPeriodTo(long period)
     {
+        ClusterMetadataService.unsetInstance();
+        ClusterMetadataService.setInstance(instanceForTest());
         ClusterMetadata metadata = ClusterMetadata.currentNullable();
-        if (metadata == null)
-            metadata = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
-
-        metadata = new ClusterMetadata(metadata.epoch,
+        metadata = new ClusterMetadata(metadata.epoch.nextEpoch(),
                                        period,
                                        metadata.lastInPeriod,
                                        metadata.partitioner,
@@ -203,20 +185,23 @@ public class ClusterMetadataTestHelper
                                        metadata.lockedRanges,
                                        metadata.inProgressSequences,
                                        metadata.extensions);
-        ClusterMetadataService.unsetInstance();
-        ClusterMetadataService.setInstance(instanceForTest(metadata));
+        ClusterMetadataService.instance().log().append(new LogState(metadata, LogState.EMPTY.entries));
     }
 
     public static ClusterMetadataService syncInstanceForTest()
     {
-        LocalLog log = LocalLog.sync(new LocalLog.LogSpec());
-        log.ready();
-        return new ClusterMetadataService(new UniformRangePlacement(),
-                                          MetadataSnapshots.NO_OP,
-                                          log,
-                                          new AtomicLongBackedProcessor(log),
-                                          Commit.Replicator.NO_OP,
-                                          true);
+        LocalLog log = LocalLog.logSpec()
+                               .sync()
+                               .createLog();
+        ClusterMetadataService cms = new ClusterMetadataService(new UniformRangePlacement(),
+                                                                MetadataSnapshots.NO_OP,
+                                                                log,
+                                                                new AtomicLongBackedProcessor(log),
+                                                                Commit.Replicator.NO_OP,
+                                                                true);
+
+        log.readyUnchecked();
+        return cms;
     }
 
     public static void createKeyspace(String name, KeyspaceParams params)
@@ -246,7 +231,6 @@ public class ClusterMetadataTestHelper
             throw new RuntimeException(e);
         }
     }
-
 
     private static Set<InetAddressAndPort> leaving(ClusterMetadata metadata)
     {

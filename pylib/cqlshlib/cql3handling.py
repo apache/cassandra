@@ -34,8 +34,9 @@ class UnexpectedTableStructure(UserWarning):
 
 
 SYSTEM_KEYSPACES = ('system', 'system_schema', 'system_traces', 'system_auth', 'system_distributed', 'system_views',
-                    'system_virtual_schema', 'system_cluster_metadata')
-NONALTERBALE_KEYSPACES = ('system', 'system_schema', 'system_views', 'system_virtual_schema', 'system_cluster_metadata')
+                    'system_metrics', 'system_virtual_schema', 'system_cluster_metadata')
+NONALTERBALE_KEYSPACES = ('system', 'system_schema', 'system_views', 'system_metrics', 'system_virtual_schema',
+                          'system_cluster_metadata')
 
 
 class Cql3ParsingRuleSet(CqlParsingRuleSet):
@@ -302,6 +303,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                             | <alterRoleStatement>
                             | <dropRoleStatement>
                             | <listRolesStatement>
+                            | <listSuperUsersStatement>
                             ;
 
 <authorizationStatement> ::= <grantStatement>
@@ -1528,6 +1530,9 @@ syntax_rules += r'''
 
 <listRolesStatement> ::= "LIST" "ROLES"
                               ( "OF" <rolename> )? "NORECURSIVE"?
+                       ;
+
+<listSuperUsersStatement> ::= "LIST" "SUPERUSERS"
                        ;
 '''
 

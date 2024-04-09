@@ -32,10 +32,12 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import org.junit.Assume;
 import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.QueryValidationException;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
@@ -43,8 +45,8 @@ import org.apache.cassandra.cql3.restrictions.IndexRestrictions;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
-import org.apache.cassandra.db.ColumnFamilyStore.FlushReason;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamilyStore.FlushReason;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -55,10 +57,11 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.internal.CassandraIndex;
+import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableFlushObserver;
-import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
@@ -162,6 +165,8 @@ public class CustomIndexTest extends CQLTester
     @Test
     public void nonCustomIndexesRequireExactlyOneTargetColumn() throws Throwable
     {
+        Util.assumeLegacySecondaryIndex();
+
         createTable("CREATE TABLE %s(k int, c int, v1 int, v2 int, PRIMARY KEY (k,c))");
 
         assertInvalidMessage("Only CUSTOM indexes support multiple columns", "CREATE INDEX multi_idx on %s(v1,v2)");
@@ -350,6 +355,8 @@ public class CustomIndexTest extends CQLTester
     @Test
     public void createIndexWithoutTargets() throws Throwable
     {
+        Assume.assumeTrue("Test does not work with different default secondary index",
+                          DatabaseDescriptor.getDefaultSecondaryIndex().equals(CassandraIndex.NAME));
         createTable("CREATE TABLE %s(k int, c int, v1 int, v2 int, PRIMARY KEY(k,c))");
         // only allowed for CUSTOM indexes
         assertInvalidMessage("Only CUSTOM indexes can be created without specifying a target column",
@@ -458,6 +465,8 @@ public class CustomIndexTest extends CQLTester
     @Test
     public void customExpressionsMustTargetCustomIndex() throws Throwable
     {
+        Assume.assumeTrue("Test does not work with different default secondary index",
+                          DatabaseDescriptor.getDefaultSecondaryIndex().equals(CassandraIndex.NAME));
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b))");
         createIndex("CREATE INDEX non_custom_index ON %s(c)");
         assertInvalidThrowMessage(Optional.of(ProtocolVersion.CURRENT),
@@ -682,7 +691,7 @@ public class CustomIndexTest extends CQLTester
         }
 
         // SSTables remain uncommitted.
-        assertEquals(1, getCurrentColumnFamilyStore().getDirectories().getDirectoryForNewSSTables().tryList().length);
+        assertEquals(0, getCurrentColumnFamilyStore().getDirectories().getDirectoryForNewSSTables().tryList().length);
     }
 
     @Test
@@ -1393,6 +1402,8 @@ public class CustomIndexTest extends CQLTester
     @Test
     public void testIndexGroupsInstancesManagement() throws Throwable
     {
+        Assume.assumeTrue("Test does not work with different default secondary index",
+                          DatabaseDescriptor.getDefaultSecondaryIndex().equals(CassandraIndex.NAME));
         String indexClassName = IndexWithSharedGroup.class.getName();
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v1 int, v2 int, v3 int, v4 int, v5 int)");
         SecondaryIndexManager indexManager = getCurrentColumnFamilyStore().indexManager;

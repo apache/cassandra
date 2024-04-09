@@ -37,8 +37,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.marshal.IntegerType;
-import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -63,8 +61,11 @@ public class LocalLogTest
     @Test
     public void appendToFillGapWithConsecutiveBufferedEntries()
     {
-        LocalLog log = LocalLog.sync(new LocalLog.LogSpec().withInitialState(cm()));
-        log.ready();
+        LocalLog log = LocalLog.logSpec()
+                               .sync()
+                               .withInitialState(cm())
+                               .createLog();
+        log.readyUnchecked();
         Epoch start = log.metadata().epoch;
         assertEquals(EMPTY, start);
 
@@ -87,10 +88,13 @@ public class LocalLogTest
     @Test
     public void sealPeriodForceSnapshotCollisionWithGap()
     {
-        LocalLog log = LocalLog.sync(new LocalLog.LogSpec().withInitialState(cm()));
-        log.ready();
+        LocalLog log = LocalLog.logSpec()
+                               .sync()
+                               .withInitialState(cm())
+                               .createLog();
+        log.readyUnchecked();
 
-        List<Entry> entries =new ArrayList<>();
+        List<Entry> entries = new ArrayList<>();
         for (int i = 1; i <= 9; i++)
             entries.add(entry(i));
         entries.add(new Entry(Entry.Id.NONE,
@@ -99,7 +103,7 @@ public class LocalLogTest
 
         entries.add(new Entry(Entry.Id.NONE,
                               Epoch.create(11),
-                              new ForceSnapshot(new ClusterMetadata(new LocalPartitioner(IntegerType.instance)).forceEpoch(Epoch.create(11)))));
+                              new ForceSnapshot(new ClusterMetadata(Murmur3Partitioner.instance).forceEpoch(Epoch.create(11)))));
         Collections.shuffle(entries);
         log.append(entries);
 
@@ -112,8 +116,11 @@ public class LocalLogTest
     @Test
     public void multipleSnapshotEntries()
     {
-        LocalLog log = LocalLog.sync(new LocalLog.LogSpec().withInitialState(cm()));
-        log.ready();
+        LocalLog log = LocalLog.logSpec()
+                               .sync()
+                               .withInitialState(cm())
+                               .createLog();
+        log.readyUnchecked();
 
         List<Entry> entries =new ArrayList<>();
         for (int i = 1; i <= 9; i++)
@@ -124,13 +131,13 @@ public class LocalLogTest
 
         entries.add(new Entry(Entry.Id.NONE,
                               Epoch.create(11),
-                              new ForceSnapshot(new ClusterMetadata(new LocalPartitioner(IntegerType.instance)).forceEpoch(Epoch.create(11)))));
+                              new ForceSnapshot(new ClusterMetadata(Murmur3Partitioner.instance).forceEpoch(Epoch.create(11)))));
         entries.add(new Entry(Entry.Id.NONE,
                               Epoch.create(21),
-                              new ForceSnapshot(new ClusterMetadata(new LocalPartitioner(IntegerType.instance)).forceEpoch(Epoch.create(21)))));
+                              new ForceSnapshot(new ClusterMetadata(Murmur3Partitioner.instance).forceEpoch(Epoch.create(21)))));
         entries.add(new Entry(Entry.Id.NONE,
                               Epoch.create(31),
-                              new ForceSnapshot(new ClusterMetadata(new LocalPartitioner(IntegerType.instance)).forceEpoch(Epoch.create(31)))));
+                              new ForceSnapshot(new ClusterMetadata(Murmur3Partitioner.instance).forceEpoch(Epoch.create(31)))));
 
         Collections.shuffle(entries);
         log.append(entries);
@@ -165,7 +172,7 @@ public class LocalLogTest
         CountDownLatch finish = CountDownLatch.newCountDownLatch(threads);
         CountDownLatch finishReaders = CountDownLatch.newCountDownLatch(threads);
         ExecutorPlus executor = executorFactory().configurePooled("APPENDER", threads * 2).build();
-        LocalLog log = LocalLog.asyncForTests(cm());
+        LocalLog log = LocalLog.logSpec().withInitialState(cm()).createLog();
 
         List<Entry> committed = new CopyOnWriteArrayList<>(); // doesn't need to be concurrent, since log is single-threaded
         log.addListener((e, m) -> committed.add(e));

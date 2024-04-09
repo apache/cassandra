@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.tcm;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -99,7 +98,7 @@ public class BootWithMetadataTest
             epoch = doTest(Epoch.create(epoch.getEpoch() + 100), first);
     }
 
-    private Epoch doTest(Epoch epoch, ClusterMetadata first) throws IOException
+    private Epoch doTest(Epoch epoch, ClusterMetadata first) throws Throwable
     {
         long seed = System.nanoTime();
         logger.info("STARTING TEST FROM EPOCH {}, SEED: {}", epoch, seed);

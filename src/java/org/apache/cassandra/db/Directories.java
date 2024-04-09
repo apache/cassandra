@@ -35,6 +35,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.concurrent.ThreadLocalRandom;
@@ -646,6 +647,29 @@ public class Directories
         }
     }
 
+    /**
+     * Returns directory to write a snapshot to. If directory does not exist, then it is NOT created.
+     *
+     * If given {@code location} indicates secondary index, this will return
+     * {@code <cf dir>/snapshots/<snapshot name>/.<index name>}.
+     * Otherwise, this will return {@code <cf dir>/snapshots/<snapshot name>}.
+     *
+     * @param location base directory
+     * @param snapshotName snapshot name
+     * @return directory to write a snapshot
+     */
+    public static Optional<File> getSnapshotDirectoryIfExists(File location, String snapshotName)
+    {
+        if (isSecondaryIndexFolder(location))
+        {
+            return get(location.parent(), SNAPSHOT_SUBDIR, snapshotName, location.name());
+        }
+        else
+        {
+            return get(location, SNAPSHOT_SUBDIR, snapshotName);
+        }
+    }
+
     public File getSnapshotManifestFile(String snapshotName)
     {
         File snapshotDir = getSnapshotDirectory(getDirectoryForNewSSTables(), snapshotName);
@@ -673,6 +697,16 @@ public class Directories
         return getBackupsDirectory(desc.directory);
     }
 
+    /**
+     * Returns directory to write a backup to. If directory does not exist, then one is created.
+     *
+     * If given {@code location} indicates secondary index, this will return
+     * {@code <cf dir>/backups/.<index name>}.
+     * Otherwise, this will return {@code <cf dir>/backups/}.
+     *
+     * @param location base directory
+     * @return directory to write a backup
+     */
     public static File getBackupsDirectory(File location)
     {
         if (isSecondaryIndexFolder(location))
@@ -682,6 +716,28 @@ public class Directories
         else
         {
             return getOrCreate(location, BACKUPS_SUBDIR);
+        }
+    }
+
+    /**
+     * Returns directory to write a backup to. If directory does not exist, then it is NOT created.
+     *
+     * If given {@code location} indicates secondary index, this will return
+     * {@code <cf dir>/backups/.<index name>}.
+     * Otherwise, this will return {@code <cf dir>/backups/}.
+     *
+     * @param location base directory
+     * @return directory to write a backup
+     */
+    public static Optional<File> getBackupsDirectoryIfExists(File location)
+    {
+        if (isSecondaryIndexFolder(location))
+        {
+            return get(location.parent(), BACKUPS_SUBDIR, location.name());
+        }
+        else
+        {
+            return get(location, BACKUPS_SUBDIR);
         }
     }
 
@@ -1020,7 +1076,8 @@ public class Directories
 
                 if (snapshotName != null)
                 {
-                    LifecycleTransaction.getFiles(getSnapshotDirectory(location, snapshotName).toPath(), getFilter(), onTxnErr);
+                    Optional<File> maybeSnapshotDir = getSnapshotDirectoryIfExists(location, snapshotName);
+                    maybeSnapshotDir.ifPresent(dir -> LifecycleTransaction.getFiles(dir.toPath(), getFilter(), onTxnErr));
                     continue;
                 }
 
@@ -1028,7 +1085,10 @@ public class Directories
                     LifecycleTransaction.getFiles(location.toPath(), getFilter(), onTxnErr);
 
                 if (includeBackups)
-                    LifecycleTransaction.getFiles(getBackupsDirectory(location).toPath(), getFilter(), onTxnErr);
+                {
+                    Optional<File> maybeBackupsDir = getBackupsDirectoryIfExists(location);
+                    maybeBackupsDir.ifPresent(dir -> LifecycleTransaction.getFiles(dir.toPath(), getFilter(), onTxnErr));
+                }
             }
 
             filtered = true;
@@ -1324,6 +1384,12 @@ public class Directories
             throw new FSWriteError(new IOException("Unable to create directory " + dir), dir);
         }
         return dir;
+    }
+
+    public static Optional<File> get(File base, String... subdirs)
+    {
+        File dir = subdirs == null || subdirs.length == 0 ? base : new File(base, join(subdirs));
+        return dir.exists() ? Optional.of(dir) : Optional.empty();
     }
 
     private static String join(String... s)

@@ -23,7 +23,9 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableList;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
@@ -46,6 +48,9 @@ public class ClientStats extends NodeToolCmd
 
     @Option(title = "list_connections_with_client_options", name = "--client-options", description = "Lists all connections and the client options")
     private boolean clientOptions = false;
+
+    @Option(title = "verbose", name = "--verbose", description = "Lists all connections with additional details (client options, authenticator-specific metadata and more)")
+    private boolean verbose = false;
 
     @Override
     public void execute(NodeProbe probe)
@@ -86,55 +91,36 @@ public class ClientStats extends NodeToolCmd
             return;
         }
 
-        if (listConnections)
+        // Note: for compatbility with existing implementation if someone passes --all (listConnections),
+        // --client-options, and --metadata all three will be printed.
+        List<Map<String, String>> clients = (List<Map<String, String>>) probe.getClientMetric("connections");
+        if (!clients.isEmpty() && (listConnections || clientOptions || verbose))
         {
-            List<Map<String, String>> clients = (List<Map<String, String>>) probe.getClientMetric("connections");
-            if (!clients.isEmpty())
+            ImmutableList.Builder<String> tableHeaderBuilder = ImmutableList.<String>builder()
+                                                                            .add("Address", "SSL", "Cipher", "Protocol", "Version",
+                                                                                 "User", "Keyspace", "Requests", "Driver-Name",
+                                                                                 "Driver-Version");
+            ImmutableList.Builder<String> tableFieldsBuilder = ImmutableList.<String>builder()
+                                                                            .add(ConnectedClient.ADDRESS, ConnectedClient.SSL,
+                                                                                 ConnectedClient.CIPHER, ConnectedClient.PROTOCOL,
+                                                                                 ConnectedClient.VERSION, ConnectedClient.USER,
+                                                                                 ConnectedClient.KEYSPACE, ConnectedClient.REQUESTS,
+                                                                                 ConnectedClient.DRIVER_NAME, ConnectedClient.DRIVER_VERSION);
+            if (clientOptions || verbose)
             {
-                TableBuilder table = new TableBuilder();
-                table.add("Address", "SSL", "Cipher", "Protocol", "Version", "User", "Keyspace", "Requests", "Driver-Name", "Driver-Version");
-                for (Map<String, String> conn : clients)
-                {
-                    table.add(conn.get(ConnectedClient.ADDRESS),
-                              conn.get(ConnectedClient.SSL),
-                              conn.get(ConnectedClient.CIPHER),
-                              conn.get(ConnectedClient.PROTOCOL),
-                              conn.get(ConnectedClient.VERSION),
-                              conn.get(ConnectedClient.USER),
-                              conn.get(ConnectedClient.KEYSPACE),
-                              conn.get(ConnectedClient.REQUESTS),
-                              conn.get(ConnectedClient.DRIVER_NAME),
-                              conn.get(ConnectedClient.DRIVER_VERSION));
-                }
-                table.printTo(out);
-                out.println();
+                tableHeaderBuilder.add("Client-Options");
+                tableFieldsBuilder.add(ConnectedClient.CLIENT_OPTIONS);
             }
-        }
 
-        if (clientOptions)
-        {
-            List<Map<String, String>> clients = (List<Map<String, String>>) probe.getClientMetric("connections");
-            if (!clients.isEmpty())
+            if (verbose)
             {
-                TableBuilder table = new TableBuilder();
-                table.add("Address", "SSL", "Cipher", "Protocol", "Version", "User", "Keyspace", "Requests", "Driver-Name", "Driver-Version", "Client-Options");
-                for (Map<String, String> conn : clients)
-                {
-                    table.add(conn.get(ConnectedClient.ADDRESS),
-                              conn.get(ConnectedClient.SSL),
-                              conn.get(ConnectedClient.CIPHER),
-                              conn.get(ConnectedClient.PROTOCOL),
-                              conn.get(ConnectedClient.VERSION),
-                              conn.get(ConnectedClient.USER),
-                              conn.get(ConnectedClient.KEYSPACE),
-                              conn.get(ConnectedClient.REQUESTS),
-                              conn.get(ConnectedClient.DRIVER_NAME),
-                              conn.get(ConnectedClient.DRIVER_VERSION),
-                              conn.get(ConnectedClient.CLIENT_OPTIONS));
-                }
-                table.printTo(out);
-                out.println();
+                tableHeaderBuilder.add("Auth-Mode", "Auth-Metadata");
+                tableFieldsBuilder.add(ConnectedClient.AUTHENTICATION_MODE, ConnectedClient.AUTHENTICATION_METADATA);
             }
+
+            List<String> tableHeader = tableHeaderBuilder.build();
+            List<String> tableFields = tableFieldsBuilder.build();
+            printTable(out, tableHeader, tableFields, clients);
         }
 
         Map<String, Integer> connectionsByUser = (Map<String, Integer>) probe.getClientMetric("connectedNativeClientsByUser");
@@ -148,5 +134,28 @@ public class ClientStats extends NodeToolCmd
             table.add(entry.getKey(), entry.getValue().toString());
         }
         table.printTo(out);
+    }
+
+    /**
+     * Convenience function to print a table with the given header and the resolved fields for each connection.
+     *
+     * @param out         print stream to print to.
+     * @param headers     headers for the table
+     * @param tableFields the fields from {@link ConnectedClient} to retrieve from each client connection.
+     * @param clients     the clients to print, each client being a row inthe table.
+     */
+    private void printTable(PrintStream out, List<String> headers, List<String> tableFields, List<Map<String, String>> clients)
+    {
+        TableBuilder table = new TableBuilder();
+        table.add(headers);
+        for (Map<String, String> conn : clients)
+        {
+            List<String> connectionFieldValues = tableFields.stream()
+                    .map(conn::get)
+                    .collect(Collectors.toList());
+            table.add(connectionFieldValues);
+        }
+        table.printTo(out);
+        out.println();
     }
 }

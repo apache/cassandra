@@ -37,6 +37,8 @@ import org.apache.cassandra.distributed.impl.TracingUtil;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.awaitility.Awaitility.await;
 
 public class ConcurrencyFactorTest extends TestBaseImpl
@@ -49,7 +51,9 @@ public class ConcurrencyFactorTest extends TestBaseImpl
     @Before
     public void init() throws IOException
     {
-        cluster = init(Cluster.build(NODES).withTokenSupplier(generateTokenSupplier()).withTokenCount(1).start());
+        cluster = init(Cluster.build(NODES).withTokenSupplier(generateTokenSupplier())
+                                           .withTokenCount(1)
+                                           .withConfig(config -> config.with(GOSSIP).with(NETWORK)).start());
     }
 
     @After
@@ -63,7 +67,8 @@ public class ConcurrencyFactorTest extends TestBaseImpl
     {
         cluster.schemaChange(String.format("CREATE TABLE %s.%s (pk int, state ascii, gdp bigint, PRIMARY KEY (pk)) WITH compaction = " +
                                            " {'class' : 'SizeTieredCompactionStrategy', 'enabled' : false }", KEYSPACE, SAI_TABLE));
-        cluster.schemaChange(String.format("CREATE CUSTOM INDEX ON %s.%s (gdp) USING 'StorageAttachedIndex'", KEYSPACE, SAI_TABLE));
+        cluster.schemaChange(String.format("CREATE INDEX ON %s.%s (gdp) USING 'sai'", KEYSPACE, SAI_TABLE));
+        SAIUtil.waitForIndexQueryable(cluster, KEYSPACE);
 
         String template = "INSERT INTO %s.%s (pk, state, gdp) VALUES (%s, %s)";
         Random rnd = new Random();
@@ -101,7 +106,7 @@ public class ConcurrencyFactorTest extends TestBaseImpl
 
         // Token-restricted range query not using SAI so should use initial concurrency estimation
         query = String.format("SELECT * FROM %s.%s WHERE token(pk) > 0", KEYSPACE, SAI_TABLE);
-        runAndValidate("Submitting range requests on 2 ranges with a concurrency of 2 (230.4 rows per range expected)", query);
+        runAndValidate("Submitting range requests on 2 ranges with a concurrency of 2.*", query);
 
         // Token-restricted range query with SAI so should bypass initial concurrency estimation
         query = String.format("SELECT * FROM %s.%s WHERE token(pk) > 0 AND gdp > ?", KEYSPACE, SAI_TABLE);
@@ -119,7 +124,7 @@ public class ConcurrencyFactorTest extends TestBaseImpl
 
         await().atMost(5, TimeUnit.SECONDS).until(() -> {
             List<TracingUtil.TraceEntry> traceEntries = TracingUtil.getTrace(cluster, sessionId, ConsistencyLevel.ONE);
-            return traceEntries.stream().anyMatch(entry -> entry.activity.equals(trace));
+            return traceEntries.stream().anyMatch(entry -> entry.activity.matches(trace));
         });
     }
 

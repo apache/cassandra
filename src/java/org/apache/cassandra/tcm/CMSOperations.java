@@ -29,10 +29,10 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.sequences.CancelCMSReconfiguration;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -73,23 +73,21 @@ public class CMSOperations implements CMSOperationsMBean
 
 
     @Override
-    public void reconfigureCMS(int rf, boolean sync)
+    public void reconfigureCMS(int rf)
     {
-        Runnable r = () -> cms.reconfigureCMS(ReplicationParams.simpleMeta(rf, ClusterMetadata.current().directory.knownDatacenters()));
-        if (sync)
-            r.run();
-        else
-            ScheduledExecutors.nonPeriodicTasks.submit(r);
+        cms.reconfigureCMS(ReplicationParams.simpleMeta(rf, ClusterMetadata.current().directory.knownDatacenters()));
     }
 
     @Override
-    public void reconfigureCMS(Map<String, Integer> rf, boolean sync)
+    public void reconfigureCMS(Map<String, Integer> rf)
     {
-        Runnable r = () -> ClusterMetadataService.instance().reconfigureCMS(ReplicationParams.ntsMeta(rf));
-        if (sync)
-            r.run();
-        else
-            ScheduledExecutors.nonPeriodicTasks.submit(r);
+        cms.reconfigureCMS(ReplicationParams.ntsMeta(rf));
+    }
+
+    @Override
+    public void cancelReconfigureCms()
+    {
+        cms.commit(CancelCMSReconfiguration.instance);
     }
 
     @Override
@@ -117,6 +115,9 @@ public class CMSOperations implements CMSOperationsMBean
                                                         .map(Object::toString)
                                                         .collect(Collectors.toList()));
 
+        if (advance.diff.removals.isEmpty() && advance.diff.additions.isEmpty())
+            status.put("INCOMPLETE", Collections.singletonList("All operations have finished but metadata keyspace ranges are still locked"));
+
         return status;
     }
 
@@ -125,15 +126,14 @@ public class CMSOperations implements CMSOperationsMBean
     {
         Map<String, String> info = new HashMap<>();
         ClusterMetadata metadata = ClusterMetadata.current();
-        ClusterMetadataService service = ClusterMetadataService.instance();
         String members = metadata.fullCMSMembers().stream().sorted().map(Object::toString).collect(Collectors.joining(","));
         info.put("MEMBERS", members);
-        info.put("IS_MEMBER", Boolean.toString(service.isCurrentMember(FBUtilities.getBroadcastAddressAndPort())));
+        info.put("IS_MEMBER", Boolean.toString(cms.isCurrentMember(FBUtilities.getBroadcastAddressAndPort())));
         info.put("SERVICE_STATE", ClusterMetadataService.state(metadata).toString());
-        info.put("IS_MIGRATING", Boolean.toString(service.isMigrating()));
+        info.put("IS_MIGRATING", Boolean.toString(cms.isMigrating()));
         info.put("EPOCH", Long.toString(metadata.epoch.getEpoch()));
-        info.put("LOCAL_PENDING", Integer.toString(ClusterMetadataService.instance().log().pendingBufferSize()));
-        info.put("COMMITS_PAUSED", Boolean.toString(service.commitsPaused()));
+        info.put("LOCAL_PENDING", Integer.toString(cms.log().pendingBufferSize()));
+        info.put("COMMITS_PAUSED", Boolean.toString(cms.commitsPaused()));
         info.put("REPLICATION_FACTOR", ReplicationParams.meta(metadata).toString());
         return info;
     }
@@ -142,7 +142,7 @@ public class CMSOperations implements CMSOperationsMBean
     public void sealPeriod()
     {
         logger.info("Sealing current period in metadata log");
-        long period = ClusterMetadataService.instance().sealPeriod().period;
+        long period = cms.sealPeriod().period;
         logger.info("Current period {} is sealed", period);
     }
 
@@ -151,13 +151,13 @@ public class CMSOperations implements CMSOperationsMBean
     {
         if (!DatabaseDescriptor.getUnsafeTCMMode())
             throw new IllegalStateException("Cluster is not running unsafe TCM mode, can't revert epoch");
-        ClusterMetadataService.instance().revertToEpoch(Epoch.create(epoch));
+        cms.revertToEpoch(Epoch.create(epoch));
     }
 
     @Override
     public String dumpClusterMetadata(long epoch, long transformToEpoch, String version) throws IOException
     {
-        return ClusterMetadataService.instance().dumpClusterMetadata(Epoch.create(epoch), Epoch.create(transformToEpoch), Version.valueOf(version));
+        return cms.dumpClusterMetadata(Epoch.create(epoch), Epoch.create(transformToEpoch), Version.valueOf(version));
     }
 
     @Override
@@ -173,22 +173,22 @@ public class CMSOperations implements CMSOperationsMBean
     {
         if (!DatabaseDescriptor.getUnsafeTCMMode())
             throw new IllegalStateException("Cluster is not running unsafe TCM mode, can't load cluster metadata " + file);
-        ClusterMetadataService.instance().loadClusterMetadata(file);
+        cms.loadClusterMetadata(file);
     }
 
     @Override
     public void setCommitsPaused(boolean paused)
     {
         if (paused)
-            ClusterMetadataService.instance().pauseCommits();
+            cms.pauseCommits();
         else
-            ClusterMetadataService.instance().resumeCommits();
+            cms.resumeCommits();
     }
 
     @Override
     public boolean getCommitsPaused()
     {
-        return ClusterMetadataService.instance().commitsPaused();
+        return cms.commitsPaused();
     }
 
     @Override

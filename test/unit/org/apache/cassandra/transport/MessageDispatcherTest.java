@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.transport;
 
-import java.util.Collections;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
@@ -51,7 +50,7 @@ public class MessageDispatcherTest
     public static void init() throws Exception
     {
         DatabaseDescriptor.daemonInitialization();
-        ClientMetrics.instance.init(Collections.emptyList());
+        ClientMetrics.instance.init(null);
         maxAuthThreadsBeforeTests = DatabaseDescriptor.getNativeTransportMaxAuthThreads();
         dispatch = new AuthTestDispatcher();
     }
@@ -164,7 +163,7 @@ public class MessageDispatcherTest
                             Message.Request request,
                             FlushItemConverter forFlusher,
                             ClientResourceLimits.Overload backpressure,
-                            long approxStartTimeNanos)
+                            long startTimeNanos)
         {
             // noop
         }

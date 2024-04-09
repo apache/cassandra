@@ -76,7 +76,6 @@ import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.log.LogStorage;
-import org.apache.cassandra.tcm.log.Replication;
 import org.apache.cassandra.tcm.transformations.cms.Initialize;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.net.IVerbHandler;
@@ -642,14 +641,17 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
             assert executor == null;
             LogStorage logStorage = new AtomicLongBackedProcessor.InMemoryStorage();
             ClusterMetadata initial = new ClusterMetadata(partitioner);
-            LocalLog.LogSpec logSpec = new LocalLog.LogSpec().withInitialState(initial).withStorage(logStorage);
-            LocalLog log = LocalLog.sync(logSpec);
-            log.ready();
+            LocalLog log = LocalLog.logSpec()
+                                   .withInitialState(initial)
+                                   .sync()
+                                   .withStorage(logStorage)
+                                   .createLog();
+
             // Replicator only replicates to the node under test, as there are no other nodes in reality
             Commit.Replicator replicator = (result, source) -> {
                 realCluster.deliverMessage(realCluster.get(1).broadcastAddress(),
                                            Instance.serializeMessage(cms.addr(), nodeUnderTest,
-                                                                     Message.out(Verb.TCM_REPLICATION, result.success().replication)));
+                                                                     Message.out(Verb.TCM_REPLICATION, result.success().logState)));
             };
 
             AtomicLongBackedProcessor processor = new AtomicLongBackedProcessor(log);
@@ -661,7 +663,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                                                         replicator,
                                                                         true);
             ClusterMetadataService.setInstance(service);
-
+            log.readyUnchecked();
             log.bootstrap(cms.addr());
             service.commit(new Initialize(log.metadata()));
             service.commit(new Register(new NodeAddresses(cms.addr()), new Location(cms.dc(), cms.rack()), NodeVersion.CURRENT));
@@ -693,7 +695,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                             case TCM_FETCH_CMS_LOG_REQ:
                             {
                                 FetchCMSLog request = (FetchCMSLog) message.payload;
-                                LogState logState = logStorage.getLogState(request.lowerBound);
+                                LogState logState = logStorage.getLogState(ClusterMetadata.current().period, request.lowerBound);
                                 realCluster.deliverMessage(message.from(),
                                                            Instance.serializeMessage(cms.addr(), message.from(), message.responseWith(logState)));
                                 return;
@@ -720,8 +722,9 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
 
             // We need to create a second node to be able to send and receive messages.
             RealSimulatedNode driver = createNode();
-            LocalLog log = LocalLog.sync(new LocalLog.LogSpec());
-            log.ready();
+            LocalLog log = LocalLog.logSpec()
+                           .sync()
+                           .createLog();
 
             ClusterMetadataService metadataService =
             new ClusterMetadataService(new UniformRangePlacement(),
@@ -736,7 +739,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                                Commit.Result result = driver.requestResponse(new Commit(entryId, event, lastKnown));
                                                if (result.isSuccess())
                                                {
-                                                   log.append(result.success().replication.entries());
+                                                   log.append(result.success().logState.entries);
                                                    log.waitForHighestConsecutive();
                                                }
                                                return result;
@@ -754,22 +757,24 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                        false);
 
             ClusterMetadataService.setInstance(metadataService);
+            log.readyUnchecked();
+
             driver.clean(TCM_REPLICATION);
-            driver.on(Verb.TCM_REPLICATION, new SimulatedAction<Replication, NoPayload>()
+            driver.on(Verb.TCM_REPLICATION, new SimulatedAction<LogState, NoPayload>()
             {
                 public Verb verb()
                 {
                     return TCM_REPLICATION;
                 }
 
-                public void validate(Message<Replication> request)
+                public void validate(Message<LogState> request)
                 {
                     // no-op
                 }
 
-                public Message<NoPayload> respondTo(Message<Replication> request)
+                public Message<NoPayload> respondTo(Message<LogState> request)
                 {
-                    for (Entry entry : request.payload.entries())
+                    for (Entry entry : request.payload.entries)
                         log.append(entry);
                     log.waitForHighestConsecutive();
                     return null;

@@ -50,6 +50,7 @@ public final class SchemaConstants
     public static final String VIRTUAL_SCHEMA = "system_virtual_schema";
 
     public static final String VIRTUAL_VIEWS = "system_views";
+    public static final String VIRTUAL_METRICS = "system_metrics";
 
     public static final String DUMMY_KEYSPACE_OR_TABLE_NAME = "--dummy--";
 

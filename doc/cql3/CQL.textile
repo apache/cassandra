@@ -1414,7 +1414,7 @@ REVOKE report_writer FROM alice;
 
 This statement revokes the @report_writer@ role from @alice@. Any permissions that @alice@ has acquired via the @report_writer@ role are also revoked. 
 
-h4(#listRolesStmt). LIST ROLES
+h3(#listRolesStmt). LIST ROLES
 
 __Syntax:__
 
@@ -1437,6 +1437,20 @@ bc(sample).
 LIST ROLES OF @bob@ NORECURSIVE
 
 List all roles directly granted to @bob@.
+
+h3(#listSuperusersStmt). LIST SUPERUSERS
+
+__Syntax:__
+
+bc(syntax).
+<list-superusers-stmt> ::= LIST SUPERUSERS;
+
+__Sample:__
+
+bc(sample).
+LIST SUPERUSERS;
+
+Returns roles with the superuser privilege (this includes roles with transitively acquired superuser privilege), this command requires `DESCRIBE` permission on all roles of the database.
 
 h3(#createUserStmt). CREATE USER 
 
@@ -1626,7 +1640,7 @@ __Syntax:__
 bc(syntax).. 
 <grant-permission-stmt> ::= GRANT ( ALL ( PERMISSIONS )? | <permission> ( PERMISSION )? (, PERMISSION)* ) ON <resource> TO <identifier>
 
-<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE | EXECUTE | UNMASK | SELECT_MASKED
+<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESCRIBE | EXECUTE | UNMASK | SELECT_MASKED
 
 <resource> ::= ALL KEYSPACES
              | KEYSPACE <identifier>
@@ -1683,7 +1697,7 @@ __Syntax:__
 bc(syntax).. 
 <revoke-permission-stmt> ::= REVOKE ( ALL ( PERMISSIONS )? | <permission> ( PERMISSION )? (, PERMISSION)* ) ON <resource> FROM <identifier>
 
-<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE | EXECUTE | UNMASK | SELECT_MASKED
+<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESCRIBE | EXECUTE | UNMASK | SELECT_MASKED
 
 <resource> ::= ALL KEYSPACES
              | KEYSPACE <identifier>

@@ -6,6 +6,21 @@
 #   full explanations of configuration directives
 # /NOTE
 
+# NOTE:
+#   This file is provided in two versions:
+#     - cassandra.yaml: Contains configuration defaults for a "compatible"
+#       configuration that operates using settings that are backwards-compatible
+#       and interoperable with machines running older versions of Cassandra.
+#       This version is provided to facilitate pain-free upgrades for existing
+#       users of Cassandra running in production who want to gradually and
+#       carefully introduce new features.
+#     - cassandra_latest.yaml: Contains configuration defaults that enable
+#       the latest features of Cassandra, including improved functionality as
+#       well as higher performance. This version is provided for new users of
+#       Cassandra who want to get the most out of their cluster, and for users
+#       evaluating the technology.
+# /NOTE
+
 # The name of the cluster. This is mainly used to prevent machines in
 # one logical cluster from joining another.
 cluster_name: 'Test Cluster'
@@ -703,6 +718,31 @@ concurrent_materialized_view_writes: 32
 # spinning (for spinning disks)
 # disk_optimization_strategy: ssd
 
+# Supported memtable implementations and selected default.
+# Currently Cassandra offers two memtable implementations:
+# - SkipListMemtable is the legacy memtable implementation provided by earlier
+#   versions of Cassandra.
+# - TrieMemtable is a new memtable that utilizes a trie data structure. This
+#   implementation significantly reduces garbage collection load by moving
+#   more of the sstable metadata off-heap, fits more data in the same allocation
+#   and can reliably handle higher write throughput.
+#   Because the trie memtable is a sharded single-writer solution, it can perform
+#   worse when the load is very unevenly distributed, e.g. when most of the writes
+#   access a very small number of partitions or with legacy secondary indexes.
+# The memtable implementation can be selected per table by setting memtable
+# property in the table definition to one of the configurations specified below.
+# If the memtable property is not set, the "default" configuration will be used.
+# See src/java/org/apache/cassandra/db/memtable/Memtable_API.md for further
+# information.
+memtable:
+  configurations:
+    skiplist:
+      class_name: SkipListMemtable
+    trie:
+      class_name: TrieMemtable
+    default:
+      inherits: skiplist
+
 # Total permitted memory to use for memtables. Cassandra will stop
 # accepting writes when the limit is exceeded until a flush completes,
 # and will trigger a flush based on memtable_cleanup_threshold
@@ -738,17 +778,41 @@ concurrent_materialized_view_writes: 32
 #    off heap objects
 memtable_allocation_type: heap_buffers
 
-# Limit memory usage for Merkle tree calculations during repairs. The default
-# is 1/16th of the available heap. The main tradeoff is that smaller trees
-# have less resolution, which can lead to over-streaming data. If you see heap
-# pressure during repairs, consider lowering this, but you cannot go below
-# one mebibyte. If you see lots of over-streaming, consider raising
-# this or using subrange repair.
+# Limit memory usage for Merkle tree calculations during repairs of a certain
+# table and common token range. Repair commands targetting multiple tables or
+# virtual nodes can exceed this limit depending on concurrent_merkle_tree_requests.
+#
+# The default is 1/16th of the available heap. The main tradeoff is that
+# smaller trees have less resolution, which can lead to over-streaming data.
+# If you see heap pressure during repairs, consider lowering this, but you
+# cannot go below one mebibyte. If you see lots of over-streaming, consider
+# raising this or using subrange repair.
 #
 # For more details see https://issues.apache.org/jira/browse/CASSANDRA-14096.
 #
 # Min unit: MiB
 # repair_session_space:
+
+# The number of simultaneous Merkle tree requests during repairs that can
+# be performed by a repair command. The size of each validation request is
+# limited by the repair_session_space property, so setting this to 1 will make
+# sure that a repair command doesn't exceed that limit, even if the repair
+# command is repairing multiple tables or multiple virtual nodes.
+#
+# There isn't a limit by default for backwards compatibility, but this can
+# produce OOM for  commands repairing multiple tables or multiple virtual nodes.
+# A limit of just 1 simultaneous Merkle tree request is generally recommended
+# with no virtual nodes so repair_session_space, and thereof the Merkle tree
+# resolution, can be high. For virtual nodes a value of 1 with the default
+# repair_session_space value will produce higher resolution Merkle trees
+# at the expense of speed. Alternatively, when working with virtual nodes it
+# can make sense to reduce the repair_session_space and increase the value of
+# concurrent_merkle_tree_requests because each range will contain fewer data.
+#
+# For more details see https://issues.apache.org/jira/browse/CASSANDRA-19336.
+#
+# A zero value means no limit.
+# concurrent_merkle_tree_requests: 0
 
 # repair:
 #   # Configure the retries for each of the repair messages that support it.  As of this moment retries use an exponential algorithm where each attempt sleeps longer based off the base_sleep_time and attempt.
@@ -824,6 +888,7 @@ memtable_allocation_type: heap_buffers
 # shrink their index summaries in order to meet this limit.  However, this
 # is a best-effort process. In extreme conditions Cassandra may need to use
 # more than this amount of memory.
+# Only relevant to formats that use an index summary, e.g. BIG.
 # Min unit: KiB
 index_summary_capacity:
 
@@ -831,6 +896,7 @@ index_summary_capacity:
 # periodically to redistribute memory from the fixed-size pool to sstables
 # proportional their recent read rates.  Setting to null value will disable this
 # process, leaving existing index summaries at their current sampling level.
+# Only relevant to formats that use an index summary, e.g. BIG.
 # Min unit: m
 index_summary_resize_interval: 60m
 
@@ -909,14 +975,6 @@ start_native_transport: true
 # port for the CQL native transport to listen for clients on
 # For security reasons, you should not expose this port to the internet.  Firewall it if needed.
 native_transport_port: 9042
-# Enabling native transport encryption in client_encryption_options allows you to either use
-# encryption for the standard port or to use a dedicated, additional port along with the unencrypted
-# standard native_transport_port.
-# Enabling client encryption and keeping native_transport_port_ssl disabled will use encryption
-# for native_transport_port. Setting native_transport_port_ssl to a different value
-# from native_transport_port will use encryption for native_transport_port_ssl while
-# keeping native_transport_port unencrypted.
-# native_transport_port_ssl: 9142
 # The maximum threads for handling requests (note that idle threads are stopped
 # after 30 seconds so there is not corresponding minimum setting).
 # native_transport_max_threads: 128
@@ -1087,14 +1145,14 @@ column_index_cache_size: 2KiB
 # specify compaction.
 # The selected compaction strategy will also apply to system tables.
 #
-# The default is to use SizeTieredCompactionStrategy, with its default
-# compaction parameters.
+# If no value is specified, the default is to use SizeTieredCompactionStrategy,
+# with its default compaction parameters.
 #
 # default_compaction:
-#   class_name: UnifiedCompactionStrategy
+#   class_name: SizeTieredCompactionStrategy
 #   parameters:
-#     scaling_parameters: T4
-#     target_sstable_size: 1GiB
+#     min_threshold: 4
+#     max_threshold: 32
 
 
 # Number of simultaneous compactions to allow, NOT including
@@ -1538,6 +1596,13 @@ server_encryption_options:
   #   TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, TLS_RSA_WITH_AES_128_GCM_SHA256, TLS_RSA_WITH_AES_128_CBC_SHA,
   #   TLS_RSA_WITH_AES_256_CBC_SHA
   # ]
+  # Optional setting to define the maximum allowed validity period of the client certificate used for the internode
+  # inbound connections. For example, if the specified max_certificate_validity_period is 30 days and the client
+  # uses a certificate that is issued for more than 30 days, the connection will be rejected.
+  # max_certificate_validity_period: 365d
+  # Optional setting that defines a warning threshold. When the threshold is exceeded for the internode certificate
+  # validity period, warnings with information about the certificate expiration will be logged.
+  # certificate_validity_warn_threshold: 10d
 
 # Configure client-to-server encryption.
 #
@@ -1584,6 +1649,15 @@ client_encryption_options:
   #   TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, TLS_RSA_WITH_AES_128_GCM_SHA256, TLS_RSA_WITH_AES_128_CBC_SHA,
   #   TLS_RSA_WITH_AES_256_CBC_SHA
   # ]
+  # Optional setting to define the maximum validity period of the client certificate allowed to establish
+  # connections to the server. For example, if max_certificate_validity_period is configured for 10 days,
+  # and a client attempts to authenticate with a certificate with a longer validity period (say 30 days),
+  # then the connection will be rejected.
+  # max_certificate_validity_period: 365d
+  # Optional setting that defines a warning threshold. When the threshold is exceeded for the client certificate
+  # validity, warnings with information about the certificate expiration will be logged. Additionally, client
+  # warnings will be reported during the session establishment.
+  # certificate_validity_warn_threshold: 10d
 
 # internode_compression controls whether traffic between nodes is
 # compressed.

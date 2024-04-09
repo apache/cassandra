@@ -28,6 +28,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 public class PaxosCleanupResponse
@@ -53,7 +54,12 @@ public class PaxosCleanupResponse
         return new PaxosCleanupResponse(session, false, message);
     }
 
-    public static final IVerbHandler<PaxosCleanupResponse> verbHandler = (message) -> PaxosCleanupSession.finishSession(message.from(), message.payload);
+    public static IVerbHandler<PaxosCleanupResponse> createVerbHandler(SharedContext ctx)
+    {
+        return message -> ctx.paxosRepairState().finishSession(message.from(), message.payload);
+    }
+
+    public static final IVerbHandler<PaxosCleanupResponse> verbHandler = createVerbHandler(SharedContext.Global.instance);
 
     public static final IVersionedSerializer<PaxosCleanupResponse> serializer = new IVersionedSerializer<PaxosCleanupResponse>()
     {

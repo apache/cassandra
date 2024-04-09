@@ -31,6 +31,7 @@ import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -72,7 +73,7 @@ public class PropertyFileSnitchTest
         backupFile = Paths.get(confFile + ".bak");
         localAddress = FBUtilities.getBroadcastAddressAndPort();
 
-        restoreOrigConfigFile();
+        Files.copy(effectiveFile, backupFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
     }
 
     @Test
@@ -134,7 +135,8 @@ public class PropertyFileSnitchTest
         assertEquals("OTHER_RAC2", snitch.getRack(peer));
     }
 
-    private void restoreOrigConfigFile() throws IOException
+    @After
+    public void restoreOrigConfigFile() throws IOException
     {
         if (Files.exists(backupFile))
         {

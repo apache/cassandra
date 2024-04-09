@@ -494,11 +494,6 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         return future;
     }
 
-    public <V> void respondWithFailure(RequestFailureReason reason, Message<?> message)
-    {
-        send(Message.failureResponse(message.id(), message.expiresAtNanos(), reason), message.respondTo());
-    }
-
     public void send(Message message, InetAddressAndPort to, ConnectionType specifyConnection)
     {
         if (isShuttingDown)

@@ -39,6 +39,8 @@ public class DataGenerators
     // during value generation
     public static long UNSET_DESCR = Long.MAX_VALUE;
     public static long NIL_DESCR = Long.MIN_VALUE;
+    // Empty value, for the types that support it
+    public static long EMPTY_VALUE = Long.MIN_VALUE + 1;
 
     public static Object[] inflateData(List<ColumnSpec<?>> columns, long[] descriptors)
     {
@@ -95,7 +97,7 @@ public class DataGenerators
                         this.maxSize = maxSize;
                     }
                 }
-                int[] bytes = new int[Math.min(4, columns.size())];
+                int[] bytes = new int[Math.min(KeyGenerator.MAX_UNIQUE_PREFIX_COLUMNS, columns.size())];
                 Pair[] sorted = new Pair[bytes.length];
                 for (int i = 0; i < sorted.length; i++)
                     sorted[i] = new Pair(i, columns.get(i).type.maxSize());
@@ -163,7 +165,7 @@ public class DataGenerators
         assert columns.size() == values.length : String.format("%s != %s", columns.size(), values.length);
         assert columns.size() > 0 : "Can't deflate from empty columnset";
 
-        int fixedPart = Math.min(4, columns.size());
+        int fixedPart = Math.min(KeyGenerator.MAX_UNIQUE_PREFIX_COLUMNS, columns.size());
 
         long[] slices = new long[fixedPart];
         boolean allNulls = true;
@@ -251,10 +253,13 @@ public class DataGenerators
 
     public static abstract class KeyGenerator implements Bijections.Bijection<Object[]>
     {
+        // Maximum number of columns that uniquely identify the value (i.e. use entropy bits).
+        // Subsequent columns will have random data in them.
+        public static final int MAX_UNIQUE_PREFIX_COLUMNS = 4;
         @VisibleForTesting
         public final List<ColumnSpec<?>> columns;
 
-        KeyGenerator(List<ColumnSpec<?>> columns)
+        protected KeyGenerator(List<ColumnSpec<?>> columns)
         {
             this.columns = columns;
         }
@@ -395,7 +400,6 @@ public class DataGenerators
             int maxSliceSize = gen.byteSize();
             int actualSliceSize = sizes[idx];
 
-
             if (idx == 0)
             {
                 // We consume a sign of a descriptor (long, long), (int, int), etc.
@@ -430,7 +434,7 @@ public class DataGenerators
 
         public long[] slice(long descriptor)
         {
-            long[] pieces = new long[sizes.length];
+            long[] pieces = new long[columns.size()];
             long pos = totalSize;
             for (int i = 0; i < sizes.length; i++)
             {
@@ -445,6 +449,15 @@ public class DataGenerators
                 pieces[i] = piece;
                 pos -= size;
             }
+
+            // The rest can be random, since prefix is always fixed
+            long current = descriptor;
+            for (int i = sizes.length; i < columns.size(); i++)
+            {
+                current = RngUtils.next(current);
+                pieces[i] = columns.get(i).generator().adjustEntropyDomain(current);
+            }
+
             return pieces;
         }
 
@@ -466,7 +479,6 @@ public class DataGenerators
             }
             return stitched;
         }
-
 
         public long minValue(int idx)
         {

@@ -24,12 +24,13 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 import com.vdurmont.semver4j.Semver;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import oshi.PlatformEnum;
 
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
-import oshi.PlatformEnum;
 
 import static java.lang.String.format;
 import static java.util.Optional.empty;
@@ -44,7 +45,7 @@ public class SystemInfo
     // TODO: Determine memlock limits if possible
     // TODO: Determine if file system is remote or local
     // TODO: Determine if disk latency is within acceptable limits
-    
+
     private static final Logger logger = LoggerFactory.getLogger(SystemInfo.class);
 
     private static final long INFINITY = -1L;
@@ -172,8 +173,14 @@ public class SystemInfo
      * @return the Semver for the kernel version of the OS.
      */
     public Semver getKernelVersion()
-    { 
-        return new Semver(si.getOperatingSystem().getVersionInfo().getBuildNumber(), Semver.SemverType.LOOSE);
+    {
+        String version = si.getOperatingSystem().getVersionInfo().getBuildNumber();
+
+        // gcp's cos_containerd has a trailing +
+        if (version.endsWith("+"))
+            version = StringUtils.chop(version);
+
+        return new Semver(version, Semver.SemverType.LOOSE);
     }
 
     /**

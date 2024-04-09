@@ -2,7 +2,9 @@
 |===
 |Function | Description
 
-| `mask_null(value)` | Replaces the first argument with a `null` column. The returned value is always a non-existent column, and not a not-null column representing a `null` value.
+| `mask_null(value)` 
+| Replaces the first argument with a `null` column. 
+The returned value is always a non-existent column, and not a not-null column representing a `null` value.
 
 Examples:
 
@@ -10,12 +12,13 @@ Examples:
 
 `mask_null(123)` -> `null`
 
-| `mask_default(value)` | Replaces its argument by an arbitrary, fixed default value of the same type.
+| `mask_default(value)` 
+| Replaces its argument by an arbitrary, fixed default value of the same type.
 This will be `\***\***` for text values, zero for numeric values, `false` for booleans, etc.
 
-Variable-length multivalued types such as lists, sets and maps are masked as empty collections.
+Variable-length multi-valued types such as lists, sets and maps are masked as empty collections.
 
-Fixed-length multivalued types such as tuples, UDTs and vectors are masked by replacing each of their values by the default masking value of the value type.
+Fixed-length multi-valued types such as tuples, user-defined types (UDTs) and vectors are masked by replacing each of their values by the default masking value of the value type.
 
 Examples:
 
@@ -27,7 +30,9 @@ Examples:
 
 `mask_default((vector<int, 3>) [1, 2, 3])` -> `[0, 0, 0]`
 
-| `mask_replace(value, replacement])` | Replaces the first argument by the replacement value on the second argument. The replacement value needs to have the same type as the replaced value.
+| `mask_replace(value, replacement])` 
+| Replaces the first argument by the replacement value on the second argument. 
+The replacement value needs to have the same type as the replaced value.
 
 Examples:
 
@@ -35,7 +40,10 @@ Examples:
 
 `mask_replace(123, -1)` -> `-1`
 
-| `mask_inner(value, begin, end, [padding])` | Returns a copy of the first `text`, `varchar` or `ascii` argument, replacing each character except the first and last ones by a padding character. The 2nd and 3rd arguments are the size of the exposed prefix and suffix. The optional 4th argument is the padding character, `\*` by default.
+| `mask_inner(value, begin, end, [padding])` 
+| Returns a copy of the first `text`, `varchar` or `ascii` argument, replacing each character except the first and last ones by a padding character. 
+The second and third arguments are the size of the exposed prefix and suffix. 
+The optional fourth argument is the padding character, `\*` by default.
 
 Examples:
 
@@ -47,7 +55,10 @@ Examples:
 
 `mask_inner('Alice', 2, 1, '\#')` -> `'Al##e'`
 
-| `mask_outer(value, begin, end, [padding])` | Returns a copy of the first `text`, `varchar` or `ascii` argument, replacing the first and last character by a padding character. The 2nd and 3rd arguments are the size of the exposed prefix and suffix. The optional 4th argument is the padding character, `\*` by default.
+| `mask_outer(value, begin, end, [padding])` 
+| Returns a copy of the first `text`, `varchar` or `ascii` argument, replacing the first and last character by a padding character. 
+The second and third arguments are the size of the exposed prefix and suffix. 
+The optional fourth argument is the padding character, `\*` by default.
 
 Examples:
 
@@ -59,7 +70,10 @@ Examples:
 
 `mask_outer('Alice', 2, 1, '\#')` -> `'##ic#'`
 
-| `mask_hash(value, [algorithm])` | Returns a `blob` containing the hash of the first argument. The optional 2nd argument is the hashing algorithm to be used, according the available Java security provider. The default hashing algorithm is `SHA-256`.
+| `mask_hash(value, [algorithm])` 
+| Returns a `blob` containing the hash of the first argument. 
+The optional second argument is the hashing algorithm to be used, according the available Java security provider. 
+The default hashing algorithm is `SHA-256`.
 
 Examples:
 

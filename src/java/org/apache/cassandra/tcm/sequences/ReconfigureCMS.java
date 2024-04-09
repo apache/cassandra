@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
 
+import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,6 +55,7 @@ import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.MetadataKey;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Retry;
 import org.apache.cassandra.tcm.Transformation;
@@ -128,6 +130,25 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
     @Override public Transformation.Kind nextStep()
     {
         return next.kind();
+    }
+
+    @Override
+    public Transformation.Result applyTo(ClusterMetadata metadata)
+    {
+        MultiStepOperation<?> sequence = metadata.inProgressSequences.get(SequenceKey.instance);
+        if (sequence.kind() != MultiStepOperation.Kind.RECONFIGURE_CMS)
+            throw new IllegalStateException(String.format("Can not apply in-progress sequence, since its kind is %s, but not %s", sequence.kind(), MultiStepOperation.Kind.RECONFIGURE_CMS));
+        Epoch lastModifiedEpoch = metadata.epoch;
+        ImmutableSet.Builder<MetadataKey> modifiedKeys = ImmutableSet.builder();
+        while (metadata.inProgressSequences.contains(SequenceKey.instance))
+        {
+            ReconfigureCMS transitionCMS = (ReconfigureCMS) metadata.inProgressSequences.get(SequenceKey.instance);
+            Transformation.Result result = transitionCMS.next.execute(metadata);
+            assert result.isSuccess();
+            metadata = result.success().metadata.forceEpoch(lastModifiedEpoch);
+            modifiedKeys.addAll(result.success().affectedMetadata);
+        }
+        return new Transformation.Success(metadata.forceEpoch(lastModifiedEpoch.nextEpoch()), LockedRanges.AffectedRanges.EMPTY, modifiedKeys.build());
     }
 
     @Override
@@ -255,6 +276,16 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
 
     }
 
+    @Override
+    public String toString()
+    {
+        return "ReconfigureCMS{" +
+               "next=" + next +
+               ", idx=" + idx +
+               ", latestModification=" + latestModification +
+               '}';
+    }
+
     static void repairPaxosTopology()
     {
         Retry.Backoff retry = new Retry.Backoff(TCMMetrics.instance.repairPaxosTopologyRetries);
@@ -343,6 +374,12 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
         public static Serializer serializer = new Serializer();
 
         private SequenceKey(){}
+
+        @Override
+        public String toString()
+        {
+            return "Reconfigure CMS";
+        }
 
         public static class Serializer implements MetadataSerializer<SequenceKey>
         {

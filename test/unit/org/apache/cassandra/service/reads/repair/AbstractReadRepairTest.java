@@ -34,6 +34,7 @@ import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.Assert;
@@ -92,13 +93,22 @@ public abstract  class AbstractReadRepairTest
     static InetAddressAndPort target1;
     static InetAddressAndPort target2;
     static InetAddressAndPort target3;
+    static InetAddressAndPort remote1;
+    static InetAddressAndPort remote2;
+    static InetAddressAndPort remote3;
     static List<InetAddressAndPort> targets;
+    static List<InetAddressAndPort> remotes;
 
     static Replica replica1;
     static Replica replica2;
     static Replica replica3;
     static EndpointsForRange replicas;
-    static ReplicaPlan.ForRead<?, ?> replicaPlan;
+
+    static Replica remoteReplica1;
+    static Replica remoteReplica2;
+    static Replica remoteReplica3;
+    static EndpointsForRange remoteReplicas;
+
 
     static long now = TimeUnit.NANOSECONDS.toMicros(nanoTime());
     static DecoratedKey key;
@@ -215,6 +225,66 @@ public abstract  class AbstractReadRepairTest
     static void configureClass(ReadRepairStrategy repairStrategy) throws Throwable
     {
         ServerTestUtils.prepareServerNoRegister();
+
+        DatabaseDescriptor.setEndpointSnitch(new AbstractNetworkTopologySnitch()
+        {
+            public String getRack(InetAddressAndPort endpoint)
+            {
+                return "rack1";
+            }
+
+            public String getDatacenter(InetAddressAndPort endpoint)
+            {
+                byte[] address = endpoint.addressBytes;
+                if (address[1] == 2) {
+                    return "datacenter2";
+                }
+                return "datacenter1";
+            }
+        });
+
+        target1 = InetAddressAndPort.getByName("127.1.0.255");
+        target2 = InetAddressAndPort.getByName("127.1.0.254");
+        target3 = InetAddressAndPort.getByName("127.1.0.253");
+
+        remote1 = InetAddressAndPort.getByName("127.2.0.255");
+        remote2 = InetAddressAndPort.getByName("127.2.0.254");
+        remote3 = InetAddressAndPort.getByName("127.2.0.253");
+
+        targets = ImmutableList.of(target1, target2, target3);
+        remotes = ImmutableList.of(remote1, remote2, remote3);
+
+        replica1 = fullReplica(target1, FULL_RANGE);
+        replica2 = fullReplica(target2, FULL_RANGE);
+        replica3 = fullReplica(target3, FULL_RANGE);
+        replicas = EndpointsForRange.of(replica1, replica2, replica3);
+
+        remoteReplica1 = fullReplica(remote1, FULL_RANGE);
+        remoteReplica2 = fullReplica(remote2, FULL_RANGE);
+        remoteReplica3 = fullReplica(remote3, FULL_RANGE);
+        remoteReplicas = EndpointsForRange.of(remoteReplica1, remoteReplica2, remoteReplica3);
+
+        String dataCenter1 = "datacenter1";
+        String dataCenter2 = "datacenter2";
+        String rack = "rack1";
+        ClusterMetadataTestHelper.addEndpoint(replica1.endpoint(), new BytesToken(new byte[] { 0 }), dataCenter1, rack);
+        ClusterMetadataTestHelper.addEndpoint(replica2.endpoint(), new BytesToken(new byte[] { 1 }), dataCenter1, rack);
+        ClusterMetadataTestHelper.addEndpoint(replica3.endpoint(), new BytesToken(new byte[] { 2 }), dataCenter1, rack);
+        ClusterMetadataTestHelper.addEndpoint(remoteReplica1.endpoint(), new BytesToken(new byte[] { 0 }), dataCenter2, rack);
+        ClusterMetadataTestHelper.addEndpoint(remoteReplica2.endpoint(), new BytesToken(new byte[] { 1 }), dataCenter2, rack);
+        ClusterMetadataTestHelper.addEndpoint(remoteReplica3.endpoint(), new BytesToken(new byte[] { 2 }), dataCenter2, rack);
+
+        for (Replica replica : replicas)
+        {
+            UUID hostId = UUID.randomUUID();
+            Gossiper.instance.initializeNodeUnsafe(replica.endpoint(), hostId, 1);
+        }
+        for (Replica replica : remoteReplicas)
+        {
+            UUID hostId = UUID.randomUUID();
+            Gossiper.instance.initializeNodeUnsafe(replica.endpoint(), hostId, 1);
+        }
+
         String ksName = "ks";
 
         String ddl = String.format("CREATE TABLE tbl (k int primary key, v text) WITH read_repair='%s'",
@@ -222,7 +292,8 @@ public abstract  class AbstractReadRepairTest
 
         cfm = CreateTableStatement.parse(ddl, ksName).build();
         assert cfm.params.readRepair == repairStrategy;
-        KeyspaceMetadata ksm = KeyspaceMetadata.create(ksName, KeyspaceParams.simple(3), Tables.of(cfm));
+
+        KeyspaceMetadata ksm = KeyspaceMetadata.create(ksName, KeyspaceParams.nts("datacenter1", 3, "datacenter2", 3), Tables.of(cfm));
         SchemaTestUtil.announceNewKeyspace(ksm);
 
         ks = Keyspace.open(ksName);
@@ -230,27 +301,6 @@ public abstract  class AbstractReadRepairTest
 
         cfs.sampleReadLatencyMicros = 0;
         cfs.additionalWriteLatencyMicros = 0;
-
-        target1 = InetAddressAndPort.getByName("127.0.0.255");
-        target2 = InetAddressAndPort.getByName("127.0.0.254");
-        target3 = InetAddressAndPort.getByName("127.0.0.253");
-
-        targets = ImmutableList.of(target1, target2, target3);
-
-        replica1 = fullReplica(target1, FULL_RANGE);
-        replica2 = fullReplica(target2, FULL_RANGE);
-        replica3 = fullReplica(target3, FULL_RANGE);
-        replicas = EndpointsForRange.of(replica1, replica2, replica3);
-
-        replicaPlan = replicaPlan(ConsistencyLevel.QUORUM, replicas);
-
-        ClusterMetadataTestHelper.addEndpoint(replica1.endpoint(), new BytesToken(new byte[] { 0 }));
-        ClusterMetadataTestHelper.addEndpoint(replica2.endpoint(), new BytesToken(new byte[] { 1 }));
-        ClusterMetadataTestHelper.addEndpoint(replica3.endpoint(), new BytesToken(new byte[] { 2 }));
-
-        Gossiper.instance.initializeNodeUnsafe(replica1.endpoint(), UUID.randomUUID(), 1);
-        Gossiper.instance.initializeNodeUnsafe(replica2.endpoint(), UUID.randomUUID(), 1);
-        Gossiper.instance.initializeNodeUnsafe(replica3.endpoint(), UUID.randomUUID(), 1);
 
         // default test values
         key  = dk(5);
@@ -300,7 +350,7 @@ public abstract  class AbstractReadRepairTest
         EndpointsForToken live = liveAndDown.forToken(token);
         return new ReplicaPlan.ForWrite(readPlan.keyspace(),
                                         readPlan.replicationStrategy(),
-                                        ConsistencyLevel.TWO,
+                                        readPlan.consistencyLevel(),
                                         pending,
                                         live,
                                         live,
@@ -310,7 +360,7 @@ public abstract  class AbstractReadRepairTest
     }
     static ReplicaPlan.ForRangeRead replicaPlan(EndpointsForRange replicas, EndpointsForRange targets)
     {
-        return replicaPlan(ks, ConsistencyLevel.QUORUM, replicas, targets);
+        return replicaPlan(ks, ConsistencyLevel.LOCAL_QUORUM, replicas, targets);
     }
     static ReplicaPlan.ForRangeRead replicaPlan(Keyspace keyspace, ConsistencyLevel consistencyLevel, EndpointsForRange replicas)
     {

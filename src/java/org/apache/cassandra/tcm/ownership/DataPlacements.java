@@ -199,6 +199,12 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
             return this;
         }
 
+        public Builder without(ReplicationParams params)
+        {
+            map.remove(params);
+            return this;
+        }
+
         public DataPlacements build()
         {
             return new DataPlacements(Epoch.EMPTY, map);

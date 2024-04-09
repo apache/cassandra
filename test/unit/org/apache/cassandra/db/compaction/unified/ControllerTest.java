@@ -272,7 +272,7 @@ public class ControllerTest
         assertEquals(3 * (int) Controller.MAX_SHARD_SPLIT, controller.getNumShards(Math.scalb(10, 60)));
         assertEquals(3 * (int) Controller.MAX_SHARD_SPLIT, controller.getNumShards(Double.POSITIVE_INFINITY));
         // Check NaN
-        assertEquals(3, controller.getNumShards(Double.NaN));
+        assertEquals(1, controller.getNumShards(Double.NaN));
     }
 
     @Test
@@ -311,7 +311,7 @@ public class ControllerTest
         assertEquals(3, controller.getNumShards(Math.scalb(10, 60)));
         assertEquals(3, controller.getNumShards(Double.POSITIVE_INFINITY));
         // Check NaN
-        assertEquals(3, controller.getNumShards(Double.NaN));
+        assertEquals(1, controller.getNumShards(Double.NaN));
     }
 
     @Test
@@ -350,7 +350,7 @@ public class ControllerTest
         assertEquals(3 * (int) Controller.MAX_SHARD_SPLIT, controller.getNumShards(Math.scalb(10, 80)));
         assertEquals(3 * (int) Controller.MAX_SHARD_SPLIT, controller.getNumShards(Double.POSITIVE_INFINITY));
         // Check NaN
-        assertEquals(3, controller.getNumShards(Double.NaN));
+        assertEquals(1, controller.getNumShards(Double.NaN));
     }
 
     @Test
@@ -388,7 +388,7 @@ public class ControllerTest
         assertEquals(3 * (int) Controller.MAX_SHARD_SPLIT, controller.getNumShards(Math.scalb(600, 50)));
         assertEquals(3 * (int) Controller.MAX_SHARD_SPLIT, controller.getNumShards(Math.scalb(10, 60)));
         assertEquals(3 * (int) Controller.MAX_SHARD_SPLIT, controller.getNumShards(Double.POSITIVE_INFINITY));
-        assertEquals(3, controller.getNumShards(Double.NaN));
+        assertEquals(1, controller.getNumShards(Double.NaN));
     }
 
     @Test

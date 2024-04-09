@@ -36,7 +36,7 @@
     <property name="base.version" value="5.1"/>
     <property name="scm.connection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.developerConnection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
-    <property name="scm.url" value="https://gitbox.apache.org/repos/asf?p=cassandra.git;a=tree"/>
+    <property name="scm.url" value="https://gitbox.apache.org/repos/asf?p=cassandra.git"/>
 
     <!-- JDKs supported.
         All releases are built with the default JDK.
@@ -59,6 +59,8 @@
     <property name="build.dir" value="${basedir}/build"/>
     <property name="build.dir.lib" value="${build.dir}/lib"/>
     <property name="build.test.dir" value="${build.dir}/test"/>
+    <property name="build.test.output.dir" value="${build.test.dir}/output"/>
+    <property name="build.test.report.dir" value="${build.test.dir}/reports" />
     <property name="build.classes" value="${build.dir}/classes"/>
     <property name="build.classes.main" value="${build.classes}/main" />
     <property name="javadoc.dir" value="${build.dir}/javadoc"/>
@@ -604,8 +606,8 @@
     -->
     <target name="stress-test-some" depends="maybe-build-test" description="Runs stress tests">
         <testmacro inputdir="${stress.test.src}" timeout="${test.timeout}">
-          <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}-${test.methods}"/>
-          <test if:blank="${test.methods}" name="${test.name}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}"/>
+          <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}-${test.methods}"/>
+          <test if:blank="${test.methods}" name="${test.name}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}"/>
         </testmacro>
     </target>
 
@@ -1144,8 +1146,8 @@
         </classpath>
       </taskdef>
       <mkdir dir="${build.test.dir}/cassandra"/>
-      <mkdir dir="${build.test.dir}/output"/>
-      <mkdir dir="${build.test.dir}/output/@{testtag}"/>
+      <mkdir dir="${build.test.output.dir}"/>
+      <mkdir dir="${build.test.output.dir}/@{testtag}"/>
       <mkdir dir="${tmp.dir}"/>
       <junit-timeout fork="on" forkmode="@{forkmode}" failureproperty="testfailed" maxmemory="1024m" timeout="@{timeout}" showoutput="@{showoutput}">
         <formatter classname="org.apache.cassandra.CassandraXMLJUnitResultFormatter" extension=".xml" usefile="true"/>
@@ -1208,7 +1210,7 @@
               <exclude name="**/ant-*.jar"/>
           </fileset>
         </classpath>
-        <batchtest todir="${build.test.dir}/output/@{testtag}">
+        <batchtest todir="${build.test.output.dir}/@{testtag}">
             <fileset dir="@{inputdir}" includes="@{filter}" excludes="@{exclude}"/>
             <filelist dir="@{inputdir}" files="@{filelist}"/>
         </batchtest>
@@ -1296,22 +1298,22 @@
     </sequential>
   </macrodef>
 
-    <macrodef name="testlist-trie">
+    <macrodef name="testlist-latest">
         <attribute name="test.file.list" />
         <sequential>
-            <property name="trie_yaml" value="${build.test.dir}/cassandra.trie.yaml"/>
-            <concat destfile="${trie_yaml}">
+            <property name="latest_yaml" value="${build.test.dir}/cassandra.latest.yaml"/>
+            <concat destfile="${latest_yaml}">
                 <fileset file="${test.conf}/cassandra.yaml"/>
-                <fileset file="${test.conf}/trie_memtable.yaml"/>
+                <fileset file="${test.conf}/latest_diff.yaml"/>
                 <fileset file="${test.conf}/storage_compatibility_mode_none.yaml"/>
             </concat>
             <testmacrohelper inputdir="${test.unit.src}" filelist="@{test.file.list}"
-                             exclude="**/*.java" timeout="${test.timeout}" testtag="trie">
+                             exclude="**/*.java" timeout="${test.timeout}" testtag="latest">
                 <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
                 <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
                 <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
                 <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
-                <jvmarg value="-Dcassandra.config=file:///${trie_yaml}"/>
+                <jvmarg value="-Dcassandra.config=file:///${latest_yaml}"/>
                 <jvmarg value="-Dcassandra.test.storage_compatibility_mode=NONE"/>
                 <jvmarg value="-Dcassandra.skip_sync=true" />
             </testmacrohelper>
@@ -1377,8 +1379,8 @@
   -->
   <target name="testsome" depends="maybe-build-test" description="Execute specific unit tests" >
     <testmacro inputdir="${test.unit.src}" timeout="${test.timeout}">
-      <test if="withMethods" name="${test.name}" methods="${test.methods}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}-${test.methods}"/>
-      <test if="withoutMethods" name="${test.name}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}"/>
+      <test if="withMethods" name="${test.name}" methods="${test.methods}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}-${test.methods}"/>
+      <test if="withoutMethods" name="${test.name}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}"/>
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
@@ -1393,8 +1395,8 @@
   -->
   <target name="long-testsome" depends="maybe-build-test" description="Execute specific long unit tests" >
     <testmacro inputdir="${test.long.src}" timeout="${test.long.timeout}">
-      <test if="withMethods" name="${test.name}" methods="${test.methods}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}-${test.methods}"/>
-      <test if="withoutMethods" name="${test.name}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}"/>
+      <test if="withMethods" name="${test.name}" methods="${test.methods}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}-${test.methods}"/>
+      <test if="withoutMethods" name="${test.name}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
     </testmacro>
@@ -1406,8 +1408,8 @@
   -->
   <target name="burn-testsome" depends="maybe-build-test" description="Execute specific burn unit tests" >
     <testmacro inputdir="${test.burn.src}" timeout="${test.burn.timeout}">
-      <test if="withMethods" name="${test.name}" methods="${test.methods}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}-${test.methods}"/>
-      <test if="withoutMethods" name="${test.name}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}"/>
+      <test if="withMethods" name="${test.name}" methods="${test.methods}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}-${test.methods}"/>
+      <test if="withoutMethods" name="${test.name}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}"/>
       <jvmarg value="-Dlogback.configurationFile=test/conf/logback-burntest.xml"/>
     </testmacro>
   </target>
@@ -1429,12 +1431,12 @@
     <testhelper testdelegate="testlist-cdc" />
   </target>
 
-  <target name="test-trie" depends="maybe-build-test" description="Execute unit tests with trie memtables">
+  <target name="test-latest" depends="maybe-build-test" description="Execute unit tests with configuration matching cassandra_latest.yaml">
     <path id="all-test-classes-path">
       <fileset dir="${test.unit.src}" includes="**/${test.name}.java" />
     </path>
     <property name="all-test-classes" refid="all-test-classes-path"/>
-    <testhelper testdelegate="testlist-trie" />
+    <testhelper testdelegate="testlist-latest" />
   </target>
 
   <target name="test-oa" depends="maybe-build-test" description="Test Runner for the oa sstable format">
@@ -1504,7 +1506,7 @@
     <sequential>
       <echo message="running CQL tests"/>
       <mkdir dir="${build.test.dir}/cassandra"/>
-      <mkdir dir="${build.test.dir}/output"/>
+      <mkdir dir="${build.test.output.dir}"/>
       <junit fork="on" forkmode="once" failureproperty="testfailed" maxmemory="1024m" timeout="${test.timeout}">
         <formatter type="brief" usefile="false"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
@@ -1523,7 +1525,7 @@
             <include name="**/*.jar" />
           </fileset>
         </classpath>
-        <batchtest todir="${build.test.dir}/output">
+        <batchtest todir="${build.test.output.dir}">
             <fileset dir="${test.unit.src}" includes="**/cql3/*Test.java">
                 <contains text="CQLTester" casesensitive="yes"/>
             </fileset>
@@ -1550,7 +1552,7 @@
     <sequential>
       <echo message="running ${test.methods} tests from ${test.name}"/>
       <mkdir dir="${build.test.dir}/cassandra"/>
-      <mkdir dir="${build.test.dir}/output"/>
+      <mkdir dir="${build.test.output.dir}"/>
       <junit fork="on" forkmode="once" failureproperty="testfailed" maxmemory="1024m" timeout="${test.timeout}">
         <formatter type="brief" usefile="false"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
@@ -1569,8 +1571,8 @@
             <include name="**/*.jar" />
           </fileset>
         </classpath>
-        <test unless:blank="${test.methods}" name="org.apache.cassandra.cql3.${test.name}" methods="${test.methods}" todir="${build.test.dir}/output"/>
-        <test if:blank="${test.methods}" name="org.apache.cassandra.cql3.${test.name}" todir="${build.test.dir}/output"/>
+        <test unless:blank="${test.methods}" name="org.apache.cassandra.cql3.${test.name}" methods="${test.methods}" todir="${build.test.output.dir}"/>
+        <test if:blank="${test.methods}" name="org.apache.cassandra.cql3.${test.name}" todir="${build.test.output.dir}"/>
       </junit>
     </sequential>
   </target>
@@ -1666,15 +1668,6 @@
     <testhelper testdelegate="testlist"/>
   </target>
 
-  <target name="generate-test-report" description="Generates JUnit's HTML report from results already in build/output">
-      <junitreport todir="${build.test.dir}">
-        <fileset dir="${build.test.dir}/output">
-          <include name="**/TEST-*.xml"/>
-        </fileset>
-        <report format="frames" todir="${build.test.dir}/junitreport"/>
-      </junitreport>
-  </target>
-
   <!-- run a list of tests as provided in -Dtest.classlistfile (or default of 'testnames.txt')
   The class list file should be one test class per line, with the path starting after test/unit
   e.g. org/apache/cassandra/hints/HintMessageTest.java -->
@@ -1699,12 +1692,12 @@
       <property name="all-test-classes" refid="all-test-classes-path"/>
       <testhelper testdelegate="testlist-compression"/>
   </target>
-  <target name="testclasslist-trie" depends="maybe-build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
+  <target name="testclasslist-latest" depends="maybe-build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
     <path id="all-test-classes-path">
         <fileset dir="${test.dir}/${test.classlistprefix}" includesfile="${test.classlistfile}"/>
     </path>
     <property name="all-test-classes" refid="all-test-classes-path"/>
-    <testhelper testdelegate="testlist-trie"/>
+    <testhelper testdelegate="testlist-latest"/>
   </target>
   <target name="testclasslist-cdc" depends="maybe-build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
       <path id="all-test-classes-path">
@@ -1774,7 +1767,17 @@
     </testmacro>
   </target>
 
-  <property name="simulator.asm.print" value="none"/> <!-- Supports: NONE, CLASS_SUMMARY, CLASS_DETAIL, METHOD_SUMMARY, METHOD_DETAIL, ASM; see org.apache.cassandra.simulator.asm.MethodLogger.Level -->
+  <target name="test-jvm-dtest-latest" depends="maybe-build-test" description="Execute in-jvm dtests with latest configuration">
+    <testmacro inputdir="${test.distributed.src}" timeout="${test.distributed.timeout}" forkmode="once" showoutput="true" filter="**/test/${test.name}.java">
+      <jvmarg value="-Djvm_dtests.latest=true"/>
+      <jvmarg value="-Dlogback.configurationFile=test/conf/logback-dtest.xml"/>
+      <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
+      <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
+      <jvmarg value="-Dcassandra.skip_sync=true" />
+    </testmacro>
+  </target>
+
+    <property name="simulator.asm.print" value="none"/> <!-- Supports: NONE, CLASS_SUMMARY, CLASS_DETAIL, METHOD_SUMMARY, METHOD_DETAIL, ASM; see org.apache.cassandra.simulator.asm.MethodLogger.Level -->
   <target name="test-simulator-dtest" depends="maybe-build-test" description="Execute simulator dtests">
     <testmacro inputdir="${test.simulator-test.src}" timeout="${test.simulation.timeout}" forkmode="perTest" showoutput="true" filter="**/test/${test.name}.java">
       <jvmarg value="-Dlogback.configurationFile=test/conf/logback-simulator.xml"/>
@@ -1817,8 +1820,8 @@
     -->
   <target name="test-jvm-dtest-some" depends="maybe-build-test" description="Execute some in-jvm dtests">
     <testmacro inputdir="${test.distributed.src}" timeout="${test.distributed.timeout}" forkmode="once" showoutput="true">
-      <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}-${test.methods}"/>
-      <test if:blank="${test.methods}" name="${test.name}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}"/>
+      <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}-${test.methods}"/>
+      <test if:blank="${test.methods}" name="${test.name}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}"/>
       <jvmarg value="-Dlogback.configurationFile=test/conf/logback-dtest.xml"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
@@ -1827,19 +1830,32 @@
     </testmacro>
   </target>
 
-  <target name="generate-unified-test-report" description="Merge all unit xml files into one, generate html pages, and print summary test numbers">
-      <junitreport todir="${build.dir}">
-          <fileset dir="${build.test.dir}/output">
-              <include name="**/TEST*.xml"/>
-              <include name="**/cqlshlib.xml"/>
-              <include name="**/nosetests.xml"/>
+  <target name="test-jvm-dtest-latest-some" depends="maybe-build-test" description="Execute some in-jvm dtests with latest configuration">
+    <testmacro inputdir="${test.distributed.src}" timeout="${test.distributed.timeout}" forkmode="once" showoutput="true">
+      <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}-${test.methods}"/>
+      <test if:blank="${test.methods}" name="${test.name}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}"/>
+      <jvmarg value="-Djvm_dtests.latest=true"/>
+      <jvmarg value="-Dlogback.configurationFile=test/conf/logback-dtest.xml"/>
+      <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
+      <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
+      <jvmarg value="-Dcassandra.skip_sync=true" />
+    </testmacro>
+  </target>
+
+  <target name="generate-test-report" description="Merge all unit xml files into one, generate html pages, and print summary test numbers">
+      <echo message="Generating Test Summary for test files found under ${build.test.output.dir}" />
+      <mkdir dir="${build.test.report.dir}/unitTestReport"/>
+      <junitreport todir="${build.test.report.dir}/unitTestReport">
+          <fileset dir="${build.test.output.dir}">
+              <include name="**/TEST-*.xml"/>
+              <include name="**/cqlshlib*.xml"/>
+              <include name="**/nosetests*.xml"/>
           </fileset>
-          <!-- FIXME this can easily OOM, need a workaround-->
-          <report todir="${build.test.dir}/html" />
+          <report todir="${build.test.report.dir}/unitTestReport/html" unless:true="${print-summary.skip}" />
       </junitreport>
       <!-- concat the report through a filter chain to extract what you want -->
-      <concat>
-          <fileset file="${build.test.dir}/html/overview-summary.html" />
+      <concat unless:true="${print-summary.skip}">
+          <fileset file="${build.test.report.dir}/unitTestReport/html/overview-summary.html" />
           <filterchain>
               <linecontainsregexp>
                   <regexp pattern='title="Display all tests"' />

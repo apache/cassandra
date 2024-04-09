@@ -565,6 +565,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         VersionedValue shutdown = remoteState.getApplicationState(ApplicationState.STATUS_WITH_PORT);
         if (shutdown == null)
             throw new AssertionError("Remote shutdown sent but missing STATUS_WITH_PORT; " + remoteState);
+        remoteState.getHeartBeatState().forceHighestPossibleVersionUnsafe();
         endpointStateMap.put(endpoint, remoteState);
         markDead(endpoint, remoteState);
         FailureDetector.instance.forceConviction(endpoint);
@@ -1057,6 +1058,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         return reqdEndpointState;
     }
 
+    @Override
     public void notifyFailureDetector(Map<InetAddressAndPort, EndpointState> remoteEpStateMap)
     {
         for (Entry<InetAddressAndPort, EndpointState> entry : remoteEpStateMap.entrySet())
@@ -1342,6 +1344,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
     }
 
     @VisibleForTesting
+    @Override
     public void applyStateLocally(Map<InetAddressAndPort, EndpointState> epStateMap)
     {
         checkProperThreadForStateMutation();

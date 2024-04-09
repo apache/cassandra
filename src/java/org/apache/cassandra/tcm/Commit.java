@@ -33,7 +33,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.TCMMetrics;
-import org.apache.cassandra.tcm.log.Replication;
+import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.net.*;
@@ -92,7 +92,11 @@ public class Commit
 
         public void serialize(Commit t, DataOutputPlus out, int version) throws IOException
         {
-            out.writeInt(serializationVersion.asInt());
+            out.writeUnsignedVInt32(serializationVersion.asInt());
+
+            if (serializationVersion.isAtLeast(Version.V2))
+                out.writeUnsignedVInt32(ClusterMetadata.current().metadataIdentifier);
+
             Entry.Id.serializer.serialize(t.entryId, out, serializationVersion);
             Transformation.transformationSerializer.serialize(t.transform, out, serializationVersion);
             Epoch.serializer.serialize(t.lastKnown, out, serializationVersion);
@@ -100,7 +104,11 @@ public class Commit
 
         public Commit deserialize(DataInputPlus in, int version) throws IOException
         {
-            Version deserializationVersion = Version.fromInt(in.readInt());
+            Version deserializationVersion = Version.fromInt(in.readUnsignedVInt32());
+
+            if (deserializationVersion.isAtLeast(Version.V2))
+                ClusterMetadata.checkIdentifier(in.readUnsignedVInt32());
+
             Entry.Id entryId = Entry.Id.serializer.deserialize(in, deserializationVersion);
             Transformation transform = Transformation.transformationSerializer.deserialize(in, deserializationVersion);
             Epoch lastKnown = Epoch.serializer.deserialize(in, deserializationVersion);
@@ -109,7 +117,12 @@ public class Commit
 
         public long serializedSize(Commit t, int version)
         {
-            return TypeSizes.sizeof(serializationVersion.asInt()) +
+            int size = TypeSizes.sizeofUnsignedVInt(serializationVersion.asInt());
+
+            if (serializationVersion.isAtLeast(Version.V2))
+                size += TypeSizes.sizeofUnsignedVInt(ClusterMetadata.current().metadataIdentifier);
+
+            return size +
                    Transformation.transformationSerializer.serializedSize(t.transform, serializationVersion) +
                    Entry.Id.serializer.serializedSize(t.entryId, serializationVersion) +
                    Epoch.serializer.serializedSize(t.lastKnown, serializationVersion);
@@ -117,8 +130,11 @@ public class Commit
     }
 
     static volatile Result.Serializer resultSerializerCache;
-    public static interface Result
+    public interface Result
     {
+        IVersionedSerializer<Result> defaultMessageSerializer = new Serializer(NodeVersion.CURRENT.serializationVersion());
+
+        LogState logState();
         boolean isSuccess();
         boolean isFailure();
 
@@ -131,7 +147,6 @@ public class Commit
         {
             return (Failure) this;
         }
-        IVersionedSerializer<Result> defaultMessageSerializer = new Serializer(NodeVersion.CURRENT.serializationVersion());
 
         static IVersionedSerializer<Result> messageSerializer(Version version)
         {
@@ -146,12 +161,12 @@ public class Commit
         final class Success implements Result
         {
             public final Epoch epoch;
-            public final Replication replication;
+            public final LogState logState;
 
-            public Success(Epoch epoch, Replication replication)
+            public Success(Epoch epoch, LogState logState)
             {
                 this.epoch = epoch;
-                this.replication = replication;
+                this.logState = logState;
             }
 
             @Override
@@ -159,8 +174,14 @@ public class Commit
             {
                 return "Success{" +
                        "epoch=" + epoch +
-                       ", replication=" + replication +
+                       ", logState=" + logState +
                        '}';
+            }
+
+            @Override
+            public LogState logState()
+            {
+                return logState;
             }
 
             public boolean isSuccess()
@@ -174,6 +195,16 @@ public class Commit
             }
         }
 
+        static Failure rejected(ExceptionCode exceptionCode, String reason, LogState logState)
+        {
+            return new Failure(exceptionCode, reason, logState, true);
+        }
+
+        static Failure failed(ExceptionCode exceptionCode, String message)
+        {
+            return new Failure(exceptionCode, message, LogState.EMPTY, false);
+        }
+
         final class Failure implements Result
         {
             public final ExceptionCode code;
@@ -181,8 +212,9 @@ public class Commit
             // Rejection means that we were able to linearize the operation,
             // but it was rejected by the internal logic of the transformation.
             public final boolean rejected;
+            public final LogState logState;
 
-            public Failure(ExceptionCode code, String message, boolean rejected)
+            private Failure(ExceptionCode code, String message, LogState logState, boolean rejected)
             {
                 if (message == null)
                     message = "";
@@ -190,6 +222,7 @@ public class Commit
                 // TypeSizes#sizeOf encoder only allows strings that are up to Short.MAX_VALUE bytes large
                 this.message =  message.substring(0, Math.min(message.length(), Short.MAX_VALUE));
                 this.rejected = rejected;
+                this.logState = logState;
             }
 
             @Override
@@ -200,6 +233,12 @@ public class Commit
                        "message='" + message + '\'' +
                        "rejected=" + rejected +
                        '}';
+            }
+
+            @Override
+            public LogState logState()
+            {
+                return logState;
             }
 
             public boolean isSuccess()
@@ -233,7 +272,7 @@ public class Commit
                 {
                     out.writeByte(SUCCESS);
                     out.writeUnsignedVInt32(serializationVersion.asInt());
-                    Replication.serializer.serialize(t.success().replication, out, serializationVersion);
+                    LogState.metadataSerializer.serialize(t.logState(), out, serializationVersion);
                     Epoch.serializer.serialize(t.success().epoch, out, serializationVersion);
                 }
                 else
@@ -243,6 +282,8 @@ public class Commit
                     out.writeByte(failure.rejected ? REJECTED : FAILED);
                     out.writeUnsignedVInt32(failure.code.value);
                     out.writeUTF(failure.message);
+                    out.writeUnsignedVInt32(serializationVersion.asInt());
+                    LogState.metadataSerializer.serialize(t.logState(), out, serializationVersion);
                 }
             }
 
@@ -253,14 +294,19 @@ public class Commit
                 if (b == SUCCESS)
                 {
                     Version deserializationVersion = Version.fromInt(in.readUnsignedVInt32());
-                    Replication delta = Replication.serializer.deserialize(in, deserializationVersion);
+                    LogState delta = LogState.metadataSerializer.deserialize(in, deserializationVersion);
                     Epoch epoch = Epoch.serializer.deserialize(in, deserializationVersion);
                     return new Success(epoch, delta);
                 }
                 else
                 {
-                    return new Failure(ExceptionCode.fromValue(in.readUnsignedVInt32()),
-                                       in.readUTF(),
+                    ExceptionCode exceptionCode = ExceptionCode.fromValue(in.readUnsignedVInt32());
+                    String message = in.readUTF();
+                    Version deserializationVersion = Version.fromInt(in.readUnsignedVInt32());
+                    LogState delta = LogState.metadataSerializer.deserialize(in, deserializationVersion);
+                    return new Failure(exceptionCode,
+                                       message,
+                                       delta,
                                        b == REJECTED);
                 }
             }
@@ -272,7 +318,7 @@ public class Commit
                 if (t instanceof Success)
                 {
                     size += VIntCoding.computeUnsignedVIntSize(serializationVersion.asInt());
-                    size += Replication.serializer.serializedSize(t.success().replication, serializationVersion);
+                    size += LogState.metadataSerializer.serializedSize(t.logState(), serializationVersion);
                     size += Epoch.serializer.serializedSize(t.success().epoch, serializationVersion);
                 }
                 else
@@ -280,6 +326,8 @@ public class Commit
                     assert t instanceof Failure;
                     size += VIntCoding.computeUnsignedVIntSize(((Failure) t).code.value);
                     size += TypeSizes.sizeof(((Failure)t).message);
+                    size += VIntCoding.computeUnsignedVIntSize(serializationVersion.asInt());
+                    size += LogState.metadataSerializer.serializedSize(t.logState(), serializationVersion);
                 }
                 return size;
             }
@@ -383,9 +431,9 @@ public class Commit
             // one as there may have been a new period automatically triggered and we'd like to push that out to all
             // peers too. Of course, there may be other entries interspersed with these but it doesn't harm anything to
             // include those too, it may simply be redundant.
-            Replication newlyCommitted = success.replication.retainFrom(success.epoch);
+            LogState newlyCommitted = success.logState.retainFrom(success.epoch);
             assert !newlyCommitted.isEmpty() : String.format("Nothing to replicate after retaining epochs since %s from %s",
-                                                             success.epoch, success.replication);
+                                                             success.epoch, success.logState);
 
             for (NodeId peerId : directory.peerIds())
             {

@@ -1,0 +1,63 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# This file changes the configuration for tests to match the
+# cassandra_latest.yaml file, which enables new features.
+
+# This file was constructed by running:
+# `diff conf/cassandra.yaml conf/cassandra_latest.yaml  | grep '^>' | cut -c 3-`
+# and moving the `default: inherits: trie` lines to the start of the file.
+# On any change to this file, please also update
+# test/distributed/org/apache/cassandra/distributed/impl/InstanceConfig.java
+
+# Change default memtable implementation to TrieMemtable
+# Note: this attaches at the end of cassandra.yaml, where the memtable configuration setting must be.
+        default:
+            inherits: trie
+
+key_cache_size: 0MiB
+
+memtable_allocation_type: offheap_objects
+
+commitlog_disk_access_mode: auto
+
+trickle_fsync: true
+
+sstable:
+  selected_format: bti
+
+column_index_size: 4KiB
+
+default_compaction:
+  class_name: UnifiedCompactionStrategy
+  parameters:
+    scaling_parameters: T4
+    max_sstables_to_compact: 64
+    target_sstable_size: 1GiB
+    sstable_growth: 0.3333333333333333
+    min_sstable_size: 100MiB
+
+concurrent_compactors: 8
+
+uuid_sstable_identifiers_enabled: true
+
+stream_entire_sstables: true
+
+default_secondary_index: sai
+default_secondary_index_enabled: true
+
+storage_compatibility_mode: NONE

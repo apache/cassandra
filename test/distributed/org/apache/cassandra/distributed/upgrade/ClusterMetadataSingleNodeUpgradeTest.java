@@ -33,13 +33,13 @@ public class ClusterMetadataSingleNodeUpgradeTest extends UpgradeTestBase
         .nodesToUpgrade(1)
         .withConfig((cfg) -> cfg.with(Feature.NETWORK, Feature.GOSSIP)
                                 .set(Constants.KEY_DTEST_FULL_STARTUP, true))
-        .upgradesToCurrentFrom(v41)
+        .upgradesToCurrentFrom(v50)
         .setup((cluster) -> {
             cluster.schemaChange(withKeyspace("ALTER KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor':1}"));
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
         })
         .runAfterClusterUpgrade((cluster) -> {
-            cluster.get(1).nodetoolResult("initializecms").asserts().success();
+            cluster.get(1).nodetoolResult("cms", "initialize").asserts().success();
             // make sure we can execute transformations:
             cluster.schemaChange(withKeyspace("ALTER TABLE %s.tbl with comment = 'hello123'"));
         }).run();

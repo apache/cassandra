@@ -156,6 +156,7 @@ import org.apache.cassandra.metrics.SamplingManager;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairCoordinator;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -174,7 +175,7 @@ import org.apache.cassandra.service.paxos.PaxosCommit;
 import org.apache.cassandra.service.paxos.PaxosRepair;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupLocalCoordinator;
-import org.apache.cassandra.service.paxos.cleanup.PaxosTableRepairs;
+import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.streaming.StreamManager;
@@ -484,11 +485,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         jmxObjectName = "org.apache.cassandra.db:type=StorageService";
 
         sstablesTracker = new SSTablesGlobalTracker(DatabaseDescriptor.getSelectedSSTableFormat());
-        registerMBeans();
     }
 
-    private void registerMBeans()
+    public void registerMBeans()
     {
+        logger.info("Initializing storage service mbean");
         MBeanWrapper.instance.registerMBean(this, jmxObjectName);
         MBeanWrapper.instance.registerMBean(StreamManager.instance, StreamManager.OBJECT_NAME);
     }
@@ -1967,13 +1968,24 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         ClusterMetadata metadata = ClusterMetadata.current();
         KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaces().getNullable(keyspace);
-        TokenMap tokenMap = metadata.tokenMap;
-
         Map<Range<Token>, EndpointsForRange> rangeToEndpointMap = new HashMap<>(ranges.size());
-        for (Range<Token> range : ranges)
+        if (null != keyspaceMetadata)
         {
-            Token token = tokenMap.nextToken(tokenMap.tokens(), range.right.getToken());
-            rangeToEndpointMap.put(range, metadata.placements.get(keyspaceMetadata.params.replication).reads.forRange(token).get());
+            TokenMap tokenMap = metadata.tokenMap;
+
+            for (Range<Token> range : ranges)
+            {
+                Token token = tokenMap.nextToken(tokenMap.tokens(), range.right.getToken());
+                rangeToEndpointMap.put(range, metadata.placements.get(keyspaceMetadata.params.replication)
+                                              .reads.forRange(token).get());
+            }
+        }
+        else
+        {
+            // Handling the keyspaces which are not handled by CMS like system keyspace which uses LocalStrategy.
+            AbstractReplicationStrategy strategy = Keyspace.open(keyspace).getReplicationStrategy();
+            for (Range<Token> range : ranges)
+                rangeToEndpointMap.put(range, strategy.calculateNaturalReplicas(range.right, metadata));
         }
 
         return new EndpointsByRange(rangeToEndpointMap);
@@ -3322,7 +3334,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             return ImmediateFuture.success(null);
 
         Collection<Range<Token>> ranges = getLocalAndPendingRanges(table.keyspace);
-        PaxosCleanupLocalCoordinator coordinator = PaxosCleanupLocalCoordinator.createForAutoRepair(tableId, ranges);
+        PaxosCleanupLocalCoordinator coordinator = PaxosCleanupLocalCoordinator.createForAutoRepair(SharedContext.Global.instance, tableId, ranges);
         ScheduledExecutors.optionalTasks.submit(coordinator::start);
         return coordinator;
     }
@@ -3642,7 +3654,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 MultiStepOperation<?> seq = metadata.inProgressSequences.get(nodeId);
                 if (seq != null && seq.kind() == MultiStepOperation.Kind.REMOVE)
                 {
-                    sb.append("Removing node ").append(nodeId).append(" (").append(metadata.directory.endpoint(nodeId)).append(')').append(": ").append(seq.status());
+                    sb.append("Removing node ").append(nodeId.toUUID()).append(" (").append(metadata.directory.endpoint(nodeId)).append(')').append(": ").append(seq.status());
                     found = true;
                 }
             }
@@ -5405,7 +5417,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void clearPaxosRepairs()
     {
         logger.info("StorageService#clearPaxosRepairs called via jmx");
-        PaxosTableRepairs.clearRepairs();
+        PaxosRepairState.instance().clearRepairs();
     }
 
     public void setSkipPaxosRepairCompatibilityCheck(boolean v)

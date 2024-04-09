@@ -46,6 +46,7 @@ import org.apache.cassandra.gms.GossipDigestSyn;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.OutboundConnectionInitiator.Result.MessagingSuccess;
 import org.apache.cassandra.security.DefaultSslContextFactory;
+import org.apache.cassandra.transport.TlsTestUtils;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
 import static org.apache.cassandra.net.ConnectionType.SMALL_MESSAGES;
@@ -276,12 +277,12 @@ public class HandshakeTest
     private ServerEncryptionOptions getServerEncryptionOptions(SslFallbackConnectionType sslConnectionType, boolean optional)
     {
         ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions().withOptional(optional)
-                                                                                       .withKeyStore("test/conf/cassandra_ssl_test.keystore")
-                                                                                       .withKeyStorePassword("cassandra")
-                                                                                       .withOutboundKeystore("test/conf/cassandra_ssl_test_outbound.keystore")
-                                                                                       .withOutboundKeystorePassword("cassandra")
-                                                                                       .withTrustStore("test/conf/cassandra_ssl_test.truststore")
-                                                                                       .withTrustStorePassword("cassandra")
+                                                                                       .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH)
+                                                                                       .withKeyStorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
+                                                                                       .withOutboundKeystore(TlsTestUtils.SERVER_OUTBOUND_KEYSTORE_PATH)
+                                                                                       .withOutboundKeystorePassword(TlsTestUtils.SERVER_OUTBOUND_KEYSTORE_PASSWORD)
+                                                                                       .withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PATH)
+                                                                                       .withTrustStorePassword(TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD)
                                                                                        .withSslContextFactory((new ParameterizedClass(DefaultSslContextFactory.class.getName(),
                                                                                                                                       new HashMap<>())));
         if (sslConnectionType == SslFallbackConnectionType.MTLS)

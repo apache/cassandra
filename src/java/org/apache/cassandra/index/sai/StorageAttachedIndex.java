@@ -33,8 +33,6 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CompletableFuture; //checkstyle: permit this import
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
@@ -44,8 +42,8 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.util.concurrent.Futures; //checkstyle: permit this import
-import com.google.common.util.concurrent.ListenableFuture; //checkstyle: permit this import
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -109,6 +107,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_MAX_FROZEN_TERM_SIZE;
@@ -826,7 +825,7 @@ public class StorageAttachedIndex implements Index
         {
             logger.debug(indexIdentifier.logMessage("Skipping validation and building in initialization task, as pre-join has already made the storage-attached index queryable..."));
             initBuildStarted = true;
-            return CompletableFuture.completedFuture(null);
+            return ImmediateFuture.success(null);
         }
 
         // stop in-progress compaction tasks to prevent compacted sstable not being indexed.
@@ -852,13 +851,11 @@ public class StorageAttachedIndex implements Index
         List<SSTableReader> nonIndexed = findNonIndexedSSTables(baseCfs, indexGroup, validation);
 
         if (nonIndexed.isEmpty())
-        {
-            return CompletableFuture.completedFuture(null);
-        }
+            return ImmediateFuture.success(null);
 
         // split sorted sstables into groups with similar size and build each group in separate compaction thread
         List<List<SSTableReader>> groups = groupBySize(nonIndexed, DatabaseDescriptor.getConcurrentIndexBuilders());
-        List<ListenableFuture<?>> futures = new ArrayList<>();
+        List<Future<?>> futures = new ArrayList<>();
 
         for (List<SSTableReader> group : groups)
         {
@@ -869,7 +866,7 @@ public class StorageAttachedIndex implements Index
         }
 
         logger.info(indexIdentifier.logMessage("Submitting {} parallel initial index builds over {} total sstables..."), futures.size(), nonIndexed.size());
-        return Futures.allAsList(futures);
+        return FutureCombiner.allOf(futures);
     }
 
     private Future<?> startPreJoinTask()

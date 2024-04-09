@@ -213,6 +213,16 @@ public class AuditLoggerAuthTest
     }
 
     @Test
+    public void testCqlLISTSUPERUSERSAuditing()
+    {
+        String cql = "LIST SUPERUSERS";
+        executeWithCredentials(Arrays.asList(cql), CASS_USER, CASS_PW, AuditLogEntryType.LOGIN_SUCCESS);
+        assertTrue(getInMemAuditLogger().size() > 0);
+        AuditLogEntry logEntry = getInMemAuditLogger().poll();
+        assertLogEntry(logEntry, AuditLogEntryType.LIST_SUPERUSERS, cql, CASS_USER, "");
+    }
+
+    @Test
     public void testCqlLISTPERMISSIONSAuditing()
     {
         String cql = "LIST ALL";

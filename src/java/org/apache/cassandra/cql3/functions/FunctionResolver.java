@@ -29,7 +29,6 @@ import org.apache.cassandra.cql3.terms.Marker;
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.UserFunctions;
@@ -49,27 +48,6 @@ public final class FunctionResolver
                                        receiverTable,
                                        new ColumnIdentifier("arg" + i + '(' + fun.name().toString().toLowerCase() + ')', true),
                                        fun.argTypes().get(i));
-    }
-
-    /**
-     * @param keyspace the current keyspace
-     * @param name the name of the function
-     * @param providedArgs the arguments provided for the function call
-     * @param receiverKeyspace the receiver's keyspace
-     * @param receiverTable the receiver's table
-     * @param receiverType if the receiver type is known (during inserts, for example), this should be the type of
-     *                     the receiver
-     */
-    @Nullable
-    public static Function get(String keyspace,
-                               FunctionName name,
-                               List<? extends AssignmentTestable> providedArgs,
-                               String receiverKeyspace,
-                               String receiverTable,
-                               AbstractType<?> receiverType)
-    throws InvalidRequestException
-    {
-        return get(keyspace, name, providedArgs, receiverKeyspace, receiverTable, receiverType, UserFunctions.none());
     }
 
     /**
@@ -123,7 +101,6 @@ public final class FunctionResolver
         {
             // function name is fully qualified (keyspace + name)
             candidates.addAll(functions.get(name));
-            candidates.addAll(Schema.instance.getUserFunctions(name));
             candidates.addAll(NativeFunctions.instance.getFunctions(name));
             candidates.addAll(NativeFunctions.instance.getFactories(name).stream()
                                             .map(f -> f.getOrCreateFunction(providedArgs, receiverType, receiverKeyspace, receiverTable))
@@ -136,7 +113,6 @@ public final class FunctionResolver
             // add 'current keyspace' candidates
             FunctionName userName = new FunctionName(keyspace, name.name);
             candidates.addAll(functions.get(userName));
-            candidates.addAll(Schema.instance.getUserFunctions(userName));
             // add 'SYSTEM' (native) candidates
             FunctionName nativeName = name.asNativeFunction();
             candidates.addAll(NativeFunctions.instance.getFunctions(nativeName));

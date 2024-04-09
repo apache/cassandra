@@ -29,10 +29,10 @@ import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.extensions.ExtensionValue;
 import org.apache.cassandra.tcm.listeners.MetadataSnapshotListener;
+import org.apache.cassandra.tcm.listeners.SchemaListener;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
@@ -54,10 +54,13 @@ public class LogStateTest
         LogStorage logStorage = LogStorage.SystemKeyspace;
         MetadataSnapshots snapshots = new MetadataSnapshots.SystemKeyspaceMetadataSnapshots();
         ClusterMetadata initial = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
-        LocalLog.LogSpec logSpec = new LocalLog.LogSpec().withInitialState(initial)
-                                                         .withStorage(logStorage)
-                                                         .withLogListener(new MetadataSnapshotListener());
-        LocalLog log = LocalLog.sync(logSpec);
+        LocalLog.LogSpec logSpec = LocalLog.logSpec()
+                                           .sync()
+                                           .withInitialState(initial)
+                                           .withStorage(logStorage)
+                                           .withLogListener(new MetadataSnapshotListener())
+                                           .withListener(new SchemaListener(true));
+        LocalLog log = logSpec.createLog();
         ClusterMetadataService cms = new ClusterMetadataService(new UniformRangePlacement(),
                                                                 snapshots,
                                                                 log,
@@ -66,8 +69,7 @@ public class LogStateTest
                                                                 false);
         ClusterMetadataService.unsetInstance();
         ClusterMetadataService.setInstance(cms);
-        initial.schema.initializeKeyspaceInstances(DistributedSchema.empty());
-        log.ready();
+        log.readyUnchecked();
         log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
     }
 

@@ -98,12 +98,12 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 /**
  * Encapsulates a completely parsed SELECT query, including the target
  * column family, expression, result count, and ordering clause.
- *
+ * <p>
  * A number of public methods here are only used internally. However,
  * many of these are made accessible for the benefit of custom
  * QueryHandler implementations, so before reducing their accessibility
  * due consideration should be given.
- *
+ * <p>
  * Note that select statements can be accessed by multiple threads, so we cannot rely on mutable attributes.
  */
 @ThreadSafe
@@ -306,9 +306,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                        options.getConsistency() == ConsistencyLevel.SERIAL,
                        String.format(TOPK_CONSISTENCY_LEVEL_ERROR, options.getConsistency()));
 
-            if (options.getConsistency() != ConsistencyLevel.ONE &&
-                options.getConsistency() != ConsistencyLevel.LOCAL_ONE &&
-                options.getConsistency() != ConsistencyLevel.NODE_LOCAL)
+            if (options.getConsistency().needsReconciliation())
             {
                 ConsistencyLevel supplied = options.getConsistency();
                 ConsistencyLevel downgrade = supplied.isDatacenterLocal() ? ConsistencyLevel.LOCAL_ONE : ConsistencyLevel.ONE;
@@ -362,7 +360,6 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
         return rows;
     }
-
 
     public AggregationSpecification getAggregationSpec(QueryOptions options)
     {
@@ -427,7 +424,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     {
         try (PartitionIterator data = query.execute(options.getConsistency(), state, queryStartNanoTime))
         {
-            return processResults(data, options, selectors, nowInSec, userLimit, aggregationSpec, unmask);
+            return processResults(data, options, selectors, nowInSec, userLimit, aggregationSpec, unmask, state);
         }
     }
 
@@ -542,7 +539,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         ResultMessage.Rows msg;
         try (PartitionIterator page = pager.fetchPage(pageSize, queryStartNanoTime))
         {
-            msg = processResults(page, options, selectors, nowInSec, userLimit, aggregationSpec, unmask);
+            msg = processResults(page, options, selectors, nowInSec, userLimit, aggregationSpec, unmask, state.getClientState());
         }
 
         // Please note that the isExhausted state of the pager only gets updated when we've closed the page, so this
@@ -565,9 +562,10 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                               long nowInSec,
                                               int userLimit,
                                               AggregationSpecification aggregationSpec,
-                                              boolean unmask) throws RequestValidationException
+                                              boolean unmask,
+                                              ClientState state) throws RequestValidationException
     {
-        ResultSet rset = process(partitions, options, selectors, nowInSec, userLimit, aggregationSpec, unmask);
+        ResultSet rset = process(partitions, options, selectors, nowInSec, userLimit, aggregationSpec, unmask, state);
         return new ResultMessage.Rows(rset);
     }
 
@@ -603,7 +601,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             {
                 try (PartitionIterator data = query.executeInternal(executionController))
                 {
-                    return processResults(data, options, selectors, nowInSec, userLimit, null, unmask);
+                    return processResults(data, options, selectors, nowInSec, userLimit, null, unmask, state.getClientState());
                 }
             }
 
@@ -676,11 +674,11 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         }
     }
 
-    public ResultSet process(PartitionIterator partitions, long nowInSec, boolean unmask) throws InvalidRequestException
+    public ResultSet process(PartitionIterator partitions, long nowInSec, boolean unmask, ClientState state) throws InvalidRequestException
     {
         QueryOptions options = QueryOptions.DEFAULT;
         Selectors selectors = selection.newSelectors(options);
-        return process(partitions, options, selectors, nowInSec, getLimit(options), getAggregationSpec(options), unmask);
+        return process(partitions, options, selectors, nowInSec, getLimit(options), getAggregationSpec(options), unmask, state);
     }
 
     @Override
@@ -726,7 +724,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         if (filter == null || filter.isEmpty(table.comparator))
             return ReadQuery.empty(table);
 
-        RowFilter rowFilter = getRowFilter(options);
+        RowFilter rowFilter = getRowFilter(options, state);
 
         List<DecoratedKey> decoratedKeys = new ArrayList<>(keys.size());
         for (ByteBuffer key : keys)
@@ -771,7 +769,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         ClientState state = ClientState.forInternalCalls();
         ColumnFilter columnFilter = selection.newSelectors(options).getColumnFilter();
         ClusteringIndexFilter filter = makeClusteringIndexFilter(options, state, columnFilter);
-        RowFilter rowFilter = getRowFilter(options);
+        RowFilter rowFilter = getRowFilter(options, state);
         return SinglePartitionReadCommand.create(table, nowInSec, columnFilter, rowFilter, DataLimits.NONE, key, filter);
     }
 
@@ -780,7 +778,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
      */
     public RowFilter rowFilterForInternalCalls()
     {
-        return getRowFilter(QueryOptions.forInternalCalls(Collections.emptyList()));
+        return getRowFilter(QueryOptions.forInternalCalls(Collections.emptyList()), ClientState.forInternalCalls());
     }
 
     private ReadQuery getRangeCommand(QueryOptions options, ClientState state, ColumnFilter columnFilter, DataLimits limit, long nowInSec)
@@ -789,7 +787,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         if (clusteringIndexFilter == null)
             return ReadQuery.empty(table);
 
-        RowFilter rowFilter = getRowFilter(options);
+        RowFilter rowFilter = getRowFilter(options, state);
 
         // The LIMIT provided by the user is the number of CQL row he wants returned.
         // We want to have getRangeSlice to count the number of columns, not the number of keys.
@@ -977,10 +975,15 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     /**
      * May be used by custom QueryHandler implementations
      */
-    public RowFilter getRowFilter(QueryOptions options) throws InvalidRequestException
+    public RowFilter getRowFilter(QueryOptions options, ClientState state) throws InvalidRequestException
     {
         IndexRegistry indexRegistry = IndexRegistry.obtain(table);
-        return restrictions.getRowFilter(indexRegistry, options);
+        RowFilter filter = restrictions.getRowFilter(indexRegistry, options);
+
+        if (filter.needsReconciliation() && filter.isMutableIntersection() && restrictions.needFiltering(table))
+            Guardrails.intersectFilteringQueryEnabled.ensureEnabled(state);
+
+        return filter;
     }
 
     private ResultSet process(PartitionIterator partitions,
@@ -989,7 +992,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                               long nowInSec,
                               int userLimit,
                               AggregationSpecification aggregationSpec,
-                              boolean unmask) throws InvalidRequestException
+                              boolean unmask,
+                              ClientState state) throws InvalidRequestException
     {
         GroupMaker groupMaker = aggregationSpec == null ? null : aggregationSpec.newGroupMaker();
         ResultSetBuilder result = new ResultSetBuilder(getResultMetadata(), selectors, unmask, groupMaker);
@@ -1005,7 +1009,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         ResultSet cqlRows = result.build();
         maybeWarn(result, options);
 
-        orderResults(cqlRows, options);
+        orderResults(cqlRows, options, state);
 
         cqlRows.trim(userLimit);
 
@@ -1160,12 +1164,12 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
      * <p>
      * In the case of ANN ordering the rows are first ordered in index column order and then by primary key.
      */
-    private void orderResults(ResultSet cqlRows, QueryOptions options)
+    private void orderResults(ResultSet cqlRows, QueryOptions options, ClientState state)
     {
         if (cqlRows.size() == 0 || !needsPostQueryOrdering())
             return;
 
-        Comparator<List<ByteBuffer>> comparator = orderingComparator.prepareFor(table, getRowFilter(options), options);
+        Comparator<List<ByteBuffer>> comparator = orderingComparator.prepareFor(table, getRowFilter(options, state), options);
         if (comparator != null)
             cqlRows.rows.sort(comparator);
     }
@@ -1836,7 +1840,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             if (clusteringIndexFilter == null)
                 return "EMPTY";
 
-            RowFilter rowFilter = getRowFilter(options);
+            RowFilter rowFilter = getRowFilter(options, state);
 
             // The LIMIT provided by the user is the number of CQL row he wants returned.
             // We want to have getRangeSlice to count the number of columns, not the number of keys.
@@ -1902,7 +1906,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                 sb.append(')');
             }
 
-            RowFilter rowFilter = getRowFilter(options);
+            RowFilter rowFilter = getRowFilter(options, state);
             if (!rowFilter.isEmpty())
                 sb.append(" AND ").append(rowFilter);
 

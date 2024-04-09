@@ -21,13 +21,13 @@ package org.apache.cassandra.tcm;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
-import org.apache.cassandra.tcm.log.Replication;
+import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
@@ -80,7 +80,7 @@ public abstract class AbstractLocalProcessor implements Processor
                 {
                     return maybeFailure(entryId,
                                         lastKnown,
-                                        () -> new Commit.Result.Failure(result.rejected().code, result.rejected().reason, true));
+                                        () -> Commit.Result.rejected(result.rejected().code, result.rejected().reason, toLogState(lastKnown)));
                 }
 
                 continue;
@@ -103,7 +103,7 @@ public abstract class AbstractLocalProcessor implements Processor
                     log.awaitAtLeast(nextEpoch);
 
                     return new Commit.Result.Success(result.success().metadata.epoch,
-                                                     toReplication(result.success(), entryId, lastKnown, transform));
+                                                     toLogState(result.success(), entryId, lastKnown, transform));
                 }
                 else
                 {
@@ -119,18 +119,17 @@ public abstract class AbstractLocalProcessor implements Processor
                 retryPolicy.maybeSleep();
             }
         }
-        return new Commit.Result.Failure(SERVER_ERROR,
-                                         String.format("Could not perform commit after %d/%d tries. Time remaining: %dms",
-                                                       retryPolicy.tries, retryPolicy.maxTries,
-                                                       TimeUnit.NANOSECONDS.toMillis(retryPolicy.remainingNanos())),
-                                         false);
+        return Commit.Result.failed(SERVER_ERROR,
+                                    String.format("Could not perform commit after %d/%d tries. Time remaining: %dms",
+                                                  retryPolicy.tries, retryPolicy.maxTries,
+                                                  TimeUnit.NANOSECONDS.toMillis(retryPolicy.remainingNanos())));
     }
 
     public Commit.Result maybeFailure(Entry.Id entryId, Epoch lastKnown, Supplier<Commit.Result.Failure> orElse)
     {
-        Replication replication = toReplication(lastKnown);
+        LogState logState = toLogState(lastKnown);
         Epoch commitedAt = null;
-        for (Entry entry : replication.entries())
+        for (Entry entry : logState.entries)
         {
             if (entry.id.equals(entryId))
                 commitedAt = entry.epoch;
@@ -138,7 +137,7 @@ public abstract class AbstractLocalProcessor implements Processor
 
         // Succeeded after retry
         if (commitedAt != null)
-            return new Commit.Result.Success(commitedAt, replication);
+            return new Commit.Result.Success(commitedAt, logState);
         else
             return orElse.get();
     }
@@ -169,28 +168,28 @@ public abstract class AbstractLocalProcessor implements Processor
     }
 
 
-    private Replication toReplication(Transformation.Success success, Entry.Id entryId, Epoch lastKnown, Transformation transform)
+    private LogState toLogState(Transformation.Success success, Entry.Id entryId, Epoch lastKnown, Transformation transform)
     {
         if (lastKnown == null || lastKnown.isDirectlyBefore(success.metadata.epoch))
-            return Replication.of(new Entry(entryId, success.metadata.epoch, transform));
+            return LogState.of(new Entry(entryId, success.metadata.epoch, transform));
         else
-            return toReplication(lastKnown);
+            return toLogState(lastKnown);
     }
 
-    private Replication toReplication(Epoch lastKnown)
+    private LogState toLogState(Epoch lastKnown)
     {
-        Replication replication;
+        LogState logState;
         if (lastKnown == null)
-            replication = Replication.EMPTY;
+            logState = LogState.EMPTY;
         else
         {
             // We can use local log here since we always call this method only if local log is up-to-date:
             // in case of a successful commit, we apply against latest metadata locally before committing,
             // and in case of a rejection, we fetch latest entries to verify linearizability.
-            replication = log.getCommittedEntries(lastKnown);
+            logState = log.getCommittedEntries(lastKnown);
         }
 
-        return replication;
+        return logState;
     }
 
 

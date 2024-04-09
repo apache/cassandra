@@ -31,6 +31,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.serialization.UDTAwareMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
@@ -250,6 +251,22 @@ public final class UserFunctions implements Iterable<UserFunction>
         return builder().add(Iterables.filter(this, f -> !(f.name().equals(function.name()) && f.typesMatch(function.argTypes()))))
                         .add(function)
                         .build();
+    }
+
+    public static UserFunctions getCurrentUserFunctions(FunctionName name, String keyspace)
+    {
+        KeyspaceMetadata ksm = ClusterMetadata.current().schema.getKeyspaces().getNullable(name.hasKeyspace() ? name.keyspace : keyspace);
+        UserFunctions userFunctions = UserFunctions.none();
+        if (ksm != null)
+            userFunctions = ksm.userFunctions;
+        return userFunctions;
+    }
+
+    public static UserFunctions getCurrentUserFunctions(FunctionName name)
+    {
+        if (!name.hasKeyspace())
+            return UserFunctions.none();
+        return getCurrentUserFunctions(name, null);
     }
 
     @Override

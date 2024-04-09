@@ -20,14 +20,12 @@ package org.apache.cassandra.service.paxos.cleanup;
 
 import java.lang.ref.WeakReference;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Preconditions;
 
-import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestFailureReason;
@@ -38,23 +36,21 @@ import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_CLEANUP_SESSION_TIMEOUT_SECONDS;
 import static org.apache.cassandra.net.Verb.PAXOS2_CLEANUP_REQ;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class PaxosCleanupSession extends AsyncFuture<Void> implements Runnable,
                                                                       IEndpointStateChangeSubscriber,
                                                                       IFailureDetectionEventListener,
                                                                       RequestCallbackWithFailure<Void>
 {
-    private static final Map<UUID, PaxosCleanupSession> sessions = new ConcurrentHashMap<>();
-
     static final long TIMEOUT_NANOS;
+
     static
     {
         long timeoutSeconds = PAXOS_CLEANUP_SESSION_TIMEOUT_SECONDS.getLong();
@@ -63,10 +59,12 @@ public class PaxosCleanupSession extends AsyncFuture<Void> implements Runnable,
 
     private static class TimeoutTask implements Runnable
     {
+        private final SharedContext ctx;
         private final WeakReference<PaxosCleanupSession> ref;
 
         TimeoutTask(PaxosCleanupSession session)
         {
+            this.ctx = session.ctx;
             this.ref = new WeakReference<>(session);
         }
 
@@ -77,7 +75,7 @@ public class PaxosCleanupSession extends AsyncFuture<Void> implements Runnable,
             if (session == null || session.isDone())
                 return;
 
-            long remaining = session.lastMessageSentNanos + TIMEOUT_NANOS - nanoTime();
+            long remaining = session.lastMessageSentNanos + TIMEOUT_NANOS - ctx.clock().nanoTime();
             if (remaining > 0)
                 schedule(remaining);
             else
@@ -86,7 +84,7 @@ public class PaxosCleanupSession extends AsyncFuture<Void> implements Runnable,
 
         ScheduledFuture<?> schedule(long delayNanos)
         {
-            return ScheduledExecutors.scheduledTasks.scheduleTimeoutWithDelay(this, delayNanos, TimeUnit.NANOSECONDS);
+            return ctx.scheduledTasks().scheduleTimeoutWithDelay(this, delayNanos, TimeUnit.NANOSECONDS);
         }
 
         private static ScheduledFuture<?> schedule(PaxosCleanupSession session)
@@ -95,38 +93,29 @@ public class PaxosCleanupSession extends AsyncFuture<Void> implements Runnable,
         }
     }
 
-    private final UUID session = UUID.randomUUID();
+    private final SharedContext ctx;
+    public final UUID session = UUID.randomUUID();
     private final TableId tableId;
     private final Collection<Range<Token>> ranges;
     private final Queue<InetAddressAndPort> pendingCleanups = new ConcurrentLinkedQueue<>();
     private InetAddressAndPort inProgress = null;
-    private volatile long lastMessageSentNanos = nanoTime();
+    private volatile long lastMessageSentNanos;
     private ScheduledFuture<?> timeout;
 
-    PaxosCleanupSession(Collection<InetAddressAndPort> endpoints, TableId tableId, Collection<Range<Token>> ranges)
+    PaxosCleanupSession(SharedContext ctx, Collection<InetAddressAndPort> endpoints, TableId tableId, Collection<Range<Token>> ranges)
     {
+        this.ctx = ctx;
         this.tableId = tableId;
         this.ranges = ranges;
 
         pendingCleanups.addAll(endpoints);
-    }
-
-    private static void setSession(PaxosCleanupSession session)
-    {
-        Preconditions.checkState(!sessions.containsKey(session.session));
-        sessions.put(session.session, session);
-    }
-
-    private static void removeSession(PaxosCleanupSession session)
-    {
-        Preconditions.checkState(sessions.containsKey(session.session));
-        sessions.remove(session.session);
+        lastMessageSentNanos = ctx.clock().nanoTime();
     }
 
     @Override
     public void run()
     {
-        setSession(this);
+        ctx.paxosRepairState().setSession(this);
         startNextOrFinish();
         if (!isDone())
             timeout = TimeoutTask.schedule(this);
@@ -134,10 +123,10 @@ public class PaxosCleanupSession extends AsyncFuture<Void> implements Runnable,
 
     private void startCleanup(InetAddressAndPort endpoint)
     {
-        lastMessageSentNanos = nanoTime();
+        lastMessageSentNanos = ctx.clock().nanoTime();
         PaxosCleanupRequest completer = new PaxosCleanupRequest(session, tableId, ranges);
         Message<PaxosCleanupRequest> msg = Message.out(PAXOS2_CLEANUP_REQ, completer);
-        MessagingService.instance().sendWithCallback(msg, endpoint, this);
+        ctx.messaging().sendWithCallback(msg, endpoint, this);
     }
 
     private synchronized void startNextOrFinish()
@@ -157,7 +146,7 @@ public class PaxosCleanupSession extends AsyncFuture<Void> implements Runnable,
         }
         else
         {
-            removeSession(this);
+            ctx.paxosRepairState().removeSession(this);
             trySuccess(null);
             if (timeout != null)
                 timeout.cancel(true);
@@ -168,13 +157,13 @@ public class PaxosCleanupSession extends AsyncFuture<Void> implements Runnable,
     {
         if (isDone())
             return;
-        removeSession(this);
+        ctx.paxosRepairState().removeSession(this);
         tryFailure(new PaxosCleanupException(message));
         if (timeout != null)
             timeout.cancel(true);
     }
 
-    private synchronized void finish(InetAddressAndPort from, PaxosCleanupResponse finished)
+    synchronized void finish(InetAddressAndPort from, PaxosCleanupResponse finished)
     {
         Preconditions.checkArgument(from.equals(inProgress), "Received unexpected cleanup complete response from %s for session %s. Expected %s", from, session, inProgress);
         inProgress = null;
@@ -187,13 +176,6 @@ public class PaxosCleanupSession extends AsyncFuture<Void> implements Runnable,
         {
             fail(String.format("Paxos cleanup session %s failed on %s with message: %s", session, from, finished.message));
         }
-    }
-
-    public static void finishSession(InetAddressAndPort from, PaxosCleanupResponse response)
-    {
-        PaxosCleanupSession session = sessions.get(response.session);
-        if (session != null)
-            session.finish(from, response);
     }
 
     private synchronized void maybeKillSession(InetAddressAndPort unavailable, String reason)

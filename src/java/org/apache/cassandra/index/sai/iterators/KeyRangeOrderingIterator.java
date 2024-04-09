@@ -42,7 +42,7 @@ public class KeyRangeOrderingIterator extends KeyRangeIterator
 
     public KeyRangeOrderingIterator(KeyRangeIterator input, int chunkSize, Function<List<PrimaryKey>, KeyRangeIterator> nextRangeFunction)
     {
-        super(input);
+        super(input, () -> {});
         this.input = input;
         this.chunkSize = chunkSize;
         this.nextRangeFunction = nextRangeFunction;
@@ -81,7 +81,8 @@ public class KeyRangeOrderingIterator extends KeyRangeIterator
     protected void performSkipTo(PrimaryKey nextToken)
     {
         input.skipTo(nextToken);
-        nextIterator.skipTo(nextToken);
+        if (nextIterator != null)
+            nextIterator.skipTo(nextToken);
     }
 
     public void close()

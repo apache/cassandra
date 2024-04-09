@@ -20,6 +20,7 @@ package org.apache.cassandra.auth;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
@@ -28,6 +29,8 @@ import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
+import org.junit.After;
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -49,6 +52,12 @@ public class AuthCacheTest
     private boolean isCacheEnabled = true;
 
     private final int MAX_ENTRIES = 10;
+
+    @After
+    public void afterTest() throws Throwable
+    {
+        AuthCache.shutdownAllAndWait(1, TimeUnit.MINUTES);
+    }
 
     @Test
     public void testCacheLoaderIsCalledOnFirst()
@@ -322,6 +331,107 @@ public class AuthCacheTest
         assertEquals(1, loadCounter);
     }
 
+    @Test
+    public void testMetricsOnCacheEnabled()
+    {
+        TestCache authCache = new TestCache(this::countingLoader, this::emptyBulkLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+
+        Assert.assertEquals(10, authCache.getMaxEntries());
+        Assert.assertEquals(0, authCache.entries());
+
+        authCache.get("10");
+        authCache.get("11");
+
+        assertThat(authCache.getMetrics().requests.getCount()).isEqualTo(2L);
+        assertThat(authCache.getMetrics().hits.getCount()).isEqualTo(0L);
+        assertThat(authCache.getMetrics().misses.getCount()).isEqualTo(2L);
+        assertEquals(2, loadCounter);
+
+        Assert.assertEquals(10, authCache.getMaxEntries());
+        Assert.assertEquals(2, authCache.entries());
+
+        authCache.get("10");
+        authCache.get("11");
+
+        Assert.assertEquals(10, authCache.getMaxEntries());
+        Assert.assertEquals(2, authCache.entries());
+
+        assertThat(authCache.getMetrics().requests.getCount()).isEqualTo(4L);
+        assertThat(authCache.getMetrics().hits.getCount()).isEqualTo(2L);
+        assertThat(authCache.getMetrics().misses.getCount()).isEqualTo(2L);
+        assertEquals(2, loadCounter);
+
+        Assert.assertEquals(10, authCache.getMaxEntries());
+        Assert.assertEquals(2, authCache.entries());
+
+        authCache.getAll();
+
+        assertThat(authCache.getMetrics().requests.getCount()).isEqualTo(4L);
+        assertThat(authCache.getMetrics().hits.getCount()).isEqualTo(2L);
+        assertThat(authCache.getMetrics().misses.getCount()).isEqualTo(2L);
+        assertEquals(2, loadCounter);
+    }
+
+    @Test
+    public void testMetricsOnCacheDisabled()
+    {
+        isCacheEnabled = false;
+        TestCache authCache = new TestCache(this::countingLoader, this::emptyBulkLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+        authCache.get("10");
+        authCache.get("11");
+
+        assertThat(authCache.getMetrics().requests.getCount()).isEqualTo(0L);
+        assertThat(authCache.getMetrics().hits.getCount()).isEqualTo(0L);
+        assertThat(authCache.getMetrics().misses.getCount()).isEqualTo(0L);
+        assertEquals(2, loadCounter);
+
+        Assert.assertEquals(10, authCache.getMaxEntries());
+        Assert.assertEquals(0, authCache.entries());
+
+        authCache.getAll();
+
+        assertThat(authCache.getMetrics().requests.getCount()).isEqualTo(0L);
+        assertThat(authCache.getMetrics().hits.getCount()).isEqualTo(0L);
+        assertThat(authCache.getMetrics().misses.getCount()).isEqualTo(0L);
+        assertEquals(2, loadCounter);
+
+        Assert.assertEquals(10, authCache.getMaxEntries());
+        Assert.assertEquals(0, authCache.entries());
+    }
+
+    @Test
+    public void testSettingMaxEntries()
+    {
+        AtomicInteger maxEntries = new AtomicInteger(10);
+        TestCache authCache = new TestCache(this::countingLoader,
+                                            this::emptyBulkLoader,
+                                            this::setValidity,
+                                            () -> validity,
+                                            () -> isCacheEnabled,
+                                            maxEntries::set,
+                                            maxEntries::get);
+
+        Assert.assertEquals(10, authCache.getMaxEntries());
+        Assert.assertEquals(0, authCache.entries());
+
+        authCache.get("10");
+        authCache.get("11");
+
+        Assert.assertEquals(10, authCache.getMaxEntries());
+        Assert.assertEquals(2, authCache.entries());
+
+        authCache.setMaxEntries(20);
+
+        Assert.assertEquals(20, authCache.getMaxEntries());
+        Assert.assertEquals(2, authCache.entries());
+
+        authCache.invalidate();
+        authCache.cleanup();
+
+        Assert.assertEquals(20, authCache.getMaxEntries());
+        Assert.assertEquals(0, authCache.entries());
+    }
+
     private void setValidity(int validity)
     {
         this.validity = validity;
@@ -385,13 +495,30 @@ public class AuthCacheTest
                   IntSupplier getValidityDelegate,
                   BooleanSupplier cacheEnabledDelegate)
         {
+            this(loadFunction,
+                 bulkLoadFunction,
+                 setValidityDelegate,
+                 getValidityDelegate,
+                 cacheEnabledDelegate,
+                 (MAX_ENTRIES) -> {},
+                 () -> 10);
+        }
+
+        TestCache(Function<String, Integer> loadFunction,
+                  Supplier<Map<String, Integer>> bulkLoadFunction,
+                  IntConsumer setValidityDelegate,
+                  IntSupplier getValidityDelegate,
+                  BooleanSupplier cacheEnabledDelegate,
+                  IntConsumer maxEntriesSetter,
+                  IntSupplier maxEntriesGetter)
+        {
             super("TestCache" + nameCounter++,
                   setValidityDelegate,
                   getValidityDelegate,
                   (updateInterval) -> {},               // set update interval
                   () -> 1000,                           // get update interval
-                  (MAX_ENTRIES) -> {},                   // set max entries
-                  () -> 10,                             // get max entries
+                  maxEntriesSetter,                     // set max entries
+                  maxEntriesGetter,                     // get max entries
                   (updateActiveUpdate) -> {},           // set active update enabled
                   () -> false,                          // get active update enabled
                   loadFunction,

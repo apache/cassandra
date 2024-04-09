@@ -44,6 +44,7 @@ public class CustomTransformation implements Transformation
     {
         registerExtension(PokeString.NAME, new PokeString.TransformSerializer());
         registerExtension(PokeInt.NAME, new PokeInt.TransformSerializer());
+        registerExtension(ClearInt.NAME, new ClearInt.TransformSerializer());
     }
 
     public CustomTransformation(String extension, Transformation child)
@@ -181,6 +182,21 @@ public class CustomTransformation implements Transformation
             return String.format("String{'%s'}", str);
         }
 
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (!(o instanceof PokeString)) return false;
+            PokeString that = (PokeString) o;
+            return Objects.equals(str, that.str);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(str);
+        }
+
         public static class TransformSerializer implements AsymmetricMetadataSerializer<Transformation, PokeString>
         {
             private TransformSerializer() {}
@@ -239,6 +255,21 @@ public class CustomTransformation implements Transformation
             return String.format("int{%d}", v);
         }
 
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (!(o instanceof PokeInt)) return false;
+            PokeInt pokeInt = (PokeInt) o;
+            return v == pokeInt.v;
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(v);
+        }
+
         public static class TransformSerializer implements AsymmetricMetadataSerializer<Transformation, PokeInt>
         {
             private TransformSerializer() {}
@@ -258,6 +289,49 @@ public class CustomTransformation implements Transformation
             public long serializedSize(Transformation t, Version version)
             {
                 return Integer.BYTES;
+            }
+        }
+    }
+
+    public static class ClearInt implements Transformation
+    {
+
+        public static final String NAME = ClearInt.class.getName();
+
+        public static final ClearInt instance = new ClearInt();
+
+        private ClearInt() {}
+        public Kind kind()
+        {
+            return Kind.CUSTOM;
+        }
+
+        public Result execute(ClusterMetadata prev)
+        {
+            return Transformation.success(prev.transformer().without(PokeInt.METADATA_KEY), LockedRanges.AffectedRanges.EMPTY);
+        }
+
+        public String toString()
+        {
+            return "clearInt";
+        }
+
+        public static class TransformSerializer implements AsymmetricMetadataSerializer<Transformation, ClearInt>
+        {
+            private TransformSerializer() {}
+
+            public void serialize(Transformation t, DataOutputPlus out, Version version) throws IOException
+            {
+            }
+
+            public ClearInt deserialize(DataInputPlus in, Version version) throws IOException
+            {
+                return instance;
+            }
+
+            public long serializedSize(Transformation t, Version version)
+            {
+                return 0;
             }
         }
     }

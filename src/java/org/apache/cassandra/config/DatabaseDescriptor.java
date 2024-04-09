@@ -186,7 +186,7 @@ public class DatabaseDescriptor
 
     /* Hashing strategy Random or OPHF */
     private static IPartitioner partitioner;
-    private static String paritionerName;
+    private static String partitionerName;
 
     private static DiskAccessMode indexAccessMode;
 
@@ -903,16 +903,7 @@ public class DatabaseDescriptor
 
         // native transport encryption options
         if (conf.client_encryption_options != null)
-        {
             conf.client_encryption_options.applyConfig();
-
-            if (conf.native_transport_port_ssl != null
-                && conf.native_transport_port_ssl != conf.native_transport_port
-                && conf.client_encryption_options.tlsEncryptionPolicy() == EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED)
-            {
-                throw new ConfigurationException("Encryption must be enabled in client_encryption_options for native_transport_port_ssl", false);
-            }
-        }
 
         if (conf.snapshot_links_per_second < 0)
             throw new ConfigurationException("snapshot_links_per_second must be >= 0");
@@ -1451,7 +1442,7 @@ public class DatabaseDescriptor
             throw new ConfigurationException("Invalid partitioner class " + name, e);
         }
 
-        paritionerName = partitioner.getClass().getCanonicalName();
+        partitionerName = partitioner.getClass().getCanonicalName();
     }
 
     private static DiskAccessMode resolveCommitLogWriteDiskAccessMode(DiskAccessMode providedDiskAccessMode)
@@ -1964,7 +1955,7 @@ public class DatabaseDescriptor
 
     public static String getPartitionerName()
     {
-        return paritionerName;
+        return partitionerName;
     }
 
     /* For tests ONLY, don't use otherwise or all hell will break loose. Tests should restore value at the end. */
@@ -1979,6 +1970,7 @@ public class DatabaseDescriptor
     {
         IPartitioner old = partitioner;
         partitioner = newPartitioner;
+        partitionerName = partitioner.getClass().getCanonicalName();
         return old;
     }
 
@@ -2978,17 +2970,6 @@ public class DatabaseDescriptor
         conf.native_transport_port = port;
     }
 
-    public static int getNativeTransportPortSSL()
-    {
-        return conf.native_transport_port_ssl == null ? getNativeTransportPort() : conf.native_transport_port_ssl;
-    }
-
-    @VisibleForTesting
-    public static void setNativeTransportPortSSL(Integer port)
-    {
-        conf.native_transport_port_ssl = port;
-    }
-
     public static int getNativeTransportMaxThreads()
     {
         return conf.native_transport_max_threads;
@@ -3902,6 +3883,16 @@ public class DatabaseDescriptor
                         " is likely to cause heap pressure.");
 
         conf.repair_session_space = new DataStorageSpec.IntMebibytesBound(sizeInMiB);
+    }
+
+    public static int getConcurrentMerkleTreeRequests()
+    {
+        return conf.concurrent_merkle_tree_requests;
+    }
+
+    public static void setConcurrentMerkleTreeRequests(int value)
+    {
+        conf.concurrent_merkle_tree_requests = value;
     }
 
     public static int getPaxosRepairParallelism()
@@ -5141,6 +5132,11 @@ public class DatabaseDescriptor
     public static void setProgressBarrierBackoff(long timeOutInMillis)
     {
         conf.progress_barrier_backoff = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
+    }
+
+    public static long getDiscoveryTimeout(TimeUnit unit)
+    {
+        return conf.discovery_timeout.to(unit);
     }
 
     public static boolean getUnsafeTCMMode()

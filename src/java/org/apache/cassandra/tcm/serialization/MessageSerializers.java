@@ -22,7 +22,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Commit;
 import org.apache.cassandra.tcm.log.LogState;
-import org.apache.cassandra.tcm.log.Replication;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.migration.ClusterMetadataHolder;
 
@@ -32,6 +31,11 @@ import org.apache.cassandra.tcm.migration.ClusterMetadataHolder;
  * MessagingService and the appropriate version is not established based on the
  * peer receiving the messages, but is the lowest supported version of any member
  * of the cluster.
+ *
+ * NOTE: Serialization version here is used for convenience of serializing the message
+ * on the outgoing path. Since receiving node may have a different view of
+ * min serialization version, we _always_ have to either use a {@link VerboseMetadataSerializer}
+ * (like {@link LogState}/ {@link Replication} or explicitly serialize the version (like {@link Commit}).
  */
 public class MessageSerializers
 {
@@ -63,16 +67,6 @@ public class MessageSerializers
 
         assert !metadata.directory.clusterMinVersion.serializationVersion().equals(NodeVersion.CURRENT.serializationVersion());
         return Commit.messageSerializer(metadata.directory.clusterMinVersion.serializationVersion());
-    }
-
-    public static IVersionedSerializer<Replication> replicationSerializer()
-    {
-        ClusterMetadata metadata = ClusterMetadata.currentNullable();
-        if (metadata == null || metadata.directory.clusterMinVersion.serializationVersion == NodeVersion.CURRENT.serializationVersion)
-            return Replication.defaultMessageSerializer;
-
-        assert metadata.directory.clusterMinVersion.serializationVersion().isBefore(NodeVersion.CURRENT.serializationVersion());
-        return Replication.messageSerializer(metadata.directory.clusterMinVersion.serializationVersion());
     }
 
     public static IVersionedSerializer<ClusterMetadataHolder> metadataHolderSerializer()

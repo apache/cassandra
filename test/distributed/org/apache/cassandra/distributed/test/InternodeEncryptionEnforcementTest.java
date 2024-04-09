@@ -55,6 +55,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.OutboundConnections;
 import org.apache.cassandra.net.PingRequest;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.transport.TlsTestUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.awaitility.Awaitility;
@@ -199,10 +200,10 @@ public final class InternodeEncryptionEnforcementTest extends TestBaseImpl
                 encryption.put("internode_encryption", "none");
                 if (c.num() == 1)
                 {
-                    encryption.put("keystore", "test/conf/cassandra_ssl_test.keystore");
-                    encryption.put("keystore_password", "cassandra");
-                    encryption.put("truststore", "test/conf/cassandra_ssl_test.truststore");
-                    encryption.put("truststore_password", "cassandra");
+                    encryption.put("keystore", TlsTestUtils.SERVER_KEYSTORE_PATH);
+                    encryption.put("keystore_password", TlsTestUtils.SERVER_KEYSTORE_PASSWORD);
+                    encryption.put("truststore", TlsTestUtils.SERVER_TRUSTSTORE_PATH);
+                    encryption.put("truststore_password", TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD);
                     encryption.put("internode_encryption", "all");
                 }
                 c.set("server_encryption_options", encryption);
@@ -276,10 +277,10 @@ public final class InternodeEncryptionEnforcementTest extends TestBaseImpl
                 c.with(Feature.NETWORK);
                 c.with(Feature.NATIVE_PROTOCOL);
 
-                HashMap<String, Object> encryption = new HashMap<>(); encryption.put("keystore", "test/conf/cassandra_ssl_test.keystore");
-                encryption.put("keystore_password", "cassandra");
-                encryption.put("truststore", "test/conf/cassandra_ssl_test.truststore");
-                encryption.put("truststore_password", "cassandra");
+                HashMap<String, Object> encryption = new HashMap<>(); encryption.put("keystore", TlsTestUtils.SERVER_KEYSTORE_PATH);
+                encryption.put("keystore_password", TlsTestUtils.SERVER_KEYSTORE_PASSWORD);
+                encryption.put("truststore", TlsTestUtils.SERVER_TRUSTSTORE_PATH);
+                encryption.put("truststore_password", TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD);
                 encryption.put("internode_encryption", "dc");
                 c.set("server_encryption_options", encryption);
             })
@@ -395,10 +396,10 @@ public final class InternodeEncryptionEnforcementTest extends TestBaseImpl
                         c.with(Feature.NATIVE_PROTOCOL);
 
                         HashMap<String, Object> encryption = new HashMap<>();
-                        encryption.put("keystore", "test/conf/cassandra_ssl_test.keystore");
-                        encryption.put("keystore_password", "cassandra");
-                        encryption.put("truststore", "test/conf/cassandra_ssl_test.truststore");
-                        encryption.put("truststore_password", "cassandra");
+                        encryption.put("keystore", TlsTestUtils.SERVER_KEYSTORE_PATH);
+                        encryption.put("keystore_password", TlsTestUtils.SERVER_KEYSTORE_PASSWORD);
+                        encryption.put("truststore", TlsTestUtils.SERVER_TRUSTSTORE_PATH);
+                        encryption.put("truststore_password", TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD);
                         encryption.put("internode_encryption", "all");
                         encryption.put("require_client_auth", "true");
                         c.set("server_encryption_options", encryption);
@@ -430,8 +431,8 @@ public final class InternodeEncryptionEnforcementTest extends TestBaseImpl
                 // Check if the presented certificates during internode authentication are the ones in the keystores
                 // configured in the cassandra.yaml configuration.
                 KeyStore keyStore = KeyStore.getInstance("JKS");
-                char[] keyStorePassword = "cassandra".toCharArray();
-                InputStream keyStoreData = new FileInputStream("test/conf/cassandra_ssl_test.keystore");
+                char[] keyStorePassword = TlsTestUtils.SERVER_KEYSTORE_PASSWORD.toCharArray();
+                InputStream keyStoreData = new FileInputStream(TlsTestUtils.SERVER_KEYSTORE_PATH);
                 keyStore.load(keyStoreData, keyStorePassword);
                 return certificates != null && certificates.length != 0 && keyStore.getCertificate("cassandra_ssl_test").equals(certificates[0]);
             }

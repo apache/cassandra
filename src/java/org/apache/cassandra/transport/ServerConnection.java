@@ -137,9 +137,21 @@ public class ServerConnection extends Connection
             }
             catch (SSLPeerUnverifiedException e)
             {
-                logger.debug("Failed to get peer certificates for peer {}", channel().remoteAddress(), e);
+                if (logger.isTraceEnabled())
+                    logger.trace("Failed to get peer certificates for peer {}", channel().remoteAddress(), e);
             }
         }
         return certificates;
+    }
+
+    /**
+     * @return Whether this connection is SSL-encrypted.
+     */
+    public boolean isSSL()
+    {
+        // If an SslHandler is present on the pipeline, the connection is using ssl.
+        SslHandler sslHandler = (SslHandler) channel().pipeline()
+                                                      .get("ssl");
+        return sslHandler != null;
     }
 }

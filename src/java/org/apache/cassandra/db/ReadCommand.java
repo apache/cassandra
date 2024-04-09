@@ -677,6 +677,9 @@ public abstract class ReadCommand extends AbstractReadQuery
             @Override
             protected Row applyToStatic(Row row)
             {
+                if (row == Rows.EMPTY_STATIC_ROW)
+                    return row;
+
                 return applyToRow(row);
             }
 
@@ -1035,6 +1038,12 @@ public abstract class ReadCommand extends AbstractReadQuery
             noSpamLogger.getStatement("Schema epoch mismatch during read command deserialization. " +
                                       "TableId: {}, remote epoch: {}, local epoch: {}", 10L, TimeUnit.SECONDS);
 
+        private static final int IS_DIGEST = 0x01;
+        private static final int IS_FOR_THRIFT = 0x02;
+        private static final int HAS_INDEX = 0x04;
+        private static final int ACCEPTS_TRANSIENT = 0x08;
+        private static final int NEEDS_RECONCILIATION = 0x10;
+
         private final SchemaProvider schema;
 
         public Serializer()
@@ -1050,22 +1059,22 @@ public abstract class ReadCommand extends AbstractReadQuery
 
         private static int digestFlag(boolean isDigest)
         {
-            return isDigest ? 0x01 : 0;
+            return isDigest ? IS_DIGEST : 0;
         }
 
         private static boolean isDigest(int flags)
         {
-            return (flags & 0x01) != 0;
+            return (flags & IS_DIGEST) != 0;
         }
 
         private static boolean acceptsTransient(int flags)
         {
-            return (flags & 0x08) != 0;
+            return (flags & ACCEPTS_TRANSIENT) != 0;
         }
 
         private static int acceptsTransientFlag(boolean acceptsTransient)
         {
-            return acceptsTransient ? 0x08 : 0;
+            return acceptsTransient ? ACCEPTS_TRANSIENT : 0;
         }
 
         // We don't set this flag anymore, but still look if we receive a
@@ -1075,17 +1084,27 @@ public abstract class ReadCommand extends AbstractReadQuery
         // used by these release for thrift and would thus confuse things)
         private static boolean isForThrift(int flags)
         {
-            return (flags & 0x02) != 0;
+            return (flags & IS_FOR_THRIFT) != 0;
         }
 
         private static int indexFlag(boolean hasIndex)
         {
-            return hasIndex ? 0x04 : 0;
+            return hasIndex ? HAS_INDEX : 0;
         }
 
         private static boolean hasIndex(int flags)
         {
-            return (flags & 0x04) != 0;
+            return (flags & HAS_INDEX) != 0;
+        }
+
+        private static int needsReconciliationFlag(boolean needsReconciliation)
+        {
+            return needsReconciliation ? NEEDS_RECONCILIATION : 0;
+        }
+        
+        private static boolean needsReconciliation(int flags)
+        {
+            return (flags & NEEDS_RECONCILIATION) != 0;
         }
 
         public void serialize(ReadCommand command, DataOutputPlus out, int version) throws IOException
@@ -1095,6 +1114,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                     digestFlag(command.isDigestQuery())
                     | indexFlag(null != command.indexQueryPlan())
                     | acceptsTransientFlag(command.acceptsTransient())
+                    | needsReconciliationFlag(command.rowFilter().needsReconciliation())
             );
             if (command.isDigestQuery())
                 out.writeUnsignedVInt32(command.digestVersion());
@@ -1130,6 +1150,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
             boolean hasIndex = hasIndex(flags);
             int digestVersion = isDigest ? (int)in.readUnsignedVInt() : 0;
+            boolean needsReconciliation = needsReconciliation(flags);
             TableId tableId = TableId.deserialize(in);
 
             Epoch schemaVersion = Epoch.EMPTY;
@@ -1153,7 +1174,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             }
             long nowInSec = version >= MessagingService.VERSION_50 ? CassandraUInt.toLong(in.readInt()) : in.readInt();
             ColumnFilter columnFilter = ColumnFilter.serializer.deserialize(in, version, tableMetadata);
-            RowFilter rowFilter = RowFilter.serializer.deserialize(in, version, tableMetadata);
+            RowFilter rowFilter = RowFilter.serializer.deserialize(in, version, tableMetadata, needsReconciliation);
             DataLimits limits = DataLimits.serializer.deserialize(in, version,  tableMetadata);
             Index.QueryPlan indexQueryPlan = null;
             if (hasIndex)

@@ -23,7 +23,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.Sealed;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.log.Entry;
 
@@ -40,7 +39,6 @@ public class MetadataSnapshotListener implements LogListener
             try
             {
                 ClusterMetadataService.instance().snapshotManager().storeSnapshot(next);
-                Sealed.recordSealedPeriod(next.period, next.epoch);
             }
             catch (Throwable e)
             {

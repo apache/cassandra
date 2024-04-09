@@ -78,20 +78,26 @@ public final class RemoteProcessor implements Processor
                                                     new CandidateIterator(candidates(false)),
                                                     retryPolicy);
 
+            log.append(result.logState());
+
             if (result.isSuccess())
             {
                 Commit.Result.Success success = result.success();
-                log.append(success.replication.entries());
                 log.awaitAtLeast(success.epoch);
+            }
+            else
+            {
+                log.waitForHighestConsecutive();
             }
 
             return result;
         }
         catch (Exception e)
         {
-            return new Commit.Result.Failure(SERVER_ERROR, e.getMessage() == null
-                                                           ? e.getClass().toString()
-                                                           : e.getMessage(), false);
+            return Commit.Result.failed(SERVER_ERROR,
+                                        e.getMessage() == null
+                                        ? e.getClass().toString()
+                                        : e.getMessage());
         }
     }
 

@@ -94,10 +94,13 @@ public class LogListenerNotificationTest
                 counter++;
             }
         };
-        LocalLog.LogSpec logSpec = new LocalLog.LogSpec().withInitialState(cm()).withLogListener(listener);
-        LocalLog log = LocalLog.sync(logSpec);
+        LocalLog log = LocalLog.logSpec()
+                               .sync()
+                               .withInitialState(cm())
+                               .withLogListener(listener)
+                               .createLog();
+        log.readyUnchecked();
         log.append(new Entry(Entry.Id.NONE, Epoch.FIRST, PreInitialize.forTesting()));
-        log.ready();
         log.append(input);
     }
 

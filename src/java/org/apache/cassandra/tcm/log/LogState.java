@@ -19,146 +19,139 @@
 package org.apache.cassandra.tcm.log;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 
-import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
-import org.apache.cassandra.tcm.Period;
-import org.apache.cassandra.tcm.Sealed;
 import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
-import org.apache.cassandra.utils.JVMStabilityInspector;
 
 public class LogState
 {
     private static final Logger logger = LoggerFactory.getLogger(LogState.class);
-    public static LogState EMPTY = new LogState(null, Replication.EMPTY);
-    public static final IVersionedSerializer<LogState> defaultMessageSerializer = new Serializer(NodeVersion.CURRENT.serializationVersion());
+    public static LogState EMPTY = new LogState(null, ImmutableList.of());
 
-    private static volatile Serializer serializerCache;
+    public static final MetadataSerializer<LogState> metadataSerializer = new Serializer();
+    public static final IVersionedSerializer<LogState> defaultMessageSerializer = new MessageSerializer(NodeVersion.CURRENT.serializationVersion());
+
+    private static volatile MessageSerializer serializerCache;
     public static IVersionedSerializer<LogState> messageSerializer(Version version)
     {
-        Serializer cached = serializerCache;
+        MessageSerializer cached = serializerCache;
         if (cached != null && cached.serializationVersion.equals(version))
             return cached;
-        cached = new Serializer(version);
+        cached = new MessageSerializer(version);
         serializerCache = cached;
         return cached;
     }
 
     public final ClusterMetadata baseState;
-    public final Replication transformations;
+    public final ImmutableList<Entry> entries;
 
     // Uses Replication rather than an just a list of entries primarily to avoid duplicating the existing serializer
-    public LogState(ClusterMetadata baseState, Replication transformations)
+    public LogState(ClusterMetadata baseState, ImmutableList<Entry> entries)
     {
         this.baseState = baseState;
-        this.transformations = transformations;
+        this.entries = entries;
     }
 
-    public static LogState make(ClusterMetadata baseState, Replication increments)
+    public static LogState of(Entry entry)
     {
-        return new LogState(baseState, increments);
+        return new LogState(null, ImmutableList.of(entry));
     }
 
     public Epoch latestEpoch()
     {
-        if (transformations.isEmpty())
+        if (entries.isEmpty())
         {
             if (baseState == null)
                 return Epoch.EMPTY;
             return baseState.epoch;
         }
-        return transformations.latestEpoch();
-    }
-
-    public static LogState make(Replication increments)
-    {
-        return new LogState(null, increments);
+        return entries.get(entries.size() - 1).epoch;
     }
 
     public static LogState make(ClusterMetadata baseState)
     {
-        return new LogState(baseState, Replication.EMPTY);
+        return new LogState(baseState, ImmutableList.of());
     }
+
+    public LogState flatten()
+    {
+        if (baseState == null && entries.isEmpty())
+            return this;
+        ClusterMetadata metadata = baseState;
+        if (metadata == null)
+            metadata = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
+        for (Entry entry : entries)
+            metadata = entry.transform.execute(metadata).success().metadata;
+        return LogState.make(metadata);
+    }
+
 
     public boolean isEmpty()
     {
-        return baseState == null && transformations.isEmpty();
+        return baseState == null && entries.isEmpty();
+    }
+
+    public LogState retainFrom(Epoch epoch)
+    {
+        if (baseState != null && baseState.epoch.isAfter(epoch))
+            return this;
+        ImmutableList.Builder<Entry> builder = ImmutableList.builder();
+        entries.stream().filter(entry -> entry.epoch.isEqualOrAfter(epoch)).forEach(builder::add);
+        return new LogState(null, builder.build());
     }
 
     @Override
     public String toString()
     {
         return "LogState{" +
-               "baseState=" + (baseState != null ? baseState.epoch.toString() : "none ") +
-               ", transformations=" + transformations.toString() +
+               "baseState=" + (baseState != null ? baseState.epoch : "none ") +
+               ", entries=" + entries.size() + ": " + minMaxEntries() +
+
                '}';
     }
 
-    /**
-     * Contains the logic for generating a LogState from an arbitrary epoch to the current epoch.
-     * The LogState returned is suitable for bringing a metadata log up to date with the current state as viewed from
-     * this local log. This method will attempt to minimise the number of individual log entries contained in the
-     * LogState. If any snapshots with a higher epoch than the supplied start point, the LogState will include the most
-     * recent along with any subsequent log entries.
-     * Callers supply:
-     *  * The epoch to act as the starting point for the LogState. If no metadata snapshot for a higher epoch
-     *    exists, the LogState will contain all log entries with an epoch greater than this. If such a snapshot
-     *    is found, it will form the baseState of the LogState, and only log entries with epochs greater than the
-     *    snapshot's will be included.
-     *  * MetadataSnapshots to provide access to serialized metadata snapshots. Outside of tests, the only
-     *    implementation of this is SystemKeyspaceMetadataSnapshots which persists the info in local system tables.
-     *    Both the metadata_last_sealed_period and metadata_snapshot tables are populated by the after commit hook of a
-     *    SealPeriod transform, so are neither atomically updated nor guaranteed to completely up to date. This is ok,
-     *    though as this method can handle both being missing or out of date by degrading to a slower lookup.
-     *  * A LogReader to return a list of log entries in the form of a Replication given a starting epoch and
-     *    optionally a period if one can be derived from a snapshot. If no snapshot is available, the LogReader
-     *    should determine the starting period itself (typically by checking the system.sealed_periods table, but
-     *    falling back to a full log scan in the pathological case) and will read log entries from either the local or
-     *    distributed log table depending on the calling context.
-     * @param since
-     * @param snapshots
-     * @param reader
-     * @return
-     */
-    @VisibleForTesting
-    public static LogState getLogState(Epoch since, MetadataSnapshots snapshots, LogReader reader)
+    private String minMaxEntries()
     {
-        try
-        {
-            ClusterMetadata snapshot = snapshots.getLatestSnapshotAfter(since);
-            if (snapshot == null)
-            {
-                logger.info("No suitable metadata snapshot found, not including snapshot in LogState since {}", since);
-                return new LogState(null, reader.getReplication(since));
-            }
-            else
-            {
-                logger.info("Loaded snapshot of epoch {} from sealed period {} which follows requested start epoch, including in LogState since {}",
-                            snapshot.epoch, snapshot.period, since.getEpoch());
-                return new LogState(snapshot, reader.getReplication(snapshot.nextPeriod(), snapshot.epoch));
-            }
-        }
-        catch (Throwable t)
-        {
-            JVMStabilityInspector.inspectThrowable(t);
-            logger.error("Could not restore the state.", t);
-            throw new RuntimeException(t);
-        }
+        if (entries.isEmpty())
+            return "[]";
+        return entries.get(0).epoch + " -> " + entries.get(entries.size() - 1).epoch;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (!(o instanceof LogState)) return false;
+        LogState logState = (LogState) o;
+        return Objects.equals(baseState, logState.baseState) && Objects.equals(entries, logState.entries);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(baseState, entries);
     }
 
     /**
@@ -171,65 +164,27 @@ public class LogState
      *    exists, the LogState will contain all log entries with an epoch less than this. If such a snapshot
      *    is found, it will form the baseState of the LogState, and only log entries with epochs greater than the
      *    snapshot's and less than or equal to the target will be included.
-     *  * MetadataSnapshots to provide access to serialized metadata snapshots. Outside of tests, the only
-     *    implementation of this is SystemKeyspaceMetadataSnapshots which persists the info in local system tables.
-     *    Both the metadata_last_sealed_period and metadata_snapshot tables are populated by the after commit hook of a
-     *    SealPeriod transform, so are neither atomically updated nor guaranteed to completely up to date. This is ok,
-     *    though as this method can handle both being missing or out of date by degrading to a slower lookup.
-     *  * A LogReader to return a list of log entries in the form of a Replication given a starting epoch and
-     *    optionally a period if one can be derived from a snapshot. If no snapshot is available, the LogReader
-     *    should determine the starting period itself (typically by checking the system.sealed_periods table, but
-     *    falling back to a full log scan in the pathological case) and will read log entries from either the local or
-     *    distributed log table depending on the calling context.
-     * @param since
-     * @param snapshots
-     * @param reader
-     * @return
+     *  This method should not be called on any hot path - it should only be used for disaster recovery scenarios
      */
     public static LogState getForRecovery(Epoch target)
     {
         LogStorage logStorage = LogStorage.SystemKeyspace;
         MetadataSnapshots snapshots = new MetadataSnapshots.SystemKeyspaceMetadataSnapshots();
-        Sealed sealed = Sealed.lookupForReplication(target);
-        // a snapshot exists for exactly the epoch we're looking for
-        if (sealed.epoch.is(target))
-            return LogState.make(snapshots.getSnapshot(sealed.epoch));
 
-        Sealed preceding;
-        ClusterMetadata base;
-        if (sealed.epoch.isAfter(target))
-        {
-            // we need the snapshot from the preceding period plus some entries. Scan result includes the supplied
-            // start period so we have to either manually decrement the start period (or fetch a list of up to 2 items)
-            List<Sealed> before = Period.scanLogForRecentlySealed(SystemKeyspace.LocalMetadataLog, sealed.period - 1, 1);
-            assert !before.isEmpty() : "No earlier snapshot found, started looking at " + (sealed.period - 1) + " target = " + target;
-            preceding = before.get(0);
-            base = snapshots.getSnapshot(preceding.epoch);
-        }
-        else
+        ClusterMetadata base = snapshots.getSnapshotBefore(target);
+        if (base == null)
         {
             // scan from the start of the log table - expensive
-            preceding = new Sealed(Period.FIRST, Epoch.EMPTY);
             base = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
         }
-
-        // TODO add LogStorage.getReplication(startPeriod, startEpoch, endEpoch); so we don't have to overfetch
-        Replication allSince = logStorage.getReplication(preceding.period, preceding.epoch);
-        List<Entry> entries = new ArrayList<>();
-        for (Entry e : allSince.entries())
-        {
-            if (e.epoch.isAfter(target))
-                break;
-            entries.add(e);
-        }
-        return LogState.make(base, Replication.of(entries));
+        return logStorage.getLogStateBetween(base, target);
     }
 
-    static final class Serializer implements IVersionedSerializer<LogState>
+    static final class MessageSerializer implements IVersionedSerializer<LogState>
     {
         private final Version serializationVersion;
 
-        public Serializer(Version serializationVersion)
+        public MessageSerializer(Version serializationVersion)
         {
             this.serializationVersion = serializationVersion;
         }
@@ -237,31 +192,130 @@ public class LogState
         @Override
         public void serialize(LogState t, DataOutputPlus out, int version) throws IOException
         {
-            out.writeBoolean(t.baseState != null);
-            if (t.baseState != null)
-                VerboseMetadataSerializer.serialize(ClusterMetadata.serializer, t.baseState, out, serializationVersion);
-            VerboseMetadataSerializer.serialize(Replication.serializer, t.transformations, out, serializationVersion);
+            VerboseMetadataSerializer.serialize(metadataSerializer, t, out, serializationVersion);
         }
 
         @Override
         public LogState deserialize(DataInputPlus in, int version) throws IOException
         {
-            boolean hasSnapshot = in.readBoolean();
-            ClusterMetadata snapshot = null;
-            if (hasSnapshot)
-                snapshot = VerboseMetadataSerializer.deserialize(ClusterMetadata.serializer, in);
-            Replication replication = VerboseMetadataSerializer.deserialize(Replication.serializer, in);
-            return new LogState(snapshot, replication);
+            return VerboseMetadataSerializer.deserialize(metadataSerializer, in);
         }
 
         @Override
         public long serializedSize(LogState t, int version)
         {
-            long size = TypeSizes.BOOL_SIZE;
+            return VerboseMetadataSerializer.serializedSize(metadataSerializer, t, serializationVersion);
+        }
+    }
+
+    static final class Serializer implements MetadataSerializer<LogState>
+    {
+        @Override
+        public void serialize(LogState t, DataOutputPlus out, Version version) throws IOException
+        {
+            if (version.isAtLeast(Version.V2))
+                out.writeUnsignedVInt32(ClusterMetadata.current().metadataIdentifier);
+            out.writeBoolean(t.baseState != null);
             if (t.baseState != null)
-                size += VerboseMetadataSerializer.serializedSize(ClusterMetadata.serializer, t.baseState, serializationVersion);
-            size += VerboseMetadataSerializer.serializedSize(Replication.serializer, t.transformations, serializationVersion);
+                ClusterMetadata.serializer.serialize(t.baseState, out, version);
+            out.writeInt(t.entries.size());
+            for (Entry entry : t.entries)
+                Entry.serializer.serialize(entry, out, version);
+        }
+
+        @Override
+        public LogState deserialize(DataInputPlus in, Version version) throws IOException
+        {
+            if (version.isAtLeast(Version.V2))
+                ClusterMetadata.checkIdentifier(in.readUnsignedVInt32());
+            ClusterMetadata baseState = null;
+            if (in.readBoolean())
+                baseState = ClusterMetadata.serializer.deserialize(in, version);
+            int size = in.readInt();
+            ImmutableList.Builder<Entry> builder = ImmutableList.builder();
+            for(int i=0;i<size;i++)
+                builder.add(Entry.serializer.deserialize(in, version));
+            return new LogState(baseState, builder.build());
+        }
+
+        @Override
+        public long serializedSize(LogState t, Version version)
+        {
+            long size = 0;
+            if (version.isAtLeast(Version.V2))
+                size += TypeSizes.sizeofUnsignedVInt(ClusterMetadata.current().metadataIdentifier);
+
+            size += TypeSizes.sizeof(t.baseState != null);
+            if (t.baseState != null)
+                size += ClusterMetadata.serializer.serializedSize(t.baseState, version);
+            size += TypeSizes.INT_SIZE;
+            for (Entry entry : t.entries)
+                size += Entry.serializer.serializedSize(entry, version);
             return size;
+        }
+    }
+
+    public static final class ReplicationHandler implements IVerbHandler<LogState>
+    {
+        private static final Logger logger = LoggerFactory.getLogger(ReplicationHandler.class);
+        private final LocalLog log;
+
+        public ReplicationHandler(LocalLog log)
+        {
+            this.log = log;
+        }
+
+        public void doVerb(Message<LogState> message) throws IOException
+        {
+            logger.info("Received logstate {} from {}", message.payload, message.from());
+            log.append(message.payload);
+        }
+    }
+
+    /**
+     * Log Notification handler is similar to regular replication handler, except that
+     * notifying side actually expects the response from the replica, and we need to be fully
+     * caught up to the latest epoch in the replication, since replicas should be
+     * able to enact the latest epoch as soon as it is watermarked by CMS.
+     */
+    public static class LogNotifyHandler implements IVerbHandler<LogState>
+    {
+        private final LocalLog log;
+        public LogNotifyHandler(LocalLog log)
+        {
+            this.log = log;
+        }
+
+        public void doVerb(Message<LogState> message) throws IOException
+        {
+            // If another node (CMS or otherwise) is sending log notifications then
+            // we can infer that the post-upgrade enablement of CMS has completed
+            if (ClusterMetadataService.instance().isMigrating())
+            {
+                logger.info("Received metadata log notification from {}, marking in progress migration complete", message.from());
+                ClusterMetadataService.instance().migrated();
+            }
+
+            log.append(message.payload);
+            if (log.hasGaps())
+            {
+                Optional<Epoch> highestPending = log.highestPending();
+                if (highestPending.isPresent())
+                {
+                    // We should not call maybeCatchup fom this stage
+                    ScheduledExecutors.optionalTasks.submit(() -> ClusterMetadataService.instance().fetchLogFromCMS(highestPending.get()));
+                }
+                else if (ClusterMetadata.current().epoch.isBefore(message.payload.latestEpoch()))
+                {
+                    throw new IllegalStateException(String.format("Should have caught up to at least %s, but got only %s",
+                                                                  message.payload.latestEpoch(), ClusterMetadata.current().epoch));
+                }
+            }
+            else
+                log.waitForHighestConsecutive();
+
+            Message<Epoch> response = message.responseWith(ClusterMetadata.current().epoch);
+            MessagingService.instance().send(response, message.from());
         }
     }
 }

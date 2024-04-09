@@ -37,7 +37,7 @@ public class InMemoryKeyRangeIterator extends KeyRangeIterator
      */
     public InMemoryKeyRangeIterator(SortedSet<PrimaryKey> keys)
     {
-        super(keys.first(), keys.last(), keys.size());
+        super(keys.first(), keys.last(), keys.size(), () -> {});
         this.keys = new PriorityQueue<>(keys);
         this.uniqueKeys = true;
     }
@@ -48,7 +48,7 @@ public class InMemoryKeyRangeIterator extends KeyRangeIterator
      */
     public InMemoryKeyRangeIterator(PrimaryKey min, PrimaryKey max, PriorityQueue<PrimaryKey> keys)
     {
-        super(min, max, keys.size());
+        super(min, max, keys.size(), () -> {});
         this.keys = keys;
         this.uniqueKeys = false;
     }

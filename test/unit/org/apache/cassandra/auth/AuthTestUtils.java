@@ -59,8 +59,11 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 import static java.lang.String.format;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.auth.AuthKeyspace.CIDR_GROUPS;
 import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
+import static org.awaitility.Awaitility.await;
 import static org.junit.Assert.assertNotNull;
 
 
@@ -419,5 +422,17 @@ public class AuthTestUtils
         token[usernameBytes.length + 1] = 0;
         System.arraycopy(passwordBytes, 0, token, usernameBytes.length + 2, passwordBytes.length);
         return token;
+    }
+
+    /**
+     * Block on waiting for existence of the initial superuser roles.  This should be used by all tests that
+     * rely on existence of these users.
+     */
+    public static void waitForExistingRoles()
+    {
+        await().pollDelay(0, MILLISECONDS)
+               .pollInterval(250, MILLISECONDS)
+               .atMost(10, SECONDS)
+               .until(CassandraRoleManager::hasExistingRoles);
     }
 }

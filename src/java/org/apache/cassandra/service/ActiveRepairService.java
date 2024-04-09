@@ -82,6 +82,7 @@ import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.RepairSession;
+import org.apache.cassandra.repair.Scheduler;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.consistent.CoordinatorSessions;
 import org.apache.cassandra.repair.consistent.LocalSessions;
@@ -358,6 +359,19 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         return DatabaseDescriptor.getRepairSessionSpaceInMiB();
     }
 
+    @Override
+    public int getConcurrentMerkleTreeRequests()
+    {
+        return DatabaseDescriptor.getConcurrentMerkleTreeRequests();
+    }
+
+    @Override
+    public void setConcurrentMerkleTreeRequests(int value)
+    {
+        logger.info("Setting concurrent_merkle_tree_requests to {}", value);
+        DatabaseDescriptor.setConcurrentMerkleTreeRequests(value);
+    }
+
     public List<CompositeData> getRepairStats(List<String> schemaArgs, String rangeString)
     {
         List<CompositeData> stats = new ArrayList<>();
@@ -439,6 +453,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                              boolean repairPaxos,
                                              boolean paxosOnly,
                                              ExecutorPlus executor,
+                                             Scheduler validationScheduler,
                                              String... cfnames)
     {
         if (repairPaxos && previewKind != PreviewKind.NONE)
@@ -450,7 +465,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         if (cfnames.length == 0)
             return null;
 
-        final RepairSession session = new RepairSession(ctx, parentRepairSession, range, keyspace,
+        final RepairSession session = new RepairSession(ctx, validationScheduler, parentRepairSession, range, keyspace,
                                                         parallelismDegree, isIncremental, pullRepair,
                                                         previewKind, optimiseStreams, repairPaxos, paxosOnly, cfnames);
         repairs.getIfPresent(parentRepairSession).register(session.state);
@@ -1150,7 +1165,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                                              range, table.keyspace, table.name, ClusterMetadata.current(), PAXOS_REPAIR_ALLOW_MULTIPLE_PENDING_UNSAFE.getKey()));
 
                 }
-                futures.add(() -> PaxosCleanup.cleanup(endpoints, table, Collections.singleton(range), false, repairCommandExecutor()));
+                futures.add(() -> PaxosCleanup.cleanup(ctx, endpoints, table, Collections.singleton(range), false, repairCommandExecutor()));
             }
         }
 

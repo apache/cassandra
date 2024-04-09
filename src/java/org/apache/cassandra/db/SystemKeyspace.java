@@ -72,6 +72,7 @@ import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.ReversedLongLocalPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.EndpointState;
@@ -112,7 +113,6 @@ import org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedIndex;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tcm.Sealed;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -177,8 +177,6 @@ public final class SystemKeyspace
     public static final String TOP_PARTITIONS = "top_partitions";
     public static final String METADATA_LOG = "local_metadata_log";
     public static final String SNAPSHOT_TABLE_NAME = "metadata_snapshots";
-    public static final String SEALED_PERIODS_TABLE_NAME = "metadata_sealed_periods";
-    public static final String LAST_SEALED_PERIOD_TABLE_NAME = "metadata_last_sealed_period";
 
     /**
      * By default the system keyspace tables should be stored in a single data directory to allow the server
@@ -212,14 +210,14 @@ public final class SystemKeyspace
         TABLE_ESTIMATES_TYPE_LOCAL_PRIMARY, AVAILABLE_RANGES_V2, TRANSFERRED_RANGES_V2, VIEW_BUILDS_IN_PROGRESS,
         BUILT_VIEWS, PREPARED_STATEMENTS, REPAIRS, TOP_PARTITIONS, LEGACY_PEERS, LEGACY_PEER_EVENTS,
         LEGACY_TRANSFERRED_RANGES, LEGACY_AVAILABLE_RANGES, LEGACY_SIZE_ESTIMATES, LEGACY_SSTABLE_ACTIVITY,
-        METADATA_LOG, SNAPSHOT_TABLE_NAME, SEALED_PERIODS_TABLE_NAME, LAST_SEALED_PERIOD_TABLE_NAME);
+        METADATA_LOG, SNAPSHOT_TABLE_NAME);
 
     public static final Set<String> TABLE_NAMES = ImmutableSet.of(
         BATCHES, PAXOS, PAXOS_REPAIR_HISTORY, BUILT_INDEXES, LOCAL, PEERS_V2, PEER_EVENTS_V2, 
         COMPACTION_HISTORY, SSTABLE_ACTIVITY_V2, TABLE_ESTIMATES, AVAILABLE_RANGES_V2, TRANSFERRED_RANGES_V2, VIEW_BUILDS_IN_PROGRESS, 
         BUILT_VIEWS, PREPARED_STATEMENTS, REPAIRS, TOP_PARTITIONS, LEGACY_PEERS, LEGACY_PEER_EVENTS, 
         LEGACY_TRANSFERRED_RANGES, LEGACY_AVAILABLE_RANGES, LEGACY_SIZE_ESTIMATES, LEGACY_SSTABLE_ACTIVITY,
-        METADATA_LOG, SNAPSHOT_TABLE_NAME, SEALED_PERIODS_TABLE_NAME, LAST_SEALED_PERIOD_TABLE_NAME);
+        METADATA_LOG, SNAPSHOT_TABLE_NAME);
 
     public static final TableMetadata Batches =
         parse(BATCHES,
@@ -498,6 +496,7 @@ public final class SystemKeyspace
               + "PRIMARY KEY (period, epoch))")
         .compaction(CompactionParams.twcs(ImmutableMap.of("compaction_window_unit","DAYS",
                                                           "compaction_window_size","1")))
+        .partitioner(new LocalPartitioner(LongType.instance))
         .build();
 
     public static final TableMetadata Snapshots = parse(SNAPSHOT_TABLE_NAME,
@@ -506,23 +505,8 @@ public final class SystemKeyspace
                                                         "epoch bigint PRIMARY KEY," +
                                                         "period bigint," +
                                                         "snapshot blob)")
+                                                  .partitioner(ReversedLongLocalPartitioner.instance)
                                                   .build();
-
-    public static final TableMetadata SealedPeriods = parse(SEALED_PERIODS_TABLE_NAME,
-                                                            "ClusterMetadata sealed periods",
-                                                            "CREATE TABLE IF NOT EXISTS %s (" +
-                                                            "max_epoch bigint PRIMARY KEY," +
-                                                            "period bigint)")
-                                                      .partitioner(new LocalPartitioner(LongType.instance))
-                                                      .build();
-
-    public static final TableMetadata LastSealedPeriod = parse(LAST_SEALED_PERIOD_TABLE_NAME,
-                                                               "ClusterMetadata last sealed period",
-                                                               "CREATE TABLE IF NOT EXISTS %s (" +
-                                                               "key text PRIMARY KEY," +
-                                                               "epoch bigint," +
-                                                               "period bigint)")
-                                                         .build();
 
     @Deprecated(since = "4.0")
     private static final TableMetadata LegacyPeers =
@@ -616,8 +600,6 @@ public final class SystemKeyspace
                          Repairs,
                          TopPartitions,
                          LocalMetadataLog,
-                         LastSealedPeriod,
-                         SealedPeriods,
                          Snapshots);
     }
 
@@ -2008,80 +1990,54 @@ public final class SystemKeyspace
         logger.info("Storing snapshot of cluster metadata at epoch {} (period {})", epoch, period);
         String query = String.format("INSERT INTO %s.%s (epoch, period, snapshot) VALUES (?, ?, ?)", SchemaConstants.SYSTEM_KEYSPACE_NAME, SNAPSHOT_TABLE_NAME);
         executeInternal(query, epoch.getEpoch(), period, snapshot);
+        forceBlockingFlush(SNAPSHOT_TABLE_NAME);
     }
 
     public static ByteBuffer getSnapshot(Epoch epoch)
     {
         logger.info("Getting snapshot of epoch = {}", epoch);
-        String query = String.format("SELECT SNAPSHOT FROM %s.%s WHERE epoch = ?", SchemaConstants.SYSTEM_KEYSPACE_NAME, SNAPSHOT_TABLE_NAME);
+        String query = String.format("SELECT snapshot FROM %s.%s WHERE epoch = ?", SchemaConstants.SYSTEM_KEYSPACE_NAME, SNAPSHOT_TABLE_NAME);
         UntypedResultSet res = executeInternal(query, epoch.getEpoch());
         if (res == null || res.isEmpty())
             return null;
         return res.one().getBytes("snapshot").duplicate();
     }
 
-    public static Sealed findSealedPeriodForEpochScan(Epoch search)
+    /**
+     * We use ReversedLongLocalPartitioner here, which calculates token as Long.MAX_VALUE - key
+     *
+     * table is something like (assuming Long.MAX_VALUE is 1000 for easier calculations...):
+     * epoch | token(epoch)
+     * --------------------
+     *   100 | 900
+     *    90 | 910
+     *    80 | 920
+     *    70 | 970
+     *    ...
+     *
+     * so to find the first snapshot before epoch 85, we query the table with token(epoch) >= token(85)=915. Which gives us
+     * epoch 80, 70... and the first row is the first snapshot before `search`
+     */
+    public static ByteBuffer findSnapshotBefore(Epoch search)
     {
-        String query = String.format("SELECT max_epoch, period FROM %s.%s WHERE max_epoch >= ? LIMIT 1 ALLOW FILTERING", SchemaConstants.SYSTEM_KEYSPACE_NAME, SEALED_PERIODS_TABLE_NAME);
+        String query = String.format("SELECT snapshot FROM %s.%s WHERE token(epoch) >= token(?) LIMIT 1", SchemaConstants.SYSTEM_KEYSPACE_NAME, SNAPSHOT_TABLE_NAME);
+
         UntypedResultSet res = executeInternal(query, search.getEpoch());
         if (res != null && !res.isEmpty())
-        {
-            long period = res.one().getLong("period");
-            long epoch = res.one().getLong("max_epoch");
-            return new Sealed(period, epoch);
-        }
-
-        // nothing found for this epoch, is the table empty or is the search epoch > the maximum
-        query = String.format("SELECT max_epoch, period FROM %s.%s LIMIT 1", SchemaConstants.SYSTEM_KEYSPACE_NAME, SEALED_PERIODS_TABLE_NAME);
-        res = executeInternal(query);
-        // table is empty, so any scan for the epoch will have to begin at Period.EMPTY
-        if (res == null || res.isEmpty())
-            return Sealed.EMPTY;
-
-        // the index table has some data, but is the search target greater than the max epoch in last sealed period?
-        // This query is relatively costly, so we do it last. Retain the min period/epoch that we did find in the
-        // previous query just in case we need them
-        // TODO add a nodetool command to rebuild the local sealed periods table
-        long lowestPeriod = res.one().getLong("period");
-        long lowestMaxEpoch = res.one().getLong("max_epoch");
-        logger.info("Scanning sealed periods by epoch table, this may be an expensive operation and the index table {} should be rebuilt", SEALED_PERIODS_TABLE_NAME);
-        query = String.format("SELECT max(max_epoch) AS max_epoch FROM %s.%s LIMIT 1 ALLOW FILTERING;", SchemaConstants.SYSTEM_KEYSPACE_NAME, SEALED_PERIODS_TABLE_NAME);
-        res = executeInternal(query);
-
-        // should never happen because the previous query returned the min, but just in case the table has been
-        // truncated since then, return the min Sealed.
-        if (res == null || res.isEmpty())
-            return new Sealed(lowestPeriod, lowestMaxEpoch);
-
-        // use the max epoch to look up the sealed period
-        long maxEpoch = res.one().getLong("max_epoch");
-        query = String.format("SELECT period FROM %s.%s WHERE max_epoch = ?", SchemaConstants.SYSTEM_KEYSPACE_NAME, SEALED_PERIODS_TABLE_NAME);
-        res = executeInternal(query, maxEpoch);
-        if (res == null || res.isEmpty())
-            return new Sealed(lowestPeriod, lowestMaxEpoch);
-        // this is the last recorded sealed period *before* the target epoch, so any scan should start at the
-        // *next* period, so we bump both period and epoch by 1
-        long maxPeriod = res.one().getLong("period");
-        return new Sealed(maxPeriod + 1, maxEpoch + 1);
+            return res.one().getBytes("snapshot").duplicate();
+        return null;
     }
 
-    public static Sealed getLastSealedPeriod()
+    /**
+     * Find the latest snapshot we have in the log.
+     */
+    public static ByteBuffer findLastSnapshot()
     {
-        String query = String.format("SELECT epoch, period FROM %s.%s WHERE key = 'latest'", SchemaConstants.SYSTEM_KEYSPACE_NAME, LAST_SEALED_PERIOD_TABLE_NAME);
+        String query = String.format("SELECT snapshot FROM %s.%s LIMIT 1", SchemaConstants.SYSTEM_KEYSPACE_NAME, SNAPSHOT_TABLE_NAME);
         UntypedResultSet res = executeInternal(query);
-        if (res == null || res.isEmpty())
-            return Sealed.EMPTY;
-        long epoch = res.one().getLong("epoch");
-        long period = res.one().getLong("period");
-        return new Sealed(period, Epoch.create(epoch));
-    }
-
-    public static void sealPeriod(long period, Epoch epoch)
-    {
-        String query = String.format("INSERT INTO %s.%s (max_epoch, period) VALUES (?,?)", SchemaConstants.SYSTEM_KEYSPACE_NAME, SEALED_PERIODS_TABLE_NAME);
-        executeInternal(query, epoch.getEpoch(), period);
-        query = String.format("UPDATE %s.%s SET period = ?, epoch = ? WHERE key = 'latest'", SchemaConstants.SYSTEM_KEYSPACE_NAME, LAST_SEALED_PERIOD_TABLE_NAME);
-        executeInternal(query, period, epoch.getEpoch());
+        if (res != null && !res.isEmpty())
+            return res.one().getBytes("snapshot").duplicate();
+        return null;
     }
 
     public static Map<InetAddressAndPort, EndpointState> peerEndpointStates()

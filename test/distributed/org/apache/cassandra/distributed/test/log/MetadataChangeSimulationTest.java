@@ -49,6 +49,7 @@ import org.apache.cassandra.locator.CMSPlacementStrategy;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -872,6 +873,61 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                                            finalBootstrappingNodes + finalMovingNodes + finalLeavingNodes, finalBootstrappingNodes, finalMovingNodes, finalLeavingNodes, finalReplacedNodes, finalExpectedOverReplicated, finalOverreplicated,
                                            rf, placements),
                        overreplicated >= expectedOverReplicated && overreplicated <= (expectedOverReplicated * rf.total() + 2 + movingNodes * rf.total()));
+        }
+    }
+
+    @Test
+    public void testPlacementsAllSettled() throws Throwable
+    {
+        Random random = new Random(1);
+        ReplicationFactor rf = new NtsReplicationFactor(1, 3);
+
+        try(CMSSut sut = new CMSSut(AtomicLongBackedProcessor::new, false, rf))
+        {
+            ModelState state = ModelState.empty(nodeFactory(), 300, 1);
+            Node toJoin = null;
+            Node toMove = null;
+            Node toReplace = null;
+            Node toLeave = null;
+            for (Map.Entry<String, Integer> e : rf.asMap().entrySet())
+            {
+                int dc = Integer.parseInt(e.getKey().replace("datacenter", ""));
+
+                for (int i = 0; i < 100; i++)
+                {
+                    ModelChecker.Pair<ModelState, Node> registration = registerNewNode(state, sut, dc, random.nextInt(5) + 1);
+                    state = registration.l;
+                    if (i == 50)
+                        toJoin = registration.r;
+                    else
+                    {
+                        state = SimulatedOperation.joinWithoutBootstrap(registration.l, sut, registration.r);
+                        if (i == 75)
+                            toMove = registration.r;
+                        if (i == 25)
+                            toReplace = registration.r;
+                        if (i == 10)
+                            toLeave = registration.r;
+                    }
+                }
+            }
+            state = SimulatedOperation.join(sut, state, toJoin);
+            state = SimulatedOperation.move(sut, state, toMove, toMove.overrideToken(toMove.token() + 1));
+
+            ModelChecker.Pair<ModelState, Node> replacement = registerNewNode(state, sut, toReplace.tokenIdx(), toReplace.dcIdx(), toReplace.rackIdx());;
+            state = SimulatedOperation.replace(sut, replacement.l, toReplace, replacement.r);
+            state = SimulatedOperation.leave(sut, state, toLeave);
+
+            KeyspaceMetadata ksm = sut.service.metadata().schema.getKeyspaces().get("test").get();
+            DataPlacement allSettled = sut.service.metadata().writePlacementAllSettled(ksm);
+            Assert.assertEquals(4, state.inFlightOperations.size()); // make sure none was rejected
+            while (!state.inFlightOperations.isEmpty())
+            {
+                state = state.inFlightOperations.get(random.nextInt(state.inFlightOperations.size())).advance(state);
+                Assert.assertEquals(allSettled, sut.service.metadata().writePlacementAllSettled(ksm));
+                validatePlacements(sut, state);
+            }
+            Assert.assertEquals(allSettled, sut.service.metadata().placements.get(ksm.params.replication));
         }
     }
 }

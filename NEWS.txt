@@ -81,6 +81,10 @@ New features
       - Whether bulk loading of SSTables is allowed.
     - nodetool tpstats can display core pool size, max pool size and max tasks queued if --verbose / -v flag is specified.
       system_views.thread_pools adds core_pool_size, max_pool_size and max_tasks_queued columns.
+    - Authentication mode is exposed in system_views.clients table, nodetool clientstats and ClientMetrics 
+      to help operators identify which authentication modes are being used. nodetool clientstats introduces --verbose flag 
+      behind which this information is visible.
+
 
 Upgrading
 ---------
@@ -137,6 +141,11 @@ Upgrading
     which come up during or after an election will learn of the elected first CMS node and direct metadata updates to
     it. It is important to remember that at the completion of the election, the CMS still only comprises a single
     member. Just as in the upgrade case, operators should add further members as soon as possible.
+    - native_transport_port_ssl property was removed. Please transition to using one port only. Encrypted communication
+    may be optional by setting `optional` flag in `client_encryption_options` to `true` and it should be set only
+    while in unencrypted or transitional operation. Please consult `client_encryption_options` in cassandra.yaml
+    for more information.
+
 
 Deprecation
 -----------
@@ -147,6 +156,12 @@ Deprecation
 
 New features
 ------------
+    - A new configuration file, `cassandra_latest.yaml`, is provided for users that would like to evaluate and
+      experiment with the latest recommended features and changes in Cassandra, which provide improved functionality and
+      performance. This file is intended to be used in a development environment and is only recommended for production
+      use after careful evaluation. The file is located in the conf directory and is not selected by default.
+      To use it, one may specify the file using the `-Dcassandra.config` option, e.g. by running
+      `cassandra -Dcassandra.config=file://$CASSANDRA_HOME/conf/cassandra_latest.yaml`.
     - Added a new authorizer, CIDR authorizer, to restrict user access based on CIDR groups.
     - Pluggable crypto providers were made possible via `crypto_provider` section in cassandra.yaml. The default provider is 
       Amazon Corretto Crypto Provider and it is installed automatically upon node's start. Only x86_64 and aarch64 architectures are supported now.
@@ -273,8 +288,8 @@ Upgrading
 ---------
     - Default disk_access_mode value changed from "auto" to "mmap_index_only". Override this setting with "disk_access_mode: auto" on
       cassandra.yaml to keep the previous default. See CASSANDRA-19021 for details.
-    - The Python version required to run cqlsh has been bumped from 3.6+ to 3.8-3.11. Python 3.6 and 3.7 are past their
-      end-of-life, and 3.8 is now the minimum version supported by the Python driver.
+    - The Python versions recommended for running cqlsh have been bumped from 3.6+ to 3.8-3.11. Python 3.6-3.7 are now 
+      deprecated, as they have reached end-of-life, and support will be removed in a future major release.
     - Java 8 has been removed. Lowest supported version is Java 11.
     - Ephemeral marker files for snapshots done by repairs are not created anymore,
       there is a dedicated flag in snapshot manifest instead. On upgrade of a node to this version, on node's start, in case there
@@ -311,10 +326,12 @@ Upgrading
     - `commitlog_sync_batch_window_in_ms` configuration property in cassandra.yaml was removed. Please ensure your configuration is not using this property.
     - The pluggable metrics reporter called metrics-reporter-config is removed. The way that metrics can be exported is
       fully covered by the dropwizard metrics library itself, using e.g. CsvReporter. See CASSANDRA-18743 for more details.
+    - Deprecated CQL compression parameters for table, `sstable_compression` and `chunk_length_kb`, were removed. Please use `class` and `chunk_length_in_kb` instead.
 
 
 Deprecation
 -----------
+    - Deprecated code in Cassandra 1.x and 2.x was removed. See CASSANDRA-18959 for more details.
     - In the JMX MBean `org.apache.cassandra.db:type=RepairService` (CASSANDRA-17668):
         - deprecate the getter/setter methods `getRepairSessionSpaceInMebibytes` and `setRepairSessionSpaceInMebibytes`
           in favor of `getRepairSessionSpaceInMiB` and `setRepairSessionSpaceInMiB` respectively
@@ -339,6 +356,10 @@ Deprecation
       The old property is still supported for backward compatibility, but now it is disabled by default.
     - CloudstackSnitch is marked as deprecated and it is not actively maintained anymore. It is scheduled to be removed 
       in the next major version of Cassandra.
+    - Usage of dual native ports (native_transport_port and native_transport_port_ssl) is deprecated and will be removed
+      in a future release. A single native port can be used for both encrypted and unencrypted traffic; see CASSANDRA-10559.
+      Cluster hosts running with dual native ports were not correctly identified in the system.peers tables and server-sent EVENTs,
+      causing clients that encrypt traffic to fail to maintain correct connection pools. For more information, see CASSANDRA-19392.
 
 4.1
 ===
@@ -668,7 +689,7 @@ Upgrading
       internode_socket_receive_buffer_size_in_bytes. To support upgrades pre-4.0, we add backward compatibility and
       currently both old and new names should work. Cassandra 4.0.0 and Cassandra 4.0.1 work ONLY with the new names
       (They weren't updated in cassandra.yaml though).
-    - DESCRIBE|DESC was moved to server side in Cassandra 4.0. As a consequence DESRIBE|DESC will not work in cqlsh 6.0.0
+    - DESCRIBE|DESC was moved to server side in Cassandra 4.0. As a consequence DESCRIBE|DESC will not work in cqlsh 6.0.0
       being connected to earlier major Cassandra versions where DESCRIBE does not exist server side.
     - cqlsh shell startup script now prefers 'python3' before 'python' when identifying a runtime.
     - As part of the Internode Messaging improvement work in CASSANDRA-15066, matching response verbs for every request

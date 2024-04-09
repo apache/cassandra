@@ -18,7 +18,7 @@ listen_address: 127.0.0.1
 storage_port: 7010
 ssl_storage_port: 7011
 start_native_transport: true
-native_transport_port_ssl: 9142
+native_transport_port: 9142
 column_index_size: 4KiB
 saved_caches_directory: build/test/cassandra/saved_caches
 data_file_directories:
