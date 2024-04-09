@@ -35,6 +35,7 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -200,7 +201,8 @@ public class StubIndex implements Index
         return 0;
     }
 
-    public void validate(PartitionUpdate update) throws InvalidRequestException
+    @Override
+    public void validate(PartitionUpdate update, ClientState state) throws InvalidRequestException
     {
 
     }
