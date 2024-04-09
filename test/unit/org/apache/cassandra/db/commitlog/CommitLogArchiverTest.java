@@ -61,7 +61,7 @@ public class CommitLogArchiverTest extends CQLTester
         String table = createTable(KEYSPACE, "CREATE TABLE %s (a TEXT PRIMARY KEY, b INT);");
         CommitLog commitLog = CommitLog.instance;
         Properties properties = new Properties();
-        properties.putAll(Map.of("archive_command", "/bin/mv %path " + backupDir,
+        properties.putAll(Map.of("archive_command", "/bin/cp %path " + backupDir,
                                  "restore_command", "/bin/mv -f %from %to",
                                  "restore_directories", backupDir,
                                  "restore_point_in_time", rpiTime));
