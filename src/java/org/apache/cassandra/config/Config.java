@@ -910,10 +910,17 @@ public class Config
     public volatile boolean zero_ttl_on_twcs_warned = true;
     public volatile boolean zero_ttl_on_twcs_enabled = true;
     public volatile boolean non_partition_restricted_index_query_enabled = true;
-    public volatile int sai_sstable_indexes_per_query_warn_threshold = 32;
-    public volatile int sai_sstable_indexes_per_query_fail_threshold = -1;
     public volatile boolean intersect_filtering_query_warned = true;
     public volatile boolean intersect_filtering_query_enabled = true;
+
+    public volatile int sai_sstable_indexes_per_query_warn_threshold = 32;
+    public volatile int sai_sstable_indexes_per_query_fail_threshold = -1;
+    public volatile DataStorageSpec.LongBytesBound sai_string_term_size_warn_threshold = new DataStorageSpec.LongBytesBound("1KiB");
+    public volatile DataStorageSpec.LongBytesBound sai_string_term_size_fail_threshold = new DataStorageSpec.LongBytesBound("8KiB");
+    public volatile DataStorageSpec.LongBytesBound sai_frozen_term_size_warn_threshold = new DataStorageSpec.LongBytesBound("1KiB");
+    public volatile DataStorageSpec.LongBytesBound sai_frozen_term_size_fail_threshold = new DataStorageSpec.LongBytesBound("8KiB");
+    public volatile DataStorageSpec.LongBytesBound sai_vector_term_size_warn_threshold = new DataStorageSpec.LongBytesBound("16KiB");
+    public volatile DataStorageSpec.LongBytesBound sai_vector_term_size_fail_threshold = new DataStorageSpec.LongBytesBound("32KiB");
 
     public volatile DurationSpec.LongNanosecondsBound streaming_state_expires = new DurationSpec.LongNanosecondsBound("3d");
     public volatile DataStorageSpec.LongBytesBound streaming_state_size = new DataStorageSpec.LongBytesBound("40MiB");

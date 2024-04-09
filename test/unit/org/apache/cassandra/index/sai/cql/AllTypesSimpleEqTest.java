@@ -33,7 +33,6 @@ import accord.utils.Gens;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.DecimalType;
-import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.Generators;
@@ -42,10 +41,8 @@ import org.quicktheories.generators.SourceDSL;
 @RunWith(Parameterized.class)
 public class AllTypesSimpleEqTest extends AbstractSimpleEqTestBase
 {
-    private static final Map<AbstractType<?>, Long> LARGE_DOMAIN_FAILING_SEEDS =
-        Map.of(UTF8Type.instance, -4379508235061872764L);
-    private static final Map<AbstractType<?>, Long> SHORT_DOMAIN_FAILING_SEEDS =
-        Map.of(UTF8Type.instance, -4379508235061872764L);
+    private static final Map<AbstractType<?>, Long> LARGE_DOMAIN_FAILING_SEEDS = Map.of();
+    private static final Map<AbstractType<?>, Long> SHORT_DOMAIN_FAILING_SEEDS = Map.of();
 
     private final AbstractType<?> type;
 
@@ -59,8 +56,6 @@ public class AllTypesSimpleEqTest extends AbstractSimpleEqTestBase
     {
         return StorageAttachedIndex.SUPPORTED_TYPES.stream()
                                                    .map(CQL3Type::getType)
-                                                   // TODO: Track down unicode character edge cases...
-                                                   .filter(t -> t != UTF8Type.instance)
                                                    .distinct()
                                                    .map(t -> new Object[]{ t })
                                                    .collect(Collectors.toList());

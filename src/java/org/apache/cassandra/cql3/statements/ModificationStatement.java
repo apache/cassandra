@@ -747,7 +747,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         HashMultiset<ByteBuffer> perPartitionKeyCounts = HashMultiset.create(keys);
         SingleTableUpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, perPartitionKeyCounts);
         addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, queryStartNanoTime);
-        return collector.toMutations();
+        return collector.toMutations(state);
     }
 
     final void addUpdates(UpdatesCollector collector,
