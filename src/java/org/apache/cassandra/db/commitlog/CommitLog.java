@@ -173,10 +173,11 @@ public class CommitLog implements CommitLogMBean
     /**
      * Perform recovery on commit logs located in the directory specified by the config file.
      *
+     * @param deleteReplayedFile delete the replayed file or not
      * @return the number of mutations replayed
      * @throws IOException
      */
-    public int recoverSegmentsOnDisk() throws IOException
+    public int recoverSegmentsOnDisk(boolean deleteReplayedFile) throws IOException
     {
         // submit all files for this segment manager for archiving prior to recovery - CASSANDRA-6904
         // The files may have already been archived by normal CommitLog operation. This may cause errors in this
@@ -204,11 +205,19 @@ public class CommitLog implements CommitLogMBean
             replayed = recoverFiles(files);
             logger.info("Log replay complete, {} replayed mutations", replayed);
 
-            for (File f : files)
-                segmentManager.handleReplayedSegment(f);
+            if (deleteReplayedFile)
+            {
+                for (File f : files)
+                    segmentManager.handleReplayedSegment(f);
+            }
         }
 
         return replayed;
+    }
+
+    public int recoverSegmentsOnDisk() throws IOException
+    {
+        return recoverSegmentsOnDisk(true);
     }
 
     /**
@@ -406,11 +415,6 @@ public class CommitLog implements CommitLogMBean
         this.archiver = archiver;
     }
 
-    @Override
-    public String getRestorePrecision()
-    {
-        return archiver.precision.toString();
-    }
 
     public List<String> getActiveSegmentNames()
     {
@@ -494,11 +498,17 @@ public class CommitLog implements CommitLogMBean
      * @return the number of files recovered
      */
     @VisibleForTesting
-    synchronized public int resetUnsafe(boolean deleteSegments) throws IOException
+    public int resetUnsafe(boolean deleteSegments) throws IOException
+    {
+        return resetUnsafe(deleteSegments, true);
+    }
+
+    @VisibleForTesting
+    synchronized public int resetUnsafe(boolean deleteSegments, boolean deleteReplayedFile) throws IOException
     {
         stopUnsafe(deleteSegments);
         resetConfiguration();
-        return restartUnsafe();
+        return restartUnsafe(deleteReplayedFile);
     }
 
     /**
@@ -541,10 +551,16 @@ public class CommitLog implements CommitLogMBean
      * FOR TESTING PURPOSES
      */
     @VisibleForTesting
-    synchronized public int restartUnsafe() throws IOException
+    synchronized public int restartUnsafe(boolean delete) throws IOException
     {
         started = false;
-        return start().recoverSegmentsOnDisk();
+        return start().recoverSegmentsOnDisk(delete);
+    }
+
+    @VisibleForTesting
+    public int restartUnsafe() throws IOException
+    {
+        return restartUnsafe(true);
     }
 
     public static long freeDiskSpace()
