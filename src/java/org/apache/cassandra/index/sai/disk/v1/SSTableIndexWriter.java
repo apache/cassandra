@@ -187,7 +187,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
 
     private void addTerm(ByteBuffer term, PrimaryKey key, long sstableRowId) throws IOException
     {
-        if (!index.validateMaxTermSize(key.partitionKey(), term, false))
+        if (!index.validateTermSize(key.partitionKey(), term, false, null))
             return;
 
         if (currentBuilder == null)
