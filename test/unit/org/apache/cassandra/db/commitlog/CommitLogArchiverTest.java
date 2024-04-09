@@ -62,7 +62,7 @@ public class CommitLogArchiverTest extends CQLTester
         CommitLog commitLog = CommitLog.instance;
         Properties properties = new Properties();
         properties.putAll(Map.of("archive_command", "/bin/cp %path " + backupDir,
-                                 "restore_command", "/bin/mv -f %from %to",
+                                 "restore_command", "/bin/cp -f %from %to",
                                  "restore_directories", backupDir,
                                  "restore_point_in_time", rpiTime));
         CommitLogArchiver commitLogArchiver = CommitLogArchiver.getArchiverFromProperty(properties);
@@ -77,7 +77,8 @@ public class CommitLogArchiverTest extends CQLTester
                     .build()
                     .apply();
         }
-        CommitLog.instance.resetUnsafe(false);
+        // commitlog may be archived and delted by resetUnsafe then the commitlog in the write path may throw no such file exception
+        CommitLog.instance.resetUnsafe(false, false);
         assertTrue(Files.list(backupDir).count() > 0);
     }
 }
