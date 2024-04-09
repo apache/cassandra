@@ -45,6 +45,7 @@ import org.apache.cassandra.io.compress.*;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.Throwables;
 
 import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
@@ -301,36 +302,17 @@ public final class CompressionParams
             CompressionParams.checkCompressorOptions(compressor, parameters.keySet());
             return compressor;
         }
-        catch (NoSuchMethodException e)
+        catch (NoSuchMethodException | SecurityException | IllegalAccessException  | InvocationTargetException | ExceptionInInitializerError e)
         {
-            throw new ConfigurationException("create method not found", e);
-        }
-        catch (SecurityException e)
-        {
-            throw new ConfigurationException("Access forbiden", e);
-        }
-        catch (IllegalAccessException e)
-        {
-            throw new ConfigurationException("Cannot access method create in " + className.getName(), e);
-        }
-        catch (InvocationTargetException e)
-        {
-            if (e.getTargetException() instanceof ConfigurationException)
-                throw (ConfigurationException) e.getTargetException();
-
-            Throwable cause = e.getCause() == null
-                              ? e
-                              : e.getCause();
+            Throwable cause = Throwables.unwrapped(e);
+            if (cause instanceof ConfigurationException)
+                throw (ConfigurationException) cause;
 
             throw new ConfigurationException(format("%s.create() threw an error: %s %s",
                                                     className.getSimpleName(),
                                                     cause.getClass().getName(),
                                                     cause.getMessage()),
                                              e);
-        }
-        catch (ExceptionInInitializerError e)
-        {
-            throw new ConfigurationException("Cannot initialize class " + className.getName());
         }
     }
 
