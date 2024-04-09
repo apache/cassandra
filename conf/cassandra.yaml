@@ -2152,6 +2152,18 @@ drop_compact_storage_enabled: false
 # before emitting a failure (defaults to -1 to disable)
 #sai_sstable_indexes_per_query_fail_threshold: -1
 
+# Guardrail specifying warn/fail thresholds for the size of string terms written to an SAI index
+# sai_string_term_size_warn_threshold: 1KiB
+# sai_string_term_size_fail_threshold: 8KiB
+
+# Guardrail specifying warn/fail thresholds for the size of frozen terms written to an SAI index
+# sai_frozen_term_size_warn_threshold: 1KiB
+# sai_frozen_term_size_fail_threshold: 8KiB
+
+# Guardrail specifying warn/fail thresholds for the size of vector terms written to an SAI index
+# sai_vector_term_size_warn_threshold: 16KiB
+# sai_vector_term_size_fail_threshold: 32KiB
+
 # The default secondary index implementation when CREATE INDEX does not specify one via USING.
 # ex. "legacy_local_table" - (default) legacy secondary index, implemented as a hidden table
 # ex. "sai" - "storage-attched" index, implemented via optimized SSTable/Memtable-attached indexes

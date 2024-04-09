@@ -30,6 +30,7 @@ import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.ClientState;
 
 /**
  * A specialised IMutation implementation for virtual keyspaces.
@@ -113,7 +114,7 @@ public final class VirtualMutation implements IMutation
     }
 
     @Override
-    public void validateIndexedColumns()
+    public void validateIndexedColumns(ClientState state)
     {
         // no-op
     }

@@ -204,7 +204,7 @@ public class TrieMemoryIndex extends MemoryIndex
 
     private void addTerm(PrimaryKey primaryKey, ByteBuffer term)
     {
-        if (index.validateMaxTermSize(primaryKey.partitionKey(), term, false))
+        if (index.validateTermSize(primaryKey.partitionKey(), term, false, null))
         {
             setMinMaxTerm(term.duplicate());
 

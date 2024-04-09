@@ -77,7 +77,7 @@ public class VectorMemoryIndex extends MemoryIndex
     @Override
     public synchronized long add(DecoratedKey key, Clustering<?> clustering, ByteBuffer value)
     {
-        if (value == null || value.remaining() == 0 || !index.validateMaxTermSize(key, value, false))
+        if (value == null || value.remaining() == 0 || !index.validateTermSize(key, value, false, null))
             return 0;
 
         var primaryKey = index.hasClustering() ? index.keyFactory().create(key, clustering)

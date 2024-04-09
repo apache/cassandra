@@ -44,6 +44,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.UpdateFunction;
 import org.apache.cassandra.utils.vint.VIntCoding;
@@ -542,9 +543,9 @@ public class PartitionUpdate extends AbstractBTreePartition
         return new SimpleBuilders.PartitionUpdateBuilder(metadata, partitionKeyValues);
     }
 
-    public void validateIndexedColumns()
+    public void validateIndexedColumns(ClientState state)
     {
-        IndexRegistry.obtain(metadata()).validate(this);
+        IndexRegistry.obtain(metadata()).validate(this, state);
     }
 
     @VisibleForTesting
