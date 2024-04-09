@@ -54,12 +54,6 @@ public interface CommitLogMBean
     public long getRestorePointInTime();
 
     /**
-     * get precision of the timestamp used in the restore (MILLISECONDS, MICROSECONDS, ...)
-     * to determine if passed the restore point in time.
-     */
-    public String getRestorePrecision();
-
-    /**
      * Recover a single file.
      */
     public void recover(String path) throws IOException;
