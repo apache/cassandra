@@ -1999,8 +1999,8 @@ def read_options(cmdlineargs, parser, config_file, cql_dir, environment=os.envir
             print("\nWarning: Password is found in an insecure cqlshrc file. The file is owned or readable by other users on the system.",
                   end='', file=sys.stderr)
         print("\nNotice: Credentials in the cqlshrc file is deprecated and will be ignored in the future."
-              "\nPlease use a credentials file to specify the username and password."
-              "\nTo use basic authentication, place the username and password in the [PlainTextAuthProvider] section of the credentials file.\n", file=sys.stderr)
+              "\nFor basic authentication, please use a credentials file with username and password in the [PlainTextAuthProvider] section.",
+              file=sys.stderr)
 
     argvalues = argparse.Namespace()
 
