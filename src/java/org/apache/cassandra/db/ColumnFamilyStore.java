@@ -164,6 +164,7 @@ import org.apache.cassandra.streaming.TableStreamManager;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.DefaultValue;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -2704,19 +2705,24 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public void truncateBlocking()
     {
-        truncateBlocking(false);
+        truncateBlocking(false, Clock.Global.currentTimeMillis());
     }
 
     public void truncateBlockingWithoutSnapshot()
     {
-        truncateBlocking(true);
+        truncateBlocking(true, Clock.Global.currentTimeMillis());
+    }
+
+    public void truncateBlocking(long truncationTimestamp)
+    {
+        truncateBlocking(false, truncationTimestamp);
     }
 
     /**
      * Truncate deletes the entire column family's data with no expensive tombstone creation
      * @param noSnapshot if {@code true} no snapshot will be taken
      */
-    private void truncateBlocking(boolean noSnapshot)
+    private void truncateBlocking(boolean noSnapshot, long truncationTimestamp)
     {
         // We have two goals here:
         // - truncate should delete everything written before truncate was invoked
@@ -2753,7 +2759,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             replayAfter = FBUtilities.waitOnFuture(dumpMemtable());
         }
 
-        long now = currentTimeMillis();
+        long now = truncationTimestamp;
         // make sure none of our sstables are somehow in the future (clock drift, perhaps)
         for (ColumnFamilyStore cfs : concatWithIndexes())
             for (SSTableReader sstable : cfs.getLiveSSTables())
@@ -2783,7 +2789,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 SystemKeyspace.saveTruncationRecord(ColumnFamilyStore.this, truncatedAt, replayAfter);
                 logger.trace("cleaning out row cache");
                 invalidateCaches();
-
             }
         };
 

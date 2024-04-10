@@ -59,6 +59,7 @@ import org.apache.cassandra.tcm.listeners.LogListener;
 import org.apache.cassandra.tcm.listeners.MetadataSnapshotListener;
 import org.apache.cassandra.tcm.listeners.PlacementsChangeListener;
 import org.apache.cassandra.tcm.listeners.SchemaListener;
+import org.apache.cassandra.tcm.listeners.TableTruncationListener;
 import org.apache.cassandra.tcm.listeners.UpgradeMigrationListener;
 import org.apache.cassandra.tcm.transformations.ForceSnapshot;
 import org.apache.cassandra.tcm.transformations.cms.PreInitialize;
@@ -874,6 +875,7 @@ public abstract class LocalLog implements Closeable
         addListener(new MetadataSnapshotListener());
         addListener(new ClientNotificationListener());
         addListener(new UpgradeMigrationListener());
+        addListener(new TableTruncationListener());
     }
 
     private LogListener snapshotListener()

@@ -17,26 +17,30 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.util.concurrent.TimeoutException;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.QualifiedName;
+import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.db.virtual.VirtualTable;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.TruncateException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.transformations.TableTruncation;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.commons.lang3.builder.ToStringBuilder;
-import org.apache.commons.lang3.builder.ToStringStyle;
 
 public class TruncateStatement extends QualifiedStatement implements CQLStatement
 {
@@ -63,56 +67,55 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
 
     public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime) throws InvalidRequestException, TruncateException
     {
-        try
-        {
-            TableMetadata metaData = Schema.instance.getTableMetadata(keyspace(), name());
-            if (metaData.isView())
-                throw new InvalidRequestException("Cannot TRUNCATE materialized view directly; must truncate base table instead");
+        executeInternal(() -> {
+            ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(name());
+            long timestampMillis = queryStartNanoTime / 1000 / 1000;
+            ClusterMetadataService.instance().commit(new TableTruncation(cfs.metadata.id, timestampMillis));
+        });
 
-            if (metaData.isVirtual())
-            {
-                executeForVirtualTable(metaData.id);
-            }
-            else
-            {
-                StorageProxy.truncateBlocking(keyspace(), name());
-            }
-        }
-        catch (UnavailableException | TimeoutException e)
-        {
-            throw new TruncateException(e);
-        }
         return null;
     }
 
     public ResultMessage executeLocally(QueryState state, QueryOptions options)
     {
+        executeInternal(() -> {
+            ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(name());
+
+            // we need some timestamp too for local executions
+            // as that one does not come as the param as execute() method has it
+            // let's take it from state where is it stored in microseconds so we convert
+            long timestampMillis = state.getTimestamp() / 1000;
+            cfs.truncateBlocking(timestampMillis);
+        });
+
+        return null;
+    }
+
+    private void executeInternal(Runnable runnable)
+    {
         try
         {
-            TableMetadata metaData = Schema.instance.getTableMetadata(keyspace(), name());
-            if (metaData.isView())
+            TableMetadata tableMetadata = Schema.instance.getTableMetadata(keyspace(), name());
+            assert tableMetadata != null : String.format("No table %s.%s found", keyspace(), name());
+
+            if (tableMetadata.isView())
                 throw new InvalidRequestException("Cannot TRUNCATE materialized view directly; must truncate base table instead");
 
-            if (metaData.isVirtual())
+            if (tableMetadata.isVirtual())
             {
-                executeForVirtualTable(metaData.id);
+                VirtualTable tableNullable = VirtualKeyspaceRegistry.instance.getTableNullable(tableMetadata.id);
+                assert tableNullable != null : "no virtual table of id " + tableMetadata.id;
+                tableNullable.truncate();
             }
             else
             {
-                ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(name());
-                cfs.truncateBlocking();
+                runnable.run();
             }
         }
         catch (Exception e)
         {
             throw new TruncateException(e);
         }
-        return null;
-    }
-
-    private void executeForVirtualTable(TableId id)
-    {
-        VirtualKeyspaceRegistry.instance.getTableNullable(id).truncate();
     }
 
     @Override

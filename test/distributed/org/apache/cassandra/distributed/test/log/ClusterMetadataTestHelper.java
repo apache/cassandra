@@ -151,6 +151,7 @@ public class ClusterMetadataTestHelper
                                    DataPlacements.empty(),
                                    null,
                                    null,
+                                   null,
                                    ImmutableMap.of());
     }
 
@@ -164,6 +165,7 @@ public class ClusterMetadataTestHelper
                                    null,
                                    null,
                                    DataPlacements.empty(),
+                                   null,
                                    null,
                                    null,
                                    ImmutableMap.of());
@@ -184,6 +186,7 @@ public class ClusterMetadataTestHelper
                                        metadata.placements,
                                        metadata.lockedRanges,
                                        metadata.inProgressSequences,
+                                       metadata.truncations,
                                        metadata.extensions);
         ClusterMetadataService.instance().log().append(new LogState(metadata, LogState.EMPTY.entries));
     }

@@ -23,8 +23,16 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.transformations.TableTruncation;
 import org.apache.cassandra.tracing.Tracing;
 
+/**
+ * A truncate operation descriptor
+ *
+ * @deprecated See CASSANDRA-19130
+ */
+@Deprecated(since = "5.1")
 public class TruncateVerbHandler implements IVerbHandler<TruncateRequest>
 {
     public static final TruncateVerbHandler instance = new TruncateVerbHandler();
@@ -37,7 +45,10 @@ public class TruncateVerbHandler implements IVerbHandler<TruncateRequest>
         Tracing.trace("Applying truncation of {}.{}", truncation.keyspace, truncation.table);
 
         ColumnFamilyStore cfs = Keyspace.open(truncation.keyspace).getColumnFamilyStore(truncation.table);
-        cfs.truncateBlocking();
+
+        long truncationTime = message.createdAtNanos() / 1000 / 1000; // conversion to millis
+        ClusterMetadataService.instance().commit(new TableTruncation(cfs.metadata.id, truncationTime));
+
         Tracing.trace("Enqueuing response to truncate operation to {}", message.from());
 
         TruncateResponse response = new TruncateResponse(truncation.keyspace, truncation.table, true);
