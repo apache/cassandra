@@ -121,7 +121,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                                                 "/ LOCAL_ONE / NODE_LOCAL. Consistency level %s was requested. " +
                                                                 "Downgrading the consistency level to %s.";
     public static final String TOPK_PAGE_SIZE_WARNING = "Top-K queries do not support paging and the page size is set to %d, " +
-                                                        "which is less than LIMIT %d. The page size has been set to %<d to match the LIMIT.";
+                                                        "which is less than LIMIT %d. The page size has been set to %d to match the LIMIT.";
 
     public final VariableSpecifications bindVariables;
     public final TableMetadata table;
@@ -326,7 +326,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                 pageSize = limit.count();
                 limit = getDataLimits(userLimit, userPerPartitionLimit, pageSize, aggregationSpec);
                 options = QueryOptions.withPageSize(options, pageSize);
-                ClientWarn.instance.warn(String.format(TOPK_PAGE_SIZE_WARNING, oldPageSize, limit.count()));
+                ClientWarn.instance.warn(String.format(TOPK_PAGE_SIZE_WARNING, oldPageSize, limit.count(), pageSize));
             }
         }
 
