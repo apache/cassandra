@@ -56,9 +56,7 @@ public class RemoveNodeStreams implements LeaveStreams
         ClusterMetadata metadata = ClusterMetadata.current();
         MovementMap movements = movementMap(metadata.directory.endpoint(leaving),
                                             metadata,
-                                            startLeave,
-                                            midLeave,
-                                            finishLeave);
+                                            startLeave);
         movements.forEach((params, eps) -> logger.info("Removenode movements: {}: {}", params, eps));
         String operationId = leaving.toUUID().toString();
         responseTracker = DataMovements.instance.registerMovements(RESTORE_REPLICA_COUNT, operationId, movements);
@@ -109,7 +107,7 @@ public class RemoveNodeStreams implements LeaveStreams
      * create a map where the key is the destination, and the values are possible sources
      * @return
      */
-    private static MovementMap movementMap(InetAddressAndPort leaving, ClusterMetadata metadata, PlacementDeltas startDelta, PlacementDeltas midDelta, PlacementDeltas finishDelta)
+    private static MovementMap movementMap(InetAddressAndPort leaving, ClusterMetadata metadata, PlacementDeltas startDelta)
     {
         MovementMap.Builder allMovements = MovementMap.builder();
         // map of dest->src* movements, keyed by replication settings. During unbootstrap, this will be used to construct

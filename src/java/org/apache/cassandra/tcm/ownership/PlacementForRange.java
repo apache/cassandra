@@ -336,7 +336,7 @@ public class PlacementForRange
          *
          * Where an endpoint is present in both groups, prefer the proposed iff it is a FULL replica. During a
          * multi-step operation (join/leave/move), we want any change from transient to full to happen as early
-         * as possible so that a replica being whose ownership is modified in this way becomes FULL for writes before it
+         * as possible so that a replica whose ownership is modified in this way becomes FULL for writes before it
          * becomes FULL for reads. This works as additions to write replica groups are applied before any other
          * placement changes (i.e. in START_[JOIN|LEAVE|MOVE]).
          *

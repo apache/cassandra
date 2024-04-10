@@ -24,7 +24,9 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
+import org.apache.cassandra.tcm.ownership.PlacementTransitionPlan;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 
@@ -81,5 +83,11 @@ public class UnsafeJoin extends PrepareJoin
     {
         UnsafeJoin join = new UnsafeJoin(nodeId, tokens, ClusterMetadataService.instance().placementProvider());
         ClusterMetadataService.instance().commit(join);
+    }
+
+    @Override
+    Result assertPreExistingWriteReplica(DataPlacements placements, PlacementTransitionPlan transitionPlan)
+    {
+        return null;
     }
 }

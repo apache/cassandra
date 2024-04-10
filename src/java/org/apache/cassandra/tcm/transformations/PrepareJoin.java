@@ -35,7 +35,6 @@ import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
-import org.apache.cassandra.tcm.ownership.MovementMap;
 import org.apache.cassandra.tcm.ownership.PlacementDeltas;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.PlacementTransitionPlan;
@@ -153,9 +152,9 @@ public class PrepareJoin implements Transformation
                                                              transitionPlan.toSplit,
                                                              startJoin, midJoin, finishJoin,
                                                              joinTokenRing, streamData);
-        if (!(this instanceof UnsafeJoin) && !prev.tokenMap.isEmpty())
+        if (!prev.tokenMap.isEmpty())
         {
-            Result res = PlacementTransitionPlan.assertPreExistingWriteReplica(prev.placements, transitionPlan);
+            Result res = assertPreExistingWriteReplica(prev.placements, transitionPlan);
             if (res != null)
                 return res;
         }
@@ -168,6 +167,11 @@ public class PrepareJoin implements Transformation
                                                    .with(prev.inProgressSequences.with(nodeId, plan));
 
         return Transformation.success(proposed, rangesToLock);
+    }
+
+    Result assertPreExistingWriteReplica(DataPlacements placements, PlacementTransitionPlan transitionPlan)
+    {
+        return PlacementTransitionPlan.assertPreExistingWriteReplica(placements, transitionPlan);
     }
 
     public static abstract class Serializer<T extends PrepareJoin> implements AsymmetricMetadataSerializer<Transformation, T>
