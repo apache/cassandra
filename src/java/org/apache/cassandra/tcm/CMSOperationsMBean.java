@@ -43,4 +43,6 @@ public interface CMSOperationsMBean
     public boolean getCommitsPaused();
 
     public boolean cancelInProgressSequences(String sequenceOwner, String expectedSequenceKind);
+
+    public void unregisterLeftNodes(List<String> nodeIds);
 }

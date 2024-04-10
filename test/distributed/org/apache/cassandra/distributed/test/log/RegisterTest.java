@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test.log;
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.util.EnumSet;
 
 import org.junit.Test;
 
@@ -41,6 +42,7 @@ import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.sequences.LeaveStreams;
 import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
@@ -81,7 +83,7 @@ public class RegisterTest extends TestBaseImpl
                     ClusterMetadataService.instance().commit(unbootstrapAndLeave.startLeave);
                     ClusterMetadataService.instance().commit(unbootstrapAndLeave.midLeave);
                     ClusterMetadataService.instance().commit(unbootstrapAndLeave.finishLeave);
-                    ClusterMetadataService.instance().commit(new Unregister(ClusterMetadata.current().myNodeId()));
+                    ClusterMetadataService.instance().commit(new Unregister(ClusterMetadata.current().myNodeId(), EnumSet.of(NodeState.LEFT)));
                 });
 
                 cluster.get(1).runOnInstance(() -> {
@@ -140,7 +142,7 @@ public class RegisterTest extends TestBaseImpl
                         }
 
                         // If we unregister oldNode, then the ceiling for serialization version will rise
-                        ClusterMetadataService.instance().commit(new Unregister(oldNode));
+                        ClusterMetadataService.instance().commit(new Unregister(oldNode, EnumSet.allOf(NodeState.class)));
                         assertEquals(ClusterMetadata.current().directory.clusterMinVersion.serializationVersion,
                                      NodeVersion.CURRENT_METADATA_VERSION.asInt());
                         bytes = t.kind().toVersionedBytes(t);

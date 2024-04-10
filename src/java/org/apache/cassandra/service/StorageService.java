@@ -256,6 +256,7 @@ import static org.apache.cassandra.tcm.membership.NodeState.BOOTSTRAPPING;
 import static org.apache.cassandra.tcm.membership.NodeState.BOOT_REPLACING;
 import static org.apache.cassandra.tcm.membership.NodeState.JOINED;
 import static org.apache.cassandra.tcm.membership.NodeState.MOVING;
+import static org.apache.cassandra.tcm.membership.NodeState.REGISTERED;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.FBUtilities.now;
@@ -1610,7 +1611,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         throw new RuntimeException("Can't abort bootstrap for " + nodeId + " since it is not bootstrapping");
                     ClusterMetadataService.instance().commit(new CancelInProgressSequence(nodeId));
                 }
-                ClusterMetadataService.instance().commit(new Unregister(nodeId));
+                ClusterMetadataService.instance().commit(new Unregister(nodeId, EnumSet.of(REGISTERED, BOOTSTRAPPING, BOOT_REPLACING)));
                 break;
             default:
                 throw new RuntimeException("Can't abort bootstrap for node " + nodeId + " since the state is " + nodeState);
