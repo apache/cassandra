@@ -207,7 +207,8 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
 
     void start(Paxos.Participants participants)
     {
-        Message<Request> message = Message.out(PAXOS2_PROPOSE_REQ, new Request(proposal), participants.keyspace.getMetadata().params.replication.isMeta());
+        boolean isUrgent = participants.keyspace.getMetadata().params.replication.isMeta();
+        Message<Request> message = Message.out(PAXOS2_PROPOSE_REQ, new Request(proposal), isUrgent);
 
         boolean executeOnSelf = false;
         for (int i = 0, size = participants.sizeOfPoll(); i < size ; ++i)
