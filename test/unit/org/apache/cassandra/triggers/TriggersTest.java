@@ -39,7 +39,6 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
@@ -119,18 +118,11 @@ public class TriggersTest
         QueryProcessor.process(String.format("DELETE FROM %s.%s WHERE k = 0", ksName, cfName), ConsistencyLevel.ONE);
 
         DatabaseDescriptor.setTriggersPolicy(TriggersPolicy.forbidden);
-        try
-        {
+        Assertions.assertThatThrownBy(() -> {
             QueryProcessor.process(String.format("INSERT INTO %s.%s (k, v1) VALUES (0, 0)", ksName, cfName), ConsistencyLevel.ONE);
-            fail("Expected failure");
-        }
-        catch (Exception exception)
-        {
-            logger.info("Got expected exception when attempting to execute disabled trigger", exception);
-            Assertions.assertThat(exception)
-                      .isInstanceOf(TriggerDisabledException.class)
-                      .hasMessageContaining(TestTrigger.class.getName());
-        }
+        })
+        .isInstanceOf(TriggerDisabledException.class)
+        .hasMessageContaining(TestTrigger.class.getName());
     }
 
     @Test
