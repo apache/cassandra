@@ -86,8 +86,5 @@ public class UnsafeJoin extends PrepareJoin
     }
 
     @Override
-    Result assertPreExistingWriteReplica(DataPlacements placements, PlacementTransitionPlan transitionPlan)
-    {
-        return null;
-    }
+    void assertPreExistingWriteReplica(DataPlacements placements, PlacementTransitionPlan transitionPlan) {}
 }

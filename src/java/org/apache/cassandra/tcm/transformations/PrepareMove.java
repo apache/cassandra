@@ -37,7 +37,6 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
-import org.apache.cassandra.tcm.ownership.MovementMap;
 import org.apache.cassandra.tcm.ownership.PlacementDeltas;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.PlacementTransitionPlan;
@@ -110,9 +109,8 @@ public class PrepareMove implements Transformation
         StartMove startMove = new StartMove(nodeId, transitionPlan.addToWrites(), lockKey);
         MidMove midMove = new MidMove(nodeId, transitionPlan.moveReads(), lockKey);
         FinishMove finishMove = new FinishMove(nodeId, tokens, transitionPlan.removeFromWrites(), lockKey);
-        Result res = PlacementTransitionPlan.assertPreExistingWriteReplica(prev.placements, transitionPlan);
-        if (res != null)
-            return res;
+        PlacementTransitionPlan.assertPreExistingWriteReplica(prev.placements, transitionPlan);
+
         Move sequence = Move.newSequence(prev.nextEpoch(),
                                          lockKey,
                                          tokens,

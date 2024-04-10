@@ -36,7 +36,6 @@ import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
-import org.apache.cassandra.tcm.ownership.MovementMap;
 import org.apache.cassandra.tcm.ownership.PlacementDeltas;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.PlacementTransitionPlan;
@@ -116,9 +115,8 @@ public class PrepareLeave implements Transformation
         PlacementDeltas startDelta = transitionPlan.addToWrites();
         PlacementDeltas midDelta = transitionPlan.moveReads();
         PlacementDeltas finishDelta = transitionPlan.removeFromWrites();
-        Result res = PlacementTransitionPlan.assertPreExistingWriteReplica(prev.placements, transitionPlan);
-        if (res != null)
-            return res;
+        PlacementTransitionPlan.assertPreExistingWriteReplica(prev.placements, transitionPlan);
+
         LockedRanges.Key unlockKey = LockedRanges.keyFor(proposed.epoch);
 
         StartLeave start = new StartLeave(leaving, startDelta, unlockKey);

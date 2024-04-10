@@ -153,11 +153,7 @@ public class PrepareJoin implements Transformation
                                                              startJoin, midJoin, finishJoin,
                                                              joinTokenRing, streamData);
         if (!prev.tokenMap.isEmpty())
-        {
-            Result res = assertPreExistingWriteReplica(prev.placements, transitionPlan);
-            if (res != null)
-                return res;
-        }
+            assertPreExistingWriteReplica(prev.placements, transitionPlan);
 
         LockedRanges newLockedRanges = prev.lockedRanges.lock(lockKey, rangesToLock);
         DataPlacements startingPlacements = transitionPlan.toSplit.apply(prev.nextEpoch(), prev.placements);
@@ -169,9 +165,9 @@ public class PrepareJoin implements Transformation
         return Transformation.success(proposed, rangesToLock);
     }
 
-    Result assertPreExistingWriteReplica(DataPlacements placements, PlacementTransitionPlan transitionPlan)
+    void assertPreExistingWriteReplica(DataPlacements placements, PlacementTransitionPlan transitionPlan)
     {
-        return PlacementTransitionPlan.assertPreExistingWriteReplica(placements, transitionPlan);
+        PlacementTransitionPlan.assertPreExistingWriteReplica(placements, transitionPlan);
     }
 
     public static abstract class Serializer<T extends PrepareJoin> implements AsymmetricMetadataSerializer<Transformation, T>

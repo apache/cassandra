@@ -28,7 +28,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
@@ -160,17 +159,17 @@ public class PlacementTransitionPlan
      * @return null if everything is good, otherwise a Transformation.Result rejection containing information about the bad replica
      */
     @Nullable
-    public static Transformation.Result assertPreExistingWriteReplica(DataPlacements placements, PlacementTransitionPlan transitionPlan)
+    public static void assertPreExistingWriteReplica(DataPlacements placements, PlacementTransitionPlan transitionPlan)
     {
-        return assertPreExistingWriteReplica(placements,
-                                             transitionPlan.toSplit,
-                                             transitionPlan.addToWrites(),
-                                             transitionPlan.moveReads(),
-                                             transitionPlan.removeFromWrites());
+        assertPreExistingWriteReplica(placements,
+                                      transitionPlan.toSplit,
+                                      transitionPlan.addToWrites(),
+                                      transitionPlan.moveReads(),
+                                      transitionPlan.removeFromWrites());
     }
 
     @Nullable
-    public static Transformation.Result assertPreExistingWriteReplica(DataPlacements placements, PlacementDeltas ... deltasInOrder)
+    public static void assertPreExistingWriteReplica(DataPlacements placements, PlacementDeltas ... deltasInOrder)
     {
         for (PlacementDeltas deltas : deltasInOrder)
         {
@@ -209,13 +208,12 @@ public class PlacementTransitionPlan
                         {
                             String message = "When adding a read replica, that replica needs to exist as a write replica before that: " + newReadReplica + '\n' + placements.get(params) + '\n' + delta;
                             logger.warn(message);
-                            return new Transformation.Rejected(ExceptionCode.SERVER_ERROR, message);
+                            throw new Transformation.RejectedTransformationException(message);
                         }
                     }
                 }
             }
             placements = deltas.apply(Epoch.FIRST, placements);
         }
-        return null;
     }
 }
