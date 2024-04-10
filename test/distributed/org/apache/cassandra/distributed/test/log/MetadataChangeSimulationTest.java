@@ -949,10 +949,9 @@ public class MetadataChangeSimulationTest extends CMSTestBase
             Node toMove = null;
             Node toReplace = null;
             Node toLeave = null;
-            for (Map.Entry<String, Integer> e : rf.asMap().entrySet())
+            for (String replicationFactor : rf.asMap().keySet())
             {
-                int dc = Integer.parseInt(e.getKey().replace("datacenter", ""));
-
+                int dc = Integer.parseInt(replicationFactor.replace("datacenter", ""));
                 for (int i = 0; i < 100; i++)
                 {
                     ModelChecker.Pair<ModelState, Node> registration = registerNewNode(state, sut, dc, random.nextInt(5) + 1);
