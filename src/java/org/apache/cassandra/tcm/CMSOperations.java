@@ -20,6 +20,7 @@ package org.apache.cassandra.tcm;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -31,11 +32,14 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.sequences.CancelCMSReconfiguration;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
 import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.tcm.transformations.cms.AdvanceCMSReconfiguration;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
@@ -195,5 +199,48 @@ public class CMSOperations implements CMSOperationsMBean
     public boolean cancelInProgressSequences(String sequenceOwner, String expectedSequenceKind)
     {
         return InProgressSequences.cancelInProgressSequences(sequenceOwner, expectedSequenceKind);
+    }
+
+    @Override
+    public void unregisterLeftNodes(List<String> nodeIdStrings)
+    {
+        List<NodeId> nodeIds = nodeIdStrings.stream().map(NodeId::fromString).collect(Collectors.toList());
+        ClusterMetadata metadata = ClusterMetadata.current();
+        List<NodeId> nonLeftNodes = nodeIds.stream()
+                                           .filter(nodeId -> metadata.directory.peerState(nodeId) != NodeState.LEFT)
+                                           .collect(Collectors.toList());
+        if (!nonLeftNodes.isEmpty())
+        {
+            StringBuilder message = new StringBuilder();
+            for (NodeId nonLeft : nonLeftNodes)
+            {
+                NodeState nodeState = metadata.directory.peerState(nonLeft);
+                message.append("Node ").append(nonLeft.id()).append(" is in state ").append(nodeState);
+                switch (nodeState)
+                {
+                    case REGISTERED:
+                    case BOOTSTRAPPING:
+                    case BOOT_REPLACING:
+                        message.append(" - need to use `nodetool abortbootstrap` instead of unregistering").append('\n');
+                        break;
+                    case JOINED:
+                        message.append(" - use `nodetool decommission` or `nodetool removenode` to remove this node").append('\n');
+                        break;
+                    case MOVING:
+                        message.append(" - wait until move has been completed, then use `nodetool decommission` or `nodetool removenode` to remove this node").append('\n');
+                        break;
+                    case LEAVING:
+                        message.append(" - wait until leave-operation has completed, then retry this command").append('\n');
+                        break;
+                }
+            }
+            throw new IllegalStateException("Can't unregister node(s):\n" + message);
+        }
+
+        for (NodeId nodeId : nodeIds)
+        {
+            logger.info("Unregistering " + nodeId);
+            cms.commit(new Unregister(nodeId, EnumSet.of(NodeState.LEFT)));
+        }
     }
 }

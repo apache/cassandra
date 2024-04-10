@@ -19,6 +19,7 @@
 package org.apache.cassandra.tcm.transformations;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.UUID;
 
@@ -107,7 +108,7 @@ public class Register implements Transformation
         {
             if (nodeId != null)
                 ClusterMetadataService.instance()
-                                      .commit(new Unregister(nodeId));
+                                      .commit(new Unregister(nodeId, EnumSet.of(NodeState.LEFT)));
             nodeId = ClusterMetadataService.instance()
                                            .commit(new Register(nodeAddresses, location, nodeVersion))
                      .directory
