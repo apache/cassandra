@@ -67,11 +67,11 @@ public class TransientRangeMovement2Test extends TestBaseImpl
             // ensure that any T->F transition is applied for writes as part of the StartMove. Have the CMS node (node1)
             // pause before the MidMove step is committed, at which point we know that streaming has completed.
             Callable<Epoch> pending = pauseBeforeCommit(cluster.get(1), (e) -> e instanceof PrepareMove.MidMove);
-            new Thread(() -> cluster.get(3).nodetoolResult("move", "25").asserts().success()).start();
+            Thread t = new Thread(() -> cluster.get(3).nodetoolResult("move", "25").asserts().success());
+            t.start();
 
-            // Before allowing node1 to proceed with committing the MidMove, instruct it to pause node1 before it
-            // actually enacts it. This will allow us to run cleanup before the effects of the MidMove are visible on
-            // node1.
+            // To gate/prevent node1 from proceeding with committing MidMove, instruct it to pause before enacting it.
+            // This will allow us to run cleanup before the effects of the MidMove are visible on node1.
             Epoch pauseBeforeEnacting = pending.call().nextEpoch();
             Callable<?> beforeEnacted = pauseBeforeEnacting(cluster.get(1), pauseBeforeEnacting);
             unpauseCommits(cluster.get(1));
@@ -80,7 +80,7 @@ public class TransientRangeMovement2Test extends TestBaseImpl
             cluster.forEach(i -> i.nodetoolResult("cleanup").asserts().success());
             unpauseEnactment(cluster.get(1));
             waitForCMSToQuiesce(cluster, cluster.get(1));
-
+            t.join();
             // run cleanup again now that every instance has completed the move operation
             cluster.forEach(i -> i.nodetoolResult("cleanup").asserts().success());
             assertAllContained(localStrs(cluster.get(1)),
