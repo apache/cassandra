@@ -1311,5 +1311,5 @@ public class Config
         forbidden
     }
 
-    public volatile TriggersPolicy triggers_policy = TriggersPolicy.enabled;
+    public TriggersPolicy triggers_policy = TriggersPolicy.enabled;
 }

@@ -5154,6 +5154,7 @@ public class DatabaseDescriptor
         return conf.sai_sstable_indexes_per_query_fail_threshold;
     }
 
+    @VisibleForTesting
     public static void setTriggersPolicy(Config.TriggersPolicy policy)
     {
         logger.info("triggers_policy set to {}", policy);
