@@ -318,8 +318,15 @@ public final class StatementRestrictions
                     var nonIndexedColumns = Stream.concat(nonAnnColumns.stream(), clusteringColumns.stream())
                                                   .filter(c -> indexRegistry.listIndexes().stream().noneMatch(i -> i.dependsOn(c)))
                                                   .collect(Collectors.toList());
+
                     if (!nonIndexedColumns.isEmpty())
-                        throw invalidRequest(StatementRestrictions.ANN_REQUIRES_INDEXED_FILTERING_MESSAGE);
+                    {
+                        // restrictions on non-clustering columns, or clusterings that still need filtering, are invalid
+                        if (!clusteringColumns.containsAll(nonIndexedColumns)
+                                || partitionKeyRestrictions.hasUnrestrictedPartitionKeyComponents(table)
+                                || clusteringColumnsRestrictions.needFiltering())
+                            throw invalidRequest(StatementRestrictions.ANN_REQUIRES_INDEXED_FILTERING_MESSAGE);
+                    }
                 }
             }
             else
@@ -468,7 +475,7 @@ public final class StatementRestrictions
 
     /**
      * This method determines whether a specified column is restricted on equality or something equivalent, like IN.
-     * It can be used in conjunction with the columns selected by a query to determine which of those columns is 
+     * It can be used in conjunction with the columns selected by a query to determine which of those columns is
      * already bound by the client (and from its perspective, not retrieved by the database).
      *
      * @param column a column from the same table these restrictions are against
@@ -780,7 +787,7 @@ public final class StatementRestrictions
         if (filterRestrictions.isEmpty())
             return RowFilter.none();
 
-        // If there is only one replica, we don't need reconciliation at any consistency level. 
+        // If there is only one replica, we don't need reconciliation at any consistency level.
         boolean needsReconciliation = !table.isVirtual()
                                       && options.getConsistency().needsReconciliation()
                                       && Keyspace.open(table.keyspace).getReplicationStrategy().getReplicationFactor().allReplicas > 1;
@@ -1042,7 +1049,7 @@ public final class StatementRestrictions
         // a full partition query, then we include that content.
         return queriesFullPartitions();
     }
-    
+
     @Override
     public String toString()
     {
