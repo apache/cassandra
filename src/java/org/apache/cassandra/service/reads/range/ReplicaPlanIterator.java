@@ -34,9 +34,9 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.Index;
-import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.utils.AbstractIterator;
@@ -60,7 +60,8 @@ class ReplicaPlanIterator extends AbstractIterator<ReplicaPlan.ForRangeRead>
         this.keyspace = keyspace;
         this.consistency = consistency;
 
-        List<? extends AbstractBounds<PartitionPosition>> l = keyspace.getReplicationStrategy() instanceof LocalStrategy
+        ReplicationParams replication = keyspace.getMetadata().params.replication;
+        List<? extends AbstractBounds<PartitionPosition>> l = replication.isLocal() || replication.isMeta()
                                                               ? keyRange.unwrap()
                                                               : getRestrictedRanges(keyRange);
         this.ranges = l.iterator();

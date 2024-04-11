@@ -632,6 +632,14 @@ public class ClusterUtils
         return decode(inst.callOnInstance(() -> encode(ClusterMetadata.current().nextEpoch())));
     }
 
+    public static Epoch snapshotClusterMetadata(IInvokableInstance inst)
+    {
+        return decode(inst.callOnInstance(() -> {
+            ClusterMetadata snapshotted = ClusterMetadataService.instance().triggerSnapshot();
+            return encode(snapshotted.epoch);
+        }));
+    }
+
     public static Map<String, Epoch> getPeerEpochs(IInvokableInstance requester)
     {
         Map<String, Long> map = requester.callOnInstance(() -> {

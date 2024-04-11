@@ -22,6 +22,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.RangesByEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.ReplicationParams;
@@ -30,13 +31,12 @@ import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
-import org.apache.cassandra.tcm.ownership.EntireRange;
 import org.apache.cassandra.tcm.sequences.AddToCMS;
 import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
-import static org.apache.cassandra.tcm.ownership.EntireRange.entireRange;
+import static org.apache.cassandra.locator.MetaStrategy.entireRange;
 
 /**
  * This class along with AddToCMS, FinishAddToCMS & RemoveFromCMS, contain a high degree of duplication with their intended
@@ -99,7 +99,7 @@ public class StartAddToCMS extends BaseMembershipTransformation
 
         AddToCMS joinSequence = new AddToCMS(prev.nextEpoch(), nodeId, streamCandidates, new FinishAddToCMS(endpoint));
         transformer = transformer.with(prev.inProgressSequences.with(nodeId, joinSequence));
-        return Transformation.success(transformer, EntireRange.affectedRanges(prev));
+        return Transformation.success(transformer, MetaStrategy.affectedRanges(prev));
     }
 
     @Override

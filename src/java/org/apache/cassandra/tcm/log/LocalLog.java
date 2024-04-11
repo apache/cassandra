@@ -338,7 +338,7 @@ public abstract class LocalLog implements Closeable
 
     public LogState getCommittedEntries(Epoch since)
     {
-        return storage.getLogState(committed.get().period, since);
+        return storage.getLogState(since);
     }
 
     public ClusterMetadata waitForHighestConsecutive()
@@ -481,7 +481,7 @@ public abstract class LocalLog implements Closeable
                                   next.epoch, pendingEntry.transform, prev.epoch);
 
                     if (replayComplete.get())
-                        storage.append(transformed.success().metadata.period, pendingEntry.maybeUnwrapExecuted());
+                        storage.append(pendingEntry.maybeUnwrapExecuted());
 
                     notifyPreCommit(prev, next, isSnapshot);
 
@@ -887,7 +887,7 @@ public abstract class LocalLog implements Closeable
                 List<InetAddressAndPort> list = new ArrayList<>(ClusterMetadata.current().fullCMSMembers());
                 list.sort(comparing(i -> i.addressBytes[i.addressBytes.length - 1]));
                 if (list.get(0).equals(FBUtilities.getBroadcastAddressAndPort()))
-                    ScheduledExecutors.nonPeriodicTasks.submit(() -> ClusterMetadataService.instance().sealPeriod());
+                    ScheduledExecutors.nonPeriodicTasks.submit(() -> ClusterMetadataService.instance().triggerSnapshot());
             }
         };
     }

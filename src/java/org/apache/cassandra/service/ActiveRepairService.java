@@ -60,6 +60,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -100,6 +101,7 @@ import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.repair.state.CoordinatorState;
 import org.apache.cassandra.repair.state.ParticipateState;
 import org.apache.cassandra.repair.state.ValidationState;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.PaxosRepair;
@@ -663,11 +665,18 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         Set<String> failedNodes = synchronizedSet(new HashSet<>());
         AsyncPromise<Void> promise = new AsyncPromise<>();
 
+        Set<IPartitioner> partitioners = new HashSet<>(1);
         List<TableId> tableIds = new ArrayList<>(columnFamilyStores.size());
         for (ColumnFamilyStore cfs : columnFamilyStores)
+        {
             tableIds.add(cfs.metadata.id);
+            partitioners.add(cfs.getPartitioner());
+        }
 
-        PrepareMessage message = new PrepareMessage(parentRepairSession, tableIds, options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
+        if (partitioners.size() > 1)
+            failRepair(parentRepairSession, "The tables involved in repair are configured with multiple partitioners.");
+
+        PrepareMessage message = new PrepareMessage(parentRepairSession, tableIds, columnFamilyStores.get(0).getPartitioner(), options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
         register(new ParticipateState(ctx.clock(), ctx.broadcastAddressAndPort(), message));
         for (InetAddressAndPort neighbour : endpoints)
         {
@@ -1129,21 +1138,18 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         {
             for (TableMetadata table : tables)
             {
-                Set<InetAddressAndPort> endpoints = metadata.placements
-                                                    .get(keyspace.getMetadata().params.replication)
-                                                    .reads
-                                                    .forRange(range)
-                                                    .get()
-                                                    .filter(FailureDetector.isReplicaAlive).endpoints();
-                if (!PaxosRepair.hasSufficientLiveNodesForTopologyChange(keyspace, range, endpoints))
+
+                ReplicationParams replication = keyspace.getMetadata().params.replication;
+                // Special case meta keyspace as it uses a custom partitioner/tokens, but the paxos table and repairs
+                // are based on the system partitioner
+                EndpointsForRange endpoints = replication.isMeta()
+                                              ? ClusterMetadata.current().fullCMSMembersAsReplicas()
+                                              : ClusterMetadata.current().placements.get(replication).reads.forRange(range).get();
+
+                Set<InetAddressAndPort> liveEndpoints = endpoints.filter(FailureDetector.isReplicaAlive).endpoints();
+                if (!PaxosRepair.hasSufficientLiveNodesForTopologyChange(keyspace, range, liveEndpoints))
                 {
-                    Set<InetAddressAndPort> downEndpoints = metadata.placements
-                                                            .get(keyspace.getMetadata().params.replication)
-                                                            .reads
-                                                            .forRange(range)
-                                                            .get()
-                                                            .filter(e -> !endpoints.contains(e.endpoint())).endpoints();
-                    downEndpoints.removeAll(endpoints);
+                    Set<InetAddressAndPort> downEndpoints = endpoints.filter(e -> !liveEndpoints.contains(e.endpoint())).endpoints();
 
                     throw new RuntimeException(String.format("Insufficient live nodes to repair paxos for %s in %s for %s.\n" +
                                                              "There must be enough live nodes to satisfy EACH_QUORUM, but the following nodes are down: %s\n" +
@@ -1165,7 +1171,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                                              range, table.keyspace, table.name, ClusterMetadata.current(), PAXOS_REPAIR_ALLOW_MULTIPLE_PENDING_UNSAFE.getKey()));
 
                 }
-                futures.add(() -> PaxosCleanup.cleanup(ctx, endpoints, table, Collections.singleton(range), false, repairCommandExecutor()));
+                futures.add(() -> PaxosCleanup.cleanup(ctx, liveEndpoints, table, Collections.singleton(range), false, repairCommandExecutor()));
             }
         }
 

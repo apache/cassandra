@@ -160,4 +160,15 @@ public abstract class CMSAdmin extends NodeTool.NodeToolCmd
             probe.getCMSOperationsProxy().reconfigureCMS(parsedRfs);
         }
     }
+
+    @Command(name = "snapshot", description = "Request a checkpointing snapshot of cluster metadata")
+    public static class Snapshot extends NodeTool.NodeToolCmd
+    {
+        @Override
+        public void execute(NodeProbe probe)
+        {
+            probe.getCMSOperationsProxy().snapshotClusterMetadata();
+        }
+    }
+
 }

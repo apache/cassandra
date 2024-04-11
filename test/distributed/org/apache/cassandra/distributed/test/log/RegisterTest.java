@@ -47,7 +47,7 @@ import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.Register;
-import org.apache.cassandra.tcm.transformations.SealPeriod;
+import org.apache.cassandra.tcm.transformations.TriggerSnapshot;
 import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -85,7 +85,7 @@ public class RegisterTest extends TestBaseImpl
                 });
 
                 cluster.get(1).runOnInstance(() -> {
-                    ClusterMetadataService.instance().commit(SealPeriod.instance);
+                    ClusterMetadataService.instance().commit(TriggerSnapshot.instance);
                 });
 
                 IInstanceConfig config = cluster.newInstanceConfig();
@@ -181,7 +181,7 @@ public class RegisterTest extends TestBaseImpl
                 {
                     throw new RuntimeException(e);
                 }
-                ClusterMetadataService.instance().commit(SealPeriod.instance);
+                ClusterMetadataService.instance().commit(TriggerSnapshot.instance);
 
                 ClusterMetadata cm = new MetadataSnapshots.SystemKeyspaceMetadataSnapshots().getSnapshot(ClusterMetadata.current().epoch);
                 cm.equals(ClusterMetadata.current());

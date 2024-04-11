@@ -32,12 +32,16 @@ import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.EndpointsByReplica;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.TCMMetrics;
@@ -60,7 +64,6 @@ import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Retry;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.ownership.EntireRange;
 import org.apache.cassandra.tcm.ownership.MovementMap;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
@@ -71,7 +74,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Future;
 
 import static org.apache.cassandra.streaming.StreamOperation.RESTORE_REPLICA_COUNT;
-import static org.apache.cassandra.tcm.ownership.EntireRange.entireRange;
+import static org.apache.cassandra.locator.MetaStrategy.entireRange;
 
 public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration>
 {
@@ -195,7 +198,7 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
         ClusterMetadata metadata = ClusterMetadata.current();
         return new ProgressBarrier(latestModification,
                                    metadata.directory.location(metadata.myNodeId()),
-                                   EntireRange.affectedRanges(metadata));
+                                   MetaStrategy.affectedRanges(metadata));
     }
 
     public static void maybeReconfigureCMS(ClusterMetadata metadata, InetAddressAndPort toRemove)
@@ -289,8 +292,13 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
     static void repairPaxosTopology()
     {
         Retry.Backoff retry = new Retry.Backoff(TCMMetrics.instance.repairPaxosTopologyRetries);
+
+        // The system.paxos table is what we're actually repairing and that uses the system configured partitioner
+        // so although we use MetaStrategy.entireRange for streaming between CMS members, we don't use it here
+        Range<Token> entirePaxosRange = new Range<>(DatabaseDescriptor.getPartitioner().getMinimumToken(),
+                                                    DatabaseDescriptor.getPartitioner().getMinimumToken());
         List<Supplier<Future<?>>> remaining = ActiveRepairService.instance().repairPaxosForTopologyChangeAsync(SchemaConstants.METADATA_KEYSPACE_NAME,
-                                                                                                               Collections.singletonList(entireRange),
+                                                                                                               Collections.singletonList(entirePaxosRange),
                                                                                                                "bootstrap");
 
         while (!retry.reachedMax())

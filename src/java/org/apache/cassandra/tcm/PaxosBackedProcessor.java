@@ -33,6 +33,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.TCMMetrics;
@@ -63,11 +64,9 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
     }
 
     @Override
-    protected boolean tryCommitOne(Entry.Id entryId, Transformation transform,
-                                   Epoch previousEpoch, Epoch nextEpoch,
-                                   long previousPeriod, long nextPeriod, boolean sealPeriod)
+    protected boolean tryCommitOne(Entry.Id entryId, Transformation transform, Epoch previousEpoch, Epoch nextEpoch)
     {
-        return tryCommit(entryId, transform, previousEpoch, nextEpoch, previousPeriod, nextPeriod, sealPeriod);
+        return tryCommit(entryId, transform, previousEpoch, nextEpoch);
     }
 
     @Override
@@ -91,7 +90,8 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
                 logger.warn("Could not perform consistent fetch, downgrading to fetching from CMS peers.", t);
             }
         }
-        Set<Replica> replicas = metadata.fullCMSMembersAsReplicas();
+
+        EndpointsForRange replicas = metadata.fullCMSMembersAsReplicas();
 
         // We prefer to always perform a consistent fetch (i.e. Paxos read of the distributed log state table).
         // However, in some cases (specifically, during CMS membership changes) this may not be possible, as Paxos

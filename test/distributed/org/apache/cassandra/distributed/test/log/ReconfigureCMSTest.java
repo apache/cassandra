@@ -28,13 +28,13 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
-import org.apache.cassandra.tcm.ownership.EntireRange;
 import org.apache.cassandra.tcm.sequences.ProgressBarrier;
 import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
 import org.apache.cassandra.tcm.transformations.cms.PrepareCMSReconfiguration;
@@ -92,7 +92,7 @@ public class ReconfigureCMSTest extends FuzzTestBase
                 ClusterMetadataService.instance().commit(new PrepareCMSReconfiguration.Complex(ReplicationParams.simple(3).asMeta()));
                 ReconfigureCMS reconfigureCMS = (ReconfigureCMS) ClusterMetadata.current().inProgressSequences.get(ReconfigureCMS.SequenceKey.instance);
                 ClusterMetadataService.instance().commit(reconfigureCMS.next);
-                ProgressBarrier.propagateLast(EntireRange.affectedRanges(ClusterMetadata.current()));
+                ProgressBarrier.propagateLast(MetaStrategy.affectedRanges(ClusterMetadata.current()));
                 try
                 {
                     ClusterMetadataService.instance().commit(reconfigureCMS.next);
@@ -107,7 +107,7 @@ public class ReconfigureCMSTest extends FuzzTestBase
             });
             cluster.get(1).nodetoolResult("cms", "reconfigure", "--cancel").asserts().success();
             cluster.get(1).runOnInstance(() -> {
-                ProgressBarrier.propagateLast(EntireRange.affectedRanges(ClusterMetadata.current()));
+                ProgressBarrier.propagateLast(MetaStrategy.affectedRanges(ClusterMetadata.current()));
                 ClusterMetadata metadata = ClusterMetadata.current();
                 Assert.assertNull(metadata.inProgressSequences.get(ReconfigureCMS.SequenceKey.instance));
                 Assert.assertEquals(2, metadata.fullCMSMembers().size());
@@ -119,20 +119,20 @@ public class ReconfigureCMSTest extends FuzzTestBase
 
             cluster.get(1).runOnInstance(() -> {
                 ClusterMetadataService.instance().commit(new PrepareCMSReconfiguration.Complex(ReplicationParams.simple(4).asMeta()));
-                ProgressBarrier.propagateLast(EntireRange.affectedRanges(ClusterMetadata.current()));
+                ProgressBarrier.propagateLast(MetaStrategy.affectedRanges(ClusterMetadata.current()));
 
                 ReconfigureCMS reconfigureCMS = (ReconfigureCMS) ClusterMetadata.current().inProgressSequences.get(ReconfigureCMS.SequenceKey.instance);
                 ClusterMetadataService.instance().commit(reconfigureCMS.next);
-                ProgressBarrier.propagateLast(EntireRange.affectedRanges(ClusterMetadata.current()));
+                ProgressBarrier.propagateLast(MetaStrategy.affectedRanges(ClusterMetadata.current()));
                 reconfigureCMS = (ReconfigureCMS) ClusterMetadata.current().inProgressSequences.get(ReconfigureCMS.SequenceKey.instance);
                 ClusterMetadataService.instance().commit(reconfigureCMS.next);
-                ProgressBarrier.propagateLast(EntireRange.affectedRanges(ClusterMetadata.current()));
+                ProgressBarrier.propagateLast(MetaStrategy.affectedRanges(ClusterMetadata.current()));
                 reconfigureCMS = (ReconfigureCMS) ClusterMetadata.current().inProgressSequences.get(ReconfigureCMS.SequenceKey.instance);
                 Assert.assertNull(reconfigureCMS.next.activeTransition);
             });
             cluster.get(1).nodetoolResult("cms", "reconfigure", "--cancel").asserts().success();
             cluster.get(1).runOnInstance(() -> {
-                ProgressBarrier.propagateLast(EntireRange.affectedRanges(ClusterMetadata.current()));
+                ProgressBarrier.propagateLast(MetaStrategy.affectedRanges(ClusterMetadata.current()));
                 ClusterMetadata metadata = ClusterMetadata.current();
                 Assert.assertNull(metadata.inProgressSequences.get(ReconfigureCMS.SequenceKey.instance));
                 Assert.assertTrue(metadata.fullCMSMembers().contains(FBUtilities.getBroadcastAddressAndPort()));

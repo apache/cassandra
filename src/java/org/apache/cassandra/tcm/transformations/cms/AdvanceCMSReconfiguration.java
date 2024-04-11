@@ -28,6 +28,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.RangesByEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.ReplicationParams;
@@ -37,7 +38,6 @@ import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
-import org.apache.cassandra.tcm.ownership.EntireRange;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
@@ -45,7 +45,7 @@ import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
-import static org.apache.cassandra.tcm.ownership.EntireRange.entireRange;
+import static org.apache.cassandra.locator.MetaStrategy.entireRange;
 import static org.apache.cassandra.tcm.MultiStepOperation.Kind.RECONFIGURE_CMS;
 
 /**
@@ -129,7 +129,7 @@ public class AdvanceCMSReconfiguration implements Transformation
                 return Transformation.success(prev.transformer()
                                                   .with(prev.inProgressSequences.without(ReconfigureCMS.SequenceKey.instance))
                                                   .with(prev.lockedRanges.unlock(lockKey)),
-                                              EntireRange.affectedRanges(prev));
+                                              MetaStrategy.affectedRanges(prev));
             }
         }
         else
@@ -190,7 +190,7 @@ public class AdvanceCMSReconfiguration implements Transformation
         ReconfigureCMS advanced = sequence.advance(next);
         // Finally, replace the existing reconfiguration sequence with this updated one.
         transformer.with(prev.inProgressSequences.with(ReconfigureCMS.SequenceKey.instance, (ReconfigureCMS old) -> advanced));
-        return Transformation.success(transformer, EntireRange.affectedRanges(prev));
+        return Transformation.success(transformer, MetaStrategy.affectedRanges(prev));
     }
 
     /**
@@ -223,7 +223,7 @@ public class AdvanceCMSReconfiguration implements Transformation
         ReconfigureCMS advanced = sequence.advance(next);
         // Finally, replace the existing reconfiguration sequence with this updated one.
         transformer.with(prev.inProgressSequences.with(ReconfigureCMS.SequenceKey.instance, (ReconfigureCMS old) -> advanced));
-        return Transformation.success(transformer, EntireRange.affectedRanges(prev));
+        return Transformation.success(transformer, MetaStrategy.affectedRanges(prev));
     }
 
     /**
@@ -263,7 +263,7 @@ public class AdvanceCMSReconfiguration implements Transformation
         ReconfigureCMS advanced = sequence.advance(next);
         // Finally, replace the existing reconfiguration sequence with this updated one.
         transformer.with(prev.inProgressSequences.with(ReconfigureCMS.SequenceKey.instance, (ReconfigureCMS old) -> advanced));
-        return Transformation.success(transformer, EntireRange.affectedRanges(prev));
+        return Transformation.success(transformer, MetaStrategy.affectedRanges(prev));
     }
 
     private AdvanceCMSReconfiguration next(Epoch latestModification,

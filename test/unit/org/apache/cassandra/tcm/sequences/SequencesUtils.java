@@ -169,4 +169,9 @@ public class SequencesUtils
                         new PrepareMove.FinishMove(node, tokens, deltas, key),
                         true);
     }
+
+    public static Epoch epoch(int epoch)
+    {
+        return Epoch.create(epoch);
+    }
 }

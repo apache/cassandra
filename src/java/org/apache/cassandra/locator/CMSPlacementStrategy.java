@@ -28,13 +28,15 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
-import org.apache.cassandra.tcm.ownership.EntireRange;
 import org.apache.cassandra.tcm.ownership.TokenMap;
 
 import static org.apache.cassandra.locator.SimpleStrategy.REPLICATION_FACTOR;
@@ -115,8 +117,12 @@ public interface CMSPlacementStrategy
                 }
             }
 
-            EndpointsForRange endpoints = NetworkTopologyStrategy.calculateNaturalReplicas(EntireRange.entireRange.left,
-                                                                                           EntireRange.entireRange,
+            // Although MetaStrategy has its own entireRange, it uses a custom partitioner which isn't compatible with
+            // regular, non-CMS placements. For that reason, we select replicas here using tokens provided by the
+            // globally configured partitioner.
+            Token minToken = DatabaseDescriptor.getPartitioner().getMinimumToken();
+            EndpointsForRange endpoints = NetworkTopologyStrategy.calculateNaturalReplicas(minToken,
+                                                                                           new Range<>(minToken, minToken),
                                                                                            directory,
                                                                                            tokenMap,
                                                                                            rf);

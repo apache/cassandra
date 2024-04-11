@@ -64,7 +64,7 @@ import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PlacementForRange;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.tcm.transformations.Register;
-import org.apache.cassandra.tcm.transformations.SealPeriod;
+import org.apache.cassandra.tcm.transformations.TriggerSnapshot;
 
 import static org.apache.cassandra.distributed.test.log.PlacementSimulator.SimulatedPlacements;
 import static org.apache.cassandra.harry.sut.TokenPlacementModel.Node;
@@ -449,7 +449,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                           (state, sut, entropySource) -> {
                               try
                               {
-                                  sut.service.commit(SealPeriod.instance);
+                                  sut.service.commit(TriggerSnapshot.instance);
                               }
                               catch (IllegalStateException e)
                               {

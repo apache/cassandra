@@ -25,7 +25,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.dht.LocalPartitioner;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tcm.Transformation;
 
@@ -36,7 +36,6 @@ import static org.apache.cassandra.schema.SchemaConstants.METADATA_KEYSPACE_NAME
 
 final class ClusterMetadataLogTable extends AbstractVirtualTable
 {
-    private static final String PERIOD = "period";
     private static final String EPOCH = "epoch";
     private static final String KIND = "kind";
     private static final String TRANSFORMATION = "transformation";
@@ -48,9 +47,8 @@ final class ClusterMetadataLogTable extends AbstractVirtualTable
         super(TableMetadata.builder(keyspace, "cluster_metadata_log")
                            .comment("cluster metadata log")
                            .kind(TableMetadata.Kind.VIRTUAL)
-                           .partitioner(new LocalPartitioner(LongType.instance))
-                           .addPartitionKeyColumn(PERIOD, LongType.instance)
-                           .addClusteringColumn(EPOCH, LongType.instance)
+                           .partitioner(MetaStrategy.partitioner)
+                           .addPartitionKeyColumn(EPOCH, LongType.instance)
                            .addRegularColumn(KIND, UTF8Type.instance)
                            .addRegularColumn(TRANSFORMATION, UTF8Type.instance)
                            .addRegularColumn(ENTRY_ID, LongType.instance)
@@ -64,14 +62,14 @@ final class ClusterMetadataLogTable extends AbstractVirtualTable
         try
         {
             SimpleDataSet result = new SimpleDataSet(metadata());
-            UntypedResultSet res = execute(format("SELECT period, epoch, kind, transformation, entry_id, writetime(kind) as wt " +
+            UntypedResultSet res = execute(format("SELECT epoch, kind, transformation, entry_id, writetime(kind) as wt " +
                                                   "FROM %s.%s", METADATA_KEYSPACE_NAME, TABLE_NAME), ConsistencyLevel.QUORUM);
             for (UntypedResultSet.Row r : res)
             {
                 Transformation.Kind kind = Transformation.Kind.valueOf(r.getString("kind"));
                 Transformation transformation = kind.fromVersionedBytes(r.getBlob("transformation"));
 
-                result.row(r.getLong("period"), r.getLong("epoch"))
+                result.row(r.getLong("epoch"))
                       .column(KIND, kind.toString())
                       .column(TRANSFORMATION, transformation.toString())
                       .column(ENTRY_ID, r.getLong("entry_id"))
