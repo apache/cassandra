@@ -2,7 +2,7 @@ cassandra (3.0.30) unstable; urgency=medium
 
   * New release
 
- -- Brandon Williams <brandonwilliams@apache.org>  Thu, 11 Apr 2024 11:24:46 -0500
+ -- Brandon Williams <brandonwilliams@apache.org>  Thu, 11 Apr 2024 11:23:02 -0500
 
 cassandra (3.0.29) unstable; urgency=medium
 
