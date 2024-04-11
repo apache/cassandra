@@ -991,9 +991,11 @@ public class PlacementSimulator
             if (added.isFull())
             {
                 additions.add(added);
-                for (Replica removed : unfiltered.removals)
-                    if (removed.node().equals(added.node()) && removed.isTransient())
-                        removals.add(removed);
+                Optional<Replica> removed = unfiltered.removals.stream()
+                                                               .filter(r -> r.isTransient() && r.node().equals(added.node()))
+                                                               .findFirst();
+
+                removed.ifPresent(removals::add);
             }
             else
             {
@@ -1023,9 +1025,11 @@ public class PlacementSimulator
             if (removed.isFull())
             {
                 removals.add(removed);
-                for (Replica added : unfiltered.additions)
-                    if (added.node().equals(removed.node()) && added.isTransient())
-                        additions.add(added);
+                Optional<Replica> added = unfiltered.additions.stream()
+                                                               .filter(r -> r.isTransient() && r.node().equals(removed.node()))
+                                                               .findFirst();
+
+                added.ifPresent(additions::add);
             }
             else
             {
