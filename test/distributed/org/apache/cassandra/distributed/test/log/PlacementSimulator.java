@@ -25,6 +25,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -512,6 +513,38 @@ public class PlacementSimulator
         Map<Range, Diff<Replica>> step1WriteCommands = map(allWriteCommands, PlacementSimulator::additionsAndTransientToFull);
         Map<Range, Diff<Replica>> step3WriteCommands = map(allWriteCommands, PlacementSimulator::removalsAndFullToTransient);
         Map<Range, Diff<Replica>> readCommands = diff(start, end);
+
+        // Assert that the proposed plan would not violate consistency if used with the current streaming
+        // implementation (i.e. UnbootstrapStreams::movementMap).
+        AtomicBoolean safeForStreaming = new AtomicBoolean(true);
+        step1WriteCommands.forEach((range, diff) -> {
+            for (Replica add : diff.additions)
+            {
+                if (add.isFull())  // for each new FULL replica
+                {
+                    diff.removals.stream()
+                                 .filter(r -> r.node().equals(add.node()) && r.isTransient())  // if the same node is being removed as a TRANSIENT replica
+                                 .findFirst()
+                                 .ifPresent(r -> {
+                                     if (!start.get(range).contains(new Replica(toRemove, true)))  // check the leaving node is a FULL replica for the range
+                                     {
+                                         debug.log(String.format("In prepare-leave of %s, node %s moving from transient to " +
+                                                                 "full, but the leaving node is not a full replica for " +
+                                                                 "the transitioning range %s.",
+                                                                 toRemove, add, range));
+                                         safeForStreaming.getAndSet(false);
+                                     }
+                                 });
+                }
+            }
+        });
+        assert safeForStreaming.get() : String.format("Removal of node %s causes some nodes to move from transient to " +
+                                                      "full replicas for some range where the leaving node is not " +
+                                                      "initially a full replica. This may violate consistency as the " +
+                                                      "streaming implementation assumes that the leaving node is a " +
+                                                      "valid source for streaming in this case. See ./simulated.log " +
+                                                      "for details of the ranges and nodes in question", toRemove);
+
         Transformations steps = new Transformations();
         steps.add(new Transformation(
             (model) -> { // apply
