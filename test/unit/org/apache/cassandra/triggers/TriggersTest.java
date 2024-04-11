@@ -142,9 +142,9 @@ public class TriggersTest
     @Test
     public void executeTriggerOnCqlInsert() throws Exception
     {
-        String cql = String.format("INSERT INTO %s.%s (k, v1) VALUES (0, 0)", ksName, cfName);
+        String cql = String.format("INSERT INTO %s.%s (k, v1) VALUES (3, 3)", ksName, cfName);
         QueryProcessor.process(cql, ConsistencyLevel.ONE);
-        assertUpdateIsAugmented(0, "v1", 0);
+        assertUpdateIsAugmented(3, "v1", 3);
     }
 
     @Test
