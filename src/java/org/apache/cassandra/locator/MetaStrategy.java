@@ -20,14 +20,15 @@ package org.apache.cassandra.locator;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.ReversedLongLocalPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
-
-import static org.apache.cassandra.tcm.ownership.EntireRange.entireRange;
+import org.apache.cassandra.tcm.sequences.LockedRanges;
 
 /**
  * MetaStrategy is designed for distributed cluster metadata keyspace, and should not be used by
@@ -40,6 +41,20 @@ import static org.apache.cassandra.tcm.ownership.EntireRange.entireRange;
  */
 public class MetaStrategy extends SystemStrategy
 {
+    public static final IPartitioner partitioner = ReversedLongLocalPartitioner.instance;
+    public static final Range<Token> entireRange = new Range<>(partitioner.getMinimumToken(),
+                                                               partitioner.getMinimumToken());
+
+    public static LockedRanges.AffectedRanges affectedRanges(ClusterMetadata metadata)
+    {
+        return LockedRanges.AffectedRanges.singleton(ReplicationParams.meta(metadata), entireRange);
+    }
+
+    public static Replica replica(InetAddressAndPort addr)
+    {
+        return new Replica(addr, entireRange, true);
+    }
+
     public MetaStrategy(String keyspaceName, Map<String, String> configOptions)
     {
         super(keyspaceName, configOptions);
@@ -65,6 +80,15 @@ public class MetaStrategy extends SystemStrategy
             return ReplicationFactor.fullOnly(1);
         int rf = metadata.placements.get(ReplicationParams.meta(metadata)).writes.forRange(entireRange).get().byEndpoint.size();
         return ReplicationFactor.fullOnly(rf);
+    }
+
+    @Override
+    public RangesAtEndpoint getAddressReplicas(ClusterMetadata metadata, InetAddressAndPort endpoint)
+    {
+        RangesAtEndpoint.Builder builder = RangesAtEndpoint.builder(endpoint);
+        if (metadata.fullCMSMembers().contains(endpoint))
+            builder.add(replica(endpoint));
+        return builder.build();
     }
 
     @Override

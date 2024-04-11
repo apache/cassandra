@@ -326,7 +326,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         ClusterMetadataService.instance().log().ready();
         initMessaging.run();
         ClusterMetadataService.instance().forceSnapshot(metadata.forceEpoch(metadata.nextEpoch()));
-        ClusterMetadataService.instance().sealPeriod();
+        ClusterMetadataService.instance().triggerSnapshot();
         CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA.reset();
         assert ClusterMetadataService.state() == LOCAL;
         assert ClusterMetadataService.instance() != initial : "Aborting startup as temporary metadata service is still active";

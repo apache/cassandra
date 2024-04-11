@@ -45,7 +45,7 @@ import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
-import static org.apache.cassandra.tcm.ownership.EntireRange.entireRange;
+import static org.apache.cassandra.locator.MetaStrategy.entireRange;
 
 public class PrepareCMSReconfiguration
 {

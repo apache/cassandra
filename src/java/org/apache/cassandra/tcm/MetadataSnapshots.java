@@ -20,6 +20,8 @@ package org.apache.cassandra.tcm;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +39,7 @@ public interface MetadataSnapshots
     ClusterMetadata getSnapshot(Epoch epoch);
     ClusterMetadata getSnapshotBefore(Epoch epoch);
     ClusterMetadata getLatestSnapshot();
+    List<Epoch> listSnapshotsSince(Epoch epoch);
     void storeSnapshot(ClusterMetadata metadata);
 
     static ByteBuffer toBytes(ClusterMetadata metadata) throws IOException
@@ -77,6 +80,13 @@ public interface MetadataSnapshots
 
         @Override
         public ClusterMetadata getLatestSnapshot() {return null;}
+
+        @Override
+        public List<Epoch> listSnapshotsSince(Epoch epoch)
+        {
+            return Collections.emptyList();
+        }
+
         @Override
         public void storeSnapshot(ClusterMetadata metadata) {}
     }
@@ -128,11 +138,17 @@ public interface MetadataSnapshots
         }
 
         @Override
+        public List<Epoch> listSnapshotsSince(Epoch epoch)
+        {
+            return SystemKeyspace.listSnapshotsSince(epoch);
+        }
+
+        @Override
         public void storeSnapshot(ClusterMetadata metadata)
         {
             try
             {
-                SystemKeyspace.storeSnapshot(metadata.epoch, metadata.period, toBytes(metadata));
+                SystemKeyspace.storeSnapshot(metadata.epoch, toBytes(metadata));
             }
             catch (IOException e)
             {

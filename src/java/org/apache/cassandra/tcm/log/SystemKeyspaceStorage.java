@@ -35,7 +35,6 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
-import org.apache.cassandra.tcm.Period;
 import org.apache.cassandra.tcm.Transformation;
 
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
@@ -68,16 +67,15 @@ public class SystemKeyspaceStorage implements LogStorage
     }
 
     // This method is always called from a single thread, so doesn't have to be synchonised.
-    public void append(long period, Entry entry)
+    public void append(Entry entry)
     {
         try
         {
             // TODO get lowest supported metadata version from ClusterMetadata
             ByteBuffer serializedTransformation = entry.transform.kind().toVersionedBytes(entry.transform);
-            String query = String.format("INSERT INTO %s.%s (period, epoch, current_epoch, entry_id, transformation, kind) VALUES (?,?,?,?,?,?)",
+            String query = String.format("INSERT INTO %s.%s (epoch, entry_id, transformation, kind) VALUES (?,?,?,?)",
                                          SchemaConstants.SYSTEM_KEYSPACE_NAME, NAME);
-            executeInternal(query, period, entry.epoch.getEpoch(), entry.epoch.getEpoch(),
-                            entry.id.entryId, serializedTransformation, entry.transform.kind().toString());
+            executeInternal(query, entry.epoch.getEpoch(), entry.id.entryId, serializedTransformation, entry.transform.kind().toString());
             // todo; should probably not flush every time, but it simplifies tests
             Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(NAME).forceBlockingFlush(ColumnFamilyStore.FlushReason.INTERNALLY_FORCED);
         }
@@ -123,19 +121,36 @@ public class SystemKeyspaceStorage implements LogStorage
     }
 
     @Override
-    public EntryHolder getEntries(long period, Epoch since) throws IOException
+    public EntryHolder getEntries(Epoch since) throws IOException
     {
-        UntypedResultSet resultSet = executeInternal(String.format("SELECT epoch, kind, transformation, entry_id FROM %s.%s WHERE period = ? and epoch >= ?", SchemaConstants.SYSTEM_KEYSPACE_NAME, NAME),
-                                                     period, since.getEpoch());
+        // during gossip upgrade we have epoch = Long.MIN_VALUE + 1 (and the reverse partitioner doesn't support negative keys)
+        since = since.isBefore(Epoch.EMPTY) ? Epoch.EMPTY : since;
+        UntypedResultSet resultSet = executeInternal(String.format("SELECT epoch, kind, transformation, entry_id FROM %s.%s WHERE token(epoch) <= token(?)", SchemaConstants.SYSTEM_KEYSPACE_NAME, NAME),
+                                                     since.getEpoch());
+        return toEntryHolder(since, resultSet);
+    }
+
+    public EntryHolder getEntries(Epoch since, Epoch until) throws IOException
+    {
+        // during gossip upgrade we have epoch = Long.MIN_VALUE + 1 (and the reverse partitioner doesn't support negative keys)
+        since = since.isBefore(Epoch.EMPTY) ? Epoch.EMPTY : since;
+        UntypedResultSet resultSet = executeInternal(String.format("SELECT epoch, kind, transformation, entry_id " +
+                                                                   "FROM %s.%s " +
+                                                                   "WHERE token(epoch) <= token(?) AND token(epoch) >= token(?)",
+                                                                   SchemaConstants.SYSTEM_KEYSPACE_NAME, NAME),
+                                                     since.getEpoch(), until.getEpoch());
+        return toEntryHolder(since, resultSet);
+    }
+
+    private static EntryHolder toEntryHolder(Epoch since, UntypedResultSet resultSet) throws IOException
+    {
         EntryHolder holder = new EntryHolder(since);
         for (UntypedResultSet.Row row : resultSet)
         {
             long entryId = row.getLong("entry_id");
             Epoch epoch = Epoch.create(row.getLong("epoch"));
-            ByteBuffer transformationBlob = row.getBlob("transformation");
             Transformation.Kind kind = Transformation.Kind.valueOf(row.getString("kind"));
-            Transformation transform = kind.fromVersionedBytes(transformationBlob);
-            kind.fromVersionedBytes(transformationBlob);
+            Transformation transform = kind.fromVersionedBytes(row.getBlob("transformation"));
             holder.add(new Entry(new Entry.Id(entryId), epoch, transform));
         }
         return holder;
@@ -146,36 +161,18 @@ public class SystemKeyspaceStorage implements LogStorage
     {
         try
         {
-            ImmutableList.Builder<Entry> allEntries = ImmutableList.builder();
-            long period = (base == null ? Period.EMPTY : base.period) + 1;
             Epoch epoch = base == null ? Epoch.EMPTY : base.epoch;
-            while (true)
-            {
-                EntryHolder entryHolder = getEntries(period, epoch);
-
-                if (entryHolder.entries.isEmpty())
-                    break;
-                boolean done = false;
-                for (Entry entry : entryHolder.entries)
-                {
-                    if (entry.epoch.isEqualOrBefore(end))
-                        allEntries.add(entry);
-                    else
-                        done = true;
-                }
-                if (done)
-                    break;
-                period++;
-            }
-            ImmutableList<Entry> entries = allEntries.build();
+            EntryHolder entryHolder = getEntries(epoch, end);
+            ImmutableList.Builder<Entry> entries = ImmutableList.builder();
             Epoch prevEpoch = epoch;
-            for (Entry e : entries)
+            for (Entry e : entryHolder.entries)
             {
                 if (!prevEpoch.nextEpoch().is(e.epoch))
                     throw new IllegalStateException("Can't get replication between " + epoch + " and " + end + " - incomplete local log?");
                 prevEpoch = e.epoch;
+                entries.add(e);
             }
-            return new LogState(base, entries);
+            return new LogState(base, entries.build());
         }
         catch (IOException e)
         {

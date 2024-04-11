@@ -25,19 +25,27 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
 public class DataPlacement
 {
-    public static final Serializer serializer = new Serializer();
+    private static final Serializer globalSerializer = new Serializer(IPartitioner.global());
+    private static final Serializer metaKeyspaceSerializer = new Serializer(MetaStrategy.partitioner);
+    public static Serializer serializerFor(ReplicationParams replication)
+    {
+        return replication.isMeta() ? metaKeyspaceSerializer : globalSerializer;
+    }
 
     private static final DataPlacement EMPTY = new DataPlacement(PlacementForRange.EMPTY, PlacementForRange.EMPTY);
 
@@ -184,23 +192,29 @@ public class DataPlacement
 
     public static class Serializer implements MetadataSerializer<DataPlacement>
     {
+        private final IPartitioner partitioner;
+        private Serializer(IPartitioner partitioner)
+        {
+            this.partitioner = partitioner;
+        }
+
         public void serialize(DataPlacement t, DataOutputPlus out, Version version) throws IOException
         {
-            PlacementForRange.serializer.serialize(t.reads, out, version);
-            PlacementForRange.serializer.serialize(t.writes, out, version);
+            PlacementForRange.serializer.serialize(t.reads, out, partitioner, version);
+            PlacementForRange.serializer.serialize(t.writes, out, partitioner, version);
         }
 
         public DataPlacement deserialize(DataInputPlus in, Version version) throws IOException
         {
-            PlacementForRange reads = PlacementForRange.serializer.deserialize(in, version);
-            PlacementForRange writes = PlacementForRange.serializer.deserialize(in, version);
+            PlacementForRange reads = PlacementForRange.serializer.deserialize(in, partitioner, version);
+            PlacementForRange writes = PlacementForRange.serializer.deserialize(in, partitioner, version);
             return new DataPlacement(reads, writes);
         }
 
         public long serializedSize(DataPlacement t, Version version)
         {
-            return PlacementForRange.serializer.serializedSize(t.reads, version) +
-                   PlacementForRange.serializer.serializedSize(t.writes, version);
+            return PlacementForRange.serializer.serializedSize(t.reads, partitioner,  version) +
+                   PlacementForRange.serializer.serializedSize(t.writes, partitioner, version);
         }
     }
 }

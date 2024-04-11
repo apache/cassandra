@@ -34,7 +34,11 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -121,7 +125,8 @@ public class RepairJobDesc
             desc.sessionId.serialize(out);
             out.writeUTF(desc.keyspace);
             out.writeUTF(desc.columnFamily);
-            IPartitioner.validate(desc.ranges);
+            if (version >= MessagingService.VERSION_51)
+                out.writeUTF(getPartitioner(desc).getClass().getCanonicalName());
             out.writeInt(desc.ranges.size());
             for (Range<Token> rt : desc.ranges)
                 AbstractBounds.tokenSerializer.serialize(rt, out, version);
@@ -135,15 +140,16 @@ public class RepairJobDesc
             TimeUUID sessionId = TimeUUID.deserialize(in);
             String keyspace = in.readUTF();
             String columnFamily = in.readUTF();
+            IPartitioner partitioner = version >= MessagingService.VERSION_51
+                                       ? FBUtilities.newPartitioner(in.readUTF())
+                                       : IPartitioner.global();
 
             int nRanges = in.readInt();
             Collection<Range<Token>> ranges = new ArrayList<>(nRanges);
             Range<Token> range;
-
             for (int i = 0; i < nRanges; i++)
             {
-                range = (Range<Token>) AbstractBounds.tokenSerializer.deserialize(in,
-                        IPartitioner.global(), version);
+                range = (Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, partitioner, version);
                 ranges.add(range);
             }
 
@@ -158,12 +164,25 @@ public class RepairJobDesc
             size += TimeUUID.sizeInBytes();
             size += TypeSizes.sizeof(desc.keyspace);
             size += TypeSizes.sizeof(desc.columnFamily);
+            if (version >= MessagingService.VERSION_51)
+            {
+                String partitioner = getPartitioner(desc).getClass().getCanonicalName();
+                size += TypeSizes.sizeof(partitioner);
+            }
             size += TypeSizes.sizeof(desc.ranges.size());
             for (Range<Token> rt : desc.ranges)
             {
                 size += AbstractBounds.tokenSerializer.serializedSize(rt, version);
             }
             return size;
+        }
+
+        private IPartitioner getPartitioner(RepairJobDesc desc)
+        {
+            TableMetadata tm = ClusterMetadata.current().schema.getKeyspaceMetadata(desc.keyspace)
+                                                               .getTableOrViewNullable(desc.columnFamily);
+            return tm != null ? tm.partitioner : IPartitioner.global();
+
         }
     }
 }

@@ -20,14 +20,13 @@ package org.apache.cassandra.tcm.transformations.cms;
 
 import java.io.IOException;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tcm.Period;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -71,15 +70,14 @@ public class PreInitialize implements Transformation
     public Result execute(ClusterMetadata metadata)
     {
         assert metadata.epoch.isBefore(Epoch.FIRST);
-        assert metadata.period == Period.EMPTY;
 
-        ClusterMetadata.Transformer transformer = metadata.transformer(false);
+        ClusterMetadata.Transformer transformer = metadata.transformer();
         if (addr != null)
         {
             DataPlacement.Builder dataPlacementBuilder = DataPlacement.builder();
             Replica replica = new Replica(addr,
-                                          DatabaseDescriptor.getPartitioner().getMinimumToken(),
-                                          DatabaseDescriptor.getPartitioner().getMinimumToken(),
+                                          MetaStrategy.partitioner.getMinimumToken(),
+                                          MetaStrategy.partitioner.getMinimumToken(),
                                           true);
             dataPlacementBuilder.reads.withReplica(metadata.nextEpoch(), replica);
             dataPlacementBuilder.writes.withReplica(metadata.nextEpoch(), replica);
@@ -90,7 +88,6 @@ public class PreInitialize implements Transformation
         ClusterMetadata.Transformer.Transformed transformed = transformer.build();
         metadata = transformed.metadata;
         assert metadata.epoch.is(Epoch.FIRST) : metadata.epoch;
-        assert metadata.period == Period.FIRST : metadata.period;
 
         return new Success(metadata, LockedRanges.AffectedRanges.EMPTY, transformed.modifiedKeys);
     }

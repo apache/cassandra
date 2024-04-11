@@ -51,6 +51,8 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.locator.MetaStrategy;
+import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -126,14 +128,32 @@ public class UncommittedTableData
 
                 Range<Token> range = rangeIterator.peek();
 
-                Token token = peeking.peek().key.getToken();
-                if (!range.contains(token))
+                PaxosKeyState peeked = peeking.peek();
+                Token token = peeked.key.getToken();
+
+                // If repairing the distributed metadata log table, we skip the filtering of paxos keys where the token
+                // is outside the range of the repair. This check would be complicated by the fact that the system.paxos
+                // table keys are tokenized with the global partitioner, but the log table uses its own specific
+                // partitioner. This means that the repair ranges will be a ReversedLongLocalToken pair, while the
+                // tokens obtained from the PaxosKeyState iterator will be whatever the global partitioner uses.
+                // However, as the replicas of the distributed log table (i.e. CMS members) always replicate the entire
+                // table, the range check is superfluous in this case anyway.
+                // For the purposes of the actual paxos repair (and for paxos reads/writes in general), this mismatch is
+                // also fine as the keys/tokens are opaque to the paxos implentation itself.
+                if (range.left.getPartitioner() == MetaStrategy.partitioner)
                 {
-                    if (range.right.compareTo(token) < 0)
-                        rangeIterator.next();
-                    else
-                        peeking.next();
-                    continue;
+                    assert peeked.tableId.equals(DistributedMetadataLogKeyspace.LOG_TABLE_ID);
+                }
+                else
+                {
+                    if (!range.contains(token))
+                    {
+                        if (range.right.compareTo(token) < 0)
+                            rangeIterator.next();
+                        else
+                            peeking.next();
+                        continue;
+                    }
                 }
 
                 PaxosKeyState next = peeking.next();

@@ -34,7 +34,6 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tcm.Period;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
@@ -83,8 +82,6 @@ public class MetaStrategyTest
         }
 
         return new ClusterMetadata(Epoch.EMPTY,
-                                   Period.EMPTY,
-                                   true,
                                    Murmur3Partitioner.instance,
                                    DistributedSchema.empty(),
                                    directory,

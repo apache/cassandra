@@ -52,6 +52,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.repair.SharedContext;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -545,7 +546,13 @@ public class PaxosRepair extends AbstractPaxosRepair
      */
     public static boolean hasSufficientLiveNodesForTopologyChange(Keyspace keyspace, Range<Token> range, Collection<InetAddressAndPort> liveEndpoints)
     {
-        return hasSufficientLiveNodesForTopologyChange(ClusterMetadata.current().placements.get(keyspace.getMetadata().params.replication).reads.forRange(range).endpoints(),
+        ReplicationParams replication = keyspace.getMetadata().params.replication;
+        // Special case meta keyspace as it uses a custom partitioner/tokens, but the paxos table and repairs
+        // are based on the system partitioner
+        Collection<InetAddressAndPort> allEndpoints = replication.isMeta()
+                                                      ? ClusterMetadata.current().fullCMSMembers()
+                                                      : ClusterMetadata.current().placements.get(replication).reads.forRange(range).endpoints();
+        return hasSufficientLiveNodesForTopologyChange(allEndpoints,
                                                        liveEndpoints,
                                                        DatabaseDescriptor.getEndpointSnitch()::getDatacenter,
                                                        DatabaseDescriptor.paxoTopologyRepairNoDcChecks(),

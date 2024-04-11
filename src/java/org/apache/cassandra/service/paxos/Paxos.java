@@ -45,6 +45,7 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InOurDc;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaLayout.ForTokenWrite;
@@ -253,7 +254,12 @@ public class Paxos
 
         static Electorate get(TableMetadata table, DecoratedKey key, ConsistencyLevel consistency)
         {
-            return get(consistency, forTokenWriteLiveAndDown(Keyspace.open(table.keyspace), key.getToken()));
+            // MetaStrategy distributes the entire keyspace to all replicas. In addition, its tables (currently only
+            // the dist log table) don't use the globally configured partitioner. For these reasons we don't lookup the
+            // replicas using the supplied token as this can actually be of the incorrect type (for example when
+            // performing Paxos repair).
+            final Token token = table.partitioner == MetaStrategy.partitioner ? MetaStrategy.entireRange.right : key.getToken();
+            return get(consistency, forTokenWriteLiveAndDown(Keyspace.open(table.keyspace), token));
         }
 
         static Electorate get(ConsistencyLevel consistency, ForTokenWrite all)
@@ -425,13 +431,18 @@ public class Paxos
         static Participants get(ClusterMetadata metadata, TableMetadata table, Token token, ConsistencyLevel consistencyForConsensus, Predicate<Replica> isReplicaAlive)
         {
             KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaceMetadata(table.keyspace);
-            ReplicaLayout.ForTokenWrite all = forTokenWriteLiveAndDown(keyspaceMetadata, token);
+            // MetaStrategy distributes the entire keyspace to all replicas. In addition, its tables (currently only
+            // the dist log table) don't use the globally configured partitioner. For these reasons we don't lookup the
+            // replicas using the supplied token as this can actually be of the incorrect type (for example when
+            // performing Paxos repair).
+            final Token actualToken = table.partitioner == MetaStrategy.partitioner ? MetaStrategy.entireRange.right : token;
+            ReplicaLayout.ForTokenWrite all = forTokenWriteLiveAndDown(keyspaceMetadata, actualToken);
             ReplicaLayout.ForTokenWrite electorate = consistencyForConsensus.isDatacenterLocal()
                                                      ? all.filter(InOurDc.replicas()) : all;
 
             EndpointsForToken live = all.all().filter(isReplicaAlive);
             return new Participants(metadata.epoch, Keyspace.open(table.keyspace), consistencyForConsensus, all, electorate, live,
-                                    (cm) -> get(cm, table, token, consistencyForConsensus));
+                                    (cm) -> get(cm, table, actualToken, consistencyForConsensus));
         }
 
         static Participants get(TableMetadata table, Token token, ConsistencyLevel consistencyForConsensus)
@@ -1125,8 +1136,13 @@ public class Paxos
     public static boolean isInRangeAndShouldProcess(InetAddressAndPort from, DecoratedKey key, TableMetadata table, boolean includesRead)
     {
         Keyspace keyspace = Keyspace.open(table.keyspace);
-        return (includesRead ? EndpointsForToken.natural(keyspace, key.getToken()).get()
-                             : ReplicaLayout.forTokenWriteLiveAndDown(keyspace, key.getToken()).all()
+        // MetaStrategy distributes the entire keyspace to all replicas. In addition, its tables (currently only
+        // the dist log table) don't use the globally configured partitioner. For these reasons we don't lookup the
+        // replicas using the supplied token as this can actually be of the incorrect type (for example when
+        // performing Paxos repair).
+        Token token = table.partitioner == MetaStrategy.partitioner ? MetaStrategy.entireRange.right : key.getToken();
+        return (includesRead ? EndpointsForToken.natural(keyspace, token).get()
+                             : ReplicaLayout.forTokenWriteLiveAndDown(keyspace, token).all()
         ).contains(getBroadcastAddressAndPort());
     }
 

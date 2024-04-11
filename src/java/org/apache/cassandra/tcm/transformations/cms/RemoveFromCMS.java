@@ -28,6 +28,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -35,14 +36,13 @@ import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
-import org.apache.cassandra.tcm.ownership.EntireRange;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
-import static org.apache.cassandra.tcm.ownership.EntireRange.entireRange;
+import static org.apache.cassandra.locator.MetaStrategy.entireRange;
 
 /**
  * This class along with AddToCMS, StartAddToCMS & FinishAddToCMS, contain a high degree of duplication with their intended
@@ -121,7 +121,7 @@ public class RemoveFromCMS extends BaseMembershipTransformation
             return new Transformation.Rejected(INVALID, String.format("Removing %s will leave no nodes in CMS", endpoint));
 
         return Transformation.success(transformer.with(prev.placements.unbuild().with(metaParams, proposed).build()),
-                                      EntireRange.affectedRanges(prev));
+                                      MetaStrategy.affectedRanges(prev));
     }
 
     @Override

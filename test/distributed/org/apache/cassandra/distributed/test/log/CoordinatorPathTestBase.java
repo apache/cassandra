@@ -695,7 +695,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                             case TCM_FETCH_CMS_LOG_REQ:
                             {
                                 FetchCMSLog request = (FetchCMSLog) message.payload;
-                                LogState logState = logStorage.getLogState(ClusterMetadata.current().period, request.lowerBound);
+                                LogState logState = logStorage.getLogState(request.lowerBound);
                                 realCluster.deliverMessage(message.from(),
                                                            Instance.serializeMessage(cms.addr(), message.from(), message.responseWith(logState)));
                                 return;

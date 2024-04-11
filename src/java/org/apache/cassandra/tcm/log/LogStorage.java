@@ -24,7 +24,7 @@ import org.apache.cassandra.tcm.MetadataSnapshots;
 
 public interface LogStorage extends LogReader
 {
-    void append(long period, Entry entry);
+    void append(Entry entry);
     LogState getPersistedLogState();
     LogState getLogStateBetween(ClusterMetadata base, Epoch end);
 
@@ -42,10 +42,10 @@ public interface LogStorage extends LogReader
     class NoOpLogStorage implements LogStorage
     {
         @Override
-        public void append(long period, Entry entry) {}
+        public void append(Entry entry) {}
 
         @Override
-        public LogState getLogState(long startPeriod, Epoch since)
+        public LogState getLogState(Epoch startEpoch)
         {
             return LogState.EMPTY;
         }
@@ -57,7 +57,7 @@ public interface LogStorage extends LogReader
         }
 
         @Override
-        public EntryHolder getEntries(long period, Epoch since)
+        public EntryHolder getEntries(Epoch since)
         {
             return null;
         }

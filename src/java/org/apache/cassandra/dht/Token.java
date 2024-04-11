@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.dht;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
@@ -99,7 +98,13 @@ public abstract class Token implements RingPosition<Token>, Serializable
     {
         private static final int SERDE_VERSION = MessagingService.VERSION_40;
 
+        // Convenience method as Token has a reference to its Partitioner
         public void serialize(Token t, DataOutputPlus out, Version version) throws IOException
+        {
+            serialize(t, out, t.getPartitioner(), version);
+        }
+
+        public void serialize(Token t, DataOutputPlus out, IPartitioner partitioner, Version version) throws IOException
         {
             serializer.serialize(t, out, SERDE_VERSION);
         }
@@ -111,7 +116,13 @@ public abstract class Token implements RingPosition<Token>, Serializable
             return serializer.deserialize(in, partitioner, SERDE_VERSION);
         }
 
+        // Convenience method as Token has a reference to its Partitioner
         public long serializedSize(Token t, Version version)
+        {
+            return serializedSize(t, t.getPartitioner(), version);
+        }
+
+        public long serializedSize(Token t, IPartitioner partitioner, Version version)
         {
             return serializer.serializedSize(t, SERDE_VERSION);
         }
@@ -126,7 +137,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
             p.getTokenFactory().serialize(token, out);
         }
 
-        public Token deserialize(DataInput in, IPartitioner p, int version) throws IOException
+        public Token deserialize(DataInputPlus in, IPartitioner p, int version) throws IOException
         {
             int size = deserializeSize(in);
             byte[] bytes = new byte[size];
@@ -134,7 +145,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
             return p.getTokenFactory().fromByteArray(ByteBuffer.wrap(bytes));
         }
 
-        public int deserializeSize(DataInput in) throws IOException
+        public int deserializeSize(DataInputPlus in) throws IOException
         {
             return in.readInt();
         }

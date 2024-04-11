@@ -46,7 +46,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.sequences.AddToCMS;
-import org.apache.cassandra.tcm.transformations.SealPeriod;
+import org.apache.cassandra.tcm.transformations.TriggerSnapshot;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -315,14 +315,14 @@ public class FetchLogFromPeersTest extends TestBaseImpl
                         LogState logState = (LogState) decoded.payload;
                         // drop every other replication message to make sure pending buffer is non-consecutive
                         if (decoded.epoch().getEpoch() % 2 == 0 &&
-                            logState.entries.stream().noneMatch((e) -> e.transform instanceof SealPeriod))
+                            logState.entries.stream().noneMatch((e) -> e.transform instanceof TriggerSnapshot))
                             return false;
                     }
                     return true;
                 })
             ).drop();
             executeAlters(cluster);
-            cluster.get(1).runOnInstance(() -> ClusterMetadataService.instance().sealPeriod());
+            cluster.get(1).runOnInstance(() -> ClusterMetadataService.instance().triggerSnapshot());
             executeAlters(cluster);
             cluster.filters().reset();
 
@@ -353,7 +353,7 @@ public class FetchLogFromPeersTest extends TestBaseImpl
 
             filter = cluster.filters().inbound().to(2).verbs(Verb.TCM_FETCH_PEER_LOG_RSP.id, Verb.TCM_FETCH_CMS_LOG_REQ.id).drop();
             executeAlters(cluster);
-            cluster.get(1).runOnInstance(() -> ClusterMetadataService.instance().sealPeriod());
+            cluster.get(1).runOnInstance(() -> ClusterMetadataService.instance().triggerSnapshot());
             executeAlters(cluster);
             filter.off();
 
