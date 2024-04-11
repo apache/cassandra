@@ -41,6 +41,23 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.ByteType;
+import org.apache.cassandra.db.marshal.DoubleType;
+import org.apache.cassandra.db.marshal.InetAddressType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.ShortType;
+import org.apache.cassandra.db.marshal.TimestampType;
+import org.apache.cassandra.db.marshal.TupleType;
+import org.apache.cassandra.db.marshal.TypeParser;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.ComplexColumnData;
@@ -494,6 +511,35 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
         {
             ByteBuffer raw = data.get(column);
             return raw == null ? null : VectorType.getInstance(elementType, dimension).compose(raw);
+        }
+
+        public List<Object> getTuple(String column, AbstractType<?>... elementType)
+        {
+            ByteBuffer raw = data.get(column);
+            if (raw == null)
+                return List.of();
+
+            StringBuilder sb = new StringBuilder();
+            sb.append('(');
+            for (int i = 0; i < elementType.length; i++)
+            {
+                sb.append(elementType[i]);
+                if (i + 1 != elementType.length)
+                    sb.append(", ");
+            }
+            sb.append(')');
+
+            TupleType tupleType = TupleType.getInstance(new TypeParser(sb.toString()));
+            List<ByteBuffer> unpacked = List.of(tupleType.split(ByteBufferAccessor.instance, raw));
+
+            List<Object> values = new ArrayList<>();
+            for (int i = 0; i < unpacked.size(); i++)
+            {
+                Object value = elementType[i].compose(unpacked.get(i));
+                values.add(value);
+            }
+
+            return values;
         }
 
         public List<ColumnSpecification> getColumns()

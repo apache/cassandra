@@ -51,7 +51,11 @@ import org.apache.cassandra.db.SizeEstimatesRecorder;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.SystemKeyspaceMigrator41;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.virtual.GuardrailEnableFlagsTable;
+import org.apache.cassandra.db.virtual.GuardrailThresholdsTable;
+import org.apache.cassandra.db.virtual.GuardrailValuesTable;
 import org.apache.cassandra.db.virtual.SystemViewsKeyspace;
+import org.apache.cassandra.db.virtual.VirtualKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -92,6 +96,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSI
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NAME;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SIZE_RECORDER_INTERVAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.START_NATIVE_TRANSPORT;
+import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_GUARDRAILS;
 
 /**
  * The <code>CassandraDaemon</code> is an abstraction for a Cassandra daemon
@@ -535,6 +540,9 @@ public class CassandraDaemon
     {
         VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
         VirtualKeyspaceRegistry.instance.register(SystemViewsKeyspace.instance);
+        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(VIRTUAL_GUARDRAILS, List.of(new GuardrailValuesTable(),
+                                                                                                  new GuardrailEnableFlagsTable(),
+                                                                                                  new GuardrailThresholdsTable())));
 
         // flush log messages to system_views.system_logs virtual table as there were messages already logged
         // before that virtual table was instantiated
