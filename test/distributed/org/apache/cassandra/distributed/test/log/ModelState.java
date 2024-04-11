@@ -319,7 +319,7 @@ public class ModelState
             assert currentNodes.contains(node);
             // for now... assassinate may change this assertion
             assert leavingNodes.contains(node);
-            finished[1]++;
+            finished[2]++;
             removeFromCluster(node);
             return this;
         }
