@@ -27,6 +27,7 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import org.slf4j.Logger;
@@ -49,6 +50,7 @@ import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.Promise;
 
 import static org.apache.cassandra.exceptions.ExceptionCode.SERVER_ERROR;
@@ -124,13 +126,19 @@ public final class RemoteProcessor implements Processor
     @Override
     public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy)
     {
-        // Synchonous, non-debounced call if we are waiting for the highest epoch. Should be used sparingly.
+        Function<Promise<LogState>, ClusterMetadata> fetchFunction =
+            promise -> fetchLogAndWaitInternal(promise,
+                                               new CandidateIterator(candidates(true), false),
+                                               log);
+        // Synchonous, non-debounced call if we are waiting for the highest epoch (without knowing/caring what it is).
+        // Should be used sparingly.
         if (waitFor == null)
-            return fetchLogAndWaitInternal();
+            return fetchFunction.apply(new AsyncPromise<>());
 
         try
         {
-            return EpochAwareDebounce.instance.getAsync(this::fetchLogAndWaitInternal, waitFor).get(retryPolicy.remainingNanos(), TimeUnit.NANOSECONDS);
+            Future<ClusterMetadata> cmFuture = EpochAwareDebounce.instance.getAsync(fetchFunction, waitFor);
+            return cmFuture.get(retryPolicy.remainingNanos(), TimeUnit.NANOSECONDS);
         }
         catch (InterruptedException e)
         {
@@ -142,28 +150,36 @@ public final class RemoteProcessor implements Processor
         }
     }
 
-    private ClusterMetadata fetchLogAndWaitInternal()
+    public static ClusterMetadata fetchLogAndWait(CandidateIterator candidateIterator, LocalLog log)
     {
-        return fetchLogAndWait(new CandidateIterator(candidates(true), false), log);
+        Promise<LogState> remoteRequest = new AsyncPromise<>();
+        return fetchLogAndWaitInternal(remoteRequest, candidateIterator, log);
     }
 
-    public static ClusterMetadata fetchLogAndWait(CandidateIterator candidateIterator, LocalLog log)
+    private static ClusterMetadata fetchLogAndWaitInternal(Promise<LogState> remoteRequest,
+                                                           CandidateIterator candidates,
+                                                           LocalLog log)
     {
         try (Timer.Context ctx = TCMMetrics.instance.fetchCMSLogLatency.time())
         {
             Epoch currentEpoch = log.metadata().epoch;
-            LogState replay = sendWithCallback(Verb.TCM_FETCH_CMS_LOG_REQ,
-                                               new FetchCMSLog(currentEpoch, ClusterMetadataService.state() == REMOTE),
-                                               candidateIterator,
-                                               new Retry.Backoff(TCMMetrics.instance.fetchLogRetries));
+            sendWithCallbackAsync(remoteRequest,
+                                  Verb.TCM_FETCH_CMS_LOG_REQ,
+                                  new FetchCMSLog(currentEpoch, ClusterMetadataService.state() == REMOTE),
+                                  candidates,
+                                  new Retry.Backoff(TCMMetrics.instance.fetchLogRetries));
+            LogState replay = remoteRequest.awaitUninterruptibly().get();
             if (!replay.isEmpty())
             {
                 logger.info("Replay request returned replay data: {}", replay);
                 log.append(replay);
                 TCMMetrics.instance.cmsLogEntriesFetched(currentEpoch, replay.latestEpoch());
             }
-
             return log.waitForHighestConsecutive();
+        }
+        catch (InterruptedException | ExecutionException e)
+        {
+            throw new RuntimeException(e);
         }
     }
 

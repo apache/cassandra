@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +36,7 @@ import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.Promise;
 
 public class PeerLogFetcher
 {
@@ -72,10 +74,11 @@ public class PeerLogFetcher
 
     public Future<ClusterMetadata> asyncFetchLog(InetAddressAndPort remote, Epoch awaitAtleast)
     {
-        return EpochAwareDebounce.instance.getAsync(() -> fetchLogEntriesAndWaitInternal(remote, awaitAtleast), awaitAtleast);
+        Function<Promise<LogState>, ClusterMetadata> fn = promise -> fetchLogEntriesAndWaitInternal(promise, remote, awaitAtleast);
+        return EpochAwareDebounce.instance.getAsync(fn, awaitAtleast);
     }
 
-    private ClusterMetadata fetchLogEntriesAndWaitInternal(InetAddressAndPort remote, Epoch awaitAtleast)
+    private ClusterMetadata fetchLogEntriesAndWaitInternal(Promise<LogState> remoteRequest, InetAddressAndPort remote, Epoch awaitAtleast)
     {
         Epoch before = ClusterMetadata.current().epoch;
         if (before.isEqualOrAfter(awaitAtleast))
@@ -85,11 +88,13 @@ public class PeerLogFetcher
 
         try (Timer.Context ctx = TCMMetrics.instance.fetchPeerLogLatency.time())
         {
-            LogState logState = RemoteProcessor.sendWithCallback(Verb.TCM_FETCH_PEER_LOG_REQ,
-                                                                 new FetchPeerLog(before),
-                                                                 new RemoteProcessor.CandidateIterator(Collections.singletonList(remote)),
-                                                                 Retry.Deadline.after(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
-                                                                                      new Retry.Jitter(TCMMetrics.instance.fetchLogRetries)));
+            RemoteProcessor.sendWithCallbackAsync(remoteRequest,
+                                                  Verb.TCM_FETCH_PEER_LOG_REQ,
+                                                  new FetchPeerLog(before),
+                                                  new RemoteProcessor.CandidateIterator(Collections.singletonList(remote)),
+                                                  Retry.Deadline.after(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
+                                                                       new Retry.Jitter(TCMMetrics.instance.fetchLogRetries)));
+            LogState logState = remoteRequest.awaitUninterruptibly().get();
             log.append(logState);
             ClusterMetadata fetched = log.waitForHighestConsecutive();
             if (fetched.epoch.isEqualOrAfter(awaitAtleast))
