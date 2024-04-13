@@ -216,6 +216,13 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Assert.assertTrue("OneMinute: " + cpuUtil1OneMinute, cpuUtil1OneMinute >= 0 && cpuUtil1OneMinute <= 100);
         Assert.assertTrue("FiveMinute: " + cpuUtil1FiveMinute, cpuUtil1FiveMinute >= 0 && cpuUtil1FiveMinute <= 100);
         Assert.assertTrue("FifteenMinute: " + cpuUtil1FifteenMinute, cpuUtil1FifteenMinute >= 0 && cpuUtil1FifteenMinute <= 100);
+
+        // test out of range setCpuUtil1
+        long count1 = resourcesStats.cpuUtil1Meter.getCount();
+        resourcesStats.setCpuUtil1(-1);
+        Assert.assertEquals(count1, resourcesStats.cpuUtil1Meter.getCount());
+        resourcesStats.setCpuUtil1(101);
+        Assert.assertEquals(count1, resourcesStats.cpuUtil1Meter.getCount());
     }
 
     @Test
@@ -231,6 +238,13 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Assert.assertTrue("OneMinute: " + cpuUtil2OneMinute, cpuUtil2OneMinute >= 0 && cpuUtil2OneMinute <= 100);
         Assert.assertTrue("FiveMinute: " + cpuUtil2FiveMinute, cpuUtil2FiveMinute >= 0 && cpuUtil2FiveMinute <= 100);
         Assert.assertTrue("FifteenMinute: " + cpuUtil2FifteenMinute, cpuUtil2FifteenMinute >= 0 && cpuUtil2FifteenMinute <= 100);
+
+        // test out of range setCpuUtil2
+        long count1 = resourcesStats.cpuUtil2Meter.getCount();
+        resourcesStats.setCpuUtil2(-1);
+        Assert.assertEquals(count1, resourcesStats.cpuUtil2Meter.getCount());
+        resourcesStats.setCpuUtil2(101);
+        Assert.assertEquals(count1, resourcesStats.cpuUtil2Meter.getCount());
     }
 
     @Test

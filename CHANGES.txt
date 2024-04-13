@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-28906] ignore out of range numbers returned by CPU collection calls
  * [SO-28512] Default enable full repair for MVs
 4.1.3.1
  * [SO-28871] Update default rate limiter config

@@ -29,6 +29,9 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 public class ResourcesStats
 {
     public static final MetricNameFactory factory = new DefaultNameFactory("ResourcesStats");
+    public static long CPU_UTIL_VAL_MIN = 0L;
+    public static long CPU_UTIL_VAL_MAX = 100L;
+
     Gauge<Long> cpuUtil1Gauge;
     Gauge<Long> cpuUtil2Gauge;
 
@@ -116,7 +119,7 @@ public class ResourcesStats
     public void setCpuUtil1(long cpuUtil1CurVal)
     {
         this.cpuUtil1CurVal = cpuUtil1CurVal;
-        cpuUtil1Meter.mark(this.cpuUtil1CurVal);
+        validateAndSetCPUMeter(cpuUtil1Meter, this.cpuUtil1CurVal);
     }
 
     public long getCpuUtil2Cur()
@@ -142,7 +145,7 @@ public class ResourcesStats
     public void setCpuUtil2(long cpuUtil2CurVal)
     {
         this.cpuUtil2CurVal = cpuUtil2CurVal;
-        cpuUtil2Meter.mark(this.cpuUtil2CurVal);
+        validateAndSetCPUMeter(cpuUtil2Meter, this.cpuUtil2CurVal);
     }
 
     public int getPendingReadsCur()
@@ -221,5 +224,15 @@ public class ResourcesStats
     {
         this.pendingNativeTransportCurVal = pendingNativeTransport;
         pendingNativeTransportMeter.mark(this.pendingNativeTransportCurVal);
+    }
+
+    private void validateAndSetCPUMeter(Meter cpuUtilMeter, long cpuUtilCurVal)
+    {
+        // We use cpuUtilMeter to track 1-min CPU usage which is vital in the throttling algorithm.
+        // While we expect the input, cpuUtilCurVal to be within [0, 100] range, we don't wish to
+        // accept any negative or extemely large value that pollutes the 1-min CPU usage calculation.
+        if (cpuUtilCurVal >= CPU_UTIL_VAL_MIN && cpuUtilCurVal <= CPU_UTIL_VAL_MAX) {
+            cpuUtilMeter.mark(cpuUtilCurVal);
+        }
     }
 }
