@@ -447,16 +447,6 @@ public class Message<T>
         return isValid;
     }
 
-    public static final class InvalidLegacyProtocolMagic extends IOException
-    {
-        public final int read;
-        private InvalidLegacyProtocolMagic(int read)
-        {
-            super(String.format("Read %d, Expected %d", read, PROTOCOL_MAGIC));
-            this.read = read;
-        }
-    }
-
     public String toString()
     {
         return "(from:" + from() + ", type:" + verb().stage + " verb:" + verb() + ')';

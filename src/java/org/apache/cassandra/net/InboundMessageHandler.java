@@ -302,10 +302,7 @@ public class InboundMessageHandler extends AbstractMessageHandler
 
         JVMStabilityInspector.inspectThrowable(cause);
 
-        if (cause instanceof Message.InvalidLegacyProtocolMagic)
-            logger.error("{} invalid, unrecoverable CRC mismatch detected while reading messages - closing the connection", id());
-        else
-            logger.error("{} unexpected exception caught while processing inbound messages; terminating connection", id(), cause);
+        logger.error("{} unexpected exception caught while processing inbound messages; terminating connection", id(), cause);
 
         channel.close();
     }
