@@ -147,7 +147,8 @@ class HandshakeProtocol
             int start = nio.position();
             try (DataInputBuffer in = new DataInputBuffer(nio, false))
             {
-                if (!hasValidLegacyProtocolMagic(in.readInt())) {
+                if (!hasValidLegacyProtocolMagic(in.readInt()))
+                {
                     return null;
                 }
 
