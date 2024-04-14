@@ -437,10 +437,14 @@ public class Message<T>
     /** we preface every message with this number so the recipient can validate the sender is sane */
     static final int PROTOCOL_MAGIC = 0xCA552DFA;
 
-    static void validateLegacyProtocolMagic(int magic) throws InvalidLegacyProtocolMagic
+    static boolean hasValidLegacyProtocolMagic(int magic)
     {
-        if (magic != PROTOCOL_MAGIC)
-            throw new InvalidLegacyProtocolMagic(magic);
+        boolean isValid = magic == PROTOCOL_MAGIC;
+        if (!isValid)
+        {
+            noSpam1m.warn("Invalid legacy protocol magic. Read {}, expected {}", magic, PROTOCOL_MAGIC);
+        }
+        return isValid;
     }
 
     public static final class InvalidLegacyProtocolMagic extends IOException

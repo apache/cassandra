@@ -34,7 +34,7 @@ import org.apache.cassandra.utils.memory.BufferPools;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
-import static org.apache.cassandra.net.Message.validateLegacyProtocolMagic;
+import static org.apache.cassandra.net.Message.hasValidLegacyProtocolMagic;
 import static org.apache.cassandra.net.Crc.*;
 import static org.apache.cassandra.net.OutboundConnectionSettings.*;
 
@@ -147,7 +147,10 @@ class HandshakeProtocol
             int start = nio.position();
             try (DataInputBuffer in = new DataInputBuffer(nio, false))
             {
-                validateLegacyProtocolMagic(in.readInt());
+                if (!hasValidLegacyProtocolMagic(in.readInt())) {
+                    return null;
+                }
+
                 int flags = in.readInt();
 
                 // legacy pre40 messagingVersion flag
