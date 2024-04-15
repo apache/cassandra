@@ -1,3 +1,6 @@
+3.0.31
+ *
+
 3.0.30
  * Fix SCM URL link (CASSANDRA-19422)
  * Backport CASSANDRA-16418 to 3.x (CASSANDRA-18824)
