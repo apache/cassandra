@@ -1695,7 +1695,7 @@ user_defined_functions_enabled: false
 # `enabled` executes queries and their triggers.
 # `disabled` executes queries but skips trigger execution, and logs a warning.
 # `forbidden` fails queries that would execute triggers with TriggerDisabledException.
-triggers_policy: enabled
+triggers_enabled: enabled
 
 # Enables encrypting data at-rest (on disk). Different key providers can be plugged in, but the default reads from
 # a JCE-style keystore. A single keystore can hold multiple keys, but the one referenced by
