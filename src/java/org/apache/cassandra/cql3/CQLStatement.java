@@ -99,6 +99,16 @@ public interface CQLStatement
         return false;
     }
 
+    default boolean isDDLStatement()
+    {
+        return false;
+    }
+
+    default boolean isDCLStatement()
+    {
+        return false;
+    }
+
     public static abstract class Raw
     {
         protected VariableSpecifications bindVariables;

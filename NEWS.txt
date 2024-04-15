@@ -201,7 +201,6 @@ New features
     - Added a new CQL function, maxwritetime. It shows the largest unix timestamp that the data was written, similar to
       its sibling CQL function, writetime.
     - New Guardrails added:
-      - Whether ALTER TABLE commands are allowed to mutate columns
       - Whether SimpleStrategy is allowed on keyspace creation or alteration
       - Maximum replication factor
       - Whether DROP KEYSPACE commands are allowed.
