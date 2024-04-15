@@ -140,6 +140,9 @@ public final class CreateViewStatement extends AlterSchemaStatement
             throw new AlreadyExistsException(keyspaceName, viewName);
         }
 
+        // if apply is not no-op then we check guardrail for this ddl op
+        Guardrails.ddlEnabled.ensureEnabled(state);
+
         /*
          * Base table validation
          */

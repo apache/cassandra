@@ -109,6 +109,9 @@ public final class CreateTableStatement extends AlterSchemaStatement
             throw new AlreadyExistsException(keyspaceName, tableName);
         }
 
+        // if apply is not no-op then we check guardrail for this ddl op
+        Guardrails.ddlEnabled.ensureEnabled(state);
+
         TableMetadata table = builder(keyspace.types).build();
         table.validate();
 

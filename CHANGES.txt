@@ -1,4 +1,5 @@
 4.1.5
+ * Guardrail to block DDL/DCL queries
  * Fix hints delivery for a node going down repeatedly (CASSANDRA-19495)
  * Do not go to disk for reading hints file sizes (CASSANDRA-19477)
  * Fix system_views.settings to handle array types (CASSANDRA-19475)

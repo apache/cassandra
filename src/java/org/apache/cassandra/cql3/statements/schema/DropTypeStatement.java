@@ -25,6 +25,7 @@ import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.UTName;
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
@@ -72,6 +73,9 @@ public final class DropTypeStatement extends AlterSchemaStatement
 
             throw ire("Type '%s.%s' doesn't exist", keyspaceName, typeName);
         }
+
+        // if apply is not no-op then we check guardrail for this ddl op
+        Guardrails.ddlEnabled.ensureEnabled(state);
 
         /*
          * We don't want to drop a type unless it's not used anymore (mainly because

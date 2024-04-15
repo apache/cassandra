@@ -161,6 +161,20 @@ public interface GuardrailsConfig
     boolean getDropTruncateTableEnabled();
 
     /**
+     * Returns whether DDL statement is allowed
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getDDLEnabled();
+
+    /**
+     * Returns whether DCL statement is allowed
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getDCLEnabled();
+
+    /**
      * @return The threshold to warn when page size exceeds given size.
      */
     int getPageSizeWarnThreshold();

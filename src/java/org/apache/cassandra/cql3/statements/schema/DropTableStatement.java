@@ -65,6 +65,9 @@ public final class DropTableStatement extends AlterSchemaStatement
             throw ire("Table '%s.%s' doesn't exist", keyspaceName, tableName);
         }
 
+        // if apply is not no-op then we check guardrail for this ddl op
+        Guardrails.ddlEnabled.ensureEnabled(state);
+
         if (table.isView())
             throw ire("Cannot use DROP TABLE on a materialized view. Please use DROP MATERIALIZED VIEW instead.");
 

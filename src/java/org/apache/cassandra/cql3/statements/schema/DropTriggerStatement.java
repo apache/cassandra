@@ -21,6 +21,7 @@ import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QualifiedName;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
@@ -61,6 +62,9 @@ public final class DropTriggerStatement extends AlterSchemaStatement
 
             throw ire("Trigger '%s' on '%s.%s' doesn't exist", triggerName, keyspaceName, tableName);
         }
+
+        // if apply is not no-op then we check guardrail for this ddl op
+        Guardrails.ddlEnabled.ensureEnabled(state);
 
         TableMetadata newTable = table.withSwapped(table.triggers.without(triggerName));
         return schema.withAddedOrUpdated(keyspace.withSwapped(keyspace.tables.withSwapped(newTable)));
