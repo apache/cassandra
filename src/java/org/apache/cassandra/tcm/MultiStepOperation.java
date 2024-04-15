@@ -155,7 +155,7 @@ public abstract class MultiStepOperation<CONTEXT>
     public static Transformation.Result applyMultipleTransformations(ClusterMetadata metadata, Transformation.Kind next, List<Transformation> transformations)
     {
         ImmutableSet.Builder<MetadataKey> modifiedKeys = ImmutableSet.builder();
-        Epoch lastModifiedEpoch = metadata.epoch;
+        Epoch lastModifiedEpoch = metadata.epoch.nextEpoch();
         boolean foundStart = false;
         for (Transformation nextTransformation : transformations)
         {
@@ -169,7 +169,7 @@ public abstract class MultiStepOperation<CONTEXT>
                 modifiedKeys.addAll(result.success().affectedMetadata);
             }
         }
-        return new Transformation.Success(metadata.forceEpoch(lastModifiedEpoch.nextEpoch()), LockedRanges.AffectedRanges.EMPTY, modifiedKeys.build());
+        return new Transformation.Success(metadata, LockedRanges.AffectedRanges.EMPTY, modifiedKeys.build());
     }
 
     /**
