@@ -62,6 +62,7 @@ Merged from 5.0:
  * Fix resource cleanup after SAI query timeouts (CASSANDRA-19177)
  * Suppress CVE-2023-6481 (CASSANDRA-19184)
 Merged from 4.1:
+ * Nodetool to get and modify Guardrails configuration
  * Fix hints delivery for a node going down repeatedly (CASSANDRA-19495)
  * Do not go to disk for reading hints file sizes (CASSANDRA-19477)
  * Fix system_views.settings to handle array types (CASSANDRA-19475)
