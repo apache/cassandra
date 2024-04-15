@@ -63,7 +63,7 @@ public interface VersionedEndpoints<E extends Endpoints<E>> extends MetadataValu
 
         public ForRange withLastModified(Epoch epoch)
         {
-            return new ForRange(lastModified, endpointsForRange);
+            return new ForRange(epoch, endpointsForRange);
         }
 
         public Epoch lastModified()
@@ -151,7 +151,7 @@ public interface VersionedEndpoints<E extends Endpoints<E>> extends MetadataValu
 
         public ForToken withLastModified(Epoch epoch)
         {
-            return new ForToken(lastModified, endpointsForToken);
+            return new ForToken(epoch, endpointsForToken);
         }
 
         public ForToken map(Function<EndpointsForToken, EndpointsForToken> fn)
@@ -159,12 +159,10 @@ public interface VersionedEndpoints<E extends Endpoints<E>> extends MetadataValu
             return new ForToken(lastModified, fn.apply(endpointsForToken));
         }
 
-
         public ForToken without(Set<InetAddressAndPort> remove)
         {
             return map(e -> e.without(remove));
         }
-
 
         public Epoch lastModified()
         {

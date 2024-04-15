@@ -152,6 +152,20 @@ public class PlacementForRange
         return builder.build();
     }
 
+    public PlacementForRange withCappedLastModified(Epoch lastModified)
+    {
+        SortedMap<Range<Token>, VersionedEndpoints.ForRange> copy = new TreeMap<>();
+        for (Map.Entry<Range<Token>, VersionedEndpoints.ForRange> entry : replicaGroups.entrySet())
+        {
+            Range<Token> range = entry.getKey();
+            VersionedEndpoints.ForRange forRange = entry.getValue();
+            if (forRange.lastModified().isAfter(lastModified))
+                forRange = forRange.withLastModified(lastModified);
+            copy.put(range, forRange);
+        }
+        return new PlacementForRange(copy);
+    }
+
     @Override
     public String toString()
     {

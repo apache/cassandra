@@ -155,6 +155,12 @@ public class DataPlacement
         }
     }
 
+    public DataPlacement withCappedLastModified(Epoch lastModified)
+    {
+        return new DataPlacement(reads.withCappedLastModified(lastModified),
+                                 writes.withCappedLastModified(lastModified));
+    }
+
     @Override
     public String toString()
     {
