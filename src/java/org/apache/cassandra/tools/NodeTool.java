@@ -50,6 +50,8 @@ import com.google.common.base.Throwables;
 
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.tools.nodetool.*;
+import org.apache.cassandra.tools.nodetool.GuardrailsConfigCommand.GetGuardrailsConfig;
+import org.apache.cassandra.tools.nodetool.GuardrailsConfigCommand.SetGuardrailsConfig;
 import org.apache.cassandra.utils.FBUtilities;
 
 import com.google.common.collect.Maps;
@@ -142,6 +144,7 @@ public class NodeTool
                 GetDefaultKeyspaceRF.class,
                 GetEndpoints.class,
                 GetFullQueryLog.class,
+                GetGuardrailsConfig.class,
                 GetInterDCStreamThroughput.class,
                 GetLoggingLevels.class,
                 GetMaxHintWindow.class,
@@ -200,6 +203,7 @@ public class NodeTool
                 SetConcurrentCompactors.class,
                 SetConcurrentViewBuilders.class,
                 SetDefaultKeyspaceRF.class,
+                SetGuardrailsConfig.class,
                 SetHintedHandoffThrottleInKB.class,
                 SetInterDCStreamThroughput.class,
                 SetLoggingLevel.class,
