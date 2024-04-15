@@ -82,6 +82,8 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTable;
 import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTableMBean;
+import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.db.guardrails.GuardrailsMBean;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
 import org.apache.cassandra.gms.FailureDetector;
@@ -170,6 +172,7 @@ public class NodeProbe implements AutoCloseable
     protected CIDRGroupsMappingManagerMBean cmbProxy;
     protected PermissionsCacheMBean pcProxy;
     protected RolesCacheMBean rcProxy;
+    protected GuardrailsMBean grProxy;
     protected Output output;
     private boolean failed;
 
@@ -308,6 +311,9 @@ public class NodeProbe implements AutoCloseable
 
             name = new ObjectName(CIDRFilteringMetricsTable.MBEAN_NAME);
             cfmProxy = JMX.newMBeanProxy(mbeanServerConn, name, CIDRFilteringMetricsTableMBean.class);
+
+            name = new ObjectName(Guardrails.MBEAN_NAME);
+            grProxy = JMX.newMBeanProxy(mbeanServerConn, name, GuardrailsMBean.class);
         }
         catch (MalformedObjectNameException e)
         {
@@ -2431,6 +2437,11 @@ public class NodeProbe implements AutoCloseable
             table.add(value);
 
         table.printTo(out);
+    }
+
+    public GuardrailsMBean getGuardrailsMBean()
+    {
+        return grProxy;
     }
 }
 
