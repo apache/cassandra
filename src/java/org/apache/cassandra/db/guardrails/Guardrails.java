@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db.guardrails;
 
-import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.Set;
 import java.util.function.Function;

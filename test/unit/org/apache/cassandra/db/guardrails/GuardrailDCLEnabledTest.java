@@ -39,6 +39,7 @@ public class GuardrailDCLEnabledTest extends GuardrailTester
     private static final String TEST_TABLE = "dcltbl";
     private static final String DCL_ERROR_MSG = "DCL statement is not allowed";
     private ClientState loginUserClientState;
+
     private void setGuardrail(boolean enabled)
     {
         Guardrails.instance.setDCLEnabled(enabled);
@@ -74,7 +75,7 @@ public class GuardrailDCLEnabledTest extends GuardrailTester
         setGuardrail(false);
         assertFails(() -> execute(loginUserClientState,
                                   getCreateRoleCQL(TEST_USER1, true, false, TEST_PW1)),
-                                  DCL_ERROR_MSG);
+                    DCL_ERROR_MSG);
         // no role is created
         assertEmpty(execute(String.format("SELECT * FROM system_auth.roles WHERE role='%s'", TEST_USER1)));
     }
@@ -85,7 +86,7 @@ public class GuardrailDCLEnabledTest extends GuardrailTester
         setGuardrail(false);
         assertFails(() -> execute(loginUserClientState,
                                   getGrantPermissionCQL(TEST_USER, TEST_KS, TEST_TABLE)),
-                                  DCL_ERROR_MSG);
+                    DCL_ERROR_MSG);
         // TEST_USER don't get permission on TEST_KS.TEST_TABLE
         assertEmpty(execute(String.format("SELECT * FROM system_auth.role_permissions WHERE role='%s' AND resource='data/%s/%s'",
                                           TEST_USER, TEST_KS, TEST_TABLE)));
@@ -97,7 +98,7 @@ public class GuardrailDCLEnabledTest extends GuardrailTester
         setGuardrail(false);
         assertFails(() -> execute(loginUserClientState,
                                   String.format("REVOKE ALL ON KEYSPACE %s FROM %s", KEYSPACE, TEST_USER)),
-                                  DCL_ERROR_MSG);
+                    DCL_ERROR_MSG);
         // TEST_USER permission wasn't revoked on KEYSPACE
         assertRowCount(execute(String.format("SELECT * FROM system_auth.role_permissions WHERE role='%s' AND resource='data/%s'", TEST_USER, KEYSPACE)),
                        1);
@@ -109,7 +110,8 @@ public class GuardrailDCLEnabledTest extends GuardrailTester
                              role, login, superUser, password);
     }
 
-    private static String getGrantPermissionCQL(String role, String ks, String tbl) {
+    private static String getGrantPermissionCQL(String role, String ks, String tbl)
+    {
         return String.format("GRANT ALL PERMISSIONS ON %s.%s TO %s;", ks, tbl, role);
     }
 }

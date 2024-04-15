@@ -38,6 +38,7 @@ public class GuardrailDDLEnabledTest extends GuardrailTester
     private static final String TEST_TABLE_NEW = "ddltbl2";
     private static final String TEST_VIEW_NEW = "ddlview2";
     private static final String DDL_ERROR_MSG = "DDL statement is not allowed";
+
     private void setGuardrail(boolean enabled)
     {
         Guardrails.instance.setDDLEnabled(enabled);
@@ -72,14 +73,19 @@ public class GuardrailDDLEnabledTest extends GuardrailTester
         // CREATE will fail with guardrail exception if user tries to create a keyspace
         assertFails(() -> execute(userClientState,
                                   getCreateKeyspaceCQL(TEST_KS_NEW, false)),
-                                  DDL_ERROR_MSG);
+                    DDL_ERROR_MSG);
 
         // CREATE will also fail if user doesn't specify IF NOT EXISTS but create an already existing keyspace
-        try {
+        try
+        {
             execute(userClientState, getCreateKeyspaceCQL(TEST_KS, false));
-        } catch (AlreadyExistsException e) {
+        }
+        catch (AlreadyExistsException e)
+        {
             // expected
-        } catch (Exception e) {
+        }
+        catch (Exception e)
+        {
             fail(String.format("failed with unexpected error: %s", e.getMessage()));
         }
 
@@ -97,14 +103,19 @@ public class GuardrailDDLEnabledTest extends GuardrailTester
         // CREATE will fail with guardrail exception if user tries to create a table
         assertFails(() -> execute(userClientState,
                                   getCreateTableCQL(TEST_KS, TEST_TABLE_NEW, false)),
-                                  DDL_ERROR_MSG);
+                    DDL_ERROR_MSG);
 
         // CREATE will also fail if user doesn't specify IF NOT EXISTS but create an already existing table
-        try {
+        try
+        {
             execute(userClientState, getCreateTableCQL(TEST_KS, TEST_TABLE, false));
-        } catch (AlreadyExistsException e) {
+        }
+        catch (AlreadyExistsException e)
+        {
             // expected
-        } catch (Exception e) {
+        }
+        catch (Exception e)
+        {
             fail(String.format("failed with unexpected error: %s", e.getMessage()));
         }
 
@@ -122,14 +133,19 @@ public class GuardrailDDLEnabledTest extends GuardrailTester
         // CREATE will fail with guardrail exception if user tries to create a view
         assertFails(() -> execute(userClientState,
                                   getCreateViewCQL(TEST_KS, TEST_VIEW_NEW, false)),
-                                  DDL_ERROR_MSG);
+                    DDL_ERROR_MSG);
 
         // CREATE will also fail if user doesn't specify IF NOT EXISTS but create an already existing view.
-        try {
+        try
+        {
             execute(userClientState, getCreateViewCQL(TEST_KS, TEST_VIEW, false));
-        } catch (AlreadyExistsException e) {
+        }
+        catch (AlreadyExistsException e)
+        {
             // expected
-        } catch (Exception e) {
+        }
+        catch (Exception e)
+        {
             fail(String.format("failed with unexpected error: %s", e.getMessage()));
         }
 
@@ -147,14 +163,19 @@ public class GuardrailDDLEnabledTest extends GuardrailTester
         // DROP will fail with guardrail exception if user tries to drop an existing keyspace
         assertFails(() -> execute(userClientState,
                                   getDropKeyspaceCQL(TEST_KS, false)),
-                                  DDL_ERROR_MSG);
+                    DDL_ERROR_MSG);
 
         // DROP will also fail if user doesn't specify IF EXISTS but keyspace doesn't exist
-        try {
+        try
+        {
             execute(userClientState, getDropKeyspaceCQL(TEST_KS_NEW, false));
-        } catch (InvalidRequestException e) {
+        }
+        catch (InvalidRequestException e)
+        {
             // expected
-        } catch (Exception e) {
+        }
+        catch (Exception e)
+        {
             fail(String.format("failed with unexpected error: %s", e.getMessage()));
         }
 
@@ -172,14 +193,19 @@ public class GuardrailDDLEnabledTest extends GuardrailTester
         // DROP will fail with guardrail exception if user tries to drop an existing table
         assertFails(() -> execute(userClientState,
                                   getDropTableCQL(TEST_KS, TEST_TABLE, false)),
-                                  DDL_ERROR_MSG);
+                    DDL_ERROR_MSG);
 
         // DROP will also fail if user doesn't specify IF EXISTS but table doesn't exist
-        try {
+        try
+        {
             execute(userClientState, getDropTableCQL(TEST_KS, TEST_TABLE_NEW, false));
-        } catch (InvalidRequestException e) {
+        }
+        catch (InvalidRequestException e)
+        {
             // expected
-        } catch (Exception e) {
+        }
+        catch (Exception e)
+        {
             fail(String.format("failed with unexpected error: %s", e.getMessage()));
         }
 
@@ -197,14 +223,19 @@ public class GuardrailDDLEnabledTest extends GuardrailTester
         // DROP will fail with guardrail exception if user tries to drop an existing view
         assertFails(() -> execute(userClientState,
                                   getDropViewCQL(TEST_KS, TEST_VIEW, false)),
-                                  DDL_ERROR_MSG);
+                    DDL_ERROR_MSG);
 
         // DROP will also fail if user doesn't specify IF EXISTS but view doesn't exist
-        try {
+        try
+        {
             execute(userClientState, getDropViewCQL(TEST_KS, TEST_VIEW_NEW, false));
-        } catch (InvalidRequestException e) {
+        }
+        catch (InvalidRequestException e)
+        {
             // expected
-        } catch (Exception e) {
+        }
+        catch (Exception e)
+        {
             fail(String.format("failed with unexpected error: %s", e.getMessage()));
         }
 
@@ -228,7 +259,7 @@ public class GuardrailDDLEnabledTest extends GuardrailTester
         // ALTER TABLE will fail with guardrail excepetion if user tries to add new column to this table
         assertFails(() -> execute(userClientState,
                                   String.format("ALTER TABLE %s.%s DROP col1", TEST_KS, TEST_TABLE)),
-                                  DDL_ERROR_MSG);
+                    DDL_ERROR_MSG);
 
         // column col1 should not be dropped
         assertRowCount(execute(String.format("SELECT * FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND column_name='col1'",
@@ -252,7 +283,7 @@ public class GuardrailDDLEnabledTest extends GuardrailTester
         // ALTER TABLE will fail with guardrail excepetion if user tries to alter anything related to this table
         assertFails(() -> execute(userClientState,
                                   String.format("ALTER KEYSPACE %s WITH durable_writes=false", TEST_KS)),
-                                  DDL_ERROR_MSG);
+                    DDL_ERROR_MSG);
 
         // keyspace should still have durable_write=true
         assertEmpty(execute(String.format("SELECT * FROM %s.%s WHERE keyspace_name='%s' AND durable_writes=false ALLOW FILTERING",
@@ -275,7 +306,7 @@ public class GuardrailDDLEnabledTest extends GuardrailTester
         // ALTER TABLE will fail with guardrail excepetion if user tries to alter anything related to this table
         assertFails(() -> execute(userClientState,
                                   String.format("ALTER TABLE %s.%s WITH comment='test'", TEST_KS, TEST_TABLE)),
-                                  DDL_ERROR_MSG);
+                    DDL_ERROR_MSG);
 
         // table should not have comment
         assertEmpty(execute(String.format("SELECT * FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND comment='test' ALLOW FILTERING",
@@ -298,7 +329,7 @@ public class GuardrailDDLEnabledTest extends GuardrailTester
         // ALTER TABLE will fail with guardrail excepetion if user tries to add new column to this table
         assertFails(() -> execute(userClientState,
                                   String.format("ALTER TABLE %s.%s ADD col3 text", TEST_KS, TEST_TABLE)),
-                                  DDL_ERROR_MSG);
+                    DDL_ERROR_MSG);
 
         // table should not have new column col3
         assertEmpty(execute(String.format("SELECT * FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND column_name='col3'",
@@ -307,36 +338,46 @@ public class GuardrailDDLEnabledTest extends GuardrailTester
                                           TEST_KS, TEST_TABLE)));
     }
 
-    private String getCreateKeyspaceCQL(String ks, boolean ifNotExists) {
-        if (ifNotExists) {
+    private String getCreateKeyspaceCQL(String ks, boolean ifNotExists)
+    {
+        if (ifNotExists)
+        {
             return String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", ks);
         }
         return String.format("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", ks);
     }
 
-    private String getDropKeyspaceCQL(String ks, boolean ifExists) {
-        if (ifExists) {
+    private String getDropKeyspaceCQL(String ks, boolean ifExists)
+    {
+        if (ifExists)
+        {
             return String.format("DROP KEYSPACE IF EXISTS %s", ks);
         }
         return String.format("DROP KEYSPACE %s", ks);
     }
 
-    private String getCreateTableCQL(String ks, String table, boolean ifNotExists) {
-        if (ifNotExists) {
+    private String getCreateTableCQL(String ks, String table, boolean ifNotExists)
+    {
+        if (ifNotExists)
+        {
             return String.format("CREATE TABLE IF NOT EXISTS %s.%s (key text PRIMARY KEY, col1 text, col2 text)", ks, table);
         }
         return String.format("CREATE TABLE %s.%s (key text PRIMARY KEY, col1 text, col2 text)", ks, table);
     }
 
-    private String getDropTableCQL(String ks, String table, boolean ifExists) {
-        if (ifExists) {
+    private String getDropTableCQL(String ks, String table, boolean ifExists)
+    {
+        if (ifExists)
+        {
             return String.format("DROP TABLE IF EXISTS %s.%s", ks, table);
         }
         return String.format("DROP TABLE %s.%s", ks, table);
     }
 
-    private String getCreateViewCQL(String ks, String table, boolean ifNotExists) {
-        if (ifNotExists) {
+    private String getCreateViewCQL(String ks, String table, boolean ifNotExists)
+    {
+        if (ifNotExists)
+        {
             return String.format("CREATE MATERIALIZED VIEW IF NOT EXISTS %s.%s AS SELECT key FROM %s.%s WHERE key IS NOT NULL PRIMARY KEY (key)",
                                  ks, table, TEST_KS, TEST_TABLE);
         }
@@ -344,8 +385,10 @@ public class GuardrailDDLEnabledTest extends GuardrailTester
                              ks, table, TEST_KS, TEST_TABLE);
     }
 
-    private String getDropViewCQL(String ks, String view, boolean ifExists) {
-        if (ifExists) {
+    private String getDropViewCQL(String ks, String view, boolean ifExists)
+    {
+        if (ifExists)
+        {
             return String.format("DROP MATERIALIZED VIEW IF EXISTS %s.%s", ks, view);
         }
         return String.format("DROP MATERIALIZED VIEW %s.%s", ks, view);
