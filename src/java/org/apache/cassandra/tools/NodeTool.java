@@ -35,6 +35,7 @@ import javax.management.InstanceNotFoundException;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Throwables;
+
 import com.google.common.collect.Maps;
 
 import io.airlift.airline.Cli;
@@ -146,6 +147,7 @@ public class NodeTool
                 GetDefaultKeyspaceRF.class,
                 GetEndpoints.class,
                 GetFullQueryLog.class,
+                GuardrailsConfigCommand.GetGuardrailsConfig.class,
                 GetInterDCStreamThroughput.class,
                 GetLoggingLevels.class,
                 GetMaxHintWindow.class,
@@ -210,6 +212,7 @@ public class NodeTool
                 SetConcurrentCompactors.class,
                 SetConcurrentViewBuilders.class,
                 SetDefaultKeyspaceRF.class,
+                GuardrailsConfigCommand.SetGuardrailsConfig.class,
                 SetHintedHandoffThrottleInKB.class,
                 SetInterDCStreamThroughput.class,
                 SetLoggingLevel.class,
