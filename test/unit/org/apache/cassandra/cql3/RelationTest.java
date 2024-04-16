@@ -32,10 +32,10 @@ import org.apache.cassandra.cql3.terms.Terms;
 import org.apache.cassandra.cql3.terms.Tuples;
 
 import static java.util.Arrays.asList;
-import static org.apache.cassandra.cql3.Relation.mapElement;
-import static org.apache.cassandra.cql3.Relation.multiColumn;
-import static org.apache.cassandra.cql3.Relation.singleColumn;
-import static org.apache.cassandra.cql3.Relation.token;
+import static org.apache.cassandra.cql3.Operator.EQ;
+import static org.apache.cassandra.cql3.Relation.*;
+import static org.apache.cassandra.cql3.conditions.ColumnCondition.Raw.collectionElementCondition;
+import static org.apache.cassandra.cql3.conditions.ColumnCondition.Raw.udtFieldCondition;
 import static org.junit.Assert.assertEquals;
 
 public class RelationTest
@@ -76,7 +76,13 @@ public class RelationTest
         assertEquals("token(col, col2) = ?", token(asList(col, col2), Operator.EQ, marker).toCQLString());
         assertEquals("token(col, col2) = token(1, 2)", token(asList(col, col2), Operator.EQ, tokenCall).toCQLString());
 
-        assertEquals("col['text'] = ?", mapElement(col, text, Operator.EQ, marker).toCQLString());
-        assertEquals("col[?] = ?", mapElement(col, marker, Operator.EQ, marker).toCQLString());
+        assertEquals("col['text'] = ?", mapElement(col, text, EQ, marker).toCQLString());
+        assertEquals("col[?] = ?", collectionElementCondition(col, marker, EQ, Terms.Raw.of(marker)).toCQLString());
+
+        // element access is not allowed for sets
+
+        FieldIdentifier f = FieldIdentifier.forQuoted("f1");
+        assertEquals("col.f1 = ?", udtFieldCondition(col, f, EQ, Terms.Raw.of(marker)).toCQLString());
+        assertEquals("col.f1 = 1", udtFieldCondition(col, f, EQ, Terms.Raw.of(one)).toCQLString());
     }
 }

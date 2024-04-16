@@ -17,10 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.nio.ByteBuffer;
 import java.util.*;
-
-import com.google.common.collect.*;
 
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.index.IndexRegistry;
@@ -37,7 +34,6 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.CASRequest;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.paxos.Ballot;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
@@ -374,7 +370,7 @@ public class CQL3CasRequest implements CASRequest
 
     private static class ColumnsConditions extends RowCondition
     {
-        private final Multimap<Pair<ColumnIdentifier, ByteBuffer>, ColumnCondition.Bound> conditions = HashMultimap.create();
+        private final Set<ColumnCondition.Bound> conditions = new HashSet<>();
 
         private ColumnsConditions(Clustering<?> clustering)
         {
@@ -385,15 +381,14 @@ public class CQL3CasRequest implements CASRequest
         {
             for (ColumnCondition condition : conds)
             {
-                ColumnCondition.Bound current = condition.bind(options);
-                conditions.put(Pair.create(condition.column.name, current.getCollectionElementValue()), current);
+                conditions.add(condition.bind(options));
             }
         }
 
         public boolean appliesTo(FilteredPartition current) throws InvalidRequestException
         {
             Row row = current.getRow(clustering);
-            for (ColumnCondition.Bound condition : conditions.values())
+            for (ColumnCondition.Bound condition : conditions)
             {
                 if (!condition.appliesTo(row))
                     return false;

@@ -21,6 +21,11 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import javax.annotation.Nullable;
+
+import org.apache.cassandra.db.rows.ColumnData;
+import org.apache.cassandra.db.rows.ComplexColumnData;
+
 /**
  * Base type for the types being composed of multi-elements like Collections, Tuples, UDTs or Vectors.
  * This class unifies the methods used by the CQL layer to work with those types,
@@ -66,5 +71,37 @@ public abstract class MultiElementType<T> extends AbstractType<T>
      * @return the elements filtered and sorted as they are used for serialization.
      */
     public abstract List<ByteBuffer> filterSortAndValidateElements(List<ByteBuffer> buffers);
+
+    /**
+     * Compares the multicell value represensted by the column data with the specified elements.
+     * @param columnData the column data representing the multicell value
+     * @param elements the elements to compare
+     * @return a negative integer, zero, or a positive integer as the column data is less than, equal to, or greater than the elements.
+     * @throws UnsupportedOperationException if the comparison is not supported by this type.
+     */
+    public abstract int compareCQL(ComplexColumnData columnData, List<ByteBuffer> elements);
+
+    /**
+     * Returns the type of the element at the specified key or index (optional operation).
+     * @param keyOrIndex the key or index of the element
+     * @return the type of the element at the specified key or index.
+     * @throws UnsupportedOperationException if this method is not supported by this type.
+     */
+    public AbstractType<?> elementType(ByteBuffer keyOrIndex)
+    {
+        throw new UnsupportedOperationException(this + " does not support retrieving element types by key or index");
+    }
+
+    /**
+     * Returns the element of the column data at the specified key or index (optional operation).
+     * @param columnData the column data representing the multicell value
+     * @param keyOrIndex the key or index of the element to return
+     * @return the element of the column data at the specified key or index.
+     * @throws UnsupportedOperationException if this method is not supported by this type.
+     */
+    public ByteBuffer getElement(@Nullable ColumnData columnData, ByteBuffer keyOrIndex)
+    {
+        throw new UnsupportedOperationException(this + " does not support retrieving elements by key or index");
+    }
 }
 

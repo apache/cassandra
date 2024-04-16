@@ -83,7 +83,7 @@ public final class MultiElements
         @Override
         public ByteBuffer get()
         {
-            return type.pack(elements);
+            return elements == null ? null : type.pack(elements);
         }
 
         @Override

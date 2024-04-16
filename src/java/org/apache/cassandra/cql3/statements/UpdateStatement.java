@@ -291,7 +291,7 @@ public class UpdateStatement extends ModificationStatement
                             Attributes.Raw attrs,
                             List<Pair<ColumnIdentifier, Operation.RawUpdate>> updates,
                             WhereClause whereClause,
-                            List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions,
+                            List<ColumnCondition.Raw> conditions,
                             boolean ifExists)
         {
             super(name, StatementType.UPDATE, attrs, conditions, false, ifExists);

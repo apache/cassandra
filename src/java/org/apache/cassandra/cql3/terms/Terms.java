@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableList;
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -141,6 +142,9 @@ public interface Terms
      */
     static Terms of(final List<Term> terms)
     {
+        if (terms.isEmpty())
+            return Terminals.of();
+
         boolean allTerminals = terms.stream().allMatch(Term::isTerminal);
 
         if (allTerminals)
@@ -194,6 +198,38 @@ public interface Terms
      */
     abstract class Raw implements AssignmentTestable
     {
+        private static final Raw EMPTY = new Raw()
+        {
+            @Override
+            public Terms prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
+            {
+                return Terminals.of();
+            }
+
+            @Override
+            public String getText()
+            {
+                return "";
+            }
+
+            @Override
+            public AbstractType<?> getExactTypeIfKnown(String keyspace)
+            {
+                return null;
+            }
+
+            @Override
+            public TestResult testAssignment(String keyspace, ColumnSpecification receiver)
+            {
+                return TestResult.WEAKLY_ASSIGNABLE;
+            }
+
+            @Override
+            public boolean containsBindMarkers()
+            {
+                return false;
+            }
+        };
         /**
          * This method validates this {@code Terms.Raw} is valid for the provided column
          * specification and "prepare" this {@code Terms.Raw}, returning the resulting {@link Terms}.
@@ -254,8 +290,21 @@ public interface Terms
             return getText();
         }
 
+        /**
+         * Checks if these terms are or contains bind markers.
+         * @return {@code true} if tthese terms are or contains bind markers, {@code false} otherwise.
+         */
+        public abstract boolean containsBindMarkers();
+
+        public static Raw of()
+        {
+            return EMPTY;
+        }
+
         public static Raw of(List<? extends Term.Raw> raws)
         {
+            if (raws.isEmpty())
+                return EMPTY;
             return new Raw()
             {
                 @Override
@@ -292,6 +341,17 @@ public interface Terms
                 {
                     return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
                 }
+
+                @Override
+                public boolean containsBindMarkers()
+                {
+                    for (Term.Raw raw : raws)
+                    {
+                        if (raw.containsBindMarker())
+                            return true;
+                    }
+                    return false;
+                }
             };
         }
 
@@ -327,6 +387,12 @@ public interface Terms
                 {
                     return raw.testAssignment(keyspace, receiver);
                 }
+
+                @Override
+                public boolean containsBindMarkers()
+                {
+                    return raw.containsBindMarker();
+                }
             };
         }
     }
@@ -336,6 +402,41 @@ public interface Terms
      */
     abstract class Terminals implements Terms
     {
+        /**
+         * Empty Terminals.
+         */
+        private static final Terminals EMPTY = new Terminals()
+        {
+            @Override
+            public List<ByteBuffer> get()
+            {
+                return ImmutableList.of();
+            }
+
+            @Override
+            public List<List<ByteBuffer>> getElements()
+            {
+                return ImmutableList.of();
+            }
+
+            @Override
+            public List<Terminal> asList()
+            {
+                return ImmutableList.of();
+            }
+
+            @Override
+            public void addFunctionsTo(List<Function> functions)
+            {
+
+            }
+
+            @Override
+            public boolean containsSingleTerm()
+            {
+                return false;
+            }
+        };
         @Override
         public void collectMarkerSpecification(VariableSpecifications boundNames) {}
 
@@ -374,6 +475,15 @@ public interface Terms
          * @return a {@code List} of {@code Term.Terminal}.
          */
         public abstract List<Term.Terminal> asList();
+
+        /**
+         * Returns an empty {@code Terminals}.
+         * @return an empty {@code Terminals}.
+         */
+        public static Terminals of()
+        {
+            return EMPTY;
+        }
 
         /**
          * Converts a {@code Terminal} into a {@code Terminals}.
