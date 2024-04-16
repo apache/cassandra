@@ -27,6 +27,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.Collections2;
+import com.google.common.collect.Lists;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
@@ -403,6 +404,28 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     public static Collection<ColumnIdentifier> toIdentifiers(Collection<ColumnMetadata> definitions)
     {
         return Collections2.transform(definitions, columnDef -> columnDef.name);
+    }
+
+    /**
+     * Returns the types corresponding to the specified column definitions.
+     *
+     * @param columns the column definitions to convert.
+     * @return the types corresponding to the specified definitions
+     */
+    public static List<AbstractType<?>> types(List<ColumnMetadata> columns)
+    {
+        return Lists.transform(columns, column -> column.type);
+    }
+
+    /**
+     * Returns the CQL names corresponding to the specified column definitions.
+     *
+     * @param columns the column definitions to convert.
+     * @return the CQL names corresponding to the specified definitions
+     */
+    public static List<String> cqlNames(List<ColumnMetadata> columns)
+    {
+        return Lists.transform(columns, column -> column.name.toCQLString());
     }
 
     public int compareTo(ColumnMetadata other)

@@ -35,6 +35,7 @@ import org.apache.cassandra.cql3.terms.Sets;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.serializers.CollectionSerializer;
@@ -424,4 +425,24 @@ public abstract class CollectionType<T> extends MultiElementType<T>
     }
 
     public abstract void forEach(ByteBuffer input, Consumer<ByteBuffer> action);
+
+    public final int compareCQL(ComplexColumnData columnData, List<ByteBuffer> elements)
+    {
+        Iterator<Cell<?>> cellIterator = columnData.iterator();
+        Iterator<ByteBuffer> elementIter = elements.iterator();
+        while(cellIterator.hasNext())
+        {
+            if (!elementIter.hasNext())
+                return 1;
+
+            int comparison = compareNextCell(cellIterator, elementIter);
+            if (comparison != 0)
+                return comparison;
+        }
+        return elementIter.hasNext() ? -1 : 0;
+    }
+
+    protected abstract int compareNextCell(Iterator<Cell<?>> cellIterator, Iterator<ByteBuffer> elementIter);
+
+    public abstract boolean contains(ComplexColumnData columnData, ByteBuffer value);
 }

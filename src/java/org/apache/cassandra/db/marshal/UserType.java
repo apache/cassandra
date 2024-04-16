@@ -21,6 +21,8 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import com.google.common.base.Objects;
 import com.google.common.collect.Lists;
 
@@ -33,6 +35,8 @@ import org.apache.cassandra.cql3.terms.MultiElements;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.ColumnData;
+import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.schema.Difference;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
@@ -426,6 +430,70 @@ public class UserType extends TupleType implements SchemaElement
     public boolean referencesDuration()
     {
         return fieldTypes().stream().anyMatch(f -> f.referencesDuration());
+    }
+
+    @Override
+    public int compareCQL(ComplexColumnData columnData, List<ByteBuffer> fields)
+    {
+        Iterator<Cell<?>> cellIter = columnData.iterator();
+        int i = 0;
+        while (cellIter.hasNext())
+        {
+            if (i == fields.size())
+                return 1;
+
+            Cell<?> cell = cellIter.next();
+            short position = ByteBufferUtil.toShort(cell.path().get(0));
+
+            while (i < position)
+            {
+                if (i == fields.size())
+                    return 1;
+
+                if (fields.get(i++) != null)
+                    return -1;
+            }
+
+            ByteBuffer fieldValue = fields.get(i);
+
+            if (fieldValue == null)
+                return 1;
+
+            int comparison = type(i++).compare(cell.buffer(), fieldValue);
+            if (comparison != 0)
+                return comparison;
+        }
+
+        while(i < fields.size())
+        {
+            if (fields.get(i++) != null)
+                return -1;
+        }
+
+        return 0;
+    }
+
+    @Override
+    public AbstractType<?> elementType(ByteBuffer keyOrIndex)
+    {
+        return type(fieldPosition(new FieldIdentifier(keyOrIndex)));
+    }
+
+    @Override
+    public ByteBuffer getElement(@Nullable ColumnData columnData, ByteBuffer keyOrIndex)
+    {
+        if (columnData == null)
+            return null;
+
+        FieldIdentifier field = new FieldIdentifier(keyOrIndex);
+
+        if (isMultiCell())
+        {
+            Cell<?> cell = ((ComplexColumnData) columnData).getCell(cellPathForField(field));
+            return cell == null ? null : cell.buffer();
+        }
+
+        return unpack(((Cell<?>) columnData).buffer()).get(fieldPosition(field));
     }
 
     @Override

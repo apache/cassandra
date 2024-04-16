@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.conditions;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.cql3.terms.*;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -41,9 +42,21 @@ import org.apache.cassandra.utils.TimeUUID;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
+import static java.util.Arrays.asList;
 
-import static org.apache.cassandra.cql3.Operator.*;
+import static org.apache.cassandra.cql3.Operator.EQ;
+import static org.apache.cassandra.cql3.Operator.NEQ;
+import static org.apache.cassandra.cql3.Operator.LT;
+import static org.apache.cassandra.cql3.Operator.LTE;
+import static org.apache.cassandra.cql3.Operator.GT;
+import static org.apache.cassandra.cql3.Operator.GTE;
+import static org.apache.cassandra.cql3.Operator.CONTAINS;
+import static org.apache.cassandra.cql3.Operator.CONTAINS_KEY;
+import static org.apache.cassandra.cql3.conditions.ColumnCondition.Raw.simpleCondition;
+import static org.apache.cassandra.cql3.conditions.ColumnCondition.Raw.collectionElementCondition;
+import static org.apache.cassandra.cql3.conditions.ColumnCondition.Raw.udtFieldCondition;
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
 
@@ -126,7 +139,9 @@ public class ColumnConditionTest
     private static boolean appliesSimpleCondition(ByteBuffer rowValue, Operator op, ByteBuffer conditionValue)
     {
         ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", Int32Type.instance);
-        ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new Constants.Value(conditionValue)));
+        ColumnsExpression column = ColumnsExpression.singleColumn(definition);
+        Terms terms = Terms.of(new Constants.Value(conditionValue));
+        ColumnCondition condition = new ColumnCondition(column, op, terms);
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
         return bound.appliesTo(newRow(definition, rowValue));
     }
@@ -135,8 +150,9 @@ public class ColumnConditionTest
     {
         ListType<Integer> type = ListType.getInstance(Int32Type.instance, true);
         ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", type);
+        ColumnsExpression column = ColumnsExpression.singleColumn(definition);
         Term term = conditionValue == null ? Constants.NULL_VALUE : new MultiElements.Value(type, conditionValue);
-        ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(term));
+        ColumnCondition condition = new ColumnCondition(column, op, Terms.of(term));
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
         return bound.appliesTo(newRow(definition, rowValue));
     }
@@ -144,7 +160,9 @@ public class ColumnConditionTest
     private static boolean conditionContainsApplies(List<ByteBuffer> rowValue, Operator op, ByteBuffer conditionValue)
     {
         ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", ListType.getInstance(Int32Type.instance, true));
-        ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new Constants.Value(conditionValue)));
+        ColumnsExpression column = ColumnsExpression.singleColumn(definition);
+        Terms terms = Terms.of(new Constants.Value(conditionValue));
+        ColumnCondition condition = new ColumnCondition(column, op, terms);
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
         return bound.appliesTo(newRow(definition, rowValue));
     }
@@ -152,7 +170,9 @@ public class ColumnConditionTest
     private static boolean conditionContainsApplies(Map<ByteBuffer, ByteBuffer> rowValue, Operator op, ByteBuffer conditionValue)
     {
         ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", MapType.getInstance(Int32Type.instance, Int32Type.instance, true));
-        ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new Constants.Value(conditionValue)));
+        ColumnsExpression column = ColumnsExpression.singleColumn(definition);
+        Terms terms = Terms.of(new Constants.Value(conditionValue));
+        ColumnCondition condition = new ColumnCondition(column, op, terms);
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
         return bound.appliesTo(newRow(definition, rowValue));
     }
@@ -160,9 +180,10 @@ public class ColumnConditionTest
     private static boolean appliesSetCondition(SortedSet<ByteBuffer> rowValue, Operator op, SortedSet<ByteBuffer> conditionValue)
     {
         SetType<Integer> type = SetType.getInstance(Int32Type.instance, true);
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", SetType.getInstance(Int32Type.instance, true));
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", type);
+        ColumnsExpression column = ColumnsExpression.singleColumn(definition);
         Term term = conditionValue == null ? Constants.NULL_VALUE : new MultiElements.Value(type, new ArrayList<>(conditionValue));
-        ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(term));
+        ColumnCondition condition = new ColumnCondition(column, op, Terms.of(term));
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
         return bound.appliesTo(newRow(definition, rowValue));
     }
@@ -170,7 +191,10 @@ public class ColumnConditionTest
     private static boolean conditionContainsApplies(SortedSet<ByteBuffer> rowValue, Operator op, ByteBuffer conditionValue)
     {
         ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", SetType.getInstance(Int32Type.instance, true));
-        ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new Constants.Value(conditionValue)));
+        ColumnsExpression column = ColumnsExpression.singleColumn(definition);
+        Terms terms = Terms.of(new Constants.Value(conditionValue));
+        ColumnCondition condition = new ColumnCondition(column, op, terms);
+
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
         return bound.appliesTo(newRow(definition, rowValue));
     }
@@ -194,7 +218,8 @@ public class ColumnConditionTest
             }
             term = new MultiElements.Value(type, value);
         }
-        ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(term));
+        ColumnsExpression column = ColumnsExpression.singleColumn(definition);
+        ColumnCondition condition = new ColumnCondition(column, op, Terms.of(term));
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
         return bound.appliesTo(newRow(definition, rowValue));
     }
@@ -285,7 +310,7 @@ public class ColumnConditionTest
 
     private static List<ByteBuffer> list(ByteBuffer... values)
     {
-        return Arrays.asList(values);
+        return asList(values);
     }
 
     @Test
@@ -400,7 +425,7 @@ public class ColumnConditionTest
     private static SortedSet<ByteBuffer> set(ByteBuffer... values)
     {
         SortedSet<ByteBuffer> results = new TreeSet<>(Int32Type.instance);
-        results.addAll(Arrays.asList(values));
+        results.addAll(asList(values));
         return results;
     }
 
@@ -670,5 +695,47 @@ public class ColumnConditionTest
         assertTrue(conditionContainsApplies(map(ByteBufferUtil.EMPTY_BYTE_BUFFER, ONE), CONTAINS_KEY, ByteBufferUtil.EMPTY_BYTE_BUFFER));
         assertTrue(conditionContainsApplies(map(ONE, ByteBufferUtil.EMPTY_BYTE_BUFFER), CONTAINS_KEY, ONE));
         assertFalse(conditionContainsApplies(map(ONE, ByteBufferUtil.EMPTY_BYTE_BUFFER), CONTAINS_KEY, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+    }
+
+    @Test
+    public void toCQLStringTest()
+    {
+        ColumnIdentifier col = new ColumnIdentifier("col", false);
+        Marker.Raw marker = new Marker.Raw(0);
+        InMarker.Raw inMarker = new InMarker.Raw(0);
+        Term.Raw one = Constants.Literal.integer("1");
+        Term.Raw two = Constants.Literal.integer("2");
+        Terms.Raw oneTwo = Terms.Raw.of(asList(one, two));
+        Term.Raw text = Constants.Literal.string("text");
+
+        assertEquals("col = ?", simpleCondition(col, EQ, Terms.Raw.of(marker)).toCQLString());
+        assertEquals("col = 2", simpleCondition(col, EQ, Terms.Raw.of(two)).toCQLString());
+        assertEquals("col = 'text'", simpleCondition(col, EQ, Terms.Raw.of(text)).toCQLString());
+        assertEquals("col >= ?", simpleCondition(col, Operator.GTE, Terms.Raw.of(marker)).toCQLString());
+        assertEquals("col IN ?", simpleCondition(col, Operator.IN, inMarker).toCQLString());
+        assertEquals("col IN (1, 2)", simpleCondition(col, Operator.IN, oneTwo).toCQLString());
+        assertEquals("col IN (1)", simpleCondition(col, Operator.IN, Terms.Raw.of(List.of(one))).toCQLString());
+        assertEquals("col BETWEEN 1 AND 2", simpleCondition(col, Operator.BETWEEN, oneTwo).toCQLString());
+
+        assertEquals("col CONTAINS 1", simpleCondition(col, CONTAINS, Terms.Raw.of(one)).toCQLString());
+        assertEquals("col CONTAINS KEY 1", simpleCondition(col, CONTAINS_KEY, Terms.Raw.of(one)).toCQLString());
+        assertEquals("col CONTAINS KEY ?", simpleCondition(col, CONTAINS_KEY, Terms.Raw.of(marker)).toCQLString());
+        assertEquals("col CONTAINS ?", simpleCondition(col, CONTAINS, Terms.Raw.of(marker)).toCQLString());
+        assertEquals("col CONTAINS ?", simpleCondition(col, CONTAINS, Terms.Raw.of(marker)).toCQLString());
+
+        Term.Raw set = new Sets.Literal(asList(one, two));
+        Term.Raw set2 = new Sets.Literal(List.of(Constants.Literal.string("baz")));
+
+        assertEquals("col = {1, 2}", simpleCondition(col, EQ, Terms.Raw.of(set)).toCQLString());
+        assertEquals("col != {'baz'}", simpleCondition(col, Operator.NEQ, Terms.Raw.of(set2)).toCQLString());
+
+        assertEquals("col['text'] = ?", collectionElementCondition(col, text, EQ, Terms.Raw.of(marker)).toCQLString());
+        assertEquals("col[?] = ?", collectionElementCondition(col, marker, EQ, Terms.Raw.of(marker)).toCQLString());
+
+        // element access is not allowed for sets
+
+        FieldIdentifier f = FieldIdentifier.forQuoted("f1");
+        assertEquals("col.f1 = ?", udtFieldCondition(col, f, EQ, Terms.Raw.of(marker)).toCQLString());
+        assertEquals("col.f1 = 1", udtFieldCondition(col, f, EQ, Terms.Raw.of(one)).toCQLString());
     }
 }

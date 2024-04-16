@@ -1,4 +1,5 @@
 5.1
+ * Refactor ColumnCondition (CASSANDRA-19620)
  * Allow configuring log format for Audit Logs (CASSANDRA-19792)
  * Support for noboolean rpm (centos7 compatible) packages removed (CASSANDRA-19787)
  * Allow threads waiting for the metadata log follower to be interrupted (CASSANDRA-19761)

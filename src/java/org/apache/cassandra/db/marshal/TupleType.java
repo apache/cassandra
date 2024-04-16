@@ -34,6 +34,7 @@ import org.apache.cassandra.cql3.terms.Constants;
 import org.apache.cassandra.cql3.terms.MultiElements;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
@@ -608,5 +609,11 @@ public class TupleType extends MultiElementType<ByteBuffer>
             buffers.add(type.getMaskedValue());
 
         return serializer.serialize(pack(buffers));
+    }
+
+    @Override
+    public int compareCQL(ComplexColumnData columnData, List<ByteBuffer> fields)
+    {
+        throw new UnsupportedOperationException("Multicell tuples are not supported");
     }
 }
