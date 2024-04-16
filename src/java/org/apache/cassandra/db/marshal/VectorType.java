@@ -32,6 +32,7 @@ import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.terms.MultiElements;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
@@ -694,5 +695,11 @@ public final class VectorType<T> extends MultiElementType<List<T>>
             }
             checkConsumedFully(input, accessor, offset);
         }
+    }
+
+    @Override
+    public int compareCQL(ComplexColumnData columnData, List<ByteBuffer> elements)
+    {
+        throw new UnsupportedOperationException();
     }
 }

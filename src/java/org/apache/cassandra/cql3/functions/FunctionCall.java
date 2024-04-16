@@ -237,5 +237,11 @@ public class FunctionCall extends Term.NonTerminal
             name.appendCqlTo(cqlNameBuilder);
             return cqlNameBuilder + terms.stream().map(Term.Raw::getText).collect(Collectors.joining(", ", "(", ")"));
         }
+
+        @Override
+        public boolean containsBindMarkers()
+        {
+            return terms.stream().anyMatch(Term.Raw::containsBindMarkers);
+        }
     }
 }

@@ -1121,6 +1121,10 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
                    row(true));
 
         // Does not apply
+        assertRows(execute("UPDATE %s SET l = null WHERE k = 0 IF l < ?", list("a")),
+                   row(false, null));
+        assertRows(execute("UPDATE %s SET l = null WHERE k = 0 IF l <= ?", list("a")),
+                   row(false, null));
         assertRows(execute("UPDATE %s SET l = null WHERE k = 0 IF l = ?", list("bar")),
                    row(false, null));
         assertRows(execute("UPDATE %s SET l = null WHERE k = 0 IF l < ?", list("a")),
@@ -1133,8 +1137,9 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
                    row(false, null));
         assertRows(execute("UPDATE %s SET l = null WHERE k = 0 IF l CONTAINS ?", "bar"),
                    row(false, null));
-        assertRows(execute("UPDATE %s SET l = null WHERE k = 0 IF l CONTAINS ?", unset()),
-                   row(false, null));
+
+        assertInvalidMessage("Invalid 'unset' value in condition",
+                             "UPDATE %s SET l = null WHERE k = 0 IF l CONTAINS ?", unset());
 
         assertInvalidMessage("Invalid comparison with null for operator \"CONTAINS\"",
                              "UPDATE %s SET l = null WHERE k = 0 IF l CONTAINS ?", (ByteBuffer) null);
@@ -1153,6 +1158,10 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
                    row(true));
 
         // Does not apply
+        assertRows(execute("UPDATE %s SET s = null WHERE k = 0 IF s < ?", set("a")),
+                   row(false, null));
+        assertRows(execute("UPDATE %s SET s = null WHERE k = 0 IF s <= ?", set("a")),
+                   row(false, null));
         assertRows(execute("UPDATE %s SET s = null WHERE k = 0 IF s = ?", set("bar")),
                    row(false, null));
         assertRows(execute("UPDATE %s SET s = null WHERE k = 0 IF s < ?", set("a")),
@@ -1165,8 +1174,9 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
                    row(false, null));
         assertRows(execute("UPDATE %s SET s = null WHERE k = 0 IF s CONTAINS ?", "bar"),
                    row(false, null));
-        assertRows(execute("UPDATE %s SET s = null WHERE k = 0 IF s CONTAINS ?", unset()),
-                   row(false, null));
+
+        assertInvalidMessage("Invalid 'unset' value in condition",
+                             "UPDATE %s SET s = null WHERE k = 0 IF s CONTAINS ?", unset());
 
         assertInvalidMessage("Invalid comparison with null for operator \"CONTAINS\"",
                              "UPDATE %s SET s = null WHERE k = 0 IF s CONTAINS ?", (ByteBuffer) null);
@@ -1185,6 +1195,10 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
                    row(true));
 
         // Does not apply
+        assertRows(execute("UPDATE %s SET m = null WHERE k = 0 IF m < ?", map("a","a")),
+                   row(false, null));
+        assertRows(execute("UPDATE %s SET m = null WHERE k = 0 IF m <= ?", map("a","a")),
+                   row(false, null));
         assertRows(execute("UPDATE %s SET m = null WHERE k = 0 IF m = ?", map("foo","bar")),
                    row(false, null));
         assertRows(execute("UPDATE %s SET m = null WHERE k = 0 IF m < ?", map("a","a")),
@@ -1197,13 +1211,13 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
                    row(false, null));
         assertRows(execute("UPDATE %s SET m = null WHERE k = 0 IF m CONTAINS ?", "bar"),
                    row(false, null));
-        assertRows(execute("UPDATE %s SET m = {} WHERE k = 0 IF m CONTAINS ?", unset()),
-                   row(false, null));
         assertRows(execute("UPDATE %s SET m = {} WHERE k = 0 IF m CONTAINS KEY ?", "foo"),
                    row(false, null));
-        assertRows(execute("UPDATE %s SET m = {} WHERE k = 0 IF m CONTAINS KEY ?", unset()),
-                   row(false, null));
 
+        assertInvalidMessage("Invalid 'unset' value in condition",
+                             "UPDATE %s SET m = null WHERE k = 0 IF m CONTAINS ?", unset());
+        assertInvalidMessage("Invalid 'unset' value in condition",
+                             "UPDATE %s SET m = null WHERE k = 0 IF m CONTAINS KEY ?", unset());
         assertInvalidMessage("Invalid comparison with null for operator \"CONTAINS\"",
                              "UPDATE %s SET m = {} WHERE k = 0 IF m CONTAINS ?", (ByteBuffer) null);
         assertInvalidMessage("Invalid comparison with null for operator \"CONTAINS KEY\"",
