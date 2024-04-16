@@ -468,6 +468,27 @@ public class ReplicaPlans
         return new ReplicaPlan.ForWrite(keyspace, replicationStrategy, consistencyLevel, liveAndDown.pending(), liveAndDown.all(), live.all(), contacts);
     }
 
+    public static ReplicaPlan.ForWrite forViewWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, Selector selector) throws UnavailableException
+    {
+        return forViewWrite(keyspace, consistencyLevel, liveAndDown, FailureDetector.isReplicaAlive, selector);
+    }
+
+    private static ReplicaPlan.ForWrite forViewWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, Predicate<Replica> isAlive, Selector selector) throws UnavailableException
+    {
+        ReplicaLayout.ForTokenWrite live = liveAndDown.filter(isAlive);
+        return forViewWrite(keyspace, consistencyLevel, liveAndDown, live, selector);
+    }
+
+    // the only difference with forWrite is we don't need to call assureSufficientLiveReplicasForWrite for MV
+    public static ReplicaPlan.ForWrite forViewWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, ReplicaLayout.ForTokenWrite live, Selector selector) throws UnavailableException
+    {
+        assert liveAndDown.replicationStrategy() == live.replicationStrategy()
+        : "ReplicaLayout liveAndDown and live should be derived from the same replication strategy.";
+        AbstractReplicationStrategy replicationStrategy = liveAndDown.replicationStrategy();
+        EndpointsForToken contacts = selector.select(consistencyLevel, liveAndDown, live);
+        return new ReplicaPlan.ForWrite(keyspace, replicationStrategy, consistencyLevel, liveAndDown.pending(), liveAndDown.all(), live.all(), contacts);
+    }
+
     public interface Selector
     {
         /**

@@ -600,6 +600,8 @@ public class Config
 
     public volatile boolean use_statements_enabled = true;
 
+    public boolean skip_sufficient_live_check_for_mv = true;
+
     /**
      * Optionally disable asynchronous UDF execution.
      * Disabling asynchronous UDF execution also implicitly disables the security-manager!

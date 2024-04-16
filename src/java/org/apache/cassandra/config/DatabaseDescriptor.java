@@ -3835,6 +3835,11 @@ public class DatabaseDescriptor
         conf.materialized_views_enabled = enableMaterializedViews;
     }
 
+    public static boolean getSkipSufficientLiveCheckForMV()
+    {
+        return conf.skip_sufficient_live_check_for_mv;
+    }
+
     public static boolean getSASIIndexesEnabled()
     {
         return conf.sasi_indexes_enabled;

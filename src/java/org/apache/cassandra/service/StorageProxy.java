@@ -1545,7 +1545,15 @@ public class StorageProxy implements StorageProxyMBean
                                                                             Dispatcher.RequestTime requestTime)
     {
         Keyspace keyspace = Keyspace.open(mutation.getKeyspaceName());
-        ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, liveAndDown, ReplicaPlans.writeAll);
+
+        ReplicaPlan.ForWrite replicaPlan;
+
+        if (DatabaseDescriptor.getSkipSufficientLiveCheckForMV()) {
+            replicaPlan = ReplicaPlans.forViewWrite(keyspace, consistencyLevel, liveAndDown, ReplicaPlans.writeAll);
+        } else {
+            replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, liveAndDown, ReplicaPlans.writeAll);
+        }
+
         AbstractReplicationStrategy replicationStrategy = replicaPlan.replicationStrategy();
         AbstractWriteResponseHandler<IMutation> writeHandler = replicationStrategy.getWriteResponseHandler(replicaPlan, () -> {
             long delay = Math.max(0, currentTimeMillis() - baseComplete.get());

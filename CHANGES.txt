@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-21485] Add a config to not do sufficient live replica check when writing to materialized views
  * Fix StackOverflowError on ALTER after many previous schema changes (CASSANDRA-19166)
  * [SO-28906] ignore out of range numbers returned by CPU collection calls
  * [SO-28512] Default enable full repair for MVs
