@@ -205,6 +205,8 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                 state.phase.success();
                 if (!session.previewKind.isPreview())
                 {
+                    for (SyncStat stat : stats)
+                        cfs.metric.tokenRangesSynchronized.update(stat.numberOfDifferences);
                     logger.info("{} {}.{} is fully synced", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
                     SystemDistributedKeyspace.successfulRepairJob(session.getId(), desc.keyspace, desc.columnFamily);
                 }
