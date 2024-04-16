@@ -293,6 +293,11 @@ public interface StorageServiceMBean extends NotificationEmitter
     public Map<String, TabularData> getSnapshotDetails();
 
     /**
+     * Remove the snapshot files in the given name from the given keyspace, table dir.
+     */
+    public void clearSnapshotFiles(String tag, String keyspaceName, String tableDirName, String... files) throws IOException;
+
+    /**
      * Get the details of all the snapshots
      *
      * @param options map of options used for filtering of snapshots

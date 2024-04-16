@@ -102,6 +102,7 @@ public class NodeTool
                 CheckTokenMetadata.class,
                 Cleanup.class,
                 ClearSnapshot.class,
+                ClearSnapshotFiles.class,
                 ClientStats.class,
                 Compact.class,
                 CompactionHistory.class,

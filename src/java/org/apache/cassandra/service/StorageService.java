@@ -4570,6 +4570,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return snapshotMap;
     }
 
+    /**
+     * Remove the snapshot files in the given name from the given keyspace, table dir.
+     */
+    public void clearSnapshotFiles(String tag, String keyspaceName, String tableDirName, String... files) throws IOException
+    {
+        Keyspace.clearSnapshotFiles(tag, keyspaceName, tableDirName, files);
+    }
+
     @Deprecated
     public Map<String, TabularData> getSnapshotDetails()
     {

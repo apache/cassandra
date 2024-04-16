@@ -867,6 +867,14 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getSnapshotDetails(options);
     }
 
+    /**
+     * Remove snapshot files locate in given paths for given snapshot name and keyspace.
+     */
+    public void clearSnapshotFiles(String tag, String keyspaceName, String tableDirName, String... files) throws IOException
+    {
+        ssProxy.clearSnapshotFiles(tag, keyspaceName, tableDirName, files);
+    }
+
     @Deprecated
     public Map<String, TabularData> getSnapshotDetails()
     {

@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.Schema;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
@@ -497,6 +498,51 @@ public class KeyspaceTest extends CQLTester
 
         assertTrue(ks.snapshotExists("test"));
         assertEquals(1, ks.getAllSnapshots().count());
+    }
+
+    @Test
+    public void testClearSnapshotFiles() throws Throwable
+    {
+        String snapshotName = "test_snapshot_files";
+        createTable("CREATE TABLE %s (a text, b int, c int, PRIMARY KEY (a, b))");
+        final ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        for (int j = 0; j < 10; j++)
+        {
+            for (int i = 1000 + (j * 100); i < 1000 + ((j + 1) * 100); i++)
+                execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP ?", "0", i, i, (long) i);
+
+            Util.flush(cfs);
+        }
+        // take snapshot of this table
+        Keyspace.open(KEYSPACE_PER_TEST).snapshot(snapshotName, cfs.name);
+
+        for (File tableDir : cfs.getDirectories().getCFDirectories())
+        {
+            File snapshotDir = Directories.getSnapshotDirectory(tableDir, snapshotName);
+            File[] files = snapshotDir.list();
+            int count = files.length;
+            assertTrue(count > 0);
+            // delete one file
+            Keyspace.clearSnapshotFiles(snapshotName, KEYSPACE_PER_TEST, tableDir.name(), files[0].name());
+            files = Directories.getSnapshotDirectory(tableDir, snapshotName).list();
+            int oldCount = count;
+            count = files.length;
+            assertEquals(1, oldCount - count);
+
+            // delete two files
+            Keyspace.clearSnapshotFiles(snapshotName, KEYSPACE_PER_TEST, tableDir.name(), files[0].name(), files[1].name());
+            files = Directories.getSnapshotDirectory(tableDir, snapshotName).list();
+            oldCount = count;
+            count = files.length;
+            assertEquals(2, oldCount - count);
+
+            // delete all snapshot files in snapshot dir
+            Keyspace.clearSnapshotFiles(snapshotName, KEYSPACE_PER_TEST, tableDir.name());
+            files = Directories.getSnapshotDirectory(tableDir, snapshotName).list();
+            assertEquals(0, files.length);
+        }
     }
 
     @Test

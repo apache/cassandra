@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiPredicate;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -1178,6 +1179,38 @@ public class Directories
         }
     }
 
+    public static void clearSnapshotFiles(String snapshotName, File cfDir, RateLimiter snapshotRateLimiter, Set<String> fileNames) throws IOException
+    {
+        File snapshotDir = new File(cfDir, join(SNAPSHOT_SUBDIR, snapshotName));
+        if (snapshotDir.exists())
+        {
+            File[] filesToDelete;
+            if (fileNames.size() > 0)
+            {
+                filesToDelete = snapshotDir.list(new Predicate<File>(){
+
+                    @Override
+                    public boolean test(File file)
+                    {
+                        if (fileNames.contains(file.name()))
+                            return true;
+                        return false;
+                    }
+                });
+            }
+            else
+            {
+                // delete all the snapshot files in this table for given snapshot name
+                filesToDelete = new File[1];
+                filesToDelete[0] = snapshotDir;
+            }
+            for (File file : filesToDelete)
+            {
+                FileUtils.deleteRecursiveWithThrottle(file, snapshotRateLimiter);
+            }
+        }
+    }
+
     public static void removeSnapshotDirectory(RateLimiter snapshotRateLimiter, File snapshotDir)
     {
         if (snapshotDir.exists())
@@ -1260,6 +1293,20 @@ public class Directories
             }
         }
         return result;
+    }
+
+    public static File getKSChildDirectoryWithName(String ksName, String cfDirName)
+    {
+        List<File> result = new ArrayList<>();
+        for (DataDirectory dataDirectory : dataDirectories.getAllDirectories())
+        {
+            File cfDir = new File(dataDirectory.location, join(ksName, cfDirName));
+            if (cfDir.exists())
+            {
+                return cfDir;
+            }
+        }
+        return null;
     }
 
     public static boolean isSecondaryIndexFolder(File dir)

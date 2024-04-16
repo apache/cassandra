@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -31,6 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -336,6 +338,24 @@ public class Keyspace
 
         List<File> tableDirectories = Directories.getKSChildDirectories(keyspace);
         Directories.clearSnapshot(snapshotName, tableDirectories, clearSnapshotRateLimiter);
+    }
+
+    /**
+     * Clear the all snapshot files in given paths for a given keyspace.
+     *
+     * @param snapshotName the user supplied snapshot name. It empty or null,
+     *                     all the snapshots will be cleaned
+     */
+    public static void clearSnapshotFiles(String snapshotName, String keyspace, String tableDir, String... files) throws IOException
+    {
+        File cfDir = Directories.getKSChildDirectoryWithName(keyspace, tableDir);
+        if (cfDir == null)
+        {
+            throw new RuntimeException(String.format("No table dir found for ks %s with dir name %s", keyspace, tableDir));
+        }
+        RateLimiter clearSnapshotRateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
+        Set<String> filesToDelete = new HashSet<>(Arrays.asList(files));
+        Directories.clearSnapshotFiles(snapshotName, cfDir, clearSnapshotRateLimiter, filesToDelete);
     }
 
     /**
