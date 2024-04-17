@@ -66,7 +66,7 @@ public class NativeLibraryLinux implements NativeLibraryWrapper
         }
         catch (NoSuchMethodError e)
         {
-            logger.warn("Obsolete version of JNA present; unable to register C library. Upgrade to JNA 3.2.7 or later");
+            logger.warn("Obsolete version of JNA present; unable to register C library. Upgrade JNA.");
         }
     }
 
