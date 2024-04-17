@@ -127,8 +127,8 @@ RUN /bin/bash -c "source ${BUILD_HOME}/env3.8/bin/activate && \
 #  this can be checked with:
 #  `curl -s https://downloads.apache.org/cassandra/ | grep -oP '(?<=href=\")[0-9]+\.[0-9]+\.[0-9]+(?=)' | sort -V | uniq -w 3`
 RUN bash -c 'source ~/env3.8/bin/activate && \
-    for i in {1..11} ; do echo $i ; ccm create --quiet -n 1 -v binary:4.0.$i test && ccm remove test ; done && \
-    for i in {1..3}  ; do echo $i ; ccm create --quiet -n 1 -v binary:4.1.$i test && ccm remove test ; done'
+    for i in {1..12} ; do echo $i ; ccm create --quiet -n 1 -v binary:4.0.$i test && ccm remove test ; done && \
+    for i in {1..4}  ; do echo $i ; ccm create --quiet -n 1 -v binary:4.1.$i test && ccm remove test ; done'
 
 # 5+ requires java11
 RUN sudo update-java-alternatives --set java-1.11.0-openjdk-$(dpkg --print-architecture)
