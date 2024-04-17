@@ -1893,6 +1893,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     value, oldValue);
     }
 
+    @Override
+    public int getCompressedReadAheadBufferInKB()
+    {
+        return DatabaseDescriptor.getCompressedReadAheadBufferSizeInKB();
+    }
+
+    @Override
+    public void setCompressedReadAheadBufferInKB(int sizeInKb)
+    {
+        DatabaseDescriptor.setCompressedReadAheadBufferSizeInKb(sizeInKb);
+        logger.info("set compressed read ahead buffer size to {}KiB", sizeInKb);
+    }
+
+
     public int getBatchlogReplayThrottleInKB()
     {
         return DatabaseDescriptor.getBatchlogReplayThrottleInKiB();

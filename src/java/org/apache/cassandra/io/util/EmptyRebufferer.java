@@ -64,7 +64,7 @@ public class EmptyRebufferer implements Rebufferer, RebuffererFactory
     }
 
     @Override
-    public Rebufferer instantiateRebufferer()
+    public Rebufferer instantiateRebufferer(boolean isScan)
     {
         return this;
     }
