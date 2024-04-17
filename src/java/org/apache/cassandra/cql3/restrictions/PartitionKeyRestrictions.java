@@ -18,7 +18,10 @@
 package org.apache.cassandra.cql3.restrictions;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.SortedSet;
 
 import com.google.common.collect.BoundType;
 import com.google.common.collect.ImmutableRangeSet;
@@ -53,7 +56,7 @@ final class PartitionKeyRestrictions extends RestrictionSetWrapper
     private final ClusteringComparator comparator;
 
     /**
-     * The token restrictions or {@code null} if there are no restritions on tokens.
+     * The token restrictions or {@code null} if there are no restrictions on tokens.
      */
     private final SingleRestriction tokenRestrictions;
 
@@ -129,7 +132,7 @@ final class PartitionKeyRestrictions extends RestrictionSetWrapper
      */
     public AbstractBounds<PartitionPosition> bounds(IPartitioner partitioner, QueryOptions options)
     {
-        if (tokenRestrictions != null && (restrictions.isEmpty() || needFiltering()))
+        if (isOnToken())
         {
             RangeSet<Token> tokenRangeSet = toRangeSet(partitioner, tokenRestrictions, options);
             Set<Range<Token>> ranges = tokenRangeSet.asRanges();

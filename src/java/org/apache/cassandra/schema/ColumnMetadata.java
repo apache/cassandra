@@ -555,6 +555,22 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         return type;
     }
 
+    /**
+     * Returns the types of the differents columns.
+     *
+     * @param columns the columns for which the types must be returned.
+     * @return the types of the differents columns.
+     */
+    public static List<AbstractType<?>> typesOf(List<ColumnMetadata> columns)
+    {
+        List<AbstractType<?>> types = new ArrayList<>(columns.size());
+        for (ColumnMetadata column : columns)
+        {
+            types.add(column.type);
+        }
+        return types;
+    }
+
     public static class Serializer implements UDTAndFunctionsAwareMetadataSerializer<ColumnMetadata>
     {
         public void serialize(ColumnMetadata t, DataOutputPlus out, Version version) throws IOException

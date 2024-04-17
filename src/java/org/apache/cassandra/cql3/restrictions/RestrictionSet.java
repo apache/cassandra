@@ -205,7 +205,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
         {
             for (SingleRestriction existing : existings)
             {
-                SingleRestriction newRestriction = mergeRestrictions(existing, restriction);
+                SingleRestriction newRestriction = existing.mergeWith(restriction);
 
                 for (ColumnMetadata column : newRestriction.columns())
                     restrictions.put(column, newRestriction);
@@ -214,22 +214,6 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
 
         return restrictions;
     }
-
-    /**
-     * Merges the two specified restrictions.
-     *
-     * @param restriction the first restriction
-     * @param otherRestriction the second restriction
-     * @return the merged restriction
-     * @throws InvalidRequestException if the two restrictions cannot be merged
-     */
-    private static SingleRestriction mergeRestrictions(SingleRestriction restriction,
-                                                       SingleRestriction otherRestriction)
-    {
-        return restriction == null ? otherRestriction
-                                   : restriction.mergeWith(otherRestriction);
-    }
-
 
 
     /**

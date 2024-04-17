@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.RangeSet;
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -46,7 +47,7 @@ public class ClusteringElementsTest
     @Test
     public void testCompareToWithOneAscColumn()
     {
-        ColumnMetadata column = newColumn(ASC);
+        ColumnMetadata column = newClusteringColumn(ASC);
         ClusteringElements empty = ClusteringElements.of();
         assertOrder(empty.bottom(),
                     elements(column, 1),
@@ -58,7 +59,7 @@ public class ClusteringElementsTest
     @Test
     public void testCompareToWithOneDescColumn()
     {
-        ColumnMetadata column = newColumn(DESC);
+        ColumnMetadata column = newClusteringColumn(DESC);
         ClusteringElements empty = ClusteringElements.of();
         assertOrder(empty.bottom(),
                     elements(column, 6),
@@ -70,7 +71,7 @@ public class ClusteringElementsTest
     @Test
     public void testCompareToWithTwoAscColumns()
     {
-        List<ColumnMetadata> columns = newColumns(ASC, ASC);
+        List<ColumnMetadata> columns = newClusteringColumns(ASC, ASC);
 
         ClusteringElements empty = ClusteringElements.of();
         ClusteringElements one = elements(columns.get(0), 1);
@@ -92,7 +93,7 @@ public class ClusteringElementsTest
     @Test
     public void testCompareToWithTwoDescColumns()
     {
-        List<ColumnMetadata> columns = newColumns(DESC, DESC);
+        List<ColumnMetadata> columns = newClusteringColumns(DESC, DESC);
 
         ClusteringElements empty = ClusteringElements.of();
         ClusteringElements one = elements(columns.get(0), 1);
@@ -115,7 +116,7 @@ public class ClusteringElementsTest
     @Test
     public void testCompareToWithAscDescColumns()
     {
-        List<ColumnMetadata> columns = newColumns(ASC, DESC);
+        List<ColumnMetadata> columns = newClusteringColumns(ASC, DESC);
 
         ClusteringElements empty = ClusteringElements.of();
         ClusteringElements one = elements(columns.get(0), 1);
@@ -138,7 +139,7 @@ public class ClusteringElementsTest
     @Test
     public void testCompareToWithDescAscColumns()
     {
-        List<ColumnMetadata> columns = newColumns(DESC, ASC);
+        List<ColumnMetadata> columns = newClusteringColumns(DESC, ASC);
 
         ClusteringElements empty = ClusteringElements.of();
         ClusteringElements one = elements(columns.get(0), 1);
@@ -161,7 +162,7 @@ public class ClusteringElementsTest
     @Test
     public void testAtMostWithOneColumn()
     {
-        for (ColumnMetadata type : newColumns(ASC, DESC))
+        for (ColumnMetadata type : newClusteringColumns(ASC, DESC))
         {
             ClusteringElements one = elements(type, 1);
             ClusteringElements four = elements(type, 4);
@@ -177,10 +178,10 @@ public class ClusteringElementsTest
     @Test
     public void testAtMostWithTwoColumns()
     {
-        for (List<ColumnMetadata> columns : asList(newColumns(ASC, ASC),
-                                                   newColumns(DESC, DESC),
-                                                   newColumns(ASC, DESC),
-                                                   newColumns(DESC, ASC)))
+        for (List<ColumnMetadata> columns : asList(newClusteringColumns(ASC, ASC),
+                                                   newClusteringColumns(DESC, DESC),
+                                                   newClusteringColumns(ASC, DESC),
+                                                   newClusteringColumns(DESC, ASC)))
         {
             ClusteringElements zeroZero = elements(columns, 0, 0);
             ClusteringElements oneZero = elements(columns, 1, 0);
@@ -198,7 +199,7 @@ public class ClusteringElementsTest
 
             for (AbstractType<?> type : asList(ASC, DESC))
             {
-                List<ColumnMetadata> newColumns = extend(columns, type);
+                List<ColumnMetadata> newColumns = appendNewColumn(columns, type);
                 ClusteringElements zeroZeroZero = elements(newColumns, 0, 0, 0);
                 ClusteringElements oneZeroOne = elements(newColumns, 1, 0, 1);
                 ClusteringElements oneThreeZero = elements(newColumns, 1, 3, 0);
@@ -221,14 +222,14 @@ public class ClusteringElementsTest
     @Test
     public void testAtMostWithThreeColumns()
     {
-        for (List<ColumnMetadata> columns : asList(newColumns(ASC, ASC, ASC),
-                                                   newColumns(ASC, ASC, DESC),
-                                                   newColumns(DESC, DESC, ASC),
-                                                   newColumns(DESC, DESC, DESC),
-                                                   newColumns(ASC, DESC, ASC),
-                                                   newColumns(ASC, DESC, DESC),
-                                                   newColumns(DESC, ASC, ASC),
-                                                   newColumns(DESC, ASC, DESC)))
+        for (List<ColumnMetadata> columns : asList(newClusteringColumns(ASC, ASC, ASC),
+                                                   newClusteringColumns(ASC, ASC, DESC),
+                                                   newClusteringColumns(DESC, DESC, ASC),
+                                                   newClusteringColumns(DESC, DESC, DESC),
+                                                   newClusteringColumns(ASC, DESC, ASC),
+                                                   newClusteringColumns(ASC, DESC, DESC),
+                                                   newClusteringColumns(DESC, ASC, ASC),
+                                                   newClusteringColumns(DESC, ASC, DESC)))
         {
             ClusteringElements zeroZeroZero = elements(columns, 0, 0, 0);
             ClusteringElements oneZeroOne = elements(columns, 1, 0, 1);
@@ -253,7 +254,7 @@ public class ClusteringElementsTest
     @Test
     public void testLessThanWithOneColumn()
     {
-        for (ColumnMetadata column : asList(newColumn(ASC), newColumn(DESC)))
+        for (ColumnMetadata column : asList(newClusteringColumn(ASC), newClusteringColumn(DESC)))
         {
             ClusteringElements one = elements(column, 1);
             ClusteringElements four = elements(column, 4);
@@ -269,10 +270,10 @@ public class ClusteringElementsTest
     @Test
     public void testLessThanWithTwoColumns()
     {
-        for (List<ColumnMetadata> columns : asList(newColumns(ASC, ASC),
-                                                   newColumns(DESC, DESC),
-                                                   newColumns(ASC, DESC),
-                                                   newColumns(DESC, ASC)))
+        for (List<ColumnMetadata> columns : asList(newClusteringColumns(ASC, ASC),
+                                                   newClusteringColumns(DESC, DESC),
+                                                   newClusteringColumns(ASC, DESC),
+                                                   newClusteringColumns(DESC, ASC)))
         {
             ClusteringElements zeroZero = elements(columns, 0, 0);
             ClusteringElements oneZero = elements(columns, 1, 0);
@@ -290,7 +291,7 @@ public class ClusteringElementsTest
 
             for (AbstractType<?> type : asList(ASC, DESC))
             {
-                List<ColumnMetadata> newColumns = extend(columns, type);
+                List<ColumnMetadata> newColumns = appendNewColumn(columns, type);
 
                 ClusteringElements zeroZeroZero = elements(newColumns, 0, 0, 0);
                 ClusteringElements oneZeroOne = elements(newColumns, 1, 0, 1);
@@ -314,14 +315,14 @@ public class ClusteringElementsTest
     @Test
     public void testLessThanWithThreeColumns()
     {
-        for (List<ColumnMetadata> columns : asList(newColumns(ASC, ASC, ASC),
-                                                   newColumns(ASC, ASC, DESC),
-                                                   newColumns(DESC, DESC, ASC),
-                                                   newColumns(DESC, DESC, DESC),
-                                                   newColumns(ASC, DESC, ASC),
-                                                   newColumns(ASC, DESC, DESC),
-                                                   newColumns(DESC, ASC, ASC),
-                                                   newColumns(DESC, ASC, DESC)))
+        for (List<ColumnMetadata> columns : asList(newClusteringColumns(ASC, ASC, ASC),
+                                                   newClusteringColumns(ASC, ASC, DESC),
+                                                   newClusteringColumns(DESC, DESC, ASC),
+                                                   newClusteringColumns(DESC, DESC, DESC),
+                                                   newClusteringColumns(ASC, DESC, ASC),
+                                                   newClusteringColumns(ASC, DESC, DESC),
+                                                   newClusteringColumns(DESC, ASC, ASC),
+                                                   newClusteringColumns(DESC, ASC, DESC)))
         {
             ClusteringElements zeroZeroZero = elements(columns, 0, 0, 0);
             ClusteringElements oneZeroOne = elements(columns, 1, 0, 1);
@@ -346,7 +347,7 @@ public class ClusteringElementsTest
     @Test
     public void testAtLeastWithOneColumn()
     {
-        for (ColumnMetadata column : asList(newColumn(ASC), newColumn(DESC)))
+        for (ColumnMetadata column : asList(newClusteringColumn(ASC), newClusteringColumn(DESC)))
         {
             ClusteringElements one = elements(column, 1);
             ClusteringElements four = elements(column, 4);
@@ -362,10 +363,10 @@ public class ClusteringElementsTest
     @Test
     public void testAtLeastWithTwoColumns()
     {
-        for (List<ColumnMetadata> columns : asList(newColumns(ASC, ASC),
-                                                   newColumns(DESC, DESC),
-                                                   newColumns(ASC, DESC),
-                                                   newColumns(DESC, ASC)))
+        for (List<ColumnMetadata> columns : asList(newClusteringColumns(ASC, ASC),
+                                                   newClusteringColumns(DESC, DESC),
+                                                   newClusteringColumns(ASC, DESC),
+                                                   newClusteringColumns(DESC, ASC)))
         {
             ClusteringElements zeroZero = elements(columns, 0, 0);
             ClusteringElements oneZero = elements(columns, 1, 0);
@@ -383,7 +384,7 @@ public class ClusteringElementsTest
 
             for (AbstractType<?> type : asList(ASC, DESC))
             {
-                List<ColumnMetadata> newColumns = extend(columns, type);
+                List<ColumnMetadata> newColumns = appendNewColumn(columns, type);
 
                 ClusteringElements zeroZeroZero = elements(newColumns, 0, 0, 0);
                 ClusteringElements oneZeroOne = elements(newColumns, 1, 0, 1);
@@ -407,14 +408,14 @@ public class ClusteringElementsTest
     @Test
     public void testAtLeastWithThreeColumns()
     {
-        for (List<ColumnMetadata> columns : asList(newColumns(ASC, ASC, ASC),
-                                                   newColumns(ASC, ASC, DESC),
-                                                   newColumns(DESC, DESC, ASC),
-                                                   newColumns(DESC, DESC, DESC),
-                                                   newColumns(ASC, DESC, ASC),
-                                                   newColumns(ASC, DESC, DESC),
-                                                   newColumns(DESC, ASC, ASC),
-                                                   newColumns(DESC, ASC, DESC)))
+        for (List<ColumnMetadata> columns : asList(newClusteringColumns(ASC, ASC, ASC),
+                                                   newClusteringColumns(ASC, ASC, DESC),
+                                                   newClusteringColumns(DESC, DESC, ASC),
+                                                   newClusteringColumns(DESC, DESC, DESC),
+                                                   newClusteringColumns(ASC, DESC, ASC),
+                                                   newClusteringColumns(ASC, DESC, DESC),
+                                                   newClusteringColumns(DESC, ASC, ASC),
+                                                   newClusteringColumns(DESC, ASC, DESC)))
         {
             ClusteringElements zeroZeroZero = elements(columns, 0, 0, 0);
             ClusteringElements oneZeroOne = elements(columns, 1, 0, 1);
@@ -439,7 +440,7 @@ public class ClusteringElementsTest
     @Test
     public void testGreaterThanWithOneColumn()
     {
-        for (ColumnMetadata column : asList(newColumn(ASC), newColumn(DESC)))
+        for (ColumnMetadata column : asList(newClusteringColumn(ASC), newClusteringColumn(DESC)))
         {
             ClusteringElements one = elements(column, 1);
             ClusteringElements four = elements(column, 4);
@@ -455,10 +456,10 @@ public class ClusteringElementsTest
     @Test
     public void testGreaterThanWithTwoColumns()
     {
-        for (List<ColumnMetadata> columns : asList(newColumns(ASC, ASC),
-                                                   newColumns(DESC, DESC),
-                                                   newColumns(ASC, DESC),
-                                                   newColumns(DESC, ASC)))
+        for (List<ColumnMetadata> columns : asList(newClusteringColumns(ASC, ASC),
+                                                   newClusteringColumns(DESC, DESC),
+                                                   newClusteringColumns(ASC, DESC),
+                                                   newClusteringColumns(DESC, ASC)))
         {
             ClusteringElements zeroZero = elements(columns, 0, 0);
             ClusteringElements oneZero = elements(columns, 1, 0);
@@ -476,7 +477,7 @@ public class ClusteringElementsTest
 
             for (AbstractType<?> type : asList(ASC, DESC))
             {
-                List<ColumnMetadata> newColumns = extend(columns, type);
+                List<ColumnMetadata> newColumns = appendNewColumn(columns, type);
 
                 ClusteringElements zeroZeroZero = elements(newColumns, 0, 0, 0);
                 ClusteringElements oneZeroOne = elements(newColumns, 1, 0, 1);
@@ -500,14 +501,14 @@ public class ClusteringElementsTest
     @Test
     public void testGreaterThanWithThreeColumns()
     {
-        for (List<ColumnMetadata> columns : asList(newColumns(ASC, ASC, ASC),
-                                                   newColumns(ASC, ASC, DESC),
-                                                   newColumns(DESC, DESC, ASC),
-                                                   newColumns(DESC, DESC, DESC),
-                                                   newColumns(ASC, DESC, ASC),
-                                                   newColumns(ASC, DESC, DESC),
-                                                   newColumns(DESC, ASC, ASC),
-                                                   newColumns(DESC, ASC, DESC)))
+        for (List<ColumnMetadata> columns : asList(newClusteringColumns(ASC, ASC, ASC),
+                                                   newClusteringColumns(ASC, ASC, DESC),
+                                                   newClusteringColumns(DESC, DESC, ASC),
+                                                   newClusteringColumns(DESC, DESC, DESC),
+                                                   newClusteringColumns(ASC, DESC, ASC),
+                                                   newClusteringColumns(ASC, DESC, DESC),
+                                                   newClusteringColumns(DESC, ASC, ASC),
+                                                   newClusteringColumns(DESC, ASC, DESC)))
         {
             ClusteringElements zeroZeroZero = elements(columns, 0, 0, 0);
             ClusteringElements oneZeroOne = elements(columns, 1, 0, 1);
@@ -529,6 +530,59 @@ public class ClusteringElementsTest
         }
     }
 
+    @Test
+    public void testExtend()
+    {
+        List<ColumnMetadata> columns = newClusteringColumns(ASC, DESC, ASC);
+
+        ClusteringElements first = elements(columns.get(0),0);
+        ClusteringElements second = elements(columns.get(1), 1);
+        ClusteringElements third = elements(columns.get(2), 2);
+
+        ClusteringElements result = first.extend(second);
+        ClusteringElements expected = elements(columns.subList(0, 2), 0, 1);
+        assertEquals(expected, result);
+
+        result = result.extend(third);
+        expected = elements(columns, 0, 1, 2);
+        assertEquals(expected, result);
+
+        ClusteringElements top = second.top();
+
+        result = first.extend(top);
+        expected = elements(columns.subList(0, 2), 0, 1).top();
+        assertEquals(expected, result);
+
+        ClusteringElements bottom = second.bottom();
+
+        result = first.extend(bottom);
+        expected = elements(columns.subList(0, 2), 0, 1).bottom();
+        assertEquals(expected, result);
+
+        assertUnsupported("Cannot extend elements with non consecutive elements", () -> first.extend(third));
+        assertUnsupported("Cannot extend elements with non consecutive elements", () -> second.extend(first));
+
+        ColumnMetadata pk = newPartitionKeyColumn(ASC, 0);
+        ClusteringElements pkElement = elements(pk, 0);
+
+        assertUnsupported("Cannot extend elements with elements of a different kind", () -> pkElement.extend(second));
+        assertUnsupported("Range endpoints cannot be extended", () -> top.extend(third));
+        assertUnsupported("Range endpoints cannot be extended", () -> bottom.extend(third));
+    }
+
+    private void assertUnsupported(String expectedMsg, Runnable r)
+    {
+        try
+        {
+            r.run();
+            Assert.fail("Expecting an UnsupportedOperationException");
+        }
+        catch (UnsupportedOperationException e)
+        {
+            assertEquals(expectedMsg, e.getMessage());
+        }
+    }
+
     private static ClusteringElements elements(ColumnMetadata column, int value)
     {
         return ClusteringElements.of(column, bytes(value));
@@ -539,30 +593,35 @@ public class ClusteringElementsTest
         return ClusteringElements.of(columns, Arrays.stream(values).mapToObj(ByteUtils::bytes).collect(Collectors.toList()));
     }
 
-    private static ColumnMetadata newColumn(AbstractType<?> type)
+    private static ColumnMetadata newClusteringColumn(AbstractType<?> type)
     {
-        return newColumn(type, 0);
+        return newClusteringColumn(type, 0);
     }
 
-    private static ColumnMetadata newColumn(AbstractType<?> type, int position)
+    private static ColumnMetadata newClusteringColumn(AbstractType<?> type, int position)
     {
         return ColumnMetadata.clusteringColumn("ks", "tbl", "c" + position, type, position);
     }
 
-    private static List<ColumnMetadata> newColumns(AbstractType<?>... types)
+    private static ColumnMetadata newPartitionKeyColumn(AbstractType<?> type, int position)
+    {
+        return ColumnMetadata.partitionKeyColumn("ks", "tbl", "pk" + position, type, position);
+    }
+
+    private static List<ColumnMetadata> newClusteringColumns(AbstractType<?>... types)
     {
         List<ColumnMetadata> columns = new ArrayList<>(types.length);
         for (int i = 0, m = types.length; i < m; i++)
         {
-            columns.add(newColumn(types[i], i));
+            columns.add(newClusteringColumn(types[i], i));
         }
         return columns;
     }
 
-    private static List<ColumnMetadata> extend(List<ColumnMetadata> columns, AbstractType<?> type)
+    private static List<ColumnMetadata> appendNewColumn(List<ColumnMetadata> columns, AbstractType<?> type)
     {
         List<ColumnMetadata> newColumns = new ArrayList<>(columns);
-        newColumns.add(newColumn(type, columns.size()));
+        newColumns.add(newClusteringColumn(type, columns.size()));
         return newColumns;
     }
 
@@ -571,10 +630,7 @@ public class ClusteringElementsTest
     {
         for (int i = 0, m = comparables.length; i < m; i++)
         {
-            for (int j = i; j < m; j++)
-            {
-                assertEquals(0, comparables[i].compareTo(comparables[i]));
-            }
+            assertEquals(0, comparables[i].compareTo(comparables[i]));
         }
     }
 

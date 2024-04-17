@@ -28,6 +28,10 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
+/**
+ * The parsed version of a {@code SimpleRestriction} as outputed by the CQL parser.
+ * {@code Relation.prepare} will be called upon schema binding to create a {@code SimpleRestriction}.
+ */
 public final class Relation
 {
     /**
@@ -57,31 +61,82 @@ public final class Relation
         return operator;
     }
 
+    /**
+     * Creates a relation for a single column (e.g. {@code columnA = ?} ).
+     *
+     * @param identifier the column identifier to which the relation applies
+     * @param operator the relation operator
+     * @param rawTerm the term to which the column values must be compared
+     * @return a relation for a single column.
+     */
     public static Relation singleColumn(ColumnIdentifier identifier, Operator operator, Term.Raw rawTerm)
     {
+        assert operator != Operator.IN;
         return new Relation(ColumnsExpression.Raw.singleColumn(identifier), operator, Terms.Raw.of(rawTerm));
     }
 
+    /**
+     * Creates a relation for a single column (e.g. {@code columnA IN ?} ).
+     *
+     * @param identifier the column identifier to which the relation applies
+     * @param operator the relation operator
+     * @param rawTerms the terms to which the column values must be compared
+     * @return a relation for a single column.
+     */
     public static Relation singleColumn(ColumnIdentifier identifier, Operator operator, Terms.Raw rawTerms)
     {
         return new Relation(ColumnsExpression.Raw.singleColumn(identifier), operator, rawTerms);
     }
 
+    /**
+     * Creates a relation for a map element (e.g. {@code columnA[?] = ?}).
+     *
+     * @param identifier the map column identifier
+     * @param rawKey the map element key
+     * @param operator the relation operator
+     * @param rawTerm the term to which the map element must be compared
+     * @return a relation for a map element.
+     */
     public static Relation mapElement(ColumnIdentifier identifier, Term.Raw rawKey, Operator operator, Term.Raw rawTerm)
     {
         return new Relation(ColumnsExpression.Raw.mapElement(identifier, rawKey), operator, Terms.Raw.of(rawTerm));
     }
 
+    /**
+     * Creates a relation for multiple columns (e.g. {@code (columnA, columnB) = (?, ?)}).
+     *
+     * @param identifiers the columns identifiers
+     * @param operator the relation operator
+     * @param rawTerm the term (tuple) to which the multiple columns must be compared
+     * @return a relation for multiple columns.
+     */
     public static Relation multiColumns(List<ColumnIdentifier> identifiers, Operator operator, Term.Raw rawTerm)
     {
+        assert operator != Operator.IN;
         return new Relation(ColumnsExpression.Raw.multiColumns(identifiers), operator, Terms.Raw.of(rawTerm));
     }
 
+    /**
+     * Creates a relation for multiple columns (e.g. {@code (columnA, columnB) = (?, ?)}).
+     *
+     * @param identifiers the columns identifiers
+     * @param operator the relation operator
+     * @param rawTerms the terms (tuples) to which the multiple columns must be compared
+     * @return a relation for multiple columns.
+     */
     public static Relation multiColumns(List<ColumnIdentifier> identifiers, Operator operator, Terms.Raw rawTerms)
     {
         return new Relation(ColumnsExpression.Raw.multiColumns(identifiers), operator, rawTerms);
     }
 
+    /**
+     * Creates a relation for token expression (e.g. {@code token(columnA, columnB) = ?} ).
+     *
+     * @param identifiers the column identifiers for the partition columns
+     * @param operator the relation operator
+     * @param rawTerm the terms to which the token value must be compared
+     * @return a relation for a token expression.
+     */
     public static Relation token(List<ColumnIdentifier> identifiers, Operator operator, Term.Raw rawTerm)
     {
         return new Relation(ColumnsExpression.Raw.token(identifiers), operator, Terms.Raw.of(rawTerm));
@@ -100,7 +155,7 @@ public final class Relation
     /**
      * Converts this <code>Relation</code> into a <code>Restriction</code>.
      *
-     * @param table the Column Family meta data
+     * @param table the table metadata
      * @param boundNames the variables specification where to collect the bind variables
      * @return the <code>Restriction</code> corresponding to this <code>Relation</code>
      * @throws InvalidRequestException if this <code>Relation</code> is not valid

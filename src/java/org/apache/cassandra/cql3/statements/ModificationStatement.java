@@ -886,37 +886,6 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                     lists);
     }
 
-    private Slices toSlices(SortedSet<ClusteringBound<?>> startBounds, SortedSet<ClusteringBound<?>> endBounds)
-    {
-        return toSlices(metadata, startBounds, endBounds);
-    }
-
-    public static Slices toSlices(TableMetadata metadata, SortedSet<ClusteringBound<?>> startBounds, SortedSet<ClusteringBound<?>> endBounds)
-    {
-        return toSlices(metadata.comparator, startBounds, endBounds);
-    }
-
-    public static Slices toSlices(ClusteringComparator comparator, SortedSet<ClusteringBound<?>> startBounds, SortedSet<ClusteringBound<?>> endBounds)
-    {
-        assert startBounds.size() == endBounds.size();
-
-        Slices.Builder builder = new Slices.Builder(comparator);
-
-        Iterator<ClusteringBound<?>> starts = startBounds.iterator();
-        Iterator<ClusteringBound<?>> ends = endBounds.iterator();
-
-        while (starts.hasNext())
-        {
-            Slice slice = Slice.make(starts.next(), ends.next());
-            if (!slice.isEmpty(comparator))
-            {
-                builder.add(slice);
-            }
-        }
-
-        return builder.build();
-    }
-
     public static abstract class Parsed extends QualifiedStatement
     {
         protected final StatementType type;

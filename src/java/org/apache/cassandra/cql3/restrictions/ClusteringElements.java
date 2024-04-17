@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.restrictions;
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Objects;
 
 import com.google.common.collect.BoundType;
 import com.google.common.collect.ForwardingList;
@@ -39,23 +40,23 @@ import org.apache.cassandra.schema.ColumnMetadata;
  * associated value. In practice, that class is not only used for clustering elements but also for partition key elements
  * and tokens expression.
  *
- * <p>There are some difference between how predicates are represented in a CQL query and how they have to be expressed
+ * <p>There are some differences between how predicates are represented in a CQL query and how they have to be expressed
  * internally. Those differences are:
  * <ul>
- *     <li>The selected partition keys and clustering columns can be expressed with separates predicates in a CQL query
+ *     <li>The selected partition keys and clustering columns can be expressed with separate predicates in a CQL query
  *     but need to be grouped internally to define exact partition and clustering keys. For example,
  *     <pre>[..] WHERE pk1 = 2 AND pk2 = 3 AND c1 = 5 AND c2 IN (3, 4)</pre> will request 2 rows with clustering (5, 3) and
  *     (5, 4) from the partition (2, 3).</li>
  *     <li>When clustering slices are expressed in a CQL query they are expressed as if all columns were in
- *     ascending order. Internally the engine handle slice according to the clustering columns real order.
+ *     ascending order. Internally, the engine handles slice according to the clustering columns real order.
  *     For example, if column c1 is descending and column c2 is ascending the predicate <pre>(c1, c2) >= (1, 2)</pre>
- *     should be translated internally in [(bottom) .. (1, bottom)),[(1, 2, bottom)..(1.top)].</li>
+ *     should be translated internally in [(bottom) .. (1, bottom)),[(1, 2, bottom)..(1, top)].</li>
  * </ul>
  * This class is used to bridge the gap between the CQL expression and its internal representation. It allows for elements
  * to be appended together through the {@code extend} method and translate CQL ranges into their internal representation.
  * </p>
  * <p>It is important to realize that Guava {@code Range} instances are used in a slightly different way than how they were
- * designed to be use in order to deal with the tree model of Clusterings. {@code Range} returned by this class are never
+ * designed to be used to deal with the tree model of Clusterings. {@code Range} returned by this class are never
  * unbounded so the methods {@code hasLowerEndpoint} and {@code hasUpperEndpoint} should not be used on those.
  * When a range does not have a lower endpoint its lower endpoint value will be (bottom) (e.g. ClusteringElements.of().bottom())
  * and if it does not have an upper endpoint its upper endpoint value will be (top) (e.g. ClusteringElements.of().top()).
@@ -89,13 +90,13 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
         if (columns.size() != values.size())
             throw new IllegalArgumentException("columns and values should have the same size");
 
-        checkColumns(columns);
+        checkColumnsOrder(columns);
 
         this.columns = columns;
         this.values = values;
     }
 
-    private static void checkColumns(ImmutableList<? extends ColumnSpecification> columns)
+    private static void checkColumnsOrder(ImmutableList<? extends ColumnSpecification> columns)
     {
         if (columns.size() > 1)
         {
@@ -109,7 +110,7 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
         }
     }
 
-    private AbstractType<?> type(int index)
+    private AbstractType<?> columnType(int index)
     {
         return columns.get(index).type;
     }
@@ -159,7 +160,7 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
      */
     public ClusteringElements extend(ClusteringElements suffix)
     {
-        // We cannot extend a Top or Bottom has those are only use for ranges and ranges endpoint should not be extended
+        // We cannot extend a Top or Bottom as those are only used for ranges and ranges endpoint should not be extended
         if (this instanceof Top || this instanceof Bottom)
             throw new UnsupportedOperationException("Range endpoints cannot be extended");
 
@@ -175,7 +176,7 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
 
     private void checkSuffix(ClusteringElements suffix)
     {
-        // If the columns are not ColumnMetadata instances we are dealing a Token representation which cannot be extended
+        // If the columns are not ColumnMetadata instances, we are dealing with a Token representation which cannot be extended
         if (!(columns.get(0) instanceof ColumnMetadata))
             throw new UnsupportedOperationException("Non partition key or clustering columns cannot be extended");
 
@@ -184,9 +185,9 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
             ColumnMetadata lastPrefixElement = ((ColumnMetadata) last(this.columns));
             ColumnMetadata firstSuffixElement = ((ColumnMetadata) suffix.columns.get(0));
             if (firstSuffixElement.kind != lastPrefixElement.kind)
-                throw new UnsupportedOperationException("Cannot extends elements with elements of a different kind");
+                throw new UnsupportedOperationException("Cannot extend elements with elements of a different kind");
             if (firstSuffixElement.position() != lastPrefixElement.position() + 1)
-                throw new UnsupportedOperationException("Cannot extends elements with not consecutive elements");
+                throw new UnsupportedOperationException("Cannot extend elements with non consecutive elements");
         }
     }
 
@@ -248,7 +249,7 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
     private static RangeSet<ClusteringElements> buildRangeSet(ClusteringElements endpoint, boolean upperBound, BoundType boundType)
     {
         TreeRangeSet<ClusteringElements> rangeSet = TreeRangeSet.create();
-        boolean reversed = endpoint.type(0).isReversed();
+        boolean reversed = endpoint.columnType(0).isReversed();
         if (reversed)
         {
             upperBound = !upperBound;
@@ -258,7 +259,7 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
 
         for (int i = 0, m = endpoint.size(); i < m; i++)
         {
-            AbstractType<?> type = endpoint.type(i);
+            AbstractType<?> type = endpoint.columnType(i);
             if (reversed != type.isReversed())
             {
                 // The columns are changing directions therefore we need to create the range up to this point
@@ -310,7 +311,7 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
     public int compareTo(ClusteringElements that)
     {
         if (that == null)
-            return 1;
+            throw new NullPointerException();
 
         isComparableWith(that);
 
@@ -322,14 +323,14 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
             ByteBuffer thisValue = this.values.get(i);
             ByteBuffer thatValue = that.values.get(i);
 
-            comparison = this.type(i).compare(thisValue, thatValue);
+            comparison = this.columnType(i).compare(thisValue, thatValue);
 
             if (comparison != 0)
                 return comparison;
         }
 
-        // If both set of elements have the same size it could mean:
-        //  * that they are equals (e.g. this = (1, 2) and that = (1,2))
+        // If both sets of elements have the same size, it could mean:
+        //  * that they are equal (e.g. this = (1, 2) and that = (1,2))
         //  * that one of them is a Top or Bottom boundary (e.g. this = (1) and that = (1, +∞))
         //  * that both of them are Top or Bottom boundaries ( e.g. this = (-∞) and that = (+∞)).
         if (this.size() == that.size())
@@ -341,7 +342,7 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
                 // If none is a Top, one can be a Bottom
                 comparison = Boolean.compare(this instanceof Bottom, that instanceof Bottom);
                 if (comparison == 0)
-                    return 0; // this and that are equals
+                    return 0; // this and that are equal
 
                 return comparison > 0 ? -1 : 1; // If this is a Bottom that is greater and if that is a Bottom this is greater
             }
@@ -354,7 +355,7 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
         // If this size is smaller it means that we have 2 possible cases:
         //  * this with less column than that (e.g. (1) for this and (1, 0) for that)
         //  * a top or bottom for this (e.g. (1, +∞) for this and (1, 0) for that)
-        // If we are in the first case then zero must be returns as that is included in this.
+        // If we are in the first case then zero must be returned as that is included in this.
         if (this.size() < that.size())
         {
             return that.columns.get(minSize).type.isReversed() ? this instanceof Bottom ? -1 : 1
@@ -377,6 +378,25 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
             throw new IllegalStateException("Cannot compare 2 lists containing different types");
     }
 
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+            return true;
+
+        if (o == null || getClass() != o.getClass())
+            return false;
+
+        ClusteringElements that = (ClusteringElements) o;
+        return Objects.equals(columns, that.columns) && Objects.equals(values, that.values);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(columns, values);
+    }
+
     public ClusteringBound<?> toBound(boolean isStart, boolean isInclusive)
     {
         return BufferClusteringBound.create(ClusteringBound.boundKind(isStart, isInclusive),
@@ -391,7 +411,7 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
         {
             if (i != 0)
                 builder.append(", ");
-            builder.append(type(i).toCQLString(values.get(i)));
+            builder.append(columnType(i).toCQLString(values.get(i)));
         }
 
         if (this instanceof Top || this instanceof Bottom)

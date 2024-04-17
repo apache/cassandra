@@ -84,7 +84,7 @@ public interface Restriction
      * Check if the restriction is on indexed columns.
      *
      * @param indexes the available indexes
-     * @return <code>true</code> if the restriction is on indexed columns, <code>false</code>
+     * @return <code>true</code> if the restriction is on indexed columns, <code>false</code> otherwise
      */
     default boolean hasSupportingIndex(Iterable<Index> indexes)
     {

@@ -31,7 +31,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 
 /**
  * A <code>RestrictionSet</code> wrapper that can be extended to allow to modify the <code>RestrictionSet</code>
- * behaviour without breaking its immutability. Subclasses should be immutables.
+ * behaviour without breaking its immutability. Subclasses should be immutable.
  */
 class RestrictionSetWrapper implements Restrictions
 {

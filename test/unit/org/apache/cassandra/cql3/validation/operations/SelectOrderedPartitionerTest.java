@@ -194,9 +194,7 @@ public class SelectOrderedPartitionerTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE token(a, b) > token(?, ?)", 0, "a"),
                    row(0, "b"),
                    row(0, "c"));
-        assertRows(execute("SELECT * FROM %s WHERE token(a, b) > token(?, ?) and token(a, b) < token(?, ?)",
-                           0, "a",
-                           0, "d"),
+        assertRows(execute("SELECT * FROM %s WHERE token(a, b) > token(?, ?) and token(a, b) < token(?, ?)", 0, "a", 0, "d"),
                    row(0, "b"),
                    row(0, "c"));
         assertInvalidMessage("The token() function must be applied to all partition key components or none of them",
@@ -223,19 +221,15 @@ public class SelectOrderedPartitionerTest extends CQLTester
         execute("INSERT INTO %s (a, b) VALUES (3, 3);");
         execute("INSERT INTO %s (a, b) VALUES (4, 4);");
 
-        assertRows(execute("SELECT * FROM %s WHERE token(a) > token(?);",
-                           1),
+        assertRows(execute("SELECT * FROM %s WHERE token(a) > token(?);", 1),
                    row(2, 2),
                    row(3, 3),
                    row(4, 4));
-        assertRows(execute("SELECT * FROM %s WHERE token(a) < token(?);",
-                           1),
+        assertRows(execute("SELECT * FROM %s WHERE token(a) < token(?);", 1),
                    row(0, 0));
-        assertRows(execute("SELECT * FROM %s WHERE token(a) >= token(?) AND token(a) <= token(?);",
-                           1, 1),
+        assertRows(execute("SELECT * FROM %s WHERE token(a) >= token(?) AND token(a) <= token(?);",1, 1),
                    row(1, 1));
-        assertRows(execute("SELECT * FROM %s WHERE token(a) > token(?) AND token(a) < token(?);",
-                           1, 1));
+        assertRows(execute("SELECT * FROM %s WHERE token(a) > token(?) AND token(a) < token(?);",1, 1));
 
         assertRows(execute("SELECT * FROM %s WHERE a IN (?, ?);", 1, 3),
                    row(1, 1),

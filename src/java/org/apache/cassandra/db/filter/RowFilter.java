@@ -124,7 +124,7 @@ public class RowFilter implements Iterable<RowFilter.Expression>
 
     public void addMapEquality(ColumnMetadata def, ByteBuffer key, Operator op, ByteBuffer value)
     {
-        add(new MapELementExpression(def, key, op, value));
+        add(new MapElementExpression(def, key, op, value));
     }
 
     public void addCustomIndexExpression(TableMetadata metadata, IndexMetadata targetIndex, ByteBuffer value)
@@ -595,7 +595,7 @@ public class RowFilter implements Iterable<RowFilter.Expression>
                         ByteBufferUtil.writeWithShortLength(expression.value, out);
                         break;
                     case MAP_ELEMENT:
-                        MapELementExpression mexpr = (MapELementExpression)expression;
+                        MapElementExpression mexpr = (MapElementExpression)expression;
                         ByteBufferUtil.writeWithShortLength(mexpr.key, out);
                         ByteBufferUtil.writeWithShortLength(mexpr.value, out);
                         break;
@@ -633,7 +633,7 @@ public class RowFilter implements Iterable<RowFilter.Expression>
                     case MAP_ELEMENT:
                         ByteBuffer key = ByteBufferUtil.readWithShortLength(in);
                         ByteBuffer value = ByteBufferUtil.readWithShortLength(in);
-                        return new MapELementExpression(column, key, operator, value);
+                        return new MapElementExpression(column, key, operator, value);
                 }
                 throw new AssertionError();
             }
@@ -654,7 +654,7 @@ public class RowFilter implements Iterable<RowFilter.Expression>
                         size += ByteBufferUtil.serializedSizeWithShortLength(((SimpleExpression)expression).value);
                         break;
                     case MAP_ELEMENT:
-                        MapELementExpression mexpr = (MapELementExpression)expression;
+                        MapElementExpression mexpr = (MapElementExpression)expression;
                         size += ByteBufferUtil.serializedSizeWithShortLength(mexpr.key)
                               + ByteBufferUtil.serializedSizeWithShortLength(mexpr.value);
                         break;
@@ -764,14 +764,14 @@ public class RowFilter implements Iterable<RowFilter.Expression>
      * An expression of the form 'column' ['key'] = 'value' (which is only
      * supported when 'column' is a map).
      */
-    private static class MapELementExpression extends Expression
+    private static class MapElementExpression extends Expression
     {
         private final ByteBuffer key;
 
-        public MapELementExpression(ColumnMetadata column, ByteBuffer key, Operator operator, ByteBuffer value)
+        public MapElementExpression(ColumnMetadata column, ByteBuffer key, Operator operator, ByteBuffer value)
         {
             super(column, operator, value);
-            assert column.type instanceof MapType;
+            assert column.type instanceof MapType && operator == Operator.EQ;
             this.key = key;
         }
 
@@ -834,10 +834,10 @@ public class RowFilter implements Iterable<RowFilter.Expression>
             if (this == o)
                 return true;
 
-            if (!(o instanceof MapELementExpression))
+            if (!(o instanceof MapElementExpression))
                 return false;
 
-            MapELementExpression that = (MapELementExpression)o;
+            MapElementExpression that = (MapElementExpression)o;
 
             return Objects.equal(this.column.name, that.column.name)
                 && Objects.equal(this.operator, that.operator)

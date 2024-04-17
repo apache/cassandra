@@ -265,7 +265,7 @@ public final class SimpleRestriction implements SingleRestriction
             throw invalidRequest("Invalid unset value for %s", columnsExpression);
     }
 
-    private <T> void validate(ByteBuffer buffer)
+    private void validate(ByteBuffer buffer)
     {
         if (buffer == null)
             throw invalidRequest("Invalid null value for %s", columnsExpression);

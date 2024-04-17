@@ -49,6 +49,9 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.invalidReq
 
 /**
  * An expression including one or several columns.
+ *
+ * <p>This class can be modified to add support for more column expressions like UDT fields, List elements,
+ * functions on columns... </p>
  */
 public final class ColumnsExpression
 {
@@ -111,9 +114,7 @@ public final class ColumnsExpression
             @Override
             AbstractType<?> type(TableMetadata table, List<ColumnMetadata> columns)
             {
-                return new TupleType(columns.stream()
-                                            .map(c -> c.type)
-                                            .collect(Collectors.toList()));
+                return new TupleType(ColumnMetadata.typesOf(columns));
             }
 
             @Override
@@ -256,7 +257,8 @@ public final class ColumnsExpression
     private final Kind kind;
 
     /**
-     * The type of this expression
+     * The type represented by this expression. For example, for a single column the type of the expression will
+     * be the one of the column and for a map element expression the type will be the one of the map value.
      */
     private final AbstractType<?> type;
 
@@ -318,7 +320,6 @@ public final class ColumnsExpression
      */
     public ColumnMetadata lastColumn()
     {
-        List<ColumnMetadata> columns = columns();
         return columns.get(columns.size() - 1);
     }
 
@@ -422,9 +423,12 @@ public final class ColumnsExpression
                                           : new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier(toCQLString(), true), type) ;
     }
 
+    /**
+     * The parsed version of the {@code ColumnsExpression} as outputed by the CQL parser.
+     * {@code Raw.prepare} will be called upon schema binding to create the {@code ColumnsExpression}.
+     */
     public static final class Raw
     {
-
         private final Kind kind;
 
         /**
@@ -442,8 +446,8 @@ public final class ColumnsExpression
         }
 
         /**
-         * Returns the expression type.
-         * @return the expression type.
+         * Returns the expression kind.
+         * @return the expression kind.
          */
         public Kind kind()
         {
@@ -509,7 +513,12 @@ public final class ColumnsExpression
             return new Raw(kind, newIdentifiers, rawMapKey);
         }
 
-
+        /**
+         * Bind this {@code Raw} instance to the schema and return the resulting {@code ColumnsExpression}.
+         *
+         * @param table the table schema
+         * @return the {@code ColumnsExpression} resulting from the schema binding
+         */
         public ColumnsExpression prepare(TableMetadata table)
         {
             List<ColumnMetadata> columns = getColumnsMetadata(table, identifiers);

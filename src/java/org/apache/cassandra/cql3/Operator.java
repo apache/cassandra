@@ -742,11 +742,11 @@ public enum Operator
     }
 
     /**
-     * The "LIKE_" operators are not real CQL operators and are simply a hack that should be removed at some point.
-     * Therefore, we want to ignore them for some operations.
+     * The "LIKE_" operators are not real CQL operators and are simply an internal hack that should be removed at some point.
+     * Therefore, we want to ignore them in the error messages returned to the users.
      * @return {@code true} for the "LIKE_" operators
      */
-    private boolean isLikeXxx()
+    private boolean isVariant()
     {
         return name().startsWith("LIKE_");
     }
@@ -759,7 +759,7 @@ public enum Operator
     public static List<Operator> operatorsRequiringFilteringOrIndexingFor(ColumnMetadata.Kind columnKind)
     {
         return Arrays.stream(values())
-                     .filter(o -> o.isSupportedByReadPath() && !o.isLikeXxx() && o.requiresFilteringOrIndexingFor(columnKind))
+                     .filter(o -> o.isSupportedByReadPath() && !o.isVariant() && o.requiresFilteringOrIndexingFor(columnKind))
                      .collect(Collectors.toList());
     }
 }

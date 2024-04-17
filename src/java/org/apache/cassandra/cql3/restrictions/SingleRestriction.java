@@ -31,25 +31,25 @@ public interface SingleRestriction extends Restriction
 {
     /**
      * Checks if the restriction applies to the column level.
-     * @return {@code true} if the applies to the column level, {@code false} otherwise.
+     * @return {@code true} if this restriction applies to the column level, {@code false} otherwise.
      */
     boolean isColumnLevel();
 
     /**
-     * Checks if this restriction use an {@code EQ} operator.
-     * @return {@code true} if this restriction use an {@code EQ} operator, {@code false} otherwise.
+     * Checks if this restriction uses an {@code EQ} operator.
+     * @return {@code true} if this restriction uses an {@code EQ} operator, {@code false} otherwise.
      */
     boolean isEQ();
 
     /**
-     * Checks if this restriction use an {@code IN} operator.
-     * @return {@code true} if this restriction use an {@code IN} operator, {@code false} otherwise.
+     * Checks if this restriction uses an {@code IN} operator.
+     * @return {@code true} if this restriction uses an {@code IN} operator, {@code false} otherwise.
      */
     boolean isIN();
 
     /**
-     * Checks if this restriction use an {@code ANN} operator.
-     * @return {@code true} if this restriction use an {@code ANN} operator, {@code false} otherwise.
+     * Checks if this restriction uses an {@code ANN} operator.
+     * @return {@code true} if this restriction uses an {@code ANN} operator, {@code false} otherwise.
      */
     boolean isANN();
 
@@ -59,6 +59,10 @@ public interface SingleRestriction extends Restriction
      */
     boolean isSlice();
 
+    /**
+     * Checks if this restriction is a multi-column restriction.
+     * @return {@code true} if this restriction is a multi-column restriction, {@code false} otherwise.
+     */
     boolean isMultiColumn();
 
     /**
@@ -86,10 +90,10 @@ public interface SingleRestriction extends Restriction
     }
 
     /**
-     * Returns the values selected by this restriction if the operator is an {@code EQ} or an {@code IN}.
+     * Returns the values selected by this restriction (or by the intersection of merged restrictions) if the operator is an {@code EQ} or an {@code IN}.
      *
      * @param options the query options
-     * @return the values selected by this restriction if the operator is an {@code EQ} or an {@code IN}.
+     * @return the values selected by this restriction (or by the intersection of merged restrictions) if the operator is an {@code EQ} or an {@code IN}.
      * @throws UnsupportedOperationException if the operator is not an {@code EQ} or an {@code IN}.
      */
     List<ClusteringElements> values(QueryOptions options);

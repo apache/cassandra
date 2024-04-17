@@ -31,7 +31,7 @@ import org.apache.cassandra.cql3.restrictions.ClusteringElements;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
 /**
- * Builder that allow to build multiple Clusterings/Slices at the same time.
+ * Builder that allows to build multiple Clusterings/Slices at the same time.
  */
 public final class MultiCBuilder
 {
@@ -245,7 +245,7 @@ public final class MultiCBuilder
             throw new IllegalStateException("This builder cannot be updated anymore");
 
         if (clusteringsRanges != null)
-            throw new IllegalStateException("Cannot extend clusterings that contains ranges");
+            throw new IllegalStateException("Cannot extend clusterings that contain ranges");
 
        if (hasMissingElements)
            throw new IllegalStateException("Cannot extend clusterings with missing elements");

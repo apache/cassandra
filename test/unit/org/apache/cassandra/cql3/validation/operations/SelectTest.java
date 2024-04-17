@@ -43,7 +43,6 @@ import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
  */
 public class SelectTest extends CQLTester
 {
-
     @Test
     public void testSingleClustering() throws Throwable
     {
@@ -2301,7 +2300,7 @@ public class SelectTest extends CQLTester
         execute("INSERT INTO %s (a, b, c, d, s) VALUES (31, 32, 33, 34, 35)");
         execute("INSERT INTO %s (a, b, c, d, s) VALUES (11, 42, 43, 44, 45)");
 
-//        beforeAndAfterFlush(() -> {
+        beforeAndAfterFlush(() -> {
 
             assertRows(executeFilteringOnly("SELECT a, b, c, d, s FROM %s WHERE s = 29"),
                        row(21, 22, 23, 24, 29),
@@ -2326,7 +2325,7 @@ public class SelectTest extends CQLTester
                        row(21, 22, 23, 24, 29),
                        row(21, 26, 27, 28, 29),
                        row(31, 32, 33, 34, 35));
-//        });
+        });
     }
 
     @Test
@@ -2488,7 +2487,7 @@ public class SelectTest extends CQLTester
             execute("INSERT INTO %s (pk, c1, c2, c3, v) VALUES (?, ?, ?, ?, ?)", 1, i, i, i, i);
         }
 
-//        beforeAndAfterFlush(() -> {
+        beforeAndAfterFlush(() -> {
             assertRows(execute("SELECT * FROM %s WHERE pk = 1 AND  c1 > 0 AND c1 < 5 AND c2 = 1 AND v = 3 ALLOW FILTERING;"),
                        row(1, 1, 1, 3, 3));
 
@@ -2507,7 +2506,7 @@ public class SelectTest extends CQLTester
 
             assertRows(execute("SELECT * FROM %s WHERE pk = 1 AND  c1 IN(0,1,2) AND c2 = 1 AND v = 3"),
                        row(1, 1, 1, 3, 3));
-//        });
+        });
     }
 
     @Test
