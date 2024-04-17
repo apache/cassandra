@@ -47,6 +47,7 @@ import org.apache.cassandra.io.sstable.SSTableFlushObserver;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.ClientState;
 
 /**
  * The collection of all Index instances for a base table.
@@ -98,7 +99,7 @@ public interface IndexRegistry
         }
 
         @Override
-        public void validate(PartitionUpdate update)
+        public void validate(PartitionUpdate update, ClientState state)
         {
         }
     };
@@ -113,21 +114,25 @@ public interface IndexRegistry
     {
         final Index index = new Index()
         {
+            @Override
             public Callable<?> getInitializationTask()
             {
                 return null;
             }
 
+            @Override
             public IndexMetadata getIndexMetadata()
             {
                 return null;
             }
 
+            @Override
             public Callable<?> getMetadataReloadTask(IndexMetadata indexMetadata)
             {
                 return null;
             }
 
+            @Override
             public void register(IndexRegistry registry)
             {
             }
@@ -137,60 +142,72 @@ public interface IndexRegistry
             {
             }
 
+            @Override
             public Optional<ColumnFamilyStore> getBackingTable()
             {
                 return Optional.empty();
             }
 
+            @Override
             public Callable<?> getBlockingFlushTask()
             {
                 return null;
             }
 
+            @Override
             public Callable<?> getInvalidateTask()
             {
                 return null;
             }
 
+            @Override
             public Callable<?> getTruncateTask(long truncatedAt)
             {
                 return null;
             }
 
+            @Override
             public boolean shouldBuildBlocking()
             {
                 return false;
             }
 
+            @Override
             public boolean dependsOn(ColumnMetadata column)
             {
                 return false;
             }
 
+            @Override
             public boolean supportsExpression(ColumnMetadata column, Operator operator)
             {
                 return true;
             }
 
+            @Override
             public AbstractType<?> customExpressionValueType()
             {
                 return BytesType.instance;
             }
 
+            @Override
             public RowFilter getPostIndexQueryFilter(RowFilter filter)
             {
                 return null;
             }
 
+            @Override
             public long getEstimatedResultRows()
             {
                 return 0;
             }
 
-            public void validate(PartitionUpdate update) throws InvalidRequestException
+            @Override
+            public void validate(PartitionUpdate update, ClientState state) throws InvalidRequestException
             {
             }
 
+            @Override
             public Indexer indexerFor(DecoratedKey key, RegularAndStaticColumns columns, long nowInSec, WriteContext ctx, IndexTransaction.Type transactionType, Memtable memtable)
             {
                 return null;
@@ -208,16 +225,6 @@ public interface IndexRegistry
             public Set<Index> getIndexes()
             {
                 return Collections.singleton(index);
-            }
-
-            @Override
-            public void addIndex(Index index)
-            {
-            }
-
-            @Override
-            public void removeIndex(Index index)
-            {
             }
 
             @Override
@@ -254,6 +261,7 @@ public interface IndexRegistry
             }
         };
 
+        @Override
         public void registerIndex(Index index, Index.Group.Key groupKey, Supplier<Index.Group> groupSupplier)
         {
         }
@@ -263,11 +271,13 @@ public interface IndexRegistry
         {
         }
 
+        @Override
         public Index getIndex(IndexMetadata indexMetadata)
         {
             return index;
         }
 
+        @Override
         public Collection<Index> listIndexes()
         {
             return Collections.singletonList(index);
@@ -279,12 +289,14 @@ public interface IndexRegistry
             return Collections.singletonList(group);
         }
 
+        @Override
         public Optional<Index> getBestIndexFor(RowFilter.Expression expression)
         {
             return Optional.empty();
         }
 
-        public void validate(PartitionUpdate update)
+        @Override
+        public void validate(PartitionUpdate update, ClientState state)
         {
         }
     };
@@ -313,8 +325,9 @@ public interface IndexRegistry
      * implementations
      *
      * @param update PartitionUpdate containing the values to be validated by registered Index implementations
+     * @param state state related to the client connection
      */
-    void validate(PartitionUpdate update);
+    void validate(PartitionUpdate update, ClientState state);
 
     /**
      * Returns the {@code IndexRegistry} associated to the specified table.

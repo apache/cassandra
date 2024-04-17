@@ -472,6 +472,60 @@ public interface GuardrailsConfig
     void setSaiSSTableIndexesPerQueryThreshold(int warn, int fail);
 
     /**
+     * @return the warning threshold for the size of string terms written to an SAI index
+     */
+    DataStorageSpec.LongBytesBound getSaiStringTermSizeWarnThreshold();
+
+    /**
+     * @return the failure threshold for the size of string terms written to an SAI index
+     */
+    DataStorageSpec.LongBytesBound getSaiStringTermSizeFailThreshold();
+
+    /**
+     * Sets warning and failure thresholds for the size of string terms written to an SAI index
+     *
+     * @param warn value to set for warn threshold
+     * @param fail value to set for fail threshold
+     */
+    void setSaiStringTermSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail);
+
+    /**
+     * @return the warning threshold for the size of frozen terms written to an SAI index
+     */
+    DataStorageSpec.LongBytesBound getSaiFrozenTermSizeWarnThreshold();
+
+    /**
+     * @return the failure threshold for the size of frozen terms written to an SAI index
+     */
+    DataStorageSpec.LongBytesBound getSaiFrozenTermSizeFailThreshold();
+
+    /**
+     * Sets warning and failure thresholds for the size of frozen terms written to an SAI index
+     *
+     * @param warn value to set for warn threshold
+     * @param fail value to set for fail threshold
+     */
+    void setSaiFrozenTermSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail);
+
+    /**
+     * @return the warning threshold for the size of vector terms written to an SAI index
+     */
+    DataStorageSpec.LongBytesBound getSaiVectorTermSizeWarnThreshold();
+
+    /**
+     * @return the failure threshold for the size of vector terms written to an SAI index
+     */
+    DataStorageSpec.LongBytesBound getSaiVectorTermSizeFailThreshold();
+
+    /**
+     * Sets warning and failure thresholds for the size of vector terms written to an SAI index
+     *
+     * @param warn value to set for warn threshold
+     * @param fail value to set for fail threshold
+     */
+    void setSaiVectorTermSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail);
+
+    /**
      * Returns whether it is possible to execute a query against secondary indexes without specifying
      * any partition key restrictions.
      *

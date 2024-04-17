@@ -42,8 +42,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
-import org.apache.cassandra.utils.concurrent.Future;
-import org.apache.cassandra.utils.concurrent.FutureCombiner;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,6 +63,9 @@ import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.WriteContext;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.guardrails.GuardrailViolatedException;
+import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.db.guardrails.MaxThreshold;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.FloatType;
@@ -102,17 +104,17 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_MAX_FROZEN_TERM_SIZE;
-import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_MAX_STRING_TERM_SIZE;
-import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_MAX_VECTOR_TERM_SIZE;
 import static org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig.MAX_TOP_K;
 
 public class StorageAttachedIndex implements Index
@@ -142,11 +144,7 @@ public class StorageAttachedIndex implements Index
 
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
 
-    public static final long MAX_STRING_TERM_SIZE = SAI_MAX_STRING_TERM_SIZE.getSizeInBytes();
-    public static final long MAX_FROZEN_TERM_SIZE = SAI_MAX_FROZEN_TERM_SIZE.getSizeInBytes();
-    public static final long MAX_VECTOR_TERM_SIZE = SAI_MAX_VECTOR_TERM_SIZE.getSizeInBytes();
-    public static final String TERM_OVERSIZE_MESSAGE = "Can't add term of column %s to index for key: %s, term size %s " +
-                                                       "max allowed size %s, use analyzed = true (if not yet set) for that column.";
+    public static final String TERM_OVERSIZE_MESSAGE = "Term in column '%s' for key '%s' is too large and cannot be indexed. (term size: %s)";
 
     // Used to build indexes on newly added SSTables:
     private static final StorageAttachedIndexBuildingSupport INDEX_BUILDER_SUPPORT = new StorageAttachedIndexBuildingSupport();
@@ -182,7 +180,7 @@ public class StorageAttachedIndex implements Index
     private final PrimaryKey.Factory primaryKeyFactory;
     private final MemtableIndexManager memtableIndexManager;
     private final IndexMetrics indexMetrics;
-    private final long maxTermSize;
+    private final MaxThreshold maxTermSizeGuardrail;
 
     // Tracks whether we've started the index build on initialization.
     private volatile boolean initBuildStarted = false;
@@ -206,8 +204,10 @@ public class StorageAttachedIndex implements Index
         analyzerFactory = AbstractAnalyzer.fromOptions(indexTermType, indexMetadata.options);
         memtableIndexManager = new MemtableIndexManager(this);
         indexMetrics = new IndexMetrics(this, memtableIndexManager);
-        maxTermSize = indexTermType.isVector() ? MAX_VECTOR_TERM_SIZE
-                                               : (indexTermType.isFrozen() ? MAX_FROZEN_TERM_SIZE : MAX_STRING_TERM_SIZE);
+        maxTermSizeGuardrail = indexTermType.isVector()
+                               ? Guardrails.saiVectorTermSize
+                               : (indexTermType.isFrozen() ? Guardrails.saiFrozenTermSize
+                                                           : Guardrails.saiStringTermSize);
     }
 
     /**
@@ -497,11 +497,15 @@ public class StorageAttachedIndex implements Index
     }
 
     @Override
-    public void validate(PartitionUpdate update) throws InvalidRequestException
+    public void validate(PartitionUpdate update, ClientState state) throws InvalidRequestException
     {
         DecoratedKey key = update.partitionKey();
-        for (Row row : update)
-            validateMaxTermSizeForRow(key, row, true);
+
+        if (indexTermType.columnMetadata().isStatic())
+            validateTermSizeForRow(key, update.staticRow(), true, state);
+        else
+            for (Row row : update)
+                validateTermSizeForRow(key, row, true, state);
     }
 
     @Override
@@ -730,60 +734,62 @@ public class StorageAttachedIndex implements Index
     /**
      * Validate maximum term size for given row
      */
-    public void validateMaxTermSizeForRow(DecoratedKey key, Row row, boolean sendClientWarning)
+    public void validateTermSizeForRow(DecoratedKey key, Row row, boolean isClientMutation, ClientState state)
     {
         AbstractAnalyzer analyzer = hasAnalyzer() ? analyzer() : null;
         if (indexTermType.isNonFrozenCollection())
         {
             Iterator<ByteBuffer> bufferIterator = indexTermType.valuesOf(row, FBUtilities.nowInSeconds());
             while (bufferIterator != null && bufferIterator.hasNext())
-                validateMaxTermSizeForCell(analyzer, key, bufferIterator.next(), sendClientWarning);
+                validateTermSizeForCell(analyzer, key, bufferIterator.next(), isClientMutation, state);
         }
         else
         {
             ByteBuffer value = indexTermType.valueOf(key, row, FBUtilities.nowInSeconds());
-            validateMaxTermSizeForCell(analyzer, key, value, sendClientWarning);
+            validateTermSizeForCell(analyzer, key, value, isClientMutation, state);
         }
     }
 
-    private void validateMaxTermSizeForCell(AbstractAnalyzer analyzer, DecoratedKey key, @Nullable ByteBuffer cellBuffer, boolean sendClientWarning)
+    private void validateTermSizeForCell(AbstractAnalyzer analyzer, DecoratedKey key, @Nullable ByteBuffer cellBuffer, boolean isClientMutation, ClientState state)
     {
         if (cellBuffer == null || cellBuffer.remaining() == 0)
             return;
 
         // analyzer should not return terms that are larger than the origin value.
-        if (cellBuffer.remaining() <= maxTermSize)
+        if (!maxTermSizeGuardrail.warnsOn(cellBuffer.remaining(), null))
             return;
 
         if (analyzer != null)
         {
             analyzer.reset(cellBuffer.duplicate());
             while (analyzer.hasNext())
-                validateMaxTermSize(key, analyzer.next(), sendClientWarning);
+                validateTermSize(key, analyzer.next(), isClientMutation, state);
         }
         else
         {
-            validateMaxTermSize(key, cellBuffer.duplicate(), sendClientWarning);
+            validateTermSize(key, cellBuffer.duplicate(), isClientMutation, state);
         }
     }
 
     /**
-     * Validate maximum term size for given term
-     * @return true if given term is valid; otherwise false.
+     * @return true if the size of the given term is below the maximum term size, false otherwise
+     * 
+     * @throws GuardrailViolatedException if a client mutation contains a term that breaches the failure threshold
      */
-    public boolean validateMaxTermSize(DecoratedKey key, ByteBuffer term, boolean sendClientWarning)
+    public boolean validateTermSize(DecoratedKey key, ByteBuffer term, boolean isClientMutation, ClientState state)
     {
-        if (term.remaining() > maxTermSize)
+        if (isClientMutation)
+        {
+            maxTermSizeGuardrail.guard(term.remaining(), indexTermType.columnName(), false, state);
+            return true;
+        }
+
+        if (maxTermSizeGuardrail.failsOn(term.remaining(), state))
         {
             String message = indexIdentifier.logMessage(String.format(TERM_OVERSIZE_MESSAGE,
-                                                        indexTermType.columnName(),
-                                                        key,
-                                                        FBUtilities.prettyPrintMemory(term.remaining()),
-                                                        FBUtilities.prettyPrintMemory(maxTermSize)));
-
-            if (sendClientWarning)
-                ClientWarn.instance.warn(message);
-
+                                                                      indexTermType.columnName(),
+                                                                      key,
+                                                                      FBUtilities.prettyPrintMemory(term.remaining())));
             noSpamLogger.warn(message);
             return false;
         }
@@ -869,6 +875,7 @@ public class StorageAttachedIndex implements Index
         return FutureCombiner.allOf(futures);
     }
 
+    @SuppressWarnings("SameReturnValue")
     private Future<?> startPreJoinTask()
     {
         try

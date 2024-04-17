@@ -243,7 +243,7 @@ public class CQL3CasRequest implements CASRequest
             upd.applyUpdates(current, updateBuilder, clientState);
 
         PartitionUpdate partitionUpdate = updateBuilder.build();
-        IndexRegistry.obtain(metadata).validate(partitionUpdate);
+        IndexRegistry.obtain(metadata).validate(partitionUpdate, clientState);
 
         return partitionUpdate;
     }

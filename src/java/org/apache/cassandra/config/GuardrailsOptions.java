@@ -975,6 +975,90 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getSaiStringTermSizeWarnThreshold()
+    {
+        return config.sai_string_term_size_warn_threshold;
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getSaiStringTermSizeFailThreshold()
+    {
+        return config.sai_string_term_size_fail_threshold;
+    }
+
+    @Override
+    public void setSaiStringTermSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
+    {
+        validateSizeThreshold(warn, fail, false, "sai_string_term_size");
+        updatePropertyWithLogging("sai_string_term_size_warn_threshold",
+                                  warn,
+                                  () -> config.sai_string_term_size_warn_threshold,
+                                  x -> config.sai_string_term_size_warn_threshold = x);
+        updatePropertyWithLogging("sai_string_term_size_fail_threshold",
+                                  fail,
+                                  () -> config.sai_string_term_size_fail_threshold,
+                                  x -> config.sai_string_term_size_fail_threshold = x);
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getSaiFrozenTermSizeWarnThreshold()
+    {
+        return config.sai_frozen_term_size_warn_threshold;
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getSaiFrozenTermSizeFailThreshold()
+    {
+        return config.sai_frozen_term_size_fail_threshold;
+    }
+
+    @Override
+    public void setSaiFrozenTermSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
+    {
+        validateSizeThreshold(warn, fail, false, "sai_frozen_term_size");
+        updatePropertyWithLogging("sai_frozen_term_size_warn_threshold",
+                                  warn,
+                                  () -> config.sai_frozen_term_size_warn_threshold,
+                                  x -> config.sai_frozen_term_size_warn_threshold = x);
+        updatePropertyWithLogging("sai_frozen_term_size_fail_threshold",
+                                  fail,
+                                  () -> config.sai_frozen_term_size_fail_threshold,
+                                  x -> config.sai_frozen_term_size_fail_threshold = x);
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getSaiVectorTermSizeWarnThreshold()
+    {
+        return config.sai_vector_term_size_warn_threshold;
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getSaiVectorTermSizeFailThreshold()
+    {
+        return config.sai_vector_term_size_fail_threshold;
+    }
+
+    @Override
+    public void setSaiVectorTermSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
+    {
+        validateSizeThreshold(warn, fail, false, "sai_vector_term_size");
+        updatePropertyWithLogging("sai_vector_term_size_warn_threshold",
+                                  warn,
+                                  () -> config.sai_vector_term_size_warn_threshold,
+                                  x -> config.sai_vector_term_size_warn_threshold = x);
+        updatePropertyWithLogging("sai_vector_term_size_fail_threshold",
+                                  fail,
+                                  () -> config.sai_vector_term_size_fail_threshold,
+                                  x -> config.sai_vector_term_size_fail_threshold = x);
+    }
+
+    @Override
     public boolean getNonPartitionRestrictedQueryEnabled()
     {
         return config.non_partition_restricted_index_query_enabled;
