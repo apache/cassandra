@@ -320,7 +320,7 @@ public class BatchStatement implements CQLStatement
             ClientWarn.instance.warn(MessageFormatter.arrayFormat(LOGGED_BATCH_LOW_GCGS_WARNING, new Object[] { suffix, tablesWithZeroGcGs })
                                                      .getMessage());
         }
-        return collector.toMutations();
+        return collector.toMutations(state);
     }
 
     /**
