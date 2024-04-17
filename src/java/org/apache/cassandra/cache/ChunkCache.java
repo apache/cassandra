@@ -258,7 +258,7 @@ public class ChunkCache implements CacheLoader<ChunkCache.Key, ChunkCache.Buffer
         }
 
         @Override
-        public Rebufferer instantiateRebufferer()
+        public Rebufferer instantiateRebufferer(boolean isScan)
         {
             return this;
         }
