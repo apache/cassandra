@@ -39,6 +39,7 @@ Merged from 4.1:
  * Memoize Cassandra verion and add a backoff interval for failed schema pulls (CASSANDRA-18902)
  * Fix StackOverflowError on ALTER after many previous schema changes (CASSANDRA-19166)
 Merged from 4.0:
+ * Fix few types issues and implement types compatibility tests (CASSANDRA-19479)
  * Change logging to TRACE when failing to get peer certificate (CASSANDRA-19508)
  * Push LocalSessions info logs to debug (CASSANDRA-18335)
  * Filter remote DC replicas out when constructing the initial replica plan for the local read repair (CASSANDRA-19120)

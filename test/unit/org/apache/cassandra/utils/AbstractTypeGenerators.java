@@ -20,9 +20,11 @@ package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -30,25 +32,27 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-
 import org.apache.commons.lang3.ArrayUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.db.marshal.AbstractCompositeType;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BooleanType;
@@ -84,10 +88,12 @@ import org.apache.cassandra.db.marshal.TimeType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.TupleType;
+import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.marshal.VectorType;
+import org.apache.cassandra.serializers.MarshalException;
 import org.quicktheories.core.Gen;
 import org.quicktheories.core.RandomnessSource;
 import org.quicktheories.generators.SourceDSL;
@@ -99,6 +105,8 @@ import static org.apache.cassandra.utils.Generators.filter;
 @SuppressWarnings({"unchecked", "rawtypes"})
 public final class AbstractTypeGenerators
 {
+    private final static Logger logger = LoggerFactory.getLogger(AbstractTypeGenerators.class);
+
     private static final Gen<Integer> VERY_SMALL_POSITIVE_SIZE_GEN = SourceDSL.integers().between(1, 3);
     private static final Gen<Boolean> BOOLEAN_GEN = SourceDSL.booleans().all();
 
@@ -198,6 +206,21 @@ public final class AbstractTypeGenerators
         types.addAll(NON_PRIMITIVE_TYPES);
         types.addAll(UNSUPPORTED.keySet());
         return types;
+    }
+
+    public static Collection<AbstractType<?>> primitiveTypes()
+    {
+        return PRIMITIVE_TYPE_DATA_GENS.keySet();
+    }
+
+    public static Stream<Pair<AbstractType<?>, AbstractType<?>>> primitiveTypePairs()
+    {
+        return primitiveTypePairs(a -> true);
+    }
+
+    public static Stream<Pair<AbstractType<?>, AbstractType<?>>> primitiveTypePairs(Predicate<AbstractType<?>> filter)
+    {
+        return primitiveTypes().stream().filter(filter).flatMap(a -> primitiveTypes().stream().filter(filter).map(b -> Pair.create(a, b)));
     }
 
     public static Gen<AbstractType<?>> primitiveTypeGen()
@@ -1320,4 +1343,205 @@ public final class AbstractTypeGenerators
                    '}';
         }
     }
+
+    public static boolean allowsEmpty(AbstractType type)
+    {
+        try
+        {
+            type.validate(ByteBufferUtil.EMPTY_BYTE_BUFFER);
+            return true;
+        }
+        catch (MarshalException e)
+        {
+            return false;
+        }
+    }
+
+    public static AbstractType unwrap(AbstractType type)
+    {
+        if (type instanceof ReversedType)
+            return ((ReversedType) type).baseType;
+        return type;
+    }
+
+    public static AbstractType unfreeze(AbstractType t)
+    {
+        if (t.isMultiCell())
+            return t;
+
+        AbstractType<?> unfrozen = TypeParser.parse(t.toString(true));
+        if (unfrozen.isMultiCell())
+            return unfrozen;
+
+        return t;
+    }
+
+    public static void forEachTypesPair(boolean withVariants, BiConsumer<AbstractType, AbstractType> typesPairConsumer)
+    {
+        forEachPrimitiveTypePair(typesPairConsumer);
+        forEachMapTypesPair(withVariants, typesPairConsumer);
+        forEachSetTypesPair(withVariants, typesPairConsumer);
+        forEachListTypesPair(withVariants, typesPairConsumer);
+        forEachUserTypesPair(withVariants, typesPairConsumer);
+        forEachCompositeTypesPair(withVariants, typesPairConsumer);
+        forEachVectorTypesPair(withVariants, typesPairConsumer);
+    }
+
+    public static void forEachPrimitiveTypePair(BiConsumer<AbstractType, AbstractType> typePairConsumer)
+    {
+        logger.info("Iterating over primitive types pairs...");
+        primitiveTypePairs().forEach(p -> typePairConsumer.accept(p.left, p.right));
+    }
+
+    private static <T extends AbstractType<?>> Set<T> frozenAndUnfrozen(T... types)
+    {
+        return Stream.of(types).flatMap(t -> Stream.of((T) t.freeze(), (T) unfreeze(t))).collect(Collectors3.toImmutableSet());
+    }
+
+    private static UserType withAddedField(UserType type, String fieldName, AbstractType<?> fieldType)
+    {
+        ArrayList<FieldIdentifier> fieldNames = new ArrayList<>(type.fieldNames());
+        fieldNames.add(FieldIdentifier.forUnquoted(fieldName));
+        List<AbstractType<?>> fieldTypes = new ArrayList<>(type.fieldTypes());
+        fieldTypes.add(fieldType);
+        return new UserType(type.keyspace, type.name, fieldNames, fieldTypes, true);
+    }
+
+    private static Set<TupleType> tupleTypeVariants(UserType type)
+    {
+        UserType extType = withAddedField(type, "extra", EmptyType.instance);
+        return frozenAndUnfrozen(type,
+                                 new TupleType(type.subTypes(), false),
+                                 extType,
+                                 new TupleType(extType.subTypes(), false));
+    }
+
+    private static void forEachUserTypeVariantPair(UserType leftType, UserType rightType, BiConsumer<? super TupleType, ? super TupleType> typePairConsumer)
+    {
+        forEachTypesPair(tupleTypeVariants(leftType), tupleTypeVariants(rightType), typePairConsumer);
+    }
+
+    private static DynamicCompositeType withAddedField(DynamicCompositeType type, AbstractType<?> fieldType)
+    {
+        Map<Byte, AbstractType<?>> aliases = new HashMap<>(type.aliases);
+        aliases.put((byte) ('a' + type.aliases.size()), fieldType);
+        return DynamicCompositeType.getInstance(aliases);
+    }
+
+    private static Set<AbstractCompositeType> compositeTypeVariants(DynamicCompositeType type)
+    {
+        DynamicCompositeType extType = withAddedField(type, EmptyType.instance);
+        return frozenAndUnfrozen(type,
+                                 CompositeType.getInstance(new TreeMap<>(type.aliases).values()),
+                                 extType,
+                                 CompositeType.getInstance(new TreeMap<>(extType.aliases).values()));
+    }
+
+    private static void forEachCompositeTypeVariantsPair(DynamicCompositeType leftType, DynamicCompositeType rightType, BiConsumer<? super AbstractCompositeType, ? super AbstractCompositeType> typePairConsumer)
+    {
+        forEachTypesPair(compositeTypeVariants(leftType), compositeTypeVariants(rightType), typePairConsumer);
+    }
+
+    public static void forEachVectorTypesPair(boolean withVariants, BiConsumer<? super VectorType, ? super VectorType> typePairConsumer)
+    {
+        logger.info("Iterating over vector types pairs...");
+        primitiveTypePairs().forEach(keyPair -> {
+            VectorType<?> leftVector = VectorType.getInstance(keyPair.left, 1);
+            VectorType<?> rightVector = VectorType.getInstance(keyPair.right, 1);
+            if (withVariants)
+                forEachTypesPair(frozenAndUnfrozen(leftVector, VectorType.getInstance(keyPair.left, 2)), frozenAndUnfrozen(rightVector, VectorType.getInstance(keyPair.right, 2)), typePairConsumer);
+            else
+                typePairConsumer.accept(leftVector, rightVector);
+        });
+    }
+
+    public static void forEachMapTypesPair(boolean withVariants, BiConsumer<? super MapType, ? super MapType> typePairConsumer)
+    {
+        logger.info("Iterating over map types pairs...");
+        primitiveTypePairs(t -> t.getClass() != EmptyType.class).forEach(keyPair -> { // key cannot be empty
+            primitiveTypePairs().forEach(valuePair -> {
+                MapType<?, ?> leftMap = MapType.getInstance(keyPair.left, valuePair.left, true);
+                MapType<?, ?> rightMap = MapType.getInstance(keyPair.right, valuePair.right, true);
+                if (withVariants)
+                    forEachCollectionTypeVariantsPair(leftMap, rightMap, typePairConsumer);
+                else
+                    typePairConsumer.accept(leftMap, rightMap);
+            });
+        });
+    }
+
+    public static void forEachSetTypesPair(boolean withVariants, BiConsumer<? super SetType, ? super SetType> typePairConsumer)
+    {
+        logger.info("Iterating over set types pairs...");
+        primitiveTypePairs().forEach(keyPair -> {
+            SetType<?> leftSet = SetType.getInstance(keyPair.left, true);
+            SetType<?> rightSet = SetType.getInstance(keyPair.right, true);
+            if (withVariants)
+                forEachCollectionTypeVariantsPair(leftSet, rightSet, typePairConsumer);
+            else
+                typePairConsumer.accept(leftSet, rightSet);
+        });
+    }
+
+    public static void forEachListTypesPair(boolean withVariants, BiConsumer<? super ListType, ? super ListType> typePairConsumer)
+    {
+        logger.info("Iterating over list types pairs...");
+        primitiveTypePairs().forEach(valuePair -> {
+            ListType<?> leftList = ListType.getInstance(valuePair.left, true);
+            ListType<?> rightList = ListType.getInstance(valuePair.right, true);
+            if (withVariants)
+                forEachCollectionTypeVariantsPair(leftList, rightList, typePairConsumer);
+            else
+                typePairConsumer.accept(leftList, rightList);
+        });
+    }
+
+    public static void forEachUserTypesPair(boolean withVariants, BiConsumer<? super TupleType, ? super TupleType> typePairConsumer)
+    {
+        logger.info("Iterating over user types pairs...");
+
+        String ks = "ks";
+        ByteBuffer t = ByteBufferUtil.bytes("t");
+        List<FieldIdentifier> names = Stream.of("a", "b").map(FieldIdentifier::forUnquoted).collect(Collectors.toUnmodifiableList());
+
+        primitiveTypePairs().forEach(elem1Pair -> {
+            primitiveTypePairs().forEach(elem2Pair -> {
+                UserType leftType = new UserType(ks, t, names, List.of(elem1Pair.left, elem2Pair.left), true);
+                UserType rightType = new UserType(ks, t, names, List.of(elem1Pair.right, elem2Pair.right), true);
+                if (withVariants)
+                    forEachUserTypeVariantPair(leftType, rightType, typePairConsumer);
+                else
+                    typePairConsumer.accept(leftType, rightType);
+            });
+        });
+    }
+
+    public static void forEachCompositeTypesPair(boolean withVariants, BiConsumer<? super AbstractCompositeType, ? super AbstractCompositeType> typePairConsumer)
+    {
+        logger.info("Iterating over composite types pairs...");
+        primitiveTypePairs().forEach(elem1Pair -> {
+            primitiveTypePairs().forEach(elem2Pair -> {
+                DynamicCompositeType leftType = DynamicCompositeType.getInstance(Map.of((byte) 'a', elem1Pair.left, (byte) 'b', elem2Pair.left));
+                DynamicCompositeType rightType = DynamicCompositeType.getInstance(Map.of((byte) 'a', elem1Pair.right, (byte) 'b', elem2Pair.right));
+                if (withVariants)
+                    forEachCompositeTypeVariantsPair(leftType, rightType, typePairConsumer);
+                else
+                    typePairConsumer.accept(leftType, rightType);
+            });
+        });
+    }
+
+    private static <T extends AbstractType> void forEachTypesPair(Collection<? extends T> leftVariants, Collection<? extends T> rightVariants, BiConsumer<? super T, ? super T> typePairConsumer)
+    {
+        for (T left : leftVariants)
+            for (T right : rightVariants)
+                typePairConsumer.accept(left, right);
+    }
+
+
+    private static <T extends AbstractType> void forEachCollectionTypeVariantsPair(T l, T r, BiConsumer<? super T, ? super T> typePairConsumer)
+    {
+        forEachTypesPair(frozenAndUnfrozen(l), frozenAndUnfrozen(r), typePairConsumer);
+    }
+
 }
