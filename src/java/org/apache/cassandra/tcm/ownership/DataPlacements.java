@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
@@ -122,7 +123,7 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
     @Override
     public DataPlacements withLastModified(Epoch epoch)
     {
-        return new DataPlacements(epoch, asMap());
+        return new DataPlacements(epoch, capLastModified(epoch, map));
     }
 
     @Override
@@ -253,6 +254,13 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
             size += Epoch.serializer.serializedSize(t.lastModified, version);
             return size;
         }
+    }
+
+    public static ImmutableMap<ReplicationParams, DataPlacement> capLastModified(Epoch lastModified, Map<ReplicationParams, DataPlacement> placements)
+    {
+        ImmutableMap.Builder<ReplicationParams, DataPlacement> builder = ImmutableMap.builder();
+        placements.forEach((params, placement) -> builder.put(params, placement.withCappedLastModified(lastModified)));
+        return builder.build();
     }
 
     public void dumpDiff(DataPlacements other)
