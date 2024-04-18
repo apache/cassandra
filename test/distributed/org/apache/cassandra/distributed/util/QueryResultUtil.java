@@ -26,6 +26,7 @@ import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.assertj.core.api.Assertions;
+import org.assertj.core.data.Index;
 
 public class QueryResultUtil
 {
@@ -161,20 +162,20 @@ public class QueryResultUtil
         public SimpleQueryResultAssertHelper isEqualTo(Object... values)
         {
             Assertions.assertThat(qr.toObjectArrays())
-                      .hasSize(1)
-                      .contains(values);
+                      .hasNumberOfRows(1)
+                      .contains(values, Index.atIndex(0));
             return this;
         }
 
         public SimpleQueryResultAssertHelper hasSize(int size)
         {
-            Assertions.assertThat(qr.toObjectArrays()).hasSize(size);
+            Assertions.assertThat((Object[]) qr.toObjectArrays()).hasSize(size);
             return this;
         }
 
         public SimpleQueryResultAssertHelper hasSizeGreaterThan(int size)
         {
-            Assertions.assertThat(qr.toObjectArrays()).hasSizeGreaterThan(size);
+            Assertions.assertThat((Object[]) qr.toObjectArrays()).hasSizeGreaterThan(size);
             return this;
         }
 
