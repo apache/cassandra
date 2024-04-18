@@ -24,6 +24,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.regex.Pattern;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.collect.Lists;
 
@@ -65,7 +66,8 @@ public class TupleType extends AbstractType<ByteBuffer>
         this(types, true);
     }
 
-    protected TupleType(List<AbstractType<?>> types, boolean freezeInner)
+    @VisibleForTesting
+    public TupleType(List<AbstractType<?>> types, boolean freezeInner)
     {
         super(ComparisonType.CUSTOM);
 
@@ -538,7 +540,7 @@ public class TupleType extends AbstractType<ByteBuffer>
     @Override
     public boolean equals(Object o)
     {
-        if(!(o instanceof TupleType))
+        if (o.getClass() != TupleType.class)
             return false;
 
         TupleType that = (TupleType)o;
