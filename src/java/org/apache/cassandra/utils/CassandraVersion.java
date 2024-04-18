@@ -303,4 +303,9 @@ public class CassandraVersion implements Comparable<CassandraVersion>
             sb.append('+').append(StringUtils.join(build, "."));
         return sb.toString();
     }
+
+    public String toMajorMinorString()
+    {
+        return String.format("%d.%d", major, minor);
+    }
 }
