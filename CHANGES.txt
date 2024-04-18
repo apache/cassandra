@@ -1,4 +1,5 @@
 5.1
+ * Correctly set last modified epoch when combining multistep operations into a single step (CASSANDRA-19538)
  * Add new TriggersPolicy configuration to allow operators to disable triggers (CASSANDRA-19532)
  * Use Transformation.Kind.id in local and distributed log tables (CASSANDRA-19516)
  * Remove period field from ClusterMetadata and metadata log tables (CASSANDRA-19482)
