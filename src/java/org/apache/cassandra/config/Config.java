@@ -992,6 +992,7 @@ public class Config
     public volatile Set<ConsistencyLevel> write_consistency_levels_disallowed = Collections.emptySet();
     public volatile boolean user_timestamps_enabled = true;
     public volatile boolean group_by_enabled = true;
+    @Replaces(oldName = "bulk_load_disabled", converter = Converters.FLIP_BOOLEAN)
     public volatile boolean bulk_load_enabled = true;
     public volatile boolean ddl_enabled = true;
     public volatile boolean dcl_enabled = true;

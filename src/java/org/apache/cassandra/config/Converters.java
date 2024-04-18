@@ -111,7 +111,13 @@ public enum Converters
      */
     MEGABITS_TO_BYTES_PER_SECOND_DATA_RATE(Integer.class, DataRateSpec.LongBytesPerSecondBound.class,
                                            i -> DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(i),
-                                           o -> o == null ? null : o.toMegabitsPerSecondAsInt());
+                                           o -> o == null ? null : o.toMegabitsPerSecondAsInt()),
+    /**
+     * This is a simple converter to flip the disable flag to enable flag, or vice versa.
+     */
+    FLIP_BOOLEAN(boolean.class, boolean.class,
+                 x -> !x, x -> !x);
+
     private final Class<?> oldType;
     private final Class<?> newType;
     private final Function<Object, Object> convert;
