@@ -45,6 +45,7 @@ import org.apache.cassandra.metrics.BatchMetrics;
 import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -53,7 +54,6 @@ import org.apache.cassandra.utils.Pair;
 import static java.util.function.Predicate.isEqual;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * A <code>BATCH</code> statement parsed from a CQL query.
@@ -272,7 +272,7 @@ public class BatchStatement implements CQLStatement
                                                   boolean local,
                                                   long batchTimestamp,
                                                   long nowInSeconds,
-                                                  long queryStartNanoTime)
+                                                  Dispatcher.RequestTime requestTime)
     {
         if (statements.isEmpty())
             return Collections.emptyList();
@@ -309,7 +309,7 @@ public class BatchStatement implements CQLStatement
             }
             QueryOptions statementOptions = options.forStatement(i);
             long timestamp = attrs.getTimestamp(batchTimestamp, statementOptions);
-            statement.addUpdates(collector, partitionKeys.get(i), state, statementOptions, local, timestamp, nowInSeconds, queryStartNanoTime);
+            statement.addUpdates(collector, partitionKeys.get(i), state, statementOptions, local, timestamp, nowInSeconds, requestTime);
         }
 
         if (tablesWithZeroGcGs != null)
@@ -397,12 +397,12 @@ public class BatchStatement implements CQLStatement
     }
 
 
-    public ResultMessage execute(QueryState queryState, QueryOptions options, long queryStartNanoTime)
+    public ResultMessage execute(QueryState queryState, QueryOptions options, Dispatcher.RequestTime requestTime)
     {
-        return execute(queryState, BatchQueryOptions.withoutPerStatementVariables(options), queryStartNanoTime);
+        return execute(queryState, BatchQueryOptions.withoutPerStatementVariables(options), requestTime);
     }
 
-    public ResultMessage execute(QueryState queryState, BatchQueryOptions options, long queryStartNanoTime)
+    public ResultMessage execute(QueryState queryState, BatchQueryOptions options, Dispatcher.RequestTime requestTime)
     {
         long timestamp = options.getTimestamp(queryState);
         long nowInSeconds = options.getNowInSeconds(queryState);
@@ -420,18 +420,18 @@ public class BatchStatement implements CQLStatement
             statements.get(i).validateDiskUsage(options.forStatement(i), clientState);
 
         if (hasConditions)
-            return executeWithConditions(options, queryState, queryStartNanoTime);
+            return executeWithConditions(options, queryState, requestTime);
 
         if (updatesVirtualTables)
-            executeInternalWithoutCondition(queryState, options, queryStartNanoTime);
+            executeInternalWithoutCondition(queryState, options, requestTime);
         else    
-            executeWithoutConditions(getMutations(clientState, options, false, timestamp, nowInSeconds, queryStartNanoTime),
-                                     options.getConsistency(), queryStartNanoTime);
+            executeWithoutConditions(getMutations(clientState, options, false, timestamp, nowInSeconds, requestTime),
+                                     options.getConsistency(), requestTime);
 
         return new ResultMessage.Void();
     }
 
-    private void executeWithoutConditions(List<? extends IMutation> mutations, ConsistencyLevel cl, long queryStartNanoTime) throws RequestExecutionException, RequestValidationException
+    private void executeWithoutConditions(List<? extends IMutation> mutations, ConsistencyLevel cl, Dispatcher.RequestTime requestTime) throws RequestExecutionException, RequestValidationException
     {
         if (mutations.isEmpty())
             return;
@@ -442,7 +442,7 @@ public class BatchStatement implements CQLStatement
         updatePartitionsPerBatchMetrics(mutations.size());
 
         boolean mutateAtomic = (isLogged() && mutations.size() > 1);
-        StorageProxy.mutateWithTriggers(mutations, cl, mutateAtomic, queryStartNanoTime);
+        StorageProxy.mutateWithTriggers(mutations, cl, mutateAtomic, requestTime);
         ClientRequestSizeMetrics.recordRowAndColumnCountMetrics(mutations);
     }
 
@@ -457,7 +457,7 @@ public class BatchStatement implements CQLStatement
         }
     }
 
-    private ResultMessage executeWithConditions(BatchQueryOptions options, QueryState state, long queryStartNanoTime)
+    private ResultMessage executeWithConditions(BatchQueryOptions options, QueryState state, Dispatcher.RequestTime requestTime)
     {
         Pair<CQL3CasRequest, Set<ColumnMetadata>> p = makeCasRequest(options, state);
         CQL3CasRequest casRequest = p.left;
@@ -474,7 +474,7 @@ public class BatchStatement implements CQLStatement
                                                    options.getConsistency(),
                                                    state.getClientState(),
                                                    options.getNowInSeconds(state),
-                                                   queryStartNanoTime))
+                                                   requestTime))
         {
             return new ResultMessage.Rows(ModificationStatement.buildCasResultSet(ksName,
                                                                                   tableName,
@@ -563,16 +563,16 @@ public class BatchStatement implements CQLStatement
         if (hasConditions)
             return executeInternalWithConditions(batchOptions, queryState);
 
-        executeInternalWithoutCondition(queryState, batchOptions, nanoTime());
+        executeInternalWithoutCondition(queryState, batchOptions, Dispatcher.RequestTime.forImmediateExecution());
         return new ResultMessage.Void();
     }
 
-    private ResultMessage executeInternalWithoutCondition(QueryState queryState, BatchQueryOptions batchOptions, long queryStartNanoTime)
+    private ResultMessage executeInternalWithoutCondition(QueryState queryState, BatchQueryOptions batchOptions, Dispatcher.RequestTime requestTime)
     {
         long timestamp = batchOptions.getTimestamp(queryState);
         long nowInSeconds = batchOptions.getNowInSeconds(queryState);
 
-        for (IMutation mutation : getMutations(queryState.getClientState(), batchOptions, true, timestamp, nowInSeconds, queryStartNanoTime))
+        for (IMutation mutation : getMutations(queryState.getClientState(), batchOptions, true, timestamp, nowInSeconds, requestTime))
             mutation.apply();
         return null;
     }

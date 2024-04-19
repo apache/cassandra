@@ -34,6 +34,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PrepareResponse;
+import org.apache.cassandra.transport.Dispatcher;
 
 public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
 {
@@ -45,9 +46,9 @@ public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
 
     private final Map<InetAddressAndPort, Commit> commitsByReplica = new ConcurrentHashMap<>();
 
-    public PrepareCallback(DecoratedKey key, TableMetadata metadata, int targets, ConsistencyLevel consistency, long queryStartNanoTime)
+    public PrepareCallback(DecoratedKey key, TableMetadata metadata, int targets, ConsistencyLevel consistency, Dispatcher.RequestTime requestTime)
     {
-        super(targets, consistency, queryStartNanoTime);
+        super(targets, consistency, requestTime);
         // need to inject the right key in the empty commit so comparing with empty commits in the response works as expected
         mostRecentCommit = Commit.emptyCommit(key, metadata);
         mostRecentInProgressCommit = Commit.emptyCommit(key, metadata);

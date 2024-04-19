@@ -19,6 +19,7 @@
 package org.apache.cassandra.transport;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Predicate;
 
@@ -59,6 +60,8 @@ public class PreV5Handlers
         private final Dispatcher dispatcher;
         private final ClientResourceLimits.Allocator endpointPayloadTracker;
 
+        private final QueueBackpressure queueBackpressure;
+
         /**
          * Current count of *request* bytes that are live on the channel.
          * <p>
@@ -69,9 +72,10 @@ public class PreV5Handlers
         /** The cause of the current connection pause, or {@link Overload#NONE} if it is unpaused. */
         private Overload backpressure = Overload.NONE;
 
-        LegacyDispatchHandler(Dispatcher dispatcher, ClientResourceLimits.Allocator endpointPayloadTracker)
+        LegacyDispatchHandler(Dispatcher dispatcher, QueueBackpressure queueBackpressure, ClientResourceLimits.Allocator endpointPayloadTracker)
         {
             this.dispatcher = dispatcher;
+            this.queueBackpressure = queueBackpressure;
             this.endpointPayloadTracker = endpointPayloadTracker;
         }
 
@@ -152,12 +156,19 @@ public class PreV5Handlers
                     discardAndThrow(request, requestSize, Overload.BYTES_IN_FLIGHT);
                 }
 
+                Overload backpressure = Overload.NONE;
                 if (DatabaseDescriptor.getNativeTransportRateLimitingEnabled() && !GLOBAL_REQUEST_LIMITER.tryReserve())
+                    backpressure = Overload.REQUESTS;
+                else if (!dispatcher.hasQueueCapacity())
+                    backpressure = Overload.QUEUE_TIME;
+
+                if (backpressure != Overload.NONE)
                 {
                     // We've already allocated against the payload tracker here, so release those resources.
                     endpointPayloadTracker.release(requestSize);
-                    discardAndThrow(request, requestSize, Overload.REQUESTS);
+                    discardAndThrow(request, requestSize, backpressure);
                 }
+
             }
             else
             {
@@ -172,20 +183,33 @@ public class PreV5Handlers
                     backpressure = Overload.BYTES_IN_FLIGHT;
                 }
 
+                long delay = -1;
+
                 if (DatabaseDescriptor.getNativeTransportRateLimitingEnabled())
                 {
                     // Reserve a permit even if we've already triggered backpressure on bytes in flight.
-                    long delay = GLOBAL_REQUEST_LIMITER.reserveAndGetDelay(RATE_LIMITER_DELAY_UNIT);
+                    delay = GLOBAL_REQUEST_LIMITER.reserveAndGetDelay(RATE_LIMITER_DELAY_UNIT);
                     
                     // If we've already triggered backpressure on bytes in flight, no further action is necessary.
                     if (backpressure == Overload.NONE && delay > 0)
-                    {
-                        pauseConnection(ctx);
-                        
-                        // A permit isn't immediately available, so schedule an unpause for when it is.
-                        ctx.channel().eventLoop().schedule(() -> unpauseConnection(ctx.channel().config()), delay, RATE_LIMITER_DELAY_UNIT);
                         backpressure = Overload.REQUESTS;
-                    }
+                }
+
+                if (backpressure == Overload.NONE && !dispatcher.hasQueueCapacity())
+                {
+                    delay = queueBackpressure.markAndGetDelay(RATE_LIMITER_DELAY_UNIT);
+
+                    if (delay > 0)
+                        backpressure = Overload.QUEUE_TIME;
+                }
+
+                if (delay > 0)
+                {
+                    assert backpressure != Overload.NONE;
+                    pauseConnection(ctx);
+
+                    // A permit isn't immediately available, so schedule an unpause for when it is.
+                    ctx.channel().eventLoop().schedule(() -> unpauseConnection(ctx.channel().config()), delay, RATE_LIMITER_DELAY_UNIT);
                 }
             }
         }
@@ -219,15 +243,30 @@ public class PreV5Handlers
                          requestSize, channelPayloadBytesInFlight, endpointPayloadTracker,
                          GLOBAL_REQUEST_LIMITER, request);
 
-            OverloadedException exception = overload == Overload.REQUESTS
-                    ? new OverloadedException(String.format("Request breached global limit of %d requests/second. Server is " +
-                                                            "currently in an overloaded state and cannot accept more requests.",
-                                                            GLOBAL_REQUEST_LIMITER.getRate()))
-                    : new OverloadedException(String.format("Request breached limit on bytes in flight. (%s)) " +
-                                                            "Server is currently in an overloaded state and cannot accept more requests.",
 
-                    endpointPayloadTracker));
-            
+            OverloadedException exception;
+            switch (overload)
+            {
+                case REQUESTS:
+                    exception = new OverloadedException(String.format("Request breached global limit of %d requests/second. Server is " +
+                                                                      "currently in an overloaded state and cannot accept more requests.",
+                                                                      GLOBAL_REQUEST_LIMITER.getRate()));
+                    break;
+                case BYTES_IN_FLIGHT:
+                    exception = new OverloadedException(String.format("Request breached limit on bytes in flight. (%s)) " +
+                                                                      "Server is currently in an overloaded state and cannot accept more requests.",
+
+                                                                      endpointPayloadTracker));
+                    break;
+                case QUEUE_TIME:
+                    exception = new OverloadedException(String.format("Request has spent over %s time of the maximum timeout %dms in the queue",
+                                                                      DatabaseDescriptor.getNativeTransportQueueMaxItemAgeThreshold(),
+                                                                      DatabaseDescriptor.getNativeTransportTimeout(TimeUnit.MILLISECONDS)));
+                    break;
+                default:
+                    throw new IllegalArgumentException(String.format("Can't create an exception from %s", overload));
+            }
+
             throw ErrorMessage.wrap(exception, request.getSource().header.streamId);
         }
 

@@ -990,6 +990,15 @@ public class DatabaseDescriptor
             throw new ConfigurationException(String.format("Invalid configuration. Heap dump is enabled but cannot create heap dump output path: %s.", conf.heap_dump_path != null ? conf.heap_dump_path : "null"));
 
         conf.sai_options.validate();
+
+        if (conf.native_transport_min_backoff_on_queue_overload.toMilliseconds() <= 0)
+            throw new IllegalArgumentException("Min backoff on queue overload should be positive");
+
+        if (conf.native_transport_min_backoff_on_queue_overload.toMilliseconds() >= conf.native_transport_max_backoff_on_queue_overload.toMilliseconds())
+            throw new IllegalArgumentException(String.format("Min backoff on queue overload should be strictly less than max backoff, but %s >= %s",
+                                                             conf.native_transport_min_backoff_on_queue_overload,
+                                                             conf.native_transport_max_backoff_on_queue_overload));
+
     }
 
     @VisibleForTesting
@@ -2236,6 +2245,91 @@ public class DatabaseDescriptor
                          getWriteRpcTimeout(unit),
                          getCounterWriteRpcTimeout(unit),
                          getTruncateRpcTimeout(unit));
+    }
+
+    public static Config.CQLStartTime getCQLStartTime()
+    {
+        return conf.cql_start_time;
+    }
+
+    public static void setCQLStartTime(Config.CQLStartTime value)
+    {
+        conf.cql_start_time = value;
+    }
+
+    /**
+     * How much time the item is allowed to spend in (currently only Native) queue, compared to {@link #nativeTransportIdleTimeout()},
+     * before backpressure starts being applied.
+     *
+     * For example, setting this value to 0.5 means and having the largest of read/range/write/counter timeouts to 10 seconds
+     * means that if any item spends more than 5 seconds in the queue, backpressure will be applied to the socket associated
+     * with this queue.
+     *
+     * Set to 0 or any negative value to fully disable.
+     */
+    public static double getNativeTransportQueueMaxItemAgeThreshold()
+    {
+        return conf.native_transport_queue_max_item_age_threshold;
+    }
+
+    public static void setNativeTransportMaxQueueItemAgeThreshold(double threshold)
+    {
+        conf.native_transport_queue_max_item_age_threshold = threshold;
+    }
+
+    public static long getNativeTransportMinBackoffOnQueueOverload(TimeUnit timeUnit)
+    {
+        return conf.native_transport_min_backoff_on_queue_overload.to(timeUnit);
+    }
+
+    public static long getNativeTransportMaxBackoffOnQueueOverload(TimeUnit timeUnit)
+    {
+        return conf.native_transport_max_backoff_on_queue_overload.to(timeUnit);
+    }
+
+    public static void setNativeTransportBackoffOnQueueOverload(long minBackoffMillis,
+                                                                long maxBackoffMillis,
+                                                                TimeUnit timeUnit)
+    {
+        if (minBackoffMillis <= 0)
+            throw new IllegalArgumentException("Min backoff on queue overload should be positive");
+
+        if (minBackoffMillis >= maxBackoffMillis)
+            throw new IllegalArgumentException(String.format("Max backoff on queue overload should be greater than min backoff, but %s >= %s", minBackoffMillis, maxBackoffMillis));
+
+
+        conf.native_transport_min_backoff_on_queue_overload = new DurationSpec.LongMillisecondsBound(minBackoffMillis, timeUnit);
+        conf.native_transport_max_backoff_on_queue_overload = new DurationSpec.LongMillisecondsBound(maxBackoffMillis, timeUnit);
+    }
+
+    public static long getNativeTransportTimeout(TimeUnit timeUnit)
+    {
+        return conf.native_transport_timeout.to(timeUnit);
+    }
+
+    public static void setNativeTransportTimeout(long dealine, TimeUnit timeUnit)
+    {
+        conf.native_transport_timeout = new DurationSpec.LongMillisecondsBound(dealine, timeUnit);
+    }
+
+    public static boolean getEnforceNativeDeadlineForHints()
+    {
+        return conf.enforce_native_deadline_for_hints;
+    }
+
+    public static void setEnforceNativeDeadlineForHints(boolean value)
+    {
+        conf.enforce_native_deadline_for_hints = value;
+    }
+
+    public static boolean getNativeTransportThrowOnOverload()
+    {
+        return conf.native_transport_throw_on_overload;
+    }
+
+    public static void setNativeTransportThrowOnOverload(boolean throwOnOverload)
+    {
+        conf.native_transport_throw_on_overload = throwOnOverload;
     }
 
     public static long getPingTimeout(TimeUnit unit)

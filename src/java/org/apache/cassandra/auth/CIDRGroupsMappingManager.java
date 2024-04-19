@@ -47,14 +47,13 @@ import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.service.QueryState.forInternalCalls;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-
 
 public class CIDRGroupsMappingManager implements CIDRGroupsMappingManagerMBean
 {
@@ -89,7 +88,7 @@ public class CIDRGroupsMappingManager implements CIDRGroupsMappingManagerMBean
     @VisibleForTesting
     ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
     {
-        return statement.execute(forInternalCalls(), options, nanoTime());
+        return statement.execute(forInternalCalls(), options, Dispatcher.RequestTime.forImmediateExecution());
     }
 
     UntypedResultSet process(String query, ConsistencyLevel cl) throws RequestExecutionException

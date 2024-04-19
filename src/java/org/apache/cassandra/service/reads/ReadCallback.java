@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.MessageParams;
 import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,10 +51,8 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.atomic.AtomicIntegerFieldUpdater.newUpdater;
 import static org.apache.cassandra.tracing.Tracing.isTracing;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
 public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> implements RequestCallback<ReadResponse>
@@ -62,7 +61,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
     public final ResponseResolver<E, P> resolver;
     final Condition condition = newOneTimeCondition();
-    private final long queryStartNanoTime;
+    private final Dispatcher.RequestTime requestTime;
     final int blockFor; // TODO: move to replica plan as well?
     // this uses a plain reference, but is initialised before handoff to any other threads; the later updates
     // may not be visible to the threads immediately, but ReplicaPlan only contains final fields, so they will never see an uninitialised object
@@ -76,11 +75,11 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     private static final AtomicReferenceFieldUpdater<ReadCallback, WarningContext> warningsUpdater
         = AtomicReferenceFieldUpdater.newUpdater(ReadCallback.class, WarningContext.class, "warningContext");
 
-    public ReadCallback(ResponseResolver<E, P> resolver, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
+    public ReadCallback(ResponseResolver<E, P> resolver, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
     {
         this.command = command;
         this.resolver = resolver;
-        this.queryStartNanoTime = queryStartNanoTime;
+        this.requestTime = requestTime;
         this.replicaPlan = replicaPlan;
         this.blockFor = replicaPlan.get().readQuorum();
         this.failureReasonByEndpoint = new ConcurrentHashMap<>();
@@ -96,12 +95,28 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         return replicaPlan.get();
     }
 
-    public boolean await(long timePastStart, TimeUnit unit)
+    public boolean await(long commandTimeout, TimeUnit unit)
     {
-        long time = unit.toNanos(timePastStart) - (nanoTime() - queryStartNanoTime);
+        return awaitUntil(requestTime.computeDeadline(unit.toNanos(commandTimeout)));
+    }
+
+    /**
+     * In case of speculation, we want to time out the request immediately if we have _also_ hit a deadline.
+     *
+     * For example, we have a read timeout of 10s, 99% latency of 5 seconds, and time base is QUEUE:
+     *   * Request has spent 3 seconds in the queue. Here, we will wait for 2 seconds and try to speculate
+     *   * Request has spent 10 seconds in the queue. Here, we will wait for 0 seconds and try to speculate
+     *
+     *  If the time base is REQUEST:
+     *   * Request has spent 10 seconds in the queue. Here, we will only wait 2 seconds and then try to speculate
+     *
+     * We should _not_ speculate in all these cases, since by that time we are already past request deadline.
+     */
+    public boolean awaitUntil(long deadline)
+    {
         try
         {
-            return condition.await(time, NANOSECONDS);
+            return condition.awaitUntil(deadline);
         }
         catch (InterruptedException e)
         {

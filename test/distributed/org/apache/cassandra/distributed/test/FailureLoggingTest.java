@@ -40,6 +40,7 @@ import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.range.RangeCommandIterator;
+import org.apache.cassandra.transport.Dispatcher;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.junit.Assert.assertEquals;
@@ -168,8 +169,8 @@ public class FailureLoggingTest extends TestBaseImpl
 
         @SuppressWarnings("unused")
         public static PartitionIterator fetchRows(List<SinglePartitionReadCommand> commands, 
-                                                  org.apache.cassandra.db.ConsistencyLevel consistencyLevel, 
-                                                  long queryStartNanoTime)
+                                                  org.apache.cassandra.db.ConsistencyLevel consistencyLevel,
+                                                  Dispatcher.RequestTime requestTime)
         {
             throw UnavailableException.create(org.apache.cassandra.db.ConsistencyLevel.ALL, 1, 0);
         }

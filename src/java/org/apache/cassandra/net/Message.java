@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -42,6 +43,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.tracing.Tracing.TraceType;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.MonotonicClockTranslation;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.TimeUUID;
@@ -215,6 +217,23 @@ public class Message<T>
     {
         assert !verb.isResponse();
         return outWithParam(nextId(), verb, 0, payload, flag2.addTo(flag1.addTo(0)), null, null);
+    }
+
+    public static <T> Message<T> outWithFlags(Verb verb, T payload, Dispatcher.RequestTime requestTime, List<MessageFlag> flags)
+    {
+        assert !verb.isResponse();
+        int encodedFlags = 0;
+        for (MessageFlag flag : flags)
+            encodedFlags = flag.addTo(encodedFlags);
+
+        return new Message<T>(new Header(nextId(),
+                                         verb,
+                                         getBroadcastAddressAndPort(),
+                                         requestTime.startedAtNanos(),
+                                         requestTime.computeDeadline(verb.expiresAfterNanos()),
+                                         encodedFlags,
+                                         buildParams(null, null)),
+                              payload);
     }
 
     @VisibleForTesting
@@ -832,15 +851,13 @@ public class Message<T>
             Map<ParamType, Object> params = extractParams(buf, index, version);
 
             long createdAtNanos = calculateCreationTimeNanos(createdAtMillis, timeSnapshot, currentTimeNanos);
-            long expiresAtNanos = getExpiresAtNanos(createdAtNanos, currentTimeNanos, TimeUnit.MILLISECONDS.toNanos(expiresInMillis));
+            long expiresAtNanos = getExpiresAtNanos(createdAtNanos, TimeUnit.MILLISECONDS.toNanos(expiresInMillis));
 
             return new Header(id, verb, from, createdAtNanos, expiresAtNanos, flags, params);
         }
 
-        private static long getExpiresAtNanos(long createdAtNanos, long currentTimeNanos, long expirationPeriodNanos)
+        private static long getExpiresAtNanos(long createdAtNanos, long expirationPeriodNanos)
         {
-            if (!DatabaseDescriptor.hasCrossNodeTimeout() || createdAtNanos > currentTimeNanos)
-                createdAtNanos = currentTimeNanos;
             return createdAtNanos + expirationPeriodNanos;
         }
 
@@ -862,9 +879,9 @@ public class Message<T>
             long currentTimeNanos = approxTime.now();
             MonotonicClockTranslation timeSnapshot = approxTime.translate();
             long creationTimeNanos = calculateCreationTimeNanos(in.readInt(), timeSnapshot, currentTimeNanos);
-            long expiresAtNanos = getExpiresAtNanos(creationTimeNanos, currentTimeNanos, TimeUnit.MILLISECONDS.toNanos(in.readUnsignedVInt()));
-            Verb verb = Verb.fromId(in.readUnsignedVInt32());
-            int flags = in.readUnsignedVInt32();
+            long expiresAtNanos = getExpiresAtNanos(creationTimeNanos, TimeUnit.MILLISECONDS.toNanos(in.readUnsignedVInt()));
+            Verb verb = Verb.fromId(Ints.checkedCast(in.readUnsignedVInt()));
+            int flags = Ints.checkedCast(in.readUnsignedVInt());
             Map<ParamType, Object> params = deserializeParams(in, version);
             return new Header(id, verb, peer, creationTimeNanos, expiresAtNanos, flags, params);
         }
@@ -901,6 +918,10 @@ public class Message<T>
         @VisibleForTesting
         static long calculateCreationTimeNanos(int messageTimestampMillis, MonotonicClockTranslation timeSnapshot, long currentTimeNanos)
         {
+            // We do not trust external time source, so we override their value with current time
+            if (!DatabaseDescriptor.hasCrossNodeTimeout())
+                return currentTimeNanos;
+
             long currentTimeMillis = timeSnapshot.toMillisSinceEpoch(currentTimeNanos);
             // Reconstruct the message construction time sent by the remote host (we sent only the lower 4 bytes, assuming the
             // higher 4 bytes wouldn't change between the sender and receiver)

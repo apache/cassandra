@@ -34,6 +34,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlan.ForWrite;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,7 +65,6 @@ import static org.apache.cassandra.service.StorageProxy.WritePerformer;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 import static org.apache.cassandra.locator.Replicas.countInOurDc;
 
-
 public abstract class AbstractWriteResponseHandler<T> implements RequestCallback<T>
 {
     protected static final Logger logger = LoggerFactory.getLogger(AbstractWriteResponseHandler.class);
@@ -80,7 +80,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
         AtomicIntegerFieldUpdater.newUpdater(AbstractWriteResponseHandler.class, "failures");
     private volatile int failures = 0;
     private final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
-    private final long queryStartNanoTime;
+    private final Dispatcher.RequestTime requestTime;
     private @Nullable final Supplier<Mutation> hintOnFailure;
 
     /**
@@ -99,17 +99,17 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     /**
      * @param callback           A callback to be called when the write is successful.
      * @param hintOnFailure
-     * @param queryStartNanoTime
+     * @param requestTime
      */
     protected AbstractWriteResponseHandler(ForWrite replicaPlan, Runnable callback, WriteType writeType,
-                                           Supplier<Mutation> hintOnFailure, long queryStartNanoTime)
+                                           Supplier<Mutation> hintOnFailure, Dispatcher.RequestTime requestTime)
     {
         this.replicaPlan = replicaPlan;
         this.callback = callback;
         this.writeType = writeType;
         this.hintOnFailure = hintOnFailure;
         this.failureReasonByEndpoint = new ConcurrentHashMap<>();
-        this.queryStartNanoTime = queryStartNanoTime;
+        this.requestTime = requestTime;
     }
 
     public void get() throws WriteTimeoutException, WriteFailureException
@@ -154,10 +154,11 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
     public final long currentTimeoutNanos()
     {
+        long now = nanoTime();
         long requestTimeout = writeType == COUNTER
                               ? getCounterWriteRpcTimeout(NANOSECONDS)
                               : getWriteRpcTimeout(NANOSECONDS);
-        return requestTimeout - (nanoTime() - queryStartNanoTime);
+        return requestTime.computeTimeout(now, requestTimeout);
     }
 
     /**
@@ -292,7 +293,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
         if (blockFor() + n > candidateReplicaCount())
             signal();
 
-        if (hintOnFailure != null && StorageProxy.shouldHint(replicaPlan.lookup(from)))
+        if (hintOnFailure != null && StorageProxy.shouldHint(replicaPlan.lookup(from)) && requestTime.shouldSendHints())
             StorageProxy.submitHint(hintOnFailure.get(), replicaPlan.lookup(from), null);
     }
 
@@ -320,7 +321,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
             }
             else
             {
-                replicaPlan.keyspace().metric.idealCLWriteLatency.addNano(nanoTime() - queryStartNanoTime);
+                replicaPlan.keyspace().metric.idealCLWriteLatency.addNano(nanoTime() - requestTime.startedAtNanos());
             }
         }
     }
@@ -354,7 +355,8 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
                 writePerformer.apply(mutation, replicaPlan.withContacts(uncontacted),
                                      (AbstractWriteResponseHandler<IMutation>) this,
-                                     localDC);
+                                     localDC,
+                                     requestTime);
             }
         }
         catch (InterruptedException e)

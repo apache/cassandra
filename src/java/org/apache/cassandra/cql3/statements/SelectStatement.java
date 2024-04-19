@@ -76,6 +76,7 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.pager.AggregationQueryPager;
 import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.service.pager.QueryPager;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -92,7 +93,6 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 import static org.apache.cassandra.utils.ByteBufferUtil.UNSET_BYTE_BUFFER;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * Encapsulates a completely parsed SELECT query, including the target
@@ -277,7 +277,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             Guardrails.allowFilteringEnabled.ensureEnabled(state);
     }
 
-    public ResultMessage.Rows execute(QueryState state, QueryOptions options, long queryStartNanoTime)
+    public ResultMessage.Rows execute(QueryState state, QueryOptions options, Dispatcher.RequestTime requestTime)
     {
         ConsistencyLevel cl = options.getConsistency();
         checkNotNull(cl, "Invalid empty consistency level");
@@ -337,7 +337,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
         if (aggregationSpec == null && (pageSize <= 0 || (query.limits().count() <= pageSize) || query.isTopK()))
         {
-            rows = execute(query, options, state.getClientState(), selectors, nowInSec, userLimit, null, queryStartNanoTime, unmask);
+            rows = execute(query, options, state.getClientState(), selectors, nowInSec, userLimit, null, requestTime, unmask);
         }
         else
         {
@@ -351,7 +351,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                            nowInSec,
                            userLimit,
                            aggregationSpec,
-                           queryStartNanoTime,
+                           requestTime,
                            unmask);
         }
         if (!SchemaConstants.isSystemKeyspace(table.keyspace))
@@ -418,10 +418,10 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                        long nowInSec,
                                        int userLimit,
                                        AggregationSpecification aggregationSpec,
-                                       long queryStartNanoTime,
+                                       Dispatcher.RequestTime requestTime,
                                        boolean unmask)
     {
-        try (PartitionIterator data = query.execute(options.getConsistency(), state, queryStartNanoTime))
+        try (PartitionIterator data = query.execute(options.getConsistency(), state, requestTime))
         {
             return processResults(data, options, selectors, nowInSec, userLimit, aggregationSpec, unmask, state);
         }
@@ -463,7 +463,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             return pager.state();
         }
 
-        public abstract PartitionIterator fetchPage(int pageSize, long queryStartNanoTime);
+        public abstract PartitionIterator fetchPage(int pageSize, Dispatcher.RequestTime requestTime);
 
         public static class NormalPager extends Pager
         {
@@ -477,9 +477,9 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                 this.clientState = clientState;
             }
 
-            public PartitionIterator fetchPage(int pageSize, long queryStartNanoTime)
+            public PartitionIterator fetchPage(int pageSize, Dispatcher.RequestTime requestTime)
             {
-                return pager.fetchPage(pageSize, consistency, clientState, queryStartNanoTime);
+                return pager.fetchPage(pageSize, consistency, clientState, requestTime);
             }
         }
 
@@ -493,7 +493,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                 this.executionController = executionController;
             }
 
-            public PartitionIterator fetchPage(int pageSize, long queryStartNanoTime)
+            public PartitionIterator fetchPage(int pageSize, Dispatcher.RequestTime requestTime)
             {
                 return pager.fetchPageInternal(pageSize, executionController);
             }
@@ -508,7 +508,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                        long nowInSec,
                                        int userLimit,
                                        AggregationSpecification aggregationSpec,
-                                       long queryStartNanoTime,
+                                       Dispatcher.RequestTime requestTime,
                                        boolean unmask)
     {
         Guardrails.pageSize.guard(pageSize, table(), false, state.getClientState());
@@ -536,7 +536,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                   + " you must either remove the ORDER BY or the IN and sort client side, or disable paging for this query");
 
         ResultMessage.Rows msg;
-        try (PartitionIterator page = pager.fetchPage(pageSize, queryStartNanoTime))
+        try (PartitionIterator page = pager.fetchPage(pageSize, requestTime))
         {
             msg = processResults(page, options, selectors, nowInSec, userLimit, aggregationSpec, unmask, state.getClientState());
         }
@@ -570,13 +570,13 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
     public ResultMessage.Rows executeLocally(QueryState state, QueryOptions options) throws RequestExecutionException, RequestValidationException
     {
-        return executeInternal(state, options, options.getNowInSeconds(state), nanoTime());
+        return executeInternal(state, options, options.getNowInSeconds(state), Dispatcher.RequestTime.forImmediateExecution());
     }
 
     public ResultMessage.Rows executeInternal(QueryState state,
                                               QueryOptions options,
                                               long nowInSec,
-                                              long queryStartNanoTime)
+                                              Dispatcher.RequestTime requestTime)
     {
         int userLimit = getLimit(options);
         int userPerPartitionLimit = getPerPartitionLimit(options);
@@ -614,7 +614,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                            nowInSec,
                            userLimit,
                            aggregationSpec,
-                           queryStartNanoTime,
+                           requestTime,
                            unmask);
         }
     }

@@ -79,7 +79,7 @@ public class Server implements CassandraDaemon.Server
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
     private final PipelineConfigurator pipelineConfigurator;
     private final EventLoopGroup workerGroup;
-
+    private final Dispatcher dispatcher;
     private Server (Builder builder)
     {
         this.socket = builder.getSocket();
@@ -96,12 +96,13 @@ public class Server implements CassandraDaemon.Server
                 workerGroup = new NioEventLoopGroup();
         }
 
+        dispatcher = new Dispatcher(DatabaseDescriptor.useNativeTransportLegacyFlusher());
         pipelineConfigurator = builder.pipelineConfigurator != null
                                ? builder.pipelineConfigurator
                                : new PipelineConfigurator(useEpoll,
                                                           DatabaseDescriptor.getRpcKeepAlive(),
-                                                          DatabaseDescriptor.useNativeTransportLegacyFlusher(),
-                                                          builder.tlsEncryptionPolicy);
+                                                          builder.tlsEncryptionPolicy,
+                                                          dispatcher);
 
         EventNotifier notifier = builder.eventNotifier != null ? builder.eventNotifier : new EventNotifier();
         notifier.registerConnectionTracker(connectionTracker);

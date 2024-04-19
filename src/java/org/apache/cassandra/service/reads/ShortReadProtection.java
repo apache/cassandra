@@ -25,6 +25,7 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.transform.MorePartitions;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.transport.Dispatcher;
 
 /**
  * We have a potential short read if the result from a given node contains the requested number of rows
@@ -43,7 +44,7 @@ public class ShortReadProtection
                                                      UnfilteredPartitionIterator partitions,
                                                      ReadCommand command,
                                                      DataLimits.Counter mergedResultCounter,
-                                                     long queryStartNanoTime,
+                                                     Dispatcher.RequestTime requestTime,
                                                      boolean enforceStrictLiveness)
     {
         DataLimits.Counter singleResultCounter = command.limits().newCounter(command.nowInSec(),
@@ -56,7 +57,7 @@ public class ShortReadProtection
                                                                                      preFetchCallback,
                                                                                      singleResultCounter,
                                                                                      mergedResultCounter,
-                                                                                     queryStartNanoTime);
+                                                                                     requestTime);
 
         /*
          * The order of extention and transformations is important here. Extending with more partitions has to happen

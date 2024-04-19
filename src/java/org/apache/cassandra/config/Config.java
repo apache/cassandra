@@ -1283,4 +1283,21 @@ public class Config
     public double severity_during_decommission = 0;
 
     public StorageCompatibilityMode storage_compatibility_mode;
+
+    public enum CQLStartTime
+    {
+        REQUEST, // uses a timestamp that represent the start of processing of the request
+        QUEUE    // uses a timestamp that represents when the request was enqueued
+    }
+    public volatile CQLStartTime cql_start_time = CQLStartTime.REQUEST;
+
+    public boolean native_transport_throw_on_overload = false;
+    public double native_transport_queue_max_item_age_threshold = Double.MAX_VALUE;
+    public DurationSpec.LongMillisecondsBound native_transport_min_backoff_on_queue_overload = new DurationSpec.LongMillisecondsBound("10ms");
+    public DurationSpec.LongMillisecondsBound native_transport_max_backoff_on_queue_overload = new DurationSpec.LongMillisecondsBound("200ms");
+
+    // 3.0 Cassandra Driver has its "read" timeout set to 12 seconds. Our recommendation is match this. Default is 100 seconds, which is extremely high
+    // but still not completely unbounded.
+    public DurationSpec.LongMillisecondsBound native_transport_timeout = new DurationSpec.LongMillisecondsBound("100000ms");
+    public boolean enforce_native_deadline_for_hints = false;
 }

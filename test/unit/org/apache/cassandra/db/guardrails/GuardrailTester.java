@@ -55,9 +55,9 @@ import org.apache.cassandra.index.sasi.SASIIndex;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.utils.Clock;
 import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
@@ -529,7 +529,7 @@ public abstract class GuardrailTester extends CQLTester
         CQLStatement statement = QueryProcessor.parseStatement(formattedQuery, queryState.getClientState());
         statement.validate(state);
 
-        return statement.execute(queryState, options, Clock.Global.nanoTime());
+        return statement.execute(queryState, options, Dispatcher.RequestTime.forImmediateExecution());
     }
 
     protected static String sortCSV(String csv)

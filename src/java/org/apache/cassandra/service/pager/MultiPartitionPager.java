@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.service.pager;
 
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.AbstractIterator;
 
@@ -29,8 +30,6 @@ import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.service.ClientState;
-
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * Pager over a list of SinglePartitionReadQuery.
@@ -149,16 +148,18 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
         throw new AssertionError("Shouldn't be called on an exhausted pager");
     }
 
-    public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestValidationException, RequestExecutionException
+    @SuppressWarnings("resource") // iter closed via countingIter
+    @Override
+    public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, ClientState clientState, Dispatcher.RequestTime requestTime) throws RequestValidationException, RequestExecutionException
     {
         int toQuery = Math.min(remaining, pageSize);
-        return new PagersIterator(toQuery, consistency, clientState, null, queryStartNanoTime);
+        return new PagersIterator(toQuery, consistency, clientState, null, requestTime);
     }
 
     public PartitionIterator fetchPageInternal(int pageSize, ReadExecutionController executionController) throws RequestValidationException, RequestExecutionException
     {
         int toQuery = Math.min(remaining, pageSize);
-        return new PagersIterator(toQuery, null, null, executionController, nanoTime());
+        return new PagersIterator(toQuery, null, null, executionController, Dispatcher.RequestTime.forImmediateExecution());
     }
 
     private class PagersIterator extends AbstractIterator<RowIterator> implements PartitionIterator
@@ -166,7 +167,7 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
         private final int pageSize;
         private PartitionIterator result;
         private boolean closed;
-        private final long queryStartNanoTime;
+        private final Dispatcher.RequestTime requestTime;
 
         // For "normal" queries
         private final ConsistencyLevel consistency;
@@ -178,13 +179,13 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
         private int pagerMaxRemaining;
         private int counted;
 
-        public PagersIterator(int pageSize, ConsistencyLevel consistency, ClientState clientState, ReadExecutionController executionController, long queryStartNanoTime)
+        public PagersIterator(int pageSize, ConsistencyLevel consistency, ClientState clientState, ReadExecutionController executionController, Dispatcher.RequestTime requestTime)
         {
             this.pageSize = pageSize;
             this.consistency = consistency;
             this.clientState = clientState;
             this.executionController = executionController;
-            this.queryStartNanoTime = queryStartNanoTime;
+            this.requestTime = requestTime;
         }
 
         protected RowIterator computeNext()
@@ -213,7 +214,7 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
                 int toQuery = pageSize - counted;
                 result = consistency == null
                        ? pagers[current].fetchPageInternal(toQuery, executionController)
-                       : pagers[current].fetchPage(toQuery, consistency, clientState, queryStartNanoTime);
+                       : pagers[current].fetchPage(toQuery, consistency, clientState, requestTime);
             }
             return result.next();
         }

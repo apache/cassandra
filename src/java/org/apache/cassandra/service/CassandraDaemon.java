@@ -111,6 +111,12 @@ public class CassandraDaemon
         return instance;
     }
 
+    @VisibleForTesting
+    public NativeTransportService nativeTransportService()
+    {
+        return nativeTransportService;
+    }
+
     static {
         // Need to register metrics before instrumented appender is created(first access to LoggerFactory).
         SharedMetricRegistries.getOrCreate("logback-metrics").addListener(new MetricRegistryListener.Base()

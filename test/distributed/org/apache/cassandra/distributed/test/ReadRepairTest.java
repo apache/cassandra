@@ -356,7 +356,10 @@ public class ReadRepairTest extends TestBaseImpl
         String key = "test1";
         try (Cluster cluster = init(Cluster.build()
                                            .withConfig(config -> config.with(Feature.GOSSIP, Feature.NETWORK)
-                                                                       .set("read_request_timeout", String.format("%dms", Integer.MAX_VALUE)))
+                                                                       .set("read_request_timeout", String.format("%dms", Integer.MAX_VALUE))
+                                                                       .set("native_transport_timeout", String.format("%dms", Integer.MAX_VALUE))
+                                                                       .set("reject_out_of_token_range_requests", false)
+                                           )
                                            .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(4))
                                            .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
                                            .withNodes(3)

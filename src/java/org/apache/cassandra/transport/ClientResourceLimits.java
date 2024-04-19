@@ -45,7 +45,7 @@ public class ClientResourceLimits
 
     public static final NonBlockingRateLimiter GLOBAL_REQUEST_LIMITER = new NonBlockingRateLimiter(getNativeTransportMaxRequestsPerSecond());
 
-    public enum Overload { NONE, REQUESTS, BYTES_IN_FLIGHT }
+    public enum Overload { NONE, REQUESTS, BYTES_IN_FLIGHT, QUEUE_TIME }
     
     public static Allocator getAllocatorForEndpoint(InetAddress endpoint)
     {

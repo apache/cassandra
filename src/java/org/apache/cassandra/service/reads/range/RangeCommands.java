@@ -35,6 +35,7 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class RangeCommands
@@ -54,10 +55,10 @@ public class RangeCommands
 
     public static PartitionIterator partitions(PartitionRangeReadCommand command,
                                                ConsistencyLevel consistencyLevel,
-                                               long queryStartNanoTime)
+                                               Dispatcher.RequestTime requestTime)
     {
         // Note that in general, a RangeCommandIterator will honor the command limit for each range, but will not enforce it globally.
-        RangeCommandIterator rangeCommands = rangeCommandIterator(command, consistencyLevel, queryStartNanoTime);
+        RangeCommandIterator rangeCommands = rangeCommandIterator(command, consistencyLevel, requestTime);
         return command.limits().filter(command.postReconciliationProcessing(rangeCommands),
                                        command.nowInSec(),
                                        command.selectsFullPartition(),
@@ -67,7 +68,7 @@ public class RangeCommands
     @VisibleForTesting
     static RangeCommandIterator rangeCommandIterator(PartitionRangeReadCommand command,
                                                      ConsistencyLevel consistencyLevel,
-                                                     long queryStartNanoTime)
+                                                     Dispatcher.RequestTime requestTime)
     {
         Tracing.trace("Computing ranges to query");
 
@@ -78,7 +79,7 @@ public class RangeCommands
                                                                    consistencyLevel);
 
         if (command.isTopK())
-            return new ScanAllRangesCommandIterator(keyspace, replicaPlans, command, replicaPlans.size(), queryStartNanoTime);
+            return new ScanAllRangesCommandIterator(keyspace, replicaPlans, command, replicaPlans.size(), requestTime);
 
         int maxConcurrencyFactor = Math.min(replicaPlans.size(), MAX_CONCURRENT_RANGE_REQUESTS);
         int concurrencyFactor = maxConcurrencyFactor;
@@ -111,7 +112,7 @@ public class RangeCommands
                                         concurrencyFactor,
                                         maxConcurrencyFactor,
                                         replicaPlans.size(),
-                                        queryStartNanoTime);
+                                        requestTime);
     }
 
     /**

@@ -633,7 +633,7 @@ public class CQLConnectionTest
             this.frameEncoder = frameEncoder;
         }
 
-        public void accept(Channel channel, Message.Request message, Dispatcher.FlushItemConverter toFlushItem, Overload backpressure)
+        public void dispatch(Channel channel, Message.Request message, Dispatcher.FlushItemConverter toFlushItem, Overload backpressure)
         {
             if (flusher == null)
                 flusher = new SimpleClient.SimpleFlusher(frameEncoder);
@@ -650,6 +650,12 @@ public class CQLConnectionTest
             // this simulates the release of the allocated resources that a real flusher would do
             Flusher.FlushItem.Framed item = (Flusher.FlushItem.Framed)toFlushItem.toFlushItem(channel, message, fixedResponse);
             item.release();
+        }
+
+        @Override
+        public boolean hasQueueCapacity()
+        {
+            return true;
         }
     }
 

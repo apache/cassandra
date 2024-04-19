@@ -45,6 +45,7 @@ import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -52,7 +53,6 @@ import org.mindrot.jbcrypt.BCrypt;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.AUTH_BCRYPT_GENSALT_LOG2_ROUNDS;
 import static org.apache.cassandra.service.QueryState.forInternalCalls;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * Responsible for the creation, maintenance and deletion of roles
@@ -678,7 +678,7 @@ public class CassandraRoleManager implements IRoleManager
     @VisibleForTesting
     ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
     {
-        return statement.execute(forInternalCalls(), options, nanoTime());
+        return statement.execute(forInternalCalls(), options, Dispatcher.RequestTime.forImmediateExecution());
     }
 
     @Override

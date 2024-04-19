@@ -38,7 +38,8 @@ public class MessageDispatcherTest
 {
     static final Message.Request AUTH_RESPONSE_REQUEST = new AuthResponse(new byte[0])
     {
-        public Response execute(QueryState queryState, long queryStartNanoTime, boolean traceRequest)
+        @Override
+        public Response execute(QueryState queryState, Dispatcher.RequestTime requestTime, boolean traceRequest)
         {
             return null;
         }
@@ -91,7 +92,8 @@ public class MessageDispatcherTest
             long auths = completedAuth();
             long requests = tryAuth(this::completedRequests, new Message.Request(type)
             {
-                public Response execute(QueryState queryState, long queryStartNanoTime, boolean traceRequest)
+                @Override
+                public Response execute(QueryState queryState, Dispatcher.RequestTime requestTime, boolean traceRequest)
                 {
                     return null;
                 }
@@ -164,7 +166,7 @@ public class MessageDispatcherTest
                             Message.Request request,
                             FlushItemConverter forFlusher,
                             ClientResourceLimits.Overload backpressure,
-                            long startTimeNanos)
+                            RequestTime requestTime)
         {
             // noop
         }

@@ -751,7 +751,7 @@ public class ConnectionTest
         // The reserved capacity (pendingBytes) at the end of the round should equal to K - N * M,
         //   which you can find in the assertion.
         test((inbound, outbound, endpoint) -> {
-            // max capacity equals to permit-free sendQueueCapcity + the minimun of endpoint and global reserve
+            // max capacity equals to permit-free sendQueueCapcaity + the minimun of endpoint and global reserve
             double maxSendQueueCapacity = outbound.settings().applicationSendQueueCapacityInBytes +
                                           Double.min(outbound.settings().applicationSendQueueReserveEndpointCapacityInBytes,
                                                      outbound.settings().applicationSendQueueReserveGlobalCapacityInBytes.limit());

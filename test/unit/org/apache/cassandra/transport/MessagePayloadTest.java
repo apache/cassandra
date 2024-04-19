@@ -405,16 +405,17 @@ public class MessagePayloadTest extends CQLTester
             return result;
         }
 
+        @Override
         public ResultMessage process(CQLStatement statement,
                                      QueryState state,
                                      QueryOptions options,
                                      Map<String, ByteBuffer> customPayload,
-                                     long queryStartNanoTime)
+                                     Dispatcher.RequestTime requestTime)
                                             throws RequestExecutionException, RequestValidationException
         {
             if (customPayload != null)
                 requestPayload = customPayload;
-            ResultMessage result = QueryProcessor.instance.process(statement, state, options, customPayload, queryStartNanoTime);
+            ResultMessage result = QueryProcessor.instance.process(statement, state, options, customPayload, requestTime);
             if (customPayload != null)
             {
                 result.setCustomPayload(responsePayload);
@@ -423,16 +424,17 @@ public class MessagePayloadTest extends CQLTester
             return result;
         }
 
+        @Override
         public ResultMessage processBatch(BatchStatement statement,
                                           QueryState state,
                                           BatchQueryOptions options,
                                           Map<String, ByteBuffer> customPayload,
-                                          long queryStartNanoTime)
+                                          Dispatcher.RequestTime requestTime)
                                                   throws RequestExecutionException, RequestValidationException
         {
             if (customPayload != null)
                 requestPayload = customPayload;
-            ResultMessage result = QueryProcessor.instance.processBatch(statement, state, options, customPayload, queryStartNanoTime);
+            ResultMessage result = QueryProcessor.instance.processBatch(statement, state, options, customPayload, requestTime);
             if (customPayload != null)
             {
                 result.setCustomPayload(responsePayload);
@@ -445,12 +447,12 @@ public class MessagePayloadTest extends CQLTester
                                              QueryState state,
                                              QueryOptions options,
                                              Map<String, ByteBuffer> customPayload,
-                                             long queryStartNanoTime)
+                                             Dispatcher.RequestTime requestTime)
                                                     throws RequestExecutionException, RequestValidationException
         {
             if (customPayload != null)
                 requestPayload = customPayload;
-            ResultMessage result = QueryProcessor.instance.processPrepared(statement, state, options, customPayload, queryStartNanoTime);
+            ResultMessage result = QueryProcessor.instance.processPrepared(statement, state, options, customPayload, requestTime);
             if (customPayload != null)
             {
                 result.setCustomPayload(responsePayload);
