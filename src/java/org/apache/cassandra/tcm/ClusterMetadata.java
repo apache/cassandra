@@ -323,7 +323,7 @@ public class ClusterMetadata
 
         // next, ranges where the ranges themselves are not changing, but the replicas are
         // i.e. replacement or RF increase
-        writes.replicaGroups().forEach((range, endpoints) -> {
+        writes.forEach((range, endpoints) -> {
             VersionedEndpoints.ForRange readGroup = reads.forRange(range);
             if (!readGroup.equals(endpoints))
                 map.put(range, VersionedEndpoints.forRange(endpoints.lastModified(),

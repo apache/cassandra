@@ -323,8 +323,8 @@ public class InProgressSequenceCancellationTest
             DataPlacement otherPlacement = second.get(params);
             PlacementForRange r1 = placement.reads;
             PlacementForRange r2 = otherPlacement.reads;
-            assertEquals(r1.replicaGroups().ranges, r2.replicaGroups().ranges);
-            r1.replicaGroups().forEach((range, e1) -> {
+            assertEquals(r1.ranges, r2.ranges);
+            r1.forEach((range, e1) -> {
                 EndpointsForRange e2 = r2.forRange(range).get();
                 assertEquals(e1.size(),e2.size());
                 assertTrue(e1.get().stream().allMatch(e2::contains));
@@ -332,8 +332,8 @@ public class InProgressSequenceCancellationTest
 
             PlacementForRange w1 = placement.reads;
             PlacementForRange w2 = otherPlacement.reads;
-            assertEquals(w1.replicaGroups().ranges, w2.replicaGroups().ranges);
-            w1.replicaGroups().forEach((range, e1) -> {
+            assertEquals(w1.ranges, w2.ranges);
+            w1.forEach((range, e1) -> {
                 EndpointsForRange e2 = w2.forRange(range).get();
                 assertEquals(e1.size(),e2.size());
                 assertTrue(e1.get().stream().allMatch(e2::contains));

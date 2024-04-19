@@ -558,7 +558,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                 Set<NodeId> bouncing = new HashSet<>();
                 Set<NodeId> replicasFromBouncedReplicaSets = new HashSet<>();
                 outer:
-                for (VersionedEndpoints.ForRange placements : sut.service.metadata().placements.get(rf.asKeyspaceParams().replication).writes.replicaGroups().endpoints)
+                for (VersionedEndpoints.ForRange placements : sut.service.metadata().placements.get(rf.asKeyspaceParams().replication).writes.endpoints)
                 {
                     List<NodeId> replicas = new ArrayList<>(metadata.directory.toNodeIds(placements.get().endpoints()));
                     List<NodeId> bounceCandidates = new ArrayList<>();
@@ -702,7 +702,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
 
     public static void match(PlacementForRange actual, Map<TokenPlacementModel.Range, List<TokenPlacementModel.Replica>> predicted) throws Throwable
     {
-        Map<Range<Token>, VersionedEndpoints.ForRange> actualGroups = actual.replicaGroups().asMap();
+        Map<Range<Token>, VersionedEndpoints.ForRange> actualGroups = actual.asMap();
         assert predicted.size() == actualGroups.size() :
         String.format("\nPredicted:\n%s(%d)" +
                       "\nActual:\n%s(%d)", toString(predicted), predicted.size(), toString(actualGroups), actualGroups.size());

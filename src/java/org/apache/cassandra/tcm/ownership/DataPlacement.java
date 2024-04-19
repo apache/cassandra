@@ -77,12 +77,12 @@ public class DataPlacement
     public DataPlacement combineReplicaGroups(DataPlacement other)
     {
         return new DataPlacement(PlacementForRange.builder()
-                                                  .withReplicaGroups(reads.replicaGroups().endpoints)
-                                                  .withReplicaGroups(other.reads.replicaGroups().endpoints)
+                                                  .withReplicaGroups(reads.endpoints)
+                                                  .withReplicaGroups(other.reads.endpoints)
                                                   .build(),
                                  PlacementForRange.builder()
-                                                  .withReplicaGroups(writes.replicaGroups().endpoints)
-                                                  .withReplicaGroups(other.writes.replicaGroups().endpoints)
+                                                  .withReplicaGroups(writes.endpoints)
+                                                  .withReplicaGroups(other.writes.endpoints)
                                                   .build());
     }
 

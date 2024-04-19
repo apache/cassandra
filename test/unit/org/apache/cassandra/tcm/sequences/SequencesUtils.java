@@ -67,7 +67,7 @@ public class SequencesUtils
     {
         LockedRanges.AffectedRangesBuilder affected = LockedRanges.AffectedRanges.builder();
         placements.asMap().forEach((params, placement) -> {
-            placement.reads.replicaGroups().ranges.forEach((range) -> {
+            placement.reads.ranges.forEach((range) -> {
                 if (random.nextDouble() >= 0.6)
                     affected.add(params, range);
             });

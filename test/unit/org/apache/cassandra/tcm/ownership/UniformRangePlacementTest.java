@@ -266,7 +266,7 @@ public class UniformRangePlacementTest
         DataPlacement initialPlacement = builder.build();
         List<Token> tokens = ImmutableList.of(token(Long.MIN_VALUE), token(0));
         DataPlacement newPlacement = initialPlacement.splitRangesForPlacement(tokens);
-        assertEquals(2, newPlacement.writes.replicaGroups().size());
+        assertEquals(2, newPlacement.writes.size());
     }
 
     private PlacementForRange initialPlacement()
@@ -276,7 +276,7 @@ public class UniformRangePlacementTest
                                               rg(200, 300, 1, 2, 3),
                                               rg(300, 400, 1, 2, 3) };
         PlacementForRange placement = PlacementForRange.builder()
-                                                       .withReplicaGroups(Arrays.asList(initialGroups).stream().map(this::v).collect(Collectors.toList()))
+                                                       .withReplicaGroups(Arrays.stream(initialGroups).map(this::v).collect(Collectors.toList()))
                                                        .build();
         assertPlacement(placement, initialGroups);
         return placement;
@@ -284,7 +284,7 @@ public class UniformRangePlacementTest
 
     private void assertPlacement(PlacementForRange placement, EndpointsForRange...expected)
     {
-        Collection<EndpointsForRange> replicaGroups = placement.replicaGroups().endpoints.stream().map(v -> v.get()).collect(Collectors.toList());
+        Collection<EndpointsForRange> replicaGroups = placement.endpoints.stream().map(VersionedEndpoints.ForRange::get).collect(Collectors.toList());
         assertEquals(replicaGroups.size(), expected.length);
         int i = 0;
         boolean allMatch = true;
