@@ -167,7 +167,7 @@ public class PrepareJoin implements Transformation
 
     void assertPreExistingWriteReplica(DataPlacements placements, PlacementTransitionPlan transitionPlan)
     {
-        PlacementTransitionPlan.assertPreExistingWriteReplica(placements, transitionPlan);
+        transitionPlan.assertPreExistingWriteReplica(placements);
     }
 
     public static abstract class Serializer<T extends PrepareJoin> implements AsymmetricMetadataSerializer<Transformation, T>
