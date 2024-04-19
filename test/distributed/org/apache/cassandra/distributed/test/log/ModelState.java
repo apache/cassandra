@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.TreeMap;
 
 import org.apache.cassandra.harry.sut.TokenPlacementModel;
+import org.apache.cassandra.harry.sut.TokenPlacementModel.DCReplicas;
 
 public class ModelState
 {
@@ -138,10 +139,10 @@ public class ModelState
     private boolean canRemove(TokenPlacementModel.ReplicationFactor rfs)
     {
         if (!withinConcurrencyLimit()) return false;
-        for (Map.Entry<String, Integer> e : rfs.asMap().entrySet())
+        for (Map.Entry<String, DCReplicas> e : rfs.asMap().entrySet())
         {
             String dc = e.getKey();
-            int rf = e.getValue();
+            int rf = e.getValue().totalCount;
             List<TokenPlacementModel.Node> nodes = nodesByDc.get(dc);
             Set<TokenPlacementModel.Node> nodesInDc = nodes == null ? new HashSet<>() : new HashSet<>(nodes);
             for (SimulatedOperation op : inFlightOperations)
@@ -318,7 +319,7 @@ public class ModelState
             assert currentNodes.contains(node);
             // for now... assassinate may change this assertion
             assert leavingNodes.contains(node);
-            finished[1]++;
+            finished[2]++;
             removeFromCluster(node);
             return this;
         }

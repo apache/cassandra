@@ -35,8 +35,12 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
+import org.apache.cassandra.harry.sut.TokenPlacementModel.DCReplicas;
 import org.junit.Assert;
 import org.junit.Test;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
@@ -76,12 +80,18 @@ import static org.apache.cassandra.harry.sut.TokenPlacementModel.nodeFactoryHuma
 
 public class MetadataChangeSimulationTest extends CMSTestBase
 {
+    private static final Logger logger = LoggerFactory.getLogger(MetadataChangeSimulationTest.class);
+    private static final long seed;
+    private static final Random rng;
     static
     {
+        seed = System.nanoTime();
+        logger.info("SEED: {}", seed);
+        rng = new Random(seed);
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
+        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
     }
 
-    private static final Random rng = new Random(1);
 
     @Test
     public void simulateNTS() throws Throwable
@@ -93,7 +103,12 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         for (int concurrency : new int[]{ 1, 3, 5 })
         {
             for (int rf : new int[]{ 2, 3, 5 })
-                simulate(50, 0, new NtsReplicationFactor(3, rf), concurrency);
+            {
+                for (int trans = 0; trans < rf; trans++)
+                {
+                    simulate(50, 0, new NtsReplicationFactor(3, rf, trans), concurrency);
+                }
+            }
         }
     }
 
@@ -103,8 +118,26 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         for (int concurrency : new int[]{ 1, 3, 5 })
         {
             for (int rf : new int[]{ 2, 3, 5 })
-                simulate(50, 0, new SimpleReplicationFactor(rf), concurrency);
+            {
+                for (int trans = 0; trans < rf; trans++)
+                {
+                    simulate(50, 0, new SimpleReplicationFactor(rf, trans), concurrency);
+                }
+            }
         }
+    }
+
+    @Test
+    public void simulateSimpleOneTransient() throws Throwable
+    {
+        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
+        simulate(50, 0, new SimpleReplicationFactor(5, 2), 1);
+    }
+
+    @Test
+    public void simulateSimpleOneNonTransient() throws Throwable
+    {
+        simulate(50, 0, new SimpleReplicationFactor(3), 1);
     }
 
     @Test
@@ -362,8 +395,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
 
     public void simulate(int toBootstrap, int minSteps, ReplicationFactor rf, int concurrency) throws Throwable
     {
-        System.out.printf("RUNNING SIMULATION. TO BOOTSTRAP: %s, RF: %s, CONCURRENCY: %s%n",
-                          toBootstrap, rf, concurrency);
+        logger.info("RUNNING SIMULATION WITH SEED {}. TO BOOTSTRAP: {}, RF: {}, CONCURRENCY: {}", seed, toBootstrap, rf, concurrency);
         long startTime = System.currentTimeMillis();
         ModelChecker<ModelState, CMSSut> modelChecker = new ModelChecker<>();
         ClusterMetadataService.unsetInstance();
@@ -372,9 +404,9 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                     // Sequentially bootstrap rf nodes first
                     .step((state, sut) -> state.currentNodes.isEmpty(),
                           (state, sut, entropySource) -> {
-                              for (Map.Entry<String, Integer> e : rf.asMap().entrySet())
+                              for (Map.Entry<String, DCReplicas> e : rf.asMap().entrySet())
                               {
-                                  int dcRf = e.getValue();
+                                  int dcRf = e.getValue().totalCount;
                                   int dc = Integer.parseInt(e.getKey().replace("datacenter", ""));
 
                                   for (int i = 0; i < dcRf + 1; i++)
@@ -468,10 +500,10 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                         {
                             validatePlacementsFinal(sut, state);
                             sut.close();
-                            System.out.printf("(RF: %d, CONCURRENCY: %d, RUN TIME: %dms) - " +
-                                              "REGISTERED: %d, CURRENT SIZE: %d, REJECTED %d, INFLIGHT: %d" +
-                                              "FINISHED  (join,replace,leave,move): %s" +
-                                              "CANCELLED (join,replace,leave,move): %s%n",
+                            logger.info("(RF: {}, CONCURRENCY: {}, RUN TIME: {}ms) - " +
+                                              "REGISTERED: {}, CURRENT SIZE: {}, REJECTED {}, INFLIGHT: {} " +
+                                              "FINISHED  (join,replace,leave,move): {} " +
+                                              "CANCELLED (join,replace,leave,move): {} ",
                                               sut.rf.total(), concurrency, System.currentTimeMillis() - startTime,
                                               state.uniqueNodes, state.currentNodes.size(), state.rejected, state.inFlightOperations.size(),
                                               Arrays.toString(state.finished),
@@ -505,7 +537,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         {
             ModelState state = ModelState.empty(nodeFactory(), 300, 1);
 
-            for (Map.Entry<String, Integer> e : rf.asMap().entrySet())
+            for (Map.Entry<String, DCReplicas> e : rf.asMap().entrySet())
             {
                 int dc = Integer.parseInt(e.getKey().replace("datacenter", ""));
 
@@ -639,7 +671,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
             for (SimulatedOperation op : modelState.inFlightOperations)
                 candidates.removeAll(Arrays.asList(op.nodes));
 
-            int rf = modelState.simulatedPlacements.rf.asMap().get(dc);
+            int rf = modelState.simulatedPlacements.rf.asMap().get(dc).totalCount;
             if (candidates.size() <= rf)
                 continue;
 
@@ -668,39 +700,42 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         return sb.toString();
     }
 
-    public static void match(PlacementForRange actual, Map<TokenPlacementModel.Range, List<Node>> predicted) throws Throwable
+    public static void match(PlacementForRange actual, Map<TokenPlacementModel.Range, List<TokenPlacementModel.Replica>> predicted) throws Throwable
     {
         Map<Range<Token>, VersionedEndpoints.ForRange> actualGroups = actual.replicaGroups();
         assert predicted.size() == actualGroups.size() :
         String.format("\nPredicted:\n%s(%d)" +
                       "\nActual:\n%s(%d)", toString(predicted), predicted.size(), toString(actual.replicaGroups()), actualGroups.size());
 
-        for (Map.Entry<TokenPlacementModel.Range, List<Node>> entry : predicted.entrySet())
+        for (Map.Entry<TokenPlacementModel.Range, List<TokenPlacementModel.Replica>> entry : predicted.entrySet())
         {
             TokenPlacementModel.Range range = entry.getKey();
-            List<Node> predictedNodes = entry.getValue();
+            List<TokenPlacementModel.Replica> predictedReplicas = entry.getValue();
             Range<Token> predictedRange = new Range<Token>(new Murmur3Partitioner.LongToken(range.start),
                                                            new Murmur3Partitioner.LongToken(range.end));
             EndpointsForRange endpointsForRange = actualGroups.get(predictedRange).get();
             assertNotNull(() -> String.format("Could not find %s in ranges %s", predictedRange, actualGroups.keySet()),
                           endpointsForRange);
+
             assertEquals(() -> String.format("Predicted to have different endpoints for range %s" +
                                              "\nExpected: %s" +
                                              "\nActual:   %s",
                                              range,
-                                             predictedNodes.stream().sorted().collect(Collectors.toList()),
+                                             predictedReplicas.stream().sorted().collect(Collectors.toList()),
                                              endpointsForRange.endpoints().stream().sorted().collect(Collectors.toList())),
-                         predictedNodes.size(), endpointsForRange.size());
-            for (Node node : predictedNodes)
+                         predictedReplicas.size(), endpointsForRange.size());
+            for (TokenPlacementModel.Replica fromModel : predictedReplicas)
             {
+                Replica replica = endpointsForRange.byEndpoint().
+                                                   get(InetAddressAndPort.getByAddress(InetAddress.getByName(fromModel.node().id())));
                 assertTrue(() -> String.format("Endpoints for range %s should have contained %s, but they have not." +
                                                "\nExpected: %s" +
                                                "\nActual:   %s.",
                                                endpointsForRange.range(),
-                                               node.id(),
-                                               predictedNodes,
-                                               endpointsForRange.endpoints()),
-                           endpointsForRange.endpoints().contains(InetAddressAndPort.getByAddress(InetAddress.getByName(node.id()))));
+                                               fromModel,
+                                               predictedReplicas,
+                                               endpointsForRange),
+                           replica != null && replica.isFull() == fromModel.isFull());
             }
         }
     }
@@ -784,8 +819,34 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         assertRanges(expectedRanges, actualPlacements.writes.ranges());
         assertRanges(expectedRanges, actualPlacements.reads.ranges());
 
+        validateTransientStatus(actualPlacements.reads, actualPlacements.writes);
+
         validatePlacementsInternal(rf, modelState.inFlightOperations, expectedRanges, actualPlacements.reads, false);
         validatePlacementsInternal(rf, modelState.inFlightOperations, expectedRanges, actualPlacements.writes, true);
+    }
+
+    public static void validateTransientStatus(PlacementForRange reads, PlacementForRange writes)
+    {
+        // No node should ever be a FULL read replica but a TRANSIENT write replica for the same range
+        Map<Range<Token>, List<Replica>> invalid = new HashMap<>();
+        reads.replicaGroups().forEach((range, readGroup) -> {
+            Map<InetAddressAndPort, Replica> writeGroup = writes.forRange(range).get().byEndpoint();
+            readGroup.forEach(r -> {
+                if (r.isFull())
+                {
+                    Replica w = writeGroup.get(r.endpoint());
+                    if (w != null && w.isTransient())
+                    {
+                        List<Replica> i = invalid.computeIfAbsent(range, ignore -> new ArrayList<>());
+                        i.add(w);
+                    }
+                }
+            });
+        });
+        assertTrue(() -> String.format("Found replicas with invalid transient/full status within a given range. " +
+                         "The following were found with the same instance having TRANSIENT status for writes, but " +
+                         "FULL status for reads, which can cause consistency violations. %n%s", invalid),
+                   invalid.isEmpty());
     }
 
     public static void assertRanges(List<Range<Token>> l, List<Range<Token>> r)
@@ -808,12 +869,11 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                              .add(replica.endpoint());
             }
 
-            for (Map.Entry<String, Integer> e : rf.asMap().entrySet())
+            for (Map.Entry<String, DCReplicas> e : rf.asMap().entrySet())
             {
-                int expectedRf = e.getValue();
+                int expectedRf = e.getValue().totalCount;
                 String dc = e.getKey();
                 int actualRf = endpointsByDc.get(dc).size();
-
                 if (allowPending)
                 {
                     int diff = actualRf - expectedRf;
@@ -889,10 +949,9 @@ public class MetadataChangeSimulationTest extends CMSTestBase
             Node toMove = null;
             Node toReplace = null;
             Node toLeave = null;
-            for (Map.Entry<String, Integer> e : rf.asMap().entrySet())
+            for (String replicationFactor : rf.asMap().keySet())
             {
-                int dc = Integer.parseInt(e.getKey().replace("datacenter", ""));
-
+                int dc = Integer.parseInt(replicationFactor.replace("datacenter", ""));
                 for (int i = 0; i < 100; i++)
                 {
                     ModelChecker.Pair<ModelState, Node> registration = registerNewNode(state, sut, dc, random.nextInt(5) + 1);

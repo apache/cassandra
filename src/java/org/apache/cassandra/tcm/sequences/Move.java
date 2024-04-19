@@ -28,7 +28,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -337,8 +336,7 @@ public class Move extends MultiStepOperation<Epoch>
             RangesByEndpoint targets = delta.writes.additions;
             PlacementForRange oldOwners = placements.get(params).reads;
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
-            Iterables.concat(targets.flattenValues(),
-                             transientToFullReplicas(midDeltas.get(params)).flattenValues()).forEach(destination -> {
+            targets.flattenValues().forEach(destination -> {
                 SourceHolder sources = new SourceHolder(fd, destination, toSplitRanges.get(params), strictConsistency);
                 AtomicBoolean needsRelaxedSources = new AtomicBoolean();
                 // first, try to find strict sources for the ranges we need to stream - these are the ranges that
@@ -441,23 +439,6 @@ public class Move extends MultiStepOperation<Epoch>
         }
     }
 
-    private static RangesByEndpoint transientToFullReplicas(PlacementDeltas.PlacementDelta midDelta)
-    {
-        RangesByEndpoint.Builder builder = new RangesByEndpoint.Builder();
-        midDelta.reads.additions.flattenValues().forEach((newReplica) -> {
-            if (newReplica.isFull())
-            {
-                RangesAtEndpoint removals = midDelta.reads.removals.get(newReplica.endpoint());
-                if (removals != null)
-                {
-                    Replica removed = removals.byRange().get(newReplica.range());
-                    if (removed != null && removed.isTransient())
-                        builder.put(newReplica.endpoint(), newReplica);
-                }
-            }
-        });
-        return builder.build();
-    }
     private static int nextToIndex(Transformation.Kind next)
     {
         switch (next)

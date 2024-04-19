@@ -22,12 +22,15 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.harry.gen.rng.PCGFastPure;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -36,11 +39,15 @@ public class TokenPlacementModel
 {
     public abstract static class ReplicationFactor
     {
-        private final int nodesTotal;
+        protected final Lookup lookup;
+        protected final int nodesTotal;
+        protected final Map<String, DCReplicas> replication;
 
-        public ReplicationFactor(int total)
+        public ReplicationFactor(Function<Lookup, Map<String, DCReplicas>> perDcMapProvider)
         {
-            this.nodesTotal = total;
+            this.lookup = new DefaultLookup();
+            this.replication = perDcMapProvider.apply(lookup);
+            this.nodesTotal = replication.values().stream().map(r -> r.totalCount).reduce(0, Integer::sum);
         }
 
         public int total()
@@ -48,11 +55,17 @@ public class TokenPlacementModel
             return nodesTotal;
         }
 
-        public abstract int dcs();
+        public int dcs()
+        {
+            return replication.size();
+        };
 
         public abstract KeyspaceParams asKeyspaceParams();
 
-        public abstract Map<String, Integer> asMap();
+        public Map<String, DCReplicas> asMap()
+        {
+            return replication;
+        }
 
         public ReplicatedRanges replicate(List<Node> nodes)
         {
@@ -62,18 +75,34 @@ public class TokenPlacementModel
         public abstract ReplicatedRanges replicate(Range[] ranges, List<Node> nodes);
     }
 
+    public static class DCReplicas
+    {
+        public final int totalCount;
+        public final int transientCount;
+        public DCReplicas(int totalCount, int transientCount)
+        {
+            this.totalCount = totalCount;
+            this.transientCount = transientCount;
+        }
+
+        public String toString()
+        {
+            return totalCount + ((transientCount > 0) ? "/" + transientCount : "");
+        }
+    }
+
     public static class ReplicatedRanges
     {
         public final Range[] ranges;
-        public final NavigableMap<Range, List<Node>> placementsForRange;
+        public final NavigableMap<Range, List<Replica>> placementsForRange;
 
-        public ReplicatedRanges(Range[] ranges, NavigableMap<Range, List<Node>> placementsForRange)
+        public ReplicatedRanges(Range[] ranges, NavigableMap<Range, List<Replica>> placementsForRange)
         {
             this.ranges = ranges;
             this.placementsForRange = placementsForRange;
         }
 
-        public List<Node> replicasFor(long token)
+        public List<Replica> replicasFor(long token)
         {
             int idx = indexedBinarySearch(ranges, range -> {
                 // exclusive start, so token at the start belongs to a lower range
@@ -89,7 +118,7 @@ public class TokenPlacementModel
             return placementsForRange.get(ranges[idx]);
         }
 
-        public NavigableMap<Range, List<Node>> asMap()
+        public NavigableMap<Range, List<Replica>> asMap()
         {
             return placementsForRange;
         }
@@ -121,12 +150,12 @@ public class TokenPlacementModel
         int compareTo(V v);
     }
 
-    public static void addIfUnique(List<Node> nodes, Set<Integer> names, Node node)
+    public static void addIfUnique(List<Replica> replicas, Set<Integer> names, Replica replica)
     {
-        if (names.contains(node.idx()))
+        if (names.contains(replica.node().idx()))
             return;
-        nodes.add(node);
-        names.add(node.idx());
+        replicas.add(replica);
+        names.add(replica.node().idx());
     }
 
     /**
@@ -199,41 +228,28 @@ public class TokenPlacementModel
 
     public static class NtsReplicationFactor extends ReplicationFactor
     {
-        private final Lookup lookup = new DefaultLookup();
         private KeyspaceParams keyspaceParams;
-        private final Map<String, Integer> map;
 
         public NtsReplicationFactor(int... nodesPerDc)
         {
-            super(total(nodesPerDc));
-            this.map = toMap(nodesPerDc, lookup);
+            super(mapFunction(nodesPerDc));
         }
 
         public NtsReplicationFactor(int dcs, int nodesPerDc)
         {
-            super(dcs * nodesPerDc);
-            int[] counts = new int[dcs];
-            Arrays.fill(counts, nodesPerDc);
-            this.map = toMap(counts, lookup);
+            this(dcs, nodesPerDc, 0);
+        }
+
+        public NtsReplicationFactor(int dcs, int nodesPerDc, int transientPerDc)
+        {
+            super(mapFunction(dcs, nodesPerDc, transientPerDc));
+            if (transientPerDc >= nodesPerDc)
+                throw new IllegalArgumentException("Transient replicas must be zero, or less than total replication factor per dc");
         }
 
         public NtsReplicationFactor(Map<String, Integer> m)
         {
-            super(m.values().stream().reduce(0, Integer::sum));
-            this.map = m;
-        }
-
-        private static int total(int... num)
-        {
-            int tmp = 0;
-            for (int i : num)
-                tmp += i;
-            return tmp;
-        }
-
-        public int dcs()
-        {
-            return map.size();
+            super((lookup) -> m.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> new DCReplicas(e.getValue(), 0))));
         }
 
         public KeyspaceParams asKeyspaceParams()
@@ -243,17 +259,12 @@ public class TokenPlacementModel
             return this.keyspaceParams;
         }
 
-        public Map<String, Integer> asMap()
-        {
-            return this.map;
-        }
-
         public ReplicatedRanges replicate(Range[] ranges, List<Node> nodes)
         {
             return replicate(ranges, nodes, asMap());
         }
 
-        public static ReplicatedRanges replicate(Range[] ranges, List<Node> nodes, Map<String, Integer> rfs)
+        public static ReplicatedRanges replicate(Range[] ranges, List<Node> nodes, Map<String, DCReplicas> rfs)
         {
             assertStrictlySorted(nodes);
             boolean minTokenOwned = nodes.stream().anyMatch(n -> n.token() == Long.MIN_VALUE);
@@ -262,21 +273,21 @@ public class TokenPlacementModel
             Map<String, List<Node>> nodesByDC = nodesByDC(nodes);
             Map<String, Set<String>> racksByDC = racksByDC(nodes);
 
-            for (Map.Entry<String, Integer> entry : rfs.entrySet())
+            for (Map.Entry<String, DCReplicas> entry : rfs.entrySet())
             {
                 String dc = entry.getKey();
-                int rf = entry.getValue();
+                DCReplicas dcRf = entry.getValue();
                 List<Node> nodesInThisDC = nodesByDC.get(dc);
                 Set<String> racksInThisDC = racksByDC.get(dc);
                 int nodeCount = nodesInThisDC == null ? 0 : nodesInThisDC.size();
                 int rackCount = racksInThisDC == null ? 0 : racksInThisDC.size();
-                if (rf <= 0 || nodeCount == 0)
+                if (dcRf.totalCount <= 0 || nodeCount == 0)
                     continue;
 
-                template.put(dc, new DatacenterNodes(rf, rackCount, nodeCount));
+                template.put(dc, new DatacenterNodes(dcRf, rackCount, nodeCount));
             }
 
-            NavigableMap<Range, Map<String, List<Node>>> replication = new TreeMap<>();
+            NavigableMap<Range, Map<String, List<Replica>>> replication = new TreeMap<>();
             Range skipped = null;
             for (Range range : ranges)
             {
@@ -300,7 +311,7 @@ public class TokenPlacementModel
                         cnt++;
                     }
 
-                    replication.put(range, mapValues(nodesInDCs, v -> v.nodes));
+                    replication.put(range, mapValues(nodesInDCs, DatacenterNodes::asReplicas));
                 }
                 else
                 {
@@ -325,16 +336,16 @@ public class TokenPlacementModel
         /**
          * Replicate ranges to rf nodes.
          */
-        private static ReplicatedRanges combine(NavigableMap<Range, Map<String, List<Node>>> orig)
+        private static ReplicatedRanges combine(NavigableMap<Range, Map<String, List<Replica>>> orig)
         {
 
             Range[] ranges = new Range[orig.size()];
             int idx = 0;
-            NavigableMap<Range, List<Node>> flattened = new TreeMap<>();
-            for (Map.Entry<Range, Map<String, List<Node>>> e : orig.entrySet())
+            NavigableMap<Range, List<Replica>> flattened = new TreeMap<>();
+            for (Map.Entry<Range, Map<String, List<Replica>>> e : orig.entrySet())
             {
-                List<Node> placementsForRange = new ArrayList<>();
-                for (List<Node> v : e.getValue().values())
+                List<Replica> placementsForRange = new ArrayList<>();
+                for (List<Replica> v : e.getValue().values())
                     placementsForRange.addAll(v);
                 ranges[idx++] = e.getKey();
                 flattened.put(e.getKey(), placementsForRange);
@@ -344,24 +355,43 @@ public class TokenPlacementModel
 
         private KeyspaceParams toKeyspaceParams()
         {
-            Object[] args = new Object[map.size() * 2];
+            Object[] args = new Object[replication.size() * 2];
             int i = 0;
-            for (Map.Entry<String, Integer> e : map.entrySet())
+            for (Map.Entry<String, DCReplicas> e : replication.entrySet())
             {
                 args[i * 2] = e.getKey();
-                args[i * 2 + 1] = e.getValue();
+                args[i * 2 + 1] = e.getValue().toString();
                 i++;
             }
 
             return KeyspaceParams.nts(args);
         }
 
-        private Map<String, Integer> toMap(int[] nodesPerDc, Lookup lookup)
+        private static Function<Lookup, Map<String, DCReplicas>> mapFunction(int dcs, int nodesPerDc, int transientsPerDc)
         {
-            Map<String, Integer> map = new TreeMap<>();
-            for (int i = 0; i < nodesPerDc.length; i++)
-            {
-                map.put(lookup.dc(i + 1), nodesPerDc[i]);
+            return (lookup) -> {
+                int[] totals = new int[dcs];
+                Arrays.fill(totals, nodesPerDc);
+                int[] transients = new int[dcs];
+                Arrays.fill(transients, transientsPerDc);
+                return toMap(totals, transients, lookup);
+            };
+        }
+
+        private static Function<Lookup, Map<String, DCReplicas>> mapFunction(final int[] totalPerDc)
+        {
+            return (lookup) -> {
+                int[] transients = new int[totalPerDc.length];
+                Arrays.fill(transients, 0);
+                return toMap(totalPerDc, transients, lookup);
+            };
+        }
+
+        private static Map<String, DCReplicas> toMap(int[] totalPerDc, int[] transientPerDc, Lookup lookup)
+        {
+            Map<String, DCReplicas> map = new TreeMap<>();
+            for (int i = 0; i < totalPerDc.length; i++) {
+                map.put(lookup.dc(i + 1), new DCReplicas(totalPerDc[i], transientPerDc[i]));
             }
             return map;
         }
@@ -382,25 +412,26 @@ public class TokenPlacementModel
         /** Number of replicas left to fill from this DC. */
         int rfLeft;
         int acceptableRackRepeats;
+        DCReplicas rf;
 
         public DatacenterNodes copy()
         {
-            return new DatacenterNodes(rfLeft, acceptableRackRepeats);
+            return new DatacenterNodes(this);
         }
 
-        DatacenterNodes(int rf,
-                        int rackCount,
-                        int nodeCount)
+        DatacenterNodes(DCReplicas rf, int rackCount, int nodeCount)
         {
-            this.rfLeft = Math.min(rf, nodeCount);
-            acceptableRackRepeats = rf - rackCount;
+            this.rf = rf;
+            this.rfLeft = Math.min(rf.totalCount, nodeCount);
+            this.acceptableRackRepeats = rf.totalCount - rackCount;
         }
 
         // for copying
-        DatacenterNodes(int rfLeft, int acceptableRackRepeats)
+        DatacenterNodes(DatacenterNodes source)
         {
-            this.rfLeft = rfLeft;
-            this.acceptableRackRepeats = acceptableRackRepeats;
+            this.rf = source.rf;
+            this.rfLeft = source.rfLeft;
+            this.acceptableRackRepeats = source.acceptableRackRepeats;
         }
 
         boolean addAndCheckIfDone(Node node, Location location)
@@ -435,6 +466,17 @@ public class TokenPlacementModel
         {
             assert rfLeft >= 0;
             return rfLeft == 0;
+        }
+
+        public List<Replica> asReplicas()
+        {
+            List<Replica> replicas = new ArrayList<>(nodes.size());
+            for (Node node : nodes)
+            {
+                boolean full = replicas.size() < rf.totalCount - rf.transientCount;
+                replicas.add(new Replica(node, full));
+            }
+            return replicas;
         }
 
         @Override
@@ -504,47 +546,59 @@ public class TokenPlacementModel
 
     public static class SimpleReplicationFactor extends ReplicationFactor
     {
-        private final Lookup lookup = new DefaultLookup();
         public SimpleReplicationFactor(int total)
         {
-            super(total);
+            this(total, 0);
         }
 
-        public int dcs()
+        public SimpleReplicationFactor(int total, int transientReplicas)
         {
-            return 1;
+            super(mapFunction(total, transientReplicas));
+            if (transientReplicas >= total)
+                throw new IllegalArgumentException("Transient replicas must be zero, or less than total replication factor");
+        }
+
+        public static Function<Lookup, Map<String, DCReplicas>> mapFunction(int totalReplicas, int transientReplicas)
+        {
+            return (lookup) -> Collections.singletonMap(lookup.dc(1), new DCReplicas(totalReplicas, transientReplicas));
+        }
+
+        private DCReplicas dcReplicas()
+        {
+            return replication.get(lookup.dc(1));
         }
 
         public KeyspaceParams asKeyspaceParams()
         {
-            return KeyspaceParams.simple(total());
-        }
-
-        public Map<String, Integer> asMap()
-        {
-            return Collections.singletonMap(lookup.dc(1), total());
+            Map<String, String> options = new HashMap<>();
+            options.put(ReplicationParams.CLASS, SimpleStrategy.class.getName());
+            options.put(SimpleStrategy.REPLICATION_FACTOR, dcReplicas().toString());
+            return KeyspaceParams.create(true, options);
         }
 
         public ReplicatedRanges replicate(Range[] ranges, List<Node> nodes)
         {
-            return replicate(ranges, nodes, total());
+            return replicate(ranges, nodes, dcReplicas());
         }
 
-        public static ReplicatedRanges replicate(Range[] ranges, List<Node> nodes, int rf)
+        public static ReplicatedRanges replicate(Range[] ranges, List<Node> nodes, DCReplicas dcReplicas)
         {
             assertStrictlySorted(nodes);
-            NavigableMap<Range, List<Node>> replication = new TreeMap<>();
+            NavigableMap<Range, List<Replica>> replication = new TreeMap<>();
             boolean minTokenOwned = nodes.stream().anyMatch(n -> n.token() == Long.MIN_VALUE);
             Range skipped = null;
             for (Range range : ranges)
             {
                 Set<Integer> names = new HashSet<>();
-                List<Node> replicas = new ArrayList<>();
+                List<Replica> replicas = new ArrayList<>();
                 int idx = primaryReplica(nodes, range);
                 if (idx >= 0)
                 {
-                    for (int i = 0; i < nodes.size() && replicas.size() < rf; i++)
-                        addIfUnique(replicas, names, nodes.get((idx + i) % nodes.size()));
+                    for (int i = 0; i < nodes.size() && replicas.size() < dcReplicas.totalCount; i++)
+                    {
+                        boolean full = replicas.size() < dcReplicas.totalCount - dcReplicas.transientCount;
+                        addIfUnique(replicas, names, new Replica(nodes.get((idx + i) % nodes.size()), full));
+                    }
                     if (!minTokenOwned && range.start == Long.MIN_VALUE)
                         replication.put(ranges[ranges.length - 1], replicas);
                     replication.put(range, replicas);
@@ -572,7 +626,7 @@ public class TokenPlacementModel
         public String toString()
         {
             return "SimpleReplicationFactor{" +
-                   "rf=" + total() +
+                   "rf=" + dcReplicas().toString() +
                    '}';
         }
     }
@@ -777,6 +831,58 @@ public class TokenPlacementModel
             lookup.tokenOverrides.putAll(tokenOverrides);
             lookup.tokenOverrides.put(tokenIdx, token);
             return lookup;
+        }
+    }
+
+    public static class Replica implements Comparable<Replica>
+    {
+        private final Node node;
+        private final boolean full;
+
+        public Replica(Node node, boolean full)
+        {
+            this.node = node;
+            this.full = full;
+        }
+
+        public Node node()
+        {
+            return node;
+        }
+
+        public boolean isFull()
+        {
+            return full;
+        }
+
+        public boolean isTransient()
+        {
+            return !full;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || !Replica.class.isAssignableFrom(o.getClass())) return false;
+            Replica replica = (Replica) o;
+            return full == replica.full && Objects.equals(node, replica.node);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(full, node);
+        }
+
+        public String toString()
+        {
+            return String.format("%s(%s)", (full ? "Full" : "Transient"), node.toString());
+        }
+
+        @Override
+        public int compareTo(Replica o) {
+            return node.compareTo(o.node);
         }
     }
 

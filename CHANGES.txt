@@ -1,4 +1,6 @@
 5.1
+ * Improve handling of transient replicas during range movements (CASSANDRA-19344)
+ * Enable debounced internode log requests to be cancelled at shutdown (CASSANDRA-19514)
  * Correctly set last modified epoch when combining multistep operations into a single step (CASSANDRA-19538)
  * Add new TriggersPolicy configuration to allow operators to disable triggers (CASSANDRA-19532)
  * Use Transformation.Kind.id in local and distributed log tables (CASSANDRA-19516)

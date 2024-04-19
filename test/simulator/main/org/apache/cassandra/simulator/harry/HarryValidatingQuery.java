@@ -85,15 +85,15 @@ public class HarryValidatingQuery extends SimulatedAction
                         protected void validate(Query query, TokenPlacementModel.ReplicatedRanges ring)
                         {
                             CompiledStatement compiled = query.toSelectStatement();
-                            List<TokenPlacementModel.Node> replicas = ring.replicasFor(this.token(query.pd));
+                            List<TokenPlacementModel.Replica> replicas = ring.replicasFor(this.token(query.pd));
                             logger.trace("Predicted {} as replicas for {}. Ring: {}", new Object[]{ replicas, query.pd, ring });
                             List<Throwable> throwables = new ArrayList<>();
-                            for (TokenPlacementModel.Node node : replicas)
+                            for (TokenPlacementModel.Replica replica : replicas)
                             {
                                 try
                                 {
                                     validate(() -> {
-                                        Object[][] objects = this.executeNodeLocal(compiled.cql(), node, compiled.bindings());
+                                        Object[][] objects = this.executeNodeLocal(compiled.cql(), replica.node(), compiled.bindings());
                                         List<ResultSetRow> result = new ArrayList();
                                         int length = objects.length;
                                         for (int i = 0; i < length; ++i)
@@ -107,7 +107,7 @@ public class HarryValidatingQuery extends SimulatedAction
                                 }
                                 catch (Model.ValidationException t)
                                 {
-                                    throwables.add(new AssertionError(String.format("Caught an exception while validating %s on %s", query, node), t));
+                                    throwables.add(new AssertionError(String.format("Caught an exception while validating %s on %s", query, replica), t));
                                 }
                             }
 
