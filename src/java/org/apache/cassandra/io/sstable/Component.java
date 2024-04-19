@@ -18,10 +18,12 @@
 package org.apache.cassandra.io.sstable;
 
 import java.util.EnumSet;
+import java.util.List;
 import java.util.regex.Pattern;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
+import com.google.common.base.Splitter;
 
 /**
  * SSTables are made up of multiple components in separate files. Components are
@@ -31,6 +33,7 @@ import com.google.common.base.Objects;
 public class Component
 {
     public static final char separator = '-';
+    private static final Splitter filenameSplitter = Splitter.on(separator);
 
     final static EnumSet<Type> TYPES = EnumSet.allOf(Type.class);
 
@@ -121,13 +124,32 @@ public class Component
     }
 
     /**
+     * Parse the component part of an sstable from the full filename passed in
+     */
+    public static Component parseFromFullFileName(String fullFileName)
+    {
+        List<String> nameSplits = filenameSplitter.splitToList(fullFileName);
+        return parseFromFinalToken(nameSplits.get(nameSplits.size() - 1));
+    }
+
+    /**
+     * Keeping this around for potential ecosystem dependencies on the API. Use parseFromFinalToken or parseFromFullFileName instead
+     * @see Component#parseFromFinalToken
+     */
+    @Deprecated
+    public static Component parse(String name)
+    {
+        return parseFromFinalToken(name);
+    }
+
+    /**
      * Parse the component part of a sstable filename into a {@code Component} object.
      *
-     * @param name a string representing a sstable component.
+     * @param name a string representing a sstable component. Notably this is just the last token after the last -
      * @return the component corresponding to {@code name}. Note that this always return a component as an unrecognized
      * name is parsed into a CUSTOM component.
      */
-    public static Component parse(String name)
+    public static Component parseFromFinalToken(String name)
     {
         Type type = Type.fromRepresentation(name);
 

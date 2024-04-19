@@ -132,7 +132,7 @@ final class LogAwareFileLister
 
     void readTxnLog(LogFile txn)
     {
-        if (!txn.verify() && onTxnErr == OnTxnErr.THROW)
+        if (!txn.verify(false) && onTxnErr == OnTxnErr.THROW)
             throw new LogTransaction.CorruptTransactionLogException("Some records failed verification. See earlier in log for details.", txn);
     }
 

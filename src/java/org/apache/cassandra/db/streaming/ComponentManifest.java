@@ -125,7 +125,7 @@ public final class ComponentManifest implements Iterable<Component>
 
             for (int i = 0; i < size; i++)
             {
-                Component component = Component.parse(in.readUTF());
+                Component component = Component.parseFromFinalToken(in.readUTF());
                 long length = in.readUnsignedVInt();
                 components.put(component, length);
             }
