@@ -113,15 +113,6 @@ public class PeersTable extends AbstractVirtualTable
         return result;
     }
 
-    public static void initializeLegacyPeerTables(ClusterMetadata prev, ClusterMetadata next)
-    {
-        QueryProcessor.executeInternal(String.format("TRUNCATE %s.%s", SYSTEM_KEYSPACE_NAME, PEERS_V2));
-        QueryProcessor.executeInternal(String.format("TRUNCATE %s.%s", SYSTEM_KEYSPACE_NAME, LEGACY_PEERS));
-
-        for (NodeId nodeId : next.directory.peerIds())
-            updateLegacyPeerTable(nodeId, prev, next);
-    }
-
     private static String peers_v2_query = "INSERT INTO %s.%s ("
                                             + "peer, peer_port, "
                                             + "preferred_ip, preferred_port, "
@@ -156,7 +147,7 @@ public class PeersTable extends AbstractVirtualTable
         if (next.directory.peerState(nodeId) == null || next.directory.peerState(nodeId) == NodeState.LEFT)
         {
             NodeAddresses addresses = prev.directory.getNodeAddresses(nodeId);
-            removeFromLegacyPeerTable(addresses.broadcastAddress);
+            removeFromSystemPeersTables(addresses.broadcastAddress);
         }
         else if (NodeState.isPreJoin(next.directory.peerState(nodeId)))
         {
@@ -167,11 +158,7 @@ public class PeersTable extends AbstractVirtualTable
             NodeAddresses addresses = next.directory.getNodeAddresses(nodeId);
             NodeAddresses oldAddresses = prev.directory.getNodeAddresses(nodeId);
             if (oldAddresses != null && !oldAddresses.equals(addresses))
-            {
-                logger.debug("Purging {} from system.peers_v2 table", oldAddresses);
-                QueryProcessor.executeInternal(String.format(peers_delete_query, SYSTEM_KEYSPACE_NAME, PEERS_V2), oldAddresses.broadcastAddress.getAddress(), oldAddresses.broadcastAddress.getPort());
-                QueryProcessor.executeInternal(String.format(legacy_peers_delete_query, SYSTEM_KEYSPACE_NAME, LEGACY_PEERS), oldAddresses.broadcastAddress.getAddress());
-            }
+                removeFromSystemPeersTables(oldAddresses.broadcastAddress);
 
             Location location = next.directory.location(nodeId);
 
@@ -196,7 +183,7 @@ public class PeersTable extends AbstractVirtualTable
         }
     }
 
-    public static void removeFromLegacyPeerTable(InetAddressAndPort addr)
+    public static void removeFromSystemPeersTables(InetAddressAndPort addr)
     {
         logger.debug("Purging {} from system.peers_v2 table", addr);
         QueryProcessor.executeInternal(String.format(peers_delete_query, SYSTEM_KEYSPACE_NAME, PEERS_V2), addr.getAddress(), addr.getPort());
