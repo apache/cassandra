@@ -38,7 +38,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  *
  *  thread_id                   | queued_micros |  running_micros | task
  * ------------------------------+---------------+-----------------+--------------------------------------------------------------------------------
- *  Native-Transport-Requests-7 |         72923 |            7611 |                      QUERY select * from system_views.queries; [pageSize = 100]
+ *  Native-Transport-Requests-7 |         72923 |            7611 |                      QUERY SELECT * FROM system_views.queries; [pageSize = 100]
  *              MutationStage-2 |         18249 |            2084 | Mutation(keyspace='distributed_test_keyspace', key='000000f8', modifications...
  *                  ReadStage-2 |         72447 |           10121 |                                         SELECT * FROM keyspace.table LIMIT 5000
  * </pre>
