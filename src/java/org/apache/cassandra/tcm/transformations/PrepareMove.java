@@ -109,6 +109,7 @@ public class PrepareMove implements Transformation
         StartMove startMove = new StartMove(nodeId, transitionPlan.addToWrites(), lockKey);
         MidMove midMove = new MidMove(nodeId, transitionPlan.moveReads(), lockKey);
         FinishMove finishMove = new FinishMove(nodeId, tokens, transitionPlan.removeFromWrites(), lockKey);
+        PlacementTransitionPlan.assertPreExistingWriteReplica(prev.placements, transitionPlan);
 
         Move sequence = Move.newSequence(prev.nextEpoch(),
                                          lockKey,

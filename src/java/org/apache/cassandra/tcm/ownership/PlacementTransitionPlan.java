@@ -18,6 +18,22 @@
 
 package org.apache.cassandra.tcm.ownership;
 
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import javax.annotation.Nullable;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.RangesAtEndpoint;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 
 /**
@@ -32,6 +48,8 @@ import org.apache.cassandra.tcm.sequences.LockedRanges;
  */
 public class PlacementTransitionPlan
 {
+    private static final Logger logger = LoggerFactory.getLogger(MovementMap.class);
+
     public final PlacementDeltas toSplit;
     public final PlacementDeltas toMaximal;
     public final PlacementDeltas toFinal;
@@ -124,5 +142,78 @@ public class PlacementTransitionPlan
                ", toMerged=" + toMerged +
                ", compiled=" + (addToWrites == null) +
                '}';
+    }
+
+
+    /**
+     * Makes sure that a newly added read replica for a range already exists as a write replica
+     *
+     * We should never add both read & write replicas for the same range at the same time (or read replica before write)
+     *
+     * Also makes sure that we don't add a full read replica while the same write replica is only transient - we should
+     * always make the write replica full before adding the read replica.
+     *
+     * We split and merge ranges, so in the previous placements we could have full write replicas (a, b], (b, c], but then
+     * add a full read replica (a, c].
+     *
+     * @return null if everything is good, otherwise a Transformation.Result rejection containing information about the bad replica
+     */
+    @Nullable
+    public static void assertPreExistingWriteReplica(DataPlacements placements, PlacementTransitionPlan transitionPlan)
+    {
+        assertPreExistingWriteReplica(placements,
+                                      transitionPlan.toSplit,
+                                      transitionPlan.addToWrites(),
+                                      transitionPlan.moveReads(),
+                                      transitionPlan.removeFromWrites());
+    }
+
+    @Nullable
+    public static void assertPreExistingWriteReplica(DataPlacements placements, PlacementDeltas ... deltasInOrder)
+    {
+        for (PlacementDeltas deltas : deltasInOrder)
+        {
+            for (Map.Entry<ReplicationParams, PlacementDeltas.PlacementDelta> entry : deltas)
+            {
+                ReplicationParams params = entry.getKey();
+                PlacementDeltas.PlacementDelta delta = entry.getValue();
+                for (Map.Entry<InetAddressAndPort, RangesAtEndpoint> addedRead : delta.reads.additions.entrySet())
+                {
+                    RangesAtEndpoint addedReadReplicas = addedRead.getValue();
+                    RangesAtEndpoint existingWriteReplicas = placements.get(params).writes.byEndpoint().get(addedRead.getKey());
+                    // we're adding read replicas - they should always exist as write replicas before doing that
+                    // BUT we split and merge ranges so we need to check containment both ways
+                    for (Replica newReadReplica : addedReadReplicas)
+                    {
+                        if (existingWriteReplicas.contains(newReadReplica))
+                            continue;
+                        boolean contained = false;
+                        Set<Range<Token>> intersectingRanges = new HashSet<>();
+                        for (Replica writeReplica : existingWriteReplicas)
+                        {
+                            if (writeReplica.isFull() == newReadReplica.isFull() || (writeReplica.isFull() && newReadReplica.isTransient()))
+                            {
+                                if (writeReplica.range().contains(newReadReplica.range()))
+                                {
+                                    contained = true;
+                                    break;
+                                }
+                                else if (writeReplica.range().intersects(newReadReplica.range()))
+                                {
+                                    intersectingRanges.add(writeReplica.range());
+                                }
+                            }
+                        }
+                        if (!contained && Range.normalize(intersectingRanges).stream().noneMatch(writeReplica -> writeReplica.contains(newReadReplica.range())))
+                        {
+                            String message = "When adding a read replica, that replica needs to exist as a write replica before that: " + newReadReplica + '\n' + placements.get(params) + '\n' + delta;
+                            logger.warn(message);
+                            throw new Transformation.RejectedTransformationException(message);
+                        }
+                    }
+                }
+            }
+            placements = deltas.apply(Epoch.FIRST, placements);
+        }
     }
 }

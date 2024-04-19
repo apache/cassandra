@@ -213,7 +213,7 @@ public class ProgressBarrierTest extends CMSTestBase
                             if (rf instanceof TokenPlacementModel.SimpleReplicationFactor)
                                 expected = rf.total() / 2 + 1;
                             else
-                                expected = rf.asMap().get(dc) / 2 + 1;
+                                expected = rf.asMap().get(dc).totalCount / 2 + 1;
                             Assert.assertTrue(String.format("Should have collected at least %d nodes but got %d." +
                                                             "\nRF: %s" +
                                                             "\nReplicas: %s" +
@@ -233,7 +233,7 @@ public class ProgressBarrierTest extends CMSTestBase
                             if (rf instanceof TokenPlacementModel.SimpleReplicationFactor)
                             {
                                 int actual = byDc.get(dc);
-                                int expected = rf.asMap().get(dc) / 2 + 1;
+                                int expected = rf.asMap().get(dc).totalCount / 2 + 1;
                                 Assert.assertTrue(String.format("Shuold have collected at least %d nodes, but got %d." +
                                                                 "\nRF: %s" +
                                                                 "\nNodes: %s", expected, byDc.size(), rf, byDc),
@@ -244,7 +244,7 @@ public class ProgressBarrierTest extends CMSTestBase
                                 for (Map.Entry<String, Integer> e : byDc.entrySet())
                                 {
                                     int actual = e.getValue();
-                                    int expected = rf.asMap().get(e.getKey()) / 2 + 1;
+                                    int expected = rf.asMap().get(e.getKey()).totalCount / 2 + 1;
                                     Assert.assertTrue(String.format("Shuold have collected at least %d nodes, but got %d." +
                                                                     "\nRF: %s" +
                                                                     "\nNodes: %s", expected, byDc.size(), rf, byDc),

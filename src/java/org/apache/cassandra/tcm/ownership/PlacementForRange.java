@@ -321,15 +321,49 @@ public class PlacementForRange
                                                (t, v) -> {
                                                    EndpointsForRange old = v.get();
                                                    return VersionedEndpoints.forRange(Epoch.max(v.lastModified(), replicas.lastModified()),
-                                                                                      replicas.get()
-                                                                                              .newBuilder(replicas.size() + old.size())
-                                                                                              .addAll(old)
-                                                                                              .addAll(replicas.get(), ReplicaCollection.Builder.Conflict.ALL)
-                                                                                              .build());
+                                                                                      combine(old, replicas.get()));
                                                });
             if (group == null)
                 replicaGroups.put(replicas.range(), replicas);
             return this;
+        }
+
+        /**
+         * Combine two replica groups, assuming one is the current group and the other is the proposed.
+         * During range movements this is used when calculating the maximal placement, which combines the current and
+         * future replica groups. This special cases the merging of two replica groups to make sure that when a replica
+         * moves from transient to full, it starts to act as a FULL write replica as early as possible.
+         *
+         * Where an endpoint is present in both groups, prefer the proposed iff it is a FULL replica. During a
+         * multi-step operation (join/leave/move), we want any change from transient to full to happen as early
+         * as possible so that a replica whose ownership is modified in this way becomes FULL for writes before it
+         * becomes FULL for reads. This works as additions to write replica groups are applied before any other
+         * placement changes (i.e. in START_[JOIN|LEAVE|MOVE]).
+         *
+         * @param prev Initial set of replicas for a given range
+         * @param next Proposed set of replicas for the same range.
+         * @return The union of the two groups
+         */
+        private EndpointsForRange combine(EndpointsForRange prev, EndpointsForRange next)
+        {
+            Map<InetAddressAndPort, Replica> e1 = prev.byEndpoint();
+            Map<InetAddressAndPort, Replica> e2 = next.byEndpoint();
+            EndpointsForRange.Builder combined = prev.newBuilder(prev.size() + next.size());
+            e1.forEach((e, r1) -> {
+                Replica r2 = e2.get(e);
+                if (null == r2)          // not present in next
+                    combined.add(r1);
+                else if (r2.isFull())    // prefer replica from next, if it is moving from transient to full
+                    combined.add(r2);
+                else
+                    combined.add(r1);    // replica is moving from full to transient, or staying the same
+            });
+            // any new replicas not in prev
+            e2.forEach((e, r2) -> {
+                if (!combined.contains(e))
+                    combined.add(r2);
+            });
+            return combined.build();
         }
 
         public Builder withReplicaGroups(Iterable<VersionedEndpoints.ForRange> replicas)
