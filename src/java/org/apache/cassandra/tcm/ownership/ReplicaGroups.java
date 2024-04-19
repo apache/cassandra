@@ -48,7 +48,7 @@ import org.apache.cassandra.utils.AsymmetricOrdering;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 
-public class PlacementForRange
+public class ReplicaGroups
 {
     private static final AsymmetricOrdering<Range<Token>, Token> ordering = new AsymmetricOrdering<>()
     {
@@ -72,12 +72,12 @@ public class PlacementForRange
     };
 
     public static final Serializer serializer = new Serializer();
-    public static final PlacementForRange EMPTY = PlacementForRange.builder().build();
+    public static final ReplicaGroups EMPTY = ReplicaGroups.builder().build();
 
     public final ImmutableList<Range<Token>> ranges;
     public final ImmutableList<VersionedEndpoints.ForRange> endpoints;
 
-    public PlacementForRange(Map<Range<Token>, VersionedEndpoints.ForRange> replicaGroups)
+    public ReplicaGroups(Map<Range<Token>, VersionedEndpoints.ForRange> replicaGroups)
     {
         ImmutableList.Builder<Range<Token>> rangesBuilder = ImmutableList.builderWithExpectedSize(replicaGroups.size());
         ImmutableList.Builder<VersionedEndpoints.ForRange> endpointsBuilder = ImmutableList.builderWithExpectedSize(replicaGroups.size());
@@ -146,7 +146,7 @@ public class PlacementForRange
         return forRange(token).forToken(token);
     }
 
-    public Delta difference(PlacementForRange next)
+    public Delta difference(ReplicaGroups next)
     {
         RangesByEndpoint oldMap = this.byEndpoint();
         RangesByEndpoint newMap = next.byEndpoint();
@@ -179,7 +179,7 @@ public class PlacementForRange
         return builder.build();
     }
 
-    public PlacementForRange withCappedLastModified(Epoch lastModified)
+    public ReplicaGroups withCappedLastModified(Epoch lastModified)
     {
         SortedMap<Range<Token>, VersionedEndpoints.ForRange> copy = new TreeMap<>();
         for (int i = 0; i < ranges.size(); i++)
@@ -190,7 +190,7 @@ public class PlacementForRange
                 forRange = forRange.withLastModified(lastModified);
             copy.put(range, forRange);
         }
-        return new PlacementForRange(copy);
+        return new ReplicaGroups(copy);
     }
 
 
@@ -262,12 +262,12 @@ public class PlacementForRange
     }
 
     @VisibleForTesting
-    public static PlacementForRange splitRangesForPlacement(List<Token> tokens, PlacementForRange placement)
+    public static ReplicaGroups splitRangesForPlacement(List<Token> tokens, ReplicaGroups placement)
     {
         if (placement.ranges.isEmpty())
             return placement;
 
-        Builder newPlacement = PlacementForRange.builder();
+        Builder newPlacement = ReplicaGroups.builder();
         List<VersionedEndpoints.ForRange> eprs = new ArrayList<>(placement.endpoints);
         eprs.sort(Comparator.comparing(a -> a.range().left));
         Token min = eprs.get(0).range().left;
@@ -426,15 +426,15 @@ public class PlacementForRange
             return this;
         }
 
-        public PlacementForRange build()
+        public ReplicaGroups build()
         {
-            return new PlacementForRange(this.replicaGroups);
+            return new ReplicaGroups(this.replicaGroups);
         }
     }
 
-    public static class Serializer implements PartitionerAwareMetadataSerializer<PlacementForRange>
+    public static class Serializer implements PartitionerAwareMetadataSerializer<ReplicaGroups>
     {
-        public void serialize(PlacementForRange t, DataOutputPlus out, IPartitioner partitioner, Version version) throws IOException
+        public void serialize(ReplicaGroups t, DataOutputPlus out, IPartitioner partitioner, Version version) throws IOException
         {
             out.writeInt(t.ranges.size());
 
@@ -458,7 +458,7 @@ public class PlacementForRange
             }
         }
 
-        public PlacementForRange deserialize(DataInputPlus in, IPartitioner partitioner, Version version) throws IOException
+        public ReplicaGroups deserialize(DataInputPlus in, IPartitioner partitioner, Version version) throws IOException
         {
             int groupCount = in.readInt();
             Map<Range<Token>, VersionedEndpoints.ForRange> result = Maps.newHashMapWithExpectedSize(groupCount);
@@ -492,10 +492,10 @@ public class PlacementForRange
                 EndpointsForRange efr = EndpointsForRange.copyOf(replicas);
                 result.put(range, VersionedEndpoints.forRange(lastModified, efr));
             }
-            return new PlacementForRange(result);
+            return new ReplicaGroups(result);
         }
 
-        public long serializedSize(PlacementForRange t, IPartitioner partitioner, Version version)
+        public long serializedSize(ReplicaGroups t, IPartitioner partitioner, Version version)
         {
             long size = sizeof(t.ranges.size());
             for (int i = 0; i < t.ranges.size(); i++)
@@ -525,8 +525,8 @@ public class PlacementForRange
     public boolean equals(Object o)
     {
         if (this == o) return true;
-        if (!(o instanceof PlacementForRange)) return false;
-        PlacementForRange that = (PlacementForRange) o;
+        if (!(o instanceof ReplicaGroups)) return false;
+        ReplicaGroups that = (ReplicaGroups) o;
         return Objects.equals(ranges, that.ranges) && Objects.equals(endpoints, that.endpoints);
     }
 

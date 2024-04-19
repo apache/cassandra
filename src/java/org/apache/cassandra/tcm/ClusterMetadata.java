@@ -64,7 +64,7 @@ import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PrimaryRangeComparator;
-import org.apache.cassandra.tcm.ownership.PlacementForRange;
+import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
@@ -282,8 +282,8 @@ public class ClusterMetadata
     // TODO Remove this as it isn't really an equivalent to the previous concept of pending ranges
     public boolean hasPendingRangesFor(KeyspaceMetadata ksm, Token token)
     {
-        PlacementForRange writes = placements.get(ksm.params.replication).writes;
-        PlacementForRange reads = placements.get(ksm.params.replication).reads;
+        ReplicaGroups writes = placements.get(ksm.params.replication).writes;
+        ReplicaGroups reads = placements.get(ksm.params.replication).reads;
         if (ksm.params.replication.isMeta())
             return !reads.equals(writes);
         return !reads.forToken(token).equals(writes.forToken(token));
@@ -292,8 +292,8 @@ public class ClusterMetadata
     // TODO Remove this as it isn't really an equivalent to the previous concept of pending ranges
     public boolean hasPendingRangesFor(KeyspaceMetadata ksm, InetAddressAndPort endpoint)
     {
-        PlacementForRange writes = placements.get(ksm.params.replication).writes;
-        PlacementForRange reads = placements.get(ksm.params.replication).reads;
+        ReplicaGroups writes = placements.get(ksm.params.replication).writes;
+        ReplicaGroups reads = placements.get(ksm.params.replication).reads;
         return !writes.byEndpoint().get(endpoint).equals(reads.byEndpoint().get(endpoint));
     }
 
@@ -311,8 +311,8 @@ public class ClusterMetadata
     public Map<Range<Token>, VersionedEndpoints.ForRange> pendingRanges(KeyspaceMetadata metadata)
     {
         Map<Range<Token>, VersionedEndpoints.ForRange> map = new HashMap<>();
-        PlacementForRange writes = placements.get(metadata.params.replication).writes;
-        PlacementForRange reads = placements.get(metadata.params.replication).reads;
+        ReplicaGroups writes = placements.get(metadata.params.replication).writes;
+        ReplicaGroups reads = placements.get(metadata.params.replication).reads;
 
         // first, pending ranges as the result of range splitting or merging
         // i.e. new ranges being created through join/leave

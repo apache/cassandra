@@ -39,7 +39,7 @@ import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
-import org.apache.cassandra.tcm.ownership.PlacementForRange;
+import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.transformations.UnsafeJoin;
@@ -69,7 +69,7 @@ public class PlacementForRangeBench
 {
     static Token [] queryTokens = new Token[5000];
     static Random random = new Random(1);
-    static PlacementForRange pfr;
+    static ReplicaGroups pfr;
 /*
 new: PlacementForRangeBench.bench  avgt    5  0,317 ± 0,037  ms/op
 

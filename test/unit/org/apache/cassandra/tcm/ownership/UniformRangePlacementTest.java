@@ -50,12 +50,12 @@ public class UniformRangePlacementTest
         // which is either the min or max value in the token space. Any other single token would produce two ranges -
         // (MIN, t] & (t, MAX] - but because (x, x] denotes a wraparound, this case produces (MIN, MAX] and we need to
         // verify that we can safely split that when more tokens are introduced. This test supposes MIN = 0, MAX = 100
-        PlacementForRange before = PlacementForRange.builder()
-                                                    .withReplicaGroup(VersionedEndpoints.forRange(Epoch.EMPTY, rg(0, 100, 1, 2, 3)))
-                                                    .build();
+        ReplicaGroups before = ReplicaGroups.builder()
+                                            .withReplicaGroup(VersionedEndpoints.forRange(Epoch.EMPTY, rg(0, 100, 1, 2, 3)))
+                                            .build();
         // existing token is MIN (i.e. 0 for the purposes of this test)
         List<Token> tokens = ImmutableList.of(token(0), token(30), token(60), token(90));
-        PlacementForRange after = PlacementForRange.splitRangesForPlacement(tokens, before);
+        ReplicaGroups after = ReplicaGroups.splitRangesForPlacement(tokens, before);
         assertPlacement(after,
                         rg(0, 30, 1, 2, 3),
                         rg(30, 60, 1, 2, 3),
@@ -65,7 +65,7 @@ public class UniformRangePlacementTest
 
         // existing token is MAX (i.e. 100 for the purposes of this test).
         tokens = ImmutableList.of(token(30), token(60), token(90), token(100));
-        after = PlacementForRange.splitRangesForPlacement(tokens, before);
+        after = ReplicaGroups.splitRangesForPlacement(tokens, before);
         assertPlacement(after,
                         rg(0, 30, 1, 2, 3),
                         rg(30, 60, 1, 2, 3),
@@ -80,10 +80,10 @@ public class UniformRangePlacementTest
         //              (100,200] : (n1,n2,n3);
         //              (200,300] : (n1,n2,n3);
         //              (300,400] : (n1,n2,n3);
-        PlacementForRange before = initialPlacement();
+        ReplicaGroups before = initialPlacement();
         // split (100,200] to (100,150], (150,200]
         List<Token> tokens = ImmutableList.of(token(100), token(150), token(200), token(300));
-        PlacementForRange after = PlacementForRange.splitRangesForPlacement(tokens, before);
+        ReplicaGroups after = ReplicaGroups.splitRangesForPlacement(tokens, before);
         assertPlacement(after,
                         rg(0, 100, 1, 2, 3),
                         rg(100, 150, 1, 2, 3),
@@ -99,11 +99,11 @@ public class UniformRangePlacementTest
         //              (100,200] : (n1,n2,n3);
         //              (200,300] : (n1,n2,n3);
         //              (300,400] : (n1,n2,n3);
-        PlacementForRange before = initialPlacement();
+        ReplicaGroups before = initialPlacement();
         // split (100,200] to (100,150],(150,200]
         // and   (200,300] to (200,250],(250,300]
         List<Token> tokens = ImmutableList.of(token(100), token(150), token(200), token(250), token(300));
-        PlacementForRange after = PlacementForRange.splitRangesForPlacement(tokens, before);
+        ReplicaGroups after = ReplicaGroups.splitRangesForPlacement(tokens, before);
         assertPlacement(after,
                         rg(0, 100, 1, 2, 3),
                         rg(100, 150, 1, 2, 3),
@@ -120,10 +120,10 @@ public class UniformRangePlacementTest
         //              (100,200] : (n1,n2,n3);
         //              (200,300] : (n1,n2,n3);
         //              (300,400] : (n1,n2,n3);
-        PlacementForRange before = initialPlacement();
+        ReplicaGroups before = initialPlacement();
         // split (100,200] to (100,125],(125,150],(150,200]
         List<Token> tokens = ImmutableList.of(token(100), token(125), token(150), token(200), token(300));
-        PlacementForRange after = PlacementForRange.splitRangesForPlacement(tokens, before);
+        ReplicaGroups after = ReplicaGroups.splitRangesForPlacement(tokens, before);
         assertPlacement(after,
                         rg(0, 100, 1, 2, 3),
                         rg(100, 125, 1, 2, 3),
@@ -136,11 +136,11 @@ public class UniformRangePlacementTest
     @Test
     public void testSplitMultipleRangesMultipleTimes()
     {
-        PlacementForRange before = initialPlacement();
+        ReplicaGroups before = initialPlacement();
         // split (100,200] to (100,125],(125,150],(150,200]
         // and   (200,300] to (200,225],(225,250],(250,300]
         List<Token> tokens = ImmutableList.of(token(100), token(125), token(150), token(200), token(225), token(250), token(300));
-        PlacementForRange after = PlacementForRange.splitRangesForPlacement(tokens, before);
+        ReplicaGroups after = ReplicaGroups.splitRangesForPlacement(tokens, before);
         assertPlacement(after,
                         rg(0, 100, 1, 2, 3),
                         rg(100, 125, 1, 2, 3),
@@ -159,10 +159,10 @@ public class UniformRangePlacementTest
         //              (100,200] : (n1,n2,n3);
         //              (200,300] : (n1,n2,n3);
         //              (300,400] : (n1,n2,n3);
-        PlacementForRange before = initialPlacement();
+        ReplicaGroups before = initialPlacement();
         // split (300,400] to (300,325],(325,350],(350,400]
         List<Token> tokens = ImmutableList.of(token(100), token(200), token(300), token(325), token(350));
-        PlacementForRange after = PlacementForRange.splitRangesForPlacement(tokens, before);
+        ReplicaGroups after = ReplicaGroups.splitRangesForPlacement(tokens, before);
         assertPlacement(after,
                         rg(0, 100, 1, 2, 3),
                         rg(100, 200, 1, 2, 3),
@@ -179,10 +179,10 @@ public class UniformRangePlacementTest
         //              (100,200] : (n1,n2,n3);
         //              (200,300] : (n1,n2,n3);
         //              (300,400] : (n1,n2,n3);
-        PlacementForRange before = initialPlacement();
+        ReplicaGroups before = initialPlacement();
         // split (0,100] to (0,25],(25,50],(50,100]
         List<Token> tokens = ImmutableList.of(token(25), token(50), token(100), token(200), token(300));
-        PlacementForRange after = PlacementForRange.splitRangesForPlacement(tokens, before);
+        ReplicaGroups after = ReplicaGroups.splitRangesForPlacement(tokens, before);
         assertPlacement(after,
                         rg(0, 25, 1, 2, 3),
                         rg(25, 50, 1, 2, 3),
@@ -199,22 +199,22 @@ public class UniformRangePlacementTest
                                             rg(100, 200, 1, 2, 3),
                                             rg(200, 300, 1, 2, 3),
                                             rg(300, 400, 1, 2, 3) };
-        PlacementForRange p1 = PlacementForRange.builder()
-                                                .withReplicaGroups(Arrays.asList(firstGroups).stream().map(this::v).collect(Collectors.toList()))
-                                                .build();
+        ReplicaGroups p1 = ReplicaGroups.builder()
+                                        .withReplicaGroups(Arrays.asList(firstGroups).stream().map(this::v).collect(Collectors.toList()))
+                                        .build();
         EndpointsForRange[] secondGroups = { rg(0, 100, 2, 3, 4),
                                              rg(100, 200, 2, 3, 5),
                                              rg(200, 300, 2, 3, 6),
                                              rg(300, 400, 2, 3, 7) };
-        PlacementForRange p2 = PlacementForRange.builder()
-                                                .withReplicaGroups(Arrays.asList(secondGroups).stream().map(this::v).collect(Collectors.toList()))
-                                                .build();
+        ReplicaGroups p2 = ReplicaGroups.builder()
+                                        .withReplicaGroups(Arrays.asList(secondGroups).stream().map(this::v).collect(Collectors.toList()))
+                                        .build();
 
         ReplicationParams params = ReplicationParams.simple(1);
         DataPlacements map1 = DataPlacements.builder(1).with(params, new DataPlacement(p1, p1)).build();
         DataPlacements map2 = DataPlacements.builder(1).with(params, new DataPlacement(p2, p2)).build();
         DataPlacement p3 = map1.combineReplicaGroups(map2).get(params);
-        for (PlacementForRange placement : new PlacementForRange[]{ p3.reads, p3.writes })
+        for (ReplicaGroups placement : new ReplicaGroups[]{ p3.reads, p3.writes })
         {
             assertPlacement(placement,
                             rg(0, 100, 1, 2, 3, 4),
@@ -269,20 +269,20 @@ public class UniformRangePlacementTest
         assertEquals(2, newPlacement.writes.size());
     }
 
-    private PlacementForRange initialPlacement()
+    private ReplicaGroups initialPlacement()
     {
         EndpointsForRange[] initialGroups = { rg(0, 100, 1, 2, 3),
                                               rg(100, 200, 1, 2, 3),
                                               rg(200, 300, 1, 2, 3),
                                               rg(300, 400, 1, 2, 3) };
-        PlacementForRange placement = PlacementForRange.builder()
-                                                       .withReplicaGroups(Arrays.stream(initialGroups).map(this::v).collect(Collectors.toList()))
-                                                       .build();
+        ReplicaGroups placement = ReplicaGroups.builder()
+                                               .withReplicaGroups(Arrays.stream(initialGroups).map(this::v).collect(Collectors.toList()))
+                                               .build();
         assertPlacement(placement, initialGroups);
         return placement;
     }
 
-    private void assertPlacement(PlacementForRange placement, EndpointsForRange...expected)
+    private void assertPlacement(ReplicaGroups placement, EndpointsForRange...expected)
     {
         Collection<EndpointsForRange> replicaGroups = placement.endpoints.stream().map(VersionedEndpoints.ForRange::get).collect(Collectors.toList());
         assertEquals(replicaGroups.size(), expected.length);

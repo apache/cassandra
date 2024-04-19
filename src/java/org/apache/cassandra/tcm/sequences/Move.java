@@ -61,7 +61,7 @@ import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.MovementMap;
 import org.apache.cassandra.tcm.ownership.PlacementDeltas;
-import org.apache.cassandra.tcm.ownership.PlacementForRange;
+import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -334,7 +334,7 @@ public class Move extends MultiStepOperation<Epoch>
         MovementMap.Builder allMovements = MovementMap.builder();
         toStart.forEach((params, delta) -> {
             RangesByEndpoint targets = delta.writes.additions;
-            PlacementForRange oldOwners = placements.get(params).reads;
+            ReplicaGroups oldOwners = placements.get(params).reads;
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
             targets.flattenValues().forEach(destination -> {
                 SourceHolder sources = new SourceHolder(fd, destination, toSplitRanges.get(params), strictConsistency);

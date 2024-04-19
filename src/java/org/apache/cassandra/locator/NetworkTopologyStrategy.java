@@ -49,7 +49,7 @@ import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
-import org.apache.cassandra.tcm.ownership.PlacementForRange;
+import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.utils.FBUtilities;
@@ -194,7 +194,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
                                                  Directory directory,
                                                  TokenMap tokenMap)
     {
-        PlacementForRange.Builder builder = PlacementForRange.builder();
+        ReplicaGroups.Builder builder = ReplicaGroups.builder();
         for (Range<Token> range : ranges)
         {
             EndpointsForRange endpointsForRange = calculateNaturalReplicas(range.right,
@@ -205,7 +205,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
             builder.withReplicaGroup(VersionedEndpoints.forRange(epoch, endpointsForRange));
         }
 
-        PlacementForRange built = builder.build();
+        ReplicaGroups built = builder.build();
         return new DataPlacement(built, built);
     }
 

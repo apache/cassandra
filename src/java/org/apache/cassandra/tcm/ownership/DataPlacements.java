@@ -101,9 +101,9 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
                                                                            DatabaseDescriptor.getPartitioner().getMinimumToken(),
                                                                            DatabaseDescriptor.getPartitioner().getMinimumToken(),
                                                                            true));
-            PlacementForRange placement = PlacementForRange.builder(1)
-                                                           .withReplicaGroup(VersionedEndpoints.forRange(Epoch.EMPTY, endpoints))
-                                                           .build();
+            ReplicaGroups placement = ReplicaGroups.builder(1)
+                                                   .withReplicaGroup(VersionedEndpoints.forRange(Epoch.EMPTY, endpoints))
+                                                   .build();
             LOCAL_PLACEMENT = new DataPlacement(placement, placement);
         }
         return LOCAL_PLACEMENT;
@@ -149,12 +149,12 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
                 builder.with(params, placement);
             else
             {
-                PlacementForRange.Builder reads = PlacementForRange.builder(placement.reads.size());
+                ReplicaGroups.Builder reads = ReplicaGroups.builder(placement.reads.size());
                 placement.reads.endpoints.forEach((endpoints) -> {
                     reads.withReplicaGroup(VersionedEndpoints.forRange(endpoints.lastModified(),
                                                                        endpoints.get().sorted(comparator)));
                 });
-                PlacementForRange.Builder writes = PlacementForRange.builder(placement.writes.size());
+                ReplicaGroups.Builder writes = ReplicaGroups.builder(placement.writes.size());
                 placement.writes.endpoints.forEach((endpoints) -> {
                     writes.withReplicaGroup(VersionedEndpoints.forRange(endpoints.lastModified(),
                                                                         endpoints.get().sorted(comparator)));
