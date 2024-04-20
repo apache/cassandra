@@ -36,7 +36,6 @@ import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.Epoch;
 
 import static org.apache.cassandra.tcm.membership.MembershipUtils.endpoint;
-import static org.apache.cassandra.tcm.ownership.OwnershipUtils.bytesToken;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.token;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
