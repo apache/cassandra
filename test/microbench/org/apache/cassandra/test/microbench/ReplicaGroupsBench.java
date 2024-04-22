@@ -65,15 +65,15 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 @Fork(value = 1)
 @Warmup(iterations = 5, timeUnit = TimeUnit.MILLISECONDS, time = 5000)
 @Measurement(iterations = 5, timeUnit = TimeUnit.MILLISECONDS, time = 5000)
-public class PlacementForRangeBench
+public class ReplicaGroupsBench
 {
     static Token [] queryTokens = new Token[5000];
     static Random random = new Random(1);
-    static ReplicaGroups pfr;
+    static ReplicaGroups replicaGroups;
 /*
-new: PlacementForRangeBench.bench  avgt    5  0,317 ± 0,037  ms/op
+new: ReplicaGroupBench.bench  avgt    5  0,317 ± 0,037  ms/op
 
-old: PlacementForRangeBench.bench  avgt    5  10,187 ± 0,040  ms/op
+old: ReplicaGroupBench.bench  avgt    5  10,187 ± 0,040  ms/op
 
  */
     @Setup(Level.Trial)
@@ -85,14 +85,14 @@ old: PlacementForRangeBench.bench  avgt    5  10,187 ± 0,040  ms/op
             queryTokens[i] = Murmur3Partitioner.instance.getRandomToken(random);
         Keyspaces keyspaces = fakeKeyspaces(6);
         ReplicationParams params = keyspaces.get("pfrbench").get().params.replication;
-        pfr = new UniformRangePlacement().calculatePlacements(Epoch.FIRST, fakeMetadata(nodecount), keyspaces).get(params).reads;
+        replicaGroups = new UniformRangePlacement().calculatePlacements(Epoch.FIRST, fakeMetadata(nodecount), keyspaces).get(params).reads;
     }
 
     @Benchmark
     public void bench()
     {
         for (Token t : queryTokens)
-            pfr.forRange(t);
+            replicaGroups.forRange(t);
     }
 
     public ClusterMetadata fakeMetadata(int nodeCount) throws UnknownHostException
@@ -131,7 +131,7 @@ old: PlacementForRangeBench.bench  avgt    5  10,187 ± 0,040  ms/op
     public static void main(String[] args) throws RunnerException
     {
         Options options = new OptionsBuilder()
-                          .include(PlacementForRangeBench.class.getSimpleName())
+                          .include(ReplicaGroupsBench.class.getSimpleName())
                           .build();
         new Runner(options).run();
     }

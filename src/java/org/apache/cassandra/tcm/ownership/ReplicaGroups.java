@@ -138,7 +138,7 @@ public class ReplicaGroups
         int pos = ordering.binarySearchAsymmetric(ranges, token, AsymmetricOrdering.Op.CEIL);
         if (pos >= 0 && pos < endpoints.size())
             return endpoints.get(pos);
-        throw new IllegalStateException("Could not find range for token " + token + " in PlacementForRange: " + this);
+        throw new IllegalStateException("Could not find range for token " + token + " in ReplicaGroups: " + this);
     }
 
     public VersionedEndpoints.ForToken forToken(Token token)
