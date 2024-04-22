@@ -3,6 +3,7 @@
  * Do not go to disk for reading hints file sizes (CASSANDRA-19477)
  * Fix system_views.settings to handle array types (CASSANDRA-19475)
 Merged from 4.0:
+ * Fix CQL tojson timestamp output on negative timestamp values before Gregorian calendar reform in 1582 (CASSANDRA-19566)
  * Fix few types issues and implement types compatibility tests (CASSANDRA-19479)
  * Optionally avoid hint transfer during decommission (CASSANDRA-19525)
  * Change logging to TRACE when failing to get peer certificate (CASSANDRA-19508)
