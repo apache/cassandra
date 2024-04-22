@@ -101,7 +101,7 @@ public class TimestampType extends TemporalType<Date>
 
     private String toString(Date date)
     {
-        return date != null ? TimestampSerializer.getJsonDateFormatter().format(date) : "";
+        return date != null ? TimestampSerializer.getJsonDateFormatter().format(date.toInstant()) : "";
     }
 
     @Override
