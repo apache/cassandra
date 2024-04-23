@@ -155,8 +155,12 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
     /**
      * Extends this set of elements with the specified ones. This method should only be called on {@code ClusteringElements}
      * corresponding to partition key or clustering elements.
+     * <p>If this instance is a range bound (e.g. top or bottom) it cannot be extended. If the extending suffix is a bound
+     * the resulting {@code ClusteringElements} will also be a bound from the same type.</p>
+     *
      * @param suffix the elements to append to this ones
      * @return A new {@code ClusteringElements} instance composed of both set of elements
+     * @throws UnsupportedOperationException if this instnace is a range bound (e.g. top or bottom)
      */
     public ClusteringElements extend(ClusteringElements suffix)
     {

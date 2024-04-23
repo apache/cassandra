@@ -3253,4 +3253,30 @@ public class SelectTest extends CQLTester
 
         assertRows(execute("SELECT udt_data FROM " + KEYSPACE + ".t4"), row(userType("random", "I'm newb")));
     }
+
+    @Test
+    public void testUseOfOtherOperatorOnSameColumnsAsContainsKeyAndContains() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk text, c int, m map<text,text>, fm frozen<map<text,text>>, PRIMARY KEY (pk, c))");
+
+        assertInvalidMessage("Collection column 'm' (map<text, text>) cannot be restricted by a '>' relation",
+                             "SELECT * FROM %s WHERE m > {'lmn' : 'f'} AND m CONTAINS 'foo'");
+
+        assertInvalidMessage("Collection column 'm' (map<text, text>) cannot be restricted by a '>' relation",
+                             "SELECT * FROM %s WHERE m > {'lmn' : 'f'} AND m CONTAINS KEY 'lmn'");
+
+        assertInvalidMessage("Collection column 'm' (map<text, text>) cannot be restricted by a '>' relation",
+                             "SELECT * FROM %s WHERE m > {'lmn' : 'f'} AND m['lmn'] = 'foo2'");
+
+        assertInvalidMessage("Collection column fm can only be restricted by CONTAINS, CONTAINS KEY," +
+                             " or map-entry equality if it already restricted by one of those",
+                             "SELECT * FROM %s WHERE fm > {'lmn' : 'f'} AND fm CONTAINS 'foo'");
+
+        assertInvalidMessage("Collection column fm can only be restricted by CONTAINS, CONTAINS KEY," +
+                             " or map-entry equality if it already restricted by one of those",
+                             "SELECT * FROM %s WHERE fm > {'lmn' : 'f'} AND fm CONTAINS KEY 'lmn'");
+
+        assertInvalidMessage("Map-entry predicates on frozen map column fm are not supported",
+                             "SELECT * FROM %s WHERE fm > {'lmn' : 'f'} AND fm['lmn'] = 'foo2'");
+    }
 }

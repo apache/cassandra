@@ -123,6 +123,11 @@ public final class MergedRestriction implements SingleRestriction
         checkOperator(restriction);
         checkOperator(other);
 
+        if (restriction.isContains() != other.isContains())
+            throw invalidRequest("Collection column %s can only be restricted by CONTAINS, CONTAINS KEY," +
+                                 " or map-entry equality if it already restricted by one of those",
+                                 restriction.firstColumn().name);
+
         if (restriction.isSlice() && other.isSlice())
         {
             ColumnMetadata firstColumn = restriction.firstColumn();
@@ -162,6 +167,9 @@ public final class MergedRestriction implements SingleRestriction
 
             if (restriction.isIN())
                 throw invalidRequest("%s cannot be restricted by more than one relation if it includes a IN",
+                                     toCQLString(restriction.columns()));
+            if (restriction.isANN())
+                throw invalidRequest("%s cannot be restricted by more than one relation in an ANN ordering",
                                      toCQLString(restriction.columns()));
         }
     }

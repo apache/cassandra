@@ -537,6 +537,12 @@ public interface Terms
                 {
                     return terms.size() == 1;
                 }
+
+                @Override
+                public String toString()
+                {
+                    return terms.stream().map(Objects::toString).collect(Collectors.joining(", ", "(", ")"));
+                }
             };
         }
     }

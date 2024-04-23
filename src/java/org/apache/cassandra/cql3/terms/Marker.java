@@ -93,6 +93,12 @@ public final class Marker extends Term.NonTerminal
         }
     }
 
+    @Override
+    public String toString()
+    {
+        return "?";
+    }
+
     /**
      * A parsed, but non prepared, bind marker.
      */

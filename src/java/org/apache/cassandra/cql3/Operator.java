@@ -746,7 +746,7 @@ public enum Operator
      * Therefore, we want to ignore them in the error messages returned to the users.
      * @return {@code true} for the "LIKE_" operators
      */
-    private boolean isVariant()
+    private boolean isLikeVariant()
     {
         return name().startsWith("LIKE_");
     }
@@ -759,7 +759,7 @@ public enum Operator
     public static List<Operator> operatorsRequiringFilteringOrIndexingFor(ColumnMetadata.Kind columnKind)
     {
         return Arrays.stream(values())
-                     .filter(o -> o.isSupportedByReadPath() && !o.isVariant() && o.requiresFilteringOrIndexingFor(columnKind))
+                     .filter(o -> o.isSupportedByReadPath() && !o.isLikeVariant() && o.requiresFilteringOrIndexingFor(columnKind))
                      .collect(Collectors.toList());
     }
 }
