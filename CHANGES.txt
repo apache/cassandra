@@ -1,4 +1,5 @@
 4.0.14
+ * Add timeout specifically for bootstrapping nodes (CASSANDRA-15439)
  * Bring Redhat packge dirs/ownership/perms in line with Debian package (CASSANDRA-19565)
 
 
