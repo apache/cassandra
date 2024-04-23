@@ -155,6 +155,8 @@ public enum CassandraRelevantProperties
 
     RING_DELAY("cassandra.ring_delay_ms"),
 
+    FAILED_BOOTSTRAP_TIMEOUT("cassandra.failed_bootstrap_timeout_ms"),
+
     /**
      * When bootstraping we wait for all schema versions found in gossip to be seen, and if not seen in time we fail
      * the bootstrap; this property will avoid failing and allow bootstrap to continue if set to true.
