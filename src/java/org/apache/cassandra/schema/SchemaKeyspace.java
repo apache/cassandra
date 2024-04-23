@@ -398,10 +398,22 @@ public final class SchemaKeyspace
                     DecoratedKey key = partition.partitionKey();
                     Mutation.PartitionUpdateCollector puCollector = mutationMap.computeIfAbsent(key, k -> new Mutation.PartitionUpdateCollector(SchemaConstants.SCHEMA_KEYSPACE_NAME, key));
 
-                    puCollector.add(PartitionUpdate.fromIterator(partition, cmd.columnFilter()));
+                    puCollector.add(makeUpdateForSchema(partition, cmd.columnFilter()).withOnlyPresentColumns());
                 }
             }
         }
+    }
+
+    /**
+     * Creates a PartitionUpdate from a partition containing some schema table content.
+     * This is mainly calling {@code PartitionUpdate.fromIterator} except for the fact that it deals with
+     * the problem described in #12236.
+     */
+    private static PartitionUpdate makeUpdateForSchema(UnfilteredRowIterator partition, ColumnFilter filter)
+    {
+        // here we don't skip anything. The main purpose of this function was to solve cdc related issue,
+        // and Uber branch has diverged from the OSS.
+        return PartitionUpdate.fromIterator(partition, filter);
     }
 
     private static boolean isSystemKeyspaceSchemaPartition(DecoratedKey partitionKey)

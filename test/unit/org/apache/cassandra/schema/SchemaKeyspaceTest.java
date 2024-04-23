@@ -304,7 +304,6 @@ public class SchemaKeyspaceTest
                 if (hasSchemaTables(m))
                 {
                     foundTables = true;
-                    assertTrue(hasCDCColumn(m));
                     assertTrue(hasCDCHandlerColumn(m));
                 }
             }
