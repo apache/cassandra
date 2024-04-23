@@ -158,7 +158,14 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         UUID currentHostId = SystemKeyspace.getLocalHostId();
         if (nodeId != null && !Objects.equals(nodeId.toUUID(), currentHostId))
         {
-            String error = String.format("NodeId does not match locally set one. Check for the IP address collision: %s vs %s %s",
+            if (currentHostId == null)
+            {
+                logger.info("Taking over the host ID: {}, replacing address {}", nodeId.toUUID(), FBUtilities.getBroadcastAddressAndPort());
+                SystemKeyspace.setLocalHostId(nodeId.toUUID());
+                return;
+            }
+
+            String error = String.format("NodeId does not match locally set one. Check for the IP address collision: %s vs %s %s.",
                                          currentHostId, nodeId.toUUID(), FBUtilities.getBroadcastAddressAndPort());
             logger.error(error);
             throw new IllegalStateException(error);
