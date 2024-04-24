@@ -500,7 +500,6 @@ public final class SystemKeyspace
                                                         "ClusterMetadata snapshots",
                                                         "CREATE TABLE IF NOT EXISTS %s (" +
                                                         "epoch bigint PRIMARY KEY," +
-                                                        "period bigint," +
                                                         "snapshot blob)")
                                                   .partitioner(MetaStrategy.partitioner)
                                                   .build();
