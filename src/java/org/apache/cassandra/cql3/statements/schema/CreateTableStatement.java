@@ -65,6 +65,8 @@ public final class CreateTableStatement extends AlterSchemaStatement
     private final boolean ifNotExists;
     private final boolean useCompactStorage;
 
+    private String expandedCql;
+
     public CreateTableStatement(String keyspaceName,
                                 String tableName,
                                 Map<ColumnIdentifier, ColumnProperties.Raw> rawColumns,
@@ -89,6 +91,12 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
         this.ifNotExists = ifNotExists;
         this.useCompactStorage = useCompactStorage;
+    }
+
+    @Override
+    public String cql()
+    {
+        return expandedCql;
     }
 
     public Keyspaces apply(ClusterMetadata metadata)
@@ -117,6 +125,8 @@ public final class CreateTableStatement extends AlterSchemaStatement
             builder.id(TableId.get(metadata));
         TableMetadata table = builder.build();
         table.validate();
+
+        this.expandedCql = table.toCqlString(true, ifNotExists);
 
         if (keyspace.replicationStrategy.hasTransientReplicas()
             && table.params.readRepair != ReadRepairStrategy.NONE)
