@@ -67,13 +67,13 @@ public class TableId implements Comparable<TableId>
         return new TableId(UUID.fromString(idString));
     }
 
-    public static TableId get(ClusterMetadata metadata)
+    public static TableId get(ClusterMetadata prev)
     {
         int i = 0;
         while (true)
         {
-            TableId tableId = TableId.fromLong(metadata.epoch.getEpoch() + i);
-            if (!tableIdExists(metadata, tableId))
+            TableId tableId = TableId.fromLong(prev.epoch.getEpoch() + i);
+            if (!tableIdExists(prev, tableId))
                 return tableId;
             i++;
         }
@@ -105,7 +105,7 @@ public class TableId implements Comparable<TableId>
         return fromUUID(new UUID(msb, lsb));
     }
 
-    private static TableId fromLong(long start)
+    public static TableId fromLong(long start)
     {
         return TableId.fromUUID(new UUID(MAGIC, start));
     }

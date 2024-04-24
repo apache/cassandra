@@ -290,10 +290,10 @@ public final class KeyspaceMetadata implements SchemaElement
     }
 
     @Override
-    public String toCqlString(boolean withInternals, boolean ifNotExists)
+    public String toCqlString(boolean withWarnings, boolean withInternals, boolean ifNotExists)
     {
         CqlBuilder builder = new CqlBuilder();
-        if (isVirtual())
+        if (isVirtual() && withWarnings)
         {
             builder.append("/*")
                    .newLine()

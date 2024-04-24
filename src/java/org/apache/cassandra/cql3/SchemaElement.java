@@ -89,9 +89,10 @@ public interface SchemaElement
     /**
      * Returns a CQL representation of this element
      *
-     * @param withInternals if the internals part of the CQL should be exposed.
-     * @param ifNotExists if "IF NOT EXISTS" should be included.
+     * @param withWarnings if commented warnings should be included
+     * @param withInternals if the internals part of the CQL should be exposed
+     * @param ifNotExists if "IF NOT EXISTS" should be included
      * @return a CQL representation of this element
      */
-    String toCqlString(boolean withInternals, boolean ifNotExists);
+    String toCqlString(boolean withWarnings, boolean withInternals, boolean ifNotExists);
 }

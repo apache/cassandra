@@ -65,6 +65,8 @@ public final class CreateTableStatement extends AlterSchemaStatement
     private final boolean ifNotExists;
     private final boolean useCompactStorage;
 
+    private String expandedCql;
+
     public CreateTableStatement(String keyspaceName,
                                 String tableName,
                                 Map<ColumnIdentifier, ColumnProperties.Raw> rawColumns,
@@ -91,6 +93,14 @@ public final class CreateTableStatement extends AlterSchemaStatement
         this.useCompactStorage = useCompactStorage;
     }
 
+    @Override
+    public String cql()
+    {
+        if (expandedCql != null)
+            return expandedCql;
+        return super.cql();
+    }
+
     public Keyspaces apply(ClusterMetadata metadata)
     {
         Keyspaces schema = metadata.schema.getKeyspaces();
@@ -113,7 +123,11 @@ public final class CreateTableStatement extends AlterSchemaStatement
             ufBuilder.add(ksm.userFunctions);
 
         TableMetadata.Builder builder = builder(keyspace.types, ufBuilder.build()).epoch(metadata.nextEpoch());
-        if (!builder.hasId() && !DatabaseDescriptor.useDeterministicTableID())
+
+        // We do not want to set table ID here just yet, since we are using CQL for serialising a fully expanded CREATE TABLE statement.
+        this.expandedCql = builder.build().toCqlString(false, attrs.hasProperty(TableAttributes.ID), ifNotExists);
+
+        if (!attrs.hasProperty(TableAttributes.ID) && !DatabaseDescriptor.useDeterministicTableID())
             builder.id(TableId.get(metadata));
         TableMetadata table = builder.build();
         table.validate();
