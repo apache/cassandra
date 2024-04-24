@@ -1,4 +1,5 @@
 5.1
+ * Expand DDL statements on coordinator before submission to the CMS (CASSANDRA-19592)
  * Fix number of arguments of String.format() in various classes (CASSANDRA-19645)
  * Remove unused fields from config (CASSANDRA-19599)
  * Refactor Relation and Restriction hierarchies (CASSANDRA-19341)

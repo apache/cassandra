@@ -314,6 +314,10 @@ public final class IndexMetadata
                    .append(" (")
                    .append(options.get(IndexTarget.TARGET_OPTION_NAME))
                    .append(')');
+
+            builder.append(" USING '")
+                   .append(CassandraIndex.NAME)
+                   .append("'");
         }
         builder.append(';');
     }

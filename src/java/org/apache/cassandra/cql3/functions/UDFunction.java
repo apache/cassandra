@@ -324,7 +324,7 @@ public abstract class UDFunction extends UserFunction implements ScalarFunction
     }
 
     @Override
-    public String toCqlString(boolean withInternals, boolean ifNotExists)
+    public String toCqlString(boolean withWarnings, boolean withInternals, boolean ifNotExists)
     {
         CqlBuilder builder = new CqlBuilder();
         builder.append("CREATE FUNCTION ");

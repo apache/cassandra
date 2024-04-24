@@ -814,11 +814,11 @@ public class UFJavaTest extends CQLTester
                                                 "java",
                                                 "return 0;");
 
-        Assert.assertTrue(function.toCqlString(true, true).contains("CREATE FUNCTION IF NOT EXISTS"));
-        Assert.assertFalse(function.toCqlString(true, false).contains("CREATE FUNCTION IF NOT EXISTS"));
+        Assert.assertTrue(function.toCqlString(true, true, true).contains("CREATE FUNCTION IF NOT EXISTS"));
+        Assert.assertFalse(function.toCqlString(true, true, false).contains("CREATE FUNCTION IF NOT EXISTS"));
 
-        Assert.assertEquals(function.toCqlString(true, true), function.toCqlString(false, true));
-        Assert.assertEquals(function.toCqlString(true, false), function.toCqlString(false, false));
+        Assert.assertEquals(function.toCqlString(true, true, true), function.toCqlString(true, false, true));
+        Assert.assertEquals(function.toCqlString(true, true, false), function.toCqlString(true, false, false));
     }
 
     @Test
@@ -853,10 +853,10 @@ public class UFJavaTest extends CQLTester
                                                    Int32Type.instance,
                                                    null);
 
-        Assert.assertTrue(aggregate.toCqlString(true, true).contains("CREATE AGGREGATE IF NOT EXISTS"));
-        Assert.assertFalse(aggregate.toCqlString(true, false).contains("CREATE AGGREGATE IF NOT EXISTS"));
+        Assert.assertTrue(aggregate.toCqlString(true, true, true).contains("CREATE AGGREGATE IF NOT EXISTS"));
+        Assert.assertFalse(aggregate.toCqlString(true, true, false).contains("CREATE AGGREGATE IF NOT EXISTS"));
 
-        Assert.assertEquals(aggregate.toCqlString(true, true), aggregate.toCqlString(false, true));
-        Assert.assertEquals(aggregate.toCqlString(true, false), aggregate.toCqlString(false, false));
+        Assert.assertEquals(aggregate.toCqlString(true, true, true), aggregate.toCqlString(true, false, true));
+        Assert.assertEquals(aggregate.toCqlString(true, true, false), aggregate.toCqlString(true, false, false));
     }
 }

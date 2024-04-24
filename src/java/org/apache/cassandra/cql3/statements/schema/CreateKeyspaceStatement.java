@@ -49,6 +49,7 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
 
     private final KeyspaceAttributes attrs;
     private final boolean ifNotExists;
+    private String expandedCql;
 
     public CreateKeyspaceStatement(String keyspaceName, KeyspaceAttributes attrs, boolean ifNotExists)
     {
@@ -57,6 +58,15 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
         this.ifNotExists = ifNotExists;
     }
 
+    @Override
+    public String cql()
+    {
+        if (expandedCql != null)
+            return expandedCql;
+        return super.cql();
+    }
+
+    @Override
     public Keyspaces apply(ClusterMetadata metadata)
     {
         attrs.validate();
@@ -76,17 +86,20 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
             throw new AlreadyExistsException(keyspaceName);
         }
 
-        KeyspaceMetadata keyspace = KeyspaceMetadata.create(keyspaceName, attrs.asNewKeyspaceParams());
+        KeyspaceMetadata keyspaceMetadata = KeyspaceMetadata.create(keyspaceName, attrs.asNewKeyspaceParams());
 
-        if (keyspace.params.replication.klass.equals(LocalStrategy.class))
+        if (keyspaceMetadata.params.replication.klass.equals(LocalStrategy.class))
             throw ire("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
 
-        if (keyspace.params.replication.isMeta())
+        if (keyspaceMetadata.params.replication.isMeta())
             throw ire("Can not create a keyspace with MetaReplicationStrategy");
 
-        keyspace.params.validate(keyspaceName, state, metadata);
-        keyspace.replicationStrategy.validateExpectedOptions(metadata);
-        return schema.withAddedOrUpdated(keyspace);
+        keyspaceMetadata.params.validate(keyspaceName, state, metadata);
+        keyspaceMetadata.replicationStrategy.validateExpectedOptions(metadata);
+
+        this.expandedCql = keyspaceMetadata.toCqlString(false, true, ifNotExists);
+
+        return schema.withAddedOrUpdated(keyspaceMetadata);
     }
 
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)

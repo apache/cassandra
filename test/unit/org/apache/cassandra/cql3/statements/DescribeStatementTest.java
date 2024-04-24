@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import com.google.common.collect.ImmutableList;
@@ -1013,8 +1014,8 @@ public class DescribeStatementTest extends CQLTester
 
     private static String indexOutput(String index, String table, String col)
     {
-        if (DatabaseDescriptor.getDefaultSecondaryIndex() == CassandraIndex.NAME)
-            return format("CREATE INDEX %s ON %s.%s (%s);", index, "test", table, col);
+        if (Objects.equals(DatabaseDescriptor.getDefaultSecondaryIndex(), CassandraIndex.NAME))
+            return format("CREATE INDEX %s ON %s.%s (%s) USING '" + CassandraIndex.NAME + "';", index, "test", table, col);
         else
             return format("CREATE CUSTOM INDEX %s ON %s.%s (%s) USING '%s';",
                           index, "test", table, col, DatabaseDescriptor.getDefaultSecondaryIndex());

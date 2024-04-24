@@ -117,7 +117,7 @@ public class RandomSchemaTest extends CQLTester.InMemory
                                      .withStaticColumnsBetween(0, 2)
                                      .build(random);
             maybeCreateUDTs(metadata);
-            String createTable = metadata.toCqlString(false, false);
+            String createTable = metadata.toCqlString(true, false, false);
             // just to make the CREATE TABLE stmt easier to read for CUSTOM types
             createTable = createTable.replaceAll("org.apache.cassandra.db.marshal.", "");
             createTable(KEYSPACE, createTable);
@@ -203,7 +203,7 @@ public class RandomSchemaTest extends CQLTester.InMemory
                 subTypes.remove(next); // it includes self
                 if (subTypes.isEmpty() || subTypes.stream().allMatch(t -> created.contains(t.name)))
                 {
-                    String cql = next.toCqlString(false, false);
+                    String cql = next.toCqlString(true, false, false);
                     logger.warn("Creating UDT {}", cql);
                     schemaChange(cql);
                     created.add(next.name);
