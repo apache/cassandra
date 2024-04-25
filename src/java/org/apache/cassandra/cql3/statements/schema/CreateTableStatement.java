@@ -96,7 +96,9 @@ public final class CreateTableStatement extends AlterSchemaStatement
     @Override
     public String cql()
     {
-        return expandedCql;
+        if (expandedCql != null)
+            return expandedCql;
+        return super.cql();
     }
 
     public Keyspaces apply(ClusterMetadata metadata)
@@ -121,12 +123,15 @@ public final class CreateTableStatement extends AlterSchemaStatement
             ufBuilder.add(ksm.userFunctions);
 
         TableMetadata.Builder builder = builder(keyspace.types, ufBuilder.build()).epoch(metadata.nextEpoch());
-        if (!builder.hasId() && !DatabaseDescriptor.useDeterministicTableID())
+
+        // We not want to set table ID here just yet, since we are using CQL for serialising a fully expanded CREATE TABLE
+        // statement.
+        this.expandedCql = builder.build().toCqlString(false, attrs.hasProperty(TableAttributes.ID), ifNotExists);
+
+        if (!attrs.hasProperty(TableAttributes.ID) && !DatabaseDescriptor.useDeterministicTableID())
             builder.id(TableId.get(metadata));
         TableMetadata table = builder.build();
         table.validate();
-
-        this.expandedCql = table.toCqlString(true, ifNotExists);
 
         if (keyspace.replicationStrategy.hasTransientReplicas()
             && table.params.readRepair != ReadRepairStrategy.NONE)

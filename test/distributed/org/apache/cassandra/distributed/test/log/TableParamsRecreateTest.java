@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test.log;
 
 import java.util.Map;
+import java.util.UUID;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -27,11 +28,13 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.schema.CompactionParams;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tcm.ClusterMetadata;
 
 public class TableParamsRecreateTest extends TestBaseImpl
@@ -111,6 +114,54 @@ public class TableParamsRecreateTest extends TestBaseImpl
                     Assert.assertEquals("128", from_2.options().get("max_threshold"));
                 });
             });
+        }
+    }
+
+    @Test
+    public void laggingNodeTest() throws Exception
+    {
+        try (Cluster cluster = init(builder().withNodes(2).start(),1))
+        {
+            IMessageFilters.Filter filter = cluster.filters().allVerbs().from(1).to(2).drop();
+
+            for (int i = 0; i < 10; i++)
+            {
+                cluster.coordinator(1).execute(String.format("CREATE TABLE %s.tbl%d (id int PRIMARY KEY, value text);", KEYSPACE, i), ConsistencyLevel.ALL);
+                int finalI = i;
+                cluster.get(1).runOnInstance(() -> {
+                    ClusterMetadata metadata = ClusterMetadata.current();
+                    Assert.assertEquals(TableId.fromLong(metadata.epoch.getEpoch() - 1),
+                                        metadata.schema.getKeyspace(KEYSPACE).getMetadata().tables.get("tbl" + finalI).get().id);
+                });
+            }
+
+            int expectedEpoch = cluster.get(1).callOnInstance(() -> ClusterMetadata.current().epoch.getEpoch()).intValue();
+            int laggingEpoch = cluster.get(2).callOnInstance(() -> ClusterMetadata.current().epoch.getEpoch()).intValue();
+            Assert.assertTrue(String.format("%d should be less than %s", laggingEpoch, expectedEpoch), laggingEpoch < expectedEpoch);
+
+            filter.off();
+            cluster.coordinator(2).execute(String.format("CREATE TABLE %s.tbl%d (id int PRIMARY KEY, value text);", KEYSPACE, 10), ConsistencyLevel.ALL);
+
+            cluster.get(2).runOnInstance(() -> {
+                Assert.assertEquals(TableId.fromLong(expectedEpoch), ClusterMetadata.current().schema.getKeyspace(KEYSPACE).getMetadata().tables.get("tbl10").get().id);
+            });
+
+            cluster.coordinator(2).execute(String.format("CREATE TABLE %s.tbl%d (id int PRIMARY KEY, value text) WITH id = %s;", KEYSPACE, 11, new UUID(11, 11)),
+                                                         ConsistencyLevel.ALL);
+
+            cluster.get(2).runOnInstance(() -> {
+                Assert.assertEquals(TableId.fromUUID(new UUID(11, 11)),
+                                    ClusterMetadata.current().schema.getKeyspace(KEYSPACE).getMetadata().tables.get("tbl11").get().id);
+            });
+        }
+    }
+
+    @Test
+    public void compactStorageTest() throws Exception
+    {
+        try (Cluster cluster = init(builder().withNodes(2).start(),1))
+        {
+            cluster.coordinator(1).execute(String.format("CREATE TABLE %s.tbl (id int PRIMARY KEY, value text) WITH COMPACT STORAGE;", KEYSPACE), ConsistencyLevel.ALL);
         }
     }
 }

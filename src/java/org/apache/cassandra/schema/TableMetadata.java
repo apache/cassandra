@@ -1320,23 +1320,25 @@ public class TableMetadata implements SchemaElement
     }
 
     @Override
-    public String toCqlString(boolean withInternals, boolean ifNotExists)
+    public String toCqlString(boolean withWarnings, boolean withInternals, boolean ifNotExists)
     {
         CqlBuilder builder = new CqlBuilder(2048);
-        appendCqlTo(builder, withInternals, withInternals, ifNotExists);
+        appendCqlTo(builder, withWarnings, withInternals, withInternals, ifNotExists);
         return builder.toString();
     }
 
-    public String toCqlString(boolean includeDroppedColumns,
+    public String toCqlString(boolean withWarnings,
+                              boolean withDroppedColumns,
                               boolean withInternals,
                               boolean ifNotExists)
     {
         CqlBuilder builder = new CqlBuilder(2048);
-        appendCqlTo(builder, includeDroppedColumns, withInternals, ifNotExists);
+        appendCqlTo(builder, withWarnings, withDroppedColumns, withInternals, ifNotExists);
         return builder.toString();
     }
 
     public void appendCqlTo(CqlBuilder builder,
+                            boolean withWarnings,
                             boolean includeDroppedColumns,
                             boolean withInternals,
                             boolean ifNotExists)
@@ -1344,12 +1346,12 @@ public class TableMetadata implements SchemaElement
         assert !isView();
 
         String createKeyword = "CREATE";
-        if (isVirtual())
+        if (isVirtual() && withWarnings)
         {
             builder.append(String.format("/*\n" +
                     "Warning: Table %s is a virtual table and cannot be recreated with CQL.\n" +
                     "Structure, for reference:\n",
-                                         toString()));
+                                         this));
             createKeyword = "VIRTUAL";
         }
 
@@ -1717,27 +1719,35 @@ public class TableMetadata implements SchemaElement
             return !Flag.isSuper(flags) && !Flag.isDense(flags) && !Flag.isCompound(flags);
         }
 
+        @Override
         public void appendCqlTo(CqlBuilder builder,
+                                boolean withWarnings,
                                 boolean includeDroppedColumns,
                                 boolean internals,
                                 boolean ifNotExists)
         {
-            builder.append("/*")
-                   .newLine()
-                   .append("Warning: Table ")
-                   .append(toString())
-                   .append(" omitted because it has constructs not compatible with CQL (was created via legacy API).")
-                   .newLine()
-                   .append("Approximate structure, for reference:")
-                   .newLine()
-                   .append("(this should not be used to reproduce this schema)")
-                   .newLine()
-                   .newLine();
+            if (withWarnings)
+            {
+                builder.append("/*")
+                       .newLine()
+                       .append("Warning: Table ")
+                       .append(toString())
+                       .append(" omitted because it has constructs not compatible with CQL (was created via legacy API).")
+                       .newLine()
+                       .append("Approximate structure, for reference:")
+                       .newLine()
+                       .append("(this should not be used to reproduce this schema)")
+                       .newLine()
+                       .newLine();
+            }
 
-            super.appendCqlTo(builder, includeDroppedColumns, internals, ifNotExists);
+            super.appendCqlTo(builder, withWarnings, includeDroppedColumns, internals, ifNotExists);
 
-            builder.newLine()
-                   .append("*/");
+            if (withWarnings)
+            {
+                builder.newLine()
+                       .append("*/");
+            }
         }
 
         void appendTableOptions(CqlBuilder builder, boolean internals)

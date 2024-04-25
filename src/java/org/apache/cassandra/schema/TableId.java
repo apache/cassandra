@@ -105,7 +105,7 @@ public class TableId implements Comparable<TableId>
         return fromUUID(new UUID(msb, lsb));
     }
 
-    private static TableId fromLong(long start)
+    public static TableId fromLong(long start)
     {
         return TableId.fromUUID(new UUID(MAGIC, start));
     }

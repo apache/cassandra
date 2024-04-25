@@ -285,7 +285,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         // StorageService can not be mocked out, nor can ColumnFamilyStores, so make sure that the keyspace is a "local" keyspace to avoid replication as the peers don't actually exist for replication
         schemaChange(String.format("CREATE KEYSPACE %s WITH REPLICATION = {'class': '%s'}", SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, HackStrat.class.getName()));
         for (TableMetadata table : SystemDistributedKeyspace.metadata().tables)
-            schemaChange(table.toCqlString(false, false));
+            schemaChange(table.toCqlString(true, false, false));
 
         createSchema();
     }
@@ -320,10 +320,10 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         KeyspaceMetadata metadata = KeyspaceMetadata.create(ks, params, tableBuilder.build());
 
         // create
-        schemaChange(metadata.toCqlString(false, false));
+        schemaChange(metadata.toCqlString(true, false, false));
         KEYSPACE = ks;
         for (TableMetadata table : metadata.tables)
-            schemaChange(table.toCqlString(false, false));
+            schemaChange(table.toCqlString(true, false, false));
         TABLES = tableNames;
     }
 
