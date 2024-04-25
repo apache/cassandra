@@ -1,4 +1,5 @@
 4.0.13
+ * Streaming exception race creates corrupt transaction log files that prevent restart (CASSANDRA-18736)
  * Fix CQL tojson timestamp output on negative timestamp values before Gregorian calendar reform in 1582 (CASSANDRA-19566)
  * Fix few types issues and implement types compatibility tests (CASSANDRA-19479)
  * Optionally avoid hint transfer during decommission (CASSANDRA-19525)
