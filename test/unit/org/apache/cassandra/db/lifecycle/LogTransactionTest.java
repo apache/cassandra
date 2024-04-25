@@ -21,7 +21,9 @@ import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -32,6 +34,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
@@ -45,15 +48,21 @@ import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.apache.cassandra.io.util.DiskOptimizationStrategy;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.SpinningDiskOptimizationStrategy;
 import org.apache.cassandra.schema.MockSchema;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.AlwaysPresentFilter;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.AbstractTransactionalTest;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
@@ -1359,6 +1368,28 @@ public class LogTransactionTest extends AbstractTransactionalTest
         return listFiles(folder, Directories.FileType.FINAL);
     }
 
+    // Used by listFiles - this test is deliberately racing with files being
+    // removed and cleaned up, so it is possible that files are removed between listing and getting their
+    // canonical names, in which case they can be dropped from the stream.
+    private static Stream<File> toCanonicalIgnoringNotFound(File file)
+    {
+        try
+        {
+            return Stream.of(file.getCanonicalFile());
+        }
+        catch (IOException io)
+        {
+            if (Throwables.isCausedBy(io, t -> t instanceof NoSuchFileException))
+            {
+                return Stream.empty();
+            }
+            else
+            {
+                throw new UncheckedIOException(io);
+            }
+        }
+    }
+
     static Set<File> listFiles(File folder, Directories.FileType... types)
     {
         Collection<Directories.FileType> match = Arrays.asList(types);
@@ -1366,16 +1397,33 @@ public class LogTransactionTest extends AbstractTransactionalTest
                                       (file, type) -> match.contains(type),
                                       Directories.OnTxnErr.IGNORE).list()
                        .stream()
-                       .map(f -> {
-                           try
-                           {
-                               return f.getCanonicalFile();
-                           }
-                           catch (IOException e)
-                           {
-                               throw new IOError(e);
-                           }
-                       })
+                       .flatMap(LogTransactionTest::toCanonicalIgnoringNotFound)
                        .collect(Collectors.toSet());
+    }
+
+    final String DUMMY_KS = "ks";
+    final String DUMMY_TBL = "tbl";
+    final File dir = new File(".");
+    int nextGeneration = 1;
+    final Set<Component> dummyComponents = Collections.singleton(Component.DATA);
+    final TableMetadataRef dummyMetadata = TableMetadataRef.forOfflineTools(TableMetadata.minimal(DUMMY_KS, DUMMY_TBL));
+    final DiskOptimizationStrategy dummyOptimizationStrategy = new SpinningDiskOptimizationStrategy();
+
+    SSTable dummySSTable()
+    {
+        int id = nextGeneration;
+        nextGeneration++;
+        Descriptor descriptor = new Descriptor(dir, DUMMY_KS, DUMMY_TBL, id);
+        return new SSTable(descriptor, dummyComponents, dummyMetadata, dummyOptimizationStrategy)
+        {
+        };
+    }
+
+    @Test(expected = TransactionAlreadyCompletedException.class)
+    public void useAfterCompletedTest()
+    {
+        LogTransaction txnFile = new LogTransaction(OperationType.STREAM);
+        txnFile.abort(); // this should complete the txn
+        txnFile.trackNew(dummySSTable()); // expect an IllegalStateException here
     }
 }

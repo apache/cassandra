@@ -19,7 +19,6 @@ package org.apache.cassandra.db.lifecycle;
 
 import java.io.File;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +26,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -43,11 +44,12 @@ import org.apache.cassandra.utils.Throwables;
  * @see LogReplica
  * @see LogFile
  */
+@NotThreadSafe
 public class LogReplicaSet implements AutoCloseable
 {
     private static final Logger logger = LoggerFactory.getLogger(LogReplicaSet.class);
 
-    private final Map<File, LogReplica> replicasByFile = Collections.synchronizedMap(new LinkedHashMap<>()); // TODO: Hack until we fix CASSANDRA-14554
+    private final Map<File, LogReplica> replicasByFile = new LinkedHashMap<>();
 
     private Collection<LogReplica> replicas()
     {
