@@ -506,11 +506,23 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         }
 
         if (permitted.lowBound > maxLowBound)
+        {
             maxLowBound = permitted.lowBound;
+            if (!latestCommitted.isNone() && latestCommitted.ballot.uuidTimestamp() < maxLowBound)
+            {
+                latestCommitted = Committed.none(request.partitionKey, request.table);
+                haveReadResponseWithLatest = !readResponses.isEmpty();
+                withLatest.addAll(needLatest);
+                needLatest.clear();
+            }
+        }
 
         if (!haveQuorumOfPermissions)
         {
-            CompareResult compareLatest = permitted.latestCommitted.compareWith(latestCommitted);
+            Committed newLatestCommitted = permitted.latestCommitted;
+            if (newLatestCommitted.ballot.uuidTimestamp() < maxLowBound) newLatestCommitted = Committed.none(request.partitionKey, request.table);
+            CompareResult compareLatest = newLatestCommitted.compareWith(latestCommitted);
+            
             switch (compareLatest)
             {
                 default: throw new IllegalStateException();
