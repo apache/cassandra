@@ -57,6 +57,7 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionStrategyManager;
+import org.apache.cassandra.db.lifecycle.TransactionAlreadyCompletedException;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.File;
@@ -617,6 +618,16 @@ public class StreamSession
         return state == State.COMPLETE;
     }
 
+    /**
+     * Return if this session was failed or aborted
+     *
+     * @return true if session was failed or aborted
+     */
+    public boolean isFailedOrAborted()
+    {
+        return state == State.FAILED || state == State.ABORTED;
+    }
+
     public synchronized void messageReceived(StreamMessage message)
     {
         if (message.type != StreamMessage.Type.KEEP_ALIVE)
@@ -706,12 +717,21 @@ public class StreamSession
                 return closeSession(State.FAILED, "Failed because there was an " + e.getClass().getCanonicalName() + " with state=" + state.name());
             }
         }
+        else if (e instanceof TransactionAlreadyCompletedException && isFailedOrAborted())
+        {
+            // StreamDeserializer threads may actively be writing SSTables when the stream
+            // is failed or canceled, which aborts the lifecycle transaction and throws an exception
+            // when any new SSTable is added.  Since the stream has already failed, suppress
+            // extra streaming log failure messages.
+            logger.debug("Stream lifecycle transaction already completed after stream failure (ignore)", e);
+            return null;
+        }
 
         logError(e);
 
         if (channel.connected())
         {
-            state(State.FAILED); // make sure subsequent error handling sees the session in a final state 
+            state(State.FAILED); // make sure subsequent error handling sees the session in a final state
             channel.sendControlMessage(new SessionFailedMessage()).awaitUninterruptibly();
         }
         StringBuilder failureReason = new StringBuilder("Failed because of an unknown exception\n");

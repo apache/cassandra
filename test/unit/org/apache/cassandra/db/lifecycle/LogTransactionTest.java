@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -47,9 +48,14 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.format.big.BigFormat.Components;
@@ -1440,4 +1446,36 @@ public class LogTransactionTest extends AbstractTransactionalTest
                        .flatMap(LogTransactionTest::toCanonicalIgnoringNotFound)
                        .collect(Collectors.toSet());
     }
-}
+
+    static final String DUMMY_KS = "ks";
+    static final String DUMMY_TBL = "tbl";
+    final File dir = new File(".");
+    Supplier<SequenceBasedSSTableId> idSupplier = SequenceBasedSSTableId.Builder.instance.generator(Stream.of());
+    final Set<Component> dummyComponents = Collections.singleton(SSTableFormat.Components.DATA);
+
+    SSTable dummySSTable()
+    {
+        SSTableId id = idSupplier.get();
+        Descriptor descriptor = new Descriptor(dir, DUMMY_KS, DUMMY_TBL, id);
+        SSTable.Builder<?, ?> builder = new SSTable.Builder<>(descriptor);
+        builder.setComponents(dummyComponents);
+        return new SSTable(builder, null)
+        {
+            @Override
+            public DecoratedKey getFirst() { return null; }
+            @Override
+            public DecoratedKey getLast() { return null; }
+            @Override
+            public AbstractBounds<Token> getBounds() { return null; }
+        };
+    }
+
+    @Test(expected = TransactionAlreadyCompletedException.class)
+    public void useAfterCompletedTest()
+    {
+        try (LogTransaction txnFile = new LogTransaction(OperationType.STREAM))
+        {
+            txnFile.abort(); // this should complete the txn
+            txnFile.trackNew(dummySSTable()); // expect an IllegalStateException here
+        }
+    }}
