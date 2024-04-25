@@ -293,7 +293,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
         else
         {
-            return FAT_CLIENT_TIMEOUT;
+            return FAT_CLIENT_TIMEOUT * 2;
         }
     }
 

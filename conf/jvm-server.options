@@ -75,7 +75,7 @@
 #-Dcassandra.ring_delay_ms=ms
 
 # Allows overriding the timeout after which an unresponsive bootstrapping node is considered failed
-# and is removed from gossip state and bootstrapTokens. (Default: cassandra.ring_delay)
+# and is removed from gossip state and bootstrapTokens. (Default: cassandra.ring_delay * 2)
 #-Dcassandra.failed_bootstrap_timeout_ms=ms
 
 # Set the SSL port for encrypted communication. (Default: 7001)
