@@ -99,6 +99,7 @@ import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.CompactionMetrics;
@@ -628,8 +629,9 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             logger.info("Cleanup cannot run before a node has joined the ring");
             return AllSSTableOpStatus.ABORTED;
         }
-        if (cfStore.keyspace.getMetadata().params.replication.isMeta())
-            return AllSSTableOpStatus.SUCCESSFUL; // todo - we probably want to be able to cleanup MetaStrategy keyspaces
+        if (cfStore.getPartitioner() == MetaStrategy.partitioner)
+            return AllSSTableOpStatus.SUCCESSFUL; // todo - we probably want to be able to cleanup MetaStrategy keyspaces. When we fix this, also fix
+                                                  //        SortedTableVerifier to make sure system_cluster_metadata is empty for non-CMS instances
         final boolean hasIndexes = cfStore.indexManager.hasIndexes();
 
         // if local ranges is empty, it means no data should remain
