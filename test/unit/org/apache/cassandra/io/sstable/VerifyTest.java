@@ -43,6 +43,7 @@ import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -763,6 +764,23 @@ public class VerifyTest
         }
     }
 
+    @Test
+    public void testVerifyReversedPartitioner()
+    {
+        for (long i = 0; i < 10; i++)
+            QueryProcessor.executeInternal("insert into system.local_metadata_log (epoch) values (?)", i);
+        ColumnFamilyStore cfs = Keyspace.open("system").getColumnFamilyStore("local_metadata_log");
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        assertFalse(cfs.getLiveSSTables().isEmpty());
+        for (SSTableReader sstable : cfs.getLiveSSTables())
+        {
+            try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options()
+                                                                                                              .checkOwnsTokens(true).build()))
+            {
+                verifier.verify();
+            }
+        }
+    }
 
     private DecoratedKey dk(long l)
     {
