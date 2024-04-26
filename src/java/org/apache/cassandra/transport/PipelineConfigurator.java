@@ -113,7 +113,6 @@ public class PipelineConfigurator
         this.queueBackpressure   = QueueBackpressure.DEFAULT;
     }
 
-    @Deprecated
     @VisibleForTesting
     public PipelineConfigurator(boolean epoll,
                                 boolean keepAlive,
