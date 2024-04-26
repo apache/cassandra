@@ -31,6 +31,7 @@ import com.google.common.util.concurrent.FutureCallback;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -40,7 +41,9 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.repair.SharedContext;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.UUIDSerializer;
@@ -129,12 +132,13 @@ public class PaxosCleanupRequest
         {
             UUID session = UUIDSerializer.serializer.deserialize(in, version);
             TableId tableId = TableId.deserialize(in);
-
+            TableMetadata table = Schema.instance.getTableMetadata(tableId);
+            IPartitioner partitioner = table != null ? table.partitioner : IPartitioner.global();
             int numRanges = in.readInt();
             List<Range<Token>> ranges = new ArrayList<>(numRanges);
             for (int i=0; i<numRanges; i++)
             {
-                ranges.add((Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, DatabaseDescriptor.getPartitioner(), version));
+                ranges.add((Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, partitioner, version));
             }
             return new PaxosCleanupRequest(session, tableId, ranges);
         }

@@ -24,6 +24,7 @@ import java.util.*;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestFailureReason;
@@ -37,10 +38,10 @@ import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 
-import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.PAXOS2_CLEANUP_COMPLETE_REQ;
 
@@ -124,11 +125,13 @@ public class PaxosCleanupComplete extends AsyncFuture<Void> implements RequestCa
         {
             TableId tableId = TableId.deserialize(in);
             Ballot lowBound = Ballot.deserialize(in);
+            TableMetadata table = Schema.instance.getTableMetadata(tableId);
+            IPartitioner partitioner = table != null ? table.partitioner : IPartitioner.global();
             int numRanges = in.readInt();
             List<Range<Token>> ranges = new ArrayList<>();
             for (int i = 0; i < numRanges; i++)
             {
-                Range<Token> range = (Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, getPartitioner(), version);
+                Range<Token> range = (Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, partitioner, version);
                 ranges.add(range);
             }
             return new Request(tableId, lowBound, ranges);

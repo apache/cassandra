@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -56,7 +57,6 @@ import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.Verb;
@@ -507,11 +507,10 @@ public class LocalSessions
         return buffers;
     }
 
-    private static Range<Token> deserializeRange(ByteBuffer bb)
+    private static Range<Token> deserializeRange(ByteBuffer bb, IPartitioner partitioner)
     {
         try (DataInputBuffer in = new DataInputBuffer(bb, false))
         {
-            IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
             Token left = Token.serializer.deserialize(in, partitioner, 0);
             Token right = Token.serializer.deserialize(in, partitioner, 0);
             return new Range<>(left, right);
@@ -522,10 +521,10 @@ public class LocalSessions
         }
     }
 
-    private static Set<Range<Token>> deserializeRanges(Set<ByteBuffer> buffers)
+    private static Set<Range<Token>> deserializeRanges(Set<ByteBuffer> buffers, IPartitioner partitioner)
     {
         Set<Range<Token>> ranges = new HashSet<>(buffers.size());
-        buffers.forEach(bb -> ranges.add(deserializeRange(bb)));
+        buffers.forEach(bb -> ranges.add(deserializeRange(bb, partitioner)));
         return ranges;
     }
 
@@ -579,9 +578,13 @@ public class LocalSessions
             row.getInetAddress("coordinator"),
             row.getInt("coordinator_port"));
         builder.withCoordinator(coordinator);
-        builder.withTableIds(uuidToTableId(row.getSet("cfids", UUIDType.instance)));
+        Set<TableId> tableIds = uuidToTableId(row.getSet("cfids", UUIDType.instance));
+        builder.withTableIds(tableIds);
         builder.withRepairedAt(row.getTimestamp("repaired_at").getTime());
-        builder.withRanges(deserializeRanges(row.getSet("ranges", BytesType.instance)));
+        Set<IPartitioner> partitioners = tableIds.stream().map(ColumnFamilyStore::getIfExists).filter(Objects::nonNull).map(ColumnFamilyStore::getPartitioner).collect(Collectors.toSet());
+        assert partitioners.size() <= 1 : "Mismatching partitioners for a localsession: " + partitioners;
+        IPartitioner partitioner = partitioners.isEmpty() ? IPartitioner.global() : partitioners.iterator().next();
+        builder.withRanges(deserializeRanges(row.getSet("ranges", BytesType.instance), partitioner));
         //There is no cross version streaming and thus no cross version repair so assume that
         //any valid repair sessions has the participants_wp column and any that doesn't is malformed
         Set<String> participants = row.getSet("participants_wp", UTF8Type.instance);

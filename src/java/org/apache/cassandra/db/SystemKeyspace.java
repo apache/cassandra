@@ -1549,16 +1549,16 @@ public final class SystemKeyspace
     public static PaxosRepairHistory loadPaxosRepairHistory(String keyspace, String table)
     {
         if (SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES.contains(keyspace))
-            return PaxosRepairHistory.EMPTY;
+            return PaxosRepairHistory.empty(keyspace, table);
 
         UntypedResultSet results = executeInternal(String.format("SELECT * FROM system.%s WHERE keyspace_name=? AND table_name=?", PAXOS_REPAIR_HISTORY), keyspace, table);
         if (results.isEmpty())
-            return PaxosRepairHistory.EMPTY;
+            return PaxosRepairHistory.empty(keyspace, table);
 
         UntypedResultSet.Row row = Iterables.getOnlyElement(results);
         List<ByteBuffer> points = row.getList("points", BytesType.instance);
 
-        return PaxosRepairHistory.fromTupleBufferList(points);
+        return PaxosRepairHistory.fromTupleBufferList(keyspace, table, points);
     }
 
     /**

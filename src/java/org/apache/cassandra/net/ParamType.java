@@ -23,11 +23,9 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Int32Serializer;
 import org.apache.cassandra.utils.Int64Serializer;
-import org.apache.cassandra.utils.RangesSerializer;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static java.lang.Math.max;
-
 import static org.apache.cassandra.locator.InetAddressAndPort.FwdFrmSerializer.fwdFrmSerializer;
 
 /**
@@ -55,7 +53,6 @@ public enum ParamType
     ROW_INDEX_READ_SIZE_FAIL         (12, Int64Serializer.serializer),
     ROW_INDEX_READ_SIZE_WARN         (13, Int64Serializer.serializer),
     CUSTOM_MAP                       (14, CustomParamsSerializer.serializer),
-    SNAPSHOT_RANGES                  (15, RangesSerializer.serializer),
     TOO_MANY_REFERENCED_INDEXES_WARN (16, Int32Serializer.serializer),
     TOO_MANY_REFERENCED_INDEXES_FAIL (17, Int32Serializer.serializer);
 
