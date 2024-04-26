@@ -87,6 +87,7 @@ import static accord.primitives.Txn.Kind.Read;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 import static org.apache.cassandra.service.accord.txn.TxnRead.createTxnRead;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -99,6 +100,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     public static final String INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE = "SELECT must specify either all primary key elements or all partition key elements and LIMIT 1. In both cases partition key elements must be always specified with equality operators; %s %s";
     public static final String NO_CONDITIONS_IN_UPDATES_MESSAGE = "Updates within transactions may not specify their own conditions; %s statement %s";
     public static final String NO_TIMESTAMPS_IN_UPDATES_MESSAGE = "Updates within transactions may not specify custom timestamps; %s statement %s";
+    public static final String NO_COUNTERS_IN_TXNS_MESSAGE = "Counter columns cannot be accessed within a transaction; %s statement %s";
     public static final String EMPTY_TRANSACTION_MESSAGE = "Transaction contains no reads or writes";
     public static final String SELECT_REFS_NEED_COLUMN_MESSAGE = "SELECT references must specify a column.";
     public static final String TRANSACTIONS_DISABLED_MESSAGE = "Accord transactions are disabled. (See accord.enabled in cassandra.yaml)";
@@ -518,6 +520,10 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 checkTrue(selectNames.add(name), DUPLICATE_TUPLE_NAME_MESSAGE, name.name());
 
                 SelectStatement prepared = select.prepare(bindVariables);
+
+                if (prepared.table.isCounter())
+                    throw invalidRequest(NO_COUNTERS_IN_TXNS_MESSAGE, "SELECT", prepared.source);
+
                 NamedSelect namedSelect = new NamedSelect(name, prepared);
                 checkAtMostOneRowSpecified(namedSelect.select, "LET assignment " + name.name());
                 preparedAssignments.add(namedSelect);
@@ -531,7 +537,12 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             NamedSelect returningSelect = null;
             if (select != null)
             {
-                returningSelect = new NamedSelect(TxnDataName.returning(), select.prepare(bindVariables));
+                SelectStatement prepared = select.prepare(bindVariables);
+
+                if (prepared.table.isCounter())
+                    throw invalidRequest(NO_COUNTERS_IN_TXNS_MESSAGE, "SELECT", prepared.source);
+
+                returningSelect = new NamedSelect(TxnDataName.returning(), prepared);
                 checkAtMostOneRowSpecified(returningSelect.select, "returning select");
             }
 
@@ -555,6 +566,9 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 ModificationStatement prepared = parsed.prepare(state, bindVariables);
                 checkFalse(prepared.hasConditions(), NO_CONDITIONS_IN_UPDATES_MESSAGE, prepared.type, prepared.source);
                 checkFalse(prepared.isTimestampSet(), NO_TIMESTAMPS_IN_UPDATES_MESSAGE, prepared.type, prepared.source);
+
+                if (prepared.metadata().isCounter())
+                    throw invalidRequest(NO_COUNTERS_IN_TXNS_MESSAGE, prepared.type, prepared.source);
 
                 preparedUpdates.add(prepared);
             }
