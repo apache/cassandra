@@ -19,7 +19,9 @@
 package org.apache.cassandra.distributed.test.log;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.Test;
 
@@ -32,6 +34,8 @@ import org.apache.cassandra.tcm.membership.NodeState;
 
 import static org.apache.cassandra.distributed.shared.ClusterUtils.getNodeId;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class DeregisterTest extends TestBaseImpl
 {
@@ -45,16 +49,23 @@ public class DeregisterTest extends TestBaseImpl
             Map<Integer, String> nodeToNodeId = new HashMap<>();
             for (int i = 1; i <= 5; i++)
                 nodeToNodeId.put(i, String.valueOf(getNodeId(cluster.get(i)).id()));
-
+            verifyVirtualTable(cluster, nodeToNodeId, 5);
             cluster.get(5).nodetoolResult("decommission", "--force").asserts().success();
+
+            verifyVirtualTable(cluster, nodeToNodeId,5, 5);
             cluster.get(4).nodetoolResult("decommission", "--force").asserts().success();
+            verifyVirtualTable(cluster, nodeToNodeId, 5, 5, 4);
             cluster.get(3).nodetoolResult("decommission", "--force").asserts().success();
+            verifyVirtualTable(cluster, nodeToNodeId, 5, 5, 4, 3);
             // deregister a single node
             cluster.get(1).nodetoolResult("cms", "deregister", nodeToNodeId.get(5)).asserts().success();
+            verifyVirtualTable(cluster, nodeToNodeId, 4, 4, 3);
             // deregister multiple nodes
             cluster.get(1).nodetoolResult("cms", "deregister", nodeToNodeId.get(4), nodeToNodeId.get(3)).asserts().success();
+            verifyVirtualTable(cluster, nodeToNodeId, 2);
             // try to deregister a joined node, should fail
             cluster.get(1).nodetoolResult("cms", "deregister", nodeToNodeId.get(2)).asserts().failure();
+            verifyVirtualTable(cluster, nodeToNodeId,2);
 
             cluster.get(1).runOnInstance(() -> {
                 ClusterMetadata metadata = ClusterMetadata.current();
@@ -62,6 +73,28 @@ public class DeregisterTest extends TestBaseImpl
                 for (Map.Entry<NodeId, NodeState> entry : metadata.directory.states.entrySet())
                     assertEquals(NodeState.JOINED, entry.getValue());
             });
+        }
+    }
+
+    private static void verifyVirtualTable(Cluster cluster, Map<Integer, String> nodeToNodeId, int expectedTotal, int ... expectedLeftNodes)
+    {
+        Set<Integer> leftNodeIds = new HashSet<>();
+        for (int i : expectedLeftNodes)
+        {
+            NodeId nodeId = NodeId.fromString(nodeToNodeId.get(i));
+            leftNodeIds.add(nodeId.id());
+        }
+        Object [][] res = cluster.get(1).executeInternal("select node_id, state from system_views.cluster_metadata_directory");
+        assertEquals(expectedTotal, res.length);
+        for (Object [] row : res)
+        {
+            int id = (int)row[0];
+            if (row[1].equals("JOINED"))
+                assertFalse(leftNodeIds.contains(id));
+            else if (row[1].equals("LEFT"))
+                assertTrue(leftNodeIds.remove(id));
+            else
+                throw new AssertionError("Unexpected state: " + row[1]);
         }
     }
 }
