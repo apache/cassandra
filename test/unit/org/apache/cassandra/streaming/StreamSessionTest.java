@@ -72,7 +72,7 @@ public class StreamSessionTest extends CQLTester
         DatabaseDescriptor.daemonInitialization();
         ByteBuddyAgent.install();
         new ByteBuddy().redefine(ColumnFamilyStore.class)
-                       .method(named("getIfExists").and(takesArguments(1)))
+                       .method(named("getIfExists").and(takesArguments(TableId.class)))
                        .intercept(MethodDelegation.to(BBKeyspaceHelper.class))
                        .make()
                        .load(ColumnFamilyStore.class.getClassLoader(), ClassReloadingStrategy.fromInstalledAgent());

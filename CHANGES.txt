@@ -1,4 +1,5 @@
 5.0-beta2
+ * Refresh stale paxos commit (CASSANDRA-19617)
  * Replace Stream iteration with for-loop for StorageProxy::updateCoordinatorWriteLatencyTableMetric (CASSANDRA-19676)
  * Enforce metric naming contract if scope is used in a metric name (CASSANDRA-19619)
  * Avoid reading of the same IndexInfo from disk many times for a large partition (CASSANDRA-19557)
