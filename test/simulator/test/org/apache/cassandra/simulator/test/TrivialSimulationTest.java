@@ -41,7 +41,6 @@ import static org.apache.cassandra.simulator.cluster.ClusterActions.Options.noAc
 public class TrivialSimulationTest extends SimulationTestBase
 {
     @Test
-    @Ignore("fails in OSS 4.1.3")
     public void trivialTest() throws IOException // for demonstration/experiment purposes
     {
         simulate((simulation) -> {

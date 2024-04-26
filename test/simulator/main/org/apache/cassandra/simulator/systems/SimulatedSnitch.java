@@ -97,13 +97,8 @@ public class SimulatedSnitch extends NodeLookup
     {
         for (int i = 0 ; i < numInDcs.length ; ++i)
             builder.withRack(nameOfDcs[i], nameOfDcs[i], numInDcs[i]);
-        Consumer<IInstanceConfig> prev = builder.getConfigUpdater();
-        return builder.withConfig(config -> {
-            if (prev != null)
-                prev.accept(config);
-            config.set("endpoint_snitch", SimulatedSnitch.Instance.class.getName())
-                  .set("dynamic_snitch", false);
-        });
+        return builder.withConfig(config -> config.set("endpoint_snitch", SimulatedSnitch.Instance.class.getName())
+                                                  .set("dynamic_snitch", false));
     }
 
     public Instance get()
