@@ -85,6 +85,7 @@ RUN echo "cassandra-tmp ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/build
 RUN chmod 0440 /etc/sudoers.d/build
 
 # switch to the cassandra user
+RUN mkdir -p ${BUILD_HOME} && chmod a+rwx ${BUILD_HOME}
 USER cassandra-tmp
 ENV HOME ${BUILD_HOME}
 WORKDIR ${BUILD_HOME}

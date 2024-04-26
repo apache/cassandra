@@ -101,6 +101,14 @@ class JUnitResultBuilder:
         </table>
         ''')
 
+        self._list_template = Template('''
+        <div>
+          {% for row in rows %}
+           &nbsp; &nbsp;  {{ row[0] }} {{ row[1] }}<br/>
+          {% endfor %}
+        </div>
+        ''')
+
     @staticmethod
     def add_style_tags(soup: BeautifulSoup) -> None:
         """
@@ -129,6 +137,9 @@ class JUnitResultBuilder:
         if len(row) != 4:
             raise AssertionError(f'Got invalid number of columns on add_row: {len(row)}. Expected: 4.')
         self._rows.append(row)
+
+    def build_list(self) -> str:
+        return self._list_template.render(rows=self._rows)
 
     def build_table(self) -> str:
         return self._template.render(header=f'{self._name}', labels=self._labels, column_styles=self._column_styles, rows=self._rows)
