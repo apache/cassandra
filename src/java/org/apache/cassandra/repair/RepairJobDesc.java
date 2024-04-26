@@ -35,10 +35,9 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.streaming.PreviewKind;
-import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -78,6 +77,17 @@ public class RepairJobDesc
         bytes = ArrayUtils.addAll(bytes, columnFamily.getBytes(StandardCharsets.UTF_8));
         bytes = ArrayUtils.addAll(bytes, ranges.toString().getBytes(StandardCharsets.UTF_8));
         return UUID.nameUUIDFromBytes(bytes);
+    }
+
+    public IPartitioner partitioner()
+    {
+        return partitioner(this.keyspace, this.columnFamily);
+    }
+
+    public static IPartitioner partitioner(String keyspace, String columnFamily)
+    {
+        TableMetadata tm = Schema.instance.getTableMetadata(keyspace, columnFamily);
+        return tm != null ? tm.partitioner : IPartitioner.global();
     }
 
     @Override
@@ -125,8 +135,6 @@ public class RepairJobDesc
             desc.sessionId.serialize(out);
             out.writeUTF(desc.keyspace);
             out.writeUTF(desc.columnFamily);
-            if (version >= MessagingService.VERSION_51)
-                out.writeUTF(getPartitioner(desc).getClass().getCanonicalName());
             out.writeInt(desc.ranges.size());
             for (Range<Token> rt : desc.ranges)
                 AbstractBounds.tokenSerializer.serialize(rt, out, version);
@@ -140,8 +148,9 @@ public class RepairJobDesc
             TimeUUID sessionId = TimeUUID.deserialize(in);
             String keyspace = in.readUTF();
             String columnFamily = in.readUTF();
+
             IPartitioner partitioner = version >= MessagingService.VERSION_51
-                                       ? FBUtilities.newPartitioner(in.readUTF())
+                                       ? partitioner(keyspace, columnFamily)
                                        : IPartitioner.global();
 
             int nRanges = in.readInt();
@@ -164,11 +173,6 @@ public class RepairJobDesc
             size += TimeUUID.sizeInBytes();
             size += TypeSizes.sizeof(desc.keyspace);
             size += TypeSizes.sizeof(desc.columnFamily);
-            if (version >= MessagingService.VERSION_51)
-            {
-                String partitioner = getPartitioner(desc).getClass().getCanonicalName();
-                size += TypeSizes.sizeof(partitioner);
-            }
             size += TypeSizes.sizeof(desc.ranges.size());
             for (Range<Token> rt : desc.ranges)
             {
@@ -177,12 +181,5 @@ public class RepairJobDesc
             return size;
         }
 
-        private IPartitioner getPartitioner(RepairJobDesc desc)
-        {
-            TableMetadata tm = ClusterMetadata.current().schema.getKeyspaceMetadata(desc.keyspace)
-                                                               .getTableOrViewNullable(desc.columnFamily);
-            return tm != null ? tm.partitioner : IPartitioner.global();
-
-        }
     }
 }

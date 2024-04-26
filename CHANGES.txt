@@ -1,4 +1,5 @@
 5.1
+ * Use table-specific partitioners during Paxos repair (CASSANDRA-19714)
  * Expose current compaction throughput in nodetool (CASSANDRA-13890)
  * CEP-24 Password validation / generation (CASSANDRA-17457)
  * Reconfigure CMS after replacement, bootstrap and move operations (CASSANDRA-19705)

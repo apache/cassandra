@@ -98,7 +98,7 @@ public class RangeFetchMapCalculator
 
     static boolean isTrivial(Range<Token> range)
     {
-        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
+        IPartitioner partitioner = range.left.getPartitioner();
         if (partitioner.splitter().isPresent())
         {
             BigInteger l = partitioner.splitter().get().valueForToken(range.left);

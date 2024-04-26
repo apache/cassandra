@@ -34,7 +34,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.PeekingIterator;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.Range;
@@ -343,7 +342,7 @@ public class UncommittedDataFile
                 nextKey:
                 while (!reader.isEOF())
                 {
-                    DecoratedKey key = DatabaseDescriptor.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(reader));
+                    DecoratedKey key = currentRange.left.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(reader));
 
                     while (!currentRange.contains(key))
                     {

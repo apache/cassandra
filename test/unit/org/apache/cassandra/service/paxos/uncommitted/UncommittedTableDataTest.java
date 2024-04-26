@@ -91,7 +91,7 @@ public class UncommittedTableDataTest
 
         PaxosRepairHistory getPaxosRepairHistory()
         {
-            return PaxosRepairHistory.EMPTY;
+            return PaxosRepairHistory.empty(PARTITIONER);
         }
     };
 
@@ -583,7 +583,7 @@ public class UncommittedTableDataTest
 
             PaxosRepairHistory getPaxosRepairHistory()
             {
-                return PaxosRepairHistory.EMPTY;
+                return PaxosRepairHistory.empty(PARTITIONER);
             }
         });
 
@@ -608,7 +608,7 @@ public class UncommittedTableDataTest
 
             PaxosRepairHistory getPaxosRepairHistory()
             {
-                return PaxosRepairHistory.EMPTY;
+                return PaxosRepairHistory.empty(PARTITIONER);
             }
         });
 
@@ -636,7 +636,7 @@ public class UncommittedTableDataTest
 
             PaxosRepairHistory getPaxosRepairHistory()
             {
-                return PaxosRepairHistory.add(PaxosRepairHistory.EMPTY, ALL_RANGES, ballots[1]);
+                return PaxosRepairHistory.add(PaxosRepairHistory.empty(PARTITIONER), ALL_RANGES, ballots[1]);
             }
         });
 
