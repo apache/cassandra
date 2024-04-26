@@ -49,6 +49,7 @@ public class NativeFunctions
             MaskingFcts.addFunctionsTo(this);
             VectorFcts.addFunctionsTo(this);
             ClusterMetadataFcts.addFunctionsTo(this);
+            FormatFcts.addFunctionsTo(this);
         }
     };
 

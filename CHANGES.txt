@@ -1,4 +1,5 @@
 5.1
+ * Add format_bytes and format_time functions (CASSANDRA-19546)
  * Fix error when trying to assign a tuple to target type not being a tuple (CASSANDRA-20237)
  * Fail CREATE TABLE LIKE statement if UDTs in target keyspace do not exist or they have different structure from ones in source keyspace (CASSANDRA-19966)
  * Support octet_length and length functions (CASSANDRA-20102)

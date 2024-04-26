@@ -113,6 +113,7 @@ New features
       the data and check the length themselves or enable UDF and register UDFs to check the length of columns. 
       CASSANDRA-20102 adds a subset of the SQL99 (binary) string functions: "octet_length" defined on all types 
       and "length" defined on UTF8 strings. See CASSANDRA-20102 for more information.
+    - New functions `format_bytes` and `format_time` were added. See CASSANDRA-19546.
 
 Upgrading
 ---------
