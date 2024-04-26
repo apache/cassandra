@@ -71,6 +71,12 @@ public interface Terms
         {
             return false;
         }
+
+        @Override
+        public String toString()
+        {
+            return "UNSET";
+        }
     };
 
     /**
@@ -366,6 +372,12 @@ public interface Terms
                 {
                     return true;
                 }
+
+                @Override
+                public String toString()
+                {
+                    return terminal.toString();
+                }
             };
         }
 
@@ -415,6 +427,12 @@ public interface Terms
                 public boolean containsSingleTerm()
                 {
                     return terminals.size() == 1;
+                }
+
+                @Override
+                public String toString()
+                {
+                    return terminals.stream().map(Objects::toString).collect(Collectors.joining(", ", "(", ")"));
                 }
             };
         }

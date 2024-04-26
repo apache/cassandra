@@ -114,6 +114,12 @@ public final class InMarker extends Terms.NonTerminals
         return false;
     }
 
+    @Override
+    public String toString()
+    {
+        return "?";
+    }
+
     /**
      * A raw placeholder for multiple values of the same type for a single column.
      * For example, {@code SELECT ... WHERE user_id IN ?}.
