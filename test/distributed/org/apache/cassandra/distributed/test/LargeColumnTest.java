@@ -68,6 +68,8 @@ public class LargeColumnTest extends TestBaseImpl
                                                  config.set("commitlog_segment_size", String.format("%dMiB",(columnSize * 3) >> 20))
                                                        .set("internode_application_send_queue_reserve_endpoint_capacity", String.format("%dB", (columnSize * 2)))
                                                        .set("internode_application_send_queue_reserve_global_capacity", String.format("%dB", (columnSize * 3)))
+                                                       .set("native_transport_max_request_data_in_flight_per_ip", String.format("%dB", (columnSize * 3)))
+                                                       .set("native_transport_max_request_data_in_flight", String.format("%dB", (columnSize * 6)))
                                                        .set("write_request_timeout", "30s")
                                                        .set("read_request_timeout", "30s")
                                                        .set("memtable_heap_space", "1024MiB")

@@ -103,6 +103,20 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
     @Override
     public void dispatch(Channel channel, Message.Request request, FlushItemConverter forFlusher, Overload backpressure)
     {
+        if (!request.connection().getTracker().isRunning())
+        {
+            // We can not respond with a custom, transport, or server exceptions since, given current implementation of clients,
+            // they will defunct the connection. Without a protocol version bump that introduces an "I am going away message",
+            // we have to stick to an existing error code.
+            Message.Response response = ErrorMessage.fromException(new OverloadedException("Server is shutting down"));
+            response.setStreamId(request.getStreamId());
+            response.setWarnings(ClientWarn.instance.getWarnings());
+            response.attach(request.connection);
+            FlushItem<?> toFlush = forFlusher.toFlushItem(channel, request, response);
+            flush(toFlush);
+            return;
+        }
+
         // if native_transport_max_auth_threads is < 1, don't delegate to new pool on auth messages
         boolean isAuthQuery = DatabaseDescriptor.getNativeTransportMaxAuthThreads() > 0 &&
                               (request.type == Message.Type.AUTH_RESPONSE || request.type == Message.Type.CREDENTIALS);
@@ -464,6 +478,11 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
 
         flusher.enqueue(item);
         flusher.start();
+    }
+
+    public boolean isDone()
+    {
+        return requestExecutor.getPendingTaskCount() == 0 && requestExecutor.getActiveTaskCount() == 0;
     }
 
     public static void shutdown()

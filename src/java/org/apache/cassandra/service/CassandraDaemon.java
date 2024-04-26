@@ -824,12 +824,16 @@ public class CassandraDaemon
             StorageService.instance.setRpcReady(true);
     }
 
+    @Deprecated
     public void stopNativeTransport()
     {
+        stopNativeTransport(false);
+    }
+
+    public void stopNativeTransport(boolean force)
+    {
         if (nativeTransportService != null)
-        {
-            nativeTransportService.stop();
-        }
+            nativeTransportService.stop(force);
     }
 
     public boolean isNativeTransportRunning()

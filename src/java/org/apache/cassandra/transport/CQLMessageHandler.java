@@ -603,10 +603,6 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                         return false;
                     }
                 }
-                else
-                {
-                    noSpamLogger.error("Could not aquire capacity while processing native protocol message");
-                }
             }
 
             this.largeMessage = largeMessage;
