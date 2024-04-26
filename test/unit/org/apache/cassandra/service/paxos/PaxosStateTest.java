@@ -40,6 +40,7 @@ import org.apache.cassandra.service.paxos.PaxosState.Snapshot;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.gc_grace;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.repaired;
@@ -104,6 +105,7 @@ public class PaxosStateTest
 
         String key = "key" + System.nanoTime();
         Accepted accepted = newProposal(1, key).accepted();
+        AcceptedWithTTL acceptedWithTTL = new AcceptedWithTTL(accepted, (int)MICROSECONDS.toSeconds(accepted.ballot.unixMicros())-3600);
         PaxosState.legacyPropose(accepted);
 
         DatabaseDescriptor.setPaxosStatePurging(repaired);
@@ -113,13 +115,14 @@ public class PaxosStateTest
         assertPaxosState(key, accepted, state -> state.current(Integer.MAX_VALUE).accepted);
         DatabaseDescriptor.setPaxosStatePurging(gc_grace);
         // not expired if read in the past
-        assertPaxosState(key, accepted, state -> state.current(accepted.ballot).accepted);
+        assertPaxosState(key, acceptedWithTTL, state -> state.current(accepted.ballot).accepted);
         // expired if read with paxos state purging disabled
         assertPaxosState(key, null, state -> state.current(Integer.MAX_VALUE).accepted);
         // clear cache to read from disk
         PaxosState.RECENT.clear();
 
         Committed committed = accepted.committed();
+        CommittedWithTTL committedWithTTL = new CommittedWithTTL(committed, (int)MICROSECONDS.toSeconds(committed.ballot.unixMicros())-3600);
         Committed empty = emptyProposal(key).accepted().committed();
         PaxosState.commitDirect(committed);
         DatabaseDescriptor.setPaxosStatePurging(repaired);
@@ -129,7 +132,7 @@ public class PaxosStateTest
         assertPaxosState(key, committed, state -> state.current(Integer.MAX_VALUE).committed);
         DatabaseDescriptor.setPaxosStatePurging(gc_grace);
         // not expired if read in the past
-        assertPaxosState(key, committed, state -> state.current(committed.ballot).committed);
+        assertPaxosState(key, committedWithTTL, state -> state.current(committed.ballot).committed);
         // expired if read with paxos state purging disabled
         assertPaxosState(key, empty, state -> state.current(Integer.MAX_VALUE).committed);
         DatabaseDescriptor.setPaxosStatePurging(repaired);
@@ -140,7 +143,7 @@ public class PaxosStateTest
     {
         String key = "key" + System.nanoTime();
         String key2 = key + 'A';
-        Accepted accepted = new AcceptedWithTTL(newProposal(1, key), 1);
+        Accepted accepted = new AcceptedWithTTL(newProposal(1, key), SystemKeyspace.legacyPaxosTtlSec(metadata) + 1);
         PaxosState.legacyPropose(accepted);
         PaxosState.legacyPropose(new AcceptedWithTTL(newProposal(1, key2), 10000));
 
@@ -162,7 +165,8 @@ public class PaxosStateTest
         // clear cache to read from disk
         PaxosState.RECENT.clear();
 
-        Committed committed = new CommittedWithTTL(accepted, 1);
+        Committed committed = new CommittedWithTTL(accepted, SystemKeyspace.legacyPaxosTtlSec(metadata) + 1);
+
         Committed empty = emptyProposal(key).accepted().committed();
         PaxosState.commitDirect(committed);
 
@@ -217,7 +221,9 @@ public class PaxosStateTest
         Committed empty = emptyProposal(key).accepted().committed();
         DatabaseDescriptor.setPaxosStatePurging(legacy); // write with TTLs
         committed = new CommittedWithTTL(committed, -1); // for equality test
+
         PaxosState.commitDirect(committed);
+        committed = new CommittedWithTTL(committed, -1); // for equality test
 
         DatabaseDescriptor.setPaxosStatePurging(repaired);
         // not expired if read in the past
