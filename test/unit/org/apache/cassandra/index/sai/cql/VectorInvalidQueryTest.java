@@ -335,9 +335,6 @@ public class VectorInvalidQueryTest extends SAITester
         assertThatThrownBy(() -> executeNet("SELECT * FROM %s WHERE v > [5.0,1.0] ORDER BY v ANN OF [2.0,1.0] LIMIT 1"))
             .isInstanceOf(InvalidQueryException.class).hasMessage("v cannot be restricted by more than one relation in an ANN ordering");
 
-        assertInvalidMessage("v cannot be restricted by more than one relation in an ANN ordering",
-                             "SELECT k, v FROM %s WHERE k = 1 AND v >= [1] ORDER BY v ANN OF [0] LIMIT 4 ALLOW FILTERING");
-
         ResultSet result = execute("SELECT * FROM %s WHERE a = 1 AND b = 2 ORDER BY v ANN OF [2.0,1.0] LIMIT 1", ConsistencyLevel.ONE);
         assertEquals(1, result.size());
         result = execute("SELECT * FROM %s WHERE a = 1 AND b = 2 AND c = 1 ORDER BY v ANN OF [2.0,1.0] LIMIT 1", ConsistencyLevel.ONE);

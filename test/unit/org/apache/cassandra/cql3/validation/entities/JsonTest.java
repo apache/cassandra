@@ -1484,4 +1484,13 @@ public class JsonTest extends CQLTester
         assertEquals(json, res.one().getString("[json]"));
 
     }
+
+    @Test
+    public void testJsonInsertWithNullPrimaryKey() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, col ascii)");
+
+        assertInvalidMessage("Invalid null value for column pk",
+                             "INSERT INTO %s JSON '{\"col\": \"bar\"}'");
+    }
 }

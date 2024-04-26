@@ -840,8 +840,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     @VisibleForTesting
     public Slices makeSlices(QueryOptions options) throws InvalidRequestException
     {
-        Slices slices = restrictions.getSlices(options);
-        return slices;
+        return restrictions.getSlices(options);
     }
 
     private DataLimits getDataLimits(int userLimit,

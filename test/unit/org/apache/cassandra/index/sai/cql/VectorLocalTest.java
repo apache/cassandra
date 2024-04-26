@@ -44,7 +44,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class VectorLocalTest extends VectorTester
 {
     @Test
-    public void keyRestrictionsWithFilteringTest() throws Throwable
+    public void keyRestrictionsWithFilteringTest()
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v vector<float, 1>)");
         createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'euclidean'}");
