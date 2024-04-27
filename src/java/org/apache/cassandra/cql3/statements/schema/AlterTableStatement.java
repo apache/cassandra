@@ -186,6 +186,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
         {
+            // if apply is not no-op then we check guardrail for this ddl op
+            Guardrails.ddlEnabled.ensureEnabled(state);
+
             TableMetadata.Builder tableBuilder = table.unbuild();
             Views.Builder viewsBuilder = keyspace.views.unbuild();
             newColumns.forEach(c -> addColumn(keyspace, table, c, ifColumnNotExists, tableBuilder, viewsBuilder));
@@ -215,6 +218,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                     throw ire("Column with name '%s' already exists", name);
                 return;
             }
+
+            // if apply is not no-op then we check guardrail for this ddl op
+            Guardrails.ddlEnabled.ensureEnabled(state);
 
             if (table.isCompactTable())
                 throw ire("Cannot add new column to a COMPACT STORAGE table");
@@ -302,6 +308,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 return;
             }
 
+            // if apply is not no-op then we check guardrail for this ddl op
+            Guardrails.ddlEnabled.ensureEnabled(state);
+
             if (currentColumn.isPrimaryKeyColumn())
                 throw ire("Cannot drop PRIMARY KEY column %s", column);
 
@@ -379,6 +388,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 return;
             }
 
+            // if apply is not no-op then we check guardrail for this ddl op
+            Guardrails.ddlEnabled.ensureEnabled(state);
+
             if (!column.isPrimaryKeyColumn())
                 throw ire("Cannot rename non PRIMARY KEY column %s", oldName);
 
@@ -434,6 +446,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
         {
+            // if apply is not no-op then we check guardrail for this ddl op
+            Guardrails.ddlEnabled.ensureEnabled(state);
+
             attrs.validate();
 
             TableParams params = attrs.asAlteredTableParams(table.params);
@@ -478,6 +493,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
         {
+            // if apply is not no-op then we check guardrail for this ddl op
+            Guardrails.ddlEnabled.ensureEnabled(state);
+
             if (!DatabaseDescriptor.enableDropCompactStorage())
                 throw new InvalidRequestException("DROP COMPACT STORAGE is disabled. Enable in cassandra.yaml to use.");
 

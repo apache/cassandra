@@ -68,6 +68,9 @@ public final class AlterViewStatement extends AlterSchemaStatement
             throw ire("Materialized view '%s.%s' doesn't exist", keyspaceName, viewName);
         }
 
+        // if apply is not no-op then we check guardrail for this ddl op
+        Guardrails.ddlEnabled.ensureEnabled(state);
+
         attrs.validate();
 
         // Guardrails on table properties

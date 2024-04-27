@@ -151,6 +151,22 @@ public final class Guardrails implements GuardrailsMBean
                     "DROP and TRUNCATE TABLE functionality");
 
     /**
+     * Guardrail disabling DDL statements
+     */
+    public static final DisableFlag ddlEnabled =
+    new DisableFlag("ddl_enabled",
+                    state -> !CONFIG_PROVIDER.getOrCreate(state).getDDLEnabled(),
+                    "DDL statement");
+
+    /**
+     * Guardrail disabling DCL statements
+     */
+    public static final DisableFlag dclEnabled =
+    new DisableFlag("dcl_enabled",
+                    state -> !CONFIG_PROVIDER.getOrCreate(state).getDCLEnabled(),
+                    "DCL statement");
+
+    /**
      * Guardrail disabling user's ability to turn off compression
      */
     public static final DisableFlag uncompressedTablesEnabled =
@@ -597,6 +613,30 @@ public final class Guardrails implements GuardrailsMBean
     public void setDropTruncateTableEnabled(boolean enabled)
     {
         DEFAULT_CONFIG.setDropTruncateTableEnabled(enabled);
+    }
+
+    @Override
+    public boolean getDDLEnabled()
+    {
+        return DEFAULT_CONFIG.getDDLEnabled();
+    }
+
+    @Override
+    public void setDDLEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setDDLEnabled(enabled);
+    }
+
+    @Override
+    public boolean getDCLEnabled()
+    {
+        return DEFAULT_CONFIG.getDCLEnabled();
+    }
+
+    @Override
+    public void setDCLEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setDCLEnabled(enabled);
     }
 
     @Override

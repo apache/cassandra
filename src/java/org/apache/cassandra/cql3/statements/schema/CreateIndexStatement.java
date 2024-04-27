@@ -158,6 +158,9 @@ public final class CreateIndexStatement extends AlterSchemaStatement
             throw ire("Index %s is a duplicate of existing index %s", index.name, equalIndex.name);
         }
 
+        // if apply is not no-op then we check guardrail for this ddl op
+        Guardrails.ddlEnabled.ensureEnabled(state);
+
         TableMetadata newTable = table.withSwapped(table.indexes.with(index));
         newTable.validate();
 

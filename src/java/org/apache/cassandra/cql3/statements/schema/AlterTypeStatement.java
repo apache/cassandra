@@ -139,6 +139,8 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
                     throw ire("Cannot add field %s to type %s: a field with name %s already exists", fieldName, userType.getCqlTypeName(), fieldName);
                 return userType;
             }
+            // if apply is not no-op then we check guardrail for this ddl op
+            Guardrails.ddlEnabled.ensureEnabled(state);
 
             AbstractType<?> fieldType = type.prepare(keyspaceName, keyspace.types).getType();
             if (fieldType.referencesUserType(userType.name))
@@ -211,6 +213,9 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
                 }
                 fieldNames.set(idx, newName);
             });
+
+            // if apply is not no-op then we check guardrail for this ddl op
+            Guardrails.ddlEnabled.ensureEnabled(state);
 
             fieldNames.forEach(name ->
             {

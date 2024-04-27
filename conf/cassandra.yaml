@@ -1750,6 +1750,11 @@ drop_compact_storage_enabled: false
 # group_by_enabled: true
 # Guardrail to allow/disallow TRUNCATE and DROP TABLE statements
 # drop_truncate_table_enabled: true
+#
+# Guardrail to allow/disallow DDL/DCL statements
+# ddl_enabled: true
+# dcl_enabled: true
+#
 # Guardrail to warn or fail when using a page size greater than threshold.
 # The two thresholds default to -1 to disable.
 # page_size_warn_threshold: -1
