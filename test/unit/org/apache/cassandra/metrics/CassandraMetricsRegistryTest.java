@@ -29,8 +29,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import org.junit.Before;
@@ -50,7 +52,6 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-
 
 public class CassandraMetricsRegistryTest
 {
@@ -266,5 +267,31 @@ public class CassandraMetricsRegistryTest
     private boolean inRange(long anchor, long input, double range)
     {
         return input / ((double) anchor) < range;
+    }
+
+    @Test
+    public void testTickMeters() throws InterruptedException
+    {
+        CassandraMetricsRegistry cmr = new CassandraMetricsRegistry(TimeUnit.SECONDS.toMicros(1));
+        int numMeters = 1000;
+        CountDownLatch ticked = new CountDownLatch(numMeters);
+        AtomicInteger counted = new AtomicInteger();
+        Meter m = new Meter()
+        {
+            @Override
+            public double getOneMinuteRate() {
+                if (counted.incrementAndGet() % 2 == 0)
+                    throw new RuntimeException("test failure handling");
+                ticked.countDown();
+                return super.getOneMinuteRate();
+            }
+        };
+        for (int ii = 0; ii < numMeters; ii++)
+        {
+            cmr.register("ignored" + ii, m);
+        }
+        assertNotNull(cmr.periodicMeterTicker);
+        assertTrue(cmr.periodicMeterTicker.getDelay(TimeUnit.SECONDS) <= 1);
+        assertTrue(ticked.await(1, TimeUnit.MINUTES));
     }
 }
