@@ -28,11 +28,13 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -68,6 +70,8 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -174,11 +178,10 @@ import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Refs;
-import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.DatabaseDescriptor.getFlushWriters;
@@ -188,7 +191,6 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.FBUtilities.now;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 import static org.apache.cassandra.utils.Throwables.merge;
-import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner, SSTable.Owner
 {
@@ -205,11 +207,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     private static final ExecutorPlus flushExecutor = DatabaseDescriptor.isDaemonInitialized() 
                                                       ? executorFactory().withJmxInternal().pooled("MemtableFlushWriter", getFlushWriters())
                                                       : null;
-
-    // post-flush executor is single threaded to provide guarantee that any flush Future on a CF will never return until prior flushes have completed
-    private static final ExecutorPlus postFlushExecutor = DatabaseDescriptor.isDaemonInitialized()
-                                                          ? executorFactory().withJmxInternal().sequential("MemtablePostFlush")
-                                                          : null;
 
     private static final ExecutorPlus reclaimExecutor = DatabaseDescriptor.isDaemonInitialized()
                                                         ? executorFactory().withJmxInternal().sequential("MemtableReclaimMemory")
@@ -342,6 +339,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     private volatile boolean neverPurgeTombstones = false;
 
+    private final Deque<Flush> pendingFlushes = new LinkedList<>();
+
     private class PaxosRepairHistoryLoader
     {
         private TablePaxosRepairHistory history;
@@ -365,16 +364,31 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     private final PaxosRepairHistoryLoader paxosRepairHistory = new PaxosRepairHistoryLoader();
 
-    public static void shutdownPostFlushExecutor() throws InterruptedException
-    {
-        postFlushExecutor.shutdown();
-        postFlushExecutor.awaitTermination(60, TimeUnit.SECONDS);
-    }
+   public static void awaitPendingFlushes() throws InterruptedException
+   {
+      List<FutureTask<CommitLogPosition>> pendingFlushes = new ArrayList<>();
+      for (ColumnFamilyStore cfs : all())
+      {
+          synchronized (cfs.data)
+          {
+              for (Flush flush : cfs.pendingFlushes)
+                  pendingFlushes.add(flush.postFlushTask);
+          }
+      }
+      try
+      {
+           Futures.successfulAsList(pendingFlushes).get();
+      }
+      catch (ExecutionException e)
+      {
+          // ignored here
+      }
+   }
 
     public static void shutdownExecutorsAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
         List<ExecutorService> executors = new ArrayList<>();
-        Collections.addAll(executors, reclaimExecutor, postFlushExecutor, flushExecutor);
+        Collections.addAll(executors, reclaimExecutor, flushExecutor);
         perDiskflushExecutors.appendAllExecutors(executors);
         ExecutorUtils.shutdownAndWait(timeout, unit, executors);
     }
@@ -1040,8 +1054,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         {
             logFlush(reason);
             Flush flush = new Flush(false);
-            flushExecutor.execute(flush);
-            postFlushExecutor.execute(flush.postFlushTask);
+            pendingFlushes.add(flush);
+            flushExecutor.submit(flush.flushTask);
             return flush.postFlushTask;
         }
     }
@@ -1112,7 +1126,25 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         // we grab the current memtable; once any preceding memtables have flushed, we know its
         // commitLogLowerBound has been set (as this it is set with the upper bound of the preceding memtable)
         final Memtable current = data.getView().getCurrentMemtable();
-        return postFlushExecutor.submit(current::getCommitLogLowerBound);
+
+        Flush flush;
+        synchronized (data)
+        {
+            flush = pendingFlushes.peekLast();
+        }
+        if (flush == null)
+        {
+            CommitLogPosition position = current.getCommitLogLowerBound();
+            if (position == null)
+                throw new IllegalStateException("Commit log lower bound is null for memtable {}, but there are no pending flushes so it should be present");
+            return ImmediateFuture.success(position);
+        }
+        else
+        {
+            FutureTask ft = new FutureTask(current::getCommitLogLowerBound);
+            flush.postFlushTask.addListener(ft);
+            return ft;
+        }
     }
 
     public CommitLogPosition forceBlockingFlush(FlushReason reason)
@@ -1126,7 +1158,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
      */
     private final class PostFlush implements Callable<CommitLogPosition>
     {
-        final CountDownLatch latch = newCountDownLatch(1);
         final Memtable mainMemtable;
         volatile Throwable flushFailure = null;
 
@@ -1137,17 +1168,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
         public CommitLogPosition call()
         {
-            try
-            {
-                // we wait on the latch for the commitLogUpperBound to be set, and so that waiters
-                // on this task can rely on all prior flushes being complete
-                latch.await();
-            }
-            catch (InterruptedException e)
-            {
-                throw new UncheckedInterruptedException(e);
-            }
-
             CommitLogPosition commitLogUpperBound = NONE;
             // If a flush errored out but the error was ignored, make sure we don't discard the commit log.
             if (flushFailure == null && mainMemtable != null)
@@ -1180,6 +1200,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     {
         final OpOrder.Barrier writeBarrier;
         final Map<ColumnFamilyStore, Memtable> memtables;
+        final FutureTask<Void> flushTask;
         final FutureTask<CommitLogPosition> postFlushTask;
         final PostFlush postFlush;
         final boolean truncate;
@@ -1226,8 +1247,53 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             // since this happens after wiring up the commitLogUpperBound, we also know all operations with earlier
             // commit log segment position have also completed, i.e. the memtables are done and ready to flush
             writeBarrier.issue();
+            flushTask = new FutureTask(this);
+            addPostFlushListener();
             postFlush = new PostFlush(Iterables.get(memtables.values(), 0, null));
             postFlushTask = new FutureTask<>(postFlush);
+        }
+
+        private void addPostFlushListener()
+        {
+            flushTask.addListener(() -> {
+                // This won't go to the executor service uncaught exception plumbing anymore so check here
+                try
+                {
+                    flushTask.get();
+                }
+                catch (ExecutionException e)
+                {
+                    JVMStabilityInspector.inspectThrowable(e.getCause());
+                    logger.error("Unhandled exception in " + this, e);
+                }
+                catch (InterruptedException e)
+                {
+                    throw new AssertionError("Future should be completed when listener runs");
+                }
+                synchronized (data)
+                {
+                    // Only the first flush pending flush can run post flush tasks since it blocks all others after
+                    // and it has to stop after encountering the first unfinished task which blocks the ones after it
+                    Flush head = pendingFlushes.peek();
+                    if (head != null && head.flushTask == flushTask)
+                    {
+                        while (!pendingFlushes.isEmpty())
+                        {
+                            Flush nextFlush = pendingFlushes.peek();
+                            if (nextFlush.flushTask.isDone())
+                            {
+                                pendingFlushes.poll();
+                                // TODO (review): Is it OK to run the post flush task under the data lock?
+                                nextFlush.postFlushTask.run();
+                            }
+                            else
+                            {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }, MoreExecutors.directExecutor());
         }
 
         public void run()
@@ -1269,9 +1335,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
             if (logger.isTraceEnabled())
                 logger.trace("Flush task {}@{} signaling post flush task", hashCode(), name);
-
-            // signal the post-flush we've done our work
-            postFlush.latch.decrement();
 
             if (logger.isTraceEnabled())
                 logger.trace("Flush task task {}@{} finished", hashCode(), name);
@@ -2804,8 +2867,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         synchronized (data)
         {
             final Flush flush = new Flush(true);
-            flushExecutor.execute(flush);
-            postFlushExecutor.execute(flush.postFlushTask);
+            pendingFlushes.offer(flush);
+            flushExecutor.execute(flush.flushTask);
             return flush.postFlushTask;
         }
     }
