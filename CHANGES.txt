@@ -1,3 +1,7 @@
+4.0.14
+ * Bring Redhat packge dirs/ownership/perms in line with Debian package (CASSANDRA-19565)
+
+
 4.0.13
  * Make nodetool import congruent with the documentation by not relying on the folder structure of the imported SSTable files (CASSANDRA-19401)
  * IR may leak SSTables with pending repair when coming from streaming (CASSANDRA-19182)
