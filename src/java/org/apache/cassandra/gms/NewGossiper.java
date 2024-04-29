@@ -38,6 +38,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.compatibility.GossipHelper;
 import org.apache.cassandra.utils.concurrent.Accumulator;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
@@ -127,7 +128,10 @@ public class NewGossiper
         public Promise<Map<InetAddressAndPort, EndpointState>> doShadowRound()
         {
             // send a completely empty syn
-            GossipDigestSyn digestSynMessage = new GossipDigestSyn(getClusterName(), getPartitionerName(), new ArrayList<>());
+            GossipDigestSyn digestSynMessage = new GossipDigestSyn(getClusterName(),
+                                                                   getPartitionerName(),
+                                                                   ClusterMetadata.current().metadataIdentifier,
+                                                                   new ArrayList<>());
             Message<GossipDigestSyn> message = Message.out(GOSSIP_DIGEST_SYN, digestSynMessage);
 
             logger.info("Sending shadow round GOSSIP DIGEST SYN to known peers {}", peers);

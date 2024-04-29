@@ -44,6 +44,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHOLD;
+import static org.apache.cassandra.tcm.ClusterMetadata.EMPTY_METADATA_IDENTIFIER;
 
 public class OutboundConnectionsTest
 {
@@ -96,7 +97,7 @@ public class OutboundConnectionsTest
     @Test
     public void getConnection_Gossip()
     {
-        GossipDigestSyn syn = new GossipDigestSyn("cluster", "partitioner", new ArrayList<>(0));
+        GossipDigestSyn syn = new GossipDigestSyn("cluster", "partitioner", EMPTY_METADATA_IDENTIFIER, new ArrayList<>(0));
         Message<GossipDigestSyn> message = Message.out(Verb.GOSSIP_DIGEST_SYN, syn);
         Assert.assertEquals(ConnectionType.URGENT_MESSAGES, connections.connectionFor(message).type());
     }
