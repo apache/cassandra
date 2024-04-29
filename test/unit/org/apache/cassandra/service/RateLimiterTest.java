@@ -35,6 +35,7 @@ import org.apache.cassandra.metrics.StorageProxyMetricsManager;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.range.RangeCommandIterator;
 import org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization;
@@ -42,6 +43,7 @@ import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.service.throttler.dynamic.TrafficType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -71,7 +73,8 @@ import java.util.concurrent.ExecutionException;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
-public class RateLimiterTest extends CQLTester {
+public class RateLimiterTest extends CQLTester
+{
     private static final String KEYSPACE = "ks_for_rate_limiter";
     private static final String TABLE = "table";
     private static final Collection SINGLETON_TABLE = Collections.singleton(TABLE);
@@ -109,6 +112,10 @@ public class RateLimiterTest extends CQLTester {
         mockCassResrcUtil = spy(originalCassandraRescourceUtilization);
         CassandraResourceUtilization.instance = mockCassResrcUtil;
         when(mockCassResrcUtil.throttleUserTraffic(eq(KEYSPACE), anySet(), any())).thenReturn(true);
+        // flaky test in 4.1: there are RangeReadReplica go to system.batches and should be ignored for this test
+        when(mockCassResrcUtil.throttleUserTraffic(eq(SchemaConstants.SYSTEM_KEYSPACE_NAME),
+                                                   eq(Collections.singleton(SystemKeyspace.BATCHES)),
+                                                   any())).thenReturn(false);
     }
 
     @After
@@ -254,15 +261,15 @@ public class RateLimiterTest extends CQLTester {
             Keyspace ks = Keyspace.open(KEYSPACE);
             ColumnFamilyStore cf = ks.getColumnFamilyStore(TABLE);
             Mutation mutation = new RowUpdateBuilder(cf.metadata(), FBUtilities.timestampMicros(), ByteBufferUtil.bytes("1"))
-            .clustering("2")
-            .add("rc", "3")
-            .build();
+                                .clustering("2")
+                                .add("rc", "3")
+                                .build();
 
             ks.applyFuture(mutation, true, true).get();
         }
         catch (ExecutionException e)
         {
-            OverloadedException e1 = (OverloadedException)e.getCause();
+            OverloadedException e1 = (OverloadedException) e.getCause();
             Assert.assertEquals("from dynamic throttler: 127.0.0.1", e1.getMessage());
             throw e1;
         }
@@ -280,9 +287,9 @@ public class RateLimiterTest extends CQLTester {
             Keyspace ks = Keyspace.open(KEYSPACE);
             ColumnFamilyStore cf = ks.getColumnFamilyStore(TABLE);
             Mutation mutation = new RowUpdateBuilder(cf.metadata(), FBUtilities.timestampMicros(), ByteBufferUtil.bytes("1"))
-            .clustering("2")
-            .add("rc", "3")
-            .build();
+                                .clustering("2")
+                                .add("rc", "3")
+                                .build();
 
             ks.apply(mutation, true, false);
         }
@@ -316,9 +323,9 @@ public class RateLimiterTest extends CQLTester {
             Keyspace ks = Keyspace.open(KEYSPACE);
             ColumnFamilyStore cf = ks.getColumnFamilyStore(TABLE);
             Mutation mutation = new RowUpdateBuilder(cf.metadata(), FBUtilities.timestampMicros(), ByteBufferUtil.bytes("1"))
-            .clustering("2")
-            .add("rc", "3")
-            .build();
+                                .clustering("2")
+                                .add("rc", "3")
+                                .build();
 
             Message<Object> message = Message.outWithParam(1, Verb._TEST_2, mutation, RESPOND_TO, FBUtilities.getBroadcastAddressAndPort());
             MUTATION_REQ.handler().doVerb(message);
@@ -360,9 +367,9 @@ public class RateLimiterTest extends CQLTester {
     {
         Mutation.SimpleBuilder builder = Mutation.simpleBuilder(KEYSPACE, key);
         builder.update(metadata)
-                .timestamp(0)
-                .row("ck_1")
-                .add("rc", "value0");
+               .timestamp(0)
+               .row("ck_1")
+               .add("rc", "value0");
 
         return builder.build();
     }
