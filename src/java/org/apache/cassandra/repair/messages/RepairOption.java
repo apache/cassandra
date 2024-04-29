@@ -28,6 +28,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.repair.RepairParallelism;
 
@@ -202,7 +203,9 @@ public class RepairOption
         }
 
         // ranges
-        Set<Range<Token>> ranges = parseRanges(options.get(RANGES_KEY), partitioner);
+        Set<Range<Token>> ranges = partitioner == MetaStrategy.partitioner
+                                   ? Collections.singleton(MetaStrategy.entireRange)
+                                   : parseRanges(options.get(RANGES_KEY), partitioner);
 
         boolean asymmetricSyncing = Boolean.parseBoolean(options.get(OPTIMISE_STREAMS_KEY));
 
