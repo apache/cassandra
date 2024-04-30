@@ -19,20 +19,22 @@ package org.apache.cassandra.hints;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.Queue;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.CRC32;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.AbstractIterator;
-import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static org.apache.cassandra.utils.FBUtilities.updateChecksum;
@@ -60,7 +62,6 @@ final class HintsBuffer
 
     private final ConcurrentMap<UUID, Queue<Integer>> offsets;
     private final OpOrder appendOrder;
-    private final ConcurrentMap<UUID, Long> earliestHintByHost; // Stores time of the earliest hint in the buffer for each host
 
     private HintsBuffer(ByteBuffer slab)
     {
@@ -69,7 +70,6 @@ final class HintsBuffer
         position = new AtomicLong();
         offsets = new ConcurrentHashMap<>();
         appendOrder = new OpOrder();
-        earliestHintByHost = new ConcurrentHashMap<>();
     }
 
     static HintsBuffer create(int slabSize)
@@ -127,7 +127,7 @@ final class HintsBuffer
         if (bufferOffsets == null)
             return Collections.emptyIterator();
 
-        return new AbstractIterator<ByteBuffer>()
+        return new AbstractIterator<>()
         {
             private final ByteBuffer flyweight = slab.duplicate();
 
@@ -140,24 +140,9 @@ final class HintsBuffer
 
                 int totalSize = slab.getInt(offset) + ENTRY_OVERHEAD_SIZE;
 
-                return (ByteBuffer) flyweight.clear().position(offset).limit(offset + totalSize);
+                return flyweight.clear().position(offset).limit(offset + totalSize);
             }
         };
-    }
-
-    /**
-     * Retrieve the time of the earliest hint in the buffer for a specific node
-     * @param hostId UUID of the node
-     * @return timestamp for the earliest hint in the buffer, or {@link Global#currentTimeMillis()}
-     */
-    long getEarliestHintTime(UUID hostId)
-    {
-        return earliestHintByHost.getOrDefault(hostId, Clock.Global.currentTimeMillis());
-    }
-
-    void clearEarliestHintForHostId(UUID hostId)
-    {
-        earliestHintByHost.remove(hostId);
     }
 
     Allocation allocate(int hintSize)
@@ -240,15 +225,8 @@ final class HintsBuffer
         void write(Iterable<UUID> hostIds, Hint hint)
         {
             write(hint);
-            long ts = Clock.Global.currentTimeMillis();
             for (UUID hostId : hostIds)
-            {
-                // We only need the time of the first hint in the buffer
-                if (DatabaseDescriptor.hintWindowPersistentEnabled())
-                    earliestHintByHost.putIfAbsent(hostId, ts);
-
                 put(hostId, offset);
-            }
         }
 
         public void close()
@@ -258,7 +236,7 @@ final class HintsBuffer
 
         private void write(Hint hint)
         {
-            ByteBuffer buffer = (ByteBuffer) slab.duplicate().position(offset).limit(offset + totalSize);
+            ByteBuffer buffer = slab.duplicate().position(offset).limit(offset + totalSize);
             CRC32 crc = new CRC32();
             int hintSize = totalSize - ENTRY_OVERHEAD_SIZE;
             try (DataOutputBuffer dop = new DataOutputBufferFixed(buffer))

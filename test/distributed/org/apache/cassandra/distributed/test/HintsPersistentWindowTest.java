@@ -31,13 +31,13 @@ import static java.lang.String.format;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNotEquals;
 
 @SuppressWarnings("Convert2MethodRef")
-public class HintsMaxWindowTest extends AbstractHintWindowTest
+public class HintsPersistentWindowTest extends AbstractHintWindowTest
 {
     @Test
-    public void testHintsKeepRecordingAfterNodeGoesOfflineRepeatedly() throws Exception
+    public void testPersistentHintWindow() throws Exception
     {
         try (Cluster cluster = init(Cluster.build(2)
                                            .withDataDirCount(1)
@@ -46,7 +46,7 @@ public class HintsMaxWindowTest extends AbstractHintWindowTest
                                                                        .set("max_hints_delivery_threads", "1")
                                                                        .set("hints_flush_period", "1s")
                                                                        .set("max_hint_window", "30s")
-                                                                       .set("max_hints_file_size", "1MiB"))
+                                                                       .set("max_hints_file_size", "10MiB"))
                                            .start(), 2))
         {
             final IInvokableInstance node1 = cluster.get(1);
@@ -65,40 +65,35 @@ public class HintsMaxWindowTest extends AbstractHintWindowTest
             waitUntilNodeState(node1, node2UUID, false);
 
             Long totalHintsAfterFirstShutdown = insertData(cluster);
+            Long totalHitsSizeAfterFirstShutdown = getTotalHintsSize(node1, node2UUID);
 
             // check hints are there etc
             assertHintsSizes(node1, node2UUID);
 
-            // start the second node, this will deliver hints to it from the first
+            pauseHintsDelivery(node1);
+
+            // wait to pass max_hint_window
+            Thread.sleep(60000);
+
+            // start the second node, this will not deliver hints to it from the first because dispatch is paused
+            // we need this in order to keep hints still on disk, so we can check that the oldest hint
+            // is older than max_hint_window which will not deliver any hints even the node is not down long enough
             node2.startup();
             waitUntilNodeState(node1, node2UUID, true);
 
-            waitUntilNoHints(node1, node2UUID);
-            assertEquals(totalHintsAfterFirstShutdown, getTotalHintsCount(node1));
+            Long totalHitsSizeAfterSecondShutdown = getTotalHintsSize(node1, node2UUID);
+            assertEquals(totalHitsSizeAfterFirstShutdown, totalHitsSizeAfterSecondShutdown);
 
-            // all hints were delivered, so lets take that node down again to see if hints
-            // delivery works after node goes down for the second time
+            // stop the node again
+            // boolean hintWindowExpired = endpointDowntime > maxHintWindow will be false
+            // then persistent window kicks in, because even it has not expired,
+            // there are hints to be delivered on the disk which were stil not dispatched
             node2.shutdown().get();
-            waitUntilNodeState(node1, node2UUID, false);
 
-            // insert again, this will increase the number of total hints sent
             Long totalHintsAfterSecondShutdown = insertData(cluster);
 
-            assertHintsSizes(node1, node2UUID);
-
-            // the fact it is greater than 0 means that we created new hints again
-            // after we stopped the second node for the second time
-            assertTrue(totalHintsAfterSecondShutdown - totalHintsAfterFirstShutdown > 0);
-
-            // wait to pass max_hint_window
-            Thread.sleep(35000);
-
-            // we should not hint anything because the node was down more than max_hint_window
-            Long totalHintsAfterThirdShutdown = insertData(cluster);
-
-            // so we have not created any hints because we have passed max_hint_window
-            assertEquals(0, totalHintsAfterThirdShutdown - totalHintsAfterSecondShutdown);
+            assertNotEquals(0L, (long) getTotalHintsSize(node1, node2UUID));
+            assertEquals(totalHintsAfterFirstShutdown, totalHintsAfterSecondShutdown);
         }
     }
-
 }
