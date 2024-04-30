@@ -90,6 +90,24 @@ public class SchemaTest
     }
 
     @Test
+    public void testSchemaVersionUpdates() {
+        KeyspaceMetadata ksm = KeyspaceMetadata.create("testSchemaVersionUpdates", KeyspaceParams.simple(1));
+        SchemaTransformation.SchemaTransformationResult r = Schema.instance.transform(current -> current.withAddedOrUpdated(ksm));
+
+        Collection<Mutation> mutations = SchemaKeyspace.convertSchemaDiffToMutations(r.diff, FBUtilities.timestampMicros());
+        if (Schema.instance.updateHandler instanceof DefaultSchemaUpdateHandler)
+        {
+            ((DefaultSchemaUpdateHandler) Schema.instance.updateHandler).applyMutations(mutations);
+            // now as if a 2nd schema update is received with same data (ie same alter to 2 differnet nodes)
+            mutations = SchemaKeyspace.convertSchemaDiffToMutations(r.diff, FBUtilities.timestampMicros());
+            ((DefaultSchemaUpdateHandler) Schema.instance.updateHandler).applyMutations(mutations);
+            // schema should match the current digest
+            assertEquals(SchemaKeyspace.calculateSchemaDigest(), Schema.instance.getVersion());
+        }
+        Schema.instance.transform(current -> current.without(ksm.name));
+    }
+
+    @Test
     public void testKeyspaceCreationWhenNotInitialized() {
         Keyspace.unsetInitialized();
         try
