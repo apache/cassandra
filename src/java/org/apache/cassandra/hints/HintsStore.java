@@ -153,6 +153,25 @@ final class HintsStore
                                     totalSize, corruptedFilesCount, corruptedFilesSize);
     }
 
+    /**
+     * Find the oldest hint written for a particular node by looking into descriptors
+     * and current open writer, if any.
+     *
+     * @return the oldest hint as per unix time or Long.MAX_VALUE if not present
+     */
+    public long findOldestHintTimestamp()
+    {
+        HintsDescriptor desc = dispatchDequeue.peekFirst();
+        if (desc != null)
+            return desc.timestamp;
+
+        HintsWriter writer = getWriter();
+        if (writer != null)
+            return writer.descriptor().timestamp;
+
+        return Long.MAX_VALUE;
+    }
+
     boolean isLive()
     {
         InetAddressAndPort address = address();
@@ -289,14 +308,6 @@ final class HintsStore
     void markCorrupted(HintsDescriptor descriptor)
     {
         corruptedFiles.add(descriptor);
-    }
-
-    /**
-     * @return a copy of the first {@link HintsDescriptor} in the queue for dispatch or {@code null} if queue is empty.
-     */
-    HintsDescriptor getFirstDescriptor()
-    {
-        return dispatchDequeue.peekFirst();
     }
 
     /*
