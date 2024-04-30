@@ -5094,26 +5094,6 @@ public class DatabaseDescriptor
         conf.progress_barrier_min_consistency_level = newLevel;
     }
 
-    public static boolean getLogOutOfTokenRangeRequests()
-    {
-        return conf.log_out_of_token_range_requests;
-    }
-
-    public static void setLogOutOfTokenRangeRequests(boolean enabled)
-    {
-        conf.log_out_of_token_range_requests = enabled;
-    }
-
-    public static boolean getRejectOutOfTokenRangeRequests()
-    {
-        return conf.reject_out_of_token_range_requests;
-    }
-
-    public static void setRejectOutOfTokenRangeRequests(boolean enabled)
-    {
-        conf.reject_out_of_token_range_requests = enabled;
-    }
-
     public static ConsistencyLevel getProgressBarrierDefaultConsistencyLevel()
     {
         return conf.progress_barrier_default_consistency_level;
