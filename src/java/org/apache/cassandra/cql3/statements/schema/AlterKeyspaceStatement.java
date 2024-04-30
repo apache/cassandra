@@ -81,8 +81,6 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
                 throw ire("Keyspace '%s' doesn't exist", keyspaceName);
             return schema;
         }
-        // if apply is not no-op then we check guardrail for this ddl op
-        Guardrails.ddlEnabled.ensureEnabled(state);
 
         KeyspaceMetadata newKeyspace = keyspace.withSwapped(attrs.asAlteredKeyspaceParams(keyspace.params));
 
