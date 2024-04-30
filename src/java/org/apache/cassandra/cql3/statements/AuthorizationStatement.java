@@ -67,4 +67,10 @@ public abstract class AuthorizationStatement extends CQLStatement.Raw implements
     {
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
+
+    @Override
+    public boolean isDCLStatement()
+    {
+        return true;
+    }
 }

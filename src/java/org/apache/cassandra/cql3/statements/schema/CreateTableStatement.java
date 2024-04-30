@@ -127,9 +127,6 @@ public final class CreateTableStatement extends AlterSchemaStatement
         if (!table.params.compression.isEnabled())
             Guardrails.uncompressedTablesEnabled.ensureEnabled(state);
 
-        // if apply is not no-op then we check guardrail for this ddl op
-        Guardrails.ddlEnabled.ensureEnabled(state);
-
         return schema.withAddedOrUpdated(keyspace.withSwapped(keyspace.tables.with(table)));
     }
 

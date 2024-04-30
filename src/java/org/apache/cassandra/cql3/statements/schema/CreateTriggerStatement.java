@@ -22,7 +22,6 @@ import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
@@ -71,9 +70,6 @@ public final class CreateTriggerStatement extends AlterSchemaStatement
 
             throw ire("Trigger '%s' already exists", triggerName);
         }
-
-        // if apply is not no-op then we check guardrail for this ddl op
-        Guardrails.ddlEnabled.ensureEnabled(state);
 
         try
         {

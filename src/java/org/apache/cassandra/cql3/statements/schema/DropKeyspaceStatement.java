@@ -46,11 +46,7 @@ public final class DropKeyspaceStatement extends AlterSchemaStatement
 
         Keyspaces schema = metadata.schema.getKeyspaces();
         if (schema.containsKeyspace(keyspaceName))
-        {
-            // if apply is not no-op then we check guardrail for this ddl op
-            Guardrails.ddlEnabled.ensureEnabled(state);
             return schema.without(keyspaceName);
-        }
 
         if (ifExists)
             return schema;

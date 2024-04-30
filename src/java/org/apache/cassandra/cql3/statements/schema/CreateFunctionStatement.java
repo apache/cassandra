@@ -33,7 +33,6 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.UDFunction;
 import org.apache.cassandra.cql3.functions.UserFunction;
-import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.schema.UserFunctions.FunctionsDiff;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -154,9 +153,6 @@ public final class CreateFunctionStatement extends AlterSchemaStatement
 
             // TODO: update dependent aggregates
         }
-
-        // if apply is not no-op then we check guardrail for this ddl op
-        Guardrails.ddlEnabled.ensureEnabled(state);
 
         return schema.withAddedOrUpdated(keyspace.withSwapped(keyspace.userFunctions.withAddedOrUpdated(function)));
     }
