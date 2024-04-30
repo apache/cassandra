@@ -46,6 +46,7 @@ import static org.awaitility.Awaitility.await;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+@SuppressWarnings("Convert2MethodRef")
 public class HintsMaxWindowTest extends TestBaseImpl
 {
     @Test
