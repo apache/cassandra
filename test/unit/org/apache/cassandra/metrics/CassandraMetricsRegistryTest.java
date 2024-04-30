@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -38,7 +37,6 @@ import org.junit.Test;
 
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
-import com.codahale.metrics.MetricRegistryListener;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.jvm.BufferPoolMetricSet;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
@@ -46,6 +44,8 @@ import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry.MetricName;
 import org.apache.cassandra.utils.EstimatedHistogram;
 
+import static com.codahale.metrics.MetricRegistry.name;
+import static org.apache.cassandra.metrics.CassandraMetricsRegistry.resolveShortMetricName;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -186,34 +186,18 @@ public class CassandraMetricsRegistryTest
     }
 
     @Test
-    public void testMetricAliasesOrder()
+    public void testMetricAliasesRemoveByCondition()
     {
-        String dummy = "defaultName";
         LinkedList<MetricName> aliases = new LinkedList<>();
-        int size = ThreadLocalRandom.current().nextInt(10, 1000);
-        MetricName first = DefaultNameFactory.createMetricName("Table", "FirstTestMetricAliasesOrder", "FirstScope");
+        int size = 10;
+        DefaultNameFactory factory = new DefaultNameFactory("Table", "FirstScope");
+        DefaultNameFactory aliasFactory = new DefaultNameFactory("Table", "SecondScope");
+        MetricName first = factory.createMetricName("FirstTestMetricAliasesOrder");
         for (int i = 0; i < size; i++)
-            aliases.add(DefaultNameFactory.createMetricName("Table", "FirstTestMetricAliasesOrder" + UUID.randomUUID(),
-                                                            UUID.randomUUID().toString()));
+            aliases.add(aliasFactory.createMetricName("AliasFirstTestMetricAliasesOrder_" + UUID.randomUUID()));
 
-        Meter metric = CassandraMetricsRegistry.Metrics.meter(dummy);
-        LinkedList<MetricName> verify = new LinkedList<>(aliases);
-        verify.addFirst(first);
-        MetricRegistryListener listener;
-        CassandraMetricsRegistry.Metrics.addListener(listener = new MetricRegistryListener.Base()
-        {
-            @Override
-            public void onMeterAdded(String name, Meter meter)
-            {
-                if (dummy.equals(name))
-                    return;
-
-                assertEquals(verify.removeFirst().getMetricName(), name);
-            }
-        });
+        Meter metric = CassandraMetricsRegistry.Metrics.meter(first);
         CassandraMetricsRegistry.Metrics.register(first, metric, aliases.toArray(new MetricName[size]));
-        CassandraMetricsRegistry.Metrics.removeListener(listener);
-
         List<String> all = CassandraMetricsRegistry.Metrics.getMetrics().keySet().
                                                            stream()
                                                            .filter(m -> m.contains("FirstTestMetricAliasesOrder"))
@@ -222,12 +206,18 @@ public class CassandraMetricsRegistryTest
         assertNotNull(all);
         assertEquals(size + 1, all.size());
 
-        CassandraMetricsRegistry.Metrics.remove(first.getMetricName());
+        CassandraMetricsRegistry.Metrics.removeIfMatch(fullName ->
+                                                           resolveShortMetricName(fullName, DefaultNameFactory.GROUP_NAME, "Table", null),
+                                                       factory::createMetricName,
+                                                       m -> {});
         Map<String, Metric> metrics = CassandraMetricsRegistry.Metrics.getMetrics();
-        assertEquals(1, metrics.size());
-        assertEquals(dummy, metrics.keySet().iterator().next());
+        assertEquals(size, metrics.size());
+        assertTrue(metrics.keySet().stream().allMatch(m -> m.startsWith(name(DefaultNameFactory.GROUP_NAME, "Table", "AliasFirstTestMetricAliasesOrder_"))));
 
-        CassandraMetricsRegistry.Metrics.remove(dummy);
+        CassandraMetricsRegistry.Metrics.removeIfMatch(fullName ->
+                                                           resolveShortMetricName(fullName, DefaultNameFactory.GROUP_NAME, "Table", null),
+                                                       aliasFactory::createMetricName,
+                                                       m -> {});
         assertTrue(CassandraMetricsRegistry.Metrics.getMetrics().isEmpty());
     }
 

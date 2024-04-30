@@ -112,6 +112,7 @@ public class NativeTransportService
     public void destroy()
     {
         stop();
+        ClientMetrics.instance.release();
         server = null;
 
         // shutdown executors used by netty for native transport server

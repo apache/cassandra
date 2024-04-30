@@ -27,6 +27,9 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 public abstract class ColumnQueryMetrics extends AbstractMetrics
 {
+    private static final String POSTING_DECODES = "PostingDecodes";
+    private static final String NUM_POSTINGS = "NumPostings";
+
     protected ColumnQueryMetrics(IndexIdentifier indexIdentifier)
     {
         super(indexIdentifier, "ColumnQueryMetrics");
@@ -49,9 +52,16 @@ public abstract class ColumnQueryMetrics extends AbstractMetrics
 
             termsTraversalTotalTime = Metrics.timer(createMetricName("TermsLookupLatency"));
 
-            Meter postingDecodes = Metrics.meter(createMetricName("PostingDecodes", TRIE_POSTINGS_TYPE));
+            Meter postingDecodes = Metrics.meter(createMetricName(POSTING_DECODES, TRIE_POSTINGS_TYPE));
 
             postingsListener = new PostingListEventsMetrics(postingDecodes);
+        }
+
+        @Override
+        public void release()
+        {
+            super.release();
+            Metrics.remove(createMetricName(POSTING_DECODES, TRIE_POSTINGS_TYPE));
         }
 
         @Override
@@ -90,11 +100,19 @@ public abstract class ColumnQueryMetrics extends AbstractMetrics
             intersectionLatency = Metrics.timer(createMetricName("BalancedTreeIntersectionLatency"));
             intersectionEarlyExits = Metrics.meter(createMetricName("BalancedTreeIntersectionEarlyExits"));
 
-            postingsNumPostings = Metrics.meter(createMetricName("NumPostings", BALANCED_TREE_POSTINGS_TYPE));
+            postingsNumPostings = Metrics.meter(createMetricName(NUM_POSTINGS, BALANCED_TREE_POSTINGS_TYPE));
 
-            Meter postingDecodes = Metrics.meter(createMetricName("PostingDecodes", BALANCED_TREE_POSTINGS_TYPE));
+            Meter postingDecodes = Metrics.meter(createMetricName(POSTING_DECODES, BALANCED_TREE_POSTINGS_TYPE));
 
             postingsListener = new PostingListEventsMetrics(postingDecodes);
+        }
+
+        @Override
+        public void release()
+        {
+            super.release();
+            Metrics.remove(createMetricName(NUM_POSTINGS, BALANCED_TREE_POSTINGS_TYPE));
+            Metrics.remove(createMetricName(POSTING_DECODES, BALANCED_TREE_POSTINGS_TYPE));
         }
 
         @Override
