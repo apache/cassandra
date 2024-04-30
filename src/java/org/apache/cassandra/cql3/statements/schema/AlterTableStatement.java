@@ -223,6 +223,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             if (Objects.equals(oldMask, newMask))
                 return keyspace;
 
+            // if apply is not no-op then we check guardrail for this ddl op
+            Guardrails.ddlEnabled.ensureEnabled(state);
+
             TableMetadata.Builder tableBuilder = table.unbuild().epoch(epoch);
             tableBuilder.alterColumnMask(columnName, newMask);
             TableMetadata newTable = tableBuilder.build();
