@@ -61,6 +61,7 @@ import org.apache.cassandra.db.ReadQuery;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.SinglePartitionReadQuery;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterators;
@@ -278,6 +279,11 @@ public class QueryProcessor implements QueryHandler
         statement.authorize(clientState);
         statement.validate(clientState);
 
+        if (statement.isDDLStatement())
+            Guardrails.ddlEnabled.ensureEnabled(clientState);
+        else if (statement.isDCLStatement())
+            Guardrails.dclEnabled.ensureEnabled(clientState);
+
         ResultMessage result = options.getConsistency() == ConsistencyLevel.NODE_LOCAL
                              ? processNodeLocalStatement(statement, queryState, options)
                              : statement.execute(queryState, options, queryStartNanoTime);
@@ -458,6 +464,11 @@ public class QueryProcessor implements QueryHandler
         // Note: if 2 threads prepare the same query, we'll live so don't bother synchronizing
         CQLStatement statement = raw.prepare(clientState);
         statement.validate(clientState);
+
+        if (statement.isDDLStatement())
+            Guardrails.ddlEnabled.ensureEnabled(clientState);
+        else if (statement.isDCLStatement())
+            Guardrails.dclEnabled.ensureEnabled(clientState);
 
         // Set CQL string for AlterSchemaStatement as this is used to serialize the transformation
         // in the cluster metadata log
