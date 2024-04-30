@@ -96,6 +96,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.db.monitoring.BadQuery;
 import org.apache.cassandra.repair.AutoRepair;
+import org.apache.cassandra.repair.AutoRepairV2;
 import org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -1488,6 +1489,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             logger.info("Enable AutoRepair");
             AutoRepair.instance.setup();
+        }
+        if (DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        {
+            logger.info("Enable auto-repair scheduling");
+            AutoRepairV2.instance.setup();
         }
         AutoRepairService.instance.setAutoRepairStatus(DatabaseDescriptor.isAutoRepairEnabled());
         logger.info("AutoRepair setup complete!");

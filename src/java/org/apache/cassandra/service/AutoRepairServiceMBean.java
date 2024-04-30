@@ -17,14 +17,14 @@
  */
 package org.apache.cassandra.service;
 
-import java.net.InetAddress;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.repair.AutoRepairUtils;
+import org.apache.cassandra.repair.AutoRepairConfig;
+import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
 
 public interface AutoRepairServiceMBean
 {
@@ -60,9 +60,15 @@ public interface AutoRepairServiceMBean
     public void stopAutoRepair();
 
     /**
+     * Enable or disable auto-repair for a given repair type
+     */
+    public void setAutoRepairEnabled(RepairType repairType, boolean enabled);
+
+    /**
      * Set repair threads
      */
     public void setRepairThreads(int repairThreads);
+    public void setRepairThreads(RepairType repairType, int repairThreads);
 
     /**
      * Get repair threads
@@ -83,16 +89,19 @@ public interface AutoRepairServiceMBean
      * Set repair priority for hosts
      */
     public void setRepairPriorityForHosts(Set<InetAddressAndPort> host);
+    public void setRepairPriorityForHosts(RepairType repairType, Set<InetAddressAndPort> host);
 
     /**
      * Set force repair for hosts
      */
     public void setForceRepairForHosts(Set<InetAddressAndPort> host);
+    public void setForceRepairForHosts(RepairType repairType, Set<InetAddressAndPort> host);
 
     /**
      * Get repair priority
      */
     public Set<InetAddressAndPort> getRepairHostPriority();
+    public Set<InetAddressAndPort> getRepairHostPriority(RepairType repairType);
 
     /**
      * Get repair subrange numbers
@@ -103,6 +112,7 @@ public interface AutoRepairServiceMBean
      * Set repair subrange numbers
      */
     public void setRepairSubRangeNum(int repairSubRangeNum);
+    public void setRepairSubRangeNum(RepairType repairType, int repairSubRangeNum);
 
     /**
      * Get repair subranges
@@ -110,19 +120,27 @@ public interface AutoRepairServiceMBean
     public int getRepairMinFrequencyInHours();
 
     /**
-     * Set repair subranges
+     * Set repair interval in hours
      */
     public void setRepairMinFrequencyInHours(int repairMinFrequencyInHours);
+    public void setRepairMinIntervalInHours(RepairType repairType, int repairMinIntervalInHours);
 
     /**
      * Get auto repair history clear
      */
     public int getAutoRepairHistoryClearDeleteHostsBufferInSec();
 
+
+    /**
+     * Sets the frequency in seconds at which the auto-repair scheduler should check for pending repairs
+     */
+    public void setRepairCheckInterval(int seconds);
+
     /**
      * Set repair subranges
      */
     public void setAutoRepairHistoryClearDeleteHostsBufferInSec(int seconds);
+    public void setAutoRepairHistoryClearDeleteHostsBufferInSecV2(int seconds);
 
     /**
      * Get repair sstable count higher threshold
@@ -133,6 +151,7 @@ public interface AutoRepairServiceMBean
      * Set repair sstable count higher threshold
      */
     public void setRepairSSTableCountHigherThreshold(int ssTableHigherThreshold);
+    public void setRepairSSTableCountHigherThreshold(RepairType repairType, int ssTableHigherThreshold);
 
     /**
      * Get repair ignore keyspaces regex
@@ -143,6 +162,7 @@ public interface AutoRepairServiceMBean
      * Set repair ignore keyspaces regex
      */
     public void setRepairIgnoreKeyspaces(Pattern ignoreKeyspaceRegex);
+    public void setRepairIgnoreKeyspaces(RepairType repairType, String ignoreKeyspaceRegex);
 
     /**
      * Get repair only keyspaces regex to repair only specified keyspace
@@ -153,6 +173,7 @@ public interface AutoRepairServiceMBean
      * Set repair only keyspaces regex
      */
     public void setRepairOnlyKeyspaces(Pattern repairOnlyKeyspacesRegex);
+    public void setRepairOnlyKeyspaces(RepairType repairType, String repairOnlyKeyspacesRegex);
 
     /**
      * Get table max repair time in sec
@@ -163,6 +184,7 @@ public interface AutoRepairServiceMBean
      * Set table max repair time in sec
      */
     public void setAutoRepairTableMaxRepairTimeInSec(long autoRepairTableMaxRepairTimeInSec);
+    public void setAutoRepairTableMaxRepairTimeInSec(RepairType repairType, long autoRepairTableMaxRepairTimeInSec);
 
     /**
      * Get ignore dcs list
@@ -173,6 +195,7 @@ public interface AutoRepairServiceMBean
      * Set ignore dcs list
      */
     public void setIgnoreDCs(Set<String> ignorDCs);
+    public void setIgnoreDCs(RepairType repairType, Set<String> ignorDCs);
 
     /**
      * Get data center groups
@@ -198,6 +221,7 @@ public interface AutoRepairServiceMBean
      * Set this 'true' if AutoRepair should repair only the primary ranges owned by this node; else, 'false'
      */
     public void setPrimaryTokenRangeOnly(boolean primaryTokenRangeOnly);
+    public void setPrimaryTokenRangeOnly(RepairType repairType, boolean primaryTokenRangeOnly);
 
     /**
      * Return percentage of the nodes in one group should run repair parallelly
@@ -208,6 +232,7 @@ public interface AutoRepairServiceMBean
      * Set percentage of the nodes in one group should run repair parallelly
      */
     public void setParallelRepairPercentageInGroup(int percentageInGroup);
+    public void setParallelRepairPercentageInGroup(RepairType repairType, int percentageInGroup);
 
     /**
      * Return number of the nodes in one group should run repair parallelly
@@ -218,6 +243,7 @@ public interface AutoRepairServiceMBean
      * Return number of the nodes in one group should run repair parallelly
      */
     public void setParallelRepairCountInGroup(int countInGroup);
+    public void setParallelRepairCountInGroup(RepairType repairType, int countInGroup);
 
     /**
      * Return if MVs should be included in the AutoRepair
@@ -228,4 +254,12 @@ public interface AutoRepairServiceMBean
      * Set if MVs should be included in the AutoRepair or not
      */
     public void setMVRepairEnabled(boolean enabled);
+    public void setMVRepairEnabled(RepairType repairType, boolean enabled);
+
+    public AutoRepairConfig getAutoRepairConfig();
+
+    /**
+     * Returns hosts that are in the same group as this node
+     */
+    public Set<InetAddressAndPort> filterHostsInLocalGroup(RepairType repairType, Set<InetAddressAndPort> hostsToFilter);
 }

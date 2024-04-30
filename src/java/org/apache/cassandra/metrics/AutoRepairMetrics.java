@@ -24,6 +24,7 @@ import org.apache.cassandra.repair.AutoRepairUtils;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
+// TODO: deprecate this class when the incremental repair migration is done (SO-29062)
 /**
  * Metrics related to AutoRepair.
  */

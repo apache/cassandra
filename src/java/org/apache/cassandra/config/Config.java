@@ -41,6 +41,7 @@ import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.service.StartupChecks.StartupCheckType;
+import org.apache.cassandra.repair.AutoRepairConfig;
 import org.apache.cassandra.service.throttler.dynamic.ThrottlingOptions;
 
 /**
@@ -691,6 +692,7 @@ public class Config
 
     public Long auth_check_interval_in_ms = 30*60*1000L;
 
+    // TODO: deprecate root-level auto-repair settings once migration to new auto-repair framework is complete (SO-28867)
     public Boolean auto_repair_enabled = true;
 
     // This should be false for production, this is only set to true for Cassandra dtest so auto repair won't be triggerd
@@ -745,6 +747,8 @@ public class Config
      * This flag determines whether we need to run anti-entropy, a.k.a, repair on the MV table or not.
      */
     public Boolean auto_repair_mv_repair_enabled = true;
+
+    public volatile AutoRepairConfig auto_repair = new AutoRepairConfig();
 
     // Set this to be true if compaction should ignore repair status of the SSTables and reset them to be unrepaired
     public volatile boolean ignore_repairedat_enabled = false;

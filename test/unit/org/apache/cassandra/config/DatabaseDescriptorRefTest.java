@@ -56,6 +56,9 @@ import static org.junit.Assert.fail;
 public class DatabaseDescriptorRefTest
 {
     static final String[] validClasses = {
+    "org.apache.cassandra.repair.AutoRepairConfig",
+    "org.apache.cassandra.repair.AutoRepairConfig$Options",
+    "org.apache.cassandra.repair.AutoRepairConfig$RepairType",
     "org.apache.cassandra.audit.AuditLogOptions",
     "org.apache.cassandra.audit.BinAuditLogger",
     "org.apache.cassandra.audit.BinLogAuditLogger",

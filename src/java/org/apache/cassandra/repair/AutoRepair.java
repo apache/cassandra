@@ -79,6 +79,8 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
 import static org.apache.cassandra.repair.AutoRepairUtils.RepairTurn.*;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
+// TODO: replace this class with AutoRepairV2 once the incremental repair migration is complete (SO-29062)
+
 /**
  * This class is designed to run start automatic repair on Cassandra cluster where repair was not in past and now we
  * would like to start repair w/o impacting production workload. Here is how it works:

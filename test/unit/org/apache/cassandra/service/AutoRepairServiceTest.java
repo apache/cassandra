@@ -1,0 +1,199 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.cassandra.service;
+
+
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Set;
+import java.util.UUID;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import com.google.common.collect.ImmutableSet;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Suite;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.repair.AutoRepairConfig;
+import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
+import org.apache.cassandra.repair.AutoRepairKeyspace;
+import org.apache.cassandra.repair.AutoRepairUtilsV2;
+import org.apache.cassandra.schema.SchemaConstants;
+
+import static org.junit.Assert.assertEquals;
+
+@RunWith(Suite.class)
+@Suite.SuiteClasses({ AutoRepairServiceTest.BasicTests.class, AutoRepairServiceTest.SetterTests.class })
+public class AutoRepairServiceTest
+{
+    public static class BasicTests
+    {
+        private static AutoRepairService autoRepairService;
+        private static AutoRepairConfig config;
+
+        @Before
+        public void setUp()
+        {
+            config = new AutoRepairConfig();
+            autoRepairService = new AutoRepairService();
+            autoRepairService.config = config;
+        }
+
+
+        @Test
+        public void testSetup()
+        {
+            AutoRepairService.instance.config = null;
+
+            AutoRepairService.setup();
+
+            assertEquals(DatabaseDescriptor.getAutoRepairConfig(), AutoRepairService.instance.config);
+        }
+
+        @Test
+        public void testGetAutoRepairConfigReturnsConfig()
+        {
+            assertEquals(config, autoRepairService.getAutoRepairConfig());
+        }
+
+        @Test
+        public void testSetRepairCheckInterval()
+        {
+            autoRepairService.setRepairCheckInterval(100);
+
+            assertEquals(100, config.getRepairCheckIntervalInSec());
+        }
+
+        @Test
+        public void testsetAutoRepairHistoryClearDeleteHostsBufferInSecV2()
+        {
+            autoRepairService.setAutoRepairHistoryClearDeleteHostsBufferInSecV2(100);
+
+            assertEquals(100, config.getAutoRepairHistoryClearDeleteHostsBufferInSec());
+        }
+    }
+
+    @RunWith(Parameterized.class)
+    public static class SetterTests<T> extends CQLTester
+    {
+        private static final AutoRepairConfig config = new AutoRepairConfig();
+
+        @Parameterized.Parameter
+        public RepairType repairType;
+
+        @Parameterized.Parameter(1)
+        public T arg;
+
+        @Parameterized.Parameter(2)
+        public BiConsumer<RepairType, T> setter;
+
+        @Parameterized.Parameter(3)
+        public Function<RepairType, T> getter;
+
+        @Parameterized.Parameters(name = "{index}: repairType={0}, arg={1}")
+        public static Collection<Object[]> testCases()
+        {
+            config.setAutoRepairSchedulingEnabled(true);
+
+            return Stream.of(
+            forEachRepairType(true, AutoRepairService.instance::setAutoRepairEnabled, config::isAutoRepairEnabled),
+            forEachRepairType(100, AutoRepairService.instance::setRepairThreads, config::getRepairThreads),
+            forEachRepairType(200, AutoRepairService.instance::setRepairSubRangeNum, config::getRepairSubRangeNum),
+            forEachRepairType(300, AutoRepairService.instance::setRepairMinIntervalInHours, config::getRepairMinIntervalInHours),
+            forEachRepairType(400, AutoRepairService.instance::setRepairSSTableCountHigherThreshold, config::getRepairSSTableCountHigherThreshold),
+            forEachRepairType("ignorekeyspace", AutoRepairService.instance::setRepairIgnoreKeyspaces, config::getRepairIgnoreKeyspaces),
+            forEachRepairType("onlykeyspace", AutoRepairService.instance::setRepairOnlyKeyspaces, config::getRepairOnlyKeyspaces),
+            forEachRepairType((long) 500, AutoRepairService.instance::setAutoRepairTableMaxRepairTimeInSec, config::getAutoRepairTableMaxRepairTimeInSec),
+            forEachRepairType(ImmutableSet.of("dc1", "dc2"), AutoRepairService.instance::setIgnoreDCs, config::getIgnoreDCs),
+            forEachRepairType(true, AutoRepairService.instance::setPrimaryTokenRangeOnly, config::getRepairPrimaryTokenRangeOnly),
+            forEachRepairType(600, AutoRepairService.instance::setParallelRepairPercentageInGroup, config::getParallelRepairPercentageInGroup),
+            forEachRepairType(700, AutoRepairService.instance::setParallelRepairCountInGroup, config::getParallelRepairCountInGroup),
+            forEachRepairType(true, AutoRepairService.instance::setMVRepairEnabled, config::getMVRepairEnabled),
+            forEachRepairType(ImmutableSet.of(InetAddressAndPort.getLocalHost()), AutoRepairService.instance::setRepairPriorityForHosts, AutoRepairUtilsV2::getPriorityHosts),
+            forEachRepairType(ImmutableSet.of(InetAddressAndPort.getLocalHost()), AutoRepairService.instance::setForceRepairForHosts, SetterTests::isLocalHostForceRepair)
+            ).flatMap(Function.identity()).collect(Collectors.toList());
+        }
+
+        private static Set<InetAddressAndPort> isLocalHostForceRepair(RepairType type)
+        {
+            UUID hostId = Gossiper.instance.getHostId(InetAddressAndPort.getLocalHost());
+            UntypedResultSet resultSet = QueryProcessor.executeInternal(String.format(
+            "SELECT force_repair FROM %s.%s WHERE pid = 0 AND host_id = %s and repair_type = '%s'",
+            SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY_V2, hostId, type));
+
+            if (!resultSet.isEmpty() && resultSet.one().getBoolean("force_repair"))
+            {
+                return ImmutableSet.of(InetAddressAndPort.getLocalHost());
+            }
+            return ImmutableSet.of();
+        }
+
+        private static <T> Stream<Object[]> forEachRepairType(T arg, BiConsumer<RepairType, T> setter, Function<RepairType, T> getter)
+        {
+            Object[][] testCases = new Object[RepairType.values().length][4];
+            for (RepairType repairType : RepairType.values())
+            {
+                testCases[repairType.ordinal()] = new Object[]{ repairType, arg, setter, getter };
+            }
+
+            return Arrays.stream(testCases);
+        }
+
+        @BeforeClass
+        public static void setup()
+        {
+            DatabaseDescriptor.getAutoRepairConfig().setAutoRepairSchedulingEnabled(true);
+            DatabaseDescriptor.setCDCEnabled(false);
+            DatabaseDescriptor.setMaterializedViewsEnabled(false);
+            requireNetwork();
+            AutoRepairUtilsV2.setup();
+            AutoRepairService.instance.config = config;
+        }
+
+        @Before
+        public void prepare()
+        {
+            QueryProcessor.executeInternal(String.format(
+            "TRUNCATE %s.%s",
+            SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_HISTORY_V2));
+            QueryProcessor.executeInternal(String.format(
+            "TRUNCATE %s.%s",
+            SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME, AutoRepairKeyspace.AUTO_REPAIR_PRIORITY_V2));
+        }
+
+        @Test
+        public void testSetters()
+        {
+            setter.accept(repairType, arg);
+            assertEquals(arg, getter.apply(repairType));
+        }
+    }
+}

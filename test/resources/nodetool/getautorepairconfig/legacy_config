@@ -1,0 +1,15 @@
+repair threads: 9
+number of repair subranges: 0
+ignore keyspaces: null
+repair only keyspaces: null
+priority hosts: 
+minimum repair frequency in hours: 0
+sstable count higher threshold: 0
+table max repair time in sec: 0
+ignore datacenters: 
+datacenter groups: 
+auto repair history table delete hosts clear buffer in seconds: 0
+repair primary token-range: false
+number of parallel repairs within group: 0
+percentage of parallel repairs within group: 0
+mv repair enabled: true

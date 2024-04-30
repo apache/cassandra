@@ -17,14 +17,15 @@
  */
 package org.apache.cassandra.service;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.AutoRepair;
+import org.apache.cassandra.repair.AutoRepairConfig;
+import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.repair.AutoRepairUtils;
+import org.apache.cassandra.repair.AutoRepairUtilsV2;
+import org.apache.cassandra.utils.MBeanWrapper;
 
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
-import java.lang.management.ManagementFactory;
-import java.net.InetAddress;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -33,6 +34,9 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 import org.apache.cassandra.utils.MBeanWrapper;
 
+import com.google.common.annotations.VisibleForTesting;
+
+// TODO: deprecate methods accessing legacy auto-repair config once migration to new auto-repair framework is complete (SO-28867)
 public class AutoRepairService implements AutoRepairServiceMBean
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=AutoRepairService";
@@ -53,15 +57,36 @@ public class AutoRepairService implements AutoRepairServiceMBean
     private int parallelRepairPercentageInGroup;
     private int parallelRepairCountInGroup;
     private boolean mvRepairEnabled;
+    @VisibleForTesting
+    protected AutoRepairConfig config;
 
     public static final AutoRepairService instance = new AutoRepairService();
 
-    private AutoRepairService()
+    @VisibleForTesting
+    protected AutoRepairService()
     {
     }
 
-    static {
+    public static void setup()
+    {
+        instance.config = DatabaseDescriptor.getAutoRepairConfig();
+    }
+
+    static
+    {
         MBeanWrapper.instance.registerMBean(instance, MBEAN_NAME);
+    }
+
+    @Override
+    public AutoRepairConfig getAutoRepairConfig()
+    {
+        return config;
+    }
+
+    @Override
+    public Set<InetAddressAndPort> filterHostsInLocalGroup(RepairType repairType, Set<InetAddressAndPort> hostsToFilter)
+    {
+        return AutoRepairUtilsV2.processNodesByGroup(repairType, hostsToFilter);
     }
 
     @Override
@@ -100,9 +125,21 @@ public class AutoRepairService implements AutoRepairServiceMBean
     }
 
     @Override
+    public void setAutoRepairEnabled(RepairType repairType, boolean enabled)
+    {
+        config.setAutoRepairEnabled(repairType, enabled);
+    }
+
+    @Override
     public void setRepairThreads(int repairThreads)
     {
         this.repairThreads = repairThreads;
+    }
+
+    @Override
+    public void setRepairThreads(RepairType repairType, int repairThreads)
+    {
+        config.setRepairThreads(repairType, repairThreads);
     }
 
     @Override
@@ -116,7 +153,8 @@ public class AutoRepairService implements AutoRepairServiceMBean
     {
         Set<String> hostIds = new HashSet<>();
         List<AutoRepairUtils.AutoRepairHistory> histories = AutoRepairUtils.getAutoRepairHistoryByGroupID(groupHash);
-        if (histories == null) {
+        if (histories == null)
+        {
             return null;
         }
         AutoRepairUtils.CurrentRepairStatus currentRepairStatus = new AutoRepairUtils.CurrentRepairStatus(histories, AutoRepairUtils.getPriorityHostIds(groupHash));
@@ -132,7 +170,8 @@ public class AutoRepairService implements AutoRepairServiceMBean
     {
         Set<String> hostIds = new HashSet<>();
         List<AutoRepairUtils.AutoRepairHistory> histories = AutoRepairUtils.getAutoRepairHistoryByGroupID(groupHash);
-        if (histories == null) {
+        if (histories == null)
+        {
             return null;
         }
         AutoRepairUtils.CurrentRepairStatus currentRepairStatus = new AutoRepairUtils.CurrentRepairStatus(histories, AutoRepairUtils.getPriorityHostIds(groupHash));
@@ -150,14 +189,31 @@ public class AutoRepairService implements AutoRepairServiceMBean
     }
 
     @Override
+    public void setRepairPriorityForHosts(RepairType repairType, Set<InetAddressAndPort> hosts)
+    {
+        AutoRepairUtilsV2.addPriorityHosts(repairType, hosts);
+    }
+
+    @Override
     public Set<InetAddressAndPort> getRepairHostPriority()
     {
         return AutoRepairUtils.getPriorityHosts();
     }
 
+    @Override
+    public Set<InetAddressAndPort> getRepairHostPriority(RepairType repairType) {
+        return AutoRepairUtilsV2.getPriorityHosts(repairType);
+    }
+
     public void setForceRepairForHosts(Set<InetAddressAndPort> hosts)
     {
         AutoRepairUtils.setForceRepair(hosts);
+    }
+
+    @Override
+    public void setForceRepairForHosts(RepairType repairType, Set<InetAddressAndPort> hosts)
+    {
+        AutoRepairUtilsV2.setForceRepair(repairType, hosts);
     }
 
     @Override
@@ -173,6 +229,12 @@ public class AutoRepairService implements AutoRepairServiceMBean
     }
 
     @Override
+    public void setRepairSubRangeNum(RepairType repairType, int repairSubRanges)
+    {
+        config.setRepairSubRangeNum(repairType, repairSubRanges);
+    }
+
+    @Override
     public int getRepairMinFrequencyInHours()
     {
         return repairMinFrequencyInHours;
@@ -185,13 +247,33 @@ public class AutoRepairService implements AutoRepairServiceMBean
     }
 
     @Override
-    public int getAutoRepairHistoryClearDeleteHostsBufferInSec() {
+    public void setRepairMinIntervalInHours(RepairType repairType, int repairMinFrequencyInHours)
+    {
+        config.setRepairMinIntervalInHours(repairType, repairMinFrequencyInHours);
+    }
+
+    @Override
+    public int getAutoRepairHistoryClearDeleteHostsBufferInSec()
+    {
         return this.autoRepairHistoryClearDeleteHostsBufferInSec;
     }
 
     @Override
-    public void setAutoRepairHistoryClearDeleteHostsBufferInSec(int seconds) {
+    public void setRepairCheckInterval(int seconds)
+    {
+        config.setRepairCheckIntervalInSec(seconds);
+    }
+
+    @Override
+    public void setAutoRepairHistoryClearDeleteHostsBufferInSec(int seconds)
+    {
         this.autoRepairHistoryClearDeleteHostsBufferInSec = seconds;
+    }
+
+    @Override
+    public void setAutoRepairHistoryClearDeleteHostsBufferInSecV2(int seconds)
+    {
+        config.setAutoRepairHistoryClearDeleteHostsBufferInSec(seconds);
     }
 
     @Override
@@ -207,6 +289,12 @@ public class AutoRepairService implements AutoRepairServiceMBean
     }
 
     @Override
+    public void setRepairSSTableCountHigherThreshold(RepairType repairType, int sstableHigherThreshold)
+    {
+        config.setRepairSSTableCountHigherThreshold(repairType, sstableHigherThreshold);
+    }
+
+    @Override
     public Pattern getRepairIgnoreKeyspaces()
     {
         return ignoreKeyspaces;
@@ -216,6 +304,12 @@ public class AutoRepairService implements AutoRepairServiceMBean
     public void setRepairIgnoreKeyspaces(Pattern ignoreKeyspaceRegex)
     {
         ignoreKeyspaces = ignoreKeyspaceRegex;
+    }
+
+    @Override
+    public void setRepairIgnoreKeyspaces(RepairType repairType, String ignoreKeyspaceRegex)
+    {
+        config.setRepairIgnoreKeyspaces(repairType, ignoreKeyspaceRegex);
     }
 
     @Override
@@ -231,6 +325,12 @@ public class AutoRepairService implements AutoRepairServiceMBean
     }
 
     @Override
+    public void setRepairOnlyKeyspaces(RepairType repairType, String repairOnlyKeyspacesRegex)
+    {
+        config.setRepairOnlyKeyspaces(repairType, repairOnlyKeyspacesRegex);
+    }
+
+    @Override
     public long getAutoRepairTableMaxRepairTimeInSec()
     {
         return autoRepairTableMaxRepairTimeInSec;
@@ -240,6 +340,12 @@ public class AutoRepairService implements AutoRepairServiceMBean
     public void setAutoRepairTableMaxRepairTimeInSec(long autoRepairTableMaxRepairTimeInSec)
     {
         this.autoRepairTableMaxRepairTimeInSec = autoRepairTableMaxRepairTimeInSec;
+    }
+
+    @Override
+    public void setAutoRepairTableMaxRepairTimeInSec(RepairType repairType, long autoRepairTableMaxRepairTimeInSec)
+    {
+        config.setAutoRepairTableMaxRepairTimeInSec(repairType, autoRepairTableMaxRepairTimeInSec);
     }
 
     @Override
@@ -254,11 +360,19 @@ public class AutoRepairService implements AutoRepairServiceMBean
         this.autoRepairIgnoreDCs = ignorDCs;
     }
 
-    public void setDCGourps(Set<Set<String>> dcGourps) {
+    @Override
+    public void setIgnoreDCs(RepairType repairType, Set<String> ignoreDCs)
+    {
+        config.setIgnoreDCs(repairType, ignoreDCs);
+    }
+
+    public void setDCGourps(Set<Set<String>> dcGourps)
+    {
         autoRepairDCGroups = dcGourps;
     }
 
-    public Set<Set<String>> getDCGroups() {
+    public Set<Set<String>> getDCGroups()
+    {
         return autoRepairDCGroups;
     }
 
@@ -277,20 +391,42 @@ public class AutoRepairService implements AutoRepairServiceMBean
         this.primaryTokenRangeOnly = primaryTokenRangeOnly;
     }
 
-    public int getParallelRepairPercentageInGroup() {
+    @Override
+    public void setPrimaryTokenRangeOnly(RepairType repairType, boolean primaryTokenRangeOnly)
+    {
+        config.setRepairPrimaryTokenRangeOnly(repairType, primaryTokenRangeOnly);
+    }
+
+    public int getParallelRepairPercentageInGroup()
+    {
         return parallelRepairPercentageInGroup;
     }
 
-    public void setParallelRepairPercentageInGroup(int percentageInGroup) {
+    public void setParallelRepairPercentageInGroup(int percentageInGroup)
+    {
         this.parallelRepairPercentageInGroup = percentageInGroup;
     }
 
-    public int getParallelRepairCountInGroup() {
+    @Override
+    public void setParallelRepairPercentageInGroup(RepairType repairType, int percentageInGroup)
+    {
+        config.setParallelRepairPercentageInGroup(repairType, percentageInGroup);
+    }
+
+    public int getParallelRepairCountInGroup()
+    {
         return parallelRepairCountInGroup;
     }
 
-    public void setParallelRepairCountInGroup(int countInGroup) {
+    public void setParallelRepairCountInGroup(int countInGroup)
+    {
         this.parallelRepairCountInGroup = countInGroup;
+    }
+
+    @Override
+    public void setParallelRepairCountInGroup(RepairType repairType, int countInGroup)
+    {
+        config.setParallelRepairCountInGroup(repairType, countInGroup);
     }
 
     public boolean getMVRepairEnabled()
@@ -301,5 +437,10 @@ public class AutoRepairService implements AutoRepairServiceMBean
     public void setMVRepairEnabled(boolean enabled)
     {
         this.mvRepairEnabled = enabled;
+    }
+
+    public void setMVRepairEnabled(RepairType repairType, boolean enabled)
+    {
+        config.setMVRepairEnabled(repairType, enabled);
     }
 }

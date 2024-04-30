@@ -54,6 +54,7 @@ import org.apache.cassandra.config.Config.AuthEnforcementFlag;
 import org.apache.cassandra.db.monitoring.BadQueriesInSystemLog;
 import org.apache.cassandra.db.monitoring.BadQueriesInTable;
 import org.apache.cassandra.db.monitoring.IBadQueryReporter;
+import org.apache.cassandra.repair.AutoRepairConfig;
 import org.apache.cassandra.service.throttler.dynamic.ThrottlingOptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -4881,6 +4882,7 @@ public class DatabaseDescriptor
         conf.auth_check_interval_in_ms = interval;
     }
 
+    // TODO: deprecate legacy auto-repair descriptor methods once migration to new auto-repair framework is complete (SO-28867)
     public static Boolean isAutoRepairEnabled()
     {
         return conf.auto_repair_enabled;
@@ -5002,6 +5004,11 @@ public class DatabaseDescriptor
         conf.throttling_options = throttlingOptions;
     }
 
+
+    public static AutoRepairConfig getAutoRepairConfig()
+    {
+        return conf.auto_repair;
+    }
 
     public static boolean isOrphanNodeHintFilesCleanupEnabled() {
         return conf.orphan_node_hint_files_cleanup_enabled;

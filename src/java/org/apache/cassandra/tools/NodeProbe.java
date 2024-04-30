@@ -100,6 +100,8 @@ import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.metrics.ThreadPoolMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MessagingServiceMBean;
+import org.apache.cassandra.repair.AutoRepairConfig;
+import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.service.ActiveRepairServiceMBean;
 import org.apache.cassandra.service.AutoRepairServiceMBean;
 import org.apache.cassandra.service.CacheService;
@@ -2341,6 +2343,10 @@ public class NodeProbe implements AutoCloseable
         return autoRepairProxy.isAutoRepairEnabled();
     }
 
+    public AutoRepairConfig getAutoRepairConfig() {
+        return autoRepairProxy.getAutoRepairConfig();
+    }
+
     public void runAutoRepairOnce(long millisToWait)
     {
         autoRepairProxy.runAutoRepairOnce(millisToWait);
@@ -2361,9 +2367,19 @@ public class NodeProbe implements AutoCloseable
         autoRepairProxy.stopAutoRepair();
     }
 
+    public void setAutoRepairEnabled(RepairType repairType, boolean enabled)
+    {
+        autoRepairProxy.setAutoRepairEnabled(repairType, enabled);
+    }
+
     public void setRepairThreads(int repairThreads)
     {
         autoRepairProxy.setRepairThreads(repairThreads);
+    }
+
+    public void setRepairThreads(RepairType repairType, int repairThreads)
+    {
+        autoRepairProxy.setRepairThreads(repairType, repairThreads);
     }
 
     public int getRepairThreads()
@@ -2496,13 +2512,27 @@ public class NodeProbe implements AutoCloseable
         autoRepairProxy.setRepairPriorityForHosts(hosts);
     }
 
+    public void setRepairPriorityForHosts(RepairType repairType, Set<InetAddressAndPort> hosts)
+    {
+        autoRepairProxy.setRepairPriorityForHosts(repairType, hosts);
+    }
+
     public Set<InetAddressAndPort> getRepairPriorityForHosts()
     {
         return autoRepairProxy.getRepairHostPriority();
     }
 
+    public Set<InetAddressAndPort> getRepairPriorityForHosts(RepairType repairType)
+    {
+        return autoRepairProxy.getRepairHostPriority(repairType);
+    }
+
     public void setForceRepairForHosts(Set<InetAddressAndPort> hosts){
         autoRepairProxy.setForceRepairForHosts(hosts);
+    }
+
+    public void setForceRepairForHosts(RepairType repairType, Set<InetAddressAndPort> hosts){
+        autoRepairProxy.setForceRepairForHosts(repairType, hosts);
     }
 
     public int getRepairSubRangeNum()
@@ -2515,6 +2545,11 @@ public class NodeProbe implements AutoCloseable
         autoRepairProxy.setRepairSubRangeNum(repairSubRanges);
     }
 
+    public void setRepairSubRangeNum(RepairType repairType, int repairSubRanges)
+    {
+        autoRepairProxy.setRepairSubRangeNum(repairType, repairSubRanges);
+    }
+
     public int getRepairMinFrequencyInHours()
     {
         return autoRepairProxy.getRepairMinFrequencyInHours();
@@ -2523,6 +2558,11 @@ public class NodeProbe implements AutoCloseable
     public void setRepairMinFrequencyInHours(int repairMinFrequencyInHours)
     {
         autoRepairProxy.setRepairMinFrequencyInHours(repairMinFrequencyInHours);
+    }
+
+    public void setRepairMinIntervalInHours(RepairType repairType, int repairMinIntervalInHours)
+    {
+        autoRepairProxy.setRepairMinIntervalInHours(repairType, repairMinIntervalInHours);
     }
 
     public int getAutoRepairHistoryClearDeleteHostsBufferInSec()
@@ -2535,6 +2575,16 @@ public class NodeProbe implements AutoCloseable
         autoRepairProxy.setAutoRepairHistoryClearDeleteHostsBufferInSec(seconds);
     }
 
+    public void setAutoRepairHistoryClearDeleteHostsBufferInSecV2(int seconds)
+    {
+        autoRepairProxy.setAutoRepairHistoryClearDeleteHostsBufferInSecV2(seconds);
+    }
+
+    public void setAutoRepairCheckInterval(int seconds)
+    {
+        autoRepairProxy.setRepairCheckInterval(seconds);
+    }
+
     public int getRepairSSTableCountHigherThreshold()
     {
         return autoRepairProxy.getRepairSSTableCountHigherThreshold();
@@ -2543,6 +2593,11 @@ public class NodeProbe implements AutoCloseable
     public void setRepairSSTableCountHigherThreshold(int ssTableHigherThreshold)
     {
         autoRepairProxy.setRepairSSTableCountHigherThreshold(ssTableHigherThreshold);
+    }
+
+    public void setRepairSSTableCountHigherThreshold(RepairType repairType, int ssTableHigherThreshold)
+    {
+        autoRepairProxy.setRepairSSTableCountHigherThreshold(repairType, ssTableHigherThreshold);
     }
 
     public String getRepairIgnoreKeyspaces()
@@ -2555,6 +2610,11 @@ public class NodeProbe implements AutoCloseable
         autoRepairProxy.setRepairIgnoreKeyspaces(Pattern.compile(ignoreKeyspaceRegex));
     }
 
+    public void setRepairIgnoreKeyspaces(RepairType repairType, String ignoreKeyspaceRegex)
+    {
+        autoRepairProxy.setRepairIgnoreKeyspaces(repairType, ignoreKeyspaceRegex);
+    }
+
     public String getRepairOnlyKeyspaces()
     {
         return autoRepairProxy.getRepairOnlyKeyspaces() == null? "" : autoRepairProxy.getRepairOnlyKeyspaces().toString();
@@ -2563,6 +2623,11 @@ public class NodeProbe implements AutoCloseable
     public void setRepairOnlyKeyspaces(String repairOnlyKeyspacesRegex)
     {
         autoRepairProxy.setRepairOnlyKeyspaces(Pattern.compile(repairOnlyKeyspacesRegex));
+    }
+
+    public void setRepairOnlyKeyspaces(RepairType repairType, String repairOnlyKeyspacesRegex)
+    {
+        autoRepairProxy.setRepairOnlyKeyspaces(repairType, repairOnlyKeyspacesRegex);
     }
 
     public long getAutoRepairTableMaxRepairTimeInSec()
@@ -2575,6 +2640,11 @@ public class NodeProbe implements AutoCloseable
         autoRepairProxy.setAutoRepairTableMaxRepairTimeInSec(autoRepairTableMaxRepairTimeInSec);
     }
 
+    public void setAutoRepairTableMaxRepairTimeInSec(RepairType repairType, long autoRepairTableMaxRepairTimeInSec)
+    {
+        autoRepairProxy.setAutoRepairTableMaxRepairTimeInSec(repairType, autoRepairTableMaxRepairTimeInSec);
+    }
+
     public Set<String> getAutoRepairIgnoreDCs()
     {
         return autoRepairProxy.getIgnoreDCs();
@@ -2583,6 +2653,11 @@ public class NodeProbe implements AutoCloseable
     public void setAutoRepairIgnoreDCs(Set<String> ignoreDCs)
     {
         autoRepairProxy.setIgnoreDCs(ignoreDCs);
+    }
+
+    public void setAutoRepairIgnoreDCs(RepairType repairType, Set<String> ignoreDCs)
+    {
+        autoRepairProxy.setIgnoreDCs(repairType, ignoreDCs);
     }
 
     public Set<Set<String>> getDCGroups() {
@@ -2616,12 +2691,20 @@ public class NodeProbe implements AutoCloseable
         autoRepairProxy.setParallelRepairPercentageInGroup(percentageInGroup);
     }
 
+    public void setParallelRepairPercentageInGroup(RepairType repairType, int percentageInGroup) {
+        autoRepairProxy.setParallelRepairPercentageInGroup(repairType, percentageInGroup);
+    }
+
     public int getParallelRepairCountInGroup() {
         return autoRepairProxy.getParallelRepairCountInGroup();
     }
 
     public void setParallelRepairCountInGroup(int countInGroup) {
         autoRepairProxy.setParallelRepairCountInGroup(countInGroup);
+    }
+
+    public void setParallelRepairCountInGroup(RepairType repairType, int countInGroup) {
+        autoRepairProxy.setParallelRepairCountInGroup(repairType, countInGroup);
     }
 
     public boolean getPrimaryTokenRangeOnly()
@@ -2634,6 +2717,11 @@ public class NodeProbe implements AutoCloseable
         autoRepairProxy.setPrimaryTokenRangeOnly(primaryTokenRangeOnly);
     }
 
+    public void setPrimaryTokenRangeOnly(RepairType repairType, boolean primaryTokenRangeOnly)
+    {
+        autoRepairProxy.setPrimaryTokenRangeOnly(repairType, primaryTokenRangeOnly);
+    }
+
     public boolean getMVRepairEnabled()
     {
         return autoRepairProxy.getMVRepairEnabled();
@@ -2642,6 +2730,11 @@ public class NodeProbe implements AutoCloseable
     public void setMVRepairEnabled(boolean enabled)
     {
         autoRepairProxy.setMVRepairEnabled(enabled);
+    }
+
+    public void setMVRepairEnabled(RepairType repairType, boolean enabled)
+    {
+        autoRepairProxy.setMVRepairEnabled(repairType, enabled);
     }
 
     public boolean isDecommissionFailed()

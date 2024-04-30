@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-29770] Merge v2 auto-repair into 4.1
  * [SO-29733] Fix a flaky unit test for RateLimiter in 4.1
  * [SO-29703] Fix SimulatedSnitch to re-enable simulator dtest
  * Nodetool paxos-only repair is no longer incremental (CASSANDRA-18466)

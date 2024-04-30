@@ -1,0 +1,37 @@
+repair scheduler configuration:
+	repair eligibility check interval: 3600 seconds
+	TTL for repair history for dead nodes: 700 seconds
+configuration for repair type: full
+	enabled: false
+	minimum repair interval in hours: 24
+	repair threads: 1
+	number of repair subranges: 1
+	ignore keyspaces: \b(?!system_auth\b)system\w+|.*staging.*|.*test.*|health|pingless
+	repair only keyspaces: test
+	priority hosts: /127.0.0.1:7000
+	sstable count higher threshold: 10000
+	table max repair time in sec: 21600
+	ignore datacenters: dc1,dc2
+	datacenter groups:
+	repair primary token-range: true
+	number of parallel repairs within group: 1
+	percentage of parallel repairs within group: 0
+	mv repair enabled: false
+configuration for repair type: incremental
+	enabled: true
+	minimum repair interval in hours: 24
+	repair threads: 1
+	number of repair subranges: 1
+	ignore keyspaces: \b(?!system_auth\b)system\w+|.*staging.*|.*test.*|health|pingless
+	repair only keyspaces: test
+	priority hosts: /127.0.0.1:7000
+	sstable count higher threshold: 10000
+	table max repair time in sec: 21600
+	ignore datacenters: dc3,dc4
+	datacenter groups:
+		dc5|dc6
+		dc7|dc8
+	repair primary token-range: true
+	number of parallel repairs within group: 1
+	percentage of parallel repairs within group: 0
+	mv repair enabled: true
