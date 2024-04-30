@@ -90,14 +90,14 @@ import org.apache.cassandra.db.compaction.CompactionStrategyManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.DataLimits;
-import org.apache.cassandra.db.memtable.Flushing;
-import org.apache.cassandra.db.memtable.Memtable;
-import org.apache.cassandra.db.memtable.ShardBoundaries;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.db.lifecycle.View;
+import org.apache.cassandra.db.memtable.Flushing;
+import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.memtable.ShardBoundaries;
 import org.apache.cassandra.db.partitions.CachedPartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.repair.CassandraTableRepairManager;
@@ -320,6 +320,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     private final Directories directories;
 
     public final TableMetrics metric;
+    private final Runnable memtableMetricsReleaser;
     public volatile long sampleReadLatencyMicros;
     public volatile long additionalWriteLatencyMicros;
 
@@ -506,14 +507,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
         logger.info("Initializing {}.{}", getKeyspaceName(), name);
 
-        // Create Memtable and its metrics object only on online
-        Memtable initialMemtable = null;
-        TableMetrics.ReleasableMetric memtableMetrics = null;
-        if (DatabaseDescriptor.isDaemonInitialized())
-        {
-            initialMemtable = createMemtable(new AtomicReference<>(CommitLog.instance.getCurrentPosition()));
-            memtableMetrics = memtableFactory.createMemtableMetrics(metadata);
-        }
+        Memtable initialMemtable = DatabaseDescriptor.isDaemonInitialized() ?
+                                   createMemtable(new AtomicReference<>(CommitLog.instance.getCurrentPosition())) :
+                                   null;
+        memtableMetricsReleaser = memtableFactory.createMemtableMetricsReleaser(metadata);
+
         data = new Tracker(this, initialMemtable, loadSSTables);
 
         // Note that this needs to happen before we load the first sstables, or the global sstable tracker will not
@@ -545,7 +543,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             indexManager.addIndex(info, true);
         }
 
-        metric = new TableMetrics(this, memtableMetrics);
+        // See CASSANDRA-16228. We need to ensure that metrics are exposed after the CFS is initialized,
+        // so the order of the following line is important and should not be moved.
+        metric = new TableMetrics(this);
 
         if (data.loadsstables)
         {
@@ -749,6 +749,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         }
 
         // unregister metrics
+        memtableMetricsReleaser.run();
         metric.release();
     }
 
