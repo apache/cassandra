@@ -2826,6 +2826,11 @@ public class NodeProbe implements AutoCloseable
     public List<String> getTablesForKeyspace(String keyspace) {
         return ssProxy.getTablesForKeyspace(keyspace);
     }
+
+    public Set<InetAddressAndPort> filterHostsInLocalGroup(RepairType repairType, Set<InetAddressAndPort> hostsToFilter)
+    {
+        return autoRepairProxy.filterHostsInLocalGroup(repairType, hostsToFilter);
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>

@@ -97,6 +97,7 @@
                  <exclude NAME=".arcconfig"/>
                  <exclude NAME="METADATA"/>
                  <exclude NAME=".jenkins/code_coverage/requirements.txt"/>
+                 <exclude NAME="**/**"/>
             </fileset>
         </rat:report>
         <exec executable="grep" outputproperty="rat.failed.files" failifexecutionfails="false">

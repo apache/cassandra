@@ -60,6 +60,7 @@ import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -290,7 +291,7 @@ public class AutoRepairUtilsV2
 
         ResultMessage.Rows repairStatusRows = selectStatementRepairHistory.execute(QueryState.forInternalCalls(),
                                                                                    QueryOptions.forInternalCalls(internalQueryCL, Lists.newArrayList(ByteBufferUtil.bytes(repairType.toString()),
-                                                                                                                                                     ByteBufferUtil.bytes(groupHash))), System.nanoTime());
+                                                                                                                                                     ByteBufferUtil.bytes(groupHash))), Dispatcher.RequestTime.forImmediateExecution());
         repairHistoryResult = UntypedResultSet.create(repairStatusRows.result);
 
         List<AutoRepairHistory> repairHistories = new ArrayList<>();
@@ -329,7 +330,7 @@ public class AutoRepairUtilsV2
                                           QueryOptions.forInternalCalls(internalQueryCL,
                                                                         Lists.newArrayList(ByteBufferUtil.bytes(repairType.toString()),
                                                                                            ByteBufferUtil.bytes(getLocalDCGroup(repairType).hashCode()),
-                                                                                           ByteBufferUtil.bytes(hostId))), System.nanoTime());
+                                                                                           ByteBufferUtil.bytes(hostId))), Dispatcher.RequestTime.forImmediateExecution());
     }
 
     public static void setForceRepairNewNode(RepairType repairType)
@@ -360,7 +361,7 @@ public class AutoRepairUtilsV2
                                                                       Lists.newArrayList(ByteBufferUtil.bytes(repairType.toString()),
                                                                                          ByteBufferUtil.bytes(pid),
                                                                                          ByteBufferUtil.bytes(hostId))),
-                                        System.nanoTime());
+                                        Dispatcher.RequestTime.forImmediateExecution());
 
         logger.info("Set force repair repair type: {}, pid: {}, node: {}", repairType, pid, hostId);
     }
@@ -657,7 +658,7 @@ public class AutoRepairUtilsV2
                                           QueryOptions.forInternalCalls(internalQueryCL,
                                                                         Lists.newArrayList(ByteBufferUtil.bytes(repairType.toString()),
                                                                                            ByteBufferUtil.bytes(getLocalDCGroup(repairType).hashCode()),
-                                                                                           ByteBufferUtil.bytes(hostId))), System.nanoTime());
+                                                                                           ByteBufferUtil.bytes(hostId))), Dispatcher.RequestTime.forImmediateExecution());
     }
 
     static void updateStartAutoRepairHistory(RepairType repairType, UUID myId, long timestamp, RepairTurn turn)
@@ -669,7 +670,7 @@ public class AutoRepairUtilsV2
                                                                                                    ByteBufferUtil.bytes(repairType.toString()),
                                                                                                    ByteBufferUtil.bytes(getLocalDCGroup(repairType).hashCode()),
                                                                                                    ByteBufferUtil.bytes(myId)
-                                                                                )), System.nanoTime());
+                                                                                )), Dispatcher.RequestTime.forImmediateExecution());
     }
 
     static void updateFinishAutoRepairHistory(RepairType repairType, UUID myId, long timestamp)
@@ -680,7 +681,7 @@ public class AutoRepairUtilsV2
                                                                                                     ByteBufferUtil.bytes(repairType.toString()),
                                                                                                     ByteBufferUtil.bytes(getLocalDCGroup(repairType).hashCode()),
                                                                                                     ByteBufferUtil.bytes(myId)
-                                                                                 )), System.nanoTime());
+                                                                                 )), Dispatcher.RequestTime.forImmediateExecution());
         // Do not remove beblow log, the log is used by dtest
         logger.info("Auto repair finished for {}", myId);
     }
@@ -703,7 +704,7 @@ public class AutoRepairUtilsV2
             ByteBufferUtil.bytes(finishTime),
             ByteBufferUtil.bytes(System.currentTimeMillis())
             ), false, -1, null, cl, ProtocolVersion.CURRENT, SchemaConstants.AUTO_REPAIR_KEYSPACE_NAME),
-            System.nanoTime());
+            Dispatcher.RequestTime.forImmediateExecution());
             resultSet = UntypedResultSet.create(resultMessage.result);
             boolean applied = resultSet.one().getBoolean(ModificationStatement.CAS_RESULT_COLUMN.toString());
             if (applied)
@@ -743,7 +744,7 @@ public class AutoRepairUtilsV2
                                                                                                  ByteBufferUtil.bytes(repairType.toString()),
                                                                                                  ByteBufferUtil.bytes(getLocalDCGroup(repairType).hashCode()),
                                                                                                  ByteBufferUtil.bytes(hostToBeDeleted)
-                                                                              )), System.nanoTime());
+                                                                              )), Dispatcher.RequestTime.forImmediateExecution());
     }
 
     public static void addPriorityHosts(RepairType repairType, Set<InetAddressAndPort> hosts)
@@ -767,7 +768,7 @@ public class AutoRepairUtilsV2
                                                                   Lists.newArrayList(serializer.serialize(hostIds),
                                                                                      ByteBufferUtil.bytes(repairType.toString()),
                                                                                      ByteBufferUtil.bytes(getLocalDCGroup(repairType).hashCode()))),
-                                    System.nanoTime());
+                                    Dispatcher.RequestTime.forImmediateExecution());
         }
     }
 
@@ -779,7 +780,7 @@ public class AutoRepairUtilsV2
                                                                          Lists.newArrayList(ByteBufferUtil.bytes(hostId),
                                                                                             ByteBufferUtil.bytes(repairType.toString()),
                                                                                             ByteBufferUtil.bytes(getLocalDCGroup(repairType).hashCode()))),
-                                           System.nanoTime());
+                                           Dispatcher.RequestTime.forImmediateExecution());
     }
 
     public static Set<UUID> getPriorityHostIds(RepairType repairType)
@@ -793,7 +794,7 @@ public class AutoRepairUtilsV2
 
         ResultMessage.Rows repairPriorityRows = selectStatementRepairPriority.execute(QueryState.forInternalCalls(),
                                                                                       QueryOptions.forInternalCalls(internalQueryCL, Lists.newArrayList(ByteBufferUtil.bytes(repairType.toString()),
-                                                                                                                                                        ByteBufferUtil.bytes(groupHash))), System.nanoTime());
+                                                                                                                                                        ByteBufferUtil.bytes(groupHash))), Dispatcher.RequestTime.forImmediateExecution());
         repairPriorityResult = UntypedResultSet.create(repairPriorityRows.result);
 
         Set<UUID> priorities = null;
