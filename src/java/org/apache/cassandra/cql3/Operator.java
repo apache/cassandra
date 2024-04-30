@@ -748,7 +748,7 @@ public enum Operator
      */
     private boolean isLikeVariant()
     {
-        return name().startsWith("LIKE_");
+        return this == LIKE_CONTAINS || this == LIKE_PREFIX || this == LIKE_MATCHES || this == LIKE_SUFFIX;
     }
 
     /**
