@@ -23,6 +23,7 @@ import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -37,6 +38,7 @@ import org.apache.cassandra.tcm.membership.NodeVersion;
 final class ClusterMetadataDirectoryTable extends AbstractVirtualTable
 {
     private static final String NODE_ID = "node_id";
+    private static final String HOST_ID = "host_id";
     private static final String STATE = "state";
     private static final String CASSANDRA_VERSION = "cassandra_version";
     private static final String SERIALIZATION_VERSION = "serialization_version";
@@ -57,6 +59,7 @@ final class ClusterMetadataDirectoryTable extends AbstractVirtualTable
                            .kind(TableMetadata.Kind.VIRTUAL)
                            .partitioner(new LocalPartitioner(LongType.instance))
                            .addPartitionKeyColumn(NODE_ID, Int32Type.instance)
+                           .addRegularColumn(HOST_ID, UUIDType.instance)
                            .addRegularColumn(STATE, UTF8Type.instance)
                            .addRegularColumn(CASSANDRA_VERSION, UTF8Type.instance)
                            .addRegularColumn(SERIALIZATION_VERSION, Int32Type.instance)
@@ -85,6 +88,7 @@ final class ClusterMetadataDirectoryTable extends AbstractVirtualTable
             Location location = directory.location(nodeId);
             NodeVersion version = directory.version(nodeId);
             result.row(nodeId.id())
+                  .column(HOST_ID, nodeId.toUUID())
                   .column(STATE, nodeState.toString())
                   .column(CASSANDRA_VERSION, version != null ? version.cassandraVersion.toString() : null)
                   .column(SERIALIZATION_VERSION, version != null ? version.serializationVersion : null)
