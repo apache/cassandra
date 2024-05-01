@@ -114,6 +114,12 @@ public class SerializationHelper
         return dropped != null && cell.timestamp() <= dropped.droppedTime;
     }
 
+    public boolean isDropped(ColumnDefinition column, long timestamp, boolean isComplex)
+    {
+        CFMetaData.DroppedColumn dropped = isComplex ? currentDroppedComplex : droppedColumns.get(column.name.bytes);
+        return dropped != null && timestamp <= dropped.droppedTime;
+    }
+
     public boolean isDroppedComplexDeletion(DeletionTime complexDeletion)
     {
         return currentDroppedComplex != null && complexDeletion.markedForDeleteAt() <= currentDroppedComplex.droppedTime;
