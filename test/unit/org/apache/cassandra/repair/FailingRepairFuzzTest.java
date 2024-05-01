@@ -155,6 +155,7 @@ public class FailingRepairFuzzTest extends FuzzTestBase
                     default:
                         throw new IllegalArgumentException("Unknown stage: " + stage);
                 }
+                assertParticipateResult(cluster, repair, Completable.Result.Kind.FAILURE);
                 closeables.forEach(Closeable::close);
                 closeables.clear();
             }

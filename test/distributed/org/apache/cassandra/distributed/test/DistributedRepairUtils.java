@@ -26,6 +26,8 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.commons.lang3.ArrayUtils;
 import org.junit.Assert;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
@@ -33,7 +35,11 @@ import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.QueryResult;
 import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.StorageMetrics;
+import org.apache.cassandra.repair.consistent.LocalSession;
+import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.Retry.retryWithBackoffBlocking;
 
@@ -165,6 +171,34 @@ public final class DistributedRepairUtils
 
         // make sure no other records found
         Assert.assertFalse("Only one repair expected, but found more than one", rs.hasNext());
+    }
+
+    public static void assertNoSSTableLeak(ICluster<IInvokableInstance> cluster, String ks, String table)
+    {
+        cluster.forEach(i -> {
+            String name = "node" + i.config().num();
+            i.forceCompact(ks, table); // cleanup happens in compaction, so run before checking
+            i.runOnInstance(() -> {
+                ColumnFamilyStore cfs = Keyspace.open(ks).getColumnFamilyStore(table);
+                for (SSTableReader sstable : cfs.getTracker().getView().liveSSTables())
+                {
+                    TimeUUID pendingRepair = sstable.getSSTableMetadata().pendingRepair;
+                    if (pendingRepair == null)
+                        continue;
+                    LocalSession session = ActiveRepairService.instance().consistent.local.getSession(pendingRepair);
+                    // repair maybe async, so some participates may still think the repair is active, which means the sstable SHOULD link to it
+                    if (session != null && !session.isCompleted())
+                        continue;
+                    // The session is complete, yet the sstable is not updated... is this still pending in compaction?
+                    if (cfs.getCompactionStrategyManager().hasPendingRepairSSTable(pendingRepair, sstable))
+                        continue;
+                    // compaction does not know about the pending repair... race condition since this check started?
+                    if (sstable.getSSTableMetadata().pendingRepair == null)
+                        continue; // yep, race condition... ignore
+                    throw new AssertionError(String.format("%s had leak detected on sstable %s", name, sstable.descriptor));
+                }
+            });
+        });
     }
 
     public enum RepairType {

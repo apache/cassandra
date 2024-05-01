@@ -50,6 +50,9 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+
+import org.apache.cassandra.config.UnitConfigOverride;
 import org.junit.BeforeClass;
 
 import accord.utils.DefaultRandom;
@@ -69,7 +72,6 @@ import org.apache.cassandra.concurrent.SequentialExecutorPlus;
 import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.UnitConfigOverride;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Digest;
@@ -108,6 +110,7 @@ import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.repair.state.Completable;
 import org.apache.cassandra.repair.state.CoordinatorState;
 import org.apache.cassandra.repair.state.JobState;
+import org.apache.cassandra.repair.state.ParticipateState;
 import org.apache.cassandra.repair.state.SessionState;
 import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -144,6 +147,7 @@ import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
@@ -366,10 +370,10 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
     static void runAndAssertSuccess(Cluster cluster, int example, boolean shouldSync, RepairCoordinator repair)
     {
         cluster.processAll();
-        assertSuccess(example, shouldSync, repair);
+        assertSuccess(cluster, example, shouldSync, repair);
     }
 
-    static void assertSuccess(int example, boolean shouldSync, RepairCoordinator repair)
+    static void assertSuccess(Cluster cluster, int example, boolean shouldSync, RepairCoordinator repair)
     {
         Completable.Result result = repair.state.getResult();
         Assertions.assertThat(result)
@@ -399,6 +403,26 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                 Assertions.assertThat(actual).isEqualTo(expected);
             }
         }
+
+        assertParticipateResult(cluster, repair, Completable.Result.Kind.SUCCESS);
+    }
+
+    protected static void assertParticipateResult(Cluster cluster, RepairCoordinator repair, Completable.Result.Kind kind)
+    {
+        for (InetAddressAndPort participate : Sets.union(Collections.singleton(repair.ctx.broadcastAddressAndPort()), repair.state.getNeighborsAndRanges().participants))
+        {
+            assertParticipateResult(cluster, participate, repair.state.id, kind);
+        }
+    }
+
+    protected static void assertParticipateResult(Cluster cluster, InetAddressAndPort participate, TimeUUID id, Completable.Result.Kind kind)
+    {
+        Cluster.Node node = cluster.nodes.get(participate);
+        ParticipateState state = node.repair().participate(id);
+        Assertions.assertThat(state).describedAs("Node %s is missing ParticipateState", node).isNotNull();
+        Completable.Result particpateResult = state.getResult();
+        Assertions.assertThat(particpateResult).describedAs("Node %s has the ParticipateState as still pending", node).isNotNull();
+        Assertions.assertThat(particpateResult.kind).isEqualTo(kind);
     }
 
     static String repairSuccessMessage(RepairCoordinator repair)
@@ -1313,6 +1337,14 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             public PaxosRepairState paxosRepairState()
             {
                 return paxosRepairState;
+            }
+
+            public String toString()
+            {
+                return "Node{" +
+                       "hostId=" + hostId +
+                       ", addressAndPort=" + addressAndPort.getAddress().getHostAddress() + ":" + addressAndPort.getPort() +
+                       '}';
             }
         }
 
