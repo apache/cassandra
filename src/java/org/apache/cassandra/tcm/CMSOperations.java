@@ -215,7 +215,7 @@ public class CMSOperations implements CMSOperationsMBean
             for (NodeId nonLeft : nonLeftNodes)
             {
                 NodeState nodeState = metadata.directory.peerState(nonLeft);
-                message.append(nonLeft).append(" is in state ").append(nodeState);
+                message.append("Node ").append(nonLeft.id()).append(" is in state ").append(nodeState);
                 switch (nodeState)
                 {
                     case REGISTERED:
@@ -239,7 +239,7 @@ public class CMSOperations implements CMSOperationsMBean
 
         for (NodeId nodeId : nodeIds)
         {
-            System.out.println("Unregistering " + nodeId);
+            logger.info("Deregistering " + nodeId);
             cms.commit(new Unregister(nodeId, EnumSet.of(NodeState.LEFT)));
         }
     }
