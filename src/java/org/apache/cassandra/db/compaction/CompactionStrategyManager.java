@@ -443,6 +443,20 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
     }
 
+    @VisibleForTesting
+    public boolean hasPendingRepairSSTable(TimeUUID sessionID, SSTableReader sstable)
+    {
+        readLock.lock();
+        try
+        {
+            return pendingRepairs.hasPendingRepairSSTable(sessionID, sstable) || transientRepairs.hasPendingRepairSSTable(sessionID, sstable);
+        }
+        finally
+        {
+            readLock.unlock();
+        }
+    }
+
     public void shutdown()
     {
         writeLock.lock();
@@ -749,7 +763,7 @@ public class CompactionStrategyManager implements INotificationConsumer
     private void handleFlushNotification(Iterable<SSTableReader> added)
     {
         for (SSTableReader sstable : added)
-            compactionStrategyFor(sstable).addSSTable(sstable);
+            getHolder(sstable).addSSTable(sstable);
     }
 
     private int getHolderIndex(SSTableReader sstable)
@@ -1319,6 +1333,8 @@ public class CompactionStrategyManager implements INotificationConsumer
       */
     public void mutateRepaired(Collection<SSTableReader> sstables, long repairedAt, TimeUUID pendingRepair, boolean isTransient) throws IOException
     {
+        if (sstables.isEmpty())
+            return;
         Set<SSTableReader> changed = new HashSet<>();
 
         writeLock.lock();
