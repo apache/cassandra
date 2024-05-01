@@ -39,6 +39,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.repair.state.ParticipateState;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.slf4j.Logger;
@@ -202,6 +203,9 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
             reason = error != null ? error.getMessage() : "Some repair failed";
         }
         state.phase.fail(reason);
+        ParticipateState p = ActiveRepairService.instance.participate(state.id);
+        if (p != null)
+            p.phase.fail(reason);
         String completionMessage = String.format("Repair command #%d finished with error", state.cmd);
 
         // Note we rely on the first message being the reason for the failure
