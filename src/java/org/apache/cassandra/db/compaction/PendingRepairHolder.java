@@ -148,6 +148,13 @@ public class PendingRepairHolder extends AbstractStrategyHolder
         return tasks;
     }
 
+    @Override
+    public void addSSTable(SSTableReader sstable)
+    {
+        Preconditions.checkArgument(managesSSTable(sstable), "Attempting to add sstable from wrong holder");
+        managers.get(router.getIndexForSSTable(sstable)).addSSTable(sstable);
+    }
+
     AbstractCompactionTask getNextRepairFinishedTask()
     {
         List<TaskSupplier> repairFinishedSuppliers = getRepairFinishedTaskSuppliers();
@@ -280,5 +287,10 @@ public class PendingRepairHolder extends AbstractStrategyHolder
     public boolean containsSSTable(SSTableReader sstable)
     {
         return Iterables.any(managers, prm -> prm.containsSSTable(sstable));
+    }
+
+    public boolean hasPendingRepairSSTable(TimeUUID sessionID, SSTableReader sstable)
+    {
+        return Iterables.any(managers, prm -> prm.hasPendingRepairSSTable(sessionID, sstable));
     }
 }

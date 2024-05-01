@@ -466,6 +466,8 @@ public class Tracker
 
     public void notifySSTableRepairedStatusChanged(Collection<SSTableReader> repairStatusesChanged)
     {
+        if (repairStatusesChanged.isEmpty())
+            return;
         INotification notification = new SSTableRepairStatusChanged(repairStatusesChanged);
         for (INotificationConsumer subscriber : subscribers)
             subscriber.handleNotification(notification, this);

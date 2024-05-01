@@ -464,7 +464,7 @@ class PendingRepairManager
 
     public synchronized boolean hasDataForSession(TimeUUID sessionID)
     {
-        return strategies.keySet().contains(sessionID);
+        return strategies.containsKey(sessionID);
     }
 
     boolean containsSSTable(SSTableReader sstable)
@@ -480,6 +480,15 @@ class PendingRepairManager
     {
         Map<TimeUUID, List<SSTableReader>> group = sstables.stream().collect(Collectors.groupingBy(s -> s.getSSTableMetadata().pendingRepair));
         return group.entrySet().stream().map(g -> strategies.get(g.getKey()).getUserDefinedTask(g.getValue(), gcBefore)).collect(Collectors.toList());
+    }
+
+    @VisibleForTesting
+    public synchronized boolean hasPendingRepairSSTable(TimeUUID sessionID, SSTableReader sstable)
+    {
+        AbstractCompactionStrategy strat = strategies.get(sessionID);
+        if (strat == null)
+            return false;
+        return strat.getSSTables().contains(sstable);
     }
 
     /**
