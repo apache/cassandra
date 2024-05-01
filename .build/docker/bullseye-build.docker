@@ -37,7 +37,7 @@ RUN echo 'Acquire::ftp::Timeout "60";' >> /etc/apt/apt.conf.d/80proxy.conf
 
 # install deps
 RUN until apt-get update \
-        && apt-get -y install ant build-essential curl devscripts git sudo \
+        && apt-get -y install ant build-essential curl devscripts ed git sudo \
                 python3-pip rsync procps dh-python quilt bash-completion ; \
     do echo "apt failed… trying again in 10s… " ; sleep 10 ; done
 
