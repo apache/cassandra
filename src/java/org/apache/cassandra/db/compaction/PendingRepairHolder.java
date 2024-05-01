@@ -30,7 +30,6 @@ import com.google.common.collect.Iterables;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.Index;
@@ -147,6 +146,13 @@ public class PendingRepairHolder extends AbstractStrategyHolder
             tasks.addAll(managers.get(i).createUserDefinedTasks(sstables.getGroup(i), gcBefore));
         }
         return tasks;
+    }
+
+    @Override
+    public void addSSTable(SSTableReader sstable)
+    {
+        Preconditions.checkArgument(managesSSTable(sstable), "Attempting to add sstable from wrong holder");
+        managers.get(router.getIndexForSSTable(sstable)).addSSTable(sstable);
     }
 
     AbstractCompactionTask getNextRepairFinishedTask()
@@ -281,5 +287,10 @@ public class PendingRepairHolder extends AbstractStrategyHolder
     public boolean containsSSTable(SSTableReader sstable)
     {
         return Iterables.any(managers, prm -> prm.containsSSTable(sstable));
+    }
+
+    public boolean hasPendingRepairSSTable(UUID sessionID, SSTableReader sstable)
+    {
+        return Iterables.any(managers, prm -> prm.hasPendingRepairSSTable(sessionID, sstable));
     }
 }

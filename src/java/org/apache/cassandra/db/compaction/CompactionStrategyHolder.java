@@ -139,6 +139,12 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
     }
 
     @Override
+    public void addSSTable(SSTableReader sstable)
+    {
+        getStrategyFor(sstable).addSSTable(sstable);
+    }
+
+    @Override
     public void addSSTables(GroupedSSTableContainer sstables)
     {
         Preconditions.checkArgument(sstables.numGroups() == strategies.size());
