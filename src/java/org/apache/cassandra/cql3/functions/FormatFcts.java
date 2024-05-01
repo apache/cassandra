@@ -58,16 +58,16 @@ import static org.apache.cassandra.cql3.CQL3Type.Native.VARINT;
 import static org.apache.cassandra.cql3.functions.FunctionParameter.fixed;
 import static org.apache.cassandra.cql3.functions.FunctionParameter.optional;
 
-public class ToHumanFcts
+public class FormatFcts
 {
     public static void addFunctionsTo(NativeFunctions functions)
     {
-        functions.add(ToHumanSizeFct.factory());
-        functions.add(ToHumanDurationFct.factory());
+        functions.add(FormatBytesFct.factory());
+        functions.add(FormatTimeFct.factory());
     }
 
     /**
-     * Converts numeric value in a column to a duration value of specified unit.
+     * Converts numeric value in a column to a value of specified unit.
      * <p>
      * If the function call contains just one argument - value to convert - then it will be
      * looked at as the value is of unit 'ms' and it will be converted to a value of a unit which is closes to it. E.g.
@@ -82,19 +82,19 @@ public class ToHumanFcts
      * <p>
      * Examples:
      * <pre>
-     * to_human_duration(val)
-     * to_human_duration(val, 'm') = to_human_duration(val, 'ms', 'm')
-     * to_human_duration(val, 's', 'm')
-     * to_human_duration(val, 's', 'h')
-     * to_human_duration(val, 's', 'd')
-     * to_human_duration(val, 's') = to_human_size(val, 'ms', 's')
-     * to_human_duration(val, 'h') = to_human_size(val, 'ms', 'h')
+     * format_time(val)
+     * format_time(val, 'm') = format_time(val, 'ms', 'm')
+     * format_time(val, 's', 'm')
+     * format_time(val, 's', 'h')
+     * format_time(val, 's', 'd')
+     * format_time(val, 's') = format_bytes(val, 'ms', 's')
+     * format_time(val, 'h') = format_bytes(val, 'ms', 'h')
      * </pre>
      * <p>
      * It is possible to convert values of a bigger unit to values of a smaller unit, e.g. this is possible:
      *
      * <pre>
-     * to_human_duration(val, 'm', 's')
+     * format_time(val, 'm', 's')
      * </pre>
      * <p>
      * Values can be max of Long.MAX_VALUE, If the conversion produces overflown value, Long.MAX_VALUE will be returned.
@@ -107,11 +107,11 @@ public class ToHumanFcts
      * <p>
      * The conversion of negative values is not supported.
      */
-    public static class ToHumanDurationFct extends NativeScalarFunction
+    public static class FormatTimeFct extends NativeScalarFunction
     {
-        private static final String FUNCTION_NAME = "to_human_duration";
+        private static final String FUNCTION_NAME = "format_time";
 
-        private ToHumanDurationFct(AbstractType<?>... argsTypes)
+        private FormatTimeFct(AbstractType<?>... argsTypes)
         {
             super(FUNCTION_NAME, UTF8Type.instance, argsTypes);
         }
@@ -232,7 +232,7 @@ public class ToHumanFcts
                     if (argTypes.isEmpty() || argTypes.size() > 3)
                         throw invalidNumberOfArgumentsException();
 
-                    return new ToHumanDurationFct(argTypes.toArray(new AbstractType<?>[0]));
+                    return new FormatTimeFct(argTypes.toArray(new AbstractType<?>[0]));
                 }
             };
         }
@@ -262,18 +262,18 @@ public class ToHumanFcts
      * <p>
      * Examples:
      * <pre>
-     * to_human_size(val) = to_human_size(val, 'B', 'MiB')
-     * to_human_size(val, 'B', 'MiB')
-     * to_human_size(val, 'B', 'GiB')
-     * to_human_size(val, 'KiB', 'GiB')
-     * to_human_size(val, 'MiB') = to_human_size(val, 'B', 'MiB')
-     * to_human_size(val, 'GiB') = to_human_size(val, 'B', 'GiB')
+     * format_bytes(val) = format_bytes(val, 'B', 'MiB')
+     * format_bytes(val, 'B', 'MiB')
+     * format_bytes(val, 'B', 'GiB')
+     * format_bytes(val, 'KiB', 'GiB')
+     * format_bytes(val, 'MiB') = format_bytes(val, 'B', 'MiB')
+     * format_bytes(val, 'GiB') = format_bytes(val, 'B', 'GiB')
      * </pre>
      * <p>
      * It is possible to convert values of a bigger unit to values of a smaller unit, e.g. this is possible:
      *
      * <pre>
-     * to_human_size(val, 'GiB', 'B')
+     * format_bytes(val, 'GiB', 'B')
      * </pre>
      * <p>
      * Values can be max of Long.MAX_VALUE, If the conversion produces overflown value, Long.MAX_VALUE will be returned.
@@ -287,11 +287,11 @@ public class ToHumanFcts
      *
      * The conversion of negative values is not supported.
      */
-    public static class ToHumanSizeFct extends NativeScalarFunction
+    public static class FormatBytesFct extends NativeScalarFunction
     {
-        private static final String FUNCTION_NAME = "to_human_size";
+        private static final String FUNCTION_NAME = "format_bytes";
 
-        private ToHumanSizeFct(AbstractType<?>... argsTypes)
+        private FormatBytesFct(AbstractType<?>... argsTypes)
         {
             super(FUNCTION_NAME, UTF8Type.instance, argsTypes);
         }
@@ -381,7 +381,7 @@ public class ToHumanFcts
                     if (argTypes.isEmpty() || argTypes.size() > 3)
                         throw invalidNumberOfArgumentsException();
 
-                    return new ToHumanSizeFct(argTypes.toArray(new AbstractType<?>[0]));
+                    return new FormatBytesFct(argTypes.toArray(new AbstractType<?>[0]));
                 }
             };
         }
@@ -420,7 +420,7 @@ public class ToHumanFcts
         }
     }
 
-    private ToHumanFcts()
+    private FormatFcts()
     {
     }
 }

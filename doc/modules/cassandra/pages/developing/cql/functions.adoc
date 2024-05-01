@@ -294,7 +294,7 @@ include::cassandra:partial$vector-search/vector_functions.adoc[]
 For user's convenience, there are currently two functions which are converting values to more human-friendly
 represetations.
 
-==== to_human_size
+==== format_bytes
 
 This function looks at values in a column as if it was in bytes, and it will convert it to whatever a user pleases. There are three ways how to call this function
 
@@ -331,14 +331,14 @@ automatically convert it.
 
 [NOTE]
 ====
-the default source unit for `to_human_size` function is _bytes_, (`B`).
+the default source unit for `format_bytes` function is _bytes_, (`B`).
 ====
 
 [source,cql]
 ----
-cqlsh> select to_human_size(val) from ks.tb ;
+cqlsh> select format_bytes(val) from ks.tb ;
 
- system.to_human_size(val)
+ system.format_bytes(val)
 ---------------------------
                     58 KiB
                      1 MiB
@@ -349,14 +349,14 @@ cqlsh> select to_human_size(val) from ks.tb ;
                    120 KiB
 ----
 
-The second way to call `to_human_size` functions is to specify into what size unit we would like to see all
+The second way to call `format_bytes` functions is to specify into what size unit we would like to see all
 values to be converted to. For example, we want all size to be represented in mebibytes, hence we do:
 
 [source,cql]
 ----
-cqlsh> select to_human_size(val, 'MiB') from ks.tb ;
+cqlsh> select format_bytes(val, 'MiB') from ks.tb ;
 
- system.to_human_size(val, 'MiB')
+ system.format_bytes(val, 'MiB')
 ----------------------------------
                             0 MiB
                             1 MiB
@@ -372,9 +372,9 @@ if we know that our column is logically in kibibytes and we want them to be conv
 
 [source,cql]
 ----
-cqlsh> select to_human_size(val, 'Kib', 'MiB') from ks.tb ;
+cqlsh> select format_bytes(val, 'Kib', 'MiB') from ks.tb ;
 
- system.to_human_size(val, 'Kib', 'MiB')
+ system.format_bytes(val, 'Kib', 'MiB')
 -----------------------------------------
                                   58 MiB
                                 1205 MiB
@@ -385,20 +385,20 @@ cqlsh> select to_human_size(val, 'Kib', 'MiB') from ks.tb ;
                                  120 MiB
 ----
 
-==== to_human_duration
+==== format_time
 
-Similarly to `to_human_size`, we can do transformations on duration-like columns.
+Similarly to `format_bytes`, we can do transformations on duration-like columns.
 
 [NOTE]
 ====
-the default source unit for `to_human_duration` function is _milliseconds_, (`ms`).
+the default source unit for `format_time` function is _milliseconds_, (`ms`).
 ====
 
 [source,cql]
 ----
-cqlsh> select to_human_duration(val) from ks.tb ;
+cqlsh> select format_time(val) from ks.tb ;
 
- system.to_human_duration(val)
+ system.format_time(val)
 -------------------------------
                            1 m
                           20 m
@@ -413,7 +413,7 @@ We may specify what unit we want that value to be converted to, give the column'
 
 [source,cql]
 ----
- system.to_human_duration(val, 'm')
+ system.format_time(val, 'm')
 ------------------------------------
                                 1 m
                                20 m
@@ -428,9 +428,9 @@ Lastly, we can specify both source and target values:
 
 [source,cql]
 ----
-cqlsh> select to_human_duration(val, 's', 'h') from ks.tb ;
+cqlsh> select format_time(val, 's', 'h') from ks.tb ;
 
- system.to_human_duration(val, 's', 'h')
+ system.format_time(val, 's', 'h')
 -----------------------------------------
                                     16 h
                                    342 h

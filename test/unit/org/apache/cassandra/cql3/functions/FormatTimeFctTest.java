@@ -38,17 +38,17 @@ import static org.apache.cassandra.cql3.CQL3Type.Native.TINYINT;
 import static org.apache.cassandra.cql3.CQL3Type.Native.VARINT;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-public class ToHumanSizeFctTest extends CQLTester
+public class FormatTimeFctTest extends CQLTester
 {
     @Test
     public void testOneValueArgument()
     {
-        createTable(of(INT), new Object[][]{ { 1, 1073741825 },
-                                             { 2, 1073741823 },
+        createTable(of(INT), new Object[][]{ { 1, 7200001 }, // 2h + 1ms
+                                             { 2, 7199999 }, // 2h - 1ms
                                              { 3, 0 } }); // 0 B
-        assertRows(execute("select to_human_size(col1) from %s where pk = 1"), row("1 GiB"));
-        assertRows(execute("select to_human_size(col1) from %s where pk = 2"), row("1023 MiB"));
-        assertRows(execute("select to_human_size(col1) from %s where pk = 3"), row("0 B"));
+        assertRows(execute("select format_time(col1) from %s where pk = 1"), row("2 h"));
+        assertRows(execute("select format_time(col1) from %s where pk = 2"), row("1 h"));
+        assertRows(execute("select format_time(col1) from %s where pk = 3"), row("0 ms"));
     }
 
     @Test
@@ -56,15 +56,15 @@ public class ToHumanSizeFctTest extends CQLTester
     {
         createTable(of(INT), new Object[][]{ { 1, 1073741825 },
                                              { 2, 0 } });
-        assertRows(execute("select to_human_size(col1, 'B') from %s where pk = 1"), row("1073741825 B"));
-        assertRows(execute("select to_human_size(col1, 'KiB') from %s where pk = 1"), row("1048576 KiB"));
-        assertRows(execute("select to_human_size(col1, 'MiB') from %s where pk = 1"), row("1024 MiB"));
-        assertRows(execute("select to_human_size(col1, 'GiB') from %s where pk = 1"), row("1 GiB"));
+        assertRows(execute("select format_time(col1, 's') from %s where pk = 1"), row("1073741 s"));
+        assertRows(execute("select format_time(col1, 'm') from %s where pk = 1"), row("17895 m"));
+        assertRows(execute("select format_time(col1, 'h') from %s where pk = 1"), row("298 h"));
+        assertRows(execute("select format_time(col1, 'd') from %s where pk = 1"), row("12 d"));
 
-        assertRows(execute("select to_human_size(col1, 'B') from %s where pk = 2"), row("0 B"));
-        assertRows(execute("select to_human_size(col1, 'KiB') from %s where pk = 2"), row("0 KiB"));
-        assertRows(execute("select to_human_size(col1, 'MiB') from %s where pk = 2"), row("0 MiB"));
-        assertRows(execute("select to_human_size(col1, 'GiB') from %s where pk = 2"), row("0 GiB"));
+        assertRows(execute("select format_time(col1, 's') from %s where pk = 2"), row("0 s"));
+        assertRows(execute("select format_time(col1, 'm') from %s where pk = 2"), row("0 m"));
+        assertRows(execute("select format_time(col1, 'h') from %s where pk = 2"), row("0 h"));
+        assertRows(execute("select format_time(col1, 'd') from %s where pk = 2"), row("0 d"));
     }
 
     @Test
@@ -73,20 +73,22 @@ public class ToHumanSizeFctTest extends CQLTester
         createTable(of(INT), new Object[][]{ { 1, 1073741825 },
                                              { 2, 1 },
                                              { 3, 0 } });
-        assertRows(execute("select to_human_size(col1, 'B',   'B') from %s where pk = 1"), row("1073741825 B"));
-        assertRows(execute("select to_human_size(col1, 'B', 'KiB') from %s where pk = 1"), row("1048576 KiB"));
-        assertRows(execute("select to_human_size(col1, 'B', 'MiB') from %s where pk = 1"), row("1024 MiB"));
-        assertRows(execute("select to_human_size(col1, 'B', 'GiB') from %s where pk = 1"), row("1 GiB"));
+        assertRows(execute("select format_time(col1, 'ms', 'ms') from %s where pk = 1"), row("1073741825 ms"));
+        assertRows(execute("select format_time(col1, 'ms', 's') from %s where pk = 1"), row("1073741 s"));
+        assertRows(execute("select format_time(col1, 'ms', 'm') from %s where pk = 1"), row("17895 m"));
+        assertRows(execute("select format_time(col1, 'ms', 'h') from %s where pk = 1"), row("298 h"));
 
-        assertRows(execute("select to_human_size(col1, 'GiB', 'GiB') from %s where pk = 2"), row("1 GiB"));
-        assertRows(execute("select to_human_size(col1, 'GiB', 'MiB') from %s where pk = 2"), row("1024 MiB"));
-        assertRows(execute("select to_human_size(col1, 'GiB', 'KiB') from %s where pk = 2"), row("1048576 KiB"));
-        assertRows(execute("select to_human_size(col1, 'GiB',   'B') from %s where pk = 2"), row("1073741824 B"));
+        assertRows(execute("select format_time(col1, 'd', 'd') from %s where pk = 2"), row("1 d"));
+        assertRows(execute("select format_time(col1, 'd', 'h') from %s where pk = 2"), row("24 h"));
+        assertRows(execute("select format_time(col1, 'd', 'm') from %s where pk = 2"), row("1440 m"));
+        assertRows(execute("select format_time(col1, 'd', 's') from %s where pk = 2"), row("86400 s"));
 
-        assertRows(execute("select to_human_size(col1, 'GiB', 'GiB') from %s where pk = 3"), row("0 GiB"));
-        assertRows(execute("select to_human_size(col1, 'GiB', 'MiB') from %s where pk = 3"), row("0 MiB"));
-        assertRows(execute("select to_human_size(col1, 'GiB', 'KiB') from %s where pk = 3"), row("0 KiB"));
-        assertRows(execute("select to_human_size(col1, 'GiB',   'B') from %s where pk = 3"), row("0 B"));
+        assertRows(execute("select format_time(col1, 'd', 'd') from %s where pk = 3"), row("0 d"));
+        assertRows(execute("select format_time(col1, 'd', 'h') from %s where pk = 3"), row("0 h"));
+        assertRows(execute("select format_time(col1, 'd', 'm') from %s where pk = 3"), row("0 m"));
+        assertRows(execute("select format_time(col1, 'd', 's') from %s where pk = 3"), row("0 s"));
+        assertRows(execute("select format_time(col1, 'd', 'ms') from %s where pk = 3"), row("0 ms"));
+        assertRows(execute("select format_time(col1, 'd', 'us') from %s where pk = 3"), row("0 us"));
     }
 
     @Test
@@ -105,14 +107,14 @@ public class ToHumanSizeFctTest extends CQLTester
                                       Byte.MAX_VALUE } });
 
         // this will stop at Long.MAX_VALUE
-        assertRows(execute("select to_human_size(col1, 'GiB', 'B') from %s where pk = 1"), row("9223372036854775807 B"));
-        assertRows(execute("select to_human_size(col2, 'GiB', 'B') from %s where pk = 1"), row("2305843007066210304 B"));
-        assertRows(execute("select to_human_size(col3, 'GiB', 'B') from %s where pk = 1"), row("35182224605184 B"));
-        assertRows(execute("select to_human_size(col4, 'GiB', 'B') from %s where pk = 1"), row("135291469824 B"));
+        assertRows(execute("select format_time(col1, 'd', 'ns') from %s where pk = 1"), row("9223372036854775807 ns"));
+        assertRows(execute("select format_time(col2, 'd', 'ns') from %s where pk = 1"), row("9223372036854775807 ns"));
+        assertRows(execute("select format_time(col3, 'd', 'ns') from %s where pk = 1"), row("2830982400000000000 ns"));
+        assertRows(execute("select format_time(col4, 'd', 'ns') from %s where pk = 1"), row("10886400000000000 ns"));
 
-        assertRows(execute("select to_human_size(col2, 'GiB', 'B') from %s where pk = 2"), row("2305843008139952128 B"));
-        assertRows(execute("select to_human_size(col3, 'GiB', 'B') from %s where pk = 2"), row("35183298347008 B"));
-        assertRows(execute("select to_human_size(col4, 'GiB', 'B') from %s where pk = 2"), row("136365211648 B"));
+        assertRows(execute("select format_time(col2, 'd', 'ns') from %s where pk = 2"), row("9223372036854775807 ns"));
+        assertRows(execute("select format_time(col3, 'd', 'ns') from %s where pk = 2"), row("2831068800000000000 ns"));
+        assertRows(execute("select format_time(col4, 'd', 'ns') from %s where pk = 2"), row("10972800000000000 ns"));
     }
 
     @Test
@@ -129,20 +131,20 @@ public class ToHumanSizeFctTest extends CQLTester
                                       '\'' + Integer.valueOf(Integer.MAX_VALUE).toString() + '\'',
                                       } });
 
-        assertRows(execute("select to_human_size(col1) from %s where pk = 1"), row("1 GiB"));
-        assertRows(execute("select to_human_size(col2) from %s where pk = 1"), row("127 B"));
-        assertRows(execute("select to_human_size(col3) from %s where pk = 1"), row("31 KiB"));
-        assertRows(execute("select to_human_size(col4) from %s where pk = 1"), row("8589934591 GiB"));
-        assertRows(execute("select to_human_size(col5) from %s where pk = 1"), row("1 GiB"));
-        assertRows(execute("select to_human_size(col6) from %s where pk = 1"), row("1 GiB"));
-        assertRows(execute("select to_human_size(col7) from %s where pk = 1"), row("1 GiB"));
+        assertRows(execute("select format_time(col1) from %s where pk = 1"), row("24 d"));
+        assertRows(execute("select format_time(col2) from %s where pk = 1"), row("127 ms"));
+        assertRows(execute("select format_time(col3) from %s where pk = 1"), row("32 s"));
+        assertRows(execute("select format_time(col4) from %s where pk = 1"), row("106751991167 d"));
+        assertRows(execute("select format_time(col5) from %s where pk = 1"), row("24 d"));
+        assertRows(execute("select format_time(col6) from %s where pk = 1"), row("24 d"));
+        assertRows(execute("select format_time(col7) from %s where pk = 1"), row("24 d"));
     }
 
     @Test
     public void testNegativeValueIsInvalid()
     {
         createDefaultTable(new Object[][]{ { "1", "-1", "-2" } });
-        assertThatThrownBy(() -> execute("select to_human_size(col1) from %s where pk = 1"))
+        assertThatThrownBy(() -> execute("select format_time(col1) from %s where pk = 1"))
         .isInstanceOf(InvalidRequestException.class)
         .hasMessageContaining("value must be non-negative");
     }
@@ -152,11 +154,11 @@ public class ToHumanSizeFctTest extends CQLTester
     {
         createTable(of(TEXT), new Object[][]{ { 1, "'abc'" }, { 2, "'-1'" } });
 
-        assertThatThrownBy(() -> execute("select to_human_size(col1) from %s where pk = 1"))
+        assertThatThrownBy(() -> execute("select format_time(col1) from %s where pk = 1"))
         .isInstanceOf(InvalidRequestException.class)
         .hasMessageContaining("unable to convert string 'abc' to a value of type long");
 
-        assertThatThrownBy(() -> execute("select to_human_size(col1) from %s where pk = 2"))
+        assertThatThrownBy(() -> execute("select format_time(col1) from %s where pk = 2"))
         .isInstanceOf(InvalidRequestException.class)
         .hasMessageContaining("value must be non-negative");
     }
@@ -166,15 +168,15 @@ public class ToHumanSizeFctTest extends CQLTester
     {
         createDefaultTable(new Object[][]{ { "1", "1", "2" } });
         for (String functionCall : new String[] {
-        "to_human_size(col1, 'abc')",
-        "to_human_size(col1, 'B', 'abc')",
-        "to_human_size(col1, 'abc', 'B')",
-        "to_human_size(col1, 'abc', 'abc')"
+        "format_time(col1, 'abc')",
+        "format_time(col1, 'd', 'abc')",
+        "format_time(col1, 'abc', 'd')",
+        "format_time(col1, 'abc', 'abc')"
         })
         {
             assertThatThrownBy(() -> execute("select " + functionCall + " from %s where pk = 1"))
             .isInstanceOf(InvalidRequestException.class)
-            .hasMessageContaining("Unsupported data storage unit: abc. Supported units are: B, KiB, MiB, GiB");
+            .hasMessageContaining("Unsupported time unit: abc. Supported units are: ns, us, ms, s, m, h, d");
         }
     }
 
@@ -182,9 +184,9 @@ public class ToHumanSizeFctTest extends CQLTester
     public void testInvalidArgumentsSize()
     {
         createDefaultTable(new Object[][]{ { "1", "1", "2" } });
-        assertThatThrownBy(() -> execute("select to_human_size(col1, 'arg1', 'arg2', 'arg3') from %s where pk = 1"))
+        assertThatThrownBy(() -> execute("select format_time(col1, 'arg1', 'arg2', 'arg3') from %s where pk = 1"))
         .isInstanceOf(InvalidRequestException.class)
-        .hasMessageContaining("Invalid number of arguments for function system.to_human_size([int|tinyint|smallint|bigint|varint|ascii|text], [ascii], [ascii])");
+        .hasMessageContaining("Invalid number of arguments for function system.format_time([int|tinyint|smallint|bigint|varint|ascii|text], [ascii], [ascii])");
     }
 
     @Test
@@ -193,11 +195,11 @@ public class ToHumanSizeFctTest extends CQLTester
         createTable(of(TEXT, ASCII, INT),
                     new Object[][]{ { 1, null, null, null } });
 
-        assertRows(execute("select to_human_size(col1), to_human_size(col2), to_human_size(col3) from %s where pk = 1"),
+        assertRows(execute("select format_time(col1), format_time(col2), format_time(col3) from %s where pk = 1"),
                    row(null, null, null));
 
-        assertRows(execute("select to_human_size(col1, 'B') from %s where pk = 1"), row((Object) null));
-        assertRows(execute("select to_human_size(col1, 'B', 'KiB') from %s where pk = 1"), row((Object) null));
+        assertRows(execute("select format_time(col1, 's') from %s where pk = 1"), row((Object) null));
+        assertRows(execute("select format_time(col1, 's', 'd') from %s where pk = 1"), row((Object) null));
     }
 
     @Test
@@ -207,26 +209,19 @@ public class ToHumanSizeFctTest extends CQLTester
                     new Object[][]{ { 1, null, null, null },
                                     { 2, "'1'", "'2'", 3 } });
 
-        assertRows(execute("select to_human_size(col1, null) from %s where pk = 1"), row((Object) null));
+        assertRows(execute("select format_time(col1, null) from %s where pk = 1"), row((Object) null));
 
         for (String functionCall : new String[] {
-        "to_human_size(col3, null)",
-        "to_human_size(col3, null, null)",
-        "to_human_size(col3, null, 'KiB')",
-        "to_human_size(col3, 'KiB', null)"
+        "format_time(col3, null)",
+        "format_time(col3, null, null)",
+        "format_time(col3, null, 'd')",
+        "format_time(col3, 'd', null)"
         })
         {
             assertThatThrownBy(() -> execute("select " + functionCall + " from %s where pk = 2"))
             .isInstanceOf(InvalidRequestException.class)
             .hasMessageContaining("none of the arguments may be null");
         }
-    }
-
-    @Test
-    public void testSizeSmallerThan1KibiByte()
-    {
-        createDefaultTable(new Object[][]{ { "1", "900", "2000" } });
-        assertRows(execute("select to_human_size(col1) from %s where pk = 1"), row("900 B"));
     }
 
     private void createTable(List<CQL3Type.Native> columnTypes, Object[][] rows)
