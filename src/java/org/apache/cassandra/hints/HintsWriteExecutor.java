@@ -221,36 +221,34 @@ final class HintsWriteExecutor
 
     private void flush(Iterator<ByteBuffer> iterator, HintsStore store)
     {
-        while (true)
+        while (iterator.hasNext())
         {
-            if (iterator.hasNext())
-                flushInternal(iterator, store);
-
-            if (!iterator.hasNext())
-                break;
-
-            // exceeded the size limit for an individual file, but still have more to write
-            // close the current writer and continue flushing to a new one in the next iteration
-            store.closeWriter();
+            // If we exceed the size limit for a hints file then close the current writer,
+            // if we still have more to write, we'll open a new file in the next iteration.
+            if (!flushInternal(iterator, store.getOrOpenWriter()))
+                store.closeWriter();
         }
     }
 
-    private void flushInternal(Iterator<ByteBuffer> iterator, HintsStore store)
+    /**
+     * @return {@code true} if we can keep writing to the file,
+     *      or {@code false} if we've exceeded max file size limit during writing
+     */
+    private boolean flushInternal(Iterator<ByteBuffer> iterator, HintsWriter writer)
     {
         long maxHintsFileSize = DatabaseDescriptor.getMaxHintsFileSize();
-
-        HintsWriter writer = store.getOrOpenWriter();
 
         try (HintsWriter.Session session = writer.newSession(writeBuffer))
         {
             while (iterator.hasNext())
             {
-                // check that we are not over the limit already
-                if (session.position() >= maxHintsFileSize)
-                    break;
-
                 session.append(iterator.next());
+
+                if (session.position() >= maxHintsFileSize)
+                    return false;
             }
+
+            return true;
         }
         catch (IOException e)
         {
