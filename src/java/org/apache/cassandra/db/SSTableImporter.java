@@ -86,7 +86,7 @@ public class SSTableImporter
             {
                 Directories.SSTableLister lister = listerPair.left;
                 String dir = listerPair.right;
-                for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
+                for (Map.Entry<Descriptor, Set<Component>> entry : lister.list(true).entrySet())
                 {
                     Descriptor descriptor = entry.getKey();
                     if (!currentDescriptors.contains(entry.getKey()))
@@ -124,7 +124,7 @@ public class SSTableImporter
 
             Set<MovedSSTable> movedSSTables = new HashSet<>();
             Set<SSTableReader> newSSTablesPerDirectory = new HashSet<>();
-            for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
+            for (Map.Entry<Descriptor, Set<Component>> entry : lister.list(true).entrySet())
             {
                 try
                 {
