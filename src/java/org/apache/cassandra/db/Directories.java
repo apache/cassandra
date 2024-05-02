@@ -877,7 +877,21 @@ public class Directories
 
         public Map<Descriptor, Set<Component>> list()
         {
-            filter();
+            return list(false);
+        }
+
+        /**
+         * This method is used upon SSTable importing (nodetool import) as there is no strict requirement to
+         * place SSTables in a directory structure where name of a directory equals to table name
+         * and parent of such directory equals to keyspace name. For such cases, we want to include such SSTables too,
+         * rendering the parameter to be set to true.
+         *
+         * @param includeForeignTables whether descriptors not matching metadata of this lister should be included
+         * @return found descriptors and related set of components
+         */
+        public Map<Descriptor, Set<Component>> list(boolean includeForeignTables)
+        {
+            filter(includeForeignTables);
             return ImmutableMap.copyOf(components);
         }
 
@@ -895,7 +909,12 @@ public class Directories
 
         public List<File> listFiles()
         {
-            filter();
+            return listFiles(false);
+        }
+
+        public List<File> listFiles(boolean includeForeignTables)
+        {
+            filter(includeForeignTables);
             List<File> l = new ArrayList<>(nbFiles);
             for (Map.Entry<Descriptor, Set<Component>> entry : components.entrySet())
             {
@@ -907,7 +926,7 @@ public class Directories
             return l;
         }
 
-        private void filter()
+        private void filter(boolean includeForeignTables)
         {
             if (filtered)
                 return;
@@ -919,21 +938,21 @@ public class Directories
 
                 if (snapshotName != null)
                 {
-                    LifecycleTransaction.getFiles(getSnapshotDirectory(location, snapshotName).toPath(), getFilter(), onTxnErr);
+                    LifecycleTransaction.getFiles(getSnapshotDirectory(location, snapshotName).toPath(), getFilter(includeForeignTables), onTxnErr);
                     continue;
                 }
 
                 if (!onlyBackups)
-                    LifecycleTransaction.getFiles(location.toPath(), getFilter(), onTxnErr);
+                    LifecycleTransaction.getFiles(location.toPath(), getFilter(includeForeignTables), onTxnErr);
 
                 if (includeBackups)
-                    LifecycleTransaction.getFiles(getBackupsDirectory(location).toPath(), getFilter(), onTxnErr);
+                    LifecycleTransaction.getFiles(getBackupsDirectory(location).toPath(), getFilter(includeForeignTables), onTxnErr);
             }
 
             filtered = true;
         }
 
-        private BiPredicate<File, FileType> getFilter()
+        private BiPredicate<File, FileType> getFilter(boolean includeForeignTables)
         {
             // This function always return false since it adds to the components map
             return (file, type) ->
@@ -951,15 +970,31 @@ public class Directories
                         if (pair == null)
                             return false;
 
+                        Descriptor descriptor = null;
+
                         // we are only interested in the SSTable files that belong to the specific ColumnFamily
                         if (!pair.left.ksname.equals(metadata.keyspace) || !pair.left.cfname.equals(metadata.name))
-                            return false;
+                        {
+                            if (!includeForeignTables)
+                                return false;
 
-                        Set<Component> previous = components.get(pair.left);
+                            descriptor = new Descriptor(pair.left.version,
+                                                        pair.left.directory,
+                                                        metadata.keyspace,
+                                                        metadata.name,
+                                                        pair.left.generation,
+                                                        pair.left.formatType);
+                        }
+                        else
+                        {
+                            descriptor = pair.left;
+                        }
+
+                        Set<Component> previous = components.get(descriptor);
                         if (previous == null)
                         {
                             previous = new HashSet<>();
-                            components.put(pair.left, previous);
+                            components.put(descriptor, previous);
                         }
                         previous.add(pair.right);
                         nbFiles++;
