@@ -35,7 +35,6 @@ import org.apache.cassandra.metrics.StorageProxyMetricsManager;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.range.RangeCommandIterator;
 import org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization;
@@ -57,12 +56,14 @@ import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetri
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.writeMetrics;
 import static org.apache.cassandra.net.ParamType.RESPOND_TO;
 import static org.apache.cassandra.net.Verb.MUTATION_REQ;
+import static org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization.buildOverloadeExceptionDuetoRateLimiter;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anySet;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -111,17 +112,16 @@ public class RateLimiterTest extends CQLTester
     {
         mockCassResrcUtil = spy(originalCassandraRescourceUtilization);
         CassandraResourceUtilization.instance = mockCassResrcUtil;
-        when(mockCassResrcUtil.throttleUserTraffic(eq(KEYSPACE), anySet(), any())).thenReturn(true);
-        // flaky test in 4.1: there are RangeReadReplica go to system.batches and should be ignored for this test
-        when(mockCassResrcUtil.throttleUserTraffic(eq(SchemaConstants.SYSTEM_KEYSPACE_NAME),
-                                                   eq(Collections.singleton(SystemKeyspace.BATCHES)),
-                                                   any())).thenReturn(false);
+        doThrow(buildOverloadeExceptionDuetoRateLimiter()).when(mockCassResrcUtil)
+                                                          .throttle(eq(KEYSPACE), anySet(), any());
+        doReturn(true).when(mockCassResrcUtil)
+                      .throttleUserTraffic(eq(KEYSPACE), anySet(), any());
     }
 
     @After
     public void resetUserThrottle()
     {
-        verify(mockCassResrcUtil).throttleUserTraffic(eq(KEYSPACE), anySet(), any());
+        verify(mockCassResrcUtil).throttle(eq(KEYSPACE), anySet(), any());
         CassandraResourceUtilization.instance = originalCassandraRescourceUtilization;
     }
 
@@ -343,7 +343,14 @@ public class RateLimiterTest extends CQLTester
         // The following function invocation is to avoid the following error during this unit test case because we mock
         // "CassandraResourceUtilization.instance" for all test cases
         // "Actually, there were zero interactions with this mock."
-        CassandraResourceUtilization.instance.throttleUserTraffic(KEYSPACE, SINGLETON_TABLE, TrafficType.CoordWrite);
+        try
+        {
+            CassandraResourceUtilization.instance.throttle(KEYSPACE, SINGLETON_TABLE, TrafficType.CoordWrite);
+        }
+        catch (OverloadedException e)
+        {
+            // expected
+        }
 
         Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint = new HashMap<>();
         failureReasonByEndpoint.put(InetAddressAndPort.getLocalHost(), RequestFailureReason.TRAFFIC_THROTTLED);
@@ -356,7 +363,14 @@ public class RateLimiterTest extends CQLTester
         // The following function invocation is to avoid the following error during this unit test case because we mock
         // "CassandraResourceUtilization.instance" for all test cases
         // "Actually, there were zero interactions with this mock."
-        CassandraResourceUtilization.instance.throttleUserTraffic(KEYSPACE, SINGLETON_TABLE, TrafficType.CoordWrite);
+        try
+        {
+            CassandraResourceUtilization.instance.throttle(KEYSPACE, SINGLETON_TABLE, TrafficType.CoordWrite);
+        }
+        catch (OverloadedException e)
+        {
+            // expected
+        }
 
         Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint = new HashMap<>();
         failureReasonByEndpoint.put(InetAddressAndPort.getLocalHost(), RequestFailureReason.TIMEOUT);
