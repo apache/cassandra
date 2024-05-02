@@ -37,7 +37,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class DeregisterTest extends TestBaseImpl
+public class UnregisterTest extends TestBaseImpl
 {
     @Test
     public void testUnregister() throws Throwable
@@ -57,14 +57,14 @@ public class DeregisterTest extends TestBaseImpl
             verifyVirtualTable(cluster, nodeToNodeId, 5, 5, 4);
             cluster.get(3).nodetoolResult("decommission", "--force").asserts().success();
             verifyVirtualTable(cluster, nodeToNodeId, 5, 5, 4, 3);
-            // deregister a single node
-            cluster.get(1).nodetoolResult("cms", "deregister", nodeToNodeId.get(5)).asserts().success();
+            // unregister a single node
+            cluster.get(1).nodetoolResult("cms", "unregister", nodeToNodeId.get(5)).asserts().success();
             verifyVirtualTable(cluster, nodeToNodeId, 4, 4, 3);
-            // deregister multiple nodes
-            cluster.get(1).nodetoolResult("cms", "deregister", nodeToNodeId.get(4), nodeToNodeId.get(3)).asserts().success();
+            // unregister multiple nodes
+            cluster.get(1).nodetoolResult("cms", "unregister", nodeToNodeId.get(4), nodeToNodeId.get(3)).asserts().success();
             verifyVirtualTable(cluster, nodeToNodeId, 2);
-            // try to deregister a joined node, should fail
-            cluster.get(1).nodetoolResult("cms", "deregister", nodeToNodeId.get(2)).asserts().failure();
+            // try to unregister a joined node, should fail
+            cluster.get(1).nodetoolResult("cms", "unregister", nodeToNodeId.get(2)).asserts().failure();
             verifyVirtualTable(cluster, nodeToNodeId,2);
 
             cluster.get(1).runOnInstance(() -> {

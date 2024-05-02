@@ -44,5 +44,5 @@ public interface CMSOperationsMBean
 
     public boolean cancelInProgressSequences(String sequenceOwner, String expectedSequenceKind);
 
-    public void deregisterLeftNodes(List<String> nodeIds);
+    public void unregisterLeftNodes(List<String> nodeIds);
 }

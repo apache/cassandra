@@ -171,16 +171,16 @@ public abstract class CMSAdmin extends NodeTool.NodeToolCmd
         }
     }
 
-    @Command(name = "deregister", description = "Deregister nodes in LEFT state")
-    public static class Deregister extends NodeTool.NodeToolCmd
+    @Command(name = "unregister", description = "Unregister nodes in LEFT state")
+    public static class Unregister extends NodeTool.NodeToolCmd
     {
-        @Arguments(required = true, title = "Deregister nodes in LEFT state", description = "One or more nodeIds to deregister, they all need to be in LEFT state", usage = "<nodeId>+")
+        @Arguments(required = true, title = "Unregister nodes in LEFT state", description = "One or more nodeIds to unregister, they all need to be in LEFT state", usage = "<nodeId>+")
         public List<String> nodeIds;
 
         @Override
         protected void execute(NodeProbe probe)
         {
-            probe.getCMSOperationsProxy().deregisterLeftNodes(nodeIds);
+            probe.getCMSOperationsProxy().unregisterLeftNodes(nodeIds);
         }
     }
 }

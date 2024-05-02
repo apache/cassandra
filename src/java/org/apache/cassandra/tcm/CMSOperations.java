@@ -202,7 +202,7 @@ public class CMSOperations implements CMSOperationsMBean
     }
 
     @Override
-    public void deregisterLeftNodes(List<String> nodeIdStrings)
+    public void unregisterLeftNodes(List<String> nodeIdStrings)
     {
         List<NodeId> nodeIds = nodeIdStrings.stream().map(NodeId::fromString).collect(Collectors.toList());
         ClusterMetadata metadata = ClusterMetadata.current();
@@ -221,7 +221,7 @@ public class CMSOperations implements CMSOperationsMBean
                     case REGISTERED:
                     case BOOTSTRAPPING:
                     case BOOT_REPLACING:
-                        message.append(" - need to use `nodetool abortbootstrap` instead of deregistering").append('\n');
+                        message.append(" - need to use `nodetool abortbootstrap` instead of unregistering").append('\n');
                         break;
                     case JOINED:
                         message.append(" - use `nodetool decommission` or `nodetool removenode` to remove this node").append('\n');
@@ -234,12 +234,12 @@ public class CMSOperations implements CMSOperationsMBean
                         break;
                 }
             }
-            throw new IllegalStateException("Can't deregister node(s):\n" + message);
+            throw new IllegalStateException("Can't unregister node(s):\n" + message);
         }
 
         for (NodeId nodeId : nodeIds)
         {
-            logger.info("Deregistering " + nodeId);
+            logger.info("Unregistering " + nodeId);
             cms.commit(new Unregister(nodeId, EnumSet.of(NodeState.LEFT)));
         }
     }
