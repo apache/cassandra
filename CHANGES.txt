@@ -36,6 +36,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Resolve the oldest hints just from descriptors and current writer if available (CASSANDRA-19600)
  * Optionally fail writes when SAI refuses to index a term value exceeding configured term max size (CASSANDRA-19493)
  * Vector search can restrict on clustering keys when filtering isn't required (CASSANDRA-19544)
  * Fix FBUtilities' parsing of gcp cos_containerd kernel versions (CASSANDRA-18594)

@@ -2392,10 +2392,10 @@ public class StorageProxy implements StorageProxyMBean
         // if persisting hints window, hintWindowExpired might be updated according to the timestamp of the earliest hint
         if (tryEnablePersistentWindow && !hintWindowExpired && DatabaseDescriptor.hintWindowPersistentEnabled())
         {
-            long earliestHint = HintsService.instance.getEarliestHintForHost(hostIdForEndpoint);
-            hintWindowExpired = Clock.Global.currentTimeMillis() - maxHintWindow > earliestHint;
+            long oldestHint = HintsService.instance.findOldestHintTimestamp(hostIdForEndpoint);
+            hintWindowExpired = Clock.Global.currentTimeMillis() - maxHintWindow > oldestHint;
             if (hintWindowExpired)
-                Tracing.trace("Not hinting {} for which there is the earliest hint stored at {}", replica, earliestHint);
+                Tracing.trace("Not hinting {} for which there is the oldest hint stored at {}", replica, oldestHint);
         }
 
         if (hintWindowExpired)
