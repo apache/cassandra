@@ -31,6 +31,7 @@ import java.util.Set;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -69,6 +70,11 @@ import static org.junit.Assert.assertTrue;
 
 public class ImportTest extends CQLTester
 {
+    @After
+    public void afterTest()
+    {
+        SSTableReader.resetTidying();
+    }
 
     @Test
     public void basicImportByMovingTest() throws Throwable
@@ -237,13 +243,10 @@ public class ImportTest extends CQLTester
             assertFalse(sstable.isRepaired());
     }
 
-    private File moveToBackupDir(Set<SSTableReader> sstables) throws IOException
+    private File moveToBackupDir(Set<SSTableReader> sstables, String keyspace, String table) throws IOException
     {
         Path temp = Files.createTempDirectory("importtest");
-        SSTableReader sst = sstables.iterator().next();
-        String tabledir = sst.descriptor.directory.name();
-        String ksdir = sst.descriptor.directory.parent().name();
-        Path backupdir = createDirectories(temp.toString(), ksdir, tabledir);
+        Path backupdir = createDirectories(temp.toString(), keyspace, table);
         for (SSTableReader sstable : sstables)
         {
             sstable.selfRef().release();
@@ -260,6 +263,14 @@ public class ImportTest extends CQLTester
         }
         PathUtils.deleteRecursiveOnExit(temp);
         return new File(backupdir);
+    }
+
+    private File moveToBackupDir(Set<SSTableReader> sstables) throws IOException
+    {
+        SSTableReader sst = sstables.iterator().next();
+        String tabledir = sst.descriptor.directory.name();
+        String ksdir = sst.descriptor.directory.parent().name();
+        return moveToBackupDir(sstables, ksdir, tabledir);
     }
 
     private Path createDirectories(String base, String ... subdirs)
@@ -425,9 +436,9 @@ public class ImportTest extends CQLTester
 
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
 
-        tmd.updateNormalTokens(BootStrapper.getRandomTokens(tmd, 5), InetAddressAndPort.getByName("127.0.0.1"));
-        tmd.updateNormalTokens(BootStrapper.getRandomTokens(tmd, 5), InetAddressAndPort.getByName("127.0.0.2"));
-        tmd.updateNormalTokens(BootStrapper.getRandomTokens(tmd, 5), InetAddressAndPort.getByName("127.0.0.3"));
+        tmd.updateNormalTokens(BootStrapper.getRandomTokens(tmd, 15), InetAddressAndPort.getByName("127.0.0.1"));
+        tmd.updateNormalTokens(BootStrapper.getRandomTokens(tmd, 15), InetAddressAndPort.getByName("127.0.0.2"));
+        tmd.updateNormalTokens(BootStrapper.getRandomTokens(tmd, 15), InetAddressAndPort.getByName("127.0.0.3"));
 
 
         File backupdir = moveToBackupDir(sstables);
@@ -550,6 +561,7 @@ public class ImportTest extends CQLTester
         beforeFirstImport.forEach(s -> s.selfRef().release());
         options = SSTableImporter.Options.options(backupdir.toString()).verifySSTables(true).verifyTokens(true).invalidateCaches(true).build();
         importer.importNewSSTables(options);
+        Thread.sleep(2000);
         assertEquals(10, CacheService.instance.rowCache.size());
         it = CacheService.instance.rowCache.keyIterator();
         while (it.hasNext())
@@ -718,6 +730,49 @@ public class ImportTest extends CQLTester
             {
                 execute(String.format("DROP TABLE IF EXISTS %s.%s", KEYSPACE, table));
             }
+        }
+    }
+
+    /**
+     * This test verifies that we successfully import SSTables which are in a directory structure
+     * where table name and keyspace name (current dir name and parent dir name) do not match the keyspace and
+     * table arguments on the command line.
+     *
+     * @see <a href="https://issues.apache.org/jira/browse/CASSANDRA-19401">CASSANDRA-19401</a>
+     */
+    @Test
+    public void importFromNonMatchingKeyspaceTableDir() throws Throwable
+    {
+        String table = "nonmatchingtable";
+        try
+        {
+            schemaChange(String.format("CREATE TABLE %s.%s (id int primary key, d int)", KEYSPACE, table));
+
+            for (int i = 0; i < 10; i++)
+                execute(String.format("INSERT INTO %s.%s (id, d) values (?, ?)", KEYSPACE, table), i, i);
+
+            ColumnFamilyStore cfs = getColumnFamilyStore(KEYSPACE, table);
+            Util.flush(cfs);
+
+            Set<SSTableReader> sstables = cfs.getLiveSSTables();
+            cfs.clearUnsafe();
+
+            File backupDir = moveToBackupDir(sstables, "randomdir1", "randomdir2");
+
+            assertEquals(0, execute(String.format("SELECT * FROM %s.%s", KEYSPACE, table)).size());
+
+            SSTableImporter importer = new SSTableImporter(cfs);
+            SSTableImporter.Options options = SSTableImporter.Options.options(backupDir.toString()).copyData(true).build();
+            List<String> failedDirectories = importer.importNewSSTables(options);
+            assertTrue(failedDirectories.isEmpty());
+            assertEquals(10, execute(String.format("select * from %s.%s", KEYSPACE, table)).size());
+
+            // files are left there as they were just copied
+            Assert.assertNotEquals(0, countFiles(backupDir));
+        }
+        finally
+        {
+            execute(String.format("DROP TABLE IF EXISTS %s.%s", KEYSPACE, table));
         }
     }
 
