@@ -29,11 +29,15 @@ import com.datastax.driver.core.Session;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
+import org.apache.cassandra.distributed.test.sai.SAIUtil;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public class IntersectFilteringQueryTest extends GuardrailTester
 {
@@ -44,7 +48,7 @@ public class IntersectFilteringQueryTest extends GuardrailTester
     @BeforeClass
     public static void setupCluster() throws IOException
     {
-        cluster = init(Cluster.build(2).withConfig(c -> c.with(Feature.GOSSIP, Feature.NATIVE_PROTOCOL)
+        cluster = init(Cluster.build(2).withConfig(c -> c.with(GOSSIP, NATIVE_PROTOCOL, NETWORK)
                                                          .set("read_thresholds_enabled", "true")
                                                          .set("authenticator", "PasswordAuthenticator")).start());
 
@@ -112,6 +116,8 @@ public class IntersectFilteringQueryTest extends GuardrailTester
         schemaChange("CREATE TABLE %s (k bigint, c bigint, v1 bigint, v2 bigint, PRIMARY KEY (k, c))");
         schemaChange("CREATE INDEX ON %s(v1) USING 'sai'");
         schemaChange("CREATE INDEX ON %s(v2) USING 'sai'");
+        SAIUtil.waitForIndexQueryable(getCluster(), KEYSPACE);
+
         List<String> globalWarnings = executeViaDriver(format("SELECT * FROM %s WHERE v1 = 0 AND v2 = 0"));
         assertThat(globalWarnings).isEmpty();
         List<String> partitionWarnings = executeViaDriver(format("SELECT * FROM %s WHERE k = 0 AND v1 = 0 AND v2 = 0"));
