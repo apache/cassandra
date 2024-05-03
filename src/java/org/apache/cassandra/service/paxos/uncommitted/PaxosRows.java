@@ -89,14 +89,14 @@ public class PaxosRows
         return getBallot(row, WRITE_PROMISE, Ballot.none());
     }
 
-    public static Accepted getAccepted(Row row, long repairedAt, long overrideTtlSeconds)
+    public static Accepted getAccepted(Row row, long purgeBefore, long overrideTtlSeconds)
     {
         Cell ballotCell = row.getCell(PROPOSAL);
         if (ballotCell == null)
             return null;
 
         Ballot ballot = ballotCell.accessor().toBallot(ballotCell.value());
-        if (ballot.uuidTimestamp() < repairedAt)
+        if (ballot.uuidTimestamp() < purgeBefore)
             return null;
 
         int version = getInt(row, PROPOSAL_VERSION, MessagingService.VERSION_40);
@@ -106,14 +106,14 @@ public class PaxosRows
         else return new Accepted(ballot, update);
     }
 
-    public static Committed getCommitted(TableMetadata metadata, DecoratedKey partitionKey, Row row, long repairedAt, long overrideTtlSeconds)
+    public static Committed getCommitted(TableMetadata metadata, DecoratedKey partitionKey, Row row, long purgeBefore, long overrideTtlSeconds)
     {
         Cell ballotCell = row.getCell(COMMIT);
         if (ballotCell == null)
             return Committed.none(partitionKey, metadata);
 
         Ballot ballot = ballotCell.accessor().toBallot(ballotCell.value());
-        if (ballot.uuidTimestamp() < repairedAt)
+        if (ballot.uuidTimestamp() < purgeBefore)
             return Committed.none(partitionKey, metadata);
 
         int version = getInt(row, COMMIT_VERSION, MessagingService.VERSION_40);
