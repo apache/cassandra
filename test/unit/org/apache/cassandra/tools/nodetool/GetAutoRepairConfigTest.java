@@ -82,6 +82,7 @@ public class GetAutoRepairConfigTest
         public static void setup() throws UnknownHostException
         {
             TEST_ENDPOINT = InetAddressAndPort.getByAddress(new byte[]{ 127, 0, 0, 1}).withPort(7000);
+            requireNetwork();
             DatabaseDescriptor.setMaterializedViewsEnabled(false);
             DatabaseDescriptor.setCDCEnabled(false);
         }
@@ -136,8 +137,7 @@ public class GetAutoRepairConfigTest
         public void testAutoRepairConfigDisabled()
         {
             cmd.v2 = true;
-            AutoRepairConfig config = new AutoRepairConfig();
-            config.setAutoRepairSchedulingEnabled(false);
+            AutoRepairConfig config = new AutoRepairConfig(false);
             when(probe.getAutoRepairConfig()).thenReturn(config);
 
             cmd.execute(probe);
@@ -150,9 +150,7 @@ public class GetAutoRepairConfigTest
         public void testAllRepairTypesDisabled()
         {
             cmd.v2 = true;
-            AutoRepairConfig config = new AutoRepairConfig();
-            config.setAutoRepairSchedulingEnabled(true);
-            config.setRepairCheckIntervalInSec(3600);
+            AutoRepairConfig config = new AutoRepairConfig(true);
             config.setAutoRepairHistoryClearDeleteHostsBufferInSec(700);
             for (RepairType repairType : RepairType.values())
             {
@@ -173,9 +171,7 @@ public class GetAutoRepairConfigTest
         public void testAllRepairTypesEnabled()
         {
             cmd.v2 = true;
-            AutoRepairConfig config = new AutoRepairConfig();
-            config.setAutoRepairSchedulingEnabled(true);
-            config.setRepairCheckIntervalInSec(3600);
+            AutoRepairConfig config = new AutoRepairConfig(true);
             config.setAutoRepairHistoryClearDeleteHostsBufferInSec(700);
             for (RepairType repairType : RepairType.values())
             {
@@ -200,6 +196,7 @@ public class GetAutoRepairConfigTest
         public static void setup() throws UnknownHostException
         {
             TEST_ENDPOINT = InetAddressAndPort.getByAddress(new byte[]{ 127, 0, 0, 1}).withPort(7000);
+            requireNetwork();
             DatabaseDescriptor.setMaterializedViewsEnabled(false);
             DatabaseDescriptor.setCDCEnabled(false);
         }
@@ -234,9 +231,7 @@ public class GetAutoRepairConfigTest
         public void testOneRepairTypeEnabled()
         {
             cmd.v2 = true;
-            AutoRepairConfig config = new AutoRepairConfig();
-            config.setAutoRepairSchedulingEnabled(true);
-            config.setRepairCheckIntervalInSec(3600);
+            AutoRepairConfig config = new AutoRepairConfig(true);
             config.setAutoRepairHistoryClearDeleteHostsBufferInSec(700);
             config.setMVRepairEnabled(repairType, true);
             for (RepairType type : RepairType.values())

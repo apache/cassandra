@@ -58,6 +58,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 import static org.apache.cassandra.repair.AutoRepairUtilsV2.RepairTurn.NOT_MY_TURN;
 import static org.junit.Assert.assertEquals;
@@ -92,15 +93,9 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
     }
 
     @BeforeClass
-    public static void setupClass()
+    public static void setupClass() throws Exception
     {
-        DatabaseDescriptor.setMaterializedViewsEnabled(false);
-        DatabaseDescriptor.setCDCEnabled(false);
-        defaultConfig = new AutoRepairConfig();
-        defaultConfig.setAutoRepairSchedulingEnabled(true);
-        DatabaseDescriptor.getAutoRepairConfig().setAutoRepairSchedulingEnabled(true);
-        for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
-            defaultConfig.setAutoRepairEnabled(repairType, true);
+        setAutoRepairEnabled(true);
         requireNetwork();
         AutoRepairUtilsV2.setup();
 
@@ -119,6 +114,12 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         DatabaseDescriptor.setMaterializedViewsEnabled(true);
         QueryProcessor.executeInternal(String.format("CREATE MATERIALIZED VIEW %s.%s AS SELECT i, k from %s.%s " +
                                                      "WHERE k IS NOT null AND i IS NOT null PRIMARY KEY (i, k)", KEYSPACE, MV, KEYSPACE, TABLE));
+
+        defaultConfig = new AutoRepairConfig(true);
+        DatabaseDescriptor.setMaterializedViewsEnabled(false);
+        DatabaseDescriptor.setCDCEnabled(false);
+        for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
+            defaultConfig.setAutoRepairEnabled(repairType, true);
     }
 
     @Before
@@ -155,10 +156,8 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
 
     private void resetConfig() {
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
-        config.enabled = defaultConfig.enabled;
         config.repair_type_overrides = defaultConfig.repair_type_overrides;
         config.global_settings = defaultConfig.global_settings;
-        config.repair_check_interval_in_sec = defaultConfig.repair_check_interval_in_sec;
         config.history_clear_delete_hosts_buffer_in_sec = defaultConfig.history_clear_delete_hosts_buffer_in_sec;
     }
 
@@ -278,7 +277,7 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         long prevCount = state.getTotalMVTablesConsideredForRepair();
         config.setRepairMinIntervalInHours(repairType, -1);
-        config.setAutoRepairSchedulingEnabled(false);
+        config.setAutoRepairEnabled(repairType, false);
         long lastRepairTime1 = AutoRepairV2.instance.repairStates.get(repairType).getLastRepairTime();
         AutoRepairV2.instance.repair(repairType, 0);
         long lastRepairTime2 = AutoRepairV2.instance.repairStates.get(repairType).getLastRepairTime();
@@ -286,7 +285,7 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         Assert.assertEquals(String.format("Expected lastRepairTime1 %d, and lastRepairTime2 %d to be same",
                                           lastRepairTime1, lastRepairTime2), lastRepairTime1, lastRepairTime2);
 
-        config.setAutoRepairSchedulingEnabled(true);
+        config.setAutoRepairEnabled(repairType, true);
         AutoRepairV2.instance.repair(repairType, 0);
         //since repair is done now, so lastRepairTime1/lastRepairTime2 and lastRepairTime3 should not be same
         long lastRepairTime3 = AutoRepairV2.instance.repairStates.get(repairType).getLastRepairTime();

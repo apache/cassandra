@@ -58,8 +58,7 @@ public class SetAutoRepairConfigTest
 
     public static void before(NodeProbe probeMock, PrintStream outMock)
     {
-        config = new AutoRepairConfig();
-        config.setAutoRepairSchedulingEnabled(true);
+        config = new AutoRepairConfig(true);
         when(probeMock.getAutoRepairConfig()).thenReturn(config);
         cmd = new SetAutoRepairConfig();
         cmd.out = outMock;
@@ -92,31 +91,12 @@ public class SetAutoRepairConfigTest
             verify(probe, times(1)).setAutoRepairHistoryClearDeleteHostsBufferInSecV2(1);
 
             // test scenario when auto repair is disabled
-            config.setAutoRepairSchedulingEnabled(false);
+            when(probe.getAutoRepairConfig()).thenReturn(new AutoRepairConfig(false));
 
             cmd.execute(probe);
 
             // test new calls are not made when auto repair is disabled
             verify(probe, times(1)).setAutoRepairHistoryClearDeleteHostsBufferInSecV2(1);
-        }
-
-        @Test
-        public void testRepairCheckIntervalInSec()
-        {
-            cmd.v2 = true;
-            cmd.args = ImmutableList.of("repaircheckintervalinsec", "2");
-
-            cmd.execute(probe);
-
-            verify(probe, times(1)).setAutoRepairCheckInterval(2);
-
-            // test scenario when auto repair is disabled
-            config.setAutoRepairSchedulingEnabled(false);
-
-            cmd.execute(probe);
-
-            // test new calls are not made when auto repair is disabled
-            verify(probe, times(1)).setAutoRepairCheckInterval(2);
         }
 
         @Test
@@ -172,7 +152,7 @@ public class SetAutoRepairConfigTest
         @Test
         public void testRepairSchedulingDisabled()
         {
-            config.setAutoRepairSchedulingEnabled(false);
+            when(probe.getAutoRepairConfig()).thenReturn(new AutoRepairConfig(false));
             cmd.repairType = repairType;
             cmd.v2 = true;
             cmd.args = ImmutableList.of("threads", "1");
@@ -200,7 +180,6 @@ public class SetAutoRepairConfigTest
         @Test
         public void testV2FlagMissing()
         {
-            config.setAutoRepairSchedulingEnabled(true);
             cmd.v2 = false;
             cmd.repairType = repairType;
             cmd.args = ImmutableList.of("threads", "1");
@@ -234,7 +213,6 @@ public class SetAutoRepairConfigTest
         public void testPriorityHosts()
         {
             when(probe.filterHostsInLocalGroup(repairType, ImmutableSet.of(localEndpoint, otherEndpoint))).thenReturn(ImmutableSet.of(otherEndpoint));
-            config.setAutoRepairSchedulingEnabled(true);
             cmd.v2 = true;
             cmd.repairType = repairType;
             cmd.args = ImmutableList.of("priorityhost", String.join(",", localEndpoint.toString().substring(1), otherEndpoint.toString().substring(1)));
@@ -249,7 +227,6 @@ public class SetAutoRepairConfigTest
         public void testForceRepairHosts()
         {
             when(probe.filterHostsInLocalGroup(repairType, ImmutableSet.of(localEndpoint, otherEndpoint))).thenReturn(ImmutableSet.of(otherEndpoint));
-            config.setAutoRepairSchedulingEnabled(true);
             cmd.v2 = true;
             cmd.repairType = repairType;
             cmd.args = ImmutableList.of("forcerepairhosts", String.join(",", localEndpoint.toString().substring(1), otherEndpoint.toString().substring(1)));
@@ -333,7 +310,7 @@ public class SetAutoRepairConfigTest
             verifyFunc.accept(repairType);
 
             // test scenario when auto repair is disabled
-            config.setAutoRepairSchedulingEnabled(false);
+            when(probe.getAutoRepairConfig()).thenReturn(new AutoRepairConfig(false));
 
             cmd.execute(probe);
 

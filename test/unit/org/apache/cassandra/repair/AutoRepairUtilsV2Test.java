@@ -52,6 +52,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.apache.cassandra.repair.AutoRepairUtilsV2.COL_DELETE_HOSTS;
 import static org.apache.cassandra.repair.AutoRepairUtilsV2.COL_FORCE_REPAIR;
 import static org.apache.cassandra.repair.AutoRepairUtilsV2.COL_REPAIR_FINISH_TS;
@@ -80,9 +81,9 @@ public class AutoRepairUtilsV2Test extends CQLTester
 
 
     @BeforeClass
-    public static void setupClass()
+    public static void setupClass() throws Exception
     {
-        DatabaseDescriptor.getAutoRepairConfig().setAutoRepairSchedulingEnabled(true);
+        setAutoRepairEnabled(true);
         requireNetwork();
         defaultSnitch = DatabaseDescriptor.getEndpointSnitch();
         localEndpoint = FBUtilities.getBroadcastAddressAndPort();
@@ -511,7 +512,7 @@ public class AutoRepairUtilsV2Test extends CQLTester
     public void testGetLastRepairFinishTime()
     {
         AutoRepairHistory history = new AutoRepairHistory(UUID.randomUUID(), "", 0, 0, null, 0, false);
-        
+
         assertEquals(0, history.getLastRepairFinishTime());
 
         history.lastRepairFinishTime = 100;

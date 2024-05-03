@@ -48,6 +48,7 @@ import org.apache.cassandra.repair.AutoRepairKeyspace;
 import org.apache.cassandra.repair.AutoRepairUtilsV2;
 import org.apache.cassandra.schema.SchemaConstants;
 
+import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.junit.Assert.assertEquals;
 
 @RunWith(Suite.class)
@@ -85,14 +86,6 @@ public class AutoRepairServiceTest
         }
 
         @Test
-        public void testSetRepairCheckInterval()
-        {
-            autoRepairService.setRepairCheckInterval(100);
-
-            assertEquals(100, config.getRepairCheckIntervalInSec());
-        }
-
-        @Test
         public void testsetAutoRepairHistoryClearDeleteHostsBufferInSecV2()
         {
             autoRepairService.setAutoRepairHistoryClearDeleteHostsBufferInSecV2(100);
@@ -104,7 +97,7 @@ public class AutoRepairServiceTest
     @RunWith(Parameterized.class)
     public static class SetterTests<T> extends CQLTester
     {
-        private static final AutoRepairConfig config = new AutoRepairConfig();
+        private static final AutoRepairConfig config = new AutoRepairConfig(true);
 
         @Parameterized.Parameter
         public RepairType repairType;
@@ -121,8 +114,6 @@ public class AutoRepairServiceTest
         @Parameterized.Parameters(name = "{index}: repairType={0}, arg={1}")
         public static Collection<Object[]> testCases()
         {
-            config.setAutoRepairSchedulingEnabled(true);
-
             return Stream.of(
             forEachRepairType(true, AutoRepairService.instance::setAutoRepairEnabled, config::isAutoRepairEnabled),
             forEachRepairType(100, AutoRepairService.instance::setRepairThreads, config::getRepairThreads),
@@ -168,12 +159,12 @@ public class AutoRepairServiceTest
         }
 
         @BeforeClass
-        public static void setup()
+        public static void setup() throws Exception
         {
-            DatabaseDescriptor.getAutoRepairConfig().setAutoRepairSchedulingEnabled(true);
-            DatabaseDescriptor.setCDCEnabled(false);
-            DatabaseDescriptor.setMaterializedViewsEnabled(false);
+            setAutoRepairEnabled(true);
             requireNetwork();
+            DatabaseDescriptor.setMaterializedViewsEnabled(false);
+            DatabaseDescriptor.setCDCEnabled(false);
             AutoRepairUtilsV2.setup();
             AutoRepairService.instance.config = config;
         }

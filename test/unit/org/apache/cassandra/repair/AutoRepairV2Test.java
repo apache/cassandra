@@ -36,6 +36,7 @@ import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.repair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.schema.SchemaTestUtil;
 
+import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.junit.Assert.assertEquals;
 
 public class AutoRepairV2Test extends CQLTester
@@ -43,7 +44,7 @@ public class AutoRepairV2Test extends CQLTester
     @BeforeClass
     public static void setupClass() throws Exception
     {
-        DatabaseDescriptor.getAutoRepairConfig().enabled = true;
+        setAutoRepairEnabled(true);
         requireNetwork();
     }
 

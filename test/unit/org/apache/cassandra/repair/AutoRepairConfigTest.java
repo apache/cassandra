@@ -56,7 +56,7 @@ public class AutoRepairConfigTest extends CQLTester
     @Before
     public void setUp()
     {
-        config = new AutoRepairConfig();
+        config = new AutoRepairConfig(true);
     }
 
     @Test
@@ -79,7 +79,6 @@ public class AutoRepairConfigTest extends CQLTester
     @Test
     public void testIsAutoRepairEnabledReturnsTrueWhenRepairIsEnabled()
     {
-        config.enabled = true;
         config.global_settings.enabled = true;
 
         assertTrue(config.isAutoRepairEnabled(repairType));
@@ -88,7 +87,7 @@ public class AutoRepairConfigTest extends CQLTester
     @Test
     public void testIsAutoRepairEnabledReturnsTrueWhenRepairIsDisabledGlobally()
     {
-        config.enabled = false;
+        config = new AutoRepairConfig(false);
         config.global_settings.enabled = true;
 
         assertFalse(config.isAutoRepairEnabled(repairType));
@@ -98,7 +97,6 @@ public class AutoRepairConfigTest extends CQLTester
     @Test
     public void testIsAutoRepairEnabledReturnsTrueWhenRepairIsDisabledForRepairType()
     {
-        config.enabled = true;
         config.global_settings.enabled = true;
         config.repair_type_overrides.put(repairType, new Options());
         config.repair_type_overrides.get(repairType).enabled = false;
@@ -463,6 +461,8 @@ public class AutoRepairConfigTest extends CQLTester
     @Test
     public void testIsAutoRepairSchedulingEnabledDefault()
     {
+        config = new AutoRepairConfig();
+
         boolean result = config.isAutoRepairSchedulingEnabled();
 
         assertFalse(result);
@@ -471,39 +471,9 @@ public class AutoRepairConfigTest extends CQLTester
     @Test
     public void testIsAutoRepairSchedulingEnabledTrue()
     {
-        config.enabled = true;
-
         boolean result = config.isAutoRepairSchedulingEnabled();
 
         assertTrue(result);
-    }
-
-    @Test
-    public void testSetAutoRepairSchedulingEnabled()
-    {
-        config.enabled = true;
-
-        config.setAutoRepairSchedulingEnabled(false);
-
-        assertFalse(config.enabled);
-    }
-
-    @Test
-    public void testSetRepairCheckIntervalInSec()
-    {
-        config.setRepairCheckIntervalInSec(5);
-
-        assert config.repair_check_interval_in_sec == 5;
-    }
-
-    @Test
-    public void testGetRepairCheckIntervalInSec()
-    {
-        config.repair_check_interval_in_sec = 5;
-
-        int result = config.getRepairCheckIntervalInSec();
-
-        assertEquals(5, result);
     }
 
     @Test

@@ -132,11 +132,6 @@ public interface AutoRepairServiceMBean
 
 
     /**
-     * Sets the frequency in seconds at which the auto-repair scheduler should check for pending repairs
-     */
-    public void setRepairCheckInterval(int seconds);
-
-    /**
      * Set repair subranges
      */
     public void setAutoRepairHistoryClearDeleteHostsBufferInSec(int seconds);

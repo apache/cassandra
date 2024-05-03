@@ -46,7 +46,7 @@ public class SetAutoRepairConfig extends NodeToolCmd
     @Arguments(title = "<autorepairparam> <value>", usage = "<autorepairparam> <value>",
     description = "autorepair param and value.\nPossible autorepair parameters are as following: " +
                   "[threads|subranges|minrepairfreqinhours|minrepairintervalinhours|sstablehigherthreshold|ignorekeyspacesregex" +
-                  "|enabled|repaironlykeyspacesregex|tablemaxrepairtimeinsec|priorityhost|forcerepairhosts|ignoredcs|repaircheckintervalinsec" +
+                  "|enabled|repaironlykeyspacesregex|tablemaxrepairtimeinsec|priorityhost|forcerepairhosts|ignoredcs" +
                   "|historydeletehostsclearbufferinsec|primarytokenrangeonly|parallelrepaircount|parallelrepairpercentage|mvrepairenabled]",
     required = true)
     protected List<String> args = new ArrayList<>();
@@ -83,14 +83,10 @@ public class SetAutoRepairConfig extends NodeToolCmd
             return;
         }
 
-        switch (paramType)
+        if (paramType.equals("historydeletehostsclearbufferinsec"))
         {
-            case "historydeletehostsclearbufferinsec":
-                probe.setAutoRepairHistoryClearDeleteHostsBufferInSecV2(Integer.parseInt(paramVal));
-                return;
-            case "repaircheckintervalinsec":
-                probe.setAutoRepairCheckInterval(Integer.parseInt(paramVal));
-                return;
+            probe.setAutoRepairHistoryClearDeleteHostsBufferInSecV2(Integer.parseInt(paramVal));
+            return;
         }
 
         // options below require --repair-type option

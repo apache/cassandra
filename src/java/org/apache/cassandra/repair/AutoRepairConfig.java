@@ -35,11 +35,10 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 
 public class AutoRepairConfig implements Serializable
 {
-    // TODO: enabled and repair_check_interval_in_sec should be final, they are not dynamic settings
     // enable/disable auto repair globally, overrides all other settings. Cannot be modified dynamically.
-    public volatile Boolean enabled = false;
+    public final Boolean enabled;
     // the interval in seconds between checks for eligible repair operations. Cannot be modified dynamically.
-    public volatile Integer repair_check_interval_in_sec = 300; // 5 minutes
+    public final Integer repair_check_interval_in_sec = 300; // 5 minutes
     // configures how long repair history is kept for a replaced node
     public volatile Integer history_clear_delete_hosts_buffer_in_sec = 60 * 60 * 2;  // two hours
     // global_settings overides Options.defaultOptions for all repair types
@@ -53,16 +52,17 @@ public class AutoRepairConfig implements Serializable
 
     public AutoRepairConfig()
     {
+        this(false);
+    }
+
+    public AutoRepairConfig(boolean enabled)
+    {
+        this.enabled = enabled;
         global_settings = Options.getDefaultOptions();
         for (RepairType type : RepairType.values())
         {
             repair_type_overrides.put(type, new Options());
         }
-    }
-
-    public void setRepairCheckIntervalInSec(int interval)
-    {
-        repair_check_interval_in_sec = interval;
     }
 
     public int getRepairCheckIntervalInSec()
@@ -73,11 +73,6 @@ public class AutoRepairConfig implements Serializable
     public boolean isAutoRepairSchedulingEnabled()
     {
         return enabled;
-    }
-
-    public void setAutoRepairSchedulingEnabled(boolean enabled)
-    {
-        this.enabled = enabled;
     }
 
     public int getAutoRepairHistoryClearDeleteHostsBufferInSec()

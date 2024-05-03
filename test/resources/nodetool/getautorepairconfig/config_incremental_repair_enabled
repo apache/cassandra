@@ -1,5 +1,5 @@
 repair scheduler configuration:
-	repair eligibility check interval: 3600 seconds
+	repair eligibility check interval: 300 seconds
 	TTL for repair history for dead nodes: 700 seconds
 configuration for repair type: full
 	enabled: false

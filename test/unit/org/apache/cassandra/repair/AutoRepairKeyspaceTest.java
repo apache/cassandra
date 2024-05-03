@@ -28,7 +28,7 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-
+import static org.apache.cassandra.Util.setAutoRepairEnabled;
 
 public class AutoRepairKeyspaceTest
 {
@@ -46,9 +46,9 @@ public class AutoRepairKeyspaceTest
     public static void setupDatabaseDescriptor() { DatabaseDescriptor.daemonInitialization(); }
 
     @Test
-    public void testMetadataCanParseV1Schemas()
+    public void testMetadataCanParseV1Schemas() throws Exception
     {
-        DatabaseDescriptor.getAutoRepairConfig().enabled = false;
+        setAutoRepairEnabled(false);
         KeyspaceMetadata keyspaceMetadata = AutoRepairKeyspace.metadata();
 
         assert keyspaceMetadata.tables.size() == v1Tables.size() : "Expected " + v1Tables.size() + " tables, got " + keyspaceMetadata.tables.size();
@@ -62,9 +62,9 @@ public class AutoRepairKeyspaceTest
 
 
     @Test
-    public void testMetadataCanParseV2Schemas()
+    public void testMetadataCanParseV2Schemas() throws Exception
     {
-        DatabaseDescriptor.getAutoRepairConfig().enabled = true;
+        setAutoRepairEnabled(true);
         KeyspaceMetadata keyspaceMetadata = AutoRepairKeyspace.metadata();
 
         assert keyspaceMetadata.tables.size() == v1Tables.size() + v2Tables.size() : "Expected " + v1Tables.size() + v2Tables.size() + " tables, got " + keyspaceMetadata.tables.size();

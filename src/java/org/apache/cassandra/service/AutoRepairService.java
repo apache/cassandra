@@ -259,12 +259,6 @@ public class AutoRepairService implements AutoRepairServiceMBean
     }
 
     @Override
-    public void setRepairCheckInterval(int seconds)
-    {
-        config.setRepairCheckIntervalInSec(seconds);
-    }
-
-    @Override
     public void setAutoRepairHistoryClearDeleteHostsBufferInSec(int seconds)
     {
         this.autoRepairHistoryClearDeleteHostsBufferInSec = seconds;
