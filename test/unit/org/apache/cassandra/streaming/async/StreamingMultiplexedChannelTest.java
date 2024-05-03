@@ -150,4 +150,10 @@ public class StreamingMultiplexedChannelTest
         Assert.assertFalse(sender.connected());
         Assert.assertEquals(StreamSession.State.FAILED, session.state());
     }
+
+    @Test
+    public void doStreamingSessionsSchedulingFairness()
+    {
+        Assert.assertTrue(sender.doStreamingSessionsSchedulingFairness());
+    }
 }

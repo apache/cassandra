@@ -94,6 +94,16 @@ public class StreamingMultiplexedChannel
     private static final int DEFAULT_MAX_PARALLEL_TRANSFERS = getAvailableProcessors();
     private static final int MAX_PARALLEL_TRANSFERS = parseInt(getProperty(PROPERTY_PREFIX + "streaming.session.parallelTransfers", Integer.toString(DEFAULT_MAX_PARALLEL_TRANSFERS)));
 
+    // this configuration controls whether to use fileTransferSemaphore to allow a degree of fairness across multiple sessions or not.
+    // "fileTransferSemaphore" Semaphore acts as a global lock among multiple streaming sessions to control the outbound file transfers.
+    // One streaming session is per outbound IP address. Each streaming session has number of threads set to default as Number of available processors.
+    // The number of threads per streaming session = Number Of Processors
+    // The number of threads across all streaming sessions = Number Of Processors * Number Of Streaming Sessions
+    // But the maximum parallell outbound transfer = "fileTransferSemaphore" permits = Number Of Processors as it is a global lock among multiple streaming sessions.
+    // This semaphore creates a bottleneck during the "decommissioning" phase as a node can only go as fast as "fileTransferSemaphore" permits.
+    // By default, preserve the fairness across multiple streaming sessions but making it configurable so one can override it.
+    private static final boolean DO_STREAMING_SESSIONS_SCHEDULING_FAIRNESS = Boolean.parseBoolean(getProperty(PROPERTY_PREFIX + "streaming.session.doStreamingSessionsSchedulingFairness", Boolean.toString(true)));
+
     // a simple mechansim for allowing a degree of fairness across multiple sessions
     private static final Semaphore fileTransferSemaphore = newFairSemaphore(MAX_PARALLEL_TRANSFERS);
 
@@ -129,12 +139,19 @@ public class StreamingMultiplexedChannel
         this.controlChannel = controlChannel;
 
         String name = session.peer.toString().replace(':', '.');
+        // Increasing the timeout from 1s to 10s because 1s timeout theoretically is too low to determine if a thread is idle or not.
+        // Also, if we look at other thread pools in Cassandra, like Comaction, etc., they are setting the idle timeout to be around a minute or so.
+        // NOTE: To be clear, this 10s increase has not materially shown any improvement, it is just to be consistent with other thread pools. So in the future
+        // as part of the OSS upgrade, if we see any issues with this change then feel free to revert this custom change and align with the OSS.
         fileTransferExecutor = executorFactory()
                 .configurePooled("NettyStreaming-Outbound-" + name, MAX_PARALLEL_TRANSFERS)
-                .withKeepAlive(1L, SECONDS).build();
+                .withKeepAlive(10L, SECONDS).build();
     }
 
-
+    public boolean doStreamingSessionsSchedulingFairness()
+    {
+        return DO_STREAMING_SESSIONS_SCHEDULING_FAIRNESS;
+    }
 
     public InetAddressAndPort peer()
     {
@@ -305,8 +322,10 @@ public class StreamingMultiplexedChannel
         @Override
         public void run()
         {
-            if (!acquirePermit(SEMAPHORE_UNAVAILABLE_LOG_INTERVAL))
+            if (DO_STREAMING_SESSIONS_SCHEDULING_FAIRNESS && !acquirePermit(SEMAPHORE_UNAVAILABLE_LOG_INTERVAL))
+            {
                 return;
+            }
 
             StreamingChannel channel = null;
             try
@@ -338,7 +357,10 @@ public class StreamingMultiplexedChannel
             }
             finally
             {
-                fileTransferSemaphore.release(1);
+                if (DO_STREAMING_SESSIONS_SCHEDULING_FAIRNESS)
+                {
+                    fileTransferSemaphore.release(1);
+                }
             }
         }
 
@@ -363,8 +385,8 @@ public class StreamingMultiplexedChannel
                         OutgoingStreamMessage ofm = (OutgoingStreamMessage)msg;
 
                         if (logger.isInfoEnabled())
-                            logger.info("{} waiting to acquire a permit to begin streaming {}. This message logs every {} minutes",
-                                        createLogTag(session), ofm.getName(), logInterval);
+                            logger.info("{} waiting to acquire a permit to begin streaming {}. This message logs every {} minutes. Availablepermits: {}",
+                                        createLogTag(session), ofm.getName(), logInterval, fileTransferSemaphore.permits());
                     }
                 }
                 catch (InterruptedException e)
