@@ -26,6 +26,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableMap;
 
 import accord.topology.TopologyUtils;
+import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.schema.*;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -166,7 +167,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
             }
         }
         private static final ExecutorPlus executor = ExecutorFactory.Global.executorFactory().pooled("name", 10);
-        private static final AccordJournal journal = new AccordJournal(null);
+        private static final AccordJournal journal = new AccordJournal(null, new AccordSpec.JournalSpec());
         private static final int events = 100;
         private static final CountDownLatch eventsWritten = CountDownLatch.newCountDownLatch(events);
         private static final CountDownLatch eventsDurable = CountDownLatch.newCountDownLatch(events);

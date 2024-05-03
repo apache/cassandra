@@ -3476,6 +3476,11 @@ public class DatabaseDescriptor
         return conf.paxos_topology_repair_strict_each_quorum;
     }
 
+    public static AccordSpec getAccord()
+    {
+        return conf.accord;
+    }
+
     public static AccordSpec.TransactionalRangeMigration getTransactionalRangeMigration()
     {
         return conf.accord.range_migration;
