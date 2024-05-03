@@ -1471,7 +1471,7 @@ public class TableMetadata implements SchemaElement
                    .append("AND ");
 
         List<ColumnMetadata> clusteringColumns = clusteringColumns();
-        if (!clusteringColumns.isEmpty())
+        if (!clusteringColumns.isEmpty() && !isCompactTable())
         {
             builder.append("CLUSTERING ORDER BY (")
                    .appendWithSeparators(clusteringColumns, (b, c) -> c.appendNameAndOrderTo(b), ", ")
