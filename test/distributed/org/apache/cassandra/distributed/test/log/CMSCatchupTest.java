@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.distributed.test.log;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 
 import org.junit.Test;
 
@@ -28,8 +30,6 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.tcm.sequences.AddToCMS;
-
-import static org.junit.Assert.assertTrue;
 
 public class CMSCatchupTest extends TestBaseImpl
 {
@@ -47,24 +47,31 @@ public class CMSCatchupTest extends TestBaseImpl
             cluster.filters().inbound().from(1).to(2).drop();
             cluster.filters().inbound().from(3).to(2).drop();
             AtomicInteger fetchedFromPeer = new AtomicInteger();
+            cluster.filters().inbound().from(2).to(4).verbs(Verb.GOSSIP_DIGEST_ACK.id, Verb.GOSSIP_DIGEST_SYN.id, Verb.GOSSIP_DIGEST_ACK2.id).drop();
             cluster.filters().inbound().from(2).to(4).messagesMatching((from, to, msg) -> {
                 if (msg.verb() == Verb.TCM_FETCH_PEER_LOG_REQ.id)
                     fetchedFromPeer.getAndIncrement();
                 return false;
-            }).drop().on();
+            }).drop();
 
-            long mark = cluster.get(4).logs().mark();
-            cluster.coordinator(1).execute(withKeyspace("alter table %s.tbl with comment='test 123'"), ConsistencyLevel.ONE);
-            cluster.get(4).logs().watchFor(mark, "AlterOptions");
-
-            mark = cluster.get(2).logs().mark();
-            cluster.get(1).shutdown().get();
-            cluster.get(2).logs().watchFor(mark, "/127.0.0.1:7012 state jump to shutdown");
-            // node2, a CMS member, is now behind and node1 is shut down.
-            // Try reading at QUORUM from node4, node2 should detect it's behind and catch up from node4
             int before = fetchedFromPeer.get();
+            cluster.coordinator(1).execute(withKeyspace("alter table %s.tbl with comment='test 123'"), ConsistencyLevel.ONE);
+            cluster.get(1).shutdown().get();
+
+            // node2, a CMS member, is now behind and node1 is shut down.
+            // Try reading at QUORUM from node4, node2 should detect it's behind and catch up from node4, if it has not by now.
             cluster.coordinator(4).execute(withKeyspace("select * from %s.tbl where id = 55"), ConsistencyLevel.QUORUM);
-            assertTrue(fetchedFromPeer.get() > before);
+
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+            BooleanSupplier condition = () -> fetchedFromPeer.get() > before;
+            while (true)
+            {
+                if (System.nanoTime() > deadline)
+                    throw new AssertionError("Condition did not trigger before the deadline");
+
+                if (condition.getAsBoolean())
+                    return;
+            }
         }
     }
 

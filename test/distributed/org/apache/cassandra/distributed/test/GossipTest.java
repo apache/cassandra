@@ -262,6 +262,7 @@ public class GossipTest extends TestBaseImpl
             stopUnchecked(toRemove);
             replaceHostAndStart(cluster, toRemove);
             Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS); // wait a few gossip rounds
+            ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1), 4);
             cluster.get(2).runOnInstance(() -> assertFalse(Gossiper.instance.endpointStateMap.containsKey(InetAddressAndPort.getByNameUnchecked(node4))));
             cluster.get(3).runOnInstance(() -> assertFalse(Gossiper.instance.endpointStateMap.containsKey(InetAddressAndPort.getByNameUnchecked(node4))));
             cluster.get(3).nodetoolResult("disablegossip").asserts().success();
