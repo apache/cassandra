@@ -61,7 +61,7 @@ public class TableParamsRecreateTest extends TestBaseImpl
             cluster.get(1).startup();
             cluster.coordinator(1).execute("CREATE TABLE " + KEYSPACE + ".from_2 (id int PRIMARY KEY, value text);", ConsistencyLevel.ALL);
 
-            // Just like in 5.0, table created before the bounce, should preserve its default, and one after bonce - is own
+            // Just like in 5.0, table created before the bounce, should preserve its default, and one after bonce - its own
             cluster.stream().forEach(i -> {
                 i.runOnInstance(() -> {
                     CompactionParams from_1 = ClusterMetadata.current().schema.getKeyspace(KEYSPACE).getMetadata().tables.get("from_1").get().params.compaction;
@@ -103,7 +103,7 @@ public class TableParamsRecreateTest extends TestBaseImpl
             newInstance.coordinator().execute("CREATE TABLE " + KEYSPACE + ".from_2 (id int PRIMARY KEY, value text);", ConsistencyLevel.ALL);
             ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1));
 
-            // Just like in 5.0, both nodes should see idential table params
+            // Just like in 5.0, both nodes should see identical table params
             cluster.stream().forEach(i -> {
                 i.runOnInstance(() -> {
                     CompactionParams from_1 = ClusterMetadata.current().schema.getKeyspace(KEYSPACE).getMetadata().tables.get("from_1").get().params.compaction;
