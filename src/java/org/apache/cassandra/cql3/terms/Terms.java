@@ -199,6 +199,18 @@ public interface Terms
          */
         public abstract String getText();
 
+        @Override
+        public int hashCode()
+        {
+            return getText().hashCode();
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            return this == o || (o instanceof Terms.Raw && getText().equals(((Terms.Raw) o).getText()));
+        }
+
         /**
          * The type of the {@code Terms} if it can be inferred.
          *

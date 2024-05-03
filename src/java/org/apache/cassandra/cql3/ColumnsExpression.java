@@ -568,7 +568,7 @@ public final class ColumnsExpression
                 return false;
 
             Raw r = (Raw) o;
-            return kind == r.kind && identifiers.equals(r.identifiers) && rawMapKey.equals(r.rawMapKey);
+            return kind == r.kind && Objects.equals(identifiers, r.identifiers) && Objects.equals(rawMapKey, r.rawMapKey);
         }
 
         /**

@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3;
 
 import java.util.List;
+import java.util.Objects;
 
 import org.apache.cassandra.cql3.restrictions.SimpleRestriction;
 import org.apache.cassandra.cql3.restrictions.SingleRestriction;
@@ -194,6 +195,27 @@ public final class Relation
     public Relation renameIdentifier(ColumnIdentifier from, ColumnIdentifier to)
     {
         return new Relation(rawExpressions.renameIdentifier(from, to), operator, rawTerms);
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+            return true;
+
+        if (o == null || getClass() != o.getClass())
+            return false;
+
+        Relation relation = (Relation) o;
+        return Objects.equals(rawExpressions, relation.rawExpressions)
+            && operator == relation.operator
+            && Objects.equals(rawTerms, relation.rawTerms);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(rawExpressions, operator, rawTerms);
     }
 
     /**
