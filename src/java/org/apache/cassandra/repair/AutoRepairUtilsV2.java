@@ -498,6 +498,7 @@ public class AutoRepairUtilsV2
         return Math.max(1, value);
     }
 
+    // TODO: this method has become very convoluted over the years, we should try to refactor it (SO-29818)
     @VisibleForTesting
     public static RepairTurn myTurnToRunRepair(RepairType repairType, UUID myId)
     {
@@ -589,7 +590,7 @@ public class AutoRepairUtilsV2
                     // try to fetch again
                     autoRepairHistories = getAutoRepairHistoryForLocalGroup(repairType);
                     currentRepairStatus = getCurrentRepairStatus(repairType, autoRepairHistories);
-                    if (autoRepairHistories == null)
+                    if (autoRepairHistories == null || currentRepairStatus == null)
                     {
                         logger.error("No record found for group id {}", localGroup);
                         return NOT_MY_TURN;
@@ -631,18 +632,16 @@ public class AutoRepairUtilsV2
                     //I have a priority for repair hence its my turn now
                     return MY_TURN_DUE_TO_PRIORITY;
                 }
-                return defaultNodeToBeRepaired.hostId.equals(myId) ? MY_TURN : NOT_MY_TURN;
+
+                if (defaultNodeToBeRepaired.hostId.equals(myId))
+                    return MY_TURN;
             }
-            else
+            else if (currentRepairStatus.hostIdsWithOnGoingForceRepair.contains(myId))
             {
-                // no more repair can be run this time
-                //for some reason I was not done with the repair hence resume (maybe node restart in-between, etc.)
-                if (currentRepairStatus.hostIdsWithOnGoingForceRepair.contains(myId))
-                {
-                    return MY_TURN_FORCE_REPAIR;
-                }
-                return currentRepairStatus.hostIdsWithOnGoingRepair.contains(myId) ? MY_TURN : NOT_MY_TURN;
+                return MY_TURN_FORCE_REPAIR;
             }
+            // for some reason I was not done with the repair hence resume (maybe node restart in-between, etc.)
+            return currentRepairStatus.hostIdsWithOnGoingRepair.contains(myId) ? MY_TURN : NOT_MY_TURN;
         }
         catch (Exception e)
         {

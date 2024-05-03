@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-29817] Prevent auto-repair from getting stuck when changing repair parallelism
  * [SO-29738] Make enabled and repair_check_interval_in_sec fields in AutoRepairConfig immutable
  * [SO-29733] Fix a flaky unit test for RateLimiter in 4.1 (2nd attempt)
  * [SO-25730] Make the outbound streaming scheduling fairness Semaphore configurable
