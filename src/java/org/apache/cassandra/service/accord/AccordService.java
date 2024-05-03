@@ -43,6 +43,7 @@ import accord.impl.CoordinateDurabilityScheduling;
 import accord.primitives.SyncPoint;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.statements.RequestValidations;
+import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.accord.interop.AccordInteropAdapter.AccordInteropFactory;
@@ -310,7 +311,7 @@ public class AccordService implements IAccordService, Shutdownable
         this.scheduler = new AccordScheduler();
         this.dataStore = new AccordDataStore();
         this.configuration = new AccordConfiguration(DatabaseDescriptor.getRawConfig());
-        this.journal = new AccordJournal(configService);
+        this.journal = new AccordJournal(configService, DatabaseDescriptor.getAccord().journal);
         this.node = new Node(localId,
                              messageSink,
                              this::handleLocalRequest,
@@ -441,7 +442,7 @@ public class AccordService implements IAccordService, Shutdownable
     private long doWithRetries(LongSupplier action, int retryAttempts, long initialBackoffMillis, long maxBackoffMillis) throws InterruptedException
     {
         // Since we could end up having the barrier transaction or the transaction it listens to invalidated
-        CoordinationFailed existingFailures = null;
+        RuntimeException existingFailures = null;
         Long success = null;
         long backoffMillis = 0;
         for (int attempt = 0; attempt < retryAttempts; attempt++)
@@ -462,7 +463,7 @@ public class AccordService implements IAccordService, Shutdownable
                 success = action.getAsLong();
                 break;
             }
-            catch (CoordinationFailed newFailures)
+            catch (RequestExecutionException | CoordinationFailed newFailures)
             {
                 existingFailures = Throwables.merge(existingFailures, newFailures);
             }

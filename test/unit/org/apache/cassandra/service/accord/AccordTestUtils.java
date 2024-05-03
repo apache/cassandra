@@ -76,6 +76,7 @@ import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.concurrent.ManualExecutor;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
@@ -399,7 +400,7 @@ public class AccordTestUtils
             public long unix(TimeUnit timeUnit) { return NodeTimeService.unixWrapper(TimeUnit.MICROSECONDS, this::now).applyAsLong(timeUnit); }
         };
 
-        AccordJournal journal = new AccordJournal(null);
+        AccordJournal journal = new AccordJournal(null, new AccordSpec.JournalSpec());
         journal.start(null);
 
         SingleEpochRanges holder = new SingleEpochRanges(topology.rangesForNode(node));

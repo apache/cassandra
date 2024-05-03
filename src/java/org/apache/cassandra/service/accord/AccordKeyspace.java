@@ -249,6 +249,7 @@ public class AccordKeyspace
               + format("execute_at %s,", TIMESTAMP_TUPLE)
               + format("promised_ballot %s,", TIMESTAMP_TUPLE)
               + format("accepted_ballot %s,", TIMESTAMP_TUPLE)
+              + format("execute_atleast %s,", TIMESTAMP_TUPLE)
               + "waiting_on blob,"
               + "listeners set<blob>, "
               + "PRIMARY KEY((store_id, domain, txn_id))"
@@ -297,6 +298,7 @@ public class AccordKeyspace
         public static final ColumnMetadata execute_at = getColumn(Commands, "execute_at");
         static final ColumnMetadata promised_ballot = getColumn(Commands, "promised_ballot");
         static final ColumnMetadata accepted_ballot = getColumn(Commands, "accepted_ballot");
+        static final ColumnMetadata execute_atleast = getColumn(Commands, "execute_atleast");
         static final ColumnMetadata waiting_on = getColumn(Commands, "waiting_on");
         static final ColumnMetadata listeners = getColumn(Commands, "listeners");
 
@@ -856,6 +858,8 @@ public class AccordKeyspace
             addCellIfModified(CommandsColumns.execute_at, Command::executeAt, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
             addCellIfModified(CommandsColumns.promised_ballot, Command::promised, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
             addCellIfModified(CommandsColumns.accepted_ballot, Command::acceptedOrCommitted, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
+            if (command.txnId().kind().awaitsOnlyDeps())
+                addCellIfModified(CommandsColumns.execute_atleast, Command::executesAtLeast, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
 
             if (command.isStable() && !command.isTruncated())
             {
@@ -1229,11 +1233,12 @@ public class AccordKeyspace
             Timestamp executeAt = deserializeExecuteAtOrNull(row);
             Ballot promised = deserializePromisedOrNull(row);
             Ballot accepted = deserializeAcceptedOrNull(row);
+            Timestamp executeAtLeast = status.is(Status.Truncated) && txnId.kind().awaitsOnlyDeps() ? deserializeExecuteAtLeastOrNull(row) : null;
 
             WaitingOnProvider waitingOn = deserializeWaitingOn(txnId, row);
             MessageProvider messages = commandStore.makeMessageProvider(txnId);
 
-            return SerializerSupport.reconstruct(commandStore.unsafeRangesForEpoch(), attrs, status, executeAt, promised, accepted, waitingOn, messages);
+            return SerializerSupport.reconstruct(commandStore.unsafeRangesForEpoch(), attrs, status, executeAt, executeAtLeast, promised, accepted, waitingOn, messages);
         }
         catch (Throwable t)
         {
@@ -1304,6 +1309,11 @@ public class AccordKeyspace
     public static Timestamp deserializeExecuteAtOrNull(UntypedResultSet.Row row)
     {
         return deserializeTimestampOrNull(row, "execute_at", Timestamp::fromBits);
+    }
+
+    public static Timestamp deserializeExecuteAtLeastOrNull(UntypedResultSet.Row row)
+    {
+        return deserializeTimestampOrNull(row, "execute_atleast", Timestamp::fromBits);
     }
 
     public static Ballot deserializePromisedOrNull(UntypedResultSet.Row row)
