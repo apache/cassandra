@@ -32,6 +32,7 @@ import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
@@ -314,6 +315,10 @@ public final class IndexMetadata
                    .append(" (")
                    .append(options.get(IndexTarget.TARGET_OPTION_NAME))
                    .append(')');
+
+            builder.append(" USING '")
+                   .append(CassandraIndex.NAME)
+                   .append("'");
         }
         builder.append(';');
     }
