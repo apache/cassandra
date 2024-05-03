@@ -87,14 +87,15 @@ public class PaxosCleanup extends AsyncFuture<Void> implements Runnable
     public void run()
     {
         EndpointState localEpState = ctx.gossiper().getEndpointStateForEndpoint(ctx.broadcastAddressAndPort());
-        startPrepare = PaxosStartPrepareCleanup.prepare(ctx, table.id, endpoints, localEpState, ranges);
+        startPrepare = PaxosStartPrepareCleanup.prepare(ctx, table, endpoints, localEpState, ranges);
         addCallback(startPrepare, this::finishPrepare);
     }
 
     private void finishPrepare(PaxosCleanupHistory result)
     {
         ctx.nonPeriodicTasks().schedule(() -> {
-            finishPrepare = PaxosFinishPrepareCleanup.finish(ctx, endpoints, result);
+            boolean isUrgent = Schema.instance.getKeyspaceMetadata(table.keyspace).params.replication.isMeta();
+            finishPrepare = PaxosFinishPrepareCleanup.finish(ctx, endpoints, isUrgent, result);
             addCallback(finishPrepare, (v) -> startSession(result.highBound));
         }, Math.min(getCasContentionTimeout(MILLISECONDS), getWriteRpcTimeout(MILLISECONDS)), MILLISECONDS);
     }

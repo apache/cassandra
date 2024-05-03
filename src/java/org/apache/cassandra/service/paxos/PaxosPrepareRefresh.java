@@ -75,7 +75,8 @@ public class PaxosPrepareRefresh implements RequestCallbackWithFailure<PaxosPrep
     public PaxosPrepareRefresh(Ballot prepared, Paxos.Participants participants, Committed latestCommitted, Callbacks callbacks)
     {
         this.callbacks = callbacks;
-        this.send = Message.out(PAXOS2_PREPARE_REFRESH_REQ, new Request(prepared, latestCommitted));
+        boolean isUrgent = participants.keyspace.getMetadata().params.replication.isMeta();
+        this.send = Message.out(PAXOS2_PREPARE_REFRESH_REQ, new Request(prepared, latestCommitted), isUrgent);
     }
 
     void refresh(List<InetAddressAndPort> refresh)

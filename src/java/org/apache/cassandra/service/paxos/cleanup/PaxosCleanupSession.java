@@ -19,7 +19,9 @@
 package org.apache.cassandra.service.paxos.cleanup;
 
 import java.lang.ref.WeakReference;
-import java.util.*;
+import java.util.Collection;
+import java.util.Queue;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -39,6 +41,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_CLEANUP_SESSION_TIMEOUT_SECONDS;
@@ -125,7 +128,9 @@ public class PaxosCleanupSession extends AsyncFuture<Void> implements Runnable,
     {
         lastMessageSentNanos = ctx.clock().nanoTime();
         PaxosCleanupRequest completer = new PaxosCleanupRequest(session, tableId, ranges);
-        Message<PaxosCleanupRequest> msg = Message.out(PAXOS2_CLEANUP_REQ, completer);
+        ClusterMetadata metadata = ClusterMetadata.current();
+        boolean isUrgent = metadata.schema.getKeyspaces().getContainingKeyspaceMetadata(tableId).params.replication.isMeta();
+        Message<PaxosCleanupRequest> msg = Message.out(PAXOS2_CLEANUP_REQ, completer, isUrgent);
         ctx.messaging().sendWithCallback(msg, endpoint, this);
     }
 

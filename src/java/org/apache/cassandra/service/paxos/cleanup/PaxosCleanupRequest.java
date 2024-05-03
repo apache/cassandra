@@ -75,6 +75,8 @@ public class PaxosCleanupRequest
         return in -> {
             PaxosCleanupRequest request = in.payload;
 
+            ClusterMetadata metadata = ClusterMetadata.current();
+            boolean isUrgent = metadata.schema.getKeyspaces().getContainingKeyspaceMetadata(request.tableId).params.replication.isMeta();
             if (!PaxosCleanup.isInRangeAndShouldProcess(ctx, request.ranges, request.tableId))
             {
                 // Try catching up, in case it's us
@@ -82,7 +84,8 @@ public class PaxosCleanupRequest
 
                 String msg = String.format("Rejecting cleanup request %s from %s. Some ranges are not replicated (%s)",
                                            request.session, in.from(), request.ranges);
-                Message<PaxosCleanupResponse> response = Message.out(PAXOS2_CLEANUP_RSP2, PaxosCleanupResponse.failed(request.session, msg));
+               
+                Message<PaxosCleanupResponse> response = Message.out(PAXOS2_CLEANUP_RSP2, PaxosCleanupResponse.failed(request.session, msg), isUrgent);
                 ctx.messaging().send(response, in.respondTo());
                 return;
             }
@@ -93,13 +96,13 @@ public class PaxosCleanupRequest
             {
                 public void onSuccess(@Nullable PaxosCleanupResponse finished)
                 {
-                    Message<PaxosCleanupResponse> response = Message.out(PAXOS2_CLEANUP_RSP2, coordinator.getNow());
+                    Message<PaxosCleanupResponse> response = Message.out(PAXOS2_CLEANUP_RSP2, coordinator.getNow(), isUrgent);
                     ctx.messaging().send(response, in.respondTo());
                 }
 
                 public void onFailure(Throwable throwable)
                 {
-                    Message<PaxosCleanupResponse> response = Message.out(PAXOS2_CLEANUP_RSP2, PaxosCleanupResponse.failed(request.session, throwable.getMessage()));
+                    Message<PaxosCleanupResponse> response = Message.out(PAXOS2_CLEANUP_RSP2, PaxosCleanupResponse.failed(request.session, throwable.getMessage()), isUrgent);
                     ctx.messaging().send(response, in.respondTo());
                 }
             });

@@ -42,9 +42,11 @@ import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 
 import static org.apache.cassandra.net.Verb.PAXOS2_CLEANUP_START_PREPARE_REQ;
@@ -77,12 +79,15 @@ public class PaxosStartPrepareCleanup extends AsyncFuture<PaxosCleanupHistory> i
      * prepare message to prevent racing with gossip dissemination and guarantee that every repair participant is aware
      * of the pending ring change during repair.
      */
-    public static PaxosStartPrepareCleanup prepare(SharedContext ctx, TableId tableId, Collection<InetAddressAndPort> endpoints, EndpointState localEpState, Collection<Range<Token>> ranges)
+    public static PaxosStartPrepareCleanup prepare(SharedContext ctx, TableMetadata tableMetadata, Collection<InetAddressAndPort> endpoints, EndpointState localEpState, Collection<Range<Token>> ranges)
     {
+        TableId tableId = tableMetadata.id;
         PaxosStartPrepareCleanup callback = new PaxosStartPrepareCleanup(tableId, endpoints);
         synchronized (callback)
         {
-            Message<Request> message = Message.out(PAXOS2_CLEANUP_START_PREPARE_REQ, new Request(tableId, localEpState, ranges));
+            ClusterMetadata metadata = ClusterMetadata.current();
+            boolean isUrgent = metadata.schema.getKeyspaces().getContainingKeyspaceMetadata(tableId).params.replication.isMeta();
+            Message<Request> message = Message.out(PAXOS2_CLEANUP_START_PREPARE_REQ, new Request(tableId, localEpState, ranges), isUrgent);
             for (InetAddressAndPort endpoint : endpoints)
                 ctx.messaging().sendWithCallback(message, endpoint, callback);
         }

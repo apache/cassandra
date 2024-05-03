@@ -38,6 +38,7 @@ import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.paxos.Ballot;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
@@ -67,7 +68,11 @@ public class PaxosCleanupComplete extends AsyncFuture<Void> implements RequestCa
     {
         Request request = !skippedReplicas ? new Request(tableId, lowBound, ranges)
                                            : new Request(tableId, Ballot.none(), Collections.emptyList());
-        Message<Request> message = Message.out(PAXOS2_CLEANUP_COMPLETE_REQ, request);
+
+        ClusterMetadata metadata = ClusterMetadata.current();
+        boolean isUrgent = metadata.schema.getKeyspaces().getContainingKeyspaceMetadata(request.tableId).params.replication.isMeta();
+        Message<Request> message = Message.out(PAXOS2_CLEANUP_COMPLETE_REQ, request, isUrgent);
+
         for (InetAddressAndPort endpoint : waitingResponse)
             ctx.messaging().sendWithCallback(message, endpoint, this);
     }
