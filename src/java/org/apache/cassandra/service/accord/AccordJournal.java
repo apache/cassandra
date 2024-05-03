@@ -42,6 +42,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 
+import accord.messages.ApplyThenWaitUntilApplied;
 import org.agrona.collections.Long2ObjectHashMap;
 import org.agrona.collections.LongArrayList;
 import org.agrona.collections.ObjectHashSet;
@@ -156,50 +157,6 @@ public class AccordJournal implements IJournal, Shutdownable
 
     private static final ThreadLocal<byte[]> keyCRCBytes = ThreadLocal.withInitial(() -> new byte[21]);
 
-    static final Params PARAMS = new Params()
-    {
-        @Override
-        public int segmentSize()
-        {
-            return 32 << 20;
-        }
-
-        @Override
-        public FailurePolicy failurePolicy()
-        {
-            return FailurePolicy.STOP;
-        }
-
-        @Override
-        public FlushMode flushMode()
-        {
-            return FlushMode.BATCH;
-        }
-
-        @Override
-        public int flushPeriodMillis()
-        {
-            return DatabaseDescriptor.getCommitLogSyncPeriod();
-        }
-
-        @Override
-        public int periodicFlushLagBlock()
-        {
-            return 1500;
-        }
-
-        @Override
-        public int userVersion()
-        {
-            /*
-             * NOTE: when accord journal version gets bumped, expose it via yaml.
-             * This way operators can force previous version on upgrade, temporarily,
-             * to allow easier downgrades if something goes wrong.
-             */
-            return 1;
-        }
-    };
-
     private final File directory;
     private final Journal<Key, Object> journal;
     private final AccordEndpointMapper endpointMapper;
@@ -219,10 +176,10 @@ public class AccordJournal implements IJournal, Shutdownable
     private final FrameApplicator frameApplicator = new FrameApplicator();
 
     @VisibleForTesting
-    public AccordJournal(AccordEndpointMapper endpointMapper)
+    public AccordJournal(AccordEndpointMapper endpointMapper, Params params)
     {
         this.directory = new File(DatabaseDescriptor.getAccordJournalDirectory());
-        this.journal = new Journal<>("AccordJournal", directory, PARAMS, new JournalCallbacks(), Key.SUPPORT, RECORD_SERIALIZER);
+        this.journal = new Journal<>("AccordJournal", directory, params, new JournalCallbacks(), Key.SUPPORT, RECORD_SERIALIZER);
         this.endpointMapper = endpointMapper;
     }
 
@@ -969,6 +926,22 @@ public class AccordJournal implements IJournal, Shutdownable
                 }
             }
             msgTypeToSynonymousTypesMap = ImmutableListMultimap.copyOf(msgTypeToSynonymousTypes);
+
+            //TODO (now): enable as this shows we are currently missing a message
+//            IllegalStateException e = null;
+//            for (MessageType t : MessageType.values)
+//            {
+//                if (!t.hasSideEffects()) continue;
+//                Type matches = msgTypeToTypeMap.get(t);
+//                if (matches == null)
+//                {
+//                    IllegalStateException ise = new IllegalStateException("Missing MessageType " + t);
+//                    if (e == null) e = ise;
+//                    else e.addSuppressed(ise);
+//                }
+//            }
+//            if (e != null)
+//                throw e;
         }
 
         static Type fromId(int id)
@@ -1164,7 +1137,7 @@ public class AccordJournal implements IJournal, Shutdownable
             while (null != (request = unframedRequests.poll()))
             {
                 long waitForEpoch = request.waitForEpoch;
-                if (!node.topology().hasEpoch(waitForEpoch))
+                if (waitForEpoch != 0 && !node.topology().hasEpoch(waitForEpoch))
                 {
                     delayedRequests.computeIfAbsent(waitForEpoch, ignore -> new ArrayList<>()).add(request);
                     if (!waitForEpochs.containsLong(waitForEpoch))
@@ -1395,6 +1368,12 @@ public class AccordJournal implements IJournal, Shutdownable
         }
 
         @Override
+        public TxnId txnId()
+        {
+            return txnId;
+        }
+
+        @Override
         public Set<MessageType> test(Set<MessageType> messages)
         {
             Set<Key> keys = new ObjectHashSet<>(messages.size() + 1, 0.9f);
@@ -1465,6 +1444,12 @@ public class AccordJournal implements IJournal, Shutdownable
         }
 
         @Override
+        public Commit stableSlowPath()
+        {
+            return readMessage(txnId, STABLE_SLOW_PATH_REQ, Commit.class);
+        }
+
+        @Override
         public Commit stableMaximal()
         {
             return readMessage(txnId, STABLE_MAXIMAL_REQ, Commit.class);
@@ -1493,6 +1478,18 @@ public class AccordJournal implements IJournal, Shutdownable
         {
             return readMessage(txnId, PROPAGATE_APPLY_MSG, Propagate.class);
         }
+
+        @Override
+        public Propagate propagateOther()
+        {
+            return readMessage(txnId, PROPAGATE_OTHER_MSG, Propagate.class);
+        }
+
+        @Override
+        public ApplyThenWaitUntilApplied applyThenWaitUntilApplied()
+        {
+            return readMessage(txnId, APPLY_THEN_WAIT_UNTIL_APPLIED_REQ, ApplyThenWaitUntilApplied.class);
+        }
     }
 
     private final class LoggingMessageProvider implements SerializerSupport.MessageProvider
@@ -1504,6 +1501,12 @@ public class AccordJournal implements IJournal, Shutdownable
         {
             this.txnId = txnId;
             this.provider = provider;
+        }
+
+        @Override
+        public TxnId txnId()
+        {
+            return txnId;
         }
 
         @Override
@@ -1588,6 +1591,15 @@ public class AccordJournal implements IJournal, Shutdownable
         }
 
         @Override
+        public Commit stableSlowPath()
+        {
+            logger.debug("Fetching {} message for {}", STABLE_SLOW_PATH_REQ, txnId);
+            Commit commit = provider.stableSlowPath();
+            logger.debug("Fetched {} message for {}: {}", STABLE_SLOW_PATH_REQ, txnId, commit);
+            return commit;
+        }
+
+        @Override
         public Commit stableMaximal()
         {
             logger.debug("Fetching {} message for {}", STABLE_MAXIMAL_REQ, txnId);
@@ -1630,6 +1642,24 @@ public class AccordJournal implements IJournal, Shutdownable
             Propagate propagate = provider.propagateApply();
             logger.debug("Fetched {} message for {}: {}", PROPAGATE_APPLY_MSG, txnId, propagate);
             return propagate;
+        }
+
+        @Override
+        public Propagate propagateOther()
+        {
+            logger.debug("Fetching {} message for {}", PROPAGATE_OTHER_MSG, txnId);
+            Propagate propagate = provider.propagateOther();
+            logger.debug("Fetched {} message for {}: {}", PROPAGATE_OTHER_MSG, txnId, propagate);
+            return propagate;
+        }
+
+        @Override
+        public ApplyThenWaitUntilApplied applyThenWaitUntilApplied()
+        {
+            logger.debug("Fetching {} message for {}", APPLY_THEN_WAIT_UNTIL_APPLIED_REQ, txnId);
+            ApplyThenWaitUntilApplied apply = provider.applyThenWaitUntilApplied();
+            logger.debug("Fetched {} message for {}: {}", APPLY_THEN_WAIT_UNTIL_APPLIED_REQ, txnId, apply);
+            return apply;
         }
     }
 }

@@ -25,6 +25,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
 
 import accord.impl.SizeOfIntersectionSorter;
@@ -76,7 +77,7 @@ import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 import static org.apache.cassandra.utils.AccordGenerators.fromQT;
 
-class SimulatedAccordCommandStore implements AutoCloseable
+public class SimulatedAccordCommandStore implements AutoCloseable
 {
     private final List<Throwable> failures = new ArrayList<>();
     private final SimulatedExecutorFactory globalExecutor;
@@ -90,8 +91,9 @@ class SimulatedAccordCommandStore implements AutoCloseable
     public final MockJournal journal;
     public final ScheduledExecutorPlus unorderedScheduled;
     public final List<String> evictions = new ArrayList<>();
+    public Predicate<Throwable> ignoreExceptions = ignore -> false;
 
-    SimulatedAccordCommandStore(RandomSource rs)
+    public SimulatedAccordCommandStore(RandomSource rs)
     {
         globalExecutor = new SimulatedExecutorFactory(rs.fork(), fromQT(Generators.TIMESTAMP_GEN.map(java.sql.Timestamp::getTime)).mapToLong(TimeUnit.MILLISECONDS::toNanos).next(rs), failures::add);
         this.unorderedScheduled = globalExecutor.scheduled("ignored");
@@ -150,6 +152,13 @@ class SimulatedAccordCommandStore implements AutoCloseable
                                                 public boolean isExpired(TxnId initiated, long now)
                                                 {
                                                     return false;
+                                                }
+
+                                                @Override
+                                                public void onUncaughtException(Throwable t)
+                                                {
+                                                    if (ignoreExceptions.test(t)) return;
+                                                    super.onUncaughtException(t);
                                                 }
                                             },
                                             null,

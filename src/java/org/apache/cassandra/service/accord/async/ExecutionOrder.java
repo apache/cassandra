@@ -21,6 +21,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.function.Consumer;
 
 import accord.api.Key;
 import accord.api.RoutingKey;
@@ -82,31 +83,9 @@ public class ExecutionOrder
             }
         }
 
-        Conflicts remove(AsyncOperation<?> operation)
+        Conflicts remove(AsyncOperation<?> operation, boolean allowOutOfOrder)
         {
-            if (operationOrQueue instanceof AsyncOperation<?>)
-            {
-                Invariants.checkState(operationOrQueue == operation);
-                rangeQueues.remove(range);
-            }
-            else
-            {
-                @SuppressWarnings("unchecked")
-                ArrayDeque<AsyncOperation<?>> queue = (ArrayDeque<AsyncOperation<?>>) operationOrQueue;
-                AsyncOperation<?> head = queue.poll();
-                Invariants.checkState(head == operation);
-
-                if (queue.isEmpty())
-                {
-                    rangeQueues.remove(range);
-                }
-                else
-                {
-                    head = queue.peek();
-                    if (canRun(head))
-                        head.onUnblocked();
-                }
-            }
+            unregister(operationOrQueue, operation, allowOutOfOrder, () -> rangeQueues.remove(range));
             return operationToConflicts.remove(operation);
         }
 
@@ -182,20 +161,12 @@ public class ExecutionOrder
                 result.rangeConflicts.add(e.getKey());
             }
             RangeState state = e.getValue();
-            Object operationOrQueue = state.operationOrQueue;
-            if (operationOrQueue instanceof AsyncOperation)
-            {
-                ArrayDeque<AsyncOperation<?>> queue = new ArrayDeque<>(4);
-                queue.add((AsyncOperation<?>) operationOrQueue);
-                queue.add(operation);
-                state.operationOrQueue = queue;
-            }
-            else
-            {
-                @SuppressWarnings("unchecked")
-                ArrayDeque<AsyncOperation<?>> queue = (ArrayDeque<AsyncOperation<?>>) operationOrQueue;
-                queue.add(operation);
-            }
+            // a single range could conflict with multiple other ranges, so it is possible that the operation
+            // exists in the queue already due to another range in the txn... simple example is
+            // keys = (0, 10], (12, 15]
+            // e.getKey() == (-100, 100]
+            // in this case the operation would attempt to double add since it has 2 keys that conflict with this single range
+            register(state.operationOrQueue, operation, q -> state.operationOrQueue = q);
         });
         if (result.sameRange != null)
         {
@@ -221,12 +192,19 @@ public class ExecutionOrder
             return true;
         }
 
+        register(operationOrQueue, operation, q -> queues.put(keyOrTxnId, q));
+        return false;
+    }
+
+    private void register(Object operationOrQueue, AsyncOperation<?> operation, Consumer<ArrayDeque<AsyncOperation<?>>> onCreateQueue)
+    {
         if (operationOrQueue instanceof AsyncOperation)
         {
+            Invariants.checkState(operationOrQueue != operation, "Attempted to double register operation %s", operation);
             ArrayDeque<AsyncOperation<?>> queue = new ArrayDeque<>(4);
             queue.add((AsyncOperation<?>) operationOrQueue);
             queue.add(operation);
-            queues.put(keyOrTxnId, queue);
+            onCreateQueue.accept(queue);
         }
         else
         {
@@ -234,7 +212,14 @@ public class ExecutionOrder
             ArrayDeque<AsyncOperation<?>> queue = (ArrayDeque<AsyncOperation<?>>) operationOrQueue;
             queue.add(operation);
         }
-        return false;
+    }
+
+    /**
+     * Unregister the operation as being a dependency for its keys and TxnIds, but do so even if it is unable to run now.
+     */
+    void unregisterOutOfOrder(AsyncOperation<?> operation)
+    {
+        unregister(operation, true);
     }
 
     /**
@@ -242,15 +227,20 @@ public class ExecutionOrder
      */
     void unregister(AsyncOperation<?> operation)
     {
+        unregister(operation, false);
+    }
+
+    private void unregister(AsyncOperation<?> operation, boolean allowOutOfOrder)
+    {
         for (Seekable seekable : operation.keys())
         {
             switch (seekable.domain())
             {
                 case Key:
-                    unregister(seekable.asKey(), operation);
+                    unregister(seekable.asKey(), operation, allowOutOfOrder);
                     break;
                 case Range:
-                    unregister(seekable.asRange(), operation);
+                    unregister(seekable.asRange(), operation, allowOutOfOrder);
                     break;
                 default:
                     throw new AssertionError("Unexpected domain: " + seekable.domain());
@@ -259,48 +249,69 @@ public class ExecutionOrder
         }
         TxnId primaryTxnId = operation.primaryTxnId();
         if (null != primaryTxnId)
-            unregister(primaryTxnId, operation);
+            unregister(primaryTxnId, operation, allowOutOfOrder);
     }
 
-    private void unregister(Range range, AsyncOperation<?> operation)
+    private void unregister(Range range, AsyncOperation<?> operation, boolean allowOutOfOrder)
     {
         var state = state(range);
-        var conflicts = state.remove(operation);
+        var conflicts = state.remove(operation, allowOutOfOrder);
         if (conflicts.rangeConflicts != null)
-            conflicts.rangeConflicts.forEach(r -> state(r).remove(operation));
+            conflicts.rangeConflicts.forEach(r -> state(r).remove(operation, allowOutOfOrder));
         if (conflicts.keyConflicts != null)
-            conflicts.keyConflicts.forEach(k -> unregister(k, operation));
+            conflicts.keyConflicts.forEach(k -> unregister(k, operation, allowOutOfOrder));
     }
 
     /**
      * Unregister the operation as being a dependency for key or TxnId
      */
-    private void unregister(Object keyOrTxnId, AsyncOperation<?> operation)
+    private void unregister(Object keyOrTxnId, AsyncOperation<?> operation, boolean allowOutOfOrder)
     {
         Object operationOrQueue = queues.get(keyOrTxnId);
         Invariants.nonNull(operationOrQueue);
 
+        unregister(operationOrQueue, operation, allowOutOfOrder, () -> queues.remove(keyOrTxnId));
+    }
+
+    private void unregister(Object operationOrQueue, AsyncOperation<?> operation, boolean allowOutOfOrder, Runnable onEmpty)
+    {
         if (operationOrQueue instanceof AsyncOperation<?>)
         {
             Invariants.checkState(operationOrQueue == operation);
-            queues.remove(keyOrTxnId);
+            onEmpty.run();
         }
         else
         {
             @SuppressWarnings("unchecked")
             ArrayDeque<AsyncOperation<?>> queue = (ArrayDeque<AsyncOperation<?>>) operationOrQueue;
-            AsyncOperation<?> head = queue.poll();
-            Invariants.checkState(head == operation);
-
-            if (queue.isEmpty())
+            if (allowOutOfOrder)
             {
-                queues.remove(keyOrTxnId);
+                Invariants.checkState(queue.remove(operation), "Operation %s was not found in queue: %s", operation, queue);
             }
             else
             {
-                head = queue.peek();
-                if (canRun(head))
-                    head.onUnblocked();
+                Invariants.checkState(queue.peek() == operation, "Operation %s is not at the top of the queue; %s", operation, queue);
+                queue.poll();
+            }
+
+            if (queue.isEmpty())
+            {
+                onEmpty.run();
+            }
+            else
+            {
+                AsyncOperation<?> next = queue.peek();
+                if (next == operation)
+                {
+                    // a single range could conflict with multiple other ranges, so it is possible that the operation
+                    // exists in the queue already due to another range in the txn... simple example is
+                    // keys = (0, 10], (12, 15]
+                    // e.getKey() == (-100, 100]
+                    // in this case the operation would attempt to double add since it has 2 keys that conflict with this single range
+                    return;
+                }
+                if (canRun(next))
+                    next.onUnblocked();
             }
         }
     }
@@ -357,7 +368,7 @@ public class ExecutionOrder
     private RangeState state(Range range)
     {
         var list = rangeQueues.get(range);
-        assert list.size() == 1 : String.format("Expected 1 element but saw list %s", list);
+        assert list.size() == 1 : String.format("Expected 1 element for range %s but saw list %s", range, list);
         return list.get(0);
     }
 

@@ -215,7 +215,7 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
                     commandStore.abortCurrentOperation();
                 case LOADING:
                     context.releaseResources(commandStore);
-                    commandStore.executionOrder().unregister(this);
+                    commandStore.executionOrder().unregisterOutOfOrder(this);
                 case INITIALIZED:
                     break; // nothing to clean up, call callback
             }

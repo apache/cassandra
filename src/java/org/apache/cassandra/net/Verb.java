@@ -344,15 +344,15 @@ public enum Verb
 
     ACCORD_SYNC_NOTIFY_REQ          (151, P2, writeTimeout, IMMEDIATE,          () -> Notification.listSerializer,          () -> AccordSyncPropagator.verbHandler,       ACCORD_SIMPLE_RSP             ),
 
-    ACCORD_APPLY_AND_WAIT_REQ       (152, P2, writeTimeout, IMMEDIATE,          () -> ReadDataSerializers.readData,         () -> AccordService.instance().verbHandler(), ACCORD_READ_RSP),
+    ACCORD_APPLY_AND_WAIT_REQ       (152, P2, writeTimeout, IMMEDIATE,          () -> ReadDataSerializers.readData,         AccordService::verbHandlerOrNoop, ACCORD_READ_RSP),
 
     CONSENSUS_KEY_MIGRATION         (153, P1, writeTimeout,  MUTATION,          () -> ConsensusKeyMigrationFinished.serializer,() -> ConsensusKeyMigrationState.consensusKeyMigrationFinishedHandler),
 
     ACCORD_INTEROP_READ_RSP         (154, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropRead.replySerializer,        RESPONSE_HANDLER),
-    ACCORD_INTEROP_READ_REQ         (155, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropRead.requestSerializer,      () -> AccordService.instance().verbHandler(), ACCORD_INTEROP_READ_RSP),
-    ACCORD_INTEROP_COMMIT_REQ       (156, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropCommit.serializer,           () -> AccordService.instance().verbHandler(), ACCORD_INTEROP_READ_RSP),
+    ACCORD_INTEROP_READ_REQ         (155, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropRead.requestSerializer,      AccordService::verbHandlerOrNoop, ACCORD_INTEROP_READ_RSP),
+    ACCORD_INTEROP_COMMIT_REQ       (156, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropCommit.serializer,           AccordService::verbHandlerOrNoop, ACCORD_INTEROP_READ_RSP),
     ACCORD_INTEROP_READ_REPAIR_RSP  (157, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropReadRepair.replySerializer,  RESPONSE_HANDLER),
-    ACCORD_INTEROP_READ_REPAIR_REQ  (158, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropReadRepair.requestSerializer, () -> AccordService.instance().verbHandler(), ACCORD_INTEROP_READ_REPAIR_RSP),
+    ACCORD_INTEROP_READ_REPAIR_REQ  (158, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropReadRepair.requestSerializer, AccordService::verbHandlerOrNoop, ACCORD_INTEROP_READ_REPAIR_RSP),
     ACCORD_INTEROP_APPLY_REQ        (160, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropApply.serializer,             AccordService::verbHandlerOrNoop,             ACCORD_APPLY_RSP),
 
     // generic failure response
