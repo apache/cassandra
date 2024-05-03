@@ -73,7 +73,7 @@ public abstract class AbstractMetrics
         {
             metricScope += '.' + index;
         }
-        metricScope += '.' + scope + '.' + name;
+        metricScope += '.' + scope;
 
         CassandraMetricsRegistry.MetricName metricName = new CassandraMetricsRegistry.MetricName(DefaultNameFactory.GROUP_NAME,
                                                                                                  TYPE, name, metricScope, createMBeanName(name, scope));
