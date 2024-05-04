@@ -87,8 +87,8 @@ public abstract class GuardrailTester extends CQLTester
     // previously created table, which is not what we want).
     protected static final String FAIL_TABLE = "abort_table_creation_test";
 
-    private static final String USERNAME = "guardrail_user";
-    private static final String PASSWORD = "guardrail_password";
+    protected static final String USERNAME = "guardrail_user";
+    protected static final String PASSWORD = "guardrail_password";
 
     protected static ClientState systemClientState, userClientState, superClientState;
 

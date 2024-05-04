@@ -18,27 +18,20 @@
 
 package org.apache.cassandra.db.guardrails;
 
-import java.net.InetSocketAddress;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.auth.AuthenticatedUser;
-import org.apache.cassandra.service.ClientState;
+import com.datastax.driver.core.exceptions.InvalidQueryException;
 
 import static java.lang.String.format;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class GuardrailDCLEnabledTest extends GuardrailTester
 {
-    private static final String TEST_USER = "testuser";
-    private static final String TEST_PW = "testpassword";
-    private static final String TEST_USER1 = "testuser1";
-    private static final String TEST_PW1 = "testpassword1";
-    private static final String TEST_KS = "dclks";
-    private static final String TEST_TABLE = "dcltbl";
     private static final String DCL_ERROR_MSG = "DCL statement is not allowed";
-    private ClientState loginUserClientState;
+    private static final String DCL_TEST_NEW_USER = "dcltest";
 
     private void setGuardrail(boolean enabled)
     {
@@ -49,69 +42,140 @@ public class GuardrailDCLEnabledTest extends GuardrailTester
     public void beforeGuardrailTest() throws Throwable
     {
         super.beforeGuardrailTest();
-        // create user in login state
         useSuperUser();
-        executeNet(getCreateRoleCQL(TEST_USER, true, false, TEST_PW));
-        executeNet(format("GRANT ALL ON KEYSPACE %s TO %s", KEYSPACE, TEST_USER));
-        useUser(TEST_USER, TEST_PW);
-
-        loginUserClientState = ClientState.forExternalCalls(InetSocketAddress.createUnresolved("127.0.0.1", 1234));
-        loginUserClientState.login(new AuthenticatedUser(TEST_USER));
-        execute(loginUserClientState, "USE " + keyspace());
-
-        execute(superClientState, String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", TEST_KS));
-        execute(superClientState, String.format("CREATE TABLE IF NOT EXISTS %s.%s (key text PRIMARY KEY, col1 int, col2 int)", TEST_KS, TEST_TABLE));
+        // need permission on roles to test dcl queries
+        executeNet(format("GRANT ALL ON ALL ROLES TO %s", USERNAME));
+        useUser(USERNAME, PASSWORD);
+        createTable(KEYSPACE, "CREATE TABLE IF NOT EXISTS %s (k INT, c INT, v TEXT, PRIMARY KEY(k, c))");
     }
 
     @After
     public void afterTest()
     {
         setGuardrail(true);
+        executeNet(dropRole(DCL_TEST_NEW_USER));
+        dropTable("DROP TABLE IF EXISTS %s");
     }
 
     @Test
     public void testCannotCreateRoleWhileFeatureDisabled() throws Throwable
     {
         setGuardrail(false);
-        assertFails(() -> execute(loginUserClientState,
-                                  getCreateRoleCQL(TEST_USER1, true, false, TEST_PW1)),
-                    DCL_ERROR_MSG);
+        shouldFailWithDCLErrorMsg(getCreateRoleCQL(DCL_TEST_NEW_USER));
         // no role is created
-        assertEmpty(execute(String.format("SELECT * FROM system_auth.roles WHERE role='%s'", TEST_USER1)));
+        assertEmpty(execute(String.format("SELECT * FROM system_auth.roles WHERE role='%s'",
+                                          DCL_TEST_NEW_USER)));
+
+        setGuardrail(true);
+        executeNet(getCreateRoleCQL(DCL_TEST_NEW_USER));
+        // role is created
+        assertRowCount(execute(String.format("SELECT * FROM system_auth.roles WHERE role='%s'",
+                                             DCL_TEST_NEW_USER)),
+                       1);
+    }
+
+    @Test
+    public void testCannotDropRoleWhileFeatureDisabled() throws Throwable
+    {
+        executeNet(getCreateRoleCQL(DCL_TEST_NEW_USER));
+        setGuardrail(false);
+        shouldFailWithDCLErrorMsg(dropRole(DCL_TEST_NEW_USER));
+        // role is not dropped
+        assertRowCount(execute(String.format("SELECT * FROM system_auth.roles WHERE role='%s'",
+                                             DCL_TEST_NEW_USER)),
+                       1);
+
+        setGuardrail(true);
+        executeNet(dropRole(DCL_TEST_NEW_USER));
+        // role is dropped
+        assertEmpty(execute(String.format("SELECT * FROM system_auth.roles WHERE role='%s'",
+                                          DCL_TEST_NEW_USER)));
+    }
+
+    @Test
+    public void testCannotListRoleWhileFeatureDisabled() throws Throwable
+    {
+        setGuardrail(false);
+        shouldFailWithDCLErrorMsg("LIST ROLES");
+        shouldFailWithDCLErrorMsg(String.format("LIST ALL PERMISSIONS OF %s", USERNAME));
+        shouldFailWithDCLErrorMsg("LIST SUPERUSERS");
+        shouldFailWithDCLErrorMsg("LIST USERS");
+
+        setGuardrail(true);
+        executeNet("LIST ROLES");
+        executeNet(String.format("LIST ALL PERMISSIONS OF %s", USERNAME));
+        executeNet("LIST SUPERUSERS");
+        executeNet("LIST USERS");
     }
 
     @Test
     public void testCannotGrantPermissionWhileFeatureDisabled() throws Throwable
     {
+        executeNet(getCreateRoleCQL(DCL_TEST_NEW_USER));
+
         setGuardrail(false);
-        assertFails(() -> execute(loginUserClientState,
-                                  getGrantPermissionCQL(TEST_USER, TEST_KS, TEST_TABLE)),
-                    DCL_ERROR_MSG);
-        // TEST_USER don't get permission on TEST_KS.TEST_TABLE
+        shouldFailWithDCLErrorMsg(getGrantPermissionCQL(DCL_TEST_NEW_USER, KEYSPACE, currentTable()));
+        // DCL_TEST_NEW_USER doesn't get permission
         assertEmpty(execute(String.format("SELECT * FROM system_auth.role_permissions WHERE role='%s' AND resource='data/%s/%s'",
-                                          TEST_USER, TEST_KS, TEST_TABLE)));
+                                          DCL_TEST_NEW_USER, KEYSPACE, currentTable())));
+
+        setGuardrail(true);
+        executeNet(getGrantPermissionCQL(DCL_TEST_NEW_USER, KEYSPACE, currentTable()));
+        assertRowCount(execute(String.format("SELECT * FROM system_auth.role_permissions WHERE role='%s' AND resource='data/%s/%s'",
+                                             DCL_TEST_NEW_USER, KEYSPACE, currentTable())),
+                       1);
     }
 
     @Test
     public void testCannotRevokePermissionWhileFeatureDisabled() throws Throwable
     {
+        executeNet(getCreateRoleCQL(DCL_TEST_NEW_USER));
+        executeNet(getGrantPermissionCQL(DCL_TEST_NEW_USER, KEYSPACE, currentTable()));
+
         setGuardrail(false);
-        assertFails(() -> execute(loginUserClientState,
-                                  String.format("REVOKE ALL ON KEYSPACE %s FROM %s", KEYSPACE, TEST_USER)),
-                    DCL_ERROR_MSG);
-        // TEST_USER permission wasn't revoked on KEYSPACE
-        assertRowCount(execute(String.format("SELECT * FROM system_auth.role_permissions WHERE role='%s' AND resource='data/%s'", TEST_USER, KEYSPACE)),
+        shouldFailWithDCLErrorMsg(getRevokePermissionCQL(DCL_TEST_NEW_USER, KEYSPACE, currentTable()));
+        // DCL_TEST_NEW_USER permission wasn't revoked on KEYSPACE
+        assertRowCount(execute(String.format("SELECT * FROM system_auth.role_permissions WHERE role='%s' AND resource='data/%s/%s'",
+                                             DCL_TEST_NEW_USER, KEYSPACE, currentTable())),
                        1);
+
+        setGuardrail(true);
+        executeNet(getRevokePermissionCQL(DCL_TEST_NEW_USER, KEYSPACE, currentTable()));
+        assertEmpty(execute(String.format("SELECT * FROM system_auth.role_permissions WHERE role='%s' AND resource='data/%s/%s'",
+                                          DCL_TEST_NEW_USER, KEYSPACE, currentTable())));
     }
 
-    private static String getCreateRoleCQL(String role, boolean login, boolean superUser, String password)
+    private void shouldFailWithDCLErrorMsg(String query)
     {
-        return String.format("CREATE ROLE IF NOT EXISTS %s WITH LOGIN = %s AND SUPERUSER = %s AND PASSWORD = '%s'",
-                             role, login, superUser, password);
+        try
+        {
+            executeNet(query);
+            fail("Except InvalidQueryException");
+        }
+        catch (InvalidQueryException e)
+        {
+            assertTrue(e.getMessage().contains(DCL_ERROR_MSG));
+        }
+    }
+
+    private static String getCreateRoleCQL(String role)
+    {
+        return String.format("CREATE ROLE IF NOT EXISTS %s WITH PASSWORD = 'test'",
+                             role);
     }
 
     private static String getGrantPermissionCQL(String role, String ks, String tbl)
     {
         return String.format("GRANT ALL PERMISSIONS ON %s.%s TO %s;", ks, tbl, role);
+    }
+
+    private static String getRevokePermissionCQL(String role, String ks, String tbl)
+    {
+        return String.format("REVOKE ALL ON %s.%s FROM %s;", ks, tbl, role);
+    }
+
+    private static String dropRole(String role)
+    {
+        return String.format("DROP ROLE IF EXISTS %s", role);
     }
 }
