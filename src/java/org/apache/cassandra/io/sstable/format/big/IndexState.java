@@ -41,6 +41,9 @@ public class IndexState implements AutoCloseable
 
     private int currentIndexIdx;
 
+    private int cachedIndexIdx = Integer.MIN_VALUE;
+    private IndexInfo cachedIndexInfo;
+
     // Marks the beginning of the block corresponding to currentIndexIdx.
     private DataPosition mark;
 
@@ -139,7 +142,15 @@ public class IndexState implements AutoCloseable
 
     public IndexInfo index(int i) throws IOException
     {
-        return indexInfoRetriever.columnsIndex(i);
+        // during an iteration we retrieve the same IndexInfo many times sequentially, for each row
+        // caching of the last retreived IndexInfo can save a lot of IO in case of ShallowIndexedEntry
+        if (i == cachedIndexIdx)
+        {
+            return cachedIndexInfo;
+        }
+        cachedIndexInfo = indexInfoRetriever.columnsIndex(i);
+        cachedIndexIdx = i;
+        return cachedIndexInfo;
     }
 
     // Finds the index of the first block containing the provided bound, starting at the provided index.
