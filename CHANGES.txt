@@ -1,4 +1,5 @@
 5.1
+ * Guardrail to block DDL/DCL queries (CASSANDRA-19556)
  * Add nodetool command to unregister LEFT nodes (CASSANDRA-19581)
  * Add cluster metadata id to gossip syn messages (CASSANDRA-19613)
  * Reduce heap usage occupied by the metrics (CASSANDRA-19567)

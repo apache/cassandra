@@ -194,6 +194,24 @@ public final class Guardrails implements GuardrailsMBean
                    "Bulk loading of SSTables").throwOnNullClientState(true);
 
     /**
+     * Guardrail disabling DDL statements
+     */
+    public static final EnableFlag ddlEnabled =
+    new EnableFlag("ddl_enabled",
+                   null,
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getDDLEnabled(),
+                   "DDL statement");
+
+    /**
+     * Guardrail disabling DCL statements
+     */
+    public static final EnableFlag dclEnabled =
+    new EnableFlag("dcl_enabled",
+                   null,
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getDCLEnabled(),
+                   "DCL statement");
+
+    /**
      * Guardrail disabling user's ability to turn off compression
      */
     public static final EnableFlag uncompressedTablesEnabled =
@@ -864,6 +882,30 @@ public final class Guardrails implements GuardrailsMBean
     public void setBulkLoadEnabled(boolean enabled)
     {
         DEFAULT_CONFIG.setBulkLoadEnabled(enabled);
+    }
+
+    @Override
+    public boolean getDDLEnabled()
+    {
+        return DEFAULT_CONFIG.getDDLEnabled();
+    }
+
+    @Override
+    public void setDDLEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setDDLEnabled(enabled);
+    }
+
+    @Override
+    public boolean getDCLEnabled()
+    {
+        return DEFAULT_CONFIG.getDCLEnabled();
+    }
+
+    @Override
+    public void setDCLEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setDCLEnabled(enabled);
     }
 
     @Override
