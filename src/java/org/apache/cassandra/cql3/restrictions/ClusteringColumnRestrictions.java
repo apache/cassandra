@@ -122,7 +122,8 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
 
             if (r.isSlice())
             {
-                RangeSet<ClusteringElements> rangeSet = r.restrict(ClusteringElements.all(), options);
+                RangeSet<ClusteringElements> rangeSet = ClusteringElements.all();
+                r.restrict(rangeSet, options);
                 return builder.extend(rangeSet).buildSlices();
             }
 

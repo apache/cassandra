@@ -44,6 +44,24 @@ public class ClusteringElementsTest
     public static final AbstractType<?> DESC = ReversedType.getInstance(Int32Type.instance);
     public static final AbstractType<?> ASC = Int32Type.instance;
 
+    @Test(expected = IllegalArgumentException.class)
+    public void testOfWithDifferentSetOfColumnsAndValues()
+    {
+        elements(newClusteringColumns(ASC, ASC), 1);
+    }
+
+    @Test(expected = NullPointerException.class)
+    public void testCompareToWithNull()
+    {
+        elements(newClusteringColumn(ASC), 1).compareTo(null);
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testCompareToWithDifferentColumns()
+    {
+        elements(newClusteringColumn(ASC), 1).compareTo(elements(newClusteringColumn(DESC), 3));
+    }
+
     @Test
     public void testCompareToWithOneAscColumn()
     {

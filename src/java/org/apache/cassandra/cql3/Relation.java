@@ -111,10 +111,10 @@ public final class Relation
      * @param rawTerm the term (tuple) to which the multiple columns must be compared
      * @return a relation for multiple columns.
      */
-    public static Relation multiColumns(List<ColumnIdentifier> identifiers, Operator operator, Term.Raw rawTerm)
+    public static Relation multiColumn(List<ColumnIdentifier> identifiers, Operator operator, Term.Raw rawTerm)
     {
         assert operator != Operator.IN;
-        return new Relation(ColumnsExpression.Raw.multiColumns(identifiers), operator, Terms.Raw.of(rawTerm));
+        return new Relation(ColumnsExpression.Raw.multiColumn(identifiers), operator, Terms.Raw.of(rawTerm));
     }
 
     /**
@@ -125,9 +125,9 @@ public final class Relation
      * @param rawTerms the terms (tuples) to which the multiple columns must be compared
      * @return a relation for multiple columns.
      */
-    public static Relation multiColumns(List<ColumnIdentifier> identifiers, Operator operator, Terms.Raw rawTerms)
+    public static Relation multiColumn(List<ColumnIdentifier> identifiers, Operator operator, Terms.Raw rawTerms)
     {
-        return new Relation(ColumnsExpression.Raw.multiColumns(identifiers), operator, rawTerms);
+        return new Relation(ColumnsExpression.Raw.multiColumn(identifiers), operator, rawTerms);
     }
 
     /**

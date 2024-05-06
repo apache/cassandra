@@ -33,7 +33,7 @@ import org.apache.cassandra.cql3.terms.Tuples;
 
 import static java.util.Arrays.asList;
 import static org.apache.cassandra.cql3.Relation.mapElement;
-import static org.apache.cassandra.cql3.Relation.multiColumns;
+import static org.apache.cassandra.cql3.Relation.multiColumn;
 import static org.apache.cassandra.cql3.Relation.singleColumn;
 import static org.apache.cassandra.cql3.Relation.token;
 import static org.junit.Assert.assertEquals;
@@ -65,10 +65,10 @@ public class RelationTest
         Term.Raw tuple2 = new Tuples.Literal(asList(two, three));
         Terms.Raw tuples = Terms.Raw.of(asList(tuple1, tuple2));
 
-        assertEquals("(col, col2) = ?", multiColumns(asList(col, col2), Operator.EQ, marker).toCQLString());
-        assertEquals("(col, col2) = (1, 2)", multiColumns(asList(col, col2), Operator.EQ, tuple1).toCQLString());
-        assertEquals("(col, col2) IN ((1, 2), (2, 3))", multiColumns(asList(col, col2), Operator.IN, tuples).toCQLString());
-        assertEquals("(col, col2) IN ?", multiColumns(asList(col, col2), Operator.IN, inMarker).toCQLString());
+        assertEquals("(col, col2) = ?", multiColumn(asList(col, col2), Operator.EQ, marker).toCQLString());
+        assertEquals("(col, col2) = (1, 2)", multiColumn(asList(col, col2), Operator.EQ, tuple1).toCQLString());
+        assertEquals("(col, col2) IN ((1, 2), (2, 3))", multiColumn(asList(col, col2), Operator.IN, tuples).toCQLString());
+        assertEquals("(col, col2) IN ?", multiColumn(asList(col, col2), Operator.IN, inMarker).toCQLString());
 
         Term.Raw tokenCall = new FunctionCall.Raw(FunctionName.nativeFunction("token"), asList(one, two));
 

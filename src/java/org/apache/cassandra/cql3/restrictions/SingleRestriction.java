@@ -99,11 +99,11 @@ public interface SingleRestriction extends Restriction
     List<ClusteringElements> values(QueryOptions options);
 
     /**
-     * Adds the ranges of values selected by this restriction to the specified {@code RangeSet} if the operator is an operator selecting ranges of data.
+     * Removes the ranges of values not selected by this restriction from the specified {@code RangeSet} if the operator is an operator selecting ranges of data.
      *
      * @param rangeSet the range set to add to
      * @param options the query options
      * @throws UnsupportedOperationException if the operator is not an operator selecting ranges of data.
      */
-    RangeSet<ClusteringElements> restrict(RangeSet<ClusteringElements> rangeSet, QueryOptions options);
+    void restrict(RangeSet<ClusteringElements> rangeSet, QueryOptions options);
 }

@@ -295,7 +295,8 @@ final class PartitionKeyRestrictions extends RestrictionSetWrapper
      */
     private RangeSet<Token> toRangeSet(IPartitioner partitioner, SingleRestriction slice, QueryOptions options)
     {
-        RangeSet<ClusteringElements>  rangeSet = slice.restrict(ClusteringElements.all(), options);
+        RangeSet<ClusteringElements>  rangeSet = ClusteringElements.all();
+        slice.restrict(rangeSet, options);
 
         ImmutableRangeSet.Builder<Token> builder = ImmutableRangeSet.builder();
 

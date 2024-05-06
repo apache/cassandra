@@ -1781,22 +1781,22 @@ relation[WhereClause.Builder clauses]
     | ids=tupleOfIdentifiers
       ( K_IN
           ( '(' ')'
-              { $clauses.add(Relation.multiColumns(ids, Operator.IN, Terms.Raw.of(Collections.emptyList()))); }
+              { $clauses.add(Relation.multiColumn(ids, Operator.IN, Terms.Raw.of(Collections.emptyList()))); }
           | tupleInMarker=inMarker /* (a, b, c) IN ? */
-              { $clauses.add(Relation.multiColumns(ids, Operator.IN, tupleInMarker)); }
+              { $clauses.add(Relation.multiColumn(ids, Operator.IN, tupleInMarker)); }
           | literals=tupleOfTupleLiterals /* (a, b, c) IN ((1, 2, 3), (4, 5, 6), ...) */
               {
-                  $clauses.add(Relation.multiColumns(ids, Operator.IN, literals));
+                  $clauses.add(Relation.multiColumn(ids, Operator.IN, literals));
               }
           | markers=tupleOfMarkersForTuples /* (a, b, c) IN (?, ?, ...) */
-              { $clauses.add(Relation.multiColumns(ids, Operator.IN, markers)); }
+              { $clauses.add(Relation.multiColumn(ids, Operator.IN, markers)); }
           )
       | type=relationType literal=tupleLiteral /* (a, b, c) > (1, 2, 3) or (a, b, c) > (?, ?, ?) */
           {
-              $clauses.add(Relation.multiColumns(ids, type, literal));
+              $clauses.add(Relation.multiColumn(ids, type, literal));
           }
       | type=relationType tupleMarker=markerForTuple /* (a, b, c) >= ? */
-          { $clauses.add(Relation.multiColumns(ids, type, tupleMarker)); }
+          { $clauses.add(Relation.multiColumn(ids, type, tupleMarker)); }
       )
     | '(' relation[$clauses] ')'
     ;

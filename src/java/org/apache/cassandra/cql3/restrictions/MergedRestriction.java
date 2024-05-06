@@ -36,7 +36,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 /**
- * A {@code SingleRestriction} which is the result of merging multiple {@code SimpleRestriction} applying to
+ * A {@link SingleRestriction} which is the result of merging multiple {@link SimpleRestriction} applying to
  * the same set of columns.
  * <p>For multi-columns restrictions it is possible to merge restrictions applying to different
  * sets of columns as long as one is a superset of the other and both start with the same set of columns.</p>
@@ -325,13 +325,12 @@ public final class MergedRestriction implements SingleRestriction
     }
 
     @Override
-    public RangeSet<ClusteringElements> restrict(RangeSet<ClusteringElements> rangeSet, QueryOptions options)
+    public void restrict(RangeSet<ClusteringElements> rangeSet, QueryOptions options)
     {
         for (int i = 0, m = restrictions.size(); i < m; i++)
         {
             restrictions.get(i).restrict(rangeSet, options);
         }
-        return rangeSet;
     }
 
     @Override

@@ -217,10 +217,10 @@ public final class SimpleRestriction implements SingleRestriction
     }
 
     @Override
-    public RangeSet<ClusteringElements> restrict(RangeSet<ClusteringElements> rangeSet, QueryOptions options)
+    public void restrict(RangeSet<ClusteringElements> rangeSet, QueryOptions options)
     {
         assert operator.isSlice() || operator == Operator.EQ;
-        return operator.restrict(rangeSet, bindAndGetClusteringElements(options));
+        operator.restrict(rangeSet, bindAndGetClusteringElements(options));
     }
 
     private List<ClusteringElements> bindAndGetClusteringElements(QueryOptions options)

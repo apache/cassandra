@@ -30,7 +30,7 @@ import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.schema.ColumnMetadata;
 
 /**
- * A <code>RestrictionSet</code> wrapper that can be extended to allow to modify the <code>RestrictionSet</code>
+ * A {@link RestrictionSet} wrapper that can be extended to allow to modify the {@code RestrictionSet}
  * behaviour without breaking its immutability. Subclasses should be immutable.
  */
 class RestrictionSetWrapper implements Restrictions
@@ -86,7 +86,7 @@ class RestrictionSetWrapper implements Restrictions
 
     public boolean hasSupportingIndex(IndexRegistry indexRegistry)
     {
-        return restrictions.hasSupportingIndex(indexRegistry);
+        return restrictions.hasSupportingIndex(indexRegistry.listIndexes());
     }
 
     @Override

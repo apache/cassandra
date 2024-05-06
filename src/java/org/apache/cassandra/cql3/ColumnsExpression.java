@@ -465,11 +465,11 @@ public final class ColumnsExpression
         }
 
         /**
-         * Creates a raw expression for multi-columns (e.g. {@code (columnA, columnB)}).
+         * Creates a raw expression for multi-column (e.g. {@code (columnA, columnB)}).
          * @param identifiers the columns identifier
-         * @return a raw expression for multi-columns.
+         * @return a raw expression for multi-column.
          */
-        public static Raw multiColumns(List<ColumnIdentifier> identifiers)
+        public static Raw multiColumn(List<ColumnIdentifier> identifiers)
         {
             return new Raw(Kind.MULTI_COLUMN, identifiers, null);
         }
