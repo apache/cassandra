@@ -23,10 +23,19 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.InvalidQueryException;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.statements.AuthenticationStatement;
+import org.apache.cassandra.cql3.statements.AuthorizationStatement;
+import org.apache.cassandra.service.QueryState;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 public class GuardrailDCLEnabledTest extends GuardrailTester
 {
@@ -145,12 +154,45 @@ public class GuardrailDCLEnabledTest extends GuardrailTester
                                           DCL_TEST_NEW_USER, KEYSPACE, currentTable())));
     }
 
+    @Test
+    public void testMockDCLStatementsWhileFeaturesDisabled() {
+        AuthorizationStatement authorizationStatement = mock(AuthorizationStatement.class);
+        AuthenticationStatement authenticationStatement = mock(AuthenticationStatement.class);
+        QueryState queryState = mock(QueryState.class);
+
+        doReturn(userClientState).when(queryState).getClientState();
+        doCallRealMethod().when(authorizationStatement).isDCLStatement();
+        doCallRealMethod().when(authenticationStatement).isDCLStatement();
+        QueryProcessor qp = QueryProcessor.instance;
+
+        setGuardrail(false);
+        try {
+            qp.processStatement(authorizationStatement, queryState, QueryOptions.DEFAULT, 0L);
+            fail("expecting GuardrailViolatedException");
+        } catch (GuardrailViolatedException e) {
+            // expceted
+        }
+        verify(authorizationStatement).isDCLStatement();
+
+        try {
+            qp.processStatement(authenticationStatement, queryState, QueryOptions.DEFAULT, 0L);
+            fail("expecting GuardrailViolatedException");
+        } catch (GuardrailViolatedException e) {
+            // expceted
+        }
+        verify(authenticationStatement).isDCLStatement();
+
+        setGuardrail(true);
+        qp.processStatement(authorizationStatement, queryState, QueryOptions.DEFAULT, 0L);
+        qp.processStatement(authenticationStatement, queryState, QueryOptions.DEFAULT, 0L);
+    }
+
     private void shouldFailWithDCLErrorMsg(String query)
     {
         try
         {
             executeNet(query);
-            fail("Except InvalidQueryException");
+            fail("expecting InvalidQueryException");
         }
         catch (InvalidQueryException e)
         {

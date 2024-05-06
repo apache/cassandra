@@ -259,7 +259,7 @@ public class GuardrailDDLEnabledTest extends GuardrailTester {
         setGuardrail(false);
         try {
             qp.processStatement(alterSchemaStatement, queryState, QueryOptions.DEFAULT, 0L);
-            fail("Expect GuardrailViolatedException");
+            fail("expecting GuardrailViolatedException");
         } catch (GuardrailViolatedException e) {
             // expceted
         }
@@ -272,7 +272,7 @@ public class GuardrailDDLEnabledTest extends GuardrailTester {
     private void shouldFailWithDDLErrorMsg(String query) {
         try {
             executeNet(query);
-            fail("Except InvalidQueryException");
+            fail("expecting InvalidQueryException");
         } catch (InvalidQueryException e) {
             assertTrue(e.getMessage().contains(DDL_ERROR_MSG));
         }
