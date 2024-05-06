@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -83,7 +82,7 @@ public class PasswordAuthenticatorTest extends CQLTester
 
     public PasswordAuthenticatorTest(AuthEnforcementFlag authEnforcementFlag)
     {
-        authenticator.setAuthEnforcementFlag(authEnforcementFlag);
+        DatabaseDescriptor.setAuthEnforcementFlag(authEnforcementFlag);
         this.authEnforcementFlag = authEnforcementFlag;
 
         if (authEnforcementFlag == AuthEnforcementFlag.none) {

@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-29725] Fix a bug in nodetool setauthenforcementflag
  * [SO-29900] GOSSIP_SHUTDOWN message fix for simulator dtest
  * [SO-29817] Prevent auto-repair from getting stuck when changing repair parallelism
  * [SO-29738] Make enabled and repair_check_interval_in_sec fields in AutoRepairConfig immutable

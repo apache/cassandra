@@ -91,10 +91,6 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
     }
 
     public boolean authEnabled = requireAuthentication();
-    AuthEnforcementFlag authEnforcementFlagEnum = DatabaseDescriptor.getAuthEnforcementFlag();
-
-    public boolean emitAuthMetricsAndLogs = AuthEnforcementFlag.none != authEnforcementFlagEnum;
-    public boolean softEnforcementFlag = AuthEnforcementFlag.soft == authEnforcementFlagEnum;
 
     // No anonymous access.
     public boolean requireAuthentication()
@@ -125,11 +121,20 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
     {
         return cache;
     }
-    public void setAuthEnforcementFlag(AuthEnforcementFlag authEnforcementFlagEnum)
+
+    private boolean shouldEmitAuthMetricsAndLogs()
     {
-        this.authEnforcementFlagEnum = authEnforcementFlagEnum;
-        this.emitAuthMetricsAndLogs = AuthEnforcementFlag.none != authEnforcementFlagEnum;
-        this.softEnforcementFlag = AuthEnforcementFlag.soft == authEnforcementFlagEnum;
+        return DatabaseDescriptor.getAuthEnforcementFlag() != AuthEnforcementFlag.none;
+    }
+    
+    private boolean isSoftAuthEnforcement()
+    {
+        return DatabaseDescriptor.getAuthEnforcementFlag() == AuthEnforcementFlag.soft;
+    }
+    
+    private String getAuthEnforcementFlagName()
+    {
+        return DatabaseDescriptor.getAuthEnforcementFlag().name();
     }
 
     protected static boolean checkpw(String password, String hash)
@@ -185,16 +190,16 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
                 throw new AuthenticationException(String.format("Provided username %s and/or password are incorrect", username));
 
             AuthenticatedUser authUser = new AuthenticatedUser(username);
-            if (emitAuthMetricsAndLogs){
-                AuthMetricsManager.getMetrics(username, authEnabled, authEnforcementFlagEnum.name()).userSuccessMetrics.inc();
+            if (shouldEmitAuthMetricsAndLogs()){
+                AuthMetricsManager.getMetrics(username, authEnabled, getAuthEnforcementFlagName()).userSuccessMetrics.inc();
             }
             return authUser;
         } catch (AuthenticationException e) {
-            if (emitAuthMetricsAndLogs) {
+            if (shouldEmitAuthMetricsAndLogs()) {
                 logger.warn("Error: Wrong credentials for username:" + username);
-                AuthMetricsManager.getMetrics(username, authEnabled, authEnforcementFlagEnum.name()).userFailureMetrics.inc();
+                AuthMetricsManager.getMetrics(username, authEnabled, getAuthEnforcementFlagName()).userFailureMetrics.inc();
             }
-            if (softEnforcementFlag) {
+            if (isSoftAuthEnforcement()) {
                 logger.warn(String.format("Error: Allowing user (%s) to login because auth_enforcement_flag = soft", username));
                 return new AuthenticatedUser(username, true, true);
             }
@@ -261,11 +266,11 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
         String password = credentials.get(PASSWORD_KEY);
         if (username == null || username.isEmpty())
         {
-            if (emitAuthMetricsAndLogs) {
+            if (shouldEmitAuthMetricsAndLogs()) {
                 logger.warn("Error: Empty user provided!");
-                AuthMetricsManager.getMetrics(EMPTY_USER_USERNAME, authEnabled, authEnforcementFlagEnum.name()).userFailureMetrics.inc();
+                AuthMetricsManager.getMetrics(EMPTY_USER_USERNAME, authEnabled, getAuthEnforcementFlagName()).userFailureMetrics.inc();
             }
-            if (softEnforcementFlag) {
+            if (isSoftAuthEnforcement()) {
                 return new AuthenticatedUser(EMPTY_USER_USERNAME, true, true);
             }
             throw new AuthenticationException(String.format("Required key '%s' is missing", USERNAME_KEY));
@@ -273,11 +278,11 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
 
         if (password == null || password.isEmpty())
         {
-            if (emitAuthMetricsAndLogs) {
+            if (shouldEmitAuthMetricsAndLogs()) {
                 logger.warn("Error: Empty password with user: " + username);
-                AuthMetricsManager.getMetrics(EMPTY_PWD_USERNAME, authEnabled, authEnforcementFlagEnum.name()).userFailureMetrics.inc();
+                AuthMetricsManager.getMetrics(EMPTY_PWD_USERNAME, authEnabled, getAuthEnforcementFlagName()).userFailureMetrics.inc();
             }
-            if (softEnforcementFlag) {
+            if (isSoftAuthEnforcement()) {
                 return new AuthenticatedUser(EMPTY_PWD_USERNAME, true, true);
             }
             throw new AuthenticationException(String.format("Required key '%s' is missing for provided username %s", PASSWORD_KEY, username));
@@ -348,11 +353,11 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
                     else if (user == null)
                         user = Arrays.copyOfRange(bytes, i + 1, end);
                     else {
-                        if (emitAuthMetricsAndLogs) {
+                        if (shouldEmitAuthMetricsAndLogs()) {
                             logger.warn("Credential format error: username or password is empty or contains NUL(\\0) character");
-                            AuthMetricsManager.getMetrics(EMPTY_USER_USERNAME, authEnabled, authEnforcementFlagEnum.name()).userFailureMetrics.inc();
+                            AuthMetricsManager.getMetrics(EMPTY_USER_USERNAME, authEnabled, getAuthEnforcementFlagName()).userFailureMetrics.inc();
                         }
-                        if (softEnforcementFlag) {
+                        if (isSoftAuthEnforcement()) {
                             user = EMPTY_USER_USERNAME.getBytes(StandardCharsets.UTF_8);
                             pass = EMPTY_PWD_USERNAME.getBytes(StandardCharsets.UTF_8);
                         } else {
@@ -367,12 +372,12 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
 
             if (pass == null || pass.length == 0)
             {
-                if (emitAuthMetricsAndLogs)
+                if (shouldEmitAuthMetricsAndLogs())
                 {
                     logger.warn("Error: Empty password for user: " + username);
-                    AuthMetricsManager.getMetrics(EMPTY_PWD_USERNAME, authEnabled, authEnforcementFlagEnum.name()).userFailureMetrics.inc();
+                    AuthMetricsManager.getMetrics(EMPTY_PWD_USERNAME, authEnabled, getAuthEnforcementFlagName()).userFailureMetrics.inc();
                 }
-                if (softEnforcementFlag) {
+                if (isSoftAuthEnforcement()) {
                     pass = EMPTY_PWD_USERNAME.getBytes();
                 } else {
                     throw new AuthenticationException("Password must not be null");
@@ -381,12 +386,12 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
 
             if (user == null || user.length == 0)
             {
-                if (emitAuthMetricsAndLogs)
+                if (shouldEmitAuthMetricsAndLogs())
                 {
                     logger.warn("Error: Empty user provided!");
-                    AuthMetricsManager.getMetrics(EMPTY_USER_USERNAME, authEnabled, authEnforcementFlagEnum.name()).userFailureMetrics.inc();
+                    AuthMetricsManager.getMetrics(EMPTY_USER_USERNAME, authEnabled, getAuthEnforcementFlagName()).userFailureMetrics.inc();
                 }
-                if (softEnforcementFlag) {
+                if (isSoftAuthEnforcement()) {
                     user = EMPTY_USER_USERNAME.getBytes();
                 } else {
                     throw new AuthenticationException("Authentication ID must not be null");

@@ -58,8 +58,6 @@ public class AuthMetricsTest
     private static final String TEST_NON_EXISTING_USER = "testnonexistinguser";
     private static final String TEST_INVALID_CHAR_USER = "testinvalid:=\nuser*name";
 
-
-    private static PasswordAuthenticator authenticator;
     private final boolean authEnabled = DatabaseDescriptor.getAuthenticator().requireAuthentication();
     AuthEnforcementFlag authEnforcementFlag;
     long test_user_success_count, test_user_failure_count, test_wrong_user_success_count, test_wrong_user_failure_count,
@@ -68,7 +66,7 @@ public class AuthMetricsTest
 
     public AuthMetricsTest(AuthEnforcementFlag authEnforcementFlag)
     {
-        authenticator.setAuthEnforcementFlag(authEnforcementFlag);
+        DatabaseDescriptor.setAuthEnforcementFlag(authEnforcementFlag);
         this.authEnforcementFlag = authEnforcementFlag;
         if (authEnforcementFlag == AuthEnforcementFlag.soft) {
             test_user_success_count = 2;
@@ -110,7 +108,6 @@ public class AuthMetricsTest
         System.setProperty("cassandra.superuser_setup_delay_ms", "0");
         embedded = new EmbeddedCassandraService();
         embedded.start();
-        authenticator = (PasswordAuthenticator) DatabaseDescriptor.getAuthenticator();
 
         executeWithCredentials(
         Arrays.asList(getCreateRoleCql(TEST_USER, true, false, TEST_PW),
