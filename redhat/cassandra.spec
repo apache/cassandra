@@ -82,10 +82,7 @@ mkdir -p %{buildroot}/%{_sysconfdir}/security/limits.d
 mkdir -p %{buildroot}/%{_sysconfdir}/default
 mkdir -p %{buildroot}/usr/sbin
 mkdir -p %{buildroot}/usr/bin
-mkdir -p %{buildroot}/var/lib/%{username}/commitlog
-mkdir -p %{buildroot}/var/lib/%{username}/data
-mkdir -p %{buildroot}/var/lib/%{username}/saved_caches
-mkdir -p %{buildroot}/var/lib/%{username}/hints
+mkdir -p %{buildroot}/var/lib/%{username}
 mkdir -p %{buildroot}/var/run/%{username}
 mkdir -p %{buildroot}/var/log/%{username}
 ( cd pylib && %{__python} setup.py install --no-compile --root %{buildroot}; )
@@ -161,7 +158,7 @@ exit 0
 %{_sysconfdir}/security/limits.d/%{username}.conf
 /usr/share/%{username}*
 %config(noreplace) /%{_sysconfdir}/%{username}
-%attr(755,%{username},%{username}) %config(noreplace) /var/lib/%{username}/*
+%attr(755,%{username},%{username}) %config(noreplace) /var/lib/%{username}
 %attr(755,%{username},%{username}) /var/log/%{username}*
 %attr(755,%{username},%{username}) /var/run/%{username}*
 %{python_sitelib}/cqlshlib/
