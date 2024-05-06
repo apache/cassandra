@@ -42,6 +42,7 @@ Merged from 4.1:
  * Memoize Cassandra verion and add a backoff interval for failed schema pulls (CASSANDRA-18902)
  * Fix StackOverflowError on ALTER after many previous schema changes (CASSANDRA-19166)
 Merged from 4.0:
+ * Bring Redhat packge dirs/ownership/perms in line with Debian package (CASSANDRA-19565)
  * Make nodetool import congruent with the documentation by not relying on the folder structure of the imported SSTable files (CASSANDRA-19401)
  * IR may leak SSTables with pending repair when coming from streaming (CASSANDRA-19182)
  * Streaming exception race creates corrupt transaction log files that prevent restart (CASSANDRA-18736)
