@@ -123,9 +123,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         SILENT_SHUTDOWN_STATES.add(VersionedValue.STATUS_BOOTSTRAPPING);
         SILENT_SHUTDOWN_STATES.add(VersionedValue.STATUS_BOOTSTRAPPING_REPLACE);
     }
-
-    static final List<String> BOOTSTRAPPING_STATES = Arrays.asList(VersionedValue.STATUS_BOOTSTRAPPING,
-            VersionedValue.STATUS_BOOTSTRAPPING_REPLACE);
     private static final List<String> ADMINISTRATIVELY_INACTIVE_STATES = Arrays.asList(VersionedValue.HIBERNATE,
                                                                                        VersionedValue.REMOVED_TOKEN,
                                                                                        VersionedValue.STATUS_LEFT);
@@ -1171,7 +1168,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return false;
         }
 
-        return BOOTSTRAPPING_STATES.contains(status);
+        return VersionedValue.BOOTSTRAPPING_STATUS.contains(status);
     }
 
     protected long getExpireTimeForEndpoint(InetAddressAndPort endpoint)
