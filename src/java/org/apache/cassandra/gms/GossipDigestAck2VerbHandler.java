@@ -40,8 +40,7 @@ public class GossipDigestAck2VerbHandler extends GossipVerbHandler<GossipDigestA
         }
         if (!Gossiper.instance.isEnabled())
         {
-            if (logger.isTraceEnabled())
-                logger.trace("Ignoring GossipDigestAck2Message because gossip is disabled");
+            logger.trace("Ignoring GossipDigestAck2Message because gossip is disabled");
             return;
         }
         Map<InetAddressAndPort, EndpointState> remoteEpStateMap = message.payload.epStateMap;

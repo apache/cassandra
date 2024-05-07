@@ -44,8 +44,7 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
             logger.trace("Received a GossipDigestAckMessage from {}", from);
         if (!Gossiper.instance.isEnabled() && !NewGossiper.instance.isInShadowRound())
         {
-            if (logger.isTraceEnabled())
-                logger.trace("Ignoring GossipDigestAckMessage because gossip is disabled");
+            logger.trace("Ignoring GossipDigestAckMessage because gossip is disabled");
             return;
         }
 

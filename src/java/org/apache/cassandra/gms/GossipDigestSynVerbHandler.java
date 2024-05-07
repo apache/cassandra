@@ -47,8 +47,7 @@ public class GossipDigestSynVerbHandler extends GossipVerbHandler<GossipDigestSy
             logger.trace("Received a GossipDigestSynMessage from {}", from);
         if (!Gossiper.instance.isEnabled() && !NewGossiper.instance.isInShadowRound())
         {
-            if (logger.isTraceEnabled())
-                logger.trace("Ignoring GossipDigestSynMessage because gossip is disabled");
+            logger.trace("Ignoring GossipDigestSynMessage because gossip is disabled");
             return;
         }
 
