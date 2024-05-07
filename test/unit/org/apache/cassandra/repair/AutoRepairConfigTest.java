@@ -513,4 +513,12 @@ public class AutoRepairConfigTest extends CQLTester
 
         Options.defaultOptions.ignore_keyspaces = Options.getDefaultOptions().ignore_keyspaces;
     }
+
+    @Test
+    public void testGetDefaultOptionsMVRepairIsEnabledByDefault()
+    {
+        Options defaultOptions = Options.getDefaultOptions();
+
+        assertTrue(defaultOptions.mv_repair_enabled);
+    }
 }

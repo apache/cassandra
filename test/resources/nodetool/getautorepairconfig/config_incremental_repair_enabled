@@ -16,7 +16,7 @@ configuration for repair type: full
 	repair primary token-range: true
 	number of parallel repairs within group: 1
 	percentage of parallel repairs within group: 0
-	mv repair enabled: false
+	mv repair enabled: true
 configuration for repair type: incremental
 	enabled: true
 	minimum repair interval in hours: 24

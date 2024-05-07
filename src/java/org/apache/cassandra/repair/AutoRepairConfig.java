@@ -285,7 +285,7 @@ public class AutoRepairConfig implements Serializable
             opts.repair_dc_groups = new HashSet<>();
             opts.force_repair_new_node = false;
             opts.table_max_repair_time_in_sec = 6 * 60 * 60L; // six hours
-            opts.mv_repair_enabled = false;
+            opts.mv_repair_enabled = true;
 
             return opts;
         }

@@ -118,8 +118,10 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         defaultConfig = new AutoRepairConfig(true);
         DatabaseDescriptor.setMaterializedViewsEnabled(false);
         DatabaseDescriptor.setCDCEnabled(false);
-        for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
+        for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values()) {
             defaultConfig.setAutoRepairEnabled(repairType, true);
+            defaultConfig.setMVRepairEnabled(repairType, false);
+        }
     }
 
     @Before
