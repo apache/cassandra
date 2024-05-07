@@ -67,13 +67,14 @@ public class TableId implements Comparable<TableId>
         return new TableId(UUID.fromString(idString));
     }
 
-    public static TableId get(ClusterMetadata metadata)
+    public static TableId get(ClusterMetadata prev)
     {
-        int i = 0;
+        // We start with 1 since the epoch where this table will be created will be +1 from current
+        int i = 1;
         while (true)
         {
-            TableId tableId = TableId.fromLong(metadata.epoch.getEpoch() + i);
-            if (!tableIdExists(metadata, tableId))
+            TableId tableId = TableId.fromLong(prev.epoch.getEpoch() + i);
+            if (!tableIdExists(prev, tableId))
                 return tableId;
             i++;
         }

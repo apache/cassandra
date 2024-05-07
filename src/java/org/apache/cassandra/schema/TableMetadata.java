@@ -1470,8 +1470,7 @@ public class TableMetadata implements SchemaElement
                    .newLine()
                    .append("AND ");
 
-        List<ColumnMetadata> clusteringColumns = clusteringColumns();
-        if (!clusteringColumns.isEmpty() && !isCompactTable())
+        if (!clusteringColumns.isEmpty())
         {
             builder.append("CLUSTERING ORDER BY (")
                    .appendWithSeparators(clusteringColumns, (b, c) -> c.appendNameAndOrderTo(b), ", ")
@@ -1592,6 +1591,7 @@ public class TableMetadata implements SchemaElement
         public final ColumnMetadata compactValueColumn;
 
         private final Set<ColumnMetadata> hiddenColumns;
+
         protected CompactTableMetadata(Builder builder)
         {
             super(builder);
@@ -1607,7 +1607,6 @@ public class TableMetadata implements SchemaElement
                 hiddenColumns = Sets.newHashSetWithExpectedSize(clusteringColumns.size() + 1);
                 hiddenColumns.add(compactValueColumn);
                 hiddenColumns.addAll(clusteringColumns);
-
             }
             else
             {
@@ -1750,13 +1749,44 @@ public class TableMetadata implements SchemaElement
             }
         }
 
-        void appendTableOptions(CqlBuilder builder, boolean internals)
+        @Override
+        void appendTableOptions(CqlBuilder builder, boolean withInternals)
         {
             builder.append("COMPACT STORAGE")
                    .newLine()
                    .append("AND ");
 
-            super.appendTableOptions(builder, internals);
+            if (withInternals)
+                builder.append("ID = ")
+                       .append(id.toString())
+                       .newLine()
+                       .append("AND ");
+
+            List<ColumnMetadata> visibleClusteringColumns = new ArrayList<>();
+            for (ColumnMetadata column : clusteringColumns)
+            {
+                if (!isHiddenColumn(column))
+                    visibleClusteringColumns.add(column);
+            }
+
+            if (!visibleClusteringColumns.isEmpty())
+            {
+                builder.append("CLUSTERING ORDER BY (")
+                       .appendWithSeparators(visibleClusteringColumns, (b, c) -> c.appendNameAndOrderTo(b), ", ")
+                       .append(')')
+                       .newLine()
+                       .append("AND ");
+            }
+
+            if (isVirtual())
+            {
+                builder.append("comment = ").appendWithSingleQuotes(params.comment);
+            }
+            else
+            {
+                params.appendCqlTo(builder, isView());
+            }
+            builder.append(";");
         }
 
         public static ColumnMetadata getCompactValueColumn(RegularAndStaticColumns columns)
