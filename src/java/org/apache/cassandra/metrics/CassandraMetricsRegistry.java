@@ -1065,6 +1065,11 @@ public class CassandraMetricsRegistry extends MetricRegistry
             {
                 throw new IllegalArgumentException("Name needs to be specified");
             }
+            if (scope != null && scope.contains(name))
+            {
+                throw new IllegalArgumentException("Scope cannot contain name, this is not neccessary and will cause performance issues. " +
+                                                   "Scope: " + scope + " Name: " + name);
+            }
             this.group = group;
             this.type = type;
             this.name = name;

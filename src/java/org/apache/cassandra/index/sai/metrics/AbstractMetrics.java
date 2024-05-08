@@ -70,7 +70,7 @@ public abstract class AbstractMetrics
         return new CassandraMetricsRegistry.MetricName(DefaultNameFactory.GROUP_NAME,
                                                        TYPE,
                                                        name,
-                                                       MetricRegistry.name(keyspace, table, index, scope, name),
+                                                       MetricRegistry.name(keyspace, table, index, scope),
                                                        createMBeanName(name, scope));
     }
 

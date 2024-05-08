@@ -40,6 +40,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Enforce metric naming contract if scope is used in a metric name (CASSANDRA-19619)
  * Avoid reading of the same IndexInfo from disk many times for a large partition (CASSANDRA-19557)
  * Resolve the oldest hints just from descriptors and current writer if available (CASSANDRA-19600)
  * Optionally fail writes when SAI refuses to index a term value exceeding configured term max size (CASSANDRA-19493)
