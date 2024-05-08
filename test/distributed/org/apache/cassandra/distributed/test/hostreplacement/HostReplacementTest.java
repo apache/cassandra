@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test.hostreplacement;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -34,7 +35,11 @@ import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
+import org.apache.cassandra.distributed.shared.Uninterruptibles;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.assertj.core.api.Assertions;
 
@@ -48,6 +53,7 @@ import static org.apache.cassandra.distributed.shared.ClusterUtils.awaitRingJoin
 import static org.apache.cassandra.distributed.shared.ClusterUtils.getTokenMetadataTokens;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.replaceHostAndStart;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
+import static org.junit.Assert.fail;
 
 public class HostReplacementTest extends TestBaseImpl
 {
@@ -106,6 +112,9 @@ public class HostReplacementTest extends TestBaseImpl
                                                      expectedState.toObjectArrays());
             validateRows(seed.coordinator(), expectedState);
             validateRows(replacingNode.coordinator(), expectedState);
+            String replacingNodeAddress = replacingNode.config().broadcastAddress().getHostString();
+            validateGossipStatusNormal(seed, replacingNodeAddress);
+            validateGossipStatusNormal(replacingNode, replacingNodeAddress);
         }
     }
 
@@ -240,4 +249,21 @@ public class HostReplacementTest extends TestBaseImpl
         SimpleQueryResult rows = coordinator.executeWithResult("SELECT * FROM " + KEYSPACE + ".tbl", ConsistencyLevel.ALL);
         assertRows(rows, expected);
     }
+
+    static void validateGossipStatusNormal(IInvokableInstance i, String address)
+    {
+        i.runOnInstance(() -> {
+            long start = System.nanoTime();
+            while (System.nanoTime() - start < TimeUnit.SECONDS.toNanos(20))
+            {
+                InetAddressAndPort host = InetAddressAndPort.getByNameUnchecked(address);
+                String appstate = Gossiper.instance.getApplicationState(host, ApplicationState.STATUS_WITH_PORT);
+                if (appstate.startsWith("NORMAL"))
+                    return;
+                Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
+            }
+            fail("Gossip STATUS_WITH_PORT did not become NORMAL");
+        });
+    }
+
 }
