@@ -215,7 +215,7 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
                     commandStore.abortCurrentOperation();
                 case LOADING:
                     context.releaseResources(commandStore);
-                    commandStore.executionOrder().unregister(this);
+                    commandStore.executionOrder().unregisterOutOfOrder(this);
                 case INITIALIZED:
                     break; // nothing to clean up, call callback
             }
@@ -239,6 +239,8 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
             default: throw new IllegalStateException("Unexpected state " + state);
             case INITIALIZED:
                 canRun = commandStore.executionOrder().register(this);
+                if (Invariants.isParanoid())
+                    Invariants.checkState(canRun.booleanValue() == commandStore.executionOrder().canRun(this), "Register of %s returned canRun=%s but canRun returned %s!", this, canRun, !canRun);
                 state(LOADING);
             case LOADING:
                 if (null == canRun)

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.streaming.messages;
 
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamingDataOutputPlus;
@@ -26,7 +25,7 @@ public class SessionFailedMessage extends StreamMessage
 {
     public static Serializer<SessionFailedMessage> serializer = new Serializer<SessionFailedMessage>()
     {
-        public SessionFailedMessage deserialize(DataInputPlus in, IPartitioner partitioner, int version)
+        public SessionFailedMessage deserialize(DataInputPlus in, int version)
         {
             return new SessionFailedMessage();
         }

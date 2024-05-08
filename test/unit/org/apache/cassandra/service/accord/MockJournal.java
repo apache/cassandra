@@ -28,6 +28,7 @@ import com.google.common.collect.Sets;
 import accord.local.SerializerSupport;
 import accord.messages.Accept;
 import accord.messages.Apply;
+import accord.messages.ApplyThenWaitUntilApplied;
 import accord.messages.BeginRecovery;
 import accord.messages.Commit;
 import accord.messages.Message;
@@ -43,15 +44,18 @@ import org.apache.cassandra.service.accord.AccordJournal.Type;
 import static accord.messages.MessageType.ACCEPT_REQ;
 import static accord.messages.MessageType.APPLY_MAXIMAL_REQ;
 import static accord.messages.MessageType.APPLY_MINIMAL_REQ;
+import static accord.messages.MessageType.APPLY_THEN_WAIT_UNTIL_APPLIED_REQ;
 import static accord.messages.MessageType.BEGIN_RECOVER_REQ;
 import static accord.messages.MessageType.COMMIT_MAXIMAL_REQ;
 import static accord.messages.MessageType.COMMIT_SLOW_PATH_REQ;
 import static accord.messages.MessageType.PRE_ACCEPT_REQ;
 import static accord.messages.MessageType.PROPAGATE_APPLY_MSG;
+import static accord.messages.MessageType.PROPAGATE_OTHER_MSG;
 import static accord.messages.MessageType.PROPAGATE_PRE_ACCEPT_MSG;
 import static accord.messages.MessageType.PROPAGATE_STABLE_MSG;
 import static accord.messages.MessageType.STABLE_FAST_PATH_REQ;
 import static accord.messages.MessageType.STABLE_MAXIMAL_REQ;
+import static accord.messages.MessageType.STABLE_SLOW_PATH_REQ;
 
 public class MockJournal implements IJournal
 {
@@ -61,6 +65,12 @@ public class MockJournal implements IJournal
     {
         return new SerializerSupport.MessageProvider()
         {
+            @Override
+            public TxnId txnId()
+            {
+                return txnId;
+            }
+
             @Override
             public Set<MessageType> test(Set<MessageType> messages)
             {
@@ -147,6 +157,12 @@ public class MockJournal implements IJournal
             }
 
             @Override
+            public Commit stableSlowPath()
+            {
+                return get(STABLE_SLOW_PATH_REQ);
+            }
+
+            @Override
             public Commit stableMaximal()
             {
                 return get(STABLE_MAXIMAL_REQ);
@@ -174,6 +190,18 @@ public class MockJournal implements IJournal
             public Propagate propagateApply()
             {
                 return get(PROPAGATE_APPLY_MSG);
+            }
+
+            @Override
+            public Propagate propagateOther()
+            {
+                return get(PROPAGATE_OTHER_MSG);
+            }
+
+            @Override
+            public ApplyThenWaitUntilApplied applyThenWaitUntilApplied()
+            {
+                return get(APPLY_THEN_WAIT_UNTIL_APPLIED_REQ);
             }
         };
     }

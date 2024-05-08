@@ -30,7 +30,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 // Stolen from org.apache.cassandra.index.sai.metrics.AbstractMetrics
 public class IndexMetrics
 {
-    private static final String TYPE = "RouteIndex";
+    public static final String TYPE = "RouteIndex";
     private static final String SCOPE = "IndexMetrics";
 
     private final List<CassandraMetricsRegistry.MetricName> tracked = new ArrayList<>();
@@ -61,7 +61,7 @@ public class IndexMetrics
         {
             metricScope += '.' + indexName;
         }
-        metricScope += '.' + SCOPE + '.' + name;
+        metricScope += '.' + SCOPE;
 
         CassandraMetricsRegistry.MetricName metricName = new CassandraMetricsRegistry.MetricName(DefaultNameFactory.GROUP_NAME,
                                                                                                  TYPE, name, metricScope, createMBeanName(name, SCOPE));

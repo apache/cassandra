@@ -91,6 +91,7 @@ import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.assertj.core.api.Assertions;
 
 import static accord.impl.TimestampsForKey.NO_LAST_EXECUTED_HLC;
 import static accord.local.KeyHistory.COMMANDS;
@@ -369,9 +370,14 @@ public class CompactionAccordIteratorsTest
             assertEquals(1, Iterators.size(partition.unfilteredIterator()));
             ByteBuffer[] partitionKeyComponents = CommandRows.splitPartitionKey(partition.partitionKey());
             Row row = (Row)partition.unfilteredIterator().next();
-            assertEquals(commands.metadata().regularColumns().size(), row.columnCount());
+
+            // execute_atleast is null, so when we read from the scanner the column won't be present in the partition
+            Assertions.assertThat(new ArrayList<>(row.columns())).isEqualTo(commands.metadata().regularColumns().stream().filter(c -> !c.name.toString().equals("execute_atleast")).collect(Collectors.toList()));
             for (ColumnMetadata cm : commands.metadata().regularColumns())
+            {
+                if (cm.name.toString().equals("execute_atleast")) continue;
                 assertNotNull(row.getColumnData(cm));
+            }
             assertEquals(TXN_ID, CommandRows.getTxnId(partitionKeyComponents));
             assertEquals(SaveStatus.Applied, AccordKeyspace.CommandRows.getStatus(row));
         };

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.streaming.messages;
 
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamingDataOutputPlus;
@@ -38,7 +37,7 @@ public class KeepAliveMessage extends StreamMessage
 
     public static Serializer<KeepAliveMessage> serializer = new Serializer<KeepAliveMessage>()
     {
-        public KeepAliveMessage deserialize(DataInputPlus in, IPartitioner partitioner, int version)
+        public KeepAliveMessage deserialize(DataInputPlus in, int version)
         {
             return new KeepAliveMessage();
         }

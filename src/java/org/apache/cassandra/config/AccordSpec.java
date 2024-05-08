@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.config;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
 public class AccordSpec
@@ -71,4 +73,62 @@ public class AccordSpec
     public TransactionalMode default_transactional_mode = TransactionalMode.off;
     public boolean ephemeralReadEnabled = false;
     public boolean state_cache_listener_jfr_enabled = true;
+    public final JournalSpec journal = new JournalSpec();
+
+    public static class JournalSpec implements Params
+    {
+        public int segmentSize = 32 << 20;
+        public FailurePolicy failurePolicy = FailurePolicy.STOP;
+        public FlushMode flushMode = FlushMode.BATCH;
+        public DurationSpec.IntMillisecondsBound flushPeriod; // pulls default from 'commitlog_sync_period'
+        public DurationSpec.IntMillisecondsBound periodicFlushLagBlock = new DurationSpec.IntMillisecondsBound("1500ms");
+
+        @Override
+        public int segmentSize()
+        {
+            return segmentSize;
+        }
+
+        @Override
+        public FailurePolicy failurePolicy()
+        {
+            return failurePolicy;
+        }
+
+        @Override
+        public FlushMode flushMode()
+        {
+            return flushMode;
+        }
+
+        @JsonIgnore
+        @Override
+        public int flushPeriodMillis()
+        {
+            return flushPeriod == null ? DatabaseDescriptor.getCommitLogSyncPeriod()
+                                       : flushPeriod.toMilliseconds();
+        }
+
+        @JsonIgnore
+        @Override
+        public int periodicFlushLagBlock()
+        {
+            return periodicFlushLagBlock.toMilliseconds();
+        }
+
+        /**
+         * This is required by the journal, but we don't have multiple versions, so block it from showing up, so we don't need to worry about maintaining it
+         */
+        @JsonIgnore
+        @Override
+        public int userVersion()
+        {
+            /*
+             * NOTE: when accord journal version gets bumped, expose it via yaml.
+             * This way operators can force previous version on upgrade, temporarily,
+             * to allow easier downgrades if something goes wrong.
+             */
+            return 1;
+        }
+    }
 }

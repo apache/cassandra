@@ -23,8 +23,10 @@ import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.metrics.MetricNameFactory;
 
-final class Metrics<K, V>
+public final class Metrics<K, V>
 {
+    public static final String TYPE_NAME = "Journal";
+    
     private static final String WAITING_ON_FLUSH      = "WaitingOnFlush";
     private static final String WAITING_ON_ALLOCATION = "WaitingOnSegmentAllocation";
     private static final String WRITTEN_ENTRIES       = "WrittenEntries";
@@ -49,7 +51,7 @@ final class Metrics<K, V>
 
     Metrics(String name)
     {
-        this.factory = new DefaultNameFactory("Journal", name);
+        this.factory = new DefaultNameFactory(TYPE_NAME, name);
     }
 
     void register(Flusher<K, V> flusher)

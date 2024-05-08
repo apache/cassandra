@@ -121,7 +121,7 @@ public class ConsensusRequestRouter
         ClusterMetadata cm = ClusterMetadata.current();
         TableMetadata metadata = cm.schema.getTableMetadata(tableId);
         if (metadata == null)
-            throw new IllegalStateException("Can't route consensus request for nonexistent table %s".format(tableId.toString()));
+            throw new IllegalStateException(String.format("Can't route consensus request for nonexistent table %s", tableId));
 
         if (!mayWriteThroughAccord(metadata))
             return false;

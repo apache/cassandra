@@ -20,6 +20,12 @@ package org.apache.cassandra.dht;
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
+import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.TypeSizes;
@@ -35,6 +41,8 @@ import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 public abstract class Token implements RingPosition<Token>, Serializable
 {
+    private static final Logger logger = LoggerFactory.getLogger(Token.class);
+
     private static final long serialVersionUID = 1L;
 
     public static final TokenSerializer serializer = new TokenSerializer();
@@ -178,11 +186,17 @@ public abstract class Token implements RingPosition<Token>, Serializable
         }
     }
 
+    public static volatile boolean logPartitioner = false;
+    public static final Set<Class<? extends IPartitioner>> serializePartitioners = Sets.newSetFromMap(new ConcurrentHashMap<>());
+    public static final Set<Class<? extends IPartitioner>> deserializePartitioners = Sets.newSetFromMap(new ConcurrentHashMap<>());
+
     public static class CompactTokenSerializer implements IPartitionerDependentSerializer<Token>
     {
         public void serialize(Token token, DataOutputPlus out, int version) throws IOException
         {
             IPartitioner p = token.getPartitioner();
+            if (logPartitioner && serializePartitioners.add(p.getClass()))
+              logger.debug("Serializing token with partitioner " + p);
             if (!p.isFixedLength())
                 out.writeUnsignedVInt32(p.getTokenFactory().byteSize(token));
             p.getTokenFactory().serialize(token, out);
@@ -191,6 +205,8 @@ public abstract class Token implements RingPosition<Token>, Serializable
         public Token deserialize(DataInputPlus in, IPartitioner p, int version) throws IOException
         {
             int size = p.isFixedLength() ? p.getMaxTokenSize() : in.readUnsignedVInt32();
+            if (logPartitioner && deserializePartitioners.add(p.getClass()))
+                logger.debug("Deserializing token with partitioner " + p);
             byte[] bytes = new byte[size];
             in.readFully(bytes);
             return p.getTokenFactory().fromByteArray(ByteBuffer.wrap(bytes));

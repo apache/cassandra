@@ -24,7 +24,7 @@ import java.util.Objects;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.dht.IPartitionerDependentSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -79,7 +79,7 @@ public class SyncResponse extends RepairMessage
         return Objects.hash(desc, success, nodes, summaries);
     }
 
-    public static final IVersionedSerializer<SyncResponse> serializer = new IVersionedSerializer<SyncResponse>()
+    public static final IPartitionerDependentSerializer<SyncResponse> serializer = new IPartitionerDependentSerializer<SyncResponse>()
     {
         public void serialize(SyncResponse message, DataOutputPlus out, int version) throws IOException
         {
@@ -94,7 +94,8 @@ public class SyncResponse extends RepairMessage
             }
         }
 
-        public SyncResponse deserialize(DataInputPlus in, int version) throws IOException
+        @Override
+        public SyncResponse deserialize(DataInputPlus in, IPartitioner partitioner, int version) throws IOException
         {
             RepairJobDesc desc = RepairJobDesc.serializer.deserialize(in, version);
             SyncNodePair nodes = SyncNodePair.serializer.deserialize(in, version);
@@ -104,7 +105,7 @@ public class SyncResponse extends RepairMessage
             List<SessionSummary> summaries = new ArrayList<>(numSummaries);
             for (int i=0; i<numSummaries; i++)
             {
-                summaries.add(SessionSummary.serializer.deserialize(in, IPartitioner.global(), version));
+                summaries.add(SessionSummary.serializer.deserialize(in, partitioner, version));
             }
 
             return new SyncResponse(desc, nodes, success, summaries);

@@ -19,8 +19,8 @@ package org.apache.cassandra.dht;
 
 import java.io.IOException;
 
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputPlus;
 
 /**
  * Versioned serializer where the serialization depends on partitioner.
@@ -28,18 +28,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
  * On serialization the partitioner is given by the entity being serialized. To deserialize the partitioner used must
  * be known to the calling method.
  */
-public interface IPartitionerDependentSerializer<T>
+public interface IPartitionerDependentSerializer<T> extends IVersionedSerializer<T>
 {
-    /**
-     * Serialize the specified type into the specified DataOutputStream instance.
-     *
-     * @param t type that needs to be serialized
-     * @param out DataOutput into which serialization needs to happen.
-     * @param version protocol version
-     * @throws java.io.IOException if serialization fails
-     */
-    public void serialize(T t, DataOutputPlus out, int version) throws IOException;
-
     /**
      * Deserialize into the specified DataInputStream instance.
      * @param in DataInput from which deserialization needs to happen.
@@ -51,11 +41,8 @@ public interface IPartitionerDependentSerializer<T>
      */
     public T deserialize(DataInputPlus in, IPartitioner p, int version) throws IOException;
 
-    /**
-     * Calculate serialized size of object without actually serializing.
-     * @param t object to calculate serialized size
-     * @param version protocol version
-     * @return serialized size of object t
-     */
-    public long serializedSize(T t, int version);
+    default T deserialize(DataInputPlus in, int version) throws IOException
+    {
+        return deserialize(in, null, version);
+    }
 }
