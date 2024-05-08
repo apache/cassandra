@@ -1,5 +1,6 @@
 4.1.6
 Merged from 4.0:
+ * Add timeout specifically for bootstrapping nodes (CASSANDRA-15439)
  * Bring Redhat packge dirs/ownership/perms in line with Debian package (CASSANDRA-19565)
 
 
