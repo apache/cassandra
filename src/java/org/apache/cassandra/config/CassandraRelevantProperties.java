@@ -153,6 +153,7 @@ public enum CassandraRelevantProperties
      * Used in conjunction with com.sun.management.jmxremote.ssl - com.sun.management.jmxremote.ssl.enabled.cipher.suites
      */
     COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES("com.sun.management.jmxremote.ssl.enabled.cipher.suites"),
+
     /**
      * A comma-delimited list of SSL/TLS protocol versions to enable.
      * Used in conjunction with com.sun.management.jmxremote.ssl - com.sun.management.jmxremote.ssl.enabled.protocols
@@ -214,6 +215,7 @@ public enum CassandraRelevantProperties
     ENABLE_NODELOCAL_QUERIES("cassandra.enable_nodelocal_queries"),
     EXPIRATION_DATE_OVERFLOW_POLICY("cassandra.expiration_date_overflow_policy"),
     EXPIRATION_OVERFLOW_WARNING_INTERVAL_MINUTES("cassandra.expiration_overflow_warning_interval_minutes", "5"),
+    FAILED_BOOTSTRAP_TIMEOUT("cassandra.failed_bootstrap_timeout_ms"),
     FAILURE_LOGGING_INTERVAL_SECONDS("cassandra.request_failure_log_interval_seconds", "60"),
     FAIL_ON_MISSING_CRYPTO_PROVIDER("cassandra.fail_on_missing_crypto_provider", "false"),
     FD_INITIAL_VALUE_MS("cassandra.fd_initial_value_ms"),

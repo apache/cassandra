@@ -132,6 +132,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         SILENT_SHUTDOWN_STATES.add(VersionedValue.STATUS_BOOTSTRAPPING);
         SILENT_SHUTDOWN_STATES.add(VersionedValue.STATUS_BOOTSTRAPPING_REPLACE);
     }
+
     private static final List<String> ADMINISTRATIVELY_INACTIVE_STATES = Arrays.asList(VersionedValue.HIBERNATE,
                                                                                        VersionedValue.REMOVED_TOKEN,
                                                                                        VersionedValue.STATUS_LEFT);
@@ -151,7 +152,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
 
     // Maximimum difference between generation value and local time we are willing to accept about a peer
     static final int MAX_GENERATION_DIFFERENCE = 86400 * 365;
-    private final long fatClientTimeout;
+
+    // half of QUARATINE_DELAY, to ensure justRemovedEndpoints has enough leeway to prevent re-gossip
+    private static final long FAT_CLIENT_TIMEOUT = (QUARANTINE_DELAY / 2);
+    private static final long FAILED_BOOTSTRAP_TIMEOUT = getFailedBootstrapTimeout();
     private final Random random = new Random();
 
     /* subscribers for interest in EndpointState change */
@@ -285,6 +289,25 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         return time;
     }
 
+    private static long getFailedBootstrapTimeout()
+    {
+        String newtimeout = CassandraRelevantProperties.FAILED_BOOTSTRAP_TIMEOUT.getString();
+        if (newtimeout != null)
+        {
+            long longValue = Long.parseLong(newtimeout);
+            if (longValue == -1)
+            {
+                longValue = Long.MAX_VALUE;
+            }
+            logger.info("Overriding FAILED_BOOTSTRAP_TIMEOUT to {}ms", longValue);
+            return longValue;
+        }
+        else
+        {
+            return FAT_CLIENT_TIMEOUT * 10;
+        }
+    }
+
     private static boolean isInGossipStage()
     {
         return Stage.GOSSIP.executor().inExecutor();
@@ -376,8 +399,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
     @VisibleForTesting
     public Gossiper(boolean registerJmx)
     {
-        // half of QUARATINE_DELAY, to ensure justRemovedEndpoints has enough leeway to prevent re-gossip
-        fatClientTimeout = (QUARANTINE_DELAY / 2);
         /* register with the Failure Detector for receiving Failure detector events */
         FailureDetector.instance.registerFailureDetectionEventListener(this);
 
@@ -1129,6 +1150,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
             {
                 // check if this is a fat client. fat clients are removed automatically from
                 // gossip after FatClientTimeout.  Do not remove dead states here.
+                long fatClientTimeout = getFatClientTimeoutForEndpoint(epState);
                 if (isGossipOnlyMember(endpoint)
                     && !justRemovedEndpoints.containsKey(endpoint)
                     && TimeUnit.NANOSECONDS.toMillis(nowNano - epState.getUpdateTimestamp()) > fatClientTimeout)
@@ -1174,6 +1196,24 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
                 }
             }
         }
+    }
+
+    private static long getFatClientTimeoutForEndpoint(EndpointState epState)
+    {
+        return isBootstrappingState(epState) ?
+                FAILED_BOOTSTRAP_TIMEOUT :
+                FAT_CLIENT_TIMEOUT;
+    }
+
+    private static boolean isBootstrappingState(EndpointState epState)
+    {
+        String status = getGossipStatus(epState);
+        if (status.isEmpty())
+        {
+            return false;
+        }
+
+        return VersionedValue.BOOTSTRAPPING_STATUS.contains(status);
     }
 
     protected long getExpireTimeForEndpoint(InetAddressAndPort endpoint)
