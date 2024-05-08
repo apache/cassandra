@@ -20,7 +20,7 @@ package org.apache.cassandra.metrics;
 import com.codahale.metrics.Gauge;
 import org.apache.cassandra.cache.CacheSize;
 
-import static org.apache.cassandra.metrics.CacheMetrics.CACHE;
+import static org.apache.cassandra.metrics.CacheMetrics.TYPE_NAME;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 public class CacheSizeMetrics
@@ -51,7 +51,7 @@ public class CacheSizeMetrics
      */
     public CacheSizeMetrics(String type, CacheSize cache)
     {
-        this(new DefaultNameFactory(CACHE, type), cache);
+        this(new DefaultNameFactory(TYPE_NAME, type), cache);
     }
 
     public CacheSizeMetrics(MetricNameFactory factory, CacheSize cache)

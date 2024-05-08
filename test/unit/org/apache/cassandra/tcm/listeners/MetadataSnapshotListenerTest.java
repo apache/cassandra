@@ -20,6 +20,7 @@ package org.apache.cassandra.tcm.listeners;
 
 import java.util.Random;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -50,7 +51,7 @@ import static org.junit.Assert.assertNull;
 public class MetadataSnapshotListenerTest
 {
     private static final Logger logger = LoggerFactory.getLogger(MetadataSnapshotListenerTest.class);
-    private IPartitioner partitioner = Murmur3Partitioner.instance;
+    private final IPartitioner partitioner = Murmur3Partitioner.instance;
     private Random r;
 
     @BeforeClass
@@ -59,6 +60,7 @@ public class MetadataSnapshotListenerTest
         // Set this so that we don't attempt to sort the random placements as this depends on a populated
         // TokenMap. This is a temporary element of ClusterMetadata, at least in the current form
         CassandraRelevantProperties.TCM_SORT_REPLICA_GROUPS.setBoolean(false);
+        DatabaseDescriptor.daemonInitialization();
     }
 
     @Before

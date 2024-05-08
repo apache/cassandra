@@ -35,7 +35,7 @@ import org.apache.cassandra.cql3.Operation;
 import org.apache.cassandra.cql3.Operations;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.QualifiedName;
-import org.apache.cassandra.cql3.SingleColumnRelation;
+import org.apache.cassandra.cql3.Relation;
 import org.apache.cassandra.cql3.StatementSource;
 import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.cql3.VariableSpecifications;

@@ -323,7 +323,7 @@ public class Message<T> implements ResponseContext
     }
 
     /** Builds a response Message with provided payload, and all the right fields inferred from request Message */
-    public Message<T> responseWith(T payload)
+    public <T> Message<T> responseWith(T payload)
     {
         Message<T> msg = responseWith(payload, this);
         if (header.hasFlag(MessageFlag.URGENT))

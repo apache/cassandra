@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestFailure;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Accumulator;
@@ -77,6 +78,6 @@ public interface MessageDelivery
     public <V> void respond(V response, Message<?> message);
     public default void respondWithFailure(RequestFailureReason reason, Message<?> message)
     {
-        send(Message.failureResponse(message.id(), message.expiresAtNanos(), reason), message.respondTo());
+        send(Message.failureResponse(message.id(), message.expiresAtNanos(), new RequestFailure(reason, null)), message.respondTo());
     }
 }

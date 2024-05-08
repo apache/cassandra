@@ -23,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import com.codahale.metrics.Histogram;
 
-import static org.apache.cassandra.metrics.CacheMetrics.CACHE;
+import static org.apache.cassandra.metrics.CacheMetrics.TYPE_NAME;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 public class AccordStateCacheMetrics extends CacheAccessMetrics
@@ -38,7 +38,7 @@ public class AccordStateCacheMetrics extends CacheAccessMetrics
 
     public AccordStateCacheMetrics(String type)
     {
-        super(new DefaultNameFactory(CACHE, type));
+        super(new DefaultNameFactory(TYPE_NAME, type));
         objectSize = Metrics.histogram(factory.createMetricName(OBJECT_SIZE), false);
         this.type = type;
     }
@@ -47,6 +47,6 @@ public class AccordStateCacheMetrics extends CacheAccessMetrics
     {
         // cannot make Class<?> hashCode deterministic, as cannot rewrite - so cannot safely use as Map key if want deterministic simulation
         // (or we need to create extra hoops to catch this specific case in method rewriting)
-        return instanceMetrics.computeIfAbsent(klass.getSimpleName(), k -> new CacheAccessMetrics(new DefaultNameFactory(CACHE, String.format("%s-%s", type, k))));
+        return instanceMetrics.computeIfAbsent(klass.getSimpleName(), k -> new CacheAccessMetrics(new DefaultNameFactory(TYPE_NAME, String.format("%s-%s", type, k))));
     }
 }

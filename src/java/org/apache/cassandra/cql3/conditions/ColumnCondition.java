@@ -813,7 +813,7 @@ public abstract class ColumnCondition
             {
                 int numTerminals = readCollectionSize(in, version);
                 List<Terminal> terminals = new ArrayList<>(numTerminals);
-                if (operator.isContains() || operator.isContainsKey())
+                if (operator == Operator.CONTAINS || operator == Operator.CONTAINS_KEY)
                 {
                     for (int i = 0; i < numTerminals; i++)
                         terminals.add(new Constants.Value(nullableByteBufferSerializer.deserialize(in, version)));

@@ -80,6 +80,7 @@ import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
@@ -302,7 +303,7 @@ public class RouteIndex implements Index, INotificationConsumer
     }
 
     @Override
-    public void validate(PartitionUpdate update) throws InvalidRequestException
+    public void validate(PartitionUpdate update, ClientState state) throws InvalidRequestException
     {
         // only internal can write... so it must be valid no?
     }
