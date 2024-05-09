@@ -17,11 +17,18 @@
  */
 package org.apache.cassandra.db;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -168,7 +175,7 @@ public class SizeEstimatesRecorder implements SchemaChangeListener, Runnable
                     while (refs == null)
                     {
                         Iterable<SSTableReader> sstables = table.getTracker().getView().select(SSTableSet.CANONICAL);
-                        SSTableIntervalTree tree = SSTableIntervalTree.build(sstables);
+                        SSTableIntervalTree tree = SSTableIntervalTree.buildSSTableIntervalTree(ImmutableList.copyOf(sstables));
                         Range<PartitionPosition> r = Range.makeRowRange(unwrappedRange);
                         Iterable<SSTableReader> canonicalSSTables = View.sstablesInBounds(r.left, r.right, tree);
                         refs = Refs.tryRef(canonicalSSTables);
