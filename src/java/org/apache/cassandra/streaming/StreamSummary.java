@@ -23,16 +23,17 @@ import java.util.List;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
-
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.IPartitionerDependentSerializer;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.CollectionSerializers;
 
 /**
@@ -40,7 +41,7 @@ import org.apache.cassandra.utils.CollectionSerializers;
  */
 public class StreamSummary implements Serializable
 {
-    public static final IPartitionerDependentSerializer<StreamSummary> serializer = new StreamSummarySerializer();
+    public static final IVersionedSerializer<StreamSummary> serializer = new StreamSummarySerializer();
 
     public final TableId tableId;
     public final List<Range<Token>> ranges;
@@ -86,25 +87,34 @@ public class StreamSummary implements Serializable
         return sb.toString();
     }
 
-    public static class StreamSummarySerializer implements IPartitionerDependentSerializer<StreamSummary>
+    public static class StreamSummarySerializer implements IVersionedSerializer<StreamSummary>
     {
         public void serialize(StreamSummary summary, DataOutputPlus out, int version) throws IOException
         {
             summary.tableId.serialize(out);
             out.writeInt(summary.files);
             out.writeLong(summary.totalSize);
+            Token.logPartitioner = true;
             if (version >= MessagingService.VERSION_51)
                 CollectionSerializers.serializeCollection(summary.ranges, out, version, Range.rangeSerializer);
+            Token.logPartitioner = false;
         }
 
-        public StreamSummary deserialize(DataInputPlus in, IPartitioner p, int version) throws IOException
+        public StreamSummary deserialize(DataInputPlus in, int version) throws IOException
         {
             TableId tableId = TableId.deserialize(in);
+
             int files = in.readInt();
             long totalSize = in.readLong();
             List<Range<Token>> ranges = ImmutableList.of();
             if (version >= MessagingService.VERSION_51)
+            {
+                TableMetadata tableMetadata = Schema.instance.getTableMetadata(tableId);
+                IPartitioner p = tableMetadata != null ? tableMetadata.partitioner : IPartitioner.global();
+                Token.logPartitioner = true;
                 ranges = CollectionSerializers.deserializeList(in, p, version, Range.rangeSerializer);
+                Token.logPartitioner = false;
+            }
             return new StreamSummary(tableId, ranges, files, totalSize);
         }
 

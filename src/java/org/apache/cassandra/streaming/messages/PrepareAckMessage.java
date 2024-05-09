@@ -20,7 +20,6 @@ package org.apache.cassandra.streaming.messages;
 
 import java.io.IOException;
 
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamingDataOutputPlus;
@@ -34,7 +33,7 @@ public class PrepareAckMessage extends StreamMessage
             //nop
         }
 
-        public PrepareAckMessage deserialize(DataInputPlus in, IPartitioner partitioner, int version) throws IOException
+        public PrepareAckMessage deserialize(DataInputPlus in, int version) throws IOException
         {
             return new PrepareAckMessage();
         }

@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.UUID;
 
 import com.google.common.collect.Lists;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.*;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -32,10 +34,7 @@ import org.junit.Test;
 import org.apache.cassandra.CassandraTestBase;
 import org.apache.cassandra.CassandraTestBase.DDDaemonInitialization;
 import org.apache.cassandra.CassandraTestBase.UseMurmur3Partitioner;
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -112,7 +111,19 @@ public class RepairMessageSerializationsTest extends CassandraTestBase
 
         buf.flip();
         DataInputPlus in = new DataInputBuffer(buf, false);
-        T deserialized = serializer.deserialize(in, PROTOCOL_VERSION);
+
+        T deserialized = null;
+        
+        if (serializer instanceof IPartitionerDependentSerializer)
+        {
+            IPartitionerDependentSerializer<T> pds = (IPartitionerDependentSerializer<T>) serializer;
+            deserialized = pds.deserialize(in, DatabaseDescriptor.getPartitioner(), PROTOCOL_VERSION);
+        }
+        else
+        {
+            deserialized = serializer.deserialize(in, PROTOCOL_VERSION);
+        }
+
         Assert.assertEquals(msg, deserialized);
         Assert.assertEquals(msg.hashCode(), deserialized.hashCode());
         return deserialized;

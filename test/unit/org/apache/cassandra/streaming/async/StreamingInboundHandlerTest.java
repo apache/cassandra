@@ -30,7 +30,6 @@ import org.junit.Test;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -56,7 +55,6 @@ import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class StreamingInboundHandlerTest
 {
-
     private NettyStreamingChannel streamingChannel;
     private EmbeddedChannel channel;
     private ByteBuf buf;
@@ -125,7 +123,7 @@ public class StreamingInboundHandlerTest
         temp.flip();
         DataInputPlus in = new DataInputBuffer(temp, false);
         // session not found
-        IncomingStreamMessage.serializer.deserialize(in, IPartitioner.global(), MessagingService.current_version);
+        IncomingStreamMessage.serializer.deserialize(in, MessagingService.current_version);
     }
 
     @Test

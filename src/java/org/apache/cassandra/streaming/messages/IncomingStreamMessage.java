@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.util.Objects;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.streaming.IncomingStream;
 import org.apache.cassandra.streaming.StreamManager;
@@ -34,7 +33,7 @@ public class IncomingStreamMessage extends StreamMessage
 {
     public static Serializer<IncomingStreamMessage> serializer = new Serializer<IncomingStreamMessage>()
     {
-        public IncomingStreamMessage deserialize(DataInputPlus input, IPartitioner partitioner, int version) throws IOException
+        public IncomingStreamMessage deserialize(DataInputPlus input, int version) throws IOException
         {
             StreamMessageHeader header = StreamMessageHeader.serializer.deserialize(input, version);
             StreamSession session = StreamManager.instance.findSession(header.sender, header.planId, header.sessionIndex, header.sendByFollower);

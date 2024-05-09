@@ -32,7 +32,7 @@ public interface IVersionedAsymmetricSerializer<In, Out>
      * @param version protocol version
      * @throws IOException if serialization fails
      */
-    public void serialize(In t, DataOutputPlus out, int version) throws IOException;
+    void serialize(In t, DataOutputPlus out, int version) throws IOException;
 
     /**
      * Deserialize into the specified DataInputStream instance.
@@ -41,7 +41,7 @@ public interface IVersionedAsymmetricSerializer<In, Out>
      * @return the type that was deserialized
      * @throws IOException if deserialization fails
      */
-    public Out deserialize(DataInputPlus in, int version) throws IOException;
+    Out deserialize(DataInputPlus in, int version) throws IOException;
 
     /**
      * Calculate serialized size of object without actually serializing.
@@ -49,5 +49,5 @@ public interface IVersionedAsymmetricSerializer<In, Out>
      * @param version protocol version
      * @return serialized size of object t
      */
-    public long serializedSize(In t, int version);
+    long serializedSize(In t, int version);
 }
