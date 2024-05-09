@@ -108,14 +108,14 @@ public class SessionSummary
             List<StreamSummary> receivingSummaries = new ArrayList<>(numRcvd);
             for (int i=0; i<numRcvd; i++)
             {
-                receivingSummaries.add(StreamSummary.serializer.deserialize(in, partitioner, version));
+                receivingSummaries.add(StreamSummary.serializer.deserialize(in, version));
             }
 
             int numSent = in.readInt();
             List<StreamSummary> sendingSummaries = new ArrayList<>(numRcvd);
             for (int i=0; i<numSent; i++)
             {
-                sendingSummaries.add(StreamSummary.serializer.deserialize(in, partitioner, version));
+                sendingSummaries.add(StreamSummary.serializer.deserialize(in, version));
             }
 
             return new SessionSummary(coordinator, peer, receivingSummaries, sendingSummaries);

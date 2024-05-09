@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 
 import com.google.common.collect.Lists;
 import org.junit.AfterClass;
@@ -60,6 +59,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.streaming.StreamSummary;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTrees;
@@ -70,6 +70,7 @@ import static java.util.Collections.emptyList;
 public class SerializationsTest extends AbstractSerializationsTester
 {
     private static PartitionerSwitcher partitionerSwitcher;
+    private static TableId TABLE_ID;
     private static TimeUUID RANDOM_UUID;
     private static Range<Token> FULL_RANGE;
     private static RepairJobDesc DESC;
@@ -84,6 +85,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         ClusterMetadataTestHelper.setInstanceForTest();
         SchemaTestUtil.addOrUpdateKeyspace(KeyspaceMetadata.create("Keyspace1", KeyspaceParams.simple(3)));
         SchemaTestUtil.announceNewTable(TableMetadata.minimal("Keyspace1", "Standard1"));
+        TABLE_ID = ClusterMetadata.current().schema.getKeyspaceMetadata("Keyspace1").getTableOrViewNullable("Standard1").id();
         RANDOM_UUID = TimeUUID.fromString("743325d0-4c4b-11ec-8a88-2d67081686db");
         FULL_RANGE = new Range<>(Util.testPartitioner().getMinimumToken(), Util.testPartitioner().getMinimumToken());
         DESC = new RepairJobDesc(RANDOM_UUID, RANDOM_UUID, "Keyspace1", "Standard1", Arrays.asList(FULL_RANGE));
@@ -222,8 +224,8 @@ public class SerializationsTest extends AbstractSerializationsTester
         // sync success
         List<SessionSummary> summaries = new ArrayList<>();
         summaries.add(new SessionSummary(src, dest,
-                                         Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUID.randomUUID()), emptyList(), 5, 100)),
-                                         Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUID.randomUUID()), emptyList(), 500, 10))
+                                         Lists.newArrayList(new StreamSummary(TABLE_ID, emptyList(), 5, 100)),
+                                         Lists.newArrayList(new StreamSummary(TABLE_ID, emptyList(), 500, 10))
         ));
         SyncResponse success = new SyncResponse(DESC, src, dest, true, summaries);
         // sync fail
