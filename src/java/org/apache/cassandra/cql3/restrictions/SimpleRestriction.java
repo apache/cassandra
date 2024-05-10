@@ -303,9 +303,9 @@ public final class SimpleRestriction implements SingleRestriction
                 List<ByteBuffer> buffers = bindAndGet(options);
 
                 ColumnMetadata column = firstColumn();
-                if (operator == Operator.IN)
+                if (operator == Operator.IN || operator == Oporator.BETWEEN)
                 {
-                    filter.add(column, operator, inValues(column, buffers));
+                    filter.add(column, operator, multiInputOperatorValues(column, buffers));
                 }
                 else if (operator == Operator.LIKE)
                 {
@@ -344,7 +344,7 @@ public final class SimpleRestriction implements SingleRestriction
                                                                              .map(elements -> elements.get(0))
                                                                              .collect(Collectors.toList());
 
-                        filter.add(firstColumn(), Operator.IN, inValues(firstColumn(), values));
+                        filter.add(firstColumn(), Operator.IN, multiInputOperatorValues(firstColumn(), values));
                     }
                     else
                     {
@@ -361,7 +361,7 @@ public final class SimpleRestriction implements SingleRestriction
         }
     }
 
-    private static ByteBuffer inValues(ColumnMetadata column, List<ByteBuffer> values)
+    private static ByteBuffer multiInputOperatorValues(ColumnMetadata column, List<ByteBuffer> values)
     {
         return ListType.getInstance(column.type, false).pack(values);
     }

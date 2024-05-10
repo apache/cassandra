@@ -141,15 +141,15 @@ public final class MergedRestriction implements SingleRestriction
                                      column.name);
             }
 
-            if ((restriction.operator() == Operator.GT || restriction.operator() == Operator.GTE) &&
-                    (other.operator() == Operator.GT || other.operator() == Operator.GTE))
+            if ((restriction.operator() == Operator.GT || restriction.operator() == Operator.GTE || restriction.operator() == Operator.BETWEEN) &&
+                    (other.operator() == Operator.GT || other.operator() == Operator.GTE || other.operator() == Operator.BETWEEN))
             {
                 throw invalidRequest("More than one restriction was found for the start bound on %s",
                                      toCQLString(getColumnsInCommons(restriction, other)));
             }
 
-            if ((restriction.operator() == Operator.LT || restriction.operator() == Operator.LTE) &&
-                    (other.operator() == Operator.LT || other.operator() == Operator.LTE))
+            if ((restriction.operator() == Operator.LT || restriction.operator() == Operator.LTE || restriction.operator() == Operator.BETWEEN) &&
+                    (other.operator() == Operator.LT || other.operator() == Operator.LTE || other.operator() == Operator.BETWEEN))
             {
                 throw invalidRequest("More than one restriction was found for the end bound on %s",
                                      toCQLString(getColumnsInCommons(restriction, other)));
