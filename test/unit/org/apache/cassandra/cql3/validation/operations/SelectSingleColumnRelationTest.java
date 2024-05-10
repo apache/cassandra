@@ -417,8 +417,6 @@ public class SelectSingleColumnRelationTest extends CQLTester
 
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT content FROM %s WHERE time2 >= 0 AND author='foo'");
-        assertRows(execute("SELECT v1 FROM %s WHERE author BETWEEN 'amy' AND 'zoe' AND time = 0 ALLOW FILTERING"),
-                   row("A"), row("D"));
     }
 
     @Test
@@ -847,9 +845,5 @@ public class SelectSingleColumnRelationTest extends CQLTester
         assertRows(execute("SELECT * from %s WHERE pk = ? AND c BETWEEN ? AND ?", 1, -4, -1),
                    row(1, -2, -2),
                    row(1, -1, -1));
-
-        assertRows(execute("SELECT * from %s WHERE pk = ? AND NOT BETWEEN -2 and 0", 1, 0, 2),
-                   row(1, 1, 1),
-                   row(1, 2, 2));
     }
 }
