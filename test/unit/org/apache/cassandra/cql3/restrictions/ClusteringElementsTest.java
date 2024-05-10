@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.restrictions;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -586,6 +587,64 @@ public class ClusteringElementsTest
         assertUnsupported("Cannot extend elements with elements of a different kind", () -> pkElement.extend(second));
         assertUnsupported("Range endpoints cannot be extended", () -> top.extend(third));
         assertUnsupported("Range endpoints cannot be extended", () -> bottom.extend(third));
+    }
+
+    @Test
+    public void testForCQLComparator()
+    {
+        for (List<ColumnMetadata> columns : asList(newClusteringColumns(ASC, ASC, ASC),
+                                                   newClusteringColumns(ASC, ASC, DESC),
+                                                   newClusteringColumns(DESC, DESC, ASC),
+                                                   newClusteringColumns(DESC, DESC, DESC),
+                                                   newClusteringColumns(ASC, DESC, ASC),
+                                                   newClusteringColumns(ASC, DESC, DESC),
+                                                   newClusteringColumns(DESC, ASC, ASC),
+                                                   newClusteringColumns(DESC, ASC, DESC)))
+        {
+            ClusteringElements zeroZeroZero = elements(columns, 0, 0, 0);
+            ClusteringElements oneZeroOne = elements(columns, 1, 0, 1);
+            ClusteringElements oneThreeZero = elements(columns, 1, 3, 0);
+            ClusteringElements oneThreeOne = elements(columns, 1, 3, 1);
+            ClusteringElements oneThreeFive = elements(columns, 1, 3, 5);
+            ClusteringElements oneFiveOne = elements(columns, 1, 5, 1);
+            ClusteringElements twoFiveFive = elements(columns, 2, 5, 5);
+
+            List<ClusteringElements> elementsList = new ArrayList<>();
+            elementsList.add(zeroZeroZero);
+            elementsList.add(oneFiveOne);
+            elementsList.add(oneThreeZero);
+            elementsList.add(oneThreeOne);
+            elementsList.add(twoFiveFive);
+            elementsList.add(oneThreeFive);
+            elementsList.add(oneZeroOne);
+
+            Comparator<ClusteringElements> comparator = ClusteringElements.CQL_COMPARATOR;
+            elementsList.sort(comparator);
+
+            assertEquals(zeroZeroZero, elementsList.get(0));
+            assertEquals(oneZeroOne, elementsList.get(1));
+            assertEquals(oneThreeZero, elementsList.get(2));
+            assertEquals(oneThreeOne, elementsList.get(3));
+            assertEquals(oneThreeFive, elementsList.get(4));
+            assertEquals(oneFiveOne, elementsList.get(5));
+            assertEquals(twoFiveFive, elementsList.get(6));
+        }
+    }
+
+    @Test
+    public void testForCQLComparatorWithDifferentLength()
+    {
+        ClusteringElements one = elements(newClusteringColumns(ASC), 1);
+        ClusteringElements oneZero = elements(newClusteringColumns(ASC, ASC), 1, 0);
+        ClusteringElements oneZeroOne = elements(newClusteringColumns(ASC, ASC, ASC), 1, 0, 1);
+
+        assertEquals(0, ClusteringElements.CQL_COMPARATOR.compare(one, one));
+        assertEquals(0, ClusteringElements.CQL_COMPARATOR.compare(one, oneZero));
+        assertEquals(0, ClusteringElements.CQL_COMPARATOR.compare(oneZero, one));
+        assertEquals(0, ClusteringElements.CQL_COMPARATOR.compare(one, oneZeroOne));
+        assertEquals(0, ClusteringElements.CQL_COMPARATOR.compare(oneZeroOne, one));
+        assertEquals(0, ClusteringElements.CQL_COMPARATOR.compare(oneZero, oneZeroOne));
+        assertEquals(0, ClusteringElements.CQL_COMPARATOR.compare(oneZeroOne, oneZero));
     }
 
     private void assertUnsupported(String expectedMsg, Runnable r)

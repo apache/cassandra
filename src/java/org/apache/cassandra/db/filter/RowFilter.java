@@ -743,11 +743,23 @@ public class RowFilter implements Iterable<RowFilter.Expression>
                     type = ((MapType<?, ?>)type).nameComparator();
                     break;
                 case IN:
+                case BETWEEN:
                     type = ListType.getInstance(type, false);
                     break;
                 default:
                     break;
             }
+
+            if (operator.isTernary())
+            {
+                ListType<?> listType = (ListType<?>) type;
+                List<? extends ByteBuffer> buffers = listType.unpack(value);
+                AbstractType<?> elementType = listType.getElementsType();
+                return cql
+                    ? String.format("%s %s %s AND %s", column.name.toCQLString(), operator, elementType.toCQLString(buffers.get(0)), elementType.toCQLString(buffers.get(1)))
+                    : String.format("%s %s %s AND %s", column.name.toString(), operator, elementType.getString(buffers.get(0)), elementType.getString(buffers.get(1)));
+            }
+
             return cql
                  ? String.format("%s %s %s", column.name.toCQLString(), operator, type.toCQLString(value) )
                  : String.format("%s %s %s", column.name.toString(), operator, type.getString(value));

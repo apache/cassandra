@@ -1757,6 +1757,18 @@ propertyValue returns [String str]
     | u=unreserved_keyword { $str = u; }
     ;
 
+singleColumnBetweenValues returns [Terms.Raw terms]
+    @init { List<Term.Raw> list = new ArrayList<>(); }
+    @after { $terms = Terms.Raw.of(list); }
+    : t1=term { list.add(t1); } K_AND t2=term { list.add(t2); }
+    ;
+
+betweenLiterals returns [Terms.Raw literals]
+    @init { List<Term.Raw> list = new ArrayList<>(); }
+    @after { $literals = Terms.Raw.of(list); }
+    : t1=tupleLiteral { list.add(t1); } K_AND t2=tupleLiteral { list.add(t2); }
+    ;
+
 relationType returns [Operator op]
     : '='  { $op = Operator.EQ; }
     | '<'  { $op = Operator.LT; }
@@ -1768,10 +1780,12 @@ relationType returns [Operator op]
 
 relation[WhereClause.Builder clauses]
     : name=cident type=relationType t=term { $clauses.add(Relation.singleColumn(name, type, t)); }
+    | name=cident K_BETWEEN betweenValues=singleColumnBetweenValues
+            { $clauses.add(Relation.singleColumn($name.id, Operator.BETWEEN, betweenValues)); }
     | name=cident K_LIKE t=term { $clauses.add(Relation.singleColumn(name, Operator.LIKE, t)); }
     | name=cident K_IS K_NOT K_NULL { $clauses.add(Relation.singleColumn(name, Operator.IS_NOT, Constants.NULL_LITERAL)); }
-    | K_TOKEN l=tupleOfIdentifiers type=relationType t=term
-        { $clauses.add(Relation.token(l, type, t)); }
+    | K_TOKEN l=tupleOfIdentifiers type=relationType t=term { $clauses.add(Relation.token(l, type, t)); }
+    | K_TOKEN l=tupleOfIdentifiers K_BETWEEN betweenValues=singleColumnBetweenValues { $clauses.add(Relation.token(l, Operator.BETWEEN, betweenValues)); }
     | name=cident K_IN marker=inMarker
         { $clauses.add(Relation.singleColumn(name, Operator.IN, marker)); }
     | name=cident K_IN inValues=singleColumnInValues
@@ -1797,6 +1811,12 @@ relation[WhereClause.Builder clauses]
           }
       | type=relationType tupleMarker=markerForTuple /* (a, b, c) >= ? */
           { $clauses.add(Relation.multiColumn(ids, type, tupleMarker)); }
+      | K_BETWEEN
+            ( t1=tupleLiteral K_AND t2=tupleLiteral
+                    { $clauses.add(Relation.multiColumn(ids, Operator.BETWEEN, Terms.Raw.of(List.of(t1, t2)))); }
+            | m1=markerForTuple K_AND m2=markerForTuple
+                    { $clauses.add(Relation.multiColumn(ids, Operator.BETWEEN, Terms.Raw.of(List.of(m1, m2)))); }
+            )
       )
     | '(' relation[$clauses] ')'
     ;
@@ -2016,5 +2036,6 @@ basic_unreserved_keyword returns [String str]
         | K_SELECT_MASKED
         | K_VECTOR
         | K_ANN
+        | K_BETWEEN
         ) { $str = $k.text; }
     ;

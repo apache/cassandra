@@ -75,7 +75,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
 
         for (RowFilter.Expression expression : filter)
         {
-            // We ignore any expressions here (currently IN and user-defined expressions) where we don't have a way to
+            // We ignore any expressions here (user-defined expressions and SAI unsupported operators) where we don't have a way to
             // translate their #isSatifiedBy method, they will be included in the filter returned by 
             // QueryPlan#postIndexQueryFilter(). If strict filtering is not allowed, we must reject the query until the
             // expression(s) in question are compatible with #isSatifiedBy.
@@ -83,7 +83,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
             // Note: For both the pre- and post-filters we need to check that the expression exists before removing it
             // because the without method assert if the expression doesn't exist. This can be the case if we are given
             // a duplicate expression - a = 1 and a = 1. The without method removes all instances of the expression.
-            if (expression.operator().isIN() || expression.isUserDefined())
+            if (!Expression.supportsOperator(expression.operator()) || expression.isUserDefined())
             {
                 if (!filter.isStrict())
                     throw new InvalidRequestException(String.format(UNSUPPORTED_NON_STRICT_OPERATOR, expression.operator()));
