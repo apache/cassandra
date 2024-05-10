@@ -75,7 +75,7 @@ public class DeleteTest extends CQLTester
         execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 2, 3, 4);
         flush(flushData);
 
-        execute("DELETE FROM %s WHERE a = ? AND b >= ?", 2, 2);
+        execute("DELETE FROM %s WHERE a = ? AND b >= ?", 2, 3);
         flush(flushTombstone);
 
         assertRowsIgnoringOrder(execute("SELECT * FROM %s"),

@@ -269,7 +269,8 @@ public enum Operator
     BETWEEN(16)
     {
         @Override
-        public String toString() {
+        public String toString()
+        {
             return "BETWEEN";
         }
 
@@ -294,7 +295,7 @@ public enum Operator
         }
 
         @Override
-        public RangeSet<ClusteringElements> restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
+        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
         {
             assert args.size() == 2 : this + " accepts exactly two values";
             ClusteringElements left = args.get(0);
@@ -304,7 +305,6 @@ public enum Operator
             ClusteringElements greater = comp < 0 ? right : left;
             rangeSet.removeAll(ClusteringElements.lessThan(lesser));
             rangeSet.removeAll(ClusteringElements.greaterThan(greater));
-            return rangeSet;
         }
 
         @Override
@@ -318,6 +318,7 @@ public enum Operator
         {
             return kind != ColumnsExpression.Kind.MAP_ELEMENT;
         }
+    },
     IN(7)
     {
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)

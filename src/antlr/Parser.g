@@ -1812,7 +1812,7 @@ relation[WhereClause.Builder clauses]
       | type=relationType tupleMarker=markerForTuple /* (a, b, c) >= ? */
           { $clauses.add(Relation.multiColumn(ids, type, tupleMarker)); }
       | K_BETWEEN literals=betweenLiterals
-                  { $clauses.add(Relation.multiColumns(ids, Operator.BETWEEN, literals)); }
+                  { $clauses.add(Relation.multiColumn(ids, Operator.BETWEEN, literals)); }
       )
     | '(' relation[$clauses] ')'
     ;
