@@ -748,6 +748,15 @@ public class RowFilter implements Iterable<RowFilter.Expression>
                 default:
                     break;
             }
+
+            if (operator.isTernary())
+            {
+                List<? extends ByteBuffer> buffers = ((ListType<?>) type).unpack(value);
+                return cql
+                    ? String.format("%s %s %s AND %s", column.name.toCQLString(), operator, type.toCQLString(buffers.get(0)), type.toCQLString(buffers.get(1)))
+                    : String.format("%s %s %s AND %s", column.name.toString(), operator, type.getString(buffers.get(0)), type.getString(buffers.get(1)));
+            }
+
             return cql
                  ? String.format("%s %s %s", column.name.toCQLString(), operator, type.toCQLString(value) )
                  : String.format("%s %s %s", column.name.toString(), operator, type.getString(value));

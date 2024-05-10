@@ -72,7 +72,7 @@ public final class Relation
      */
     public static Relation singleColumn(ColumnIdentifier identifier, Operator operator, Term.Raw rawTerm)
     {
-        assert operator != Operator.IN;
+        assert operator.kind() == Operator.Kind.BINARY;
         return new Relation(ColumnsExpression.Raw.singleColumn(identifier), operator, Terms.Raw.of(rawTerm));
     }
 
@@ -113,7 +113,7 @@ public final class Relation
      */
     public static Relation multiColumn(List<ColumnIdentifier> identifiers, Operator operator, Term.Raw rawTerm)
     {
-        assert operator != Operator.IN;
+        assert operator.kind() == Operator.Kind.BINARY;
         return new Relation(ColumnsExpression.Raw.multiColumn(identifiers), operator, Terms.Raw.of(rawTerm));
     }
 
@@ -225,6 +225,11 @@ public final class Relation
      */
     public String toCQLString()
     {
+        if (operator.isTernary())
+        {
+            List<? extends Term.Raw> terms = rawTerms.asList();
+            return String.format("%s %s %s AND %s", rawExpressions.toCQLString(), operator, terms.get(0), terms.get(1));
+        }
         return String.format("%s %s %s", rawExpressions.toCQLString(), operator, rawTerms.getText());
     }
 
