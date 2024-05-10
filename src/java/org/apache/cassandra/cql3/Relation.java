@@ -72,7 +72,7 @@ public final class Relation
      */
     public static Relation singleColumn(ColumnIdentifier identifier, Operator operator, Term.Raw rawTerm)
     {
-        assert operator != Operator.IN;
+        assert operator.kind() == Operator.Kind.BINARY;
         return new Relation(ColumnsExpression.Raw.singleColumn(identifier), operator, Terms.Raw.of(rawTerm));
     }
 
@@ -86,6 +86,7 @@ public final class Relation
      */
     public static Relation singleColumn(ColumnIdentifier identifier, Operator operator, Terms.Raw rawTerms)
     {
+        assert operator.kind() != Operator.Kind.BINARY;
         return new Relation(ColumnsExpression.Raw.singleColumn(identifier), operator, rawTerms);
     }
 
@@ -100,6 +101,7 @@ public final class Relation
      */
     public static Relation mapElement(ColumnIdentifier identifier, Term.Raw rawKey, Operator operator, Term.Raw rawTerm)
     {
+        assert operator.kind() == Operator.Kind.BINARY;
         return new Relation(ColumnsExpression.Raw.mapElement(identifier, rawKey), operator, Terms.Raw.of(rawTerm));
     }
 
@@ -113,7 +115,7 @@ public final class Relation
      */
     public static Relation multiColumn(List<ColumnIdentifier> identifiers, Operator operator, Term.Raw rawTerm)
     {
-        assert operator != Operator.IN;
+        assert operator.kind() == Operator.Kind.BINARY;
         return new Relation(ColumnsExpression.Raw.multiColumn(identifiers), operator, Terms.Raw.of(rawTerm));
     }
 
@@ -127,6 +129,7 @@ public final class Relation
      */
     public static Relation multiColumn(List<ColumnIdentifier> identifiers, Operator operator, Terms.Raw rawTerms)
     {
+        assert operator.kind() != Operator.Kind.BINARY;
         return new Relation(ColumnsExpression.Raw.multiColumn(identifiers), operator, rawTerms);
     }
 
@@ -140,7 +143,22 @@ public final class Relation
      */
     public static Relation token(List<ColumnIdentifier> identifiers, Operator operator, Term.Raw rawTerm)
     {
+        assert operator.kind() == Operator.Kind.BINARY;
         return new Relation(ColumnsExpression.Raw.token(identifiers), operator, Terms.Raw.of(rawTerm));
+    }
+
+    /**
+     * Creates a relation for token expression (e.g. {@code token(columnA, columnB) = ?} ).
+     *
+     * @param identifiers the column identifiers for the partition columns
+     * @param operator the relation operator
+     * @param rawTerms the terms to which the token value must be compared
+     * @return a relation for a token expression.
+     */
+    public static Relation token(List<ColumnIdentifier> identifiers, Operator operator, Terms.Raw rawTerms)
+    {
+        assert operator.kind() == Operator.Kind.TERNARY;
+        return new Relation(ColumnsExpression.Raw.token(identifiers), operator, rawTerms);
     }
 
     /**
@@ -225,6 +243,11 @@ public final class Relation
      */
     public String toCQLString()
     {
+        if (operator.isTernary())
+        {
+            List<? extends Term.Raw> terms = rawTerms.asList();
+            return String.format("%s %s %s AND %s", rawExpressions.toCQLString(), operator, terms.get(0), terms.get(1));
+        }
         return String.format("%s %s %s", rawExpressions.toCQLString(), operator, rawTerms.getText());
     }
 

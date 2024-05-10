@@ -268,6 +268,11 @@ public enum Operator
     },
     IN(7)
     {
+        @Override
+        public Kind kind() {
+            return Kind.MULTI_VALUE;
+        }
+
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
             ListSerializer<?> serializer = ListType.getInstance(type, false).getSerializer();
@@ -507,6 +512,62 @@ public enum Operator
         {
             return true;
         }
+    },
+    BETWEEN(19)
+    {
+        @Override
+        public Kind kind() {
+            return Kind.TERNARY;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "BETWEEN";
+        }
+
+        @Override
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            List<ByteBuffer> buffers = ListType.getInstance(type, false).unpack(rightOperand);
+            buffers.sort(type);
+            return type.compareForCQL(leftOperand, buffers.get(0)) >= 0 && type.compareForCQL(leftOperand, buffers.get(1)) <= 0;
+        }
+
+        @Override
+        public boolean requiresFilteringOrIndexingFor(ColumnMetadata.Kind columnKind)
+        {
+            return columnKind != ColumnMetadata.Kind.CLUSTERING;
+        }
+
+        @Override
+        public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
+        {
+            assert args.size() == 2 : this + " accepts exactly two values";
+            args.sort(ClusteringElements.CQL_COMPARATOR);
+            rangeSet.removeAll(ClusteringElements.lessThan(args.get(0)));
+            rangeSet.removeAll(ClusteringElements.greaterThan(args.get(1)));
+        }
+
+        @Override
+        public boolean isSlice()
+        {
+            return true;
+        }
+
+        @Override
+        public boolean canBeUsedWith(ColumnsExpression.Kind kind)
+        {
+            return kind != ColumnsExpression.Kind.MAP_ELEMENT;
+        }
+    };
+
+    /**
+     * The different kinds of operators
+     */
+    public enum Kind
+    {
+        BINARY, TERNARY, MULTI_VALUE;
     };
 
     /**
@@ -537,6 +598,24 @@ public enum Operator
     public int getValue()
     {
         return b;
+    }
+
+    /**
+     * Returns the kind of this operator.
+     * @return the kind of this operator
+     */
+    public Kind kind()
+    {
+        return Kind.BINARY;
+    }
+
+    /**
+     * Checks if this operator is a ternary operator.
+     * @return {@code true} if this operator is a ternary operator, {@code false} otherwise.
+     */
+    public boolean isTernary()
+    {
+        return kind() == Kind.TERNARY;
     }
 
     /**

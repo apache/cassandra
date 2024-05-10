@@ -179,6 +179,9 @@ public class UpdateTest extends CQLTester
 
         assertInvalidMessage("Slice restrictions are not supported on the clustering columns in UPDATE statements",
                              "UPDATE %s SET value = ? WHERE partitionKey = ? AND clustering_1 > ?", 7, 0, 1);
+
+        assertInvalidMessage("Slice restrictions are not supported on the clustering columns in UPDATE statements",
+                             "UPDATE %s SET value = ? WHERE partitionKey = ? AND clustering_1 BETWEEN ? AND ?", 7, 0, 1, 2);
     }
 
     @Test
