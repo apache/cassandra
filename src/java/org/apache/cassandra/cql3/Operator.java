@@ -1,4 +1,4 @@
-/*
+ /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -266,6 +266,58 @@ public enum Operator
             return kind != ColumnsExpression.Kind.MAP_ELEMENT;
         }
     },
+    BETWEEN(16)
+    {
+        @Override
+        public String toString() {
+            return "BETWEEN";
+        }
+
+        @Override
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            ListSerializer<?> serializer = ListType.getInstance(type, false).getSerializer();
+
+            ByteBuffer leftBound = serializer.getElement(rightOperand, 0);
+            ByteBuffer rightBound = serializer.getElement(rightOperand, 1);
+
+            ByteBuffer larger = type.compareForCQL(leftBound, rightBound) > 0 ? leftBound : rightBound;
+            ByteBuffer smaller = type.compareForCQL(larger, leftOperand) == 0 ? rightBound : leftBound;
+
+            return type.compareForCQL(leftOperand, larger) <= 0 && type.compareForCQL(leftOperand, smaller) >= 0;
+        }
+
+        @Override
+        public boolean requiresFilteringOrIndexingFor(ColumnMetadata.Kind columnKind)
+        {
+            return !columnKind.isPrimaryKeyKind();
+        }
+
+        @Override
+        public RangeSet<ClusteringElements> restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
+        {
+            assert args.size() == 2 : this + " accepts exactly two values";
+            ClusteringElements left = args.get(0);
+            ClusteringElements right = args.get(1);
+            int comp = ClusteringElements.compareForCQL(left, right);
+            ClusteringElements lesser = comp < 0 ? left : right;
+            ClusteringElements greater = comp < 0 ? right : left;
+            rangeSet.removeAll(ClusteringElements.lessThan(lesser));
+            rangeSet.removeAll(ClusteringElements.greaterThan(greater));
+            return rangeSet;
+        }
+
+        @Override
+        public boolean isSlice()
+        {
+            return true;
+        }
+
+        @Override
+        public boolean canBeUsedWith(ColumnsExpression.Kind kind)
+        {
+            return kind != ColumnsExpression.Kind.MAP_ELEMENT;
+        }
     IN(7)
     {
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)

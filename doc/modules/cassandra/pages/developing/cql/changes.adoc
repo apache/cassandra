@@ -2,6 +2,10 @@
 
 The following describes the changes in each version of CQL.
 
+== 3.4.8
+
+* Add support for BETWEEN and NOT BETWEEN in WHERE clauses and DELETE statements (`19604`)
+
 == 3.4.7
 
 * Add vector similarity functions (`18640`)

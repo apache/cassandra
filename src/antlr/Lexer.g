@@ -124,6 +124,7 @@ K_FILTERING:   F I L T E R I N G;
 K_IF:          I F;
 K_IS:          I S;
 K_CONTAINS:    C O N T A I N S;
+K_BETWEEN:     B E T W E E N;
 K_GROUP:       G R O U P;
 K_CLUSTER:     C L U S T E R;
 K_INTERNALS:   I N T E R N A L S;

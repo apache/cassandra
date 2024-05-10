@@ -370,6 +370,65 @@ public class ClusteringElements extends ForwardingList<ByteBuffer> implements Co
                                                            : that instanceof Top ? -1 : 1;
     }
 
+    // Very similar to compareTo, the differences are: compareForCQL is static, compareForCQL unwraps column types
+    // before comparing with them.
+    public static int compareForCQL(ClusteringElements a, ClusteringElements b)
+    {
+        if (a == null || b == null)
+            throw new NullPointerException();
+
+        a.isComparableWith(b);
+
+        int comparison = 0;
+
+        int minSize = Math.min(a.size(), b.size());
+        for (int i = 0; i < minSize; i++)
+        {
+            ByteBuffer aValue = a.values.get(i);
+            ByteBuffer bValue = b.values.get(i);
+
+            comparison = a.columnType(i).unwrap().compare(aValue, bValue);
+
+            if (comparison != 0)
+                return comparison;
+        }
+        // If both sets of elements have the same size, it could mean:
+        //  * that they are equal (e.g. this = (1, 2) and that = (1,2))
+        //  * that one of them is a Top or Bottom boundary (e.g. this = (1) and that = (1, +∞))
+        //  * that both of them are Top or Bottom boundaries ( e.g. this = (-∞) and that = (+∞)).
+        if (a.size() == b.size())
+        {
+            comparison = Boolean.compare(a instanceof Top, b instanceof Top);
+
+            if (comparison == 0) // either none is a Top or both are Tops
+            {
+                // If none is a Top, one can be a Bottom
+                comparison = Boolean.compare(a instanceof Bottom, b instanceof Bottom);
+                if (comparison == 0)
+                    return 0; // this and that are equal
+
+                return comparison > 0 ? -1 : 1; // If this is a Bottom that is greater and if that is a Bottom this is greater
+            }
+
+            // Either this or that is a top
+            return comparison > 0 ? b instanceof Bottom ? 1 : 0  // this is a top
+                                  : a instanceof Bottom ? -1 : 0; // that is a top
+        }
+
+        // If this size is smaller it means that we have 2 possible cases:
+        //  * this with less column than that (e.g. (1) for this and (1, 0) for that)
+        //  * a top or bottom for this (e.g. (1, +∞) for this and (1, 0) for that)
+        // If we are in the first case then zero must be returned as that is included in this.
+        if (a.size() < b.size())
+        {
+            return b.columns.get(minSize).type.isReversed() ? a instanceof Bottom ? -1 : 1
+                                                            : a instanceof Top ? 1 : -1;
+        }
+
+        return a.columns.get(minSize).type.isReversed() ? b instanceof Bottom ? 1 : -1
+                                                        : b instanceof Top ? -1 : 1;
+    }
+
     /**
      * Checks if this {@code ClusteringElements} is comparable with that other one.
      * @param that the {@code ClusteringElements} to be compared with.
