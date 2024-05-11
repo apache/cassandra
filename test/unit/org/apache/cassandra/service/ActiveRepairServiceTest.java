@@ -36,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.service.disk.usage.DiskUsageMonitor;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.Assert;
@@ -66,6 +67,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Refs;
+import org.mockito.Mock;
 
 import static org.apache.cassandra.repair.messages.RepairOption.DATACENTERS_KEY;
 import static org.apache.cassandra.repair.messages.RepairOption.FORCE_REPAIR_KEY;
@@ -74,11 +76,14 @@ import static org.apache.cassandra.repair.messages.RepairOption.INCREMENTAL_KEY;
 import static org.apache.cassandra.repair.messages.RepairOption.RANGES_KEY;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 import static org.apache.cassandra.service.ActiveRepairService.getRepairedAt;
+import static org.apache.cassandra.service.ActiveRepairService.instance;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.mockito.Mockito.when;
+import static org.mockito.MockitoAnnotations.initMocks;
 
 public class ActiveRepairServiceTest
 {
@@ -90,7 +95,8 @@ public class ActiveRepairServiceTest
     public String cfname;
     public ColumnFamilyStore store;
     public InetAddressAndPort LOCAL, REMOTE;
-
+    @Mock
+    public DiskUsageMonitor diskUsageMonitor;
     private boolean initialized;
 
     @BeforeClass
@@ -121,6 +127,7 @@ public class ActiveRepairServiceTest
         StorageService.instance.setTokens(Collections.singleton(tmd.partitioner.getRandomToken()));
         tmd.updateNormalToken(tmd.partitioner.getMinimumToken(), REMOTE);
         assert tmd.isMember(REMOTE);
+        initMocks(this);
     }
 
     @Test
@@ -467,6 +474,41 @@ public class ActiveRepairServiceTest
             // necessary to unregister mbean
             validationExecutor.shutdownNow();
         }
+    }
+
+    @Test
+    public void testVerifyDiskHeadroomThresholdFullRepair()
+    {
+        Assert.assertTrue(ActiveRepairService.verifyDiskHeadroomThreshold(TimeUUID.maxAtUnixMillis(0), PreviewKind.NONE, false));
+    }
+
+    @Test
+    public void testVerifyDiskHeadroomThresholdDiskFull()
+    {
+        DiskUsageMonitor.instance = diskUsageMonitor;
+        when(diskUsageMonitor.getDiskUsage()).thenReturn(1.0);
+        DatabaseDescriptor.setIncrementalRepairDiskHeadroomRejectRatio(1.0);
+
+        Assert.assertFalse(ActiveRepairService.verifyDiskHeadroomThreshold(TimeUUID.maxAtUnixMillis(0), PreviewKind.NONE, true));
+    }
+
+    @Test
+    public void testVerifyDiskHeadroomThresholdSufficientDisk()
+    {
+        DiskUsageMonitor.instance = diskUsageMonitor;
+        when(diskUsageMonitor.getDiskUsage()).thenReturn(0.0);
+        DatabaseDescriptor.setIncrementalRepairDiskHeadroomRejectRatio(0.0);
+
+        Assert.assertTrue(ActiveRepairService.verifyDiskHeadroomThreshold(TimeUUID.maxAtUnixMillis(0), PreviewKind.NONE, true));
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void testPrepareForRepairThrowsExceptionForInsufficientDisk()
+    {
+        DiskUsageMonitor.instance = diskUsageMonitor;
+        when(diskUsageMonitor.getDiskUsage()).thenReturn(1.5);
+
+        instance.prepareForRepair(TimeUUID.maxAtUnixMillis(0), null, null, opts(INCREMENTAL_KEY, b2s(true)), false, null);
     }
 
     private static class Task implements Runnable
