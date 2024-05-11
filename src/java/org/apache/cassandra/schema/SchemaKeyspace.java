@@ -44,6 +44,7 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.schema.ColumnMetadata.ClusteringOrder;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
@@ -126,6 +127,8 @@ public final class SchemaKeyspace
               + "additional_write_policy text,"
               + "cdc boolean,"
               + "read_repair text,"
+              + "automated_repair_full frozen<map<text, text>>,"
+              + "automated_repair_incremental frozen<map<text, text>>,"
               + "PRIMARY KEY ((keyspace_name), table_name))");
 
     private static final TableMetadata Columns =
@@ -210,6 +213,8 @@ public final class SchemaKeyspace
               + "additional_write_policy text,"
               + "cdc boolean,"
               + "read_repair text,"
+              + "automated_repair_full frozen<map<text, text>>,"
+              + "automated_repair_incremental frozen<map<text, text>>,"
               + "PRIMARY KEY ((keyspace_name), view_name))");
 
     private static final TableMetadata Indexes =
@@ -557,7 +562,10 @@ public final class SchemaKeyspace
                .add("compaction", params.compaction.asMap())
                .add("compression", params.compression.asMap())
                .add("read_repair", params.readRepair.toString())
-               .add("extensions", params.extensions);
+               .add("extensions", params.extensions)
+               .add("automated_repair_full", params.automatedRepair.get(AutoRepairConfig.RepairType.full).asMap())
+               .add("automated_repair_incremental", params.automatedRepair.get(AutoRepairConfig.RepairType.incremental).asMap());
+
 
         // Only add CDC-enabled flag to schema if it's enabled on the node. This is to work around RTE's post-8099 if a 3.8+
         // node sends table schema to a < 3.8 versioned node with an unknown column.
@@ -1040,7 +1048,9 @@ public final class SchemaKeyspace
                                                                         SpeculativeRetryPolicy.fromString(row.getString("additional_write_policy")) :
                                                                         SpeculativeRetryPolicy.fromString("99PERCENTILE"))
                                                  .cdc(row.has("cdc") && row.getBoolean("cdc"))
-                                                 .readRepair(getReadRepairStrategy(row));
+                                                 .readRepair(getReadRepairStrategy(row))
+                                                 .automatedRepairFull(AutoRepairParams.fromMap(AutoRepairConfig.RepairType.full, row.getFrozenTextMap("automated_repair_full")))
+                                                 .automatedRepairIncremental(AutoRepairParams.fromMap(AutoRepairConfig.RepairType.incremental, row.getFrozenTextMap("automated_repair_incremental")));
 
         // allow_auto_snapshot column was introduced in 4.2
         if (row.has("allow_auto_snapshot"))

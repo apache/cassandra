@@ -66,6 +66,14 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.vdurmont.semver4j.Semver;
+
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
+import org.apache.cassandra.repair.autorepair.IAutoRepairTokenRangeSplitter;
+import org.apache.cassandra.utils.concurrent.*;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -716,6 +724,12 @@ public class FBUtilities
             else
                 throw new ConfigurationException(String.format("Unable to create an instance of crypto provider for %s", className), e);
         }
+    }
+    public static IAutoRepairTokenRangeSplitter newAutoRepairTokenRangeSplitter(String className) throws ConfigurationException
+    {
+        if (!className.contains("."))
+            className = "org.apache.cassandra.repair.autorepair." + className;
+        return FBUtilities.construct(className, "auto repair token splitter");
     }
 
     /**

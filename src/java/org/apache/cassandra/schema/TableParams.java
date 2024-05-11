@@ -19,6 +19,7 @@ package org.apache.cassandra.schema;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -34,6 +35,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.service.reads.PercentileSpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
@@ -68,7 +70,10 @@ public final class TableParams
         ADDITIONAL_WRITE_POLICY,
         CRC_CHECK_CHANCE,
         CDC,
-        READ_REPAIR;
+        READ_REPAIR,
+        AUTOMATED_REPAIR_FULL,
+        AUTOMATED_REPAIR_INCREMENTAL,
+        ;
 
         @Override
         public String toString()
@@ -97,6 +102,8 @@ public final class TableParams
     public final boolean cdc;
     public final ReadRepairStrategy readRepair;
 
+    public final Map<AutoRepairConfig.RepairType, AutoRepairParams> automatedRepair;
+
     private TableParams(Builder builder)
     {
         comment = builder.comment;
@@ -120,6 +127,13 @@ public final class TableParams
         extensions = builder.extensions;
         cdc = builder.cdc;
         readRepair = builder.readRepair;
+        automatedRepair = new HashMap<>()
+        {
+            {
+                put(AutoRepairConfig.RepairType.full, builder.automatedRepairFull);
+                put(AutoRepairConfig.RepairType.incremental, builder.automatedRepairIncremental);
+            }
+        };
     }
 
     public static Builder builder()
@@ -147,7 +161,10 @@ public final class TableParams
                             .additionalWritePolicy(params.additionalWritePolicy)
                             .extensions(params.extensions)
                             .cdc(params.cdc)
-                            .readRepair(params.readRepair);
+                            .readRepair(params.readRepair)
+                            .automatedRepairFull(params.automatedRepair.get(AutoRepairConfig.RepairType.full))
+                            .automatedRepairIncremental(params.automatedRepair.get(AutoRepairConfig.RepairType.incremental))
+        ;
     }
 
     public Builder unbuild()
@@ -161,7 +178,7 @@ public final class TableParams
         compression.validate();
 
         double minBloomFilterFpChanceValue = BloomCalculations.minSupportedBloomFilterFpChance();
-        if (bloomFilterFpChance <=  minBloomFilterFpChanceValue || bloomFilterFpChance > 1)
+        if (bloomFilterFpChance <= minBloomFilterFpChanceValue || bloomFilterFpChance > 1)
         {
             fail("%s must be larger than %s and less than or equal to 1.0 (got %s)",
                  BLOOM_FILTER_FP_CHANCE,
@@ -202,6 +219,11 @@ public final class TableParams
 
         if (cdc && memtable.factory().writesShouldSkipCommitLog())
             fail("CDC cannot work if writes skip the commit log. Check your memtable configuration.");
+
+        for (Map.Entry<AutoRepairConfig.RepairType, AutoRepairParams> entry : automatedRepair.entrySet())
+        {
+            entry.getValue().validate();
+        }
     }
 
     private static void fail(String format, Object... args)
@@ -238,7 +260,8 @@ public final class TableParams
             && memtable.equals(p.memtable)
             && extensions.equals(p.extensions)
             && cdc == p.cdc
-            && readRepair == p.readRepair;
+            && readRepair == p.readRepair
+            && automatedRepair == p.automatedRepair;
     }
 
     @Override
@@ -262,7 +285,8 @@ public final class TableParams
                                 memtable,
                                 extensions,
                                 cdc,
-                                readRepair);
+                                readRepair,
+                                automatedRepair);
     }
 
     @Override
@@ -288,6 +312,8 @@ public final class TableParams
                           .add(EXTENSIONS.toString(), extensions)
                           .add(CDC.toString(), cdc)
                           .add(READ_REPAIR.toString(), readRepair)
+                          .add(Option.AUTOMATED_REPAIR_FULL.toString(), automatedRepair.get(AutoRepairConfig.RepairType.full))
+                          .add(Option.AUTOMATED_REPAIR_INCREMENTAL.toString(), automatedRepair.get(AutoRepairConfig.RepairType.incremental))
                           .toString();
     }
 
@@ -339,7 +365,11 @@ public final class TableParams
                .newLine()
                .append("AND read_repair = ").appendWithSingleQuotes(readRepair.toString())
                .newLine()
-               .append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString());
+               .append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString())
+               .newLine()
+               .append("AND automated_repair_full = ").append(automatedRepair.get(AutoRepairConfig.RepairType.full).asMap())
+               .newLine()
+               .append("AND automated_repair_incremental = ").append(automatedRepair.get(AutoRepairConfig.RepairType.incremental).asMap());
     }
 
     public static final class Builder
@@ -363,6 +393,9 @@ public final class TableParams
         private ImmutableMap<String, ByteBuffer> extensions = ImmutableMap.of();
         private boolean cdc;
         private ReadRepairStrategy readRepair = ReadRepairStrategy.BLOCKING;
+
+        private AutoRepairParams automatedRepairFull = new AutoRepairParams(AutoRepairConfig.RepairType.full);
+        private AutoRepairParams automatedRepairIncremental = new AutoRepairParams(AutoRepairConfig.RepairType.incremental);
 
         public Builder()
         {
@@ -484,6 +517,18 @@ public final class TableParams
         public Builder extensions(Map<String, ByteBuffer> val)
         {
             extensions = ImmutableMap.copyOf(val);
+            return this;
+        }
+
+        public Builder automatedRepairFull(AutoRepairParams val)
+        {
+            automatedRepairFull = val;
+            return this;
+        }
+
+        public Builder automatedRepairIncremental(AutoRepairParams val)
+        {
+            automatedRepairIncremental = val;
             return this;
         }
     }

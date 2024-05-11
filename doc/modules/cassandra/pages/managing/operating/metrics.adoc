@@ -1078,6 +1078,56 @@ partitions processed per logged batch
 partitions processed per unlogged batch
 |===
 
+== Automated Repair Metrics
+
+Metrics specifc to automated repair.
+
+Reported name format:
+
+*Metric Name*::
+`org.apache.cassandra.metrics.AutoRepairMetrics.<MetricName>`
+*JMX MBean*::
+`org.apache.cassandra.metrics:type=AutoRepairMetrics name=<MetricName>`
+
+[cols=",,",options="header",]
+|===
+|Name |Type |Description
+|RepairsInProgress |Gauge<Integer> |Repair is in progress
+on the node
+
+|NodeRepairTimeInSec |Gauge<Integer> |Time taken to repair
+the node
+
+|ClusterRepairTimeInSec |Gauge<Integer> |Time taken to repair
+the entire Cassandra cluster
+
+|SkippedTablesCount |Gauge<Integer> |Number of tables skipped
+on the node
+
+|LongestUnrepairedSec |Gauge<Integer> |Time since the last repair
+ran on the node
+
+|FailedTablesCount |Gauge<Integer> |Number of tables encountered
+failure during repair on the node
+
+|TotalMVTablesConsideredForRepair |Gauge<Integer> |Number of materialized
+views considered on the node
+
+|TotalDisabledRepairTables |Gauge<Integer> |Number of tables on which
+the automated repair has been disabled on the node
+
+|RepairTurnMyTurn |Counter |Represents the node's turn to repair
+
+|RepairTurnMyTurnDueToPriority |Counter |Represents the node's turn to repair
+due to priority set in the automated repair
+
+|RepairTurnMyTurnForceRepair |Counter |Represents the node's turn to repair
+due to force repair set in the automated repair
+
+
+|===
+
+
 == JVM Metrics
 
 JVM metrics such as memory and garbage collection statistics can either
