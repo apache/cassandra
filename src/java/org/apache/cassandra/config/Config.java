@@ -34,6 +34,7 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -860,6 +861,8 @@ public class Config
 
     public volatile DurationSpec.LongNanosecondsBound repair_state_expires = new DurationSpec.LongNanosecondsBound("3d");
     public volatile int repair_state_size = 100_000;
+
+    public volatile AutoRepairConfig auto_repair = new AutoRepairConfig();
 
     /**
      * The variants of paxos implementation and semantics supported by Cassandra.

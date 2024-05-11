@@ -121,6 +121,7 @@ public final class SchemaKeyspace
               + "additional_write_policy text,"
               + "cdc boolean,"
               + "read_repair text,"
+              + "disabled_automated_repair boolean,"
               + "PRIMARY KEY ((keyspace_name), table_name))");
 
     private static final TableMetadata Columns =
@@ -189,6 +190,7 @@ public final class SchemaKeyspace
               + "additional_write_policy text,"
               + "cdc boolean,"
               + "read_repair text,"
+              + "disabled_automated_repair boolean,"
               + "PRIMARY KEY ((keyspace_name), view_name))");
 
     private static final TableMetadata Indexes =
@@ -552,7 +554,8 @@ public final class SchemaKeyspace
                .add("compaction", params.compaction.asMap())
                .add("compression", params.compression.asMap())
                .add("read_repair", params.readRepair.toString())
-               .add("extensions", params.extensions);
+               .add("extensions", params.extensions)
+               .add("disabled_automated_repair", params.disableAutomatedRepair);
 
         // Only add CDC-enabled flag to schema if it's enabled on the node. This is to work around RTE's post-8099 if a 3.8+
         // node sends table schema to a < 3.8 versioned node with an unknown column.
@@ -976,6 +979,7 @@ public final class SchemaKeyspace
                                                      SpeculativeRetryPolicy.fromString("99PERCENTILE"))
                           .cdc(row.has("cdc") && row.getBoolean("cdc"))
                           .readRepair(getReadRepairStrategy(row))
+                          .disableAutomatedRepair(row.has("disabled_automated_repair") && row.getBoolean("disabled_automated_repair"))
                           .build();
     }
 

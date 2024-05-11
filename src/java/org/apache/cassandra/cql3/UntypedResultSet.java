@@ -433,6 +433,15 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
             return LongType.instance.compose(data.get(column));
         }
 
+        // this function will return the default value if the row doesn't have that column or the column data is null
+        // This function is used to avoid the nullpointerexception
+        public long getLongOrDefault(String column, long defaultValue) {
+            if (!has(column)){
+                return defaultValue;
+            }
+            return getLong(column);
+        }
+
         public <T> Set<T> getSet(String column, AbstractType<T> type)
         {
             ByteBuffer raw = data.get(column);
