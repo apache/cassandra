@@ -19,6 +19,7 @@ package org.apache.cassandra.schema;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -36,6 +37,9 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
+import org.apache.cassandra.tcm.serialization.MetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.service.reads.PercentileSpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
@@ -98,7 +102,10 @@ public final class TableParams
         FAST_PATH,
         TRANSACTIONAL_MODE,
         TRANSACTIONAL_MIGRATION_FROM,
-        PENDING_DROP;
+        PENDING_DROP,
+        AUTOMATED_REPAIR_FULL,
+        AUTOMATED_REPAIR_INCREMENTAL,
+        ;
 
         @Override
         public String toString()
@@ -131,6 +138,8 @@ public final class TableParams
     public final TransactionalMigrationFromMode transactionalMigrationFrom;
     public final boolean pendingDrop;
 
+    public final Map<AutoRepairConfig.RepairType, AutoRepairParams> automatedRepair;
+
     private TableParams(Builder builder)
     {
         comment = builder.comment;
@@ -159,6 +168,13 @@ public final class TableParams
         transactionalMigrationFrom = builder.transactionalMigrationFrom;
         pendingDrop = builder.pendingDrop;
         checkNotNull(transactionalMigrationFrom);
+        automatedRepair = new HashMap<>()
+        {
+            {
+                put(AutoRepairConfig.RepairType.full, builder.automatedRepairFull);
+                put(AutoRepairConfig.RepairType.incremental, builder.automatedRepairIncremental);
+            }
+        };
     }
 
     public static Builder builder()
@@ -190,7 +206,10 @@ public final class TableParams
                             .fastPath(params.fastPath)
                             .transactionalMode(params.transactionalMode)
                             .transactionalMigrationFrom(params.transactionalMigrationFrom)
-                            .pendingDrop(params.pendingDrop);
+                            .pendingDrop(params.pendingDrop)
+                            .automatedRepairFull(params.automatedRepair.get(AutoRepairConfig.RepairType.full))
+                            .automatedRepairIncremental(params.automatedRepair.get(AutoRepairConfig.RepairType.incremental))
+        ;
     }
 
     public Builder unbuild()
@@ -204,7 +223,7 @@ public final class TableParams
         compression.validate();
 
         double minBloomFilterFpChanceValue = BloomCalculations.minSupportedBloomFilterFpChance();
-        if (bloomFilterFpChance <=  minBloomFilterFpChanceValue || bloomFilterFpChance > 1)
+        if (bloomFilterFpChance <= minBloomFilterFpChanceValue || bloomFilterFpChance > 1)
         {
             fail("%s must be larger than %s and less than or equal to 1.0 (got %s)",
                  BLOOM_FILTER_FP_CHANCE,
@@ -248,6 +267,11 @@ public final class TableParams
 
         if (transactionalMode.isTestMode() && !CassandraRelevantProperties.ACCORD_ALLOW_TEST_MODES.getBoolean())
             fail("Transactional mode " + transactionalMode + " can't be used if " + CassandraRelevantProperties.ACCORD_ALLOW_TEST_MODES.getKey() + " is not set");
+
+        for (Map.Entry<AutoRepairConfig.RepairType, AutoRepairParams> entry : automatedRepair.entrySet())
+        {
+            entry.getValue().validate();
+        }
     }
 
     private static void fail(String format, Object... args)
@@ -288,7 +312,8 @@ public final class TableParams
             && fastPath.equals(fastPath)
             && transactionalMode == p.transactionalMode
             && transactionalMigrationFrom == p.transactionalMigrationFrom
-            && pendingDrop == p.pendingDrop;
+            && pendingDrop == p.pendingDrop
+            && automatedRepair == p.automatedRepair;
     }
 
     @Override
@@ -316,7 +341,8 @@ public final class TableParams
                                 fastPath,
                                 transactionalMode,
                                 transactionalMigrationFrom,
-                                pendingDrop);
+                                pendingDrop,
+                                automatedRepair);
     }
 
     @Override
@@ -347,6 +373,8 @@ public final class TableParams
                           .add(Option.TRANSACTIONAL_MODE.toString(), transactionalMode)
                           .add(Option.TRANSACTIONAL_MIGRATION_FROM.toString(), transactionalMigrationFrom)
                           .add(PENDING_DROP.toString(), pendingDrop)
+                          .add(Option.AUTOMATED_REPAIR_FULL.toString(), automatedRepair.get(AutoRepairConfig.RepairType.full))
+                          .add(Option.AUTOMATED_REPAIR_INCREMENTAL.toString(), automatedRepair.get(AutoRepairConfig.RepairType.incremental))
                           .toString();
     }
 
@@ -407,7 +435,11 @@ public final class TableParams
                       .newLine();
         }
 
-        builder.append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString());
+        builder.append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString())
+               .newLine()
+               .append("AND automated_repair_full = ").append(automatedRepair.get(AutoRepairConfig.RepairType.full).asMap())
+               .newLine()
+               .append("AND automated_repair_incremental = ").append(automatedRepair.get(AutoRepairConfig.RepairType.incremental).asMap());
     }
 
     public static final class Builder
@@ -435,6 +467,9 @@ public final class TableParams
         private TransactionalMode transactionalMode = TransactionalMode.off;
         public TransactionalMigrationFromMode transactionalMigrationFrom = TransactionalMigrationFromMode.none;
         public boolean pendingDrop = false;
+
+        private AutoRepairParams automatedRepairFull = new AutoRepairParams(AutoRepairConfig.RepairType.full);
+        private AutoRepairParams automatedRepairIncremental = new AutoRepairParams(AutoRepairConfig.RepairType.incremental);
 
         public Builder()
         {
@@ -580,6 +615,18 @@ public final class TableParams
         public Builder pendingDrop(boolean pendingDrop)
         {
             this.pendingDrop = pendingDrop;
+            return this;
+        }
+
+        public Builder automatedRepairFull(AutoRepairParams val)
+        {
+            automatedRepairFull = val;
+            return this;
+        }
+
+        public Builder automatedRepairIncremental(AutoRepairParams val)
+        {
+            automatedRepairIncremental = val;
             return this;
         }
     }

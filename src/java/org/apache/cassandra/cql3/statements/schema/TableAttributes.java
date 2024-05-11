@@ -27,6 +27,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.PropertyDefinitions;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
+import org.apache.cassandra.schema.AutoRepairParams;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.CompressionParams;
@@ -195,6 +197,12 @@ public final class TableAttributes extends PropertyDefinitions
 
         if (hasOption(Option.TRANSACTIONAL_MIGRATION_FROM))
             builder.transactionalMigrationFrom(TransactionalMigrationFromMode.fromString(getString(Option.TRANSACTIONAL_MIGRATION_FROM)));
+
+        if (hasOption(Option.AUTOMATED_REPAIR_FULL))
+            builder.automatedRepairFull(AutoRepairParams.fromMap(AutoRepairConfig.RepairType.full, getMap(Option.AUTOMATED_REPAIR_FULL)));
+
+        if (hasOption(Option.AUTOMATED_REPAIR_INCREMENTAL))
+            builder.automatedRepairIncremental(AutoRepairParams.fromMap(AutoRepairConfig.RepairType.incremental, getMap(Option.AUTOMATED_REPAIR_INCREMENTAL)));
 
         return builder.build();
     }

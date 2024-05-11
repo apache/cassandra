@@ -50,6 +50,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -104,6 +105,7 @@ import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.disk.usage.DiskUsageMonitor;
 import org.apache.cassandra.service.paxos.PaxosRepair;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanup;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
@@ -669,6 +671,9 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     public Future<?> prepareForRepair(TimeUUID parentRepairSession, InetAddressAndPort coordinator, Set<InetAddressAndPort> endpoints, RepairOption options, boolean isForcedRepair, List<ColumnFamilyStore> columnFamilyStores)
     {
+        if (!verifyDiskHeadroomThreshold(parentRepairSession, options.getPreviewKind(), options.isIncremental()))
+            failRepair(parentRepairSession, "Rejecting incoming repair, disk usage above threshold"); // failRepair throws exception
+
         if (!verifyCompactionsPendingThreshold(parentRepairSession, options.getPreviewKind()))
             failRepair(parentRepairSession, "Rejecting incoming repair, pending compactions above threshold"); // failRepair throws exception
 
@@ -724,6 +729,24 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         }, timeoutMillis, MILLISECONDS);
 
         return promise;
+    }
+
+    public static boolean verifyDiskHeadroomThreshold(TimeUUID parentRepairSession, PreviewKind previewKind, boolean isIncremental)
+    {
+        if (!isIncremental) // disk headroom is required for anti-compaction which is only performed by incremental repair
+            return true;
+
+        double diskUsage = DiskUsageMonitor.instance.getDiskUsage();
+        double rejectRatio = ActiveRepairService.instance().getIncrementalRepairDiskHeadroomRejectRatio();
+
+        if (diskUsage + rejectRatio > 1)
+        {
+            logger.error("[{}] Rejecting incoming repair, disk usage ({}%) above threshold ({}%)",
+                         previewKind.logPrefix(parentRepairSession), String.format("%.2f", diskUsage * 100), String.format("%.2f", (1 - rejectRatio) * 100));
+            return false;
+        }
+
+        return true;
     }
 
     private void sendPrepareWithRetries(TimeUUID parentRepairSession,
@@ -1084,6 +1107,16 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     public void setRepairPendingCompactionRejectThreshold(int value)
     {
         DatabaseDescriptor.setRepairPendingCompactionRejectThreshold(value);
+    }
+
+    public double getIncrementalRepairDiskHeadroomRejectRatio()
+    {
+        return DatabaseDescriptor.getIncrementalRepairDiskHeadroomRejectRatio();
+    }
+
+    public void setIncrementalRepairDiskHeadroomRejectRatio(double value)
+    {
+        DatabaseDescriptor.setIncrementalRepairDiskHeadroomRejectRatio(value);
     }
 
     /**

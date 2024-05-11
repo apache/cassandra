@@ -113,6 +113,7 @@ import org.apache.cassandra.locator.NodeProximity;
 import org.apache.cassandra.locator.ReconnectableSnitchHelper;
 import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.locator.SnitchAdapter;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.security.AbstractCryptoProvider;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.JREProvider;
@@ -5898,5 +5899,20 @@ public class DatabaseDescriptor
     public static boolean getAccordEphemeralReadEnabledEnabled()
     {
         return conf.accord.ephemeralReadEnabled;
+    }
+
+    public static AutoRepairConfig getAutoRepairConfig()
+    {
+        return conf.auto_repair;
+    }
+
+    public static double getIncrementalRepairDiskHeadroomRejectRatio()
+    {
+        return conf.incremental_repair_disk_headroom_reject_ratio;
+    }
+
+    public static void setIncrementalRepairDiskHeadroomRejectRatio(double value)
+    {
+        conf.incremental_repair_disk_headroom_reject_ratio = value;
     }
 }

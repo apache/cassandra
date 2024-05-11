@@ -36,6 +36,10 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
+
+import org.apache.cassandra.service.disk.usage.DiskUsageMonitor;
+import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -72,6 +76,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.Refs;
+import org.mockito.Mock;
 
 import static org.apache.cassandra.ServerTestUtils.*;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
@@ -81,12 +86,15 @@ import static org.apache.cassandra.repair.messages.RepairOption.HOSTS_KEY;
 import static org.apache.cassandra.repair.messages.RepairOption.INCREMENTAL_KEY;
 import static org.apache.cassandra.repair.messages.RepairOption.RANGES_KEY;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
+import static org.apache.cassandra.service.ActiveRepairService.instance;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.when;
+import static org.mockito.MockitoAnnotations.initMocks;
 
 public class ActiveRepairServiceTest
 {
@@ -98,6 +106,8 @@ public class ActiveRepairServiceTest
     public String cfname;
     public ColumnFamilyStore store;
     public static InetAddressAndPort LOCAL, REMOTE;
+    @Mock
+    public DiskUsageMonitor diskUsageMonitor;
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException, UnknownHostException
@@ -122,6 +132,7 @@ public class ActiveRepairServiceTest
         NodeId remote = Register.register(new NodeAddresses(REMOTE));
         UnsafeJoin.unsafeJoin(local, Collections.singleton(DatabaseDescriptor.getPartitioner().getRandomToken()));
         UnsafeJoin.unsafeJoin(remote, Collections.singleton(DatabaseDescriptor.getPartitioner().getMinimumToken()));
+        initMocks(this);
     }
 
     @Test
@@ -489,7 +500,9 @@ public class ActiveRepairServiceTest
                 activeRepairService.setRepairSessionSpaceInMiB(0);
                 fail("Should have received an IllegalArgumentException for depth of 0");
             }
-            catch (IllegalArgumentException ignored) { }
+            catch (IllegalArgumentException ignored)
+            {
+            }
 
             Assert.assertEquals(10, activeRepairService.getRepairSessionSpaceInMiB());
         }
@@ -497,6 +510,40 @@ public class ActiveRepairServiceTest
         {
             activeRepairService.setRepairSessionSpaceInMiB(previousSize);
         }
+    }
+
+    public void testVerifyDiskHeadroomThresholdFullRepair()
+    {
+        Assert.assertTrue(ActiveRepairService.verifyDiskHeadroomThreshold(TimeUUID.maxAtUnixMillis(0), PreviewKind.NONE, false));
+    }
+
+    @Test
+    public void testVerifyDiskHeadroomThresholdDiskFull()
+    {
+        DiskUsageMonitor.instance = diskUsageMonitor;
+        when(diskUsageMonitor.getDiskUsage()).thenReturn(1.0);
+        DatabaseDescriptor.setIncrementalRepairDiskHeadroomRejectRatio(1.0);
+
+        Assert.assertFalse(ActiveRepairService.verifyDiskHeadroomThreshold(TimeUUID.maxAtUnixMillis(0), PreviewKind.NONE, true));
+    }
+
+    @Test
+    public void testVerifyDiskHeadroomThresholdSufficientDisk()
+    {
+        DiskUsageMonitor.instance = diskUsageMonitor;
+        when(diskUsageMonitor.getDiskUsage()).thenReturn(0.0);
+        DatabaseDescriptor.setIncrementalRepairDiskHeadroomRejectRatio(0.0);
+
+        Assert.assertTrue(ActiveRepairService.verifyDiskHeadroomThreshold(TimeUUID.maxAtUnixMillis(0), PreviewKind.NONE, true));
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void testPrepareForRepairThrowsExceptionForInsufficientDisk()
+    {
+        DiskUsageMonitor.instance = diskUsageMonitor;
+        when(diskUsageMonitor.getDiskUsage()).thenReturn(1.5);
+
+        instance().prepareForRepair(TimeUUID.maxAtUnixMillis(0), null, null, opts(INCREMENTAL_KEY, b2s(true)), false, null);
     }
 
     private static class Task implements Runnable
