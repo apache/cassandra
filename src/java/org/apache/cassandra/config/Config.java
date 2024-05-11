@@ -34,6 +34,7 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -329,6 +330,8 @@ public class Config
 
     public volatile int concurrent_materialized_view_builders = 1;
     public volatile int reject_repair_compaction_threshold = Integer.MAX_VALUE;
+
+    public volatile double incremental_repair_disk_headroom_reject_ratio = 0.2; // at least 20% of disk must be unused to run incremental repair
 
     /**
      * @deprecated retry support removed on CASSANDRA-10992
@@ -863,6 +866,8 @@ public class Config
 
     public volatile DurationSpec.LongNanosecondsBound repair_state_expires = new DurationSpec.LongNanosecondsBound("3d");
     public volatile int repair_state_size = 100_000;
+
+    public volatile AutoRepairConfig auto_repair = new AutoRepairConfig();
 
     /**
      * The variants of paxos implementation and semantics supported by Cassandra.
