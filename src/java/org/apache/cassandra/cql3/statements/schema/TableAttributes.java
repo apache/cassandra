@@ -155,6 +155,9 @@ public final class TableAttributes extends PropertyDefinitions
         if (hasOption(Option.READ_REPAIR))
             builder.readRepair(ReadRepairStrategy.fromString(getString(Option.READ_REPAIR)));
 
+        if (hasOption(Option.DISABLED_AUTOMATED_REPAIR))
+            builder.disableAutomatedRepair(getBoolean(Option.DISABLED_AUTOMATED_REPAIR.toString(), false));
+
         return builder.build();
     }
 

@@ -46,6 +46,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -4402,5 +4403,10 @@ public class DatabaseDescriptor
     public static void setMinTrackedPartitionTombstoneCount(long value)
     {
         conf.min_tracked_partition_tombstone_count = value;
+    }
+
+    public static AutoRepairConfig getAutoRepairConfig()
+    {
+        return conf.auto_repair;
     }
 }
