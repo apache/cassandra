@@ -71,6 +71,8 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Ordering;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.repair.autorepair.AutoRepairKeyspace;
+import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -455,7 +457,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private volatile int totalCFs, remainingCFs;
 
-    private static final AtomicInteger nextRepairCommand = new AtomicInteger();
+    public static final AtomicInteger nextRepairCommand = new AtomicInteger();
 
     private final List<IEndpointLifecycleSubscriber> lifecycleSubscribers = new CopyOnWriteArrayList<>();
 
@@ -1112,6 +1114,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             authSetupComplete = true;
         }
     }
+
+    public void doAutoRepairSetup()
+    {
+        if (DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        {
+            logger.info("Enable auto-repair scheduling");
+            AutoRepair.instance.setup();
+        }
+        logger.info("AutoRepair setup complete!");
+    }
+
 
     public boolean isAuthSetupComplete()
     {
