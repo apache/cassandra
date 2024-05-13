@@ -149,9 +149,9 @@ public class SimulatedAccordCommandStore implements AutoCloseable
                                             new TestAgent.RethrowAgent()
                                             {
                                                 @Override
-                                                public boolean isExpired(TxnId initiated, long now)
+                                                public long preAcceptTimeout()
                                                 {
-                                                    return false;
+                                                    return Long.MAX_VALUE;
                                                 }
 
                                                 @Override
