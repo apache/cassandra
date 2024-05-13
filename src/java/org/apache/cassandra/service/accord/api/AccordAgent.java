@@ -35,7 +35,6 @@ import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.Txn.Kind;
-import accord.primitives.TxnId;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.metrics.AccordMetrics;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
@@ -114,13 +113,10 @@ public class AccordAgent implements Agent
     }
 
     @Override
-    public boolean isExpired(TxnId initiated, long now)
+    public long preAcceptTimeout()
     {
-        // TODO: should distinguish between reads and writes
-        if (initiated.kind().isSyncPoint())
-            return false;
-
-        return now - initiated.hlc() > getReadRpcTimeout(MICROSECONDS);
+        // TODO: should distinguish between reads and writes (Aleksey: why? and why read rpc timeout is being used?)
+        return getReadRpcTimeout(MICROSECONDS);
     }
 
     @Override
