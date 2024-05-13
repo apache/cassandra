@@ -24,7 +24,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import com.google.common.base.Throwables;
-import org.apache.cassandra.service.consensus.TransactionalMode;
+
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -33,6 +33,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IMessageFilters;
+import org.apache.cassandra.distributed.api.Row;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.metrics.AccordMetrics;
@@ -42,6 +44,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
 import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.assertj.core.data.Offset;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -225,6 +228,16 @@ public class AccordMetricsTest extends AccordTestBase
         assertThat(metric.apply(AccordMetrics.RECOVERY_TIME)).isEqualTo(recoveries);
         assertThat(metric.apply(AccordMetrics.DEPENDENCIES)).isEqualTo(fastPaths + slowPaths);
 
+        // Verify that coordinator metrics are published to the appropriate virtual table:
+        SimpleQueryResult res = SHARED_CLUSTER.get(node + 1)
+                                              .executeInternalWithResult("SELECT * FROM system_metrics.accord_coordinator_group WHERE scope = ?", scope);
+        while (res.hasNext())
+        {
+            Row metricRow = res.next();
+            String name = metricRow.getString("name");
+            assertThat(metrics).containsKey(name);
+        }
+
         if ((fastPaths + slowPaths) > 0)
         {
             String fastPathToTotalName = nameFactory.createMetricName(AccordMetrics.FAST_PATH_TO_TOTAL + "." + RatioGaugeSet.MEAN_RATIO).getMetricName();
@@ -242,13 +255,29 @@ public class AccordMetricsTest extends AccordTestBase
         assertThat(metric.apply(AccordMetrics.APPLY_LATENCY)).isEqualTo(applications);
         assertThat(metric.apply(AccordMetrics.APPLY_DURATION)).isEqualTo(applications);
         assertThat(metric.apply(AccordMetrics.PARTIAL_DEPENDENCIES)).isEqualTo(executions);
+
+        // Verify that replica metrics are published to the appropriate virtual table:
+        SimpleQueryResult vtableResults = SHARED_CLUSTER.get(node + 1)
+                                              .executeInternalWithResult("SELECT * FROM system_metrics.accord_replica_group WHERE scope = ?", scope);
+
+        while (vtableResults.hasNext())
+        {
+            Row metricRow = vtableResults.next();
+            String name = metricRow.getString("name");
+            assertThat(metrics).containsKey(name);
+        }
+
+        // Verify that per-store global cache stats are published to the appropriate virtual table:
+        SimpleQueryResult storeCacheResults = SHARED_CLUSTER.get(node + 1)
+                                                   .executeInternalWithResult("SELECT * FROM system_views.accord_command_store_cache");
+        assertThat(storeCacheResults).hasNext();
     }
 
     private Map<Integer, Map<String, Long>> getMetrics()
     {
         Map<Integer, Map<String, Long>> metrics = new HashMap<>();
         for (int i = 0; i < SHARED_CLUSTER.size(); i++)
-            metrics.put(i, SHARED_CLUSTER.get(i + 1).metrics().getCounters(name -> name.startsWith("org.apache.cassandra.metrics.accord-")));
+            metrics.put(i, SHARED_CLUSTER.get(i + 1).metrics().getCounters(name -> name.startsWith("org.apache.cassandra.metrics.Accord")));
         return metrics;
     }
 

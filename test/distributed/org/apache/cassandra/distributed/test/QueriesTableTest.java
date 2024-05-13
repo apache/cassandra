@@ -21,16 +21,17 @@ package org.apache.cassandra.distributed.test;
 import java.io.IOException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.TimeUnit;
 
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+import org.awaitility.Awaitility;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import accord.impl.SimpleProgressLog;
 import com.datastax.driver.core.Session;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
@@ -39,12 +40,15 @@ import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.utils.Throwables;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class QueriesTableTest extends TestBaseImpl
@@ -57,7 +61,10 @@ public class QueriesTableTest extends TestBaseImpl
     public static void createCluster() throws IOException
     {
         SHARED_CLUSTER = init(Cluster.build(1).withInstanceInitializer(QueryDelayHelper::install)
-                                              .withConfig(c -> c.with(Feature.NATIVE_PROTOCOL, Feature.GOSSIP)).start());
+                                              .withConfig(c -> c.with(Feature.NATIVE_PROTOCOL, Feature.GOSSIP)
+                                                                .set("write_request_timeout", "10s")
+                                                                .set("transaction_timeout", "15s")).start());
+
         DRIVER_CLUSTER = JavaDriverUtils.create(SHARED_CLUSTER);
         SESSION = DRIVER_CLUSTER.connect();
     }
@@ -79,19 +86,31 @@ public class QueriesTableTest extends TestBaseImpl
     public void shouldExposeReadsAndWrites() throws Throwable
     {
         SHARED_CLUSTER.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (k int primary key, v int)");
+        SESSION.executeAsync("INSERT INTO " + KEYSPACE + ".tbl (k, v) VALUES (0, 0)");
+        SESSION.executeAsync("SELECT * FROM " + KEYSPACE + ".tbl WHERE k = 0");
+
+        // Wait until the coordinator/local read and write are visible:
+        Awaitility.await()
+                  .atMost(60, SECONDS)
+                  .pollInterval(1, SECONDS)
+                  .dontCatchUncaughtExceptions()
+                  .untilAsserted(QueriesTableTest::assertReadsAndWritesVisible);
+
+        // Issue another read and write to unblock the original queries in progress:
+        SESSION.execute("INSERT INTO " + KEYSPACE + ".tbl (k, v) VALUES (0, 0)");
+        SESSION.execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE k = 0");
+
+        waitForQueriesToFinish();
+    }
+
+    private static void assertReadsAndWritesVisible()
+    {
+        SimpleQueryResult result = SHARED_CLUSTER.get(1).executeInternalWithResult("SELECT * FROM system_views.queries");
 
         boolean readVisible = false;
         boolean coordinatorReadVisible = false;
         boolean writeVisible = false;
         boolean coordinatorWriteVisible = false;
-        
-        SESSION.executeAsync("INSERT INTO " + KEYSPACE + ".tbl (k, v) VALUES (0, 0)");
-        SESSION.executeAsync("SELECT * FROM " + KEYSPACE + ".tbl WHERE k = 0");
-
-        // Wait until the coordinator/local read and write are visible:
-        SimpleQueryResult result = SHARED_CLUSTER.get(1).executeInternalWithResult("SELECT * FROM system_views.queries");
-        while (result.toObjectArrays().length < 4)
-            result = SHARED_CLUSTER.get(1).executeInternalWithResult("SELECT * FROM system_views.queries");
 
         while (result.hasNext())
         {
@@ -105,32 +124,38 @@ public class QueriesTableTest extends TestBaseImpl
             coordinatorWriteVisible |= threadId.contains("Native-Transport-Requests") && task.contains("INSERT");
         }
 
-        // Issue another read and write to unblock the original queries in progress:
-        SESSION.execute("INSERT INTO " + KEYSPACE + ".tbl (k, v) VALUES (0, 0)");
-        SESSION.execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE k = 0");
-
         assertTrue(readVisible);
         assertTrue(coordinatorReadVisible);
         assertTrue(writeVisible);
         assertTrue(coordinatorWriteVisible);
-
-        waitForQueriesToFinish();
     }
 
     @Test
     public void shouldExposeCAS() throws Throwable
     {
         SHARED_CLUSTER.schemaChange("CREATE TABLE " + KEYSPACE + ".cas_tbl (k int primary key, v int)");
-
-        boolean readVisible = false;
-        boolean coordinatorUpdateVisible = false;
-
         SESSION.executeAsync("UPDATE " + KEYSPACE + ".cas_tbl SET v = 10 WHERE k = 0 IF v = 0");
 
         // Wait until the coordinator update and local read required by the CAS operation are visible:
+        Awaitility.await()
+                  .atMost(60, SECONDS)
+                  .pollInterval(1, SECONDS)
+                  .dontCatchUncaughtExceptions()
+                  .untilAsserted(QueriesTableTest::assertCasVisible);
+
+        // Issue a read to unblock the read generated by the original CAS operation:
+        SESSION.executeAsync("SELECT * FROM " + KEYSPACE + ".cas_tbl WHERE k = 0");
+
+
+        waitForQueriesToFinish();
+    }
+
+    private static void assertCasVisible()
+    {
         SimpleQueryResult result = SHARED_CLUSTER.get(1).executeInternalWithResult("SELECT * FROM system_views.queries");
-        while (result.toObjectArrays().length < 2)
-            result = SHARED_CLUSTER.get(1).executeInternalWithResult("SELECT * FROM system_views.queries");
+
+        boolean readVisible = false;
+        boolean coordinatorUpdateVisible = false;
 
         while (result.hasNext())
         {
@@ -142,13 +167,67 @@ public class QueriesTableTest extends TestBaseImpl
             coordinatorUpdateVisible |= threadId.contains("Native-Transport-Requests") && task.contains("UPDATE");
         }
 
-        // Issue a read to unblock the read generated by the original CAS operation:
-        SESSION.executeAsync("SELECT * FROM " + KEYSPACE + ".cas_tbl WHERE k = 0");
-
         assertTrue(readVisible);
         assertTrue(coordinatorUpdateVisible);
+    }
+
+    @Test
+    public void shouldExposeTransaction() throws Throwable
+    {
+        SHARED_CLUSTER.schemaChange("CREATE TABLE " + KEYSPACE + ".accord_tbl (k int primary key, v int)  WITH transactional_mode='full'");
+
+        // Disable recovery to make sure only one local read occurs:
+        for (IInvokableInstance instance : SHARED_CLUSTER)
+            instance.runOnInstance(() -> SimpleProgressLog.PAUSE_FOR_TEST = true);
+
+        String update = "BEGIN TRANSACTION\n" +
+                        "  LET row1 = (SELECT * FROM " + KEYSPACE + ".accord_tbl WHERE k = 0);\n" +
+                        "  SELECT row1.k, row1.v;\n" +
+                        "  IF row1.v = 0 THEN\n" +
+                        "    UPDATE " + KEYSPACE + ".accord_tbl SET v = 10 WHERE k = 0;\n" +
+                        "  END IF\n" +
+                        "COMMIT TRANSACTION";
+        
+        SESSION.executeAsync(update);
+
+        // Wait until the coordinator update and local read required by the CAS operation are visible:
+        Awaitility.await()
+                  .atMost(60, SECONDS)
+                  .pollInterval(1, SECONDS)
+                  .dontCatchUncaughtExceptions()
+                  .untilAsserted(QueriesTableTest::assertTransactionVisible);
+
+        // Issue a read to unblock the read generated by the original CAS operation:
+        SESSION.executeAsync("SELECT * FROM " + KEYSPACE + ".accord_tbl WHERE k = 0");
 
         waitForQueriesToFinish();
+    }
+
+    private static void assertTransactionVisible()
+    {
+        SimpleQueryResult queries = SHARED_CLUSTER.get(1).executeInternalWithResult("SELECT * FROM system_views.queries");
+
+        boolean readVisible = false;
+        boolean coordinatorTxnVisible = false;
+
+        while (queries.hasNext())
+        {
+            Row row = queries.next();
+            String threadId = row.get("thread_id").toString();
+            String task = row.get("task").toString();
+
+            readVisible |= threadId.contains("Read") && task.contains("SELECT");
+            coordinatorTxnVisible |= threadId.contains("Native-Transport-Requests") && task.contains("BEGIN TRANSACTION");
+        }
+
+        assertTrue(readVisible);
+        assertTrue(coordinatorTxnVisible);
+
+        SimpleQueryResult txns = SHARED_CLUSTER.get(1).executeInternalWithResult("SELECT * FROM system_views.accord_coordination_status");
+        assertTrue(txns.hasNext());
+        Row txn = txns.next();
+        assertEquals(1, txn.getInteger("node_id").intValue());
+        assertEquals("Key", txn.getString("domain"));
     }
 
     private static void waitForQueriesToFinish() throws InterruptedException
@@ -157,11 +236,12 @@ public class QueriesTableTest extends TestBaseImpl
         SimpleQueryResult result = SHARED_CLUSTER.get(1).executeInternalWithResult("SELECT * FROM system_views.queries");
         while (result.hasNext())
         {
-            TimeUnit.SECONDS.sleep(1);
+            SECONDS.sleep(1);
             result = SHARED_CLUSTER.get(1).executeInternalWithResult("SELECT * FROM system_views.queries");
         }
     }
 
+    @SuppressWarnings("resource")
     public static class QueryDelayHelper
     {
         private static final CyclicBarrier readBarrier = new CyclicBarrier(2);
