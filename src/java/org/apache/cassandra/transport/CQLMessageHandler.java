@@ -21,6 +21,7 @@ package org.apache.cassandra.transport;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
@@ -253,7 +254,6 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         return processRequestAndUpdateMetrics(bytes, header, messageSize, Overload.NONE);
     }
 
-
     private boolean processRequestAndUpdateMetrics(ShareableBytes bytes, Envelope.Header header, int messageSize, Overload backpressure)
     {
         channelPayloadBytesInFlight += messageSize;
@@ -268,7 +268,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         ClientMetrics.instance.markRequestDiscarded();
         logOverload(endpointReserve, globalReserve, header, messageSize);
 
-        OverloadedException exception = buildOverloadedException(endpointReserve, globalReserve, overload);
+        OverloadedException exception = buildOverloadedException(endpointReserve, globalReserve, requestRateLimiter, overload);
         handleError(exception, header);
 
         // Don't stop processing incoming messages, as we rely on the client to apply
@@ -278,7 +278,15 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         buf.position(buf.position() + Envelope.Header.LENGTH + messageSize);
     }
 
-    private OverloadedException buildOverloadedException(Limit endpointReserve, Limit globalReserve, Overload overload) {
+    public static OverloadedException buildOverloadedException(Limit endpointReserve, Limit globalReserve, NonBlockingRateLimiter requestRateLimiter, Overload overload)
+    {
+        return buildOverloadedException(() -> String.format("Endpoint: %d/%d bytes, Global: %d/%d bytes.", endpointReserve.using(), endpointReserve.limit(),
+                                                            globalReserve.using(), globalReserve.limit()),
+                                        requestRateLimiter,
+                                        overload);
+    }
+    public static OverloadedException buildOverloadedException(Supplier<String> endpointLimits, NonBlockingRateLimiter requestRateLimiter, Overload overload)
+    {
         switch (overload)
         {
             case REQUESTS:
@@ -286,9 +294,9 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                                                              "currently in an overloaded state and cannot accept more requests.",
                                                              requestRateLimiter.getRate()));
             case BYTES_IN_FLIGHT:
-                return new OverloadedException(String.format("Request breached limit on bytes in flight. (Endpoint: %d/%d bytes, Global: %d/%d bytes.) " +
+                return new OverloadedException(String.format("Request breached limit on bytes in flight. (%s)" +
                                                              "Server is currently in an overloaded state and cannot accept more requests.",
-                                                             endpointReserve.using(), endpointReserve.limit(), globalReserve.using(), globalReserve.limit()));
+                                                             endpointLimits.get()));
             case QUEUE_TIME:
                 return new OverloadedException(String.format("Request has spent over %s time of the maximum timeout %dms in the queue",
                                                              DatabaseDescriptor.getNativeTransportQueueMaxItemAgeThreshold(),
@@ -746,7 +754,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         protected void onComplete()
         {
             if (overload != Overload.NONE)
-                handleErrorAndRelease(buildOverloadedException(endpointReserveCapacity, globalReserveCapacity, overload), header);
+                handleErrorAndRelease(buildOverloadedException(endpointReserveCapacity, globalReserveCapacity, requestRateLimiter, overload), header);
             else if (!isCorrupt)
                 processRequest(assembleFrame(), backpressure);
         }

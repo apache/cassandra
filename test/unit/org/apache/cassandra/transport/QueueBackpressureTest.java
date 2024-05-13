@@ -28,9 +28,9 @@ public class QueueBackpressureTest
     @Test
     public void testQueueBackpressure()
     {
-        QueueBackpressure.Impl backpressure = new QueueBackpressure.Impl(() -> TimeUnit.MILLISECONDS.toNanos(10),
-                                                                         () -> TimeUnit.MILLISECONDS.toNanos(100),
-                                                                         -1, 0, 0);
+        QueueBackpressure.Incident backpressure = new QueueBackpressure.Incident(() -> TimeUnit.MILLISECONDS.toNanos(10),
+                                                                                 () -> TimeUnit.MILLISECONDS.toNanos(100),
+                                                                                 -1, 0, 0);
 
         Assert.assertEquals(0, backpressure.delay(TimeUnit.NANOSECONDS));
         backpressure = backpressure.mark(backpressure.appliedAt() + TimeUnit.MILLISECONDS.toNanos(100));

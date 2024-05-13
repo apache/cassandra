@@ -114,6 +114,7 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
             response.attach(request.connection);
             FlushItem<?> toFlush = forFlusher.toFlushItem(channel, request, response);
             flush(toFlush);
+            System.out.println(123123);
             return;
         }
 
@@ -161,12 +162,13 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
 
         /**
          * Base time is used by timeouts, and can be set to either when the request was added to the queue,
-         * or when the processing has started. Since client read/write timeouts are usually aligned with
-         * server-side timeouts, it is desireable to use enqueue time as a base. However, since client removes
-         * the handler `readTimeoutMillis` (which is 12 seconds by default), the upper bound for any execution on
-         * the coordinator is 12 seconds (thanks to CASSANDRA-7392, any replica-side query is capped by the verb timeout),
-         * if REQUEST option is used. But even simply allowing such long timeouts also implicitly allows queues to grow
-         * large, since our queues are currently unbounded.
+         * or when the processing has started, which is controlled by {@link DatabaseDescriptor#getCQLStartTime()}
+         *
+         * Since client read/write timeouts are usually aligned with server-side timeouts, it is desireable to use
+         * enqueue time as a base. However, since client removes the handler `readTimeoutMillis` (which is 12 seconds
+         * by default), the upper bound for any execution on the coordinator is 12 seconds (thanks to CASSANDRA-7392,
+         * any replica-side query is capped by the verb timeout), if REQUEST option is used. But even simply allowing
+         * such long timeouts also implicitly allows queues to grow large, since our queues are currently unbounded.
          *
          * Latency, however, is _always_ based on request processing time, since the amount of time that request spends
          * in the queue is not a representative metric of replica performance.

@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Predicate;
 
+import com.sun.jna.platform.win32.GL;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.transport.ClientResourceLimits.Overload;
 import org.slf4j.Logger;
@@ -205,7 +206,7 @@ public class PreV5Handlers
 
                 if (delay > 0)
                 {
-                    assert backpressure != Overload.NONE;
+                    assert backpressure == Overload.REQUESTS || backpressure == Overload.QUEUE_TIME : backpressure;
                     pauseConnection(ctx);
 
                     // A permit isn't immediately available, so schedule an unpause for when it is.
@@ -243,30 +244,9 @@ public class PreV5Handlers
                          requestSize, channelPayloadBytesInFlight, endpointPayloadTracker,
                          GLOBAL_REQUEST_LIMITER, request);
 
-
-            OverloadedException exception;
-            switch (overload)
-            {
-                case REQUESTS:
-                    exception = new OverloadedException(String.format("Request breached global limit of %d requests/second. Server is " +
-                                                                      "currently in an overloaded state and cannot accept more requests.",
-                                                                      GLOBAL_REQUEST_LIMITER.getRate()));
-                    break;
-                case BYTES_IN_FLIGHT:
-                    exception = new OverloadedException(String.format("Request breached limit on bytes in flight. (%s)) " +
-                                                                      "Server is currently in an overloaded state and cannot accept more requests.",
-
-                                                                      endpointPayloadTracker));
-                    break;
-                case QUEUE_TIME:
-                    exception = new OverloadedException(String.format("Request has spent over %s time of the maximum timeout %dms in the queue",
-                                                                      DatabaseDescriptor.getNativeTransportQueueMaxItemAgeThreshold(),
-                                                                      DatabaseDescriptor.getNativeTransportTimeout(TimeUnit.MILLISECONDS)));
-                    break;
-                default:
-                    throw new IllegalArgumentException(String.format("Can't create an exception from %s", overload));
-            }
-
+            OverloadedException exception = CQLMessageHandler.buildOverloadedException(endpointPayloadTracker::toString,
+                                                                                       GLOBAL_REQUEST_LIMITER,
+                                                                                       overload);
             throw ErrorMessage.wrap(exception, request.getSource().header.streamId);
         }
 

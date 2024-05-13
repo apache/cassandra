@@ -880,8 +880,8 @@ public class Message<T>
             MonotonicClockTranslation timeSnapshot = approxTime.translate();
             long creationTimeNanos = calculateCreationTimeNanos(in.readInt(), timeSnapshot, currentTimeNanos);
             long expiresAtNanos = getExpiresAtNanos(creationTimeNanos, TimeUnit.MILLISECONDS.toNanos(in.readUnsignedVInt()));
-            Verb verb = Verb.fromId(Ints.checkedCast(in.readUnsignedVInt()));
-            int flags = Ints.checkedCast(in.readUnsignedVInt());
+            Verb verb = Verb.fromId(in.readUnsignedVInt32());
+            int flags = in.readUnsignedVInt32();
             Map<ParamType, Object> params = deserializeParams(in, version);
             return new Header(id, verb, peer, creationTimeNanos, expiresAtNanos, flags, params);
         }

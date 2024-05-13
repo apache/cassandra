@@ -17,16 +17,15 @@
  */
 package org.apache.cassandra.service.paxos.v1;
 
-import org.apache.cassandra.transport.Dispatcher;
-import org.apache.cassandra.utils.Clock;
-import org.apache.cassandra.utils.concurrent.CountDownLatch;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;

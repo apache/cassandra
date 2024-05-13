@@ -824,7 +824,7 @@ public class CassandraDaemon
             StorageService.instance.setRpcReady(true);
     }
 
-    @Deprecated
+    @Deprecated(since = "5.0.0")
     public void stopNativeTransport()
     {
         stopNativeTransport(false);

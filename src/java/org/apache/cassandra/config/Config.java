@@ -1284,6 +1284,10 @@ public class Config
 
     public StorageCompatibilityMode storage_compatibility_mode;
 
+    /**
+     * Which timestamp should be used to represent a base for replica-side timeouts.
+     * Client-side timeout is always based on the QUEUE, and is controlled by native_transport_timeout.
+     */
     public enum CQLStartTime
     {
         REQUEST, // uses a timestamp that represent the start of processing of the request
@@ -1296,8 +1300,7 @@ public class Config
     public DurationSpec.LongMillisecondsBound native_transport_min_backoff_on_queue_overload = new DurationSpec.LongMillisecondsBound("10ms");
     public DurationSpec.LongMillisecondsBound native_transport_max_backoff_on_queue_overload = new DurationSpec.LongMillisecondsBound("200ms");
 
-    // 3.0 Cassandra Driver has its "read" timeout set to 12 seconds. Our recommendation is match this. Default is 100 seconds, which is extremely high
-    // but still not completely unbounded.
-    public DurationSpec.LongMillisecondsBound native_transport_timeout = new DurationSpec.LongMillisecondsBound("100000ms");
+    // 3.x Cassandra Driver has its "read" timeout set to 12 seconds, default matches this.
+    public DurationSpec.LongMillisecondsBound native_transport_timeout = new DurationSpec.LongMillisecondsBound("12s");
     public boolean enforce_native_deadline_for_hints = false;
 }

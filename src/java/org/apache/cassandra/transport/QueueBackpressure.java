@@ -42,7 +42,7 @@ import static org.apache.cassandra.utils.MonotonicClock.Global.preciseTime;
  * <p>
  * If the queue remains saturated for a prolonged period (meaning {@link Dispatcher#hasQueueCapacity} returns false), the amount of delay
  * will increase in proportion to the request rate as appliedTimes & severityLevel are incremented. If no new requests are considered
- * overloaded in this way for a second, the incident will be reset and so the delay will drop back down to {@link Impl#minDelayNanos()}.
+ * overloaded in this way for a second, the incident will be reset and so the delay will drop back down to {@link Incident#minDelayNanos()}.
  */
 public interface QueueBackpressure
 {
@@ -50,26 +50,25 @@ public interface QueueBackpressure
 
     QueueBackpressure DEFAULT = new QueueBackpressure()
     {
-        private final AtomicReference<Impl> state = new AtomicReference<>(noBackpressure(() -> DatabaseDescriptor.getNativeTransportMinBackoffOnQueueOverload(TimeUnit.NANOSECONDS),
-                                                                                         () -> DatabaseDescriptor.getNativeTransportMaxBackoffOnQueueOverload(TimeUnit.NANOSECONDS)));
+        private final AtomicReference<Incident> state = new AtomicReference<>(noBackpressure(() -> DatabaseDescriptor.getNativeTransportMinBackoffOnQueueOverload(TimeUnit.NANOSECONDS),
+                                                                                             () -> DatabaseDescriptor.getNativeTransportMaxBackoffOnQueueOverload(TimeUnit.NANOSECONDS)));
 
         public long markAndGetDelay(TimeUnit timeUnit)
         {
-            return state.updateAndGet(Impl::mark).delay(timeUnit);
+            return state.updateAndGet(Incident::mark).delay(timeUnit);
         }
     };
 
     long markAndGetDelay(TimeUnit timeUnit);
 
-
-    static Impl noBackpressure(LongSupplier minDelayNanos, LongSupplier maxDelayNanos)
+    static Incident noBackpressure(LongSupplier minDelayNanos, LongSupplier maxDelayNanos)
     {
-        return new Impl(minDelayNanos, maxDelayNanos,
-                        -1, 0, 0);
+        return new Incident(minDelayNanos, maxDelayNanos,
+                            -1, 0, 0);
     }
 
     @VisibleForTesting
-    class Impl
+    class Incident
     {
         private final long appliedAt;
 
@@ -80,7 +79,7 @@ public interface QueueBackpressure
         private final LongSupplier maxDelayNanos;
 
         @VisibleForTesting
-        public Impl(LongSupplier minDelayNanos, LongSupplier maxDelayNanos, long appliedAt, int severityLevel, int appliedTimes)
+        public Incident(LongSupplier minDelayNanos, LongSupplier maxDelayNanos, long appliedAt, int severityLevel, int appliedTimes)
         {
             this.minDelayNanos = minDelayNanos;
             this.maxDelayNanos = maxDelayNanos;
@@ -89,29 +88,28 @@ public interface QueueBackpressure
             this.appliedTimes = appliedTimes;
         }
 
-
-        public Impl mark()
+        public Incident mark()
         {
             return mark(preciseTime.now());
         }
 
         @VisibleForTesting
-        public Impl mark(long now)
+        public Incident mark(long now)
         {
             // Last time we have applied backpressure was over a second ago, consider this a new incident
             if (appliedAt > 0 && now - appliedAt >= TimeUnit.SECONDS.toNanos(1))
             {
-                return new Impl(minDelayNanos, maxDelayNanos, now, 1, 1);
+                return new Incident(minDelayNanos, maxDelayNanos, now, 1, 1);
             }
             // Continuing incident: apply backpressure but do not bump severity level yet
             else if (appliedTimes < 10)
             {
-                return new Impl(minDelayNanos, maxDelayNanos, now, severityLevel == 0 ? 1 : severityLevel, appliedTimes + 1);
+                return new Incident(minDelayNanos, maxDelayNanos, now, severityLevel == 0 ? 1 : severityLevel, appliedTimes + 1);
             }
             //
             else
             {
-                return new Impl(minDelayNanos, maxDelayNanos, now, severityLevel + 1, 1);
+                return new Incident(minDelayNanos, maxDelayNanos, now, severityLevel + 1, 1);
             }
         }
 

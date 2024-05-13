@@ -992,12 +992,12 @@ public class DatabaseDescriptor
         conf.sai_options.validate();
 
         if (conf.native_transport_min_backoff_on_queue_overload.toMilliseconds() <= 0)
-            throw new IllegalArgumentException("Min backoff on queue overload should be positive");
+            throw new ConfigurationException(" be positive");
 
         if (conf.native_transport_min_backoff_on_queue_overload.toMilliseconds() >= conf.native_transport_max_backoff_on_queue_overload.toMilliseconds())
-            throw new IllegalArgumentException(String.format("Min backoff on queue overload should be strictly less than max backoff, but %s >= %s",
-                                                             conf.native_transport_min_backoff_on_queue_overload,
-                                                             conf.native_transport_max_backoff_on_queue_overload));
+            throw new ConfigurationException(String.format("native_transport_min_backoff_on_queue_overload should be strictly less than native_transport_max_backoff_on_queue_overload, but %s >= %s",
+                                                           conf.native_transport_min_backoff_on_queue_overload,
+                                                           conf.native_transport_max_backoff_on_queue_overload));
 
     }
 
@@ -2302,8 +2302,17 @@ public class DatabaseDescriptor
         conf.native_transport_max_backoff_on_queue_overload = new DurationSpec.LongMillisecondsBound(maxBackoffMillis, timeUnit);
     }
 
+    private static long native_transport_timeout_nanos_cached = -1;
+
     public static long getNativeTransportTimeout(TimeUnit timeUnit)
     {
+        if (timeUnit == TimeUnit.NANOSECONDS)
+        {
+            if (native_transport_timeout_nanos_cached == -1)
+                native_transport_timeout_nanos_cached = conf.native_transport_timeout.to(TimeUnit.NANOSECONDS);
+
+            return native_transport_timeout_nanos_cached;
+        }
         return conf.native_transport_timeout.to(timeUnit);
     }
 

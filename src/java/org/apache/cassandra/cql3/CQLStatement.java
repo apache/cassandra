@@ -76,7 +76,7 @@ public interface CQLStatement
      *
      * @param state the current query state
      * @param options options for this query (consistency, variables, pageSize, ...)
-     * @param requestTime request enqueue / and start times
+     * @param requestTime request enqueue / and start times;
      */
     public ResultMessage execute(QueryState state, QueryOptions options, Dispatcher.RequestTime requestTime);
 

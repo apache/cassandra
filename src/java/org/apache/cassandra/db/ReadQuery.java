@@ -142,6 +142,7 @@ public interface ReadQuery
      *
      * @param consistency the consistency level to achieve for the query.
      * @param state client state
+     * @param state request enqueue / and start times
      * @return the result of the query.
      */
     public PartitionIterator execute(ConsistencyLevel consistency, ClientState state, Dispatcher.RequestTime requestTime) throws RequestExecutionException;
