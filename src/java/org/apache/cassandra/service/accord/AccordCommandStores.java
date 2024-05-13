@@ -39,7 +39,7 @@ import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 
 public class AccordCommandStores extends CommandStores implements CacheSize
 {
-    public static final String ACCORD_STATE_CACHE = "accord-state-cache";
+    public static final String ACCORD_STATE_CACHE = "AccordStateCache";
 
     private final CacheSizeMetrics cacheSizeMetrics;
     private long cacheSize;

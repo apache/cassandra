@@ -28,8 +28,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.ImmutableList;
 
 import org.junit.After;
@@ -39,8 +41,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.yaml.snakeyaml.Yaml;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config.PaxosVariant;
@@ -57,6 +59,8 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
+import org.apache.cassandra.distributed.api.Row;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -85,11 +89,14 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.PojoToString;
-import org.yaml.snakeyaml.Yaml;
 
-import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.lang.String.format;
 import static java.util.Collections.emptyList;
+import static com.google.common.collect.ImmutableList.toImmutableList;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+
 import static org.apache.cassandra.Util.spinUntilSuccess;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.db.SystemKeyspace.CONSENSUS_MIGRATION_STATE;
@@ -102,7 +109,6 @@ import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingDecision.paxosV2;
 import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.PROMISE;
 import static org.assertj.core.api.Fail.fail;
-import static org.junit.Assert.*;
 
 /*
  * This test suite is intended to serve as an integration test with some pretty good visibility into actual execution
@@ -137,7 +143,7 @@ public class AccordMigrationTest extends AccordTestBase
     // To create a precise repair where the repaired range is fully contained in a locally replicated range
     // we need to align with this token. The local ranges are (9223372036854775805,-1] and (-1,9223372036854775805]
     // No idea why the partitioner creates such an
-    private Token maxAlignedWithLocalRanges = new LongToken(9223372036854775805L);
+    private final Token maxAlignedWithLocalRanges = new LongToken(9223372036854775805L);
 
     @Override
     protected Logger logger()
@@ -677,10 +683,17 @@ public class AccordMigrationTest extends AccordTestBase
             for (IInvokableInstance instance : SHARED_CLUSTER)
             {
                 ConsensusMigrationState snapshot = getMigrationStateSnapshot(instance);
+
                 for (String tableId : tableIds)
                 {
                     TableMigrationState state = snapshot.tableStates.get(TableId.fromString(tableId));
                     assertNotNull(state);
+
+                    SimpleQueryResult vtableResult =
+                            instance.executeInternalWithResult("SELECT * FROM system_views.consensus_migration_state WHERE keyspace_name = ? AND table_name = ? ",
+                                                               state.keyspaceName, state.tableName);
+                    assertTrue(vtableResult.hasNext());
+
                     assertEquals(KEYSPACE, state.keyspaceName);
                     assertEquals(tableName, state.tableName);
                     assertEquals(target, state.targetProtocol);
@@ -692,9 +705,29 @@ public class AccordMigrationTest extends AccordTestBase
                         assertEquals(0, state.migratingRangesByEpoch.size());
                     else
                         assertEquals(migratingRanges, state.migratingRangesByEpoch.values().iterator().next());
+
+                    Row vtableState = vtableResult.next();
+                    assertVtableState(state, vtableState);
                 }
             }
         });
+    }
+
+    private static void assertVtableState(TableMigrationState expectedState, Row vtableState)
+    {
+        List<String> vtableMigratedRanges = vtableState.getList("migrated_ranges");
+        assertEquals(expectedState.migratedRanges, vtableMigratedRanges.stream().map(Range::fromString).collect(Collectors.toList()));
+
+        Map<Long, List<String>> vtableMigratingByEpoch = vtableState.get("migrating_ranges_by_epoch");
+        Map<Long, List<Range<Token>>> pojoMigratingByEpoch = new LinkedHashMap<>();
+
+        for (Map.Entry<Long, List<String>> entry : vtableMigratingByEpoch.entrySet())
+            pojoMigratingByEpoch.put(entry.getKey(), entry.getValue().stream().map(Range::fromString).collect(toImmutableList()));
+
+        if (expectedState.migratingRanges.isEmpty())
+            assertEquals(0, pojoMigratingByEpoch.size());
+        else
+            assertEquals(expectedState.migratingRanges, pojoMigratingByEpoch.values().iterator().next());
     }
 
     /**
