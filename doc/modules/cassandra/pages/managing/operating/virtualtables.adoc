@@ -72,6 +72,8 @@ cqlsh> select * from system_metrics.all_groups  ;
 
  group_name        | virtual_table
 -------------------+---------------------------
+ AccordCoordinator |  accord_coordinator_group
+     AccordReplica |      accord_replica_group
              Batch |               batch_group
         BufferPool |         buffer_pool_group
     CIDRAuthorizer |     cidr_authorizer_group
@@ -98,6 +100,7 @@ cqlsh> select * from system_metrics.all_groups  ;
              Paxos |               paxos_group
         ReadRepair |         read_repair_group
             Repair |              repair_group
+        RouteIndex |         route_index_group
            Storage |             storage_group
       StorageProxy |       storage_proxy_group
          Streaming |           streaming_group
