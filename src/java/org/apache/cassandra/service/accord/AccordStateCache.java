@@ -76,6 +76,20 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         long misses;
     }
 
+    public static final class ImmutableStats
+    {
+        public final long queries;
+        public final long hits;
+        public final long misses;
+        
+        public ImmutableStats(Stats stats)
+        {
+            queries = stats.queries;
+            hits = stats.hits;
+            misses = stats.misses;
+        }
+    }
+
     private ImmutableList<Instance<?, ?, ?>> instances = ImmutableList.of();
 
     private final ExecutorPlus loadExecutor, saveExecutor;
@@ -213,6 +227,11 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         {
             node.markEvicted(); // keep the node in the cache to prevent transient listeners from being GCd
         }
+    }
+
+    public ImmutableStats stats()
+    {
+        return new ImmutableStats(stats);
     }
 
     private Instance<?, ?, ?> instanceForNode(AccordCachingState<?, ?> node)
@@ -590,6 +609,11 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         public Stats stats()
         {
             return stats;
+        }
+
+        public ImmutableStats statsSnapshot()
+        {
+            return new ImmutableStats(stats);
         }
 
         public Stats globalStats()

@@ -655,7 +655,6 @@ public class AccordService implements IAccordService, Shutdownable
         return node.id();
     }
 
-    @VisibleForTesting
     public Node node()
     {
         return node;

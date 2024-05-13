@@ -57,8 +57,8 @@ public class AccordMetrics
     public static final String RECOVERY_DELAY = "RecoveryDelay";
     public static final String RECOVERY_TIME = "RecoveryTime";
     public static final String FAST_PATH_TO_TOTAL = "FastPathToTotal";
-    public static final String ACCORD_REPLICA = "accord-replica";
-    public static final String ACCORD_COORDINATOR = "accord-coordinator";
+    public static final String ACCORD_REPLICA = "AccordReplica";
+    public static final String ACCORD_COORDINATOR = "AccordCoordinator";
 
     /**
      * The time between start on the coordinator and commit on this replica.

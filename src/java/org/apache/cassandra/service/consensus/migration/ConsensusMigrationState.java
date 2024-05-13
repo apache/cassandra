@@ -78,6 +78,16 @@ public class ConsensusMigrationState implements MetadataValue<ConsensusMigration
                                "version", PojoToString.CURRENT_VERSION);
     }
 
+    public Collection<TableMigrationState> tableStates()
+    {
+        return tableStates.values();
+    }
+
+    public List<TableMigrationState> tableStatesFor(List<TableId> tableIDs)
+    {
+        return tableIDs.stream().map(tableStates::get).collect(Collectors.toList());
+    }
+
     private List<Map<String, Object>> tableStatesAsMaps(@Nullable Set<String> keyspaceNames,
                                                         @Nullable Set<String> tableNames)
     {

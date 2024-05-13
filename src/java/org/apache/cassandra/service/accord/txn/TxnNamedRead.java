@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord.txn;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -30,6 +31,7 @@ import accord.api.Data;
 import accord.primitives.Timestamp;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
+import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
@@ -43,6 +45,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.ObjectSizes;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.readWithVIntLength;
@@ -136,7 +139,7 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
 
     private AsyncChain<Data> performLocalRead(SinglePartitionReadCommand command, int nowInSeconds)
     {
-        return AsyncChains.ofCallable(Stage.READ.executor(), () ->
+        Callable<Data> readCallable = () ->
         {
             SinglePartitionReadCommand read = command.withNowInSec(nowInSeconds);
 
@@ -153,10 +156,53 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
                 }
                 return result;
             }
-        });
+        };
+
+        return AsyncChains.ofCallable(Stage.READ.executor(), readCallable, (callable, receiver) ->
+            new DebuggableTask.RunnableDebuggableTask()
+            {
+                private final long approxCreationTimeNanos = MonotonicClock.Global.approxTime.now();
+                private volatile long approxStartTimeNanos;
+
+                @Override
+                public void run()
+                {
+                    approxStartTimeNanos = MonotonicClock.Global.approxTime.now();
+
+                    try
+                    {
+                        Data call = callable.call();
+                        receiver.accept(call, null);
+                    }
+                    catch (Throwable t)
+                    {
+                        logger.debug("AsyncChain Callable threw an Exception", t);
+                        receiver.accept(null, t);
+                    }
+                }
+
+                @Override
+                public long creationTimeNanos()
+                {
+                    return approxCreationTimeNanos;
+                }
+
+                @Override
+                public long startTimeNanos()
+                {
+                    return approxStartTimeNanos;
+                }
+
+                @Override
+                public String description()
+                {
+                    return command.toCQLString();
+                }
+            }
+        );
     }
 
-    static final IVersionedSerializer<TxnNamedRead> serializer = new IVersionedSerializer<TxnNamedRead>()
+    static final IVersionedSerializer<TxnNamedRead> serializer = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(TxnNamedRead read, DataOutputPlus out, int version) throws IOException

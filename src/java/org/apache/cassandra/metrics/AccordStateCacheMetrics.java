@@ -34,19 +34,19 @@ public class AccordStateCacheMetrics extends CacheAccessMetrics
 
     private final Map<String, CacheAccessMetrics> instanceMetrics = new ConcurrentHashMap<>(2);
 
-    private final String type;
+    private final String scope;
 
-    public AccordStateCacheMetrics(String type)
+    public AccordStateCacheMetrics(String scope)
     {
-        super(new DefaultNameFactory(TYPE_NAME, type));
+        super(new DefaultNameFactory(TYPE_NAME, scope));
         objectSize = Metrics.histogram(factory.createMetricName(OBJECT_SIZE), false);
-        this.type = type;
+        this.scope = scope;
     }
 
     public CacheAccessMetrics forInstance(Class<?> klass)
     {
         // cannot make Class<?> hashCode deterministic, as cannot rewrite - so cannot safely use as Map key if want deterministic simulation
         // (or we need to create extra hoops to catch this specific case in method rewriting)
-        return instanceMetrics.computeIfAbsent(klass.getSimpleName(), k -> new CacheAccessMetrics(new DefaultNameFactory(TYPE_NAME, String.format("%s-%s", type, k))));
+        return instanceMetrics.computeIfAbsent(klass.getSimpleName(), k -> new CacheAccessMetrics(new DefaultNameFactory(TYPE_NAME, String.format("%s-%s", scope, k))));
     }
 }
