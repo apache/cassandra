@@ -98,7 +98,7 @@ public class TableStats extends NodeToolCmd
             throw new IllegalArgumentException("argument for top must be a positive integer.");
         }
 
-        StatsHolder holder = new TableStatsHolder(probe, !noHumanReadable, ignore, tableNames, sortKey, top, locationCheck);
+        StatsHolder holder = new TableStatsHolder(probe, outputFormat.isEmpty() && !noHumanReadable, ignore, tableNames, sortKey, top, locationCheck);
         // print out the keyspace and table statistics
         StatsPrinter printer = TableStatsPrinter.from(outputFormat, !sortKey.isEmpty());
         printer.print(holder, probe.output().out);
