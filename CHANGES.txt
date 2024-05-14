@@ -36,6 +36,7 @@
  * Fix resource cleanup after SAI query timeouts (CASSANDRA-19177)
  * Suppress CVE-2023-6481 (CASSANDRA-19184)
 Merged from 4.1:
+ * Support legacy plain_text_auth section in credentials file removed unintentionally (CASSANDRA-19498)
  * Make queries visible to the "system_views.queries" virtual table at the coordinator level (CASSANDRA-19577)
  * Concurrent equivalent schema updates lead to unresolved disagreement (CASSANDRA-19578)
  * Fix hints delivery for a node going down repeatedly (CASSANDRA-19495)
