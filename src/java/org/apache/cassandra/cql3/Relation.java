@@ -73,6 +73,7 @@ public final class Relation
     public static Relation singleColumn(ColumnIdentifier identifier, Operator operator, Term.Raw rawTerm)
     {
         assert operator != Operator.IN;
+        assert operator != Operator.BETWEEN;
         return new Relation(ColumnsExpression.Raw.singleColumn(identifier), operator, Terms.Raw.of(rawTerm));
     }
 
@@ -114,6 +115,7 @@ public final class Relation
     public static Relation multiColumn(List<ColumnIdentifier> identifiers, Operator operator, Term.Raw rawTerm)
     {
         assert operator != Operator.IN;
+        assert operator != Operator.BETWEEN;
         return new Relation(ColumnsExpression.Raw.multiColumn(identifiers), operator, Terms.Raw.of(rawTerm));
     }
 
@@ -225,6 +227,13 @@ public final class Relation
      */
     public String toCQLString()
     {
+        if (operator == Operator.BETWEEN) {
+
+            return String.format("%s %s %s", rawExpressions.toCQLString(), operator, rawTerms.getText()
+                                                                                             .replace(", ", " AND ")
+                                                                                             .replace("(", "")
+                                                                                             .replace(")", ""));
+        }
         return String.format("%s %s %s", rawExpressions.toCQLString(), operator, rawTerms.getText());
     }
 
