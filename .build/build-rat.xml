@@ -68,6 +68,7 @@
                  <exclude name="test/data/**/*.sha1"/>
                  <exclude name="test/data/CASSANDRA-15313/lz4-jvm-crash-failure.txt"/>
                  <exclude name="test/data/jmxdump/cassandra-*-jmx.yaml"/>
+                 <exclude name="test/data/vnodecluster/hosts"/>
                  <!-- Documentation files -->
                  <exclude name=".github/pull_request_template.md"/>
                  <exclude NAME="doc/modules/**/*"/>
