@@ -22,6 +22,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -268,6 +269,8 @@ public enum Operator
     },
     BETWEEN(16)
     {
+        final Comparator<ClusteringElements> comparator = new ClusteringElements.ClusteringElementsComparator(true);
+
         @Override
         public String toString()
         {
@@ -277,15 +280,9 @@ public enum Operator
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
-            ListSerializer<?> serializer = ListType.getInstance(type, false).getSerializer();
-
-            ByteBuffer leftBound = serializer.getElement(rightOperand, 0);
-            ByteBuffer rightBound = serializer.getElement(rightOperand, 1);
-
-            ByteBuffer larger = type.compareForCQL(leftBound, rightBound) > 0 ? leftBound : rightBound;
-            ByteBuffer smaller = type.compareForCQL(larger, leftOperand) == 0 ? rightBound : leftBound;
-
-            return type.compareForCQL(leftOperand, larger) <= 0 && type.compareForCQL(leftOperand, smaller) >= 0;
+            List<ByteBuffer> buffers = ListType.getInstance(type, false).unpack(rightOperand);
+            buffers.sort(type);
+            return type.compareForCQL(leftOperand, buffers.get(1)) <= 0 && type.compareForCQL(leftOperand, buffers.get(0)) >= 0;
         }
 
         @Override
@@ -298,13 +295,9 @@ public enum Operator
         public void restrict(RangeSet<ClusteringElements> rangeSet, List<ClusteringElements> args)
         {
             assert args.size() == 2 : this + " accepts exactly two values";
-            ClusteringElements left = args.get(0);
-            ClusteringElements right = args.get(1);
-            int comp = ClusteringElements.compareForCQL(left, right);
-            ClusteringElements lesser = comp < 0 ? left : right;
-            ClusteringElements greater = comp < 0 ? right : left;
-            rangeSet.removeAll(ClusteringElements.lessThan(lesser));
-            rangeSet.removeAll(ClusteringElements.greaterThan(greater));
+            args.sort(comparator);
+            rangeSet.removeAll(ClusteringElements.lessThan(args.get(0)));
+            rangeSet.removeAll(ClusteringElements.greaterThan(args.get(1)));
         }
 
         @Override
