@@ -772,8 +772,9 @@ class TestCqlParsing(TestCase):
                                   (';', 'endtoken')])
 
         parsed = parse_cqlsh_statements('''
-                                        INSERT into a (key,c1,c2) VALUES ('aKey','v1','/v2/*/v3');
+                                        INSERT into a (key,c1,c2) VALUES ('aKey','v1*/','/v2/*/v3');
                                         ''')
+        
         self.assertSequenceEqual(tokens_with_types(parsed),
                                 [('INSERT','reserved_identifier'),
                                 ('into','reserved_identifier'),
@@ -789,7 +790,7 @@ class TestCqlParsing(TestCase):
                                 ('(','op'),
                                 ("'aKey'",'quotedStringLiteral'),
                                 (',','op'),
-                                ("'v1'",'quotedStringLiteral'),
+                                ("'v1*/'",'quotedStringLiteral'),
                                 (',','op'),
                                 ("'/v2/*/v3'",'quotedStringLiteral'),
                                 (')','op'),
