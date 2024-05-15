@@ -97,7 +97,7 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
         keyspaceMetadata.params.validate(keyspaceName, state, metadata);
         keyspaceMetadata.replicationStrategy.validateExpectedOptions(metadata);
 
-        this.expandedCql = keyspaceMetadata.toCqlString(false, attrs.hasProperty(TableAttributes.ID), ifNotExists);
+        this.expandedCql = keyspaceMetadata.toCqlString(false, true, ifNotExists);
 
         return schema.withAddedOrUpdated(keyspaceMetadata);
     }
