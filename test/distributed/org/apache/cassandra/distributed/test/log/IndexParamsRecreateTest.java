@@ -29,6 +29,8 @@ import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.index.internal.CassandraIndex;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -37,9 +39,9 @@ public class IndexParamsRecreateTest extends TestBaseImpl
 {
     protected static final String CREATE_TABLE_TEMPLATE = "CREATE TABLE %s (id1 TEXT PRIMARY KEY, v1 INT, v2 TEXT, v3 TEXT) WITH compaction = " +
                                                           "{'class' : 'SizeTieredCompactionStrategy', 'enabled' : false }";
-    protected static final String CREATE_DEFAULT_INDEX_TEMPLATE = "CREATE INDEX IF NOT EXISTS ON %s(%s)";
-    protected static final String CREATE_SAI_INDEX_TEMPLATE = "CREATE INDEX IF NOT EXISTS ON %s(%s) USING 'sai'";
-    protected static final String CREATE_LEGACY_INDEX_TEMPLATE = "CREATE INDEX IF NOT EXISTS ON %s(%s) USING 'legacy_local_table'";
+    protected static final String CREATE_DEFAULT_INDEX_TEMPLATE = "CREATE INDEX IF NOT EXISTS default_idx ON %s(%s)";
+    protected static final String CREATE_SAI_INDEX_TEMPLATE = "CREATE INDEX IF NOT EXISTS sai_idx ON %s(%s) USING 'sai'";
+    protected static final String CREATE_LEGACY_INDEX_TEMPLATE = "CREATE INDEX IF NOT EXISTS legacy_idx ON %s(%s) USING 'legacy_local_table'";
 
     @Test
     public void bounceTest() throws Exception
@@ -67,25 +69,28 @@ public class IndexParamsRecreateTest extends TestBaseImpl
             cluster.coordinator(1).execute(String.format(CREATE_LEGACY_INDEX_TEMPLATE, "after_bounce.tbl1", "v2"), ConsistencyLevel.ALL);
             cluster.coordinator(1).execute(String.format(CREATE_SAI_INDEX_TEMPLATE, "after_bounce.tbl1", "v3"), ConsistencyLevel.ALL);
 
-
-            // Just like in 5.0, table created before the bounce, should preserve its default, and one after bonce - its own
+            // Where an index class was explicitly specified with USING, changing the default should have no effect.
+            // The index created using the default implementation before the bounce should preserve its original type
+            // while the one created after bounce should use the new default.
             cluster.stream().forEach(i -> {
                 i.runOnInstance(() -> {
                     Indexes before_bounce = ClusterMetadata.current().schema.getKeyspace("before_bounce")
                                                                             .getMetadata()
                                                                             .getTableNullable("tbl1")
                                             .indexes;
-                    Assert.assertEquals(IndexMetadata.Kind.COMPOSITES, before_bounce.get("tbl1_v1_idx").get().kind);
-                    Assert.assertEquals(IndexMetadata.Kind.COMPOSITES, before_bounce.get("tbl1_v2_idx").get().kind);
-                    Assert.assertEquals(IndexMetadata.Kind.CUSTOM, before_bounce.get("tbl1_v3_idx").get().kind);
+                    assertIndex(before_bounce.get("legacy_idx").get(), IndexMetadata.Kind.COMPOSITES, CassandraIndex.class);
+                    assertIndex(before_bounce.get("sai_idx").get(), IndexMetadata.Kind.CUSTOM, StorageAttachedIndex.class);
+                    // the original default was legacy 2i
+                    assertIndex(before_bounce.get("default_idx").get(), IndexMetadata.Kind.COMPOSITES, CassandraIndex.class);
 
                     Indexes after_bounce = ClusterMetadata.current().schema.getKeyspace("after_bounce")
                                                                            .getMetadata()
                                                                            .getTableNullable("tbl1")
                                            .indexes;
-                    Assert.assertEquals(IndexMetadata.Kind.CUSTOM, after_bounce.get("tbl1_v1_idx").get().kind);
-                    Assert.assertEquals(IndexMetadata.Kind.COMPOSITES, after_bounce.get("tbl1_v2_idx").get().kind);
-                    Assert.assertEquals(IndexMetadata.Kind.CUSTOM, after_bounce.get("tbl1_v3_idx").get().kind);
+                    assertIndex(after_bounce.get("legacy_idx").get(), IndexMetadata.Kind.COMPOSITES, CassandraIndex.class);
+                    assertIndex(after_bounce.get("sai_idx").get(), IndexMetadata.Kind.CUSTOM, StorageAttachedIndex.class);
+                    // the updated default is sai
+                    assertIndex(after_bounce.get("default_idx").get(), IndexMetadata.Kind.CUSTOM, StorageAttachedIndex.class);
                 });
             });
         }
@@ -123,26 +128,37 @@ public class IndexParamsRecreateTest extends TestBaseImpl
 
             ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1));
 
-            // Just like in 5.0, both nodes should see identical table params
+            // Just like in 5.0, both nodes should see identical index params (those of the coordinator).
             cluster.stream().forEach(i -> {
                 i.runOnInstance(() -> {
                     Indexes from_1 = ClusterMetadata.current().schema.getKeyspace("from_1")
                                                                      .getMetadata()
                                                                      .getTableNullable("tbl1")
                                      .indexes;
-                    Assert.assertEquals(IndexMetadata.Kind.COMPOSITES, from_1.get("tbl1_v1_idx").get().kind);
-                    Assert.assertEquals(IndexMetadata.Kind.COMPOSITES, from_1.get("tbl1_v2_idx").get().kind);
-                    Assert.assertEquals(IndexMetadata.Kind.CUSTOM, from_1.get("tbl1_v3_idx").get().kind);
+                    Assert.assertEquals(IndexMetadata.Kind.COMPOSITES, from_1.get("default_idx").get().kind);
+                    Assert.assertEquals(IndexMetadata.Kind.COMPOSITES, from_1.get("legacy_idx").get().kind);
+                    Assert.assertEquals(IndexMetadata.Kind.CUSTOM, from_1.get("sai_idx").get().kind);
+                    assertIndex(from_1.get("legacy_idx").get(), IndexMetadata.Kind.COMPOSITES, CassandraIndex.class);
+                    assertIndex(from_1.get("sai_idx").get(), IndexMetadata.Kind.CUSTOM, StorageAttachedIndex.class);
+                    // Node1's default is legacy 2i
+                    assertIndex(from_1.get("default_idx").get(), IndexMetadata.Kind.COMPOSITES, CassandraIndex.class);
 
                     Indexes from_2 = ClusterMetadata.current().schema.getKeyspace("from_2")
                                                                      .getMetadata()
                                                                      .getTableNullable("tbl1")
                                      .indexes;
-                    Assert.assertEquals(IndexMetadata.Kind.CUSTOM, from_2.get("tbl1_v1_idx").get().kind);
-                    Assert.assertEquals(IndexMetadata.Kind.COMPOSITES, from_2.get("tbl1_v2_idx").get().kind);
-                    Assert.assertEquals(IndexMetadata.Kind.CUSTOM, from_2.get("tbl1_v3_idx").get().kind);
+                    assertIndex(from_2.get("legacy_idx").get(), IndexMetadata.Kind.COMPOSITES, CassandraIndex.class);
+                    assertIndex(from_2.get("sai_idx").get(), IndexMetadata.Kind.CUSTOM, StorageAttachedIndex.class);
+                    // Node2's default is sai
+                    assertIndex(from_2.get("default_idx").get(), IndexMetadata.Kind.CUSTOM, StorageAttachedIndex.class);
                 });
             });
         }
+    }
+
+    private static void assertIndex(IndexMetadata index, IndexMetadata.Kind expectedKind, Class expectedClass)
+    {
+        Assert.assertEquals(expectedKind, index.kind);
+        Assert.assertEquals(expectedClass.getName(), index.getIndexClassName());
     }
 }

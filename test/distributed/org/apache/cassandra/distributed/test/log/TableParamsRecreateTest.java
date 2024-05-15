@@ -50,7 +50,7 @@ public class TableParamsRecreateTest extends TestBaseImpl
                                              "max_threshold", "64"))))
                                              .start()))
         {
-            cluster.coordinator(1).execute("CREATE TABLE " + KEYSPACE + ".from_1 (id int PRIMARY KEY, value text);", ConsistencyLevel.ALL);
+            cluster.coordinator(1).execute("CREATE TABLE " + KEYSPACE + ".before_bounce (id int PRIMARY KEY, value text);", ConsistencyLevel.ALL);
             cluster.get(1).shutdown().get();
             cluster.get(1).config()
                    .set("default_compaction", Map.of("class_name", "SizeTieredCompactionStrategy",
@@ -59,17 +59,18 @@ public class TableParamsRecreateTest extends TestBaseImpl
                    "max_threshold", "128")));;
 
             cluster.get(1).startup();
-            cluster.coordinator(1).execute("CREATE TABLE " + KEYSPACE + ".from_2 (id int PRIMARY KEY, value text);", ConsistencyLevel.ALL);
+            cluster.coordinator(1).execute("CREATE TABLE " + KEYSPACE + ".after_bounce (id int PRIMARY KEY, value text);", ConsistencyLevel.ALL);
 
-            // Just like in 5.0, table created before the bounce, should preserve its default, and one after bonce - its own
+            // Tables created before the bounce should preserve the initial default value. Those created after updating
+            // should take the new value from config.
             cluster.stream().forEach(i -> {
                 i.runOnInstance(() -> {
-                    CompactionParams from_1 = ClusterMetadata.current().schema.getKeyspace(KEYSPACE).getMetadata().tables.get("from_1").get().params.compaction;
-                    Assert.assertEquals("16", from_1.options().get("min_threshold"));
-                    Assert.assertEquals("64", from_1.options().get("max_threshold"));
-                    CompactionParams from_2 = ClusterMetadata.current().schema.getKeyspace(KEYSPACE).getMetadata().tables.get("from_2").get().params.compaction;
-                    Assert.assertEquals("32", from_2.options().get("min_threshold"));
-                    Assert.assertEquals("128", from_2.options().get("max_threshold"));
+                    CompactionParams before_bounce = ClusterMetadata.current().schema.getKeyspace(KEYSPACE).getMetadata().tables.get("before_bounce").get().params.compaction;
+                    Assert.assertEquals("16", before_bounce.options().get("min_threshold"));
+                    Assert.assertEquals("64", before_bounce.options().get("max_threshold"));
+                    CompactionParams after_bounce = ClusterMetadata.current().schema.getKeyspace(KEYSPACE).getMetadata().tables.get("after_bounce").get().params.compaction;
+                    Assert.assertEquals("32", after_bounce.options().get("min_threshold"));
+                    Assert.assertEquals("128", after_bounce.options().get("max_threshold"));
                 });
             });
         }
@@ -103,7 +104,7 @@ public class TableParamsRecreateTest extends TestBaseImpl
             newInstance.coordinator().execute("CREATE TABLE " + KEYSPACE + ".from_2 (id int PRIMARY KEY, value text);", ConsistencyLevel.ALL);
             ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1));
 
-            // Just like in 5.0, both nodes should see identical table params
+            // Just like in 5.0, both nodes should see identical table params (those from the coordinator)
             cluster.stream().forEach(i -> {
                 i.runOnInstance(() -> {
                     CompactionParams from_1 = ClusterMetadata.current().schema.getKeyspace(KEYSPACE).getMetadata().tables.get("from_1").get().params.compaction;

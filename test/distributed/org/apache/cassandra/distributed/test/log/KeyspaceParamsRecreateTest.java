@@ -48,7 +48,8 @@ public class KeyspaceParamsRecreateTest extends TestBaseImpl
             cluster.get(1).startup();
             cluster.coordinator(1).execute("CREATE KEYSPACE after_bounce WITH replication = {'class': 'SimpleStrategy'}", ConsistencyLevel.ALL);
 
-            // Just like in 5.0, table created before the bounce, should preserve its default, and one after bonce - its own
+            // The keyspace created before the bounce should preserve the initial default value. The one created after
+            // updating should take the new value from config.
             cluster.stream().forEach(i -> {
                 i.runOnInstance(() -> {
                     KeyspaceMetadata before_bounce = ClusterMetadata.current().schema.getKeyspace("before_bounce").getMetadata();
@@ -79,7 +80,7 @@ public class KeyspaceParamsRecreateTest extends TestBaseImpl
             newInstance.coordinator().execute("CREATE KEYSPACE from_2 WITH replication = {'class': 'SimpleStrategy'}", ConsistencyLevel.ALL);
             ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1));
 
-            // Just like in 5.0, both nodes should see identical table params
+            // Just like in 5.0, both nodes should see identical keyspace params (those of the coordinator).
             cluster.stream().forEach(i -> {
                 i.runOnInstance(() -> {
                     KeyspaceMetadata from_1 = ClusterMetadata.current().schema.getKeyspace("from_1").getMetadata();
