@@ -27,7 +27,6 @@ import java.util.concurrent.ConcurrentMap;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
@@ -158,14 +157,11 @@ public class CompositeType extends AbstractCompositeType
         return true;
     }
 
-    public static CompositeType getInstance(List<AbstractType<?>> types)
+    public static CompositeType getInstance(ImmutableList<AbstractType<?>> types)
     {
         assert types != null && !types.isEmpty();
-        ImmutableList<AbstractType<?>> typesCopy = ImmutableList.copyOf(Iterables.transform(types, AbstractType::freeze));
-        CompositeType t = instances.get(typesCopy);
-        return null == t
-             ? instances.computeIfAbsent(typesCopy, CompositeType::new)
-             : t;
+        ImmutableList<AbstractType<?>> typesCopy = freeze(types);
+        return getInstance(instances, typesCopy, () -> new CompositeType(typesCopy));
     }
 
     protected CompositeType(ImmutableList<AbstractType<?>> types)

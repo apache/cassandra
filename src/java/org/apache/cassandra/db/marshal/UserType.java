@@ -75,7 +75,7 @@ public class UserType extends TupleType implements SchemaElement
 
     public UserType(String keyspace, ByteBuffer name, ImmutableList<FieldIdentifier> fieldNames, ImmutableList<AbstractType<?>> fieldTypes, boolean isMultiCell)
     {
-        super(fieldTypes, !isMultiCell, isMultiCell);
+        super(isMultiCell ? fieldTypes : freeze(fieldTypes), isMultiCell);
         assert fieldNames.size() == fieldTypes.size();
         this.keyspace = keyspace;
         this.name = name;
@@ -93,6 +93,12 @@ public class UserType extends TupleType implements SchemaElement
         }
         this.stringFieldNames = stringFieldNamesBuilder.build();
         this.serializer = new UserTypeSerializer(fieldSerializers);
+    }
+
+    @Override
+    public UserType with(ImmutableList<AbstractType<?>> subTypes, boolean isMultiCell)
+    {
+        return new UserType(keyspace, name, fieldNames, subTypes, isMultiCell);
     }
 
     public static UserType getInstance(TypeParser parser)

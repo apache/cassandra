@@ -30,11 +30,13 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.google.common.collect.Streams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,6 +49,7 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable.Version;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
@@ -120,11 +123,8 @@ public class DynamicCompositeType extends AbstractCompositeType
 
     public static DynamicCompositeType getInstance(Map<Byte, AbstractType<?>> aliases)
     {
-        ImmutableMap<Byte, AbstractType<?>> aliasesCopy = ImmutableMap.copyOf(new TreeMap<>(aliases));
-        DynamicCompositeType dct = instances.get(aliasesCopy);
-        return null == dct
-             ? instances.computeIfAbsent(aliasesCopy, DynamicCompositeType::new)
-             : dct;
+        ImmutableMap<Byte, AbstractType<?>> aliasesCopy = ImmutableMap.copyOf(new TreeMap<>(Maps.transformValues(aliases, AbstractType::freeze)));
+        return getInstance(instances, aliasesCopy, () -> new DynamicCompositeType(aliasesCopy));
     }
 
     private DynamicCompositeType(ImmutableMap<Byte, AbstractType<?>> aliases)
@@ -136,6 +136,20 @@ public class DynamicCompositeType extends AbstractCompositeType
         for (Map.Entry<Byte, AbstractType<?>> en : aliases.entrySet())
             inverseMappingBuilder.put(en.getValue(), en.getKey());
         this.inverseMapping = ImmutableMap.copyOf(inverseMappingBuilder);
+    }
+
+    @Override
+    public AbstractType<?> with(ImmutableList<AbstractType<?>> subTypes, boolean isMultiCell)
+    {
+        Preconditions.checkArgument(!isMultiCell, "Cannot create a multi-cell DynamicCompositeType");
+        Preconditions.checkArgument(subTypes.size() == aliases.size(),
+                                    "Invalid number of subTypes for DynamicCompositeType (got %s, expected %s)", subTypes.size(), aliases.size());
+
+        ImmutableMap.Builder<Byte, AbstractType<?>> copiedAliases = ImmutableMap.builderWithExpectedSize(subTypes.size());
+        Streams.zip(aliases.keySet().stream(), subTypes.stream(), Pair::create)
+               .forEachOrdered(p -> copiedAliases.put(p.left, p.right));
+
+        return new DynamicCompositeType(copiedAliases.build());
     }
 
     @Override

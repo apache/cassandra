@@ -24,7 +24,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.regex.Pattern;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
 
@@ -66,13 +65,12 @@ public class TupleType extends AbstractType<ByteBuffer>
 
     public TupleType(ImmutableList<AbstractType<?>> subTypes)
     {
-        this(subTypes, true, false);
+        this(freeze(subTypes), false);
     }
 
-    @VisibleForTesting
-    public TupleType(ImmutableList<AbstractType<?>> subTypes, boolean freezeInner, boolean isMultiCell)
+    protected TupleType(ImmutableList<AbstractType<?>> subTypes, boolean isMultiCell)
     {
-        super(ComparisonType.CUSTOM, isMultiCell, ImmutableList.copyOf(freezeInner ? transform(subTypes, AbstractType::freeze) : subTypes));
+        super(ComparisonType.CUSTOM, isMultiCell, subTypes);
         this.serializer = new TupleSerializer(fieldSerializers(subTypes));
     }
 
@@ -93,7 +91,13 @@ public class TupleType extends AbstractType<ByteBuffer>
 
     public static TupleType getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
     {
-        return new TupleType(ImmutableList.copyOf(parser.getTypeParameters()), true, false);
+        return new TupleType(freeze(parser.getTypeParameters()), false);
+    }
+
+    @Override
+    public TupleType with(ImmutableList<AbstractType<?>> subTypes, boolean isMultiCell)
+    {
+        return new TupleType(freeze(subTypes), isMultiCell);
     }
 
     @Override

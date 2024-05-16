@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.cql3.Lists;
@@ -58,13 +59,12 @@ public class ListType<T> extends CollectionType<List<T>>
         return getInstance(l.get(0).freeze(), true);
     }
 
+    @SuppressWarnings("unchecked")
     public static <T> ListType<T> getInstance(AbstractType<T> elements, boolean isMultiCell)
     {
-        ConcurrentHashMap<AbstractType<?>, ListType> internMap = isMultiCell ? instances : frozenInstances;
-        ListType<T> t = internMap.get(elements);
-        return null == t
-             ? internMap.computeIfAbsent(elements, k -> new ListType<>(k, isMultiCell))
-             : t;
+        return getInstance(isMultiCell ? instances : frozenInstances,
+                           elements,
+                           () -> new ListType<>(elements, isMultiCell));
     }
 
     private ListType(AbstractType<T> elements, boolean isMultiCell)
@@ -78,6 +78,15 @@ public class ListType<T> extends CollectionType<List<T>>
     public <V> boolean referencesUserType(V name, ValueAccessor<V> accessor)
     {
         return elements.referencesUserType(name, accessor);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public ListType<T> with(ImmutableList<AbstractType<?>> subTypes, boolean isMultiCell)
+    {
+        Preconditions.checkArgument(subTypes.size() == 1,
+                                    "Invalid number of subTypes for ListType (got %s)", subTypes.size());
+        return getInstance((AbstractType<T>) subTypes.get(0), isMultiCell);
     }
 
     @Override

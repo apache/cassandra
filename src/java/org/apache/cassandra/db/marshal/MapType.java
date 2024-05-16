@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.cql3.Maps;
@@ -65,14 +66,10 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
         return getInstance(l.get(0).freeze(), l.get(1).freeze(), true);
     }
 
+    @SuppressWarnings("unchecked")
     public static <K, V> MapType<K, V> getInstance(AbstractType<K> keys, AbstractType<V> values, boolean isMultiCell)
     {
-        ConcurrentHashMap<Pair<AbstractType<?>, AbstractType<?>>, MapType> internMap = isMultiCell ? instances : frozenInstances;
-        Pair<AbstractType<?>, AbstractType<?>> p = Pair.create(keys, values);
-        MapType<K, V> t = internMap.get(p);
-        return null == t
-             ? internMap.computeIfAbsent(p, k -> new MapType<>(k.left, k.right, isMultiCell))
-             : t;
+        return getInstance(isMultiCell ? instances : frozenInstances, Pair.create(keys, values), () -> new MapType<>(keys, values, isMultiCell));
     }
 
     private MapType(AbstractType<K> keys, AbstractType<V> values, boolean isMultiCell)
@@ -83,6 +80,15 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
         this.serializer = MapSerializer.getInstance(keys.getSerializer(),
                                                     values.getSerializer(),
                                                     keys.comparatorSet);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public MapType<K, V> with(ImmutableList<AbstractType<?>> subTypes, boolean isMultiCell)
+    {
+        Preconditions.checkArgument(subTypes.size() == 2,
+                                    "Invalid number of subTypes for MapType (got %s)", subTypes.size());
+        return getInstance((AbstractType<K>)subTypes.get(0), (AbstractType<V>)subTypes.get(1), isMultiCell);
     }
 
     @Override

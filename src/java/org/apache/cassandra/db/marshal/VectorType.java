@@ -76,7 +76,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
         }
     }
     @SuppressWarnings("rawtypes")
-    private static final ConcurrentHashMap<Key, VectorType> instances = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Key, VectorType<?>> instances = new ConcurrentHashMap<>();
 
     public final AbstractType<T> elementType;
     public final int dimension;
@@ -104,7 +104,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
     public static <T> VectorType<T> getInstance(AbstractType<T> elements, int dimension)
     {
         Key key = new Key(elements, dimension);
-        return instances.computeIfAbsent(key, Key::create);
+        return (VectorType<T>) getInstance(instances, key, key::create);
     }
 
     public static VectorType<?> getInstance(TypeParser parser)

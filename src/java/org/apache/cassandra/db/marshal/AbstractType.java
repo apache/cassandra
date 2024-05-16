@@ -27,6 +27,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentMap;
+import java.util.function.Supplier;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -473,6 +475,35 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     }
 
     /**
+     * Creates an instance of this type (the concrete type extending this class) with the provided updated multi-cell
+     * flag and subtypes.
+     * <p>
+     * Any other information (other than multi-cellness and subtypes) the type may have is expected to be left unchanged
+     * in the created type.
+     *
+     * @param isMultiCell whether the returned type must be a multi-cell one or not.
+     * @param subTypes the subtypes to use for the returned type as a list. The list will have subtypes in the exact
+     * same order as returned by {@link #subTypes()}, and exactly as many as the concrete class expects.
+     * @return the created type, which can be {@code this} if the provided subTypes and multi-cell flag are the same
+     * as that of this type.
+     */
+    public AbstractType<?> with(ImmutableList<AbstractType<?>> subTypes, boolean isMultiCell)
+    {
+        // Default implementation for types that can neither be multi-cell, nor have subtypes (and thus where this
+        // is basically a no-op). Any other type must override this.
+
+        assert this.subTypes.isEmpty() && subTypes.isEmpty() :
+        String.format("Invalid call to 'with' on %s with subTypes %s (provided subTypes: %s)",
+                      this, this.subTypes, subTypes);
+
+        assert !this.isMultiCell() && !isMultiCell:
+        String.format("Invalid call to 'with' on %s with isMultiCell %b (provided isMultiCell: %b)",
+                      this, this.isMultiCell(), isMultiCell);
+
+        return this;
+    }
+
+    /**
      * If the type has "complex" values that depend on subtypes, return those (direct) subtypes (in undefined order),
      * and an empty list otherwise.
      */
@@ -811,6 +842,36 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     public ByteBuffer getMaskedValue()
     {
         throw new UnsupportedOperationException("There isn't a defined masked value for type " + asCQL3Type());
+    }
+
+    protected static <K, V extends AbstractType<?>> V getInstance(ConcurrentMap<K, V> instances, K key, Supplier<V> value)
+    {
+        V cached = instances.get(key);
+        if (cached != null)
+            return cached;
+
+        // We avoid constructor calls in Map#computeIfAbsent to avoid recursive update exceptions because the automatic
+        // fixing of subtypes done by the top-level constructor might attempt a recursive update to the instances map.
+        V instance = value.get();
+        return instances.computeIfAbsent(key, k -> instance);
+    }
+
+    /**
+     * Utility method that freezes a list of types.
+     *
+     * @param types the list of types to freeze.
+     * @return a new (unmodifiable) list containing the result of applying {@link #freeze()} on every type of
+     * {@code types}.
+     */
+    public static ImmutableList<AbstractType<?>> freeze(List<AbstractType<?>> types)
+    {
+        if (types.isEmpty())
+            return ImmutableList.of();
+
+        ImmutableList.Builder<AbstractType<?>> builder = ImmutableList.builder();
+        for (AbstractType<?> type : types)
+            builder.add(type.freeze());
+        return builder.build();
     }
 
     /**
