@@ -57,7 +57,7 @@ public class ReversedType<T> extends AbstractType<T>
 
     private ReversedType(AbstractType<T> baseType)
     {
-        super(ComparisonType.CUSTOM);
+        super(ComparisonType.CUSTOM, baseType.isMultiCell());
         this.baseType = baseType;
     }
 

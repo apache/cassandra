@@ -46,7 +46,6 @@ public class ListType<T> extends CollectionType<List<T>>
 
     private final AbstractType<T> elements;
     public final ListSerializer<T> serializer;
-    private final boolean isMultiCell;
 
     public static ListType<?> getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
     {
@@ -68,10 +67,9 @@ public class ListType<T> extends CollectionType<List<T>>
 
     private ListType(AbstractType<T> elements, boolean isMultiCell)
     {
-        super(ComparisonType.CUSTOM, Kind.LIST);
+        super(ComparisonType.CUSTOM, Kind.LIST, isMultiCell);
         this.elements = elements;
         this.serializer = ListSerializer.getInstance(elements.getSerializer());
-        this.isMultiCell = isMultiCell;
     }
 
     @Override
@@ -152,12 +150,6 @@ public class ListType<T> extends CollectionType<List<T>>
     public List<AbstractType<?>> subTypes()
     {
         return Collections.singletonList(elements);
-    }
-
-    @Override
-    public boolean isMultiCell()
-    {
-        return isMultiCell;
     }
 
     @Override

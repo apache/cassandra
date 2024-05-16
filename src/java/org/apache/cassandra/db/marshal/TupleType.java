@@ -63,13 +63,13 @@ public class TupleType extends AbstractType<ByteBuffer>
 
     public TupleType(List<AbstractType<?>> types)
     {
-        this(types, true);
+        this(types, true, false);
     }
 
     @VisibleForTesting
-    public TupleType(List<AbstractType<?>> types, boolean freezeInner)
+    public TupleType(List<AbstractType<?>> types, boolean freezeInner, boolean isMultiCell)
     {
-        super(ComparisonType.CUSTOM);
+        super(ComparisonType.CUSTOM, isMultiCell);
 
         if (freezeInner)
             this.types = Lists.newArrayList(transform(types, AbstractType::freeze));

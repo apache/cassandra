@@ -59,18 +59,16 @@ public class UserType extends TupleType implements SchemaElement
     public final ByteBuffer name;
     private final List<FieldIdentifier> fieldNames;
     private final List<String> stringFieldNames;
-    private final boolean isMultiCell;
     private final UserTypeSerializer serializer;
 
     public UserType(String keyspace, ByteBuffer name, List<FieldIdentifier> fieldNames, List<AbstractType<?>> fieldTypes, boolean isMultiCell)
     {
-        super(fieldTypes, false);
+        super(fieldTypes, false, isMultiCell);
         assert fieldNames.size() == fieldTypes.size();
         this.keyspace = keyspace;
         this.name = name;
         this.fieldNames = fieldNames;
         this.stringFieldNames = new ArrayList<>(fieldNames.size());
-        this.isMultiCell = isMultiCell;
 
         LinkedHashMap<String , TypeSerializer<?>> fieldSerializers = new LinkedHashMap<>(fieldTypes.size());
         for (int i = 0, m = fieldNames.size(); i < m; i++)
@@ -109,12 +107,6 @@ public class UserType extends TupleType implements SchemaElement
     public boolean isTuple()
     {
         return false;
-    }
-
-    @Override
-    public boolean isMultiCell()
-    {
-        return isMultiCell;
     }
 
     @Override

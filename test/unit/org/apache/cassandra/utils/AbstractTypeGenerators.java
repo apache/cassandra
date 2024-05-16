@@ -1413,9 +1413,9 @@ public final class AbstractTypeGenerators
     {
         UserType extType = withAddedField(type, "extra", EmptyType.instance);
         return frozenAndUnfrozen(type,
-                                 new TupleType(type.subTypes(), false),
+                                 new TupleType(type.subTypes(), false, false),
                                  extType,
-                                 new TupleType(extType.subTypes(), false));
+                                 new TupleType(extType.subTypes(), false, false));
     }
 
     private static void forEachUserTypeVariantPair(UserType leftType, UserType rightType, BiConsumer<? super TupleType, ? super TupleType> typePairConsumer)

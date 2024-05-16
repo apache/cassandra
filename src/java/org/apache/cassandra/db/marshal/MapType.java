@@ -53,7 +53,6 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     private final AbstractType<K> keys;
     private final AbstractType<V> values;
     private final MapSerializer<K, V> serializer;
-    private final boolean isMultiCell;
 
     public static MapType<?, ?> getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
     {
@@ -76,13 +75,12 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
 
     private MapType(AbstractType<K> keys, AbstractType<V> values, boolean isMultiCell)
     {
-        super(ComparisonType.CUSTOM, Kind.MAP);
+        super(ComparisonType.CUSTOM, Kind.MAP, isMultiCell);
         this.keys = keys;
         this.values = values;
         this.serializer = MapSerializer.getInstance(keys.getSerializer(),
                                                     values.getSerializer(),
                                                     keys.comparatorSet);
-        this.isMultiCell = isMultiCell;
     }
 
     @Override
@@ -133,12 +131,6 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     public AbstractType<V> valueComparator()
     {
         return values;
-    }
-
-    @Override
-    public boolean isMultiCell()
-    {
-        return isMultiCell;
     }
 
     @Override
