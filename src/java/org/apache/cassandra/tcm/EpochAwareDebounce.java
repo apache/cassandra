@@ -21,6 +21,7 @@ package org.apache.cassandra.tcm;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
+import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.concurrent.Future;
 
 /**
@@ -29,7 +30,7 @@ import org.apache.cassandra.utils.concurrent.Future;
  * comes in, we create a new future. If a request for a newer epoch comes in, we simply
  * swap out the current future reference for a new one which is requesting the newer epoch.
  */
-public class EpochAwareDebounce
+public class EpochAwareDebounce implements Closeable
 {
     public static final EpochAwareDebounce instance = new EpochAwareDebounce();
 
@@ -76,6 +77,15 @@ public class EpochAwareDebounce
     }
 
     private static final EpochAwareFuture SENTINEL = new EpochAwareFuture(Epoch.EMPTY, null);
+
+    @Override
+    public void close()
+    {
+        EpochAwareFuture future = currentFuture.get();
+        if (future != null && future != SENTINEL)
+            future.future.cancel(true);
+    }
+
     private static class EpochAwareFuture
     {
         private final Epoch epoch;
@@ -85,6 +95,5 @@ public class EpochAwareDebounce
             this.epoch = epoch;
             this.future = future;
         }
-
     }
 }

@@ -1095,8 +1095,15 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                            .filter(i -> !i.isShutdown())
                            .map(IInstance::shutdown)
                            .collect(Collectors.toList());
-        FBUtilities.waitOnFutures(futures,1L, TimeUnit.MINUTES);
-
+        try
+        {
+            FBUtilities.waitOnFutures(futures, 1L, TimeUnit.MINUTES);
+        }
+        catch (Throwable t)
+        {
+            checkForThreadLeaks();
+            throw t;
+        }
         instances.clear();
         instanceMap.clear();
         PathUtils.setDeletionListener(ignore -> {});
