@@ -18,9 +18,16 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+
+import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.cql3.Sets;
 import org.apache.cassandra.cql3.Term;
@@ -63,7 +70,7 @@ public class SetType<T> extends CollectionType<Set<T>>
 
     public SetType(AbstractType<T> elements, boolean isMultiCell)
     {
-        super(ComparisonType.CUSTOM, Kind.SET, isMultiCell);
+        super(ComparisonType.CUSTOM, Kind.SET, isMultiCell, ImmutableList.of(elements));
         this.elements = elements;
         this.serializer = SetSerializer.getInstance(elements.getSerializer(), elements.comparatorSet);
     }
@@ -117,12 +124,6 @@ public class SetType<T> extends CollectionType<Set<T>>
     public AbstractType<?> unfreeze()
     {
         return isMultiCell ? this : getInstance(this.elements, true);
-    }
-
-    @Override
-    public List<AbstractType<?>> subTypes()
-    {
-        return Collections.singletonList(elements);
     }
 
     @Override
@@ -182,7 +183,7 @@ public class SetType<T> extends CollectionType<Set<T>>
         if (includeFrozenType)
             sb.append(FrozenType.class.getName()).append("(");
         sb.append(getClass().getName());
-        sb.append(TypeParser.stringifyTypeParameters(Collections.<AbstractType<?>>singletonList(elements), ignoreFreezing || !isMultiCell));
+        sb.append(TypeParser.stringifyTypeParameters(subTypes, ignoreFreezing || !isMultiCell));
         if (includeFrozenType)
             sb.append(")");
         return sb.toString();

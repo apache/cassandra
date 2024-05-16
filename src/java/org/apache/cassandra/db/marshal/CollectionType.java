@@ -25,6 +25,8 @@ import java.util.Iterator;
 import java.util.Objects;
 import java.util.function.Consumer;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.Lists;
@@ -82,9 +84,9 @@ public abstract class CollectionType<T> extends AbstractType<T>
 
     public final Kind kind;
 
-    protected CollectionType(ComparisonType comparisonType, Kind kind, boolean isMultiCell)
+    protected CollectionType(ComparisonType comparisonType, Kind kind, boolean isMultiCell, ImmutableList<AbstractType<?>> subTypes)
     {
-        super(comparisonType, isMultiCell);
+        super(comparisonType, isMultiCell, subTypes);
         this.kind = kind;
     }
 

@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1054,7 +1055,7 @@ public interface CQL3Type
 
                     ts.add(t.prepare(keyspace, udts).getType());
                 }
-                return new Tuple(new TupleType(ts));
+                return new Tuple(new TupleType(ImmutableList.copyOf(ts)));
             }
 
             public boolean isTuple()

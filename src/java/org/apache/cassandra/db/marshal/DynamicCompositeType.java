@@ -22,13 +22,15 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -76,9 +78,9 @@ public class DynamicCompositeType extends AbstractCompositeType
     {
         // aliases are held to make sure the serializer is unique for each collection of types, this is to make sure it's
         // safe to cache in all cases
-        private final Map<Byte, AbstractType<?>> aliases;
+        private final ImmutableMap<Byte, AbstractType<?>> aliases;
 
-        public Serializer(Map<Byte, AbstractType<?>> aliases)
+        public Serializer(ImmutableMap<Byte, AbstractType<?>> aliases)
         {
             this.aliases = aliases;
         }
@@ -104,12 +106,12 @@ public class DynamicCompositeType extends AbstractCompositeType
     private static final String REVERSED_TYPE = ReversedType.class.getSimpleName();
 
     @VisibleForTesting
-    public final Map<Byte, AbstractType<?>> aliases;
-    private final Map<AbstractType<?>, Byte> inverseMapping;
+    public final ImmutableMap<Byte, AbstractType<?>> aliases;
+    private final ImmutableMap<AbstractType<?>, Byte> inverseMapping;
     private final Serializer serializer;
 
     // interning instances
-    private static final ConcurrentHashMap<Map<Byte, AbstractType<?>>, DynamicCompositeType> instances = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<ImmutableMap<Byte, AbstractType<?>>, DynamicCompositeType> instances = new ConcurrentHashMap<>();
 
     public static DynamicCompositeType getInstance(TypeParser parser)
     {
@@ -118,30 +120,22 @@ public class DynamicCompositeType extends AbstractCompositeType
 
     public static DynamicCompositeType getInstance(Map<Byte, AbstractType<?>> aliases)
     {
-        DynamicCompositeType dct = instances.get(aliases);
+        ImmutableMap<Byte, AbstractType<?>> aliasesCopy = ImmutableMap.copyOf(new TreeMap<>(aliases));
+        DynamicCompositeType dct = instances.get(aliasesCopy);
         return null == dct
-             ? instances.computeIfAbsent(aliases, DynamicCompositeType::new)
+             ? instances.computeIfAbsent(aliasesCopy, DynamicCompositeType::new)
              : dct;
     }
 
-    private DynamicCompositeType(Map<Byte, AbstractType<?>> aliases)
+    private DynamicCompositeType(ImmutableMap<Byte, AbstractType<?>> aliases)
     {
-        this.aliases = ImmutableMap.copyOf(aliases);
+        super(ImmutableList.copyOf(aliases.values()));
+        this.aliases = aliases;
         this.serializer = new Serializer(this.aliases);
-        this.inverseMapping = new HashMap<>();
+        LinkedHashMap<AbstractType<?>, Byte> inverseMappingBuilder = new LinkedHashMap<>();
         for (Map.Entry<Byte, AbstractType<?>> en : aliases.entrySet())
-            this.inverseMapping.put(en.getValue(), en.getKey());
-    }
-
-    public int size()
-    {
-        return aliases.size();
-    }
-
-    @Override
-    public List<AbstractType<?>> subTypes()
-    {
-        return new ArrayList<>(aliases.values());
+            inverseMappingBuilder.put(en.getValue(), en.getKey());
+        this.inverseMapping = ImmutableMap.copyOf(inverseMappingBuilder);
     }
 
     @Override

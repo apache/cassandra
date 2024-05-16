@@ -19,10 +19,10 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+import com.google.common.collect.ImmutableList;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -113,19 +113,19 @@ public class CompositeAndTupleTypesTest
     @Test
     public void tuple()
     {
-        testSerializationDeserialization(TupleType::new, TupleType::buildValue);
+        testSerializationDeserialization(types -> new TupleType(ImmutableList.copyOf(types)), TupleType::buildValue);
     }
 
     @Test
     public void userType()
     {
         TypeFactory<UserType> factory = types -> {
-            List<FieldIdentifier> names = new ArrayList<>(types.size());
+            ImmutableList.Builder<FieldIdentifier> names = ImmutableList.builderWithExpectedSize(types.size());
             for (int i=0; i<types.size(); i++)
             {
                 names.add(FieldIdentifier.forUnquoted("t" + i));
             }
-            return new UserType("ks", ByteBufferUtil.bytes("user_type"), names, types, false);
+            return new UserType("ks", ByteBufferUtil.bytes("user_type"), names.build(), ImmutableList.copyOf(types), false);
         };
         testSerializationDeserialization(factory, TupleType::buildValue);
     }
@@ -133,6 +133,6 @@ public class CompositeAndTupleTypesTest
     @Test
     public void composite()
     {
-        testSerializationDeserialization(CompositeType::new, CompositeType::build);
+        testSerializationDeserialization(types -> new CompositeType(ImmutableList.copyOf(types)), CompositeType::build);
     }
 }

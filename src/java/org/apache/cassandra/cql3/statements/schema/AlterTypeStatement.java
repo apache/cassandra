@@ -23,6 +23,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
@@ -37,6 +39,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
+import org.apache.cassandra.utils.Collections3;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.filter;
@@ -155,9 +158,8 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
             Guardrails.fieldsPerUDT.guard(userType.size() + 1, userType.getNameAsString(), false, state);
             type.validate(state, "Field " + fieldName);
 
-            List<FieldIdentifier> fieldNames = new ArrayList<>(userType.fieldNames()); fieldNames.add(fieldName);
-            List<AbstractType<?>> fieldTypes = new ArrayList<>(userType.fieldTypes()); fieldTypes.add(fieldType);
-
+            ImmutableList<FieldIdentifier> fieldNames = Collections3.withAppended(userType.fieldNames(), fieldName);
+            ImmutableList<AbstractType<?>> fieldTypes = Collections3.withAppended(userType.fieldTypes(), fieldType);
             return new UserType(keyspaceName, userType.name, fieldNames, fieldTypes, true);
         }
 
@@ -219,7 +221,7 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
                     throw ire("Duplicate field name %s in type %s", name, keyspaceName, userType.getCqlTypeName());
             });
 
-            return new UserType(keyspaceName, userType.name, fieldNames, userType.fieldTypes(), true);
+            return new UserType(keyspaceName, userType.name, ImmutableList.copyOf(fieldNames), userType.fieldTypes(), true);
         }
     }
 

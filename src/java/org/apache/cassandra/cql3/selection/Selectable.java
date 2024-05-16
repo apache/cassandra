@@ -692,7 +692,7 @@ public interface Selectable extends AssignmentTestable
                                                 VariableSpecifications boundNames)
         {
             SelectorFactories factories = createFactoriesAndCollectColumnDefinitions(selectables,
-                                                                                     tupleType.allTypes(),
+                                                                                     tupleType.subTypes,
                                                                                      cfm,
                                                                                      defs,
                                                                                      boundNames);

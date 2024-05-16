@@ -20,11 +20,24 @@ package org.apache.cassandra.db.rows;
 import java.nio.ByteBuffer;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableList;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.EmptyType;
+import org.apache.cassandra.db.marshal.InetAddressType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.TupleType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.schema.ColumnMetadata;
 
 import static java.util.Arrays.asList;
@@ -43,13 +56,13 @@ public class ColumnMetadataVersionComparatorTest
     {
         udtWith2Fields = new UserType("ks",
                                       bytes("myType"),
-                                      asList(forUnquoted("a"), forUnquoted("b")),
-                                      asList(Int32Type.instance, Int32Type.instance),
+                                      ImmutableList.of(forUnquoted("a"), forUnquoted("b")),
+                                      ImmutableList.of(Int32Type.instance, Int32Type.instance),
                                       false);
         udtWith3Fields = new UserType("ks",
                                       bytes("myType"),
-                                      asList(forUnquoted("a"), forUnquoted("b"), forUnquoted("c")),
-                                      asList(Int32Type.instance, Int32Type.instance, Int32Type.instance),
+                                      ImmutableList.of(forUnquoted("a"), forUnquoted("b"), forUnquoted("c")),
+                                      ImmutableList.of(Int32Type.instance, Int32Type.instance, Int32Type.instance),
                                       false);
     }
 
@@ -70,8 +83,8 @@ public class ColumnMetadataVersionComparatorTest
     @Test
     public void testWithTuples()
     {
-        checkComparisonResults(new TupleType(asList(Int32Type.instance, Int32Type.instance)),
-                               new TupleType(asList(Int32Type.instance, Int32Type.instance, Int32Type.instance)));
+        checkComparisonResults(new TupleType(ImmutableList.of(Int32Type.instance, Int32Type.instance)),
+                               new TupleType(ImmutableList.of(Int32Type.instance, Int32Type.instance, Int32Type.instance)));
     }
 
     @Test
@@ -123,8 +136,8 @@ public class ColumnMetadataVersionComparatorTest
     @Test
     public void testWithUDTsNestedWithinTuple()
     {
-        TupleType tuple1 = new TupleType(asList(udtWith2Fields, Int32Type.instance));
-        TupleType tuple2 = new TupleType(asList(udtWith3Fields, Int32Type.instance));
+        TupleType tuple1 = new TupleType(ImmutableList.of(udtWith2Fields, Int32Type.instance));
+        TupleType tuple2 = new TupleType(ImmutableList.of(udtWith3Fields, Int32Type.instance));
         checkComparisonResults(tuple1, tuple2);
     }
 
@@ -141,8 +154,8 @@ public class ColumnMetadataVersionComparatorTest
     {
         for (boolean isMultiCell : new boolean[]{false, true})
         {
-            ListType<Set<ByteBuffer>> list1 = ListType.getInstance(SetType.getInstance(new TupleType(asList(udtWith2Fields, Int32Type.instance)), isMultiCell), isMultiCell);
-            ListType<Set<ByteBuffer>> list2 = ListType.getInstance(SetType.getInstance(new TupleType(asList(udtWith3Fields, Int32Type.instance)), isMultiCell), isMultiCell);
+            ListType<Set<ByteBuffer>> list1 = ListType.getInstance(SetType.getInstance(new TupleType(ImmutableList.of(udtWith2Fields, Int32Type.instance)), isMultiCell), isMultiCell);
+            ListType<Set<ByteBuffer>> list2 = ListType.getInstance(SetType.getInstance(new TupleType(ImmutableList.of(udtWith3Fields, Int32Type.instance)), isMultiCell), isMultiCell);
             checkComparisonResults(list1, list2);
         }
     }

@@ -857,10 +857,10 @@ public class AbstractTypeByteSourceTest
     @Test
     public void testTupleType()
     {
-        TupleType tt = new TupleType(Arrays.asList(UTF8Type.instance,
-                                                   DecimalType.instance,
-                                                   IntegerType.instance,
-                                                   BytesType.instance));
+        TupleType tt = new TupleType(ImmutableList.of(UTF8Type.instance,
+                                                      DecimalType.instance,
+                                                      IntegerType.instance,
+                                                      BytesType.instance));
         Random prng = new Random();
         List<ByteBuffer> tuplesData = new ArrayList<>();
         String[] utf8Values = new String[]

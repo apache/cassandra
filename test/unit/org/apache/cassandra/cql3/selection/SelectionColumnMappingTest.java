@@ -23,6 +23,7 @@ package org.apache.cassandra.cql3.selection;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.google.common.collect.ImmutableList;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -478,11 +479,11 @@ public class SelectionColumnMappingTest extends CQLTester
     private void testUDTLitteral() throws Throwable
     {
         UserType type = new UserType(KEYSPACE, ByteBufferUtil.bytes(typeName),
-                                      asList(FieldIdentifier.forUnquoted("f1"),
-                                             FieldIdentifier.forUnquoted("f2")),
-                                      asList(Int32Type.instance,
-                                             UTF8Type.instance),
-                                      false);
+                                     ImmutableList.of(FieldIdentifier.forUnquoted("f1"),
+                                                      FieldIdentifier.forUnquoted("f2")),
+                                     ImmutableList.of(Int32Type.instance,
+                                                      UTF8Type.instance),
+                                     false);
 
         ColumnSpecification spec = columnSpecification("(" + KEYSPACE + "." + typeName + "){f1: v1, f2: v2}", type);
         SelectionColumnMapping expected = SelectionColumnMapping.newMapping()
@@ -494,7 +495,7 @@ public class SelectionColumnMappingTest extends CQLTester
 
     private void testTupleLitteral() throws Throwable
     {
-        TupleType type = new TupleType(asList(Int32Type.instance, UTF8Type.instance));
+        TupleType type = new TupleType(ImmutableList.of(Int32Type.instance, UTF8Type.instance));
 
         ColumnSpecification setSpec = columnSpecification("(tuple<int, text>)(v1, v2)", type);
         SelectionColumnMapping expected = SelectionColumnMapping.newMapping()

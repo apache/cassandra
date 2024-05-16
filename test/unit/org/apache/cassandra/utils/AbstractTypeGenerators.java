@@ -41,6 +41,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
@@ -100,6 +101,7 @@ import org.quicktheories.core.RandomnessSource;
 import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.JavaRandom;
 
+import static com.google.common.collect.ImmutableList.toImmutableList;
 import static org.apache.cassandra.utils.Generators.IDENTIFIER_GEN;
 import static org.apache.cassandra.utils.Generators.filter;
 
@@ -680,10 +682,10 @@ public final class AbstractTypeGenerators
     {
         return rnd -> {
             int numElements = sizeGen.generate(rnd);
-            List<AbstractType<?>> elements = new ArrayList<>(numElements);
+            ImmutableList.Builder<AbstractType<?>>elements = ImmutableList.builderWithExpectedSize(numElements);
             for (int i = 0; i < numElements; i++)
                 elements.add(elementGen.generate(rnd));
-            return new TupleType(elements);
+            return new TupleType(elements.build());
         };
     }
 
@@ -718,7 +720,7 @@ public final class AbstractTypeGenerators
         return rnd -> {
             boolean multiCell = multiCellGen.generate(rnd);
             int numElements = sizeGen.generate(rnd);
-            List<AbstractType<?>> fieldTypes = new ArrayList<>(numElements);
+            ImmutableList.Builder<AbstractType<?>> fieldTypes = ImmutableList.builderWithExpectedSize(numElements);
             LinkedHashSet<FieldIdentifier> fieldNames = new LinkedHashSet<>(numElements);
             String ks = ksGen.generate(rnd);
             String name = nameGen.generate(rnd);
@@ -738,7 +740,7 @@ public final class AbstractTypeGenerators
                     element = element.freeze();
                 fieldTypes.add(element);
             }
-            return new UserType(ks, nameBB, new ArrayList<>(fieldNames), fieldTypes, multiCell);
+            return new UserType(ks, nameBB, ImmutableList.copyOf(fieldNames), fieldTypes.build(), multiCell);
         };
     }
 
@@ -882,7 +884,7 @@ public final class AbstractTypeGenerators
         {
             // T is ByteBuffer
             TupleType tupleType = (TupleType) type;
-            List<Comparator<Object>> columns = (List<Comparator<Object>>) (List<?>) tupleType.allTypes().stream().map(AbstractTypeGenerators::comparator).collect(Collectors.toList());
+            List<Comparator<Object>> columns = (List<Comparator<Object>>) (List<?>) tupleType.subTypes.stream().map(AbstractTypeGenerators::comparator).collect(Collectors.toList());
             Comparator<List<Object>> listCompar = listComparator((i, a, b) -> columns.get(i).compare(a, b));
             Comparator<ByteBuffer> comparator = (ByteBuffer a, ByteBuffer b) -> {
                 ByteBuffer[] abb = tupleType.split(ByteBufferAccessor.instance, a);
@@ -913,7 +915,7 @@ public final class AbstractTypeGenerators
         else if (type instanceof CompositeType)
         {
             CompositeType ct = (CompositeType) type;
-            List<TypeSupport<Object>> elementSupport = (List<TypeSupport<Object>>) (List<?>) ct.types.stream().map(AbstractTypeGenerators::getTypeSupport).collect(Collectors.toList());
+            List<TypeSupport<Object>> elementSupport = (List<TypeSupport<Object>>) (List<?>) ct.subTypes.stream().map(AbstractTypeGenerators::getTypeSupport).collect(Collectors.toList());
             Serde<ByteBuffer, List<Object>> serde = new Serde<ByteBuffer, List<Object>>()
             {
                 @Override
@@ -933,8 +935,8 @@ public final class AbstractTypeGenerators
                 }
             };
             support = (TypeSupport<T>) TypeSupport.of(ct, serde, rnd -> {
-                List<Object> values = new ArrayList<>(ct.types.size());
-                for (int i = 0, size = ct.types.size(); i < size; i++)
+                List<Object> values = new ArrayList<>(ct.subTypes.size());
+                for (int i = 0, size = ct.subTypes.size(); i < size; i++)
                     values.add(elementSupport.get(i).valueGen.generate(rnd));
                 return values;
             }, listComparator((index, a, b) -> elementSupport.get(index).valueComparator.compare(a, b)));
@@ -1229,7 +1231,7 @@ public final class AbstractTypeGenerators
         @SuppressWarnings("unchecked")
         private TupleGen(TupleType tupleType, Gen<Integer> sizeGen, @Nullable Gen<ValueDomain> valueDomainGen)
         {
-            this.elementsSupport = tupleType.allTypes().stream().map(t -> getTypeSupport((AbstractType<Object>) t, sizeGen, valueDomainGen)).collect(Collectors.toList());
+            this.elementsSupport = tupleType.subTypes.stream().map(t -> getTypeSupport((AbstractType<Object>) t, sizeGen, valueDomainGen)).collect(Collectors.toList());
         }
 
         public ByteBuffer generate(RandomnessSource rnd)
@@ -1402,10 +1404,8 @@ public final class AbstractTypeGenerators
 
     private static UserType withAddedField(UserType type, String fieldName, AbstractType<?> fieldType)
     {
-        ArrayList<FieldIdentifier> fieldNames = new ArrayList<>(type.fieldNames());
-        fieldNames.add(FieldIdentifier.forUnquoted(fieldName));
-        List<AbstractType<?>> fieldTypes = new ArrayList<>(type.fieldTypes());
-        fieldTypes.add(fieldType);
+        ImmutableList<FieldIdentifier> fieldNames = Collections3.withAppended(type.fieldNames(), FieldIdentifier.forUnquoted(fieldName));
+        ImmutableList<AbstractType<?>> fieldTypes = Collections3.withAppended(type.fieldTypes(), fieldType);
         return new UserType(type.keyspace, type.name, fieldNames, fieldTypes, true);
     }
 
@@ -1504,12 +1504,12 @@ public final class AbstractTypeGenerators
 
         String ks = "ks";
         ByteBuffer t = ByteBufferUtil.bytes("t");
-        List<FieldIdentifier> names = Stream.of("a", "b").map(FieldIdentifier::forUnquoted).collect(Collectors.toUnmodifiableList());
+        ImmutableList<FieldIdentifier> names = Stream.of("a", "b").map(FieldIdentifier::forUnquoted).collect(toImmutableList());
 
         primitiveTypePairs().forEach(elem1Pair -> {
             primitiveTypePairs().forEach(elem2Pair -> {
-                UserType leftType = new UserType(ks, t, names, List.of(elem1Pair.left, elem2Pair.left), true);
-                UserType rightType = new UserType(ks, t, names, List.of(elem1Pair.right, elem2Pair.right), true);
+                UserType leftType = new UserType(ks, t, names, ImmutableList.of(elem1Pair.left, elem2Pair.left), true);
+                UserType rightType = new UserType(ks, t, names, ImmutableList.of(elem1Pair.right, elem2Pair.right), true);
                 if (withVariants)
                     forEachUserTypeVariantPair(leftType, rightType, typePairConsumer);
                 else

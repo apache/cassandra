@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 
 import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.cql3.FieldIdentifier;
@@ -139,20 +140,20 @@ public enum DataType
                 String ks = CBUtil.readString(cb);
                 ByteBuffer name = UTF8Type.instance.decompose(CBUtil.readString(cb));
                 int n = cb.readUnsignedShort();
-                List<FieldIdentifier> fieldNames = new ArrayList<>(n);
-                List<AbstractType<?>> fieldTypes = new ArrayList<>(n);
+                ImmutableList.Builder<FieldIdentifier> fieldNames = ImmutableList.builderWithExpectedSize(n);
+                ImmutableList.Builder<AbstractType<?>> fieldTypes = ImmutableList.builderWithExpectedSize(n);
                 for (int i = 0; i < n; i++)
                 {
                     fieldNames.add(FieldIdentifier.forInternalString(CBUtil.readString(cb)));
                     fieldTypes.add(DataType.toType(codec.decodeOne(cb, version)));
                 }
-                return new UserType(ks, name, fieldNames, fieldTypes, true);
+                return new UserType(ks, name, fieldNames.build(), fieldTypes.build(), true);
             case TUPLE:
                 n = cb.readUnsignedShort();
-                List<AbstractType<?>> types = new ArrayList<>(n);
+                ImmutableList.Builder<AbstractType<?>> types = ImmutableList.builderWithExpectedSize(n);
                 for (int i = 0; i < n; i++)
                     types.add(DataType.toType(codec.decodeOne(cb, version)));
-                return new TupleType(types);
+                return new TupleType(types.build());
             default:
                 return null;
         }

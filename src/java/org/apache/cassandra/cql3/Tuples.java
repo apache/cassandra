@@ -24,6 +24,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
@@ -93,7 +95,7 @@ public class Tuples
                 throw new InvalidRequestException(String.format("Expected %d elements in value tuple, but got %d: %s", receivers.size(), elements.size(), this));
 
             List<Term> values = new ArrayList<>(elements.size());
-            List<AbstractType<?>> types = new ArrayList<>(elements.size());
+            ImmutableList.Builder<AbstractType<?>> types = ImmutableList.builderWithExpectedSize(elements.size());
             boolean allTerminal = true;
             for (int i = 0; i < elements.size(); i++)
             {
@@ -104,7 +106,7 @@ public class Tuples
                 values.add(t);
                 types.add(receivers.get(i).type);
             }
-            DelayedValue value = new DelayedValue(new TupleType(types), values);
+            DelayedValue value = new DelayedValue(new TupleType(types.build()), values);
             return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
@@ -121,7 +123,7 @@ public class Tuples
         @Override
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
-            List<AbstractType<?>> types = new ArrayList<>(elements.size());
+            ImmutableList.Builder<AbstractType<?>> types = ImmutableList.builderWithExpectedSize(elements.size());
             for (Term.Raw term : elements)
             {
                 AbstractType<?> type = term.getExactTypeIfKnown(keyspace);
@@ -129,7 +131,7 @@ public class Tuples
                     return null;
                 types.add(type);
             }
-            return new TupleType(types);
+            return new TupleType(types.build());
         }
 
         public String getText()
@@ -305,7 +307,7 @@ public class Tuples
 
         private static ColumnSpecification makeReceiver(List<? extends ColumnSpecification> receivers)
         {
-            List<AbstractType<?>> types = new ArrayList<>(receivers.size());
+            ImmutableList.Builder<AbstractType<?>> types = ImmutableList.builderWithExpectedSize(receivers.size());
             StringBuilder inName = new StringBuilder("(");
             for (int i = 0; i < receivers.size(); i++)
             {
@@ -318,7 +320,7 @@ public class Tuples
             inName.append(')');
 
             ColumnIdentifier identifier = new ColumnIdentifier(inName.toString(), true);
-            TupleType type = new TupleType(types);
+            TupleType type = new TupleType(types.build());
             return new ColumnSpecification(receivers.get(0).ksName, receivers.get(0).cfName, identifier, type);
         }
 
@@ -345,7 +347,7 @@ public class Tuples
 
         private static ColumnSpecification makeInReceiver(List<? extends ColumnSpecification> receivers) throws InvalidRequestException
         {
-            List<AbstractType<?>> types = new ArrayList<>(receivers.size());
+            ImmutableList.Builder<AbstractType<?>> types = ImmutableList.builderWithExpectedSize(receivers.size());
             StringBuilder inName = new StringBuilder("in(");
             for (int i = 0; i < receivers.size(); i++)
             {
@@ -362,7 +364,7 @@ public class Tuples
             inName.append(')');
 
             ColumnIdentifier identifier = new ColumnIdentifier(inName.toString(), true);
-            TupleType type = new TupleType(types);
+            TupleType type = new TupleType(types.build());
             return new ColumnSpecification(receivers.get(0).ksName, receivers.get(0).cfName, identifier, ListType.getInstance(type, false));
         }
 
@@ -454,7 +456,7 @@ public class Tuples
     public static <T> TupleType getExactTupleTypeIfKnown(List<T> items,
                                                          java.util.function.Function<T, AbstractType<?>> mapper)
     {
-        List<AbstractType<?>> types = new ArrayList<>(items.size());
+        ImmutableList.Builder<AbstractType<?>> types = ImmutableList.builderWithExpectedSize(items.size());
         for (T item : items)
         {
             AbstractType<?> type = mapper.apply(item);
@@ -462,7 +464,7 @@ public class Tuples
                 return null;
             types.add(type);
         }
-        return new TupleType(types);
+        return new TupleType(types.build());
     }
 
     /**

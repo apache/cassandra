@@ -25,8 +25,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-
 import javax.annotation.Nullable;
+
+import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Term;
@@ -85,7 +86,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
 
     private VectorType(AbstractType<T> elementType, int dimension)
     {
-        super(ComparisonType.CUSTOM);
+        super(ComparisonType.CUSTOM, false, ImmutableList.of(elementType));
         if (dimension <= 0)
             throw new InvalidRequestException(String.format("vectors may only have positive dimensions; given %d", dimension));
         this.elementType = elementType;
@@ -260,12 +261,6 @@ public final class VectorType<T> extends AbstractType<List<T>>
         {
             throw new MarshalException(String.format("cannot parse '%s' as hex bytes", source), e);
         }
-    }
-
-    @Override
-    public List<AbstractType<?>> subTypes()
-    {
-        return Collections.singletonList(elementType);
     }
 
     @Override

@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.google.common.collect.ImmutableList;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -50,8 +51,6 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.ThrowableAssert;
-
-import static java.util.Arrays.asList;
 
 public class CellTest
 {
@@ -202,8 +201,8 @@ public class CellTest
         FieldIdentifier f2 = field("f2");  // has field position 1
         UserType udt = new UserType("ks",
                                     bb("myType"),
-                                    asList(f1, f2),
-                                    asList(Int32Type.instance, UTF8Type.instance),
+                                    ImmutableList.of(f1, f2),
+                                    ImmutableList.of(Int32Type.instance, UTF8Type.instance),
                                     true);
         ColumnMetadata c;
 
@@ -234,8 +233,8 @@ public class CellTest
         FieldIdentifier f2 = field("f2");  // has field position 1
         UserType udt = new UserType("ks",
                                     bb("myType"),
-                                    asList(f1, f2),
-                                    asList(Int32Type.instance, UTF8Type.instance),
+                                    ImmutableList.of(f1, f2),
+                                    ImmutableList.of(Int32Type.instance, UTF8Type.instance),
                                     false);
 
         ColumnMetadata c = fakeColumn("c", udt);

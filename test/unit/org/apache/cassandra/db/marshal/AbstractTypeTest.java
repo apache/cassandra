@@ -452,8 +452,8 @@ public class AbstractTypeTest
         Map<Class<? extends AbstractType>, Function<? super AbstractType<?>, Integer>> complexTypes = ImmutableMap.of(MapType.class, ignore -> 2,
                                                                                                                       TupleType.class, t -> ((TupleType) t).size(),
                                                                                                                       UserType.class, t -> ((UserType) t).size(),
-                                                                                                                      CompositeType.class, t -> ((CompositeType) t).types.size(),
-                                                                                                                      DynamicCompositeType.class, t -> ((DynamicCompositeType) t).size());
+                                                                                                                      CompositeType.class, t -> ((CompositeType) t).subTypes.size(),
+                                                                                                                      DynamicCompositeType.class, t -> ((DynamicCompositeType) t).subTypes.size());
         qt().withShrinkCycles(0).forAll(AbstractTypeGenerators.builder().withoutTypeKinds(PRIMITIVE, COUNTER).build()).checkAssert(type -> {
             int expectedSize = complexTypes.containsKey(type.getClass()) ? complexTypes.get(type.getClass()).apply(type) : 1;
             assertThat(type.subTypes()).hasSize(expectedSize);

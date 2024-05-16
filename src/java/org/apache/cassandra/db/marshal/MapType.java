@@ -28,6 +28,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.cassandra.cql3.Maps;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.db.rows.Cell;
@@ -38,11 +40,11 @@ import org.apache.cassandra.serializers.MapSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.JsonUtils;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable.Version;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
-import org.apache.cassandra.utils.Pair;
 
 public class MapType<K, V> extends CollectionType<Map<K, V>>
 {
@@ -75,7 +77,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
 
     private MapType(AbstractType<K> keys, AbstractType<V> values, boolean isMultiCell)
     {
-        super(ComparisonType.CUSTOM, Kind.MAP, isMultiCell);
+        super(ComparisonType.CUSTOM, Kind.MAP, isMultiCell, ImmutableList.of(keys, values));
         this.keys = keys;
         this.values = values;
         this.serializer = MapSerializer.getInstance(keys.getSerializer(),
@@ -131,12 +133,6 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     public AbstractType<V> valueComparator()
     {
         return values;
-    }
-
-    @Override
-    public List<AbstractType<?>> subTypes()
-    {
-        return Arrays.asList(keys, values);
     }
 
     @Override
@@ -306,7 +302,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
         StringBuilder sb = new StringBuilder();
         if (includeFrozenType)
             sb.append(FrozenType.class.getName()).append("(");
-        sb.append(getClass().getName()).append(TypeParser.stringifyTypeParameters(Arrays.asList(keys, values), ignoreFreezing || !isMultiCell));
+        sb.append(getClass().getName()).append(TypeParser.stringifyTypeParameters(subTypes, ignoreFreezing || !isMultiCell));
         if (includeFrozenType)
             sb.append(")");
         return sb.toString();

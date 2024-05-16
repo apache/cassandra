@@ -20,8 +20,8 @@ package org.apache.cassandra.schema;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 
+import com.google.common.collect.ImmutableList;
 import org.junit.Test;
 
 import org.apache.cassandra.db.Clustering;
@@ -52,7 +52,7 @@ public class TableMetadataTest
                      metadata1.partitionKeyAsCQLLiteral(type1.decompose("test:", "composite!", "type)")));
 
         // composite type with tuple
-        CompositeType type2 = CompositeType.getInstance(new TupleType(Arrays.asList(FloatType.instance, UTF8Type.instance)),
+        CompositeType type2 = CompositeType.getInstance(new TupleType(ImmutableList.of(FloatType.instance, UTF8Type.instance)),
                                                         IntegerType.instance);
         TableMetadata metadata2 = TableMetadata.builder(keyspaceName, tableName)
                                                .addPartitionKeyColumn("key", type2)

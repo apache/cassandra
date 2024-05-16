@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableList;
+
 import io.netty.buffer.Unpooled;
 import io.netty.buffer.ByteBuf;
 
@@ -260,8 +262,8 @@ public class SerDeserTest
 
         UserType udt = new UserType("ks",
                                     bb(typeName),
-                                    Arrays.asList(field(f1), field("f2"), field("f3"), field("f4")),
-                                    Arrays.asList(LongType.instance, lt, st, mt),
+                                    ImmutableList.of(field(f1), field("f2"), field("f3"), field("f4")),
+                                    ImmutableList.of(LongType.instance, lt, st, mt),
                                     true);
 
         Map<FieldIdentifier, Term.Raw> value = new HashMap<>();

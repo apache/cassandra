@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 
+import com.google.common.collect.ImmutableList;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQL3Type;
@@ -132,8 +133,8 @@ public class IndexTermTypeTest
         for (CQL3Type elementType : StorageAttachedIndex.SUPPORTED_TYPES)
         {
             UserType type = new UserType("ks", ByteBufferUtil.bytes("myType"),
-                                         Arrays.asList(FieldIdentifier.forQuoted("f1"), FieldIdentifier.forQuoted("f2")),
-                                         Arrays.asList(elementType.getType(), elementType.getType()),
+                                         ImmutableList.of(FieldIdentifier.forQuoted("f1"), FieldIdentifier.forQuoted("f2")),
+                                         ImmutableList.of(elementType.getType(), elementType.getType()),
                                          true);
             IndexTermType indexTermType = indexTermType(type, IndexTarget.Type.SIMPLE);
             assertFalse(indexTermType.isFrozenCollection());
@@ -148,8 +149,8 @@ public class IndexTermTypeTest
             assertTrue(reversedIndexTermType.isReversed());
 
             type = new UserType("ks", ByteBufferUtil.bytes("myType"),
-                                Arrays.asList(FieldIdentifier.forQuoted("f1"), FieldIdentifier.forQuoted("f2")),
-                                Arrays.asList(elementType.getType(), elementType.getType()),
+                                ImmutableList.of(FieldIdentifier.forQuoted("f1"), FieldIdentifier.forQuoted("f2")),
+                                ImmutableList.of(elementType.getType(), elementType.getType()),
                                 false);
             indexTermType = indexTermType(type, IndexTarget.Type.SIMPLE);
             assertFalse(indexTermType.isFrozenCollection());

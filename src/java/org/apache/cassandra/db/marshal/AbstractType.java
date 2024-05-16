@@ -28,6 +28,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
+
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -86,18 +89,27 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     public final boolean isByteOrderComparable;
     public final ValueComparators comparatorSet;
     public final boolean isMultiCell;
+    public final ImmutableList<AbstractType<?>> subTypes;
 
     protected AbstractType(ComparisonType comparisonType)
     {
-        this(comparisonType, false);
+        this(comparisonType, false, ImmutableList.of());
     }
 
-    protected AbstractType(ComparisonType comparisonType, boolean isMultiCell)
+    protected AbstractType(ComparisonType comparisonType, boolean isMultiCell, ImmutableList<AbstractType<?>> subTypes)
     {
         this.isMultiCell = isMultiCell;
         this.comparisonType = comparisonType;
+        this.subTypes = subTypes;
         this.isByteOrderComparable = comparisonType == ComparisonType.BYTE_ORDER;
         reverseComparator = (o1, o2) -> AbstractType.this.compare(o2, o1);
+
+        // A frozen type can only have frozen subtypes, basically by definition. So make sure we don't mess it up
+        // when constructing types by forgetting to set some multi-cell flag.
+        Preconditions.checkArgument(isMultiCell || subTypes.stream().noneMatch(AbstractType::isMultiCell),
+                                    "Detected corrupted type: creating a frozen %s but with some non-frozen sub-types %s. " +
+                                    "This is likely a bug and should be reported.", getClass(), subTypes);
+
         try
         {
             Method custom = getClass().getMethod("compareCustom", Object.class, ValueAccessor.class, Object.class, ValueAccessor.class);
@@ -460,9 +472,13 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return this;
     }
 
-    public List<AbstractType<?>> subTypes()
+    /**
+     * If the type has "complex" values that depend on subtypes, return those (direct) subtypes (in undefined order),
+     * and an empty list otherwise.
+     */
+    public final ImmutableList<AbstractType<?>> subTypes()
     {
-        return Collections.emptyList();
+        return subTypes;
     }
 
     /**

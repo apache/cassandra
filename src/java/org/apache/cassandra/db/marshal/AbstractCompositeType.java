@@ -23,6 +23,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -36,9 +38,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
 {
-    protected AbstractCompositeType()
+    protected AbstractCompositeType(ImmutableList<AbstractType<?>> subTypes)
     {
-        super(ComparisonType.CUSTOM);
+        super(ComparisonType.CUSTOM, false, subTypes);
     }
 
     @Override
