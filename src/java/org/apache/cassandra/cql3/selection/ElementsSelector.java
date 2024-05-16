@@ -29,7 +29,10 @@ import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.selection.SimpleSelector.SimpleSelectorFactory;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -78,9 +81,7 @@ abstract class ElementsSelector extends Selector
 
     private static CollectionType<?> getCollectionType(Selector selected)
     {
-        AbstractType<?> type = selected.getType();
-        if (type instanceof ReversedType)
-            type = ((ReversedType<?>) type).baseType;
+        AbstractType<?> type = selected.getType().unwrap();
 
         assert type instanceof MapType || type instanceof SetType : "this shouldn't have passed validation in Selectable";
 

@@ -28,7 +28,6 @@ import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ListType;
-import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
@@ -518,13 +517,11 @@ public class Tuples
 
     public static boolean checkIfTupleType(AbstractType<?> tuple)
     {
-        return (tuple instanceof TupleType) ||
-               (tuple instanceof ReversedType && ((ReversedType<?>) tuple).baseType instanceof TupleType);
-
+        return tuple.unwrap() instanceof TupleType;
     }
 
     public static TupleType getTupleType(AbstractType<?> tuple)
     {
-        return (tuple instanceof ReversedType ? ((TupleType) ((ReversedType<?>) tuple).baseType) : (TupleType)tuple);
+        return (TupleType) tuple.unwrap();
     }
 }

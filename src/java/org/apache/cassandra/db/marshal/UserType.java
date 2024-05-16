@@ -317,7 +317,7 @@ public class UserType extends TupleType implements SchemaElement
     }
 
     @Override
-    public boolean isValueCompatibleWith(AbstractType<?> previous)
+    public boolean isValueCompatibleWithInternal(AbstractType<?> previous)
     {
         if (this == previous)
             return true;

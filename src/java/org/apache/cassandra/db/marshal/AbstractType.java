@@ -353,22 +353,26 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
      * <p/>
      * Note that a type should be compatible with at least itself.
      * <p/>
+     * Also note that to ensure consistent handling of the {@link ReversedType} (which should be ignored as far as this
+     * method goes since it only impacts sorting), this method is final and subclasses should override the
+     * {@link #isValueCompatibleWithInternal} method instead.
+     * <p/>
      * Used for type casting and values assignment. It valid if we can compose L values which were decomposed using R
      * serializer. Therefore, it does not care about whether the type is reversed or not. It should not whether the
      * type is fixed or variable length as for compose/decompose we always deal with all remaining data in the buffer
      * (so for example, a variable length type may be compatible with fixed length type given the interpretation is
      * consistent, like between BigInt and Long).
      */
-    public boolean isValueCompatibleWith(AbstractType<?> previous)
+    public final boolean isValueCompatibleWith(AbstractType<?> previous)
     {
-        AbstractType<?> thisType =          isReversed() ? ((ReversedType<?>)     this).baseType : this;
-        AbstractType<?> thatType = previous.isReversed() ? ((ReversedType<?>) previous).baseType : previous;
-        return thisType.isValueCompatibleWithInternal(thatType);
+        return unwrap().isValueCompatibleWithInternal(previous.unwrap());
     }
 
     /**
-     * Needed to handle ReversedType in value-compatibility checks.  Subclasses should implement this instead of
-     * isValueCompatibleWith().
+     * Needed to handle {@link ReversedType} in value-compatibility checks. Subclasses should override this instead of
+     * {@link #isValueCompatibleWith}. However, if said override has subtypes on which they need to check value
+     * compatibility recursively, they should call {@link #isValueCompatibleWith} instead of this method
+     * so that reversed types are ignored even if nested.
      */
     protected boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
     {
