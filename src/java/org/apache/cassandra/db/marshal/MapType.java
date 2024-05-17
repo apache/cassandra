@@ -112,22 +112,6 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
         return values;
     }
 
-    @Override
-    public boolean isCompatibleWithFrozen(CollectionType<?> previous)
-    {
-        assert !isMultiCell;
-        MapType<?, ?> tprev = (MapType<?, ?>) previous;
-        return keys.isCompatibleWith(tprev.keys) && values.isCompatibleWith(tprev.values);
-    }
-
-    @Override
-    public boolean isValueCompatibleWithFrozen(CollectionType<?> previous)
-    {
-        assert !isMultiCell;
-        MapType<?, ?> tprev = (MapType<?, ?>) previous;
-        return keys.isCompatibleWith(tprev.keys) && values.isValueCompatibleWith(tprev.values);
-    }
-
     public <RL, TR> int compareCustom(RL left, ValueAccessor<RL> accessorL, TR right, ValueAccessor<TR> accessorR)
     {
         return compareMaps(keys, values, left, accessorL, right, accessorR);

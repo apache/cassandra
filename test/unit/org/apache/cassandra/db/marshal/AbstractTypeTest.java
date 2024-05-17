@@ -920,7 +920,9 @@ public class AbstractTypeTest
         if (!left.isMultiCell() && !right.isMultiCell())
         {
             // make sure that frozen<left> isCompatibleWith frozen<right> ==> left isCompatibleWith right
-            assertions.assertThat(unfreeze(left).isCompatibleWith(unfreeze(right))).isTrue();
+            assertions.assertThat(unfreeze(left).isCompatibleWith(unfreeze(right)))
+                      .describedAs(typeRelDesc("isCompatibleWith", unfreeze(left), unfreeze(right)))
+                      .isTrue();
 
             assertions.assertThatCode(() -> qt().withExamples(10)
                                                 .forAll(rightGen, rightGen)

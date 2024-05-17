@@ -304,29 +304,15 @@ public class UserType extends TupleType implements SchemaElement
     @Override
     public boolean isValueCompatibleWithInternal(AbstractType<?> previous)
     {
-        if (this == previous)
-            return true;
-
-        if (!(previous instanceof UserType))
+        if (previous == null || !getClass().equals(previous.getClass()))
             return false;
 
-        UserType other = (UserType) previous;
-        if (isMultiCell != other.isMultiCell())
+        UserType tprev = (UserType) previous;
+
+        if (!keyspace.equals(tprev.keyspace))
             return false;
 
-        if (!keyspace.equals(other.keyspace))
-            return false;
-
-        Iterator<AbstractType<?>> thisTypeIter = subTypes.iterator();
-        Iterator<AbstractType<?>> previousTypeIter = other.subTypes.iterator();
-        while (thisTypeIter.hasNext() && previousTypeIter.hasNext())
-        {
-            if (!thisTypeIter.next().isCompatibleWith(previousTypeIter.next()))
-                return false;
-        }
-
-        // it's okay for the new type to have additional fields, but not for the old type to have additional fields
-        return !previousTypeIter.hasNext();
+        return isCompatibleWith(tprev);
     }
 
     @Override

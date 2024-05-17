@@ -374,49 +374,25 @@ public class CompositeType extends AbstractCompositeType
     @Override
     public boolean isCompatibleWith(AbstractType<?> previous)
     {
-        if (this == previous)
+        if (Objects.equals(this, previous))
             return true;
 
         if (!(previous instanceof CompositeType))
             return false;
 
-        // Extending with new components is fine
-        CompositeType cp = (CompositeType)previous;
-        if (subTypes.size() < cp.subTypes.size())
-            return false;
-
-        for (int i = 0; i < cp.subTypes.size(); i++)
-        {
-            AbstractType tprev = cp.subTypes.get(i);
-            AbstractType tnew = subTypes.get(i);
-            if (!tnew.isCompatibleWith(tprev))
-                return false;
-        }
-        return true;
+        return isSubTypesCompatibleWith(previous, AbstractType::isCompatibleWith);
     }
 
     @Override
-    public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
+    public boolean isValueCompatibleWithInternal(AbstractType<?> previous)
     {
-        if (this == otherType)
+        if (Objects.equals(this, previous))
             return true;
 
-        if (!(otherType instanceof CompositeType))
+        if (!(previous instanceof CompositeType))
             return false;
 
-        // Extending with new components is fine
-        CompositeType cp = (CompositeType) otherType;
-        if (subTypes.size() < cp.subTypes.size())
-            return false;
-
-        for (int i = 0; i < cp.subTypes.size(); i++)
-        {
-            AbstractType tprev = cp.subTypes.get(i);
-            AbstractType tnew = subTypes.get(i);
-            if (!tnew.isValueCompatibleWith(tprev))
-                return false;
-        }
-        return true;
+        return isSubTypesCompatibleWith(previous, AbstractType::isValueCompatibleWith);
     }
 
     private static class StaticParsedComparator implements ParsedComparator

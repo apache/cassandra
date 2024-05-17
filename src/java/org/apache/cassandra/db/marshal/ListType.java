@@ -104,20 +104,6 @@ public class ListType<T> extends CollectionType<List<T>>
         return serializer;
     }
 
-    @Override
-    public boolean isCompatibleWithFrozen(CollectionType<?> previous)
-    {
-        assert !isMultiCell;
-        return this.elements.isCompatibleWith(((ListType<?>) previous).elements);
-    }
-
-    @Override
-    public boolean isValueCompatibleWithFrozen(CollectionType<?> previous)
-    {
-        assert !isMultiCell;
-        return this.elements.isValueCompatibleWithInternal(((ListType<?>) previous).elements);
-    }
-
     public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
     {
         return compareListOrSet(elements, left, accessorL, right, accessorR);

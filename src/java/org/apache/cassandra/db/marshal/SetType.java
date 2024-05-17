@@ -100,20 +100,6 @@ public class SetType<T> extends CollectionType<Set<T>>
         return EmptyType.instance;
     }
 
-    @Override
-    public boolean isCompatibleWithFrozen(CollectionType<?> previous)
-    {
-        assert !isMultiCell;
-        return this.elements.isCompatibleWith(((SetType<?>) previous).elements);
-    }
-
-    @Override
-    public boolean isValueCompatibleWithFrozen(CollectionType<?> previous)
-    {
-        // because sets are ordered, any changes to the type must maintain the ordering
-        return isCompatibleWithFrozen(previous);
-    }
-
     public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
     {
         return compareListOrSet(elements, left, accessorL, right, accessorR);

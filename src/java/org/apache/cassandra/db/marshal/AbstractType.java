@@ -28,10 +28,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.BiPredicate;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Streams;
 
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.CQL3Type;
@@ -935,5 +938,14 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     public int hashCode()
     {
         return hashCode;
+    }
+
+    protected boolean isSubTypesCompatibleWith(AbstractType<?> previous, BiPredicate<AbstractType<?>, AbstractType<?>> predicate)
+    {
+        if (subTypes.size() < previous.subTypes.size())
+            return false;
+
+        return Streams.zip(subTypes.stream().limit(previous.subTypes.size()), previous.subTypes.stream(), predicate::test)
+                      .allMatch(Predicate.isEqual(true));
     }
 }

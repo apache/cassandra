@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableList;
@@ -172,46 +173,22 @@ public abstract class CollectionType<T> extends MultiCellCapableType<T>
     @Override
     public boolean isCompatibleWith(AbstractType<?> previous)
     {
-        if (this == previous)
-            return true;
-
-        if (!getClass().equals(previous.getClass()))
+        if (previous == null || previous.getClass() != getClass())
             return false;
 
-        CollectionType<?> tprev = (CollectionType<?>) previous;
-        if (this.isMultiCell() != tprev.isMultiCell())
-            return false;
-
-        // subclasses should handle compatibility checks for frozen collections
-        if (!this.isMultiCell())
-            return isCompatibleWithFrozen(tprev);
-
-        if (!this.nameComparator().isCompatibleWith(tprev.nameComparator()))
-            return false;
-
-        // the value comparator is only used for Cell values, so sorting doesn't matter
-        return this.valueComparator().isSerializationCompatibleWith(tprev.valueComparator());
+        return super.isCompatibleWith(previous);
     }
 
     @Override
     public boolean isValueCompatibleWithInternal(AbstractType<?> previous)
     {
-        // for multi-cell collections, compatibility and value-compatibility are the same
-        if (this.isMultiCell())
-            return isCompatibleWith(previous);
-
-        if (this == previous)
+        if (Objects.equals(this, previous))
             return true;
 
-        if (!getClass().equals(previous.getClass()))
+        if (previous == null || previous.getClass() != getClass())
             return false;
 
-        CollectionType<?> tprev = (CollectionType<?>) previous;
-        if (this.isMultiCell() != tprev.isMultiCell())
-            return false;
-
-        // subclasses should handle compatibility checks for frozen collections
-        return isValueCompatibleWithFrozen(tprev);
+        return super.isValueCompatibleWithInternal(previous);
     }
 
     @Override
@@ -223,11 +200,17 @@ public abstract class CollectionType<T> extends MultiCellCapableType<T>
         return valueComparator().isSerializationCompatibleWith(((CollectionType<?>)previous).valueComparator());
     }
 
-    /** A version of isCompatibleWith() to deal with non-multicell (frozen) collections */
-    protected abstract boolean isCompatibleWithFrozen(CollectionType<?> previous);
-
     /** A version of isValueCompatibleWith() to deal with non-multicell (frozen) collections */
-    protected abstract boolean isValueCompatibleWithFrozen(CollectionType<?> previous);
+    @Override
+    public boolean isValueCompatibleWithFrozen(MultiCellCapableType<?> previous)
+    {
+        assert !isMultiCell;
+        if (getClass() != previous.getClass())
+            return false;
+        CollectionType<?> tprev = (CollectionType<?>) previous;
+        return nameComparator().isCompatibleWith(tprev.nameComparator()) && valueComparator().isValueCompatibleWith(tprev.valueComparator());
+    }
+
 
     public CQL3Type asCQL3Type()
     {

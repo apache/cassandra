@@ -149,7 +149,7 @@ public class ReversedType<T> extends AbstractType<T>
         if (!(otherType instanceof ReversedType))
             return false;
 
-        return this.baseType.isCompatibleWith(((ReversedType) otherType).baseType);
+        return this.baseType.isCompatibleWith(otherType.unwrap());
     }
 
     @Override
