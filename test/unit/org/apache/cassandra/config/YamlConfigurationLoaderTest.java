@@ -257,6 +257,7 @@ public class YamlConfigurationLoaderTest
         assertEquals(ImmutableSet.of("all the groups"), config.auto_repair.global_settings.repair_dc_groups);
         assertEquals(ImmutableSet.of("none of the groups"), config.auto_repair.repair_type_overrides.get(AutoRepairConfig.RepairType.full).repair_dc_groups);
         assertEquals(6 * 60 * 60L, config.auto_repair.getAutoRepairTableMaxRepairTimeInSec(AutoRepairConfig.RepairType.incremental));
+        config.auto_repair.setMVRepairEnabled(AutoRepairConfig.RepairType.incremental, false);
     }
 
     @Test

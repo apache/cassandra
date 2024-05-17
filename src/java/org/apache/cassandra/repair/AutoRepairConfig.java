@@ -19,6 +19,7 @@
 package org.apache.cassandra.repair;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -26,9 +27,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
+
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -96,11 +97,13 @@ public class AutoRepairConfig implements Serializable
             (DatabaseDescriptor.getMaterializedViewsEnabled() || DatabaseDescriptor.isCDCEnabled()))
             throw new ConfigurationException("Cannot enable incremental repair with materialized views or CDC enabled");
 
+        ensureOverrides(repairType);
         repair_type_overrides.get(repairType).enabled = enabled;
     }
 
     public void setRepairByKeyspace(RepairType repairType, boolean repairByKeyspace)
     {
+        ensureOverrides(repairType);
         repair_type_overrides.get(repairType).repair_by_keyspace = repairByKeyspace;
     }
 
@@ -116,6 +119,7 @@ public class AutoRepairConfig implements Serializable
 
     public void setRepairThreads(RepairType repairType, int repairThreads)
     {
+        ensureOverrides(repairType);
         repair_type_overrides.get(repairType).number_of_repair_threads = repairThreads;
     }
 
@@ -126,6 +130,7 @@ public class AutoRepairConfig implements Serializable
 
     public void setRepairSubRangeNum(RepairType repairType, int repairSubRanges)
     {
+        ensureOverrides(repairType);
         repair_type_overrides.get(repairType).number_of_subranges = repairSubRanges;
     }
 
@@ -136,6 +141,7 @@ public class AutoRepairConfig implements Serializable
 
     public void setRepairMinIntervalInHours(RepairType repairType, int repairMinFrequencyInHours)
     {
+        ensureOverrides(repairType);
         repair_type_overrides.get(repairType).min_repair_interval_in_hours = repairMinFrequencyInHours;
     }
 
@@ -146,6 +152,7 @@ public class AutoRepairConfig implements Serializable
 
     public void setRepairSSTableCountHigherThreshold(RepairType repairType, int sstableHigherThreshold)
     {
+        ensureOverrides(repairType);
         repair_type_overrides.get(repairType).sstable_upper_threshold = sstableHigherThreshold;
     }
 
@@ -156,6 +163,7 @@ public class AutoRepairConfig implements Serializable
 
     public void setRepairIgnoreKeyspaces(RepairType repairType, String ignoreKeyspace)
     {
+        ensureOverrides(repairType);
         repair_type_overrides.get(repairType).ignore_keyspaces = ignoreKeyspace;
     }
 
@@ -166,6 +174,7 @@ public class AutoRepairConfig implements Serializable
 
     public void setRepairOnlyKeyspaces(RepairType repairType, String repairOnlyKeyspaces)
     {
+        ensureOverrides(repairType);
         repair_type_overrides.get(repairType).repair_only_keyspaces = repairOnlyKeyspaces;
     }
 
@@ -176,6 +185,7 @@ public class AutoRepairConfig implements Serializable
 
     public void setAutoRepairTableMaxRepairTimeInSec(RepairType repairType, long autoRepairTableMaxRepairTimeInSec)
     {
+        ensureOverrides(repairType);
         repair_type_overrides.get(repairType).table_max_repair_time_in_sec = autoRepairTableMaxRepairTimeInSec;
     }
 
@@ -186,11 +196,13 @@ public class AutoRepairConfig implements Serializable
 
     public void setIgnoreDCs(RepairType repairType, Set<String> ignoreDCs)
     {
+        ensureOverrides(repairType);
         repair_type_overrides.get(repairType).ignore_dcs = ignoreDCs;
     }
 
     public void setDCGroups(RepairType repairType, Set<String> dcGroups)
     {
+        ensureOverrides(repairType);
         repair_type_overrides.get(repairType).repair_dc_groups = dcGroups;
     }
 
@@ -206,6 +218,7 @@ public class AutoRepairConfig implements Serializable
 
     public void setRepairPrimaryTokenRangeOnly(RepairType repairType, boolean primaryTokenRangeOnly)
     {
+        ensureOverrides(repairType);
         repair_type_overrides.get(repairType).repair_primary_token_range_only = primaryTokenRangeOnly;
     }
 
@@ -216,6 +229,7 @@ public class AutoRepairConfig implements Serializable
 
     public void setParallelRepairPercentageInGroup(RepairType repairType, int percentageInGroup)
     {
+        ensureOverrides(repairType);
         repair_type_overrides.get(repairType).parallel_repair_percentage_in_group = percentageInGroup;
     }
 
@@ -226,6 +240,7 @@ public class AutoRepairConfig implements Serializable
 
     public void setParallelRepairCountInGroup(RepairType repairType, int countInGroup)
     {
+        ensureOverrides(repairType);
         repair_type_overrides.get(repairType).parallel_repair_count_in_group = countInGroup;
     }
 
@@ -236,11 +251,13 @@ public class AutoRepairConfig implements Serializable
 
     public void setMVRepairEnabled(RepairType repairType, boolean enabled)
     {
+        ensureOverrides(repairType);
         repair_type_overrides.get(repairType).mv_repair_enabled = enabled;
     }
 
     public void setForceRepairNewNode(RepairType repairType, boolean forceRepairNewNode)
     {
+        ensureOverrides(repairType);
         repair_type_overrides.get(repairType).force_repair_new_node = forceRepairNewNode;
     }
 
@@ -338,10 +355,31 @@ public class AutoRepairConfig implements Serializable
     @VisibleForTesting
     protected <T> T applyOverrides(RepairType repairType, Function<Options, T> optionSupplier)
     {
-        return Stream.of(repair_type_overrides.get(repairType), global_settings, Options.defaultOptions)
-                     .map(opt -> Optional.ofNullable(opt).map(optionSupplier).orElse(null))
-                     .filter(Objects::nonNull)
-                     .findFirst()
-                     .orElse(null);
+        ArrayList<Options> optsProviders = new ArrayList<>();
+        if (repair_type_overrides != null)
+        {
+            optsProviders.add(repair_type_overrides.get(repairType));
+        }
+        optsProviders.add(global_settings);
+        optsProviders.add(Options.defaultOptions);
+
+        return optsProviders.stream()
+                            .map(opt -> Optional.ofNullable(opt).map(optionSupplier).orElse(null))
+                            .filter(Objects::nonNull)
+                            .findFirst()
+                            .orElse(null);
+    }
+
+    protected void ensureOverrides(RepairType repairType)
+    {
+        if (repair_type_overrides == null)
+        {
+            repair_type_overrides = new EnumMap<>(RepairType.class);
+        }
+
+        if (repair_type_overrides.get(repairType) == null)
+        {
+            repair_type_overrides.put(repairType, new Options());
+        }
     }
 }

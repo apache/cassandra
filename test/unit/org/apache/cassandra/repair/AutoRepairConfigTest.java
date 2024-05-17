@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.repair;
 
+import java.util.EnumMap;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
@@ -57,6 +58,7 @@ public class AutoRepairConfigTest extends CQLTester
     public void setUp()
     {
         config = new AutoRepairConfig(true);
+        config.repair_type_overrides = null;
     }
 
     @Test
@@ -98,6 +100,7 @@ public class AutoRepairConfigTest extends CQLTester
     public void testIsAutoRepairEnabledReturnsTrueWhenRepairIsDisabledForRepairType()
     {
         config.global_settings.enabled = true;
+        config.repair_type_overrides = new EnumMap<>(AutoRepairConfig.RepairType.class);
         config.repair_type_overrides.put(repairType, new Options());
         config.repair_type_overrides.get(repairType).enabled = false;
 
@@ -479,6 +482,7 @@ public class AutoRepairConfigTest extends CQLTester
     @Test
     public void testApplyOverridesUsesDefaultOptions()
     {
+        config.repair_type_overrides = new EnumMap<>(AutoRepairConfig.RepairType.class);
         config.repair_type_overrides.put(repairType, null);
         config.global_settings = null;
         Options.defaultOptions.ignore_keyspaces = "testtest";
@@ -491,6 +495,7 @@ public class AutoRepairConfigTest extends CQLTester
     @Test
     public void testApplyOverridesUsesGlobalSettings()
     {
+        config.repair_type_overrides = new EnumMap<>(AutoRepairConfig.RepairType.class);
         config.repair_type_overrides.put(repairType, null);
         config.global_settings.ignore_keyspaces = "testtest";
         Options.defaultOptions.ignore_keyspaces = null;
@@ -505,6 +510,7 @@ public class AutoRepairConfigTest extends CQLTester
     {
         Options repairTypeOverride = new Options();
         repairTypeOverride.ignore_keyspaces = "testtest";
+        config.repair_type_overrides = new EnumMap<>(AutoRepairConfig.RepairType.class);
         config.repair_type_overrides.put(repairType, repairTypeOverride);
         config.global_settings = null;
         Options.defaultOptions.ignore_keyspaces = null;
