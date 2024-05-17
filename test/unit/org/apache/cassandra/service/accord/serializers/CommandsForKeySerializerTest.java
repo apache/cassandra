@@ -33,6 +33,7 @@ import java.util.function.IntSupplier;
 import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 
+import org.apache.commons.lang3.ArrayUtils;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -42,6 +43,7 @@ import accord.local.CommandsForKey;
 import accord.local.CommandsForKey.InternalStatus;
 import accord.local.Command;
 import accord.local.CommandsForKey.TxnInfo;
+import accord.local.CommandsForKey.Unmanaged;
 import accord.local.CommonAttributes;
 import accord.local.CommonAttributes.Mutable;
 import accord.local.Listeners;
@@ -59,6 +61,7 @@ import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.AccordGens;
+import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
 import accord.utils.SortedArrays;
@@ -465,12 +468,38 @@ public class CommandsForKeySerializerTest
                     next = txnIdGen.next(rs0);
                 return next;
             }).unique().ofSizeBetween(0, 10).next(rs);
+            Arrays.sort(ids, Comparator.naturalOrder());
             TxnInfo[] info = new TxnInfo[ids.length];
             for (int i = 0; i < info.length; i++)
                 info[i] = TxnInfo.create(ids[i], rs.pick(InternalStatus.values()), ids[i], CommandsForKey.NO_TXNIDS);
-            Arrays.sort(info, Comparator.naturalOrder());
 
-            CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk, info, CommandsForKey.NO_PENDING_UNMANAGED);
+            Gen<Unmanaged.Pending> pendingGen = Gens.enums().allMixedDistribution(Unmanaged.Pending.class).next(rs);
+
+            Unmanaged[] unmanaged = Gens.lists(txnIdGen)
+                                        .unique()
+                                        .ofSizeBetween(0, 10)
+                                        .map((rs0, txnIds) -> txnIds.stream().map(i -> new Unmanaged(pendingGen.next(rs0), i, i)).toArray(Unmanaged[]::new))
+                                        .next(rs);
+            Arrays.sort(unmanaged, Comparator.naturalOrder());
+            if (unmanaged.length > 0)
+            {
+                // when registering unmanaged, if the txn is "missing" in TxnInfo we add it
+                List<TxnInfo> missing = new ArrayList<>(unmanaged.length);
+                for (Unmanaged u : unmanaged)
+                {
+                    int idx = Arrays.binarySearch(ids, u.txnId);
+                    if (idx < 0)
+                        missing.add(TxnInfo.create(u.txnId, InternalStatus.TRANSITIVELY_KNOWN));
+                }
+                if (!missing.isEmpty())
+                {
+                    info = ArrayUtils.addAll(info, missing.toArray(TxnInfo[]::new));
+                    Arrays.sort(info, Comparator.naturalOrder());
+                }
+            }
+            else unmanaged = CommandsForKey.NO_PENDING_UNMANAGED;
+
+            CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk, info, unmanaged);
 
             ByteBuffer buffer = CommandsForKeySerializer.toBytesWithoutKey(expected);
             CommandsForKey roundTrip = CommandsForKeySerializer.fromBytes(pk, buffer);

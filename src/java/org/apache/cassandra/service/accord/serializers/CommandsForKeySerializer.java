@@ -385,15 +385,18 @@ public class CommandsForKeySerializer
             VIntCoding.writeUnsignedVInt32(unmanagedPendingCommitCount, out);
             VIntCoding.writeUnsignedVInt32(cfk.unmanagedCount() - unmanagedPendingCommitCount, out);
             Unmanaged.Pending pending = unmanagedPendingCommitCount == 0 ? Unmanaged.Pending.APPLY : Unmanaged.Pending.COMMIT;
-            for (int i = 0 ; i < cfk.unmanagedCount() ; ++i)
             {
-                Unmanaged unmanaged = cfk.getUnmanaged(i);
-                Invariants.checkState(unmanaged.pending == pending);
-                CommandSerializers.txnId.serialize(unmanaged.txnId, out, ByteBufferAccessor.instance, out.position());
-                out.position(out.position() + CommandSerializers.txnId.serializedSize());
-                CommandSerializers.timestamp.serialize(unmanaged.waitingUntil, out, ByteBufferAccessor.instance, out.position());
-                out.position(out.position() + CommandSerializers.timestamp.serializedSize());
-                if (--unmanagedPendingCommitCount == 0) pending = Unmanaged.Pending.APPLY;
+                int offset = 0;
+                for (int i = 0 ; i < cfk.unmanagedCount() ; ++i)
+                {
+                    Unmanaged unmanaged = cfk.getUnmanaged(i);
+                    Invariants.checkState(unmanaged.pending == pending);
+
+                    offset += CommandSerializers.txnId.serialize(unmanaged.txnId, out, ByteBufferAccessor.instance, offset);
+                    offset += CommandSerializers.timestamp.serialize(unmanaged.waitingUntil, out, ByteBufferAccessor.instance, offset);
+                    if (--unmanagedPendingCommitCount == 0) pending = Unmanaged.Pending.APPLY;
+                }
+                out.position(out.position() + offset);
             }
 
             if ((executeAtCount | missingIdCount) > 0)
@@ -610,15 +613,17 @@ public class CommandsForKeySerializer
         {
             unmanageds = new Unmanaged[unmanagedCount];
             Unmanaged.Pending pending = unmanagedPendingCommitCount == 0 ? Unmanaged.Pending.APPLY : Unmanaged.Pending.COMMIT;
+            int offset = 0;
             for (int i = 0 ; i < unmanagedCount ; ++i)
             {
-                TxnId txnId = CommandSerializers.txnId.deserialize(in, ByteBufferAccessor.instance, in.position());
-                in.position(in.position() + CommandSerializers.txnId.serializedSize());
-                Timestamp waitingUntil = CommandSerializers.timestamp.deserialize(in, ByteBufferAccessor.instance, in.position());
-                in.position(in.position() + CommandSerializers.timestamp.serializedSize());
+                TxnId txnId = CommandSerializers.txnId.deserialize(in, ByteBufferAccessor.instance, offset);
+                offset += CommandSerializers.txnId.serializedSize();
+                Timestamp waitingUntil = CommandSerializers.timestamp.deserialize(in, ByteBufferAccessor.instance, offset);
+                offset += CommandSerializers.timestamp.serializedSize();
                 unmanageds[i] = new Unmanaged(pending, txnId, waitingUntil);
                 if (--unmanagedPendingCommitCount == 0) pending = Unmanaged.Pending.APPLY;
             }
+            in.position(in.position() + offset);
         }
 
         if (executeAtMasks + missingDepsMasks > 0)
