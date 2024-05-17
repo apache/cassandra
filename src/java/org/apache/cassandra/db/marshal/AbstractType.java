@@ -467,11 +467,6 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return isMultiCell;
     }
 
-    public boolean isFreezable()
-    {
-        return false;
-    }
-
     /**
      * If the type is a multi-cell one ({@link #isMultiCell()} is true), returns a frozen copy of this type (one
      * for which {@link #isMultiCell()} returns false).
@@ -752,7 +747,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         // testAssignement is for CQL literals and native protocol values, none of which make a meaningful
         // difference between frozen or not and reversed or not.
 
-        if (isFreezable() && !isMultiCell())
+        if (!isMultiCell())
             receiverType = receiverType.freeze();
 
         if (isReversed() && !receiverType.isReversed())

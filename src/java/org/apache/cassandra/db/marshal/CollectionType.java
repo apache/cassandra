@@ -150,12 +150,6 @@ public abstract class CollectionType<T> extends MultiCellCapableType<T>
         return kind == Kind.MAP;
     }
 
-    @Override
-    public boolean isFreezable()
-    {
-        return true;
-    }
-
     // Overrided by maps
     protected int collectionSize(List<ByteBuffer> values)
     {
