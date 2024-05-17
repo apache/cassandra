@@ -298,7 +298,7 @@ public class UserType extends TupleType implements SchemaElement
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(keyspace, name, fieldNames, subTypes, isMultiCell);
+        return Objects.hashCode(super.hashCode(), keyspace, name, fieldNames);
     }
 
     @Override
@@ -332,12 +332,16 @@ public class UserType extends TupleType implements SchemaElement
     @Override
     public boolean equals(Object o)
     {
-        if (o.getClass() != UserType.class)
+        if (o == this)
+            return true;
+        if (o == null || o.getClass() != UserType.class)
+            return false;
+        if (!super.equals(o))
             return false;
 
-        UserType that = (UserType)o;
+        UserType that = (UserType) o;
 
-        return equalsWithoutTypes(that) && subTypes.equals(that.subTypes);
+        return equalsWithoutTypes(that);
     }
 
     private boolean equalsWithoutTypes(UserType other)

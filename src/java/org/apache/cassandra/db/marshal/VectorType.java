@@ -312,16 +312,20 @@ public final class VectorType<T> extends AbstractType<List<T>>
     @Override
     public boolean equals(Object o)
     {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        if (!super.equals(o))
+            return false;
         VectorType<?> that = (VectorType<?>) o;
-        return dimension == that.dimension && Objects.equals(elementType, that.elementType);
+        return dimension == that.dimension;
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(elementType, dimension);
+        return Objects.hash(super.hashCode(), dimension);
     }
 
     @Override

@@ -24,7 +24,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.regex.Pattern;
 
-import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.cql3.CQL3Type;
@@ -494,22 +493,6 @@ public class TupleType extends MultiCellCapableType<ByteBuffer>
                 return false;
         }
         return true;
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return Objects.hashCode(subTypes);
-    }
-
-    @Override
-    public boolean equals(Object o)
-    {
-        if (o.getClass() != TupleType.class)
-            return false;
-
-        TupleType that = (TupleType)o;
-        return subTypes.equals(that.subTypes);
     }
 
     @Override

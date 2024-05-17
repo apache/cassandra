@@ -643,8 +643,11 @@ public class DynamicCompositeType extends AbstractCompositeType
     @Override
     public boolean equals(Object o)
     {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+
         DynamicCompositeType that = (DynamicCompositeType) o;
         return aliases.equals(that.aliases);
     }

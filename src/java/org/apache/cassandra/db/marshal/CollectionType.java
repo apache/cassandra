@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableList;
@@ -233,32 +232,6 @@ public abstract class CollectionType<T> extends MultiCellCapableType<T>
     public CQL3Type asCQL3Type()
     {
         return new CQL3Type.Collection(this);
-    }
-
-    @Override
-    public boolean equals(Object o)
-    {
-        if (this == o)
-            return true;
-
-        if (!(o instanceof CollectionType))
-            return false;
-
-        CollectionType<?> other = (CollectionType<?>) o;
-
-        if (kind != other.kind)
-            return false;
-
-        if (isMultiCell() != other.isMultiCell())
-            return false;
-
-        return nameComparator().equals(other.nameComparator()) && valueComparator().equals(other.valueComparator());
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return Objects.hash(kind, isMultiCell(), nameComparator(), valueComparator());
     }
 
     @Override

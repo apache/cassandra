@@ -277,73 +277,45 @@ public class AbstractTypeTest
     }
 
     @Test
-    @SuppressWarnings({"rawtypes", "unchecked"})
     public void eqHashSafe()
     {
-        StringBuilder sb = new StringBuilder();
-        outter: for (Class<? extends AbstractType> type : reflections.getSubTypesOf(AbstractType.class))
-        {
-            if (Modifier.isAbstract(type.getModifiers()) || isTestType(type) || AbstractTypeGenerators.UNSUPPORTED.containsKey(type))
-                continue;
-            boolean hasEq = false;
-            boolean hasHashCode = false;
-            for (Class<? extends AbstractType> t = type; !t.equals(AbstractType.class); t = (Class<? extends AbstractType>) t.getSuperclass())
+        forEachTypesPair(true,(left, right) ->{
+            if (left.equals(right))
             {
-                try
+                assertThat(left.hashCode()).isEqualTo(right.hashCode());
+
+                assertThat(left.subTypes()).isEqualTo(right.subTypes());
+                assertThat(left.isMultiCell()).isEqualTo(right.isMultiCell());
+                assertThat(left.isCollection()).isEqualTo(right.isCollection());
+                assertThat(left.isUDT()).isEqualTo(right.isUDT());
+                assertThat(left.isTuple()).isEqualTo(right.isTuple());
+                assertThat(left.isCounter()).isEqualTo(right.isCounter());
+                assertThat(left.isReversed()).isEqualTo(right.isReversed());
+                assertThat(left.isVector()).isEqualTo(right.isVector());
+
+                if (left.isVector())
+                    assertThat(((VectorType) left).dimension).isEqualTo(((VectorType) right).dimension);
+
+                if (left.isUDT())
                 {
-                    t.getDeclaredMethod("getInstance");
-                    continue outter;
+                    assertThat(((UserType) left).name).isEqualTo(((UserType) right).name);
+                    assertThat(((UserType) left).keyspace).isEqualTo(((UserType) right).keyspace);
+                    assertThat(((UserType) left).fieldNames()).isEqualTo(((UserType) right).fieldNames());
                 }
-                catch (NoSuchMethodException e)
+
+                if (left.getClass() == CompositeType.class)
+                    assertThat(right.getClass()).isEqualTo(CompositeType.class);
+
+                if (left.getClass() == DynamicCompositeType.class)
                 {
-                    // ignore
+                    assertThat(right.getClass()).isEqualTo(DynamicCompositeType.class);
+                    assertThat(((DynamicCompositeType) left).aliases).isEqualTo(((DynamicCompositeType) right).aliases);
                 }
-                try
-                {
-                    t.getDeclaredField("instance");
-                    continue outter;
-                }
-                catch (NoSuchFieldException e)
-                {
-                    // ignore
-                }
-                try
-                {
-                    t.getDeclaredMethod("equals", Object.class);
-                    hasEq = true;
-                }
-                catch (NoSuchMethodException e)
-                {
-                    // ignore
-                }
-                try
-                {
-                    t.getDeclaredMethod("hashCode");
-                    hasHashCode = true;
-                }
-                catch (NoSuchMethodException e)
-                {
-                    // ignore
-                }
-                if (hasEq && hasHashCode)
-                    continue outter;
+
+                if (left.isCollection())
+                    assertThat(((CollectionType) left).kind).isEqualTo(((CollectionType) right).kind);
             }
-            sb.append("AbstractType must be safe for map keys, so must either be a singleton or define ");
-            if (!hasEq)
-                sb.append("equals");
-            if (!hasHashCode)
-            {
-                if (!hasEq)
-                    sb.append('/');
-                sb.append("hashCode");
-            }
-            sb.append("; ").append(type).append('\n');
-        }
-        if (sb.length() != 0)
-        {
-            sb.setLength(sb.length() - 1);
-            throw new AssertionError(sb.toString());
-        }
+        });
     }
 
     @Test

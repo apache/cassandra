@@ -449,21 +449,6 @@ public class CompositeType extends AbstractCompositeType
     }
 
     @Override
-    public boolean equals(Object o)
-    {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        CompositeType that = (CompositeType) o;
-        return subTypes.equals(that.subTypes);
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return Objects.hash(subTypes);
-    }
-
-    @Override
     public String toString()
     {
         return getClass().getName() + TypeParser.stringifyTypeParameters(subTypes);

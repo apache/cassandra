@@ -94,6 +94,8 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     public final boolean isMultiCell;
     public final ImmutableList<AbstractType<?>> subTypes;
 
+    private final int hashCode;
+
     protected AbstractType(ComparisonType comparisonType)
     {
         this(comparisonType, false, ImmutableList.of());
@@ -128,6 +130,8 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 
         comparatorSet = new ValueComparators((l, r) -> compare(l, ByteArrayAccessor.instance, r, ByteArrayAccessor.instance),
                                              (l, r) -> compare(l, ByteBufferAccessor.instance, r, ByteBufferAccessor.instance));
+
+        hashCode = Objects.hash(getClass(), isMultiCell, subTypes);
     }
 
     static <VL, VR, T extends Comparable<T>> int compareComposed(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR, AbstractType<T> type)
@@ -914,5 +918,22 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 
             return type.compose(buffer);
         }
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        AbstractType<?> that = (AbstractType<?>) o;
+        return isMultiCell == that.isMultiCell && Objects.equals(subTypes, that.subTypes);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return hashCode;
     }
 }
