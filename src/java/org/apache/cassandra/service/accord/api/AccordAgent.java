@@ -19,11 +19,10 @@
 package org.apache.cassandra.service.accord.api;
 
 import java.util.concurrent.TimeUnit;
+import javax.annotation.Nonnull;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import javax.annotation.Nonnull;
 
 import accord.api.Agent;
 import accord.api.EventsListener;
@@ -35,8 +34,9 @@ import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.Txn.Kind;
-import org.apache.cassandra.service.accord.AccordService;
+import accord.primitives.TxnId;
 import org.apache.cassandra.metrics.AccordMetrics;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.tcm.Epoch;
@@ -84,12 +84,12 @@ public class AccordAgent implements Agent
     }
 
     @Override
-    public void onLocalBarrier(@Nonnull Seekables<?, ?> keysOrRanges, @Nonnull Timestamp executeAt)
+    public void onLocalBarrier(@Nonnull Seekables<?, ?> keysOrRanges, @Nonnull TxnId txnId)
     {
         if (keysOrRanges.domain() == Key)
         {
             PartitionKey key = (PartitionKey)keysOrRanges.get(0);
-            maybeSaveAccordKeyMigrationLocally(key, Epoch.create(executeAt.epoch()));
+            maybeSaveAccordKeyMigrationLocally(key, Epoch.create(txnId.epoch()));
         }
     }
 

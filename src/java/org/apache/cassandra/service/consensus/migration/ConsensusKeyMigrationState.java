@@ -27,6 +27,8 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import accord.api.BarrierType;
 import accord.primitives.Seekables;
@@ -69,9 +71,7 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 import static org.apache.cassandra.net.Verb.CONSENSUS_KEY_MIGRATION;
-
 import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget.paxos;
-
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
@@ -84,6 +84,8 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  */
 public abstract class ConsensusKeyMigrationState
 {
+    private static final Logger logger = LoggerFactory.getLogger(ConsensusKeyMigrationState.class);
+
     /*
      * Used to notify other replicas when key migration has occurred so they can
      * also cache that the key migration was done
@@ -189,12 +191,14 @@ public abstract class ConsensusKeyMigrationState
 
     private static final CacheLoader<Pair<ByteBuffer, UUID>, ConsensusMigratedAt> LOADING_FUNCTION = k -> SystemKeyspace.loadConsensusKeyMigrationState(k.left, k.right);
     private static final Weigher<Pair<ByteBuffer, UUID>, ConsensusMigratedAt> WEIGHER_FUNCTION = (k, v) -> EMPTY_KEY_SIZE + Ints.checkedCast(ByteBufferUtil.estimatedSizeOnHeap(k.left)) + VALUE_SIZE;
-    private static final LoadingCache<Pair<ByteBuffer, UUID>, ConsensusMigratedAt> MIGRATION_STATE_CACHE =
-        Caffeine.newBuilder()
-                .maximumWeight(DatabaseDescriptor.getConsensusMigrationCacheSizeInMiB() << 20)
-                .weigher(WEIGHER_FUNCTION)
-                .executor(ImmediateExecutor.INSTANCE)
-                .build(LOADING_FUNCTION);
+
+    @VisibleForTesting
+    public static final LoadingCache<Pair<ByteBuffer, UUID>, ConsensusMigratedAt> MIGRATION_STATE_CACHE =
+            Caffeine.newBuilder()
+                    .maximumWeight(DatabaseDescriptor.getConsensusMigrationCacheSizeInMiB() << 20)
+                    .weigher(WEIGHER_FUNCTION)
+                    .executor(ImmediateExecutor.INSTANCE)
+                    .build(LOADING_FUNCTION);
 
     public static final IVerbHandler<ConsensusKeyMigrationFinished> consensusKeyMigrationFinishedHandler = message -> {
         saveConsensusKeyMigrationLocally(message.payload.partitionKey, message.payload.tableId, message.payload.consensusMigratedAt);
