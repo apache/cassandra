@@ -366,7 +366,7 @@ public class AccordService implements IAccordService, Shutdownable
         {
             logger.debug("Starting barrier key: {} epoch: {} barrierType: {} isForWrite {}", keysOrRanges, epoch, barrierType, isForWrite);
             txnId = node.nextTxnId(Kind.SyncPoint, keysOrRanges.domain());
-            AsyncResult<Timestamp> asyncResult = syncPoint == null
+            AsyncResult<TxnId> asyncResult = syncPoint == null
                                                  ? Barrier.barrier(node, keysOrRanges, epoch, barrierType)
                                                  : Barrier.barrier(node, keysOrRanges, epoch, barrierType, syncPoint);
             long deadlineNanos = queryStartNanos + timeoutNanos;
