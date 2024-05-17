@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.Sets;
 import org.junit.Before;
@@ -63,7 +64,12 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 import static org.apache.cassandra.repair.AutoRepairUtilsV2.RepairTurn.NOT_MY_TURN;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -80,6 +86,10 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
     ScheduledExecutorPlus mockExecutor;
     @Mock
     ProgressEvent progressEvent;
+    @Mock
+    AutoRepairState autoRepairState;
+    @Mock
+    RepairRunnable repairRunnable;
     private static AutoRepairConfig defaultConfig;
 
 
@@ -118,7 +128,8 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         defaultConfig = new AutoRepairConfig(true);
         DatabaseDescriptor.setMaterializedViewsEnabled(false);
         DatabaseDescriptor.setCDCEnabled(false);
-        for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values()) {
+        for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
+        {
             defaultConfig.setAutoRepairEnabled(repairType, true);
             defaultConfig.setMVRepairEnabled(repairType, false);
         }
@@ -148,7 +159,8 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         resetConfig();
     }
 
-    private void resetCounters() {
+    private void resetCounters()
+    {
         AutoRepairMetricsV2 metrics = AutoRepairMetricsManager.getMetrics(repairType);
         Metrics.removeMatching((name, metric) -> name.startsWith("repairTurn"));
         metrics.repairTurnMyTurn = Metrics.counter(String.format("repairTurnMyTurn-%s", repairType));
@@ -156,7 +168,8 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         metrics.repairTurnMyTurnDueToPriority = Metrics.counter(String.format("repairTurnMyTurnDueToPriority-%s", repairType));
     }
 
-    private void resetConfig() {
+    private void resetConfig()
+    {
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         config.repair_type_overrides = defaultConfig.repair_type_overrides;
         config.global_settings = defaultConfig.global_settings;
@@ -180,7 +193,7 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
 
         AutoRepairV2.instance.repairAsync(repairType, 60);
 
-        verify(mockExecutor, Mockito.times(1)).submit(Mockito.any(Runnable.class));
+        verify(mockExecutor, Mockito.times(1)).submit(any(Runnable.class));
     }
 
     @Test
@@ -418,8 +431,8 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         config.setRepairMinIntervalInHours(repairType, -1);
         config.setAutoRepairTableMaxRepairTimeInSec(repairType, 0);
         AutoRepairV2.timeFunc = () -> {
-                timeFuncCalls++;
-                return timeFuncCalls * 1000L;
+            timeFuncCalls++;
+            return timeFuncCalls * 1000L;
         };
         AutoRepairV2.instance.repairStates.get(repairType).setLastRepairTime(1000L);
 
@@ -433,12 +446,44 @@ public class AutoRepairV2ParameterizedTest extends CQLTester
         assertEquals(0, AutoRepairMetricsManager.getMetrics(repairType).longestUnrepairedSec.getValue().intValue());
 
         config.setAutoRepairTableMaxRepairTimeInSec(repairType, Long.MAX_VALUE);
-        when(progressEvent.getType()).thenReturn(ProgressEventType.ERROR);
-        AutoRepairV2.instance.repairStates.get(repairType).progress("", progressEvent);
+        AutoRepairV2.instance.repairStates.put(repairType, autoRepairState);
+        when(autoRepairState.getRepairRunnable(any(), any(), any(), anyBoolean()))
+        .thenReturn(repairRunnable);
+        when(autoRepairState.getRepairFailedTablesCount()).thenReturn(10);
+        when(autoRepairState.getLongestUnrepairedSec()).thenReturn(10);
 
         AutoRepairV2.instance.repair(repairType, 0);
         assertEquals(0, AutoRepairMetricsManager.getMetrics(repairType).skippedTablesCount.getValue().intValue());
         assertTrue(AutoRepairMetricsManager.getMetrics(repairType).failedTablesCount.getValue() > 0);
         assertTrue(AutoRepairMetricsManager.getMetrics(repairType).longestUnrepairedSec.getValue() > 0);
+    }
+
+    @Test
+    public void testRepairWaitsForRepairToFinishBeforeSchedullingNewSession() throws Exception
+    {
+        AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
+        config.setMVRepairEnabled(repairType, false);
+        when(autoRepairState.getRepairRunnable(any(), any(), any(), anyBoolean()))
+        .thenReturn(repairRunnable);
+        AutoRepairV2.instance.repairStates.put(repairType, autoRepairState);
+        when(autoRepairState.getLastRepairTime()).thenReturn((long) 0);
+        AtomicInteger resetWaitConditionCalls = new AtomicInteger();
+        AtomicInteger waitForRepairCompletedCalls = new AtomicInteger();
+        doAnswer(invocation -> {
+            resetWaitConditionCalls.getAndIncrement();
+            assertEquals("waitForRepairToComplete was called before resetWaitCondition",
+                         resetWaitConditionCalls.get(), waitForRepairCompletedCalls.get() + 1);
+            return null;
+        }).when(autoRepairState).resetWaitCondition();
+        doAnswer(invocation -> {
+            waitForRepairCompletedCalls.getAndIncrement();
+            assertEquals("resetWaitCondition was not called before waitForRepairToComplete",
+                         resetWaitConditionCalls.get(), waitForRepairCompletedCalls.get());
+            return null;
+        }).when(autoRepairState).waitForRepairToComplete();
+
+        AutoRepairV2.instance.repair(repairType, 0);
+        AutoRepairV2.instance.repair(repairType, 0);
+        AutoRepairV2.instance.repair(repairType, 0);
     }
 }

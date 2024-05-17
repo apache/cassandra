@@ -367,4 +367,16 @@ public class AutoRepairStateTest extends CQLTester
         state.waitForRepairToComplete();
         assertFalse(state.success);
     }
+
+    @Test
+    public void testResetWaitCondition()
+    {
+        AutoRepairState state = AutoRepairStateFactory.getAutoRepairState(repairType);
+        state.condition.signalAll();
+        assertTrue(state.condition.isSignalled());
+
+        state.resetWaitCondition();
+
+        assertFalse(state.condition.isSignalled());
+    }
 }

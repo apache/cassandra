@@ -85,7 +85,7 @@ public abstract class AutoRepairState implements ProgressListener
     @VisibleForTesting
     protected AutoRepairUtilsV2.AutoRepairHistory longestUnrepairedNode;
     @VisibleForTesting
-    protected final Condition condition = newOneTimeCondition();
+    protected Condition condition = newOneTimeCondition();
     @VisibleForTesting
     protected boolean success = true;
     protected final AutoRepairMetricsV2 metrics;
@@ -262,6 +262,11 @@ public abstract class AutoRepairState implements ProgressListener
     public void recordTurn(AutoRepairUtilsV2.RepairTurn turn)
     {
         metrics.recordTurn(turn);
+    }
+
+    public void resetWaitCondition()
+    {
+        condition = newOneTimeCondition();
     }
 }
 
