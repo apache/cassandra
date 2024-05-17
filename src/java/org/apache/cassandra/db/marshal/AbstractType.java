@@ -465,14 +465,22 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return false;
     }
 
+    /**
+     * If the type is a multi-cell one ({@link #isMultiCell()} is true), returns a frozen copy of this type (one
+     * for which {@link #isMultiCell()} returns false).
+     * <p>
+     * Note that as mentioned on {@link #isMultiCell()}, a frozen type necessarily has all its subtypes frozen, so
+     * this method also ensures that no subtypes (recursively) are marked as multi-cell.
+     *
+     * @return a frozen version of this type. If this type is not multi-cell (whether because it is not a "complex"
+     * type, or because it is already a frozen one), this should return {@code this}.
+     */
     public AbstractType<?> freeze()
     {
-        return this;
-    }
+        if (!isMultiCell())
+            return this;
 
-    public AbstractType<?> unfreeze()
-    {
-        return this;
+        return with(freeze(subTypes()), false);
     }
 
     /**
@@ -511,19 +519,6 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     public final ImmutableList<AbstractType<?>> subTypes()
     {
         return subTypes;
-    }
-
-    /**
-     * Returns an AbstractType instance that is equivalent to this one, but with all nested UDTs and collections
-     * explicitly frozen.
-     *
-     * This is only necessary for {@code 2.x -> 3.x} schema migrations, and can be removed in Cassandra 4.0.
-     *
-     * See CASSANDRA-11609 and CASSANDRA-11613.
-     */
-    public AbstractType<?> freezeNestedMulticellTypes()
-    {
-        return this;
     }
 
     /**

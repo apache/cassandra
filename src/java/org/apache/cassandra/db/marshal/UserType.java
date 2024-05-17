@@ -26,7 +26,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
@@ -293,27 +292,7 @@ public class UserType extends TupleType implements SchemaElement
     @Override
     public UserType freeze()
     {
-        return isMultiCell ? new UserType(keyspace, name, fieldNames, fieldTypes(), false) : this;
-    }
-
-    @Override
-    public UserType unfreeze()
-    {
-        return isMultiCell ? this : new UserType(keyspace, name, fieldNames, fieldTypes(), true);
-    }
-
-    @Override
-    public AbstractType<?> freezeNestedMulticellTypes()
-    {
-        if (!isMultiCell())
-            return this;
-
-        // the behavior here doesn't exactly match the method name: we want to freeze everything inside of UDTs
-        List<AbstractType<?>> newTypes = fieldTypes().stream()
-                .map(subtype -> (subtype.isFreezable() && subtype.isMultiCell() ? subtype.freeze() : subtype))
-                .collect(Collectors.toList());
-
-        return new UserType(keyspace, name, fieldNames, ImmutableList.copyOf(newTypes), isMultiCell);
+        return (UserType) super.freeze();
     }
 
     @Override

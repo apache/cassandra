@@ -596,7 +596,7 @@ public final class AbstractTypeGenerators
                 byte alias = aliasGen.generate(rnd);
                 while (aliases.containsKey(alias))
                     alias = aliasGen.generate(rnd);
-                aliases.put(alias, typeGen.generate(rnd).unfreeze());
+                aliases.put(alias, unfreeze(typeGen.generate(rnd)));
             }
             return DynamicCompositeType.getInstance(aliases);
         };
@@ -734,7 +734,7 @@ public final class AbstractTypeGenerators
                 fieldNames.add(fieldName);
 
                 AbstractType<?> element = elementGen.generate(rnd);
-                element = multiCell ? element.freeze() : element.unfreeze();
+                element = multiCell ? element.freeze() : unfreeze(element);
                 // a UDT cannot contain a non-frozen UDT; as defined by CreateType
                 if (element.isUDT())
                     element = element.freeze();

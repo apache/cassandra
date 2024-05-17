@@ -271,7 +271,7 @@ public class AbstractTypeTest
             // org.apache.cassandra.db.marshal.AbstractType.comparatorSet needs to match the serializer, but when serialziers
             // break this mapping they may cause the wrong comparator (happened in cases like uuid and lexecal uuid; which have different orderings!).
             // Frozen types (as of this writing) do not change the sort ordering, so this simplification is fine...
-            if (old != null && !old.unfreeze().equals(t.unfreeze()))
+            if (old != null && !unfreeze(old).equals(unfreeze(t)))
                 throw new AssertionError(String.format("Different types detected that shared the same serializer: %s != %s", old.asCQL3Type(), t.asCQL3Type()));
         });
     }
@@ -679,7 +679,7 @@ public class AbstractTypeTest
             return Types.none();
         Types.Builder builder = Types.builder();
         for (UserType udt : udts)
-            builder.add(udt.unfreeze());
+            builder.add((UserType) unfreeze(udt));
         return builder.build();
     }
 
@@ -1164,7 +1164,7 @@ public class AbstractTypeTest
                     {
                         assertions.assertThat(l.freeze()).isSameAs(l);
                         assertions.assertThat(unfreeze(l)).isSameAs(l);
-                        assertions.assertThat(unfreeze(l)).isEqualTo(l.unfreeze());
+                        assertions.assertThat(unfreeze(l)).isEqualTo(unfreeze(l));
                     }
                 }
 
