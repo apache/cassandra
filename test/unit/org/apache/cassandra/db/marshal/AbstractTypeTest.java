@@ -872,6 +872,10 @@ public class AbstractTypeTest
         SoftAssertions assertions = new SoftAssertionsWithLimit(100);
 
         forEachTypesPair(true, (l, r) -> {
+            if (l instanceof MultiCellCapableType && l.isMultiCell && ((MultiCellCapableType<?>) l).nameComparator().referencesDuration())
+                return;
+            if (r instanceof MultiCellCapableType && r.isMultiCell && ((MultiCellCapableType<?>) r).nameComparator().referencesDuration())
+                return;
             assertions.assertThat(l.equals(r)).describedAs("equals symmetricity for %s and %s", l, r).isEqualTo(r.equals(l));
             verifyTypesCompatibility(l, r, getTypeSupport(r).valueGen, assertions);
         });

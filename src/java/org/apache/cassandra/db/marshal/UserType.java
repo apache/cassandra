@@ -175,11 +175,6 @@ public class UserType extends TupleType implements SchemaElement
         return CellPath.create(ByteBufferUtil.bytes((short)fieldPosition(fieldName)));
     }
 
-    public ShortType nameComparator()
-    {
-        return ShortType.instance;
-    }
-
     public ByteBuffer serializeForNativeProtocol(Iterator<Cell<?>> cells, ProtocolVersion protocolVersion)
     {
         assert isMultiCell;

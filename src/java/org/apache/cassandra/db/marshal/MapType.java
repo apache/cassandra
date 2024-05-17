@@ -101,6 +101,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
         return values;
     }
 
+    @Override
     public AbstractType<K> nameComparator()
     {
         return keys;

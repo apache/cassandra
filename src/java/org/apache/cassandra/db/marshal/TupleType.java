@@ -48,7 +48,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
  * This is essentially like a CompositeType, but it's not primarily meant for comparison, just
  * to pack multiple values together so has a more friendly encoding.
  */
-public class TupleType extends AbstractType<ByteBuffer>
+public class TupleType extends MultiCellCapableType<ByteBuffer>
 {
     private static final String COLON = ":";
     private static final Pattern COLON_PAT = Pattern.compile(COLON);
@@ -95,6 +95,12 @@ public class TupleType extends AbstractType<ByteBuffer>
     public TupleType with(ImmutableList<AbstractType<?>> subTypes, boolean isMultiCell)
     {
         return new TupleType(freeze(subTypes), isMultiCell);
+    }
+
+    @Override
+    public ShortType nameComparator()
+    {
+        return ShortType.instance;
     }
 
     public AbstractType<?> type(int i)

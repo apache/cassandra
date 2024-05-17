@@ -89,6 +89,7 @@ public class SetType<T> extends CollectionType<Set<T>>
         return elements;
     }
 
+    @Override
     public AbstractType<T> nameComparator()
     {
         return elements;
