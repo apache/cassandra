@@ -99,12 +99,12 @@ public class AccordIncrementalRepairTest extends AccordTestBase
         private final List<ExecutedBarrier> barriers = new ArrayList<>();
 
         @Override
-        public void onLocalBarrier(@Nonnull Seekables<?, ?> keysOrRanges, @Nonnull Timestamp executeAt)
+        public void onLocalBarrier(@Nonnull Seekables<?, ?> keysOrRanges, @Nonnull TxnId txnId)
         {
-            super.onLocalBarrier(keysOrRanges, executeAt);
+            super.onLocalBarrier(keysOrRanges, txnId);
             synchronized (barriers)
             {
-                barriers.add(new ExecutedBarrier(keysOrRanges, executeAt));
+                barriers.add(new ExecutedBarrier(keysOrRanges, txnId));
             }
         }
 
