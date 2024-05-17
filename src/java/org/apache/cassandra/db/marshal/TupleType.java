@@ -44,9 +44,6 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
-import static com.google.common.collect.Iterables.any;
-import static com.google.common.collect.Iterables.transform;
-
 /**
  * This is essentially like a CompositeType, but it's not primarily meant for comparison, just
  * to pack multiple values together so has a more friendly encoding.
@@ -98,32 +95,6 @@ public class TupleType extends AbstractType<ByteBuffer>
     public TupleType with(ImmutableList<AbstractType<?>> subTypes, boolean isMultiCell)
     {
         return new TupleType(freeze(subTypes), isMultiCell);
-    }
-
-    @Override
-    public <V> boolean referencesUserType(V name, ValueAccessor<V> accessor)
-    {
-        return any(subTypes, t -> t.referencesUserType(name, accessor));
-    }
-
-    @Override
-    public TupleType withUpdatedUserType(UserType udt)
-    {
-        return referencesUserType(udt.name)
-             ? new TupleType(ImmutableList.copyOf(transform(subTypes, t -> t.withUpdatedUserType(udt))))
-             : this;
-    }
-
-    @Override
-    public AbstractType<?> expandUserTypes()
-    {
-        return new TupleType(ImmutableList.copyOf(transform(subTypes, AbstractType::expandUserTypes)));
-    }
-
-    @Override
-    public boolean referencesDuration()
-    {
-        return subTypes().stream().anyMatch(AbstractType::referencesDuration);
     }
 
     public AbstractType<?> type(int i)

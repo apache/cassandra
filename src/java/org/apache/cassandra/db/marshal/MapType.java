@@ -91,36 +91,6 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
         return getInstance((AbstractType<K>)subTypes.get(0), (AbstractType<V>)subTypes.get(1), isMultiCell);
     }
 
-    @Override
-    public <T> boolean referencesUserType(T name, ValueAccessor<T> accessor)
-    {
-        return keys.referencesUserType(name, accessor) || values.referencesUserType(name, accessor);
-    }
-
-    @Override
-    public MapType<?,?> withUpdatedUserType(UserType udt)
-    {
-        if (!referencesUserType(udt.name))
-            return this;
-
-        (isMultiCell ? instances : frozenInstances).remove(Pair.create(keys, values));
-
-        return getInstance(keys.withUpdatedUserType(udt), values.withUpdatedUserType(udt), isMultiCell);
-    }
-
-    @Override
-    public AbstractType<?> expandUserTypes()
-    {
-        return getInstance(keys.expandUserTypes(), values.expandUserTypes(), isMultiCell);
-    }
-
-    @Override
-    public boolean referencesDuration()
-    {
-        // Maps cannot be created with duration as keys
-        return getValuesType().referencesDuration();
-    }
-
     public AbstractType<K> getKeysType()
     {
         return keys;

@@ -75,41 +75,12 @@ public class ListType<T> extends CollectionType<List<T>>
     }
 
     @Override
-    public <V> boolean referencesUserType(V name, ValueAccessor<V> accessor)
-    {
-        return elements.referencesUserType(name, accessor);
-    }
-
-    @Override
     @SuppressWarnings("unchecked")
     public ListType<T> with(ImmutableList<AbstractType<?>> subTypes, boolean isMultiCell)
     {
         Preconditions.checkArgument(subTypes.size() == 1,
                                     "Invalid number of subTypes for ListType (got %s)", subTypes.size());
         return getInstance((AbstractType<T>) subTypes.get(0), isMultiCell);
-    }
-
-    @Override
-    public ListType<?> withUpdatedUserType(UserType udt)
-    {
-        if (!referencesUserType(udt.name))
-            return this;
-
-        (isMultiCell ? instances : frozenInstances).remove(elements);
-
-        return getInstance(elements.withUpdatedUserType(udt), isMultiCell);
-    }
-
-    @Override
-    public AbstractType<?> expandUserTypes()
-    {
-        return getInstance(elements.expandUserTypes(), isMultiCell);
-    }
-
-    @Override
-    public boolean referencesDuration()
-    {
-        return getElementsType().referencesDuration();
     }
 
     public AbstractType<T> getElementsType()

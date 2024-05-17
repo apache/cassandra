@@ -52,6 +52,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 import org.github.jamm.Unmetered;
 
+import static com.google.common.collect.Iterables.transform;
 import static org.apache.cassandra.db.marshal.AbstractType.ComparisonType.CUSTOM;
 
 /**
@@ -687,9 +688,14 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return referencesUserType(name, ByteBufferAccessor.instance);
     }
 
+    /**
+     * Returns true if this type is or references a user type with provided name.
+     */
     public <V> boolean referencesUserType(V name, ValueAccessor<V> accessor)
     {
-        return false;
+        // Note that non-complex types have no subtypes, so will return false, and UserType overrides this to return
+        // true if the provided name matches.
+        return subTypes().stream().anyMatch(t -> t.referencesUserType(name, accessor));
     }
 
     /**
@@ -698,23 +704,42 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
      */
     public AbstractType<?> withUpdatedUserType(UserType udt)
     {
-        return this;
+        if (!referencesUserType(udt.name))
+            return this;
+
+        ImmutableList.Builder<AbstractType<?>> builder = ImmutableList.builder();
+        for (AbstractType<?> subType : subTypes)
+            builder.add(subType.withUpdatedUserType(udt));
+
+        return with(builder.build(), isMultiCell());
+    }
+
+    /**
+     * Whether this type is or contains any UDT.
+     */
+    public final boolean referencesUserTypes()
+    {
+        return isUDT() || subTypes().stream().anyMatch(AbstractType::referencesUserTypes);
     }
 
     /**
      * Replace any instances of UserType with equivalent TupleType-s.
-     *
+     * <p>
      * We need it for dropped_columns, to allow safely dropping unused user types later without retaining any references
      * to them in system_schema.dropped_columns.
      */
     public AbstractType<?> expandUserTypes()
     {
-        return this;
+        return referencesUserTypes()
+               ? with(ImmutableList.copyOf(transform(subTypes, AbstractType::expandUserTypes)), isMultiCell())
+               : this;
     }
 
     public boolean referencesDuration()
     {
-        return false;
+        // Note that non-complex types have no subtypes, so will return false, and DurationType overrides this to return
+        // true.
+        return subTypes().stream().anyMatch(AbstractType::referencesDuration);
     }
 
     /**

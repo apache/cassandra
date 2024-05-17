@@ -76,35 +76,12 @@ public class SetType<T> extends CollectionType<Set<T>>
     }
 
     @Override
-    public <V> boolean referencesUserType(V name, ValueAccessor<V> accessor)
-    {
-        return elements.referencesUserType(name, accessor);
-    }
-
-    @Override
     @SuppressWarnings("unchecked")
     public SetType<T> with(ImmutableList<AbstractType<?>> subTypes, boolean isMultiCell)
     {
         Preconditions.checkArgument(subTypes.size() == 1,
                                     "Invalid number of subTypes for SetType (got %s)", subTypes.size());
         return getInstance((AbstractType<T>) subTypes.get(0), isMultiCell);
-    }
-
-    @Override
-    public SetType<?> withUpdatedUserType(UserType udt)
-    {
-        if (!referencesUserType(udt.name))
-            return this;
-
-        (isMultiCell ? instances : frozenInstances).remove(elements);
-
-        return getInstance(elements.withUpdatedUserType(udt), isMultiCell);
-    }
-
-    @Override
-    public AbstractType<?> expandUserTypes()
-    {
-        return getInstance(elements.expandUserTypes(), isMultiCell);
     }
 
     public AbstractType<T> getElementsType()

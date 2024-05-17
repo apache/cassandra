@@ -38,9 +38,6 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable.Version;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
-import static com.google.common.collect.Iterables.any;
-import static com.google.common.collect.Iterables.transform;
-
 /*
  * The encoding of a CompositeType column name should be:
  *   <component><component><component> ...
@@ -420,29 +417,6 @@ public class CompositeType extends AbstractCompositeType
                 return false;
         }
         return true;
-    }
-
-    @Override
-    public <V> boolean referencesUserType(V name, ValueAccessor<V> accessor)
-    {
-        return any(subTypes, t -> t.referencesUserType(name, accessor));
-    }
-
-    @Override
-    public CompositeType withUpdatedUserType(UserType udt)
-    {
-        if (!referencesUserType(udt.name))
-            return this;
-
-        instances.remove(subTypes);
-
-        return getInstance(transform(subTypes, t -> t.withUpdatedUserType(udt)));
-    }
-
-    @Override
-    public AbstractType<?> expandUserTypes()
-    {
-        return getInstance(transform(subTypes, AbstractType::expandUserTypes));
     }
 
     private static class StaticParsedComparator implements ParsedComparator

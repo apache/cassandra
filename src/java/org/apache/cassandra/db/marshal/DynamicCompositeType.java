@@ -54,8 +54,6 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable.Version;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
-import static com.google.common.collect.Iterables.any;
-
 /*
  * The encoding of a DynamicCompositeType column name should be:
  *   <component><component><component> ...
@@ -559,29 +557,6 @@ public class DynamicCompositeType extends AbstractCompositeType
                 return false;
         }
         return true;
-    }
-
-    @Override
-    public <V> boolean referencesUserType(V name, ValueAccessor<V> accessor)
-    {
-        return any(aliases.values(), t -> t.referencesUserType(name, accessor));
-    }
-
-    @Override
-    public DynamicCompositeType withUpdatedUserType(UserType udt)
-    {
-        if (!referencesUserType(udt.name))
-            return this;
-
-        instances.remove(aliases);
-
-        return getInstance(Maps.transformValues(aliases, v -> v.withUpdatedUserType(udt)));
-    }
-
-    @Override
-    public AbstractType<?> expandUserTypes()
-    {
-        return getInstance(Maps.transformValues(aliases, v -> v.expandUserTypes()));
     }
 
     private class DynamicParsedComparator implements ParsedComparator

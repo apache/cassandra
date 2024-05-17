@@ -171,29 +171,6 @@ public class ReversedType<T> extends AbstractType<T>
     }
 
     @Override
-    public <V> boolean referencesUserType(V name, ValueAccessor<V> accessor)
-    {
-        return baseType.referencesUserType(name, accessor);
-    }
-
-    @Override
-    public AbstractType<?> expandUserTypes()
-    {
-        return getInstance(baseType.expandUserTypes());
-    }
-
-    @Override
-    public ReversedType<?> withUpdatedUserType(UserType udt)
-    {
-        if (!referencesUserType(udt.name))
-            return this;
-
-        instances.remove(baseType);
-
-        return getInstance(baseType.withUpdatedUserType(udt));
-    }
-
-    @Override
     public int valueLengthIfFixed()
     {
         return baseType.valueLengthIfFixed();
