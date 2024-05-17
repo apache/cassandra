@@ -71,8 +71,6 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 {
     private final static int VARIABLE_LENGTH = -1;
 
-    public final Comparator<ByteBuffer> reverseComparator;
-
     public enum ComparisonType
     {
         /**
@@ -110,7 +108,6 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         this.comparisonType = comparisonType;
         this.subTypes = subTypes;
         this.isByteOrderComparable = comparisonType == ComparisonType.BYTE_ORDER;
-        reverseComparator = (o1, o2) -> AbstractType.this.compare(o2, o1);
 
         // A frozen type can only have frozen subtypes, basically by definition. So make sure we don't mess it up
         // when constructing types by forgetting to set some multi-cell flag.
