@@ -266,10 +266,11 @@ public class CompactionController extends AbstractCompactionController
         {
             if (memtable.getMinTimestamp() != Memtable.NO_MIN_TIMESTAMP)
             {
-                if (memtable.rowIterator(key) != null)
-                {
-                    minTimestampSeen = Math.min(minTimestampSeen, memtable.getMinTimestamp());
-                    hasTimestamp = true;
+                try (UnfilteredRowIterator iterator = memtable.rowIterator(key)) {
+                    if (iterator != null) {
+                        minTimestampSeen = Math.min(minTimestampSeen, memtable.getMinTimestamp());
+                        hasTimestamp = true;
+                    }
                 }
             }
         }

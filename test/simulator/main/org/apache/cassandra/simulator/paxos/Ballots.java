@@ -192,10 +192,11 @@ public class Ballots
     private static Row getRow(DecoratedKey key, TableMetadata metadata, ColumnFamilyStore paxos, Memtable memtable)
     {
         final ClusteringComparator comparator = paxos.metadata.get().comparator;
-        UnfilteredRowIterator iter = memtable.rowIterator(key, Slices.with(comparator, Slice.make(comparator.make(metadata.id))), ColumnFilter.NONE, false, SSTableReadsListener.NOOP_LISTENER);
-        if (iter == null || !iter.hasNext())
-            return null;
-        return (Row) iter.next();
+        try (UnfilteredRowIterator iter = memtable.rowIterator(key, Slices.with(comparator, Slice.make(comparator.make(metadata.id))), ColumnFilter.NONE, false, SSTableReadsListener.NOOP_LISTENER)) {
+            if (iter == null || !iter.hasNext())
+                return null;
+            return (Row) iter.next();
+        }
     }
 
     public static long latestBallotFromBaseTable(DecoratedKey key, TableMetadata metadata)
