@@ -1084,7 +1084,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                           : ((BootstrapAndReplace)sequence).finishJoiningRing().executeNext().isContinuable();
 
         if (!success)
-            throw new RuntimeException(String.format("Could not perform next step of joining the ring {}, " +
+            throw new RuntimeException(String.format("Could not perform next step of joining the ring %s, " +
                                                      "restart this node and inflight operations will attempt to complete. " +
                                                      "If no progress is made, cancel the join process for this node and retry",
                                                      next));
