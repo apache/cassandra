@@ -194,7 +194,7 @@ public class GossipHelper
             return new HashSet<>(((Move)sequence).tokens);
 
         throw new IllegalArgumentException(String.format("Extracting tokens from %s sequence is " +
-                                                         "neither necessary nor supported here"));
+                                                         "neither necessary nor supported here", sequence));
     }
 
     private static Collection<Token> getTokensIn(IPartitioner partitioner, EndpointState epState)
