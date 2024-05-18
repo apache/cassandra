@@ -193,8 +193,8 @@ public class GossipHelper
         else if (sequence.kind() == MultiStepOperation.Kind.MOVE)
             return new HashSet<>(((Move)sequence).tokens);
 
-        throw new IllegalArgumentException(String.format("Extracting tokens from %s sequence is " +
-                                                         "neither necessary nor supported here"));
+        throw new IllegalArgumentException(String.format("Extracting tokens from %s sequence is neither necessary nor supported here",
+                                                         sequence.kind()));
     }
 
     private static Collection<Token> getTokensIn(IPartitioner partitioner, EndpointState epState)

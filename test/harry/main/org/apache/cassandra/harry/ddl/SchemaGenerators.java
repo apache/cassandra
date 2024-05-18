@@ -485,7 +485,7 @@ public class SchemaGenerators
         {
             ColumnSpec.DataType<?> type = nameToTypeMap.get(e.getValue());
             assert type != null : "Can't parse the type";
-            assert allowReverse || !type.isReversed() : String.format("%s columns aren't allowed to be reversed");
+            assert allowReverse || !type.isReversed() : String.format("%s columns aren't allowed to be reversed", type);
             columns.add(new ColumnSpec<>(e.getKey(), type, kind));
         }
 
